@@ -84,7 +84,7 @@ class iBot(BotAI):
 
     async def on_step(self, iteration: int):
 
-        if 2 <= self.townhalls.amount:
+        if 2 <= self.townhalls.ready.amount:
             if type(self.strategy) is not ZergMacro:
                 self.strategy = ZergMacro()
 
@@ -137,9 +137,10 @@ class iBot(BotAI):
 
         tumors = self.structures(UnitTypeId.CREEPTUMORBURROWED).ready
         if tumors.exists:
-            tumor = tumors.random
-            if AbilityId.BUILD_CREEPTUMOR_TUMOR in await self.get_available_abilities(tumor):
-                await self.buildCreepTumor(tumor)
+            for _ in range(min(tumors.amount, 5)):
+                tumor = tumors.random
+                if AbilityId.BUILD_CREEPTUMOR_TUMOR in await self.get_available_abilities(tumor):
+                    await self.buildCreepTumor(tumor)
 
         queens = self.units(UnitTypeId.QUEEN)
         hatcheries = sorted(self.townhalls, key=lambda h: h.tag)
@@ -173,7 +174,7 @@ class iBot(BotAI):
             UnitTypeId.CARRIER,
             UnitTypeId.OBSERVER })
 
-        enemyArmy = filterArmy(self.enemy_units | self.enemy_structures)
+        enemyArmy = self.enemy_units
 
         armyRatio = (1 + armyValue(filterArmy(army))) / (1 + armyValue(filterArmy(enemyArmy)))
 
@@ -182,6 +183,9 @@ class iBot(BotAI):
 
         if not enemyArmy.exists:
             enemyArmy = self.enemy_units | self.enemy_structures
+
+        # if destroyRocks:
+        #     print("destroyRocks")
 
         neutrals = {}
 
@@ -254,19 +258,19 @@ class iBot(BotAI):
         overlords = self.units(UnitTypeId.OVERLORD).idle
         if overlords.exists:
             overlord = overlords.random
-            # bases = [
-            #     p for p in self.expansion_locations_list
-            #     if (lambda p: p.distance_to(self.start_location) < p.distance_to(self.enemy_start_locations[0]))
-            # ]
-            # p = [
-            #     (bias + b.distance_to(self.enemy_start_locations[0])) / (bias + b.distance_to(self.start_location))
-            #     for b in bases
-            # ]
-            # ps = sum(p)
-            # p = [pi / ps for pi in p]
-            # bi = np.random.choice(range(len(bases)), p=p)
-            # target = bases[bi]
-            target = self.getScoutTarget()
+            bases = [
+                p for p in self.expansion_locations_list
+                if (lambda p: p.distance_to(self.start_location) < p.distance_to(self.enemy_start_locations[0]))
+            ]
+            p = [
+                (bias + b.distance_to(self.enemy_start_locations[0])) / (bias + b.distance_to(self.start_location))
+                for b in bases
+            ]
+            ps = sum(p)
+            p = [pi / ps for pi in p]
+            bi = np.random.choice(range(len(bases)), p=p)
+            target = bases[bi]
+            # target = self.getScoutTarget()
             overlord.move(target)
 
     def isStructure(self, unit):

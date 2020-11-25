@@ -39,9 +39,9 @@ class Zerg12Pool(BotStrategy):
 
         if 14 == bot.supply_used and bot.count(UnitTypeId.OVERLORD) < 2:
             macroTargets.append(UnitTypeId.OVERLORD)
-        elif 22 == bot.supply_used and bot.count(UnitTypeId.OVERLORD) < 3:
-            macroTargets.append(UnitTypeId.OVERLORD)
-        elif 22 < bot.supply_used and bot.count(UnitTypeId.OVERLORD) < bot.getSupplyTarget():
+        # elif 22 == bot.supply_used and bot.count(UnitTypeId.OVERLORD) < 3:
+        #     macroTargets.append(UnitTypeId.OVERLORD)
+        elif 14 <= bot.supply_cap and bot.count(UnitTypeId.OVERLORD) < bot.getSupplyTarget():
             macroTargets.append(UnitTypeId.OVERLORD)
 
         if bot.count(UnitTypeId.QUEEN) < min(5, bot.townhalls.amount):
@@ -61,7 +61,7 @@ class Zerg12Pool(BotStrategy):
             unitTarget = [UnitTypeId.ZERGLING]
 
         expandTarget = []
-        if 19 <= bot.supply_used and bot.already_pending(UnitTypeId.HATCHERY) == 0:
+        if 19 <= bot.supply_used and bot.already_pending(UnitTypeId.HATCHERY) < 2:
             expandTarget.append(UnitTypeId.HATCHERY)
 
         return upgradeTargets + macroTargets + unitTarget + expandTarget

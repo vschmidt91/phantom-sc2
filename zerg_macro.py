@@ -13,7 +13,7 @@ class ZergMacro(BotStrategy):
         
     async def on_step(self, bot, iteration):
         await bot.microQueens()
-        bot.moveOverlord()
+        # bot.moveOverlord()
         self.harvestGas = not bot.already_pending(UpgradeId.ZERGLINGMOVEMENTSPEED) or (UpgradeId.ZERGLINGMOVEMENTSPEED in bot.state.upgrades and 3 <= bot.townhalls.amount)
         await bot.changelingScout()
 
@@ -114,7 +114,7 @@ class ZergMacro(BotStrategy):
         if bot.count(UnitTypeId.QUEEN) < min(5, bot.townhalls.amount):
             macroTargets.append(UnitTypeId.QUEEN)
 
-        if bot.count(UnitTypeId.OVERSEER) == 0:
+        if bot.count(UnitTypeId.OVERSEER) < 2:
             macroTargets.append(UnitTypeId.OVERSEER)
 
         unitTarget = []
