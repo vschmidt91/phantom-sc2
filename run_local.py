@@ -5,7 +5,7 @@ import sc2
 from sc2 import Race, Difficulty, AIBuild
 from sc2.player import Bot, Computer, Player, Human
 
-from suntzu import iBot
+from suntzu import SunTzuBot
 
 def main():
     time = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
@@ -15,7 +15,7 @@ def main():
         sc2.maps.get("OxideLE"),
         [
             # Bot(Race.Zerg, iBot(rush=False)),
-            Bot(Race.Zerg, iBot(rush=True)),
+            Bot(Race.Zerg, SunTzuBot(rush=True)),
             Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Rush)
         ],
         realtime=True,

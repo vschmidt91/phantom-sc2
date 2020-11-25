@@ -6,8 +6,6 @@ from utils import CHANGELINGS, armyValue, center, doChain, filterArmy, hasCapaci
 import numpy as np
 from sc2.position import Point2
 
-import inspect
-
 from sc2 import Race, BotAI
 from sc2.constants import ALL_GAS
 from sc2.ids.unit_typeid import UnitTypeId
@@ -45,7 +43,7 @@ TOWNHALL = {
     Race.Zerg: UnitTypeId.HATCHERY,
 }
 
-class iBot(BotAI):
+class SunTzuBot(BotAI):
 
     strategy: BotStrategy
 
