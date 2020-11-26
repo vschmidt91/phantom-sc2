@@ -47,17 +47,15 @@ class SunTzuBot(BotAI):
 
     strategy: BotStrategy
 
-    def __init__(self, rush: bool):
+    def __init__(self, rush: bool = None):
         self.raw_affects_selection = True
-        self.rush = rush
+        if rush is None:
+            self.rush = random.random() < .5
+        else:
+            self.rush = rush
 
     async def on_before_start(self):
-        if self.race == Race.Zerg:
-            if self.rush:
-                self.strategy = Zerg12Pool()
-            else:
-                self.strategy = ZergMacro()
-        await self.strategy.on_before_start(self)
+        pass
 
     async def on_building_construction_complete(self, unit: Unit):
         if unit.type_id in race_townhalls[self.race] and self.mineral_field.exists:
@@ -78,13 +76,24 @@ class SunTzuBot(BotAI):
         await self.strategy.on_enemy_unit_left_vision(self, unit_tag)
 
     async def on_start(self):
+        await self.chat_send("(glhf)")
+        if self.race == Race.Zerg:
+            if self.rush:
+                await self.setStrategy(Zerg12Pool())
+            else:
+                await self.setStrategy(ZergMacro())
+        self.mapSize = max((self.start_location.distance_to(b) for b in self.enemy_start_locations))
         await self.strategy.on_start(self)
+
+    async def setStrategy(self, strategy):
+        self.strategy = strategy
+        await self.chat_send(f"going for {type(self.strategy).__name__}")
 
     async def on_step(self, iteration: int):
 
-        if 2 <= self.townhalls.ready.amount:
+        if 2 <= self.townhalls.amount:
             if type(self.strategy) is not ZergMacro:
-                self.strategy = ZergMacro()
+                await self.setStrategy(ZergMacro())
 
         await self.strategy.on_step(self, iteration)
 
@@ -122,7 +131,6 @@ class SunTzuBot(BotAI):
             and unit.health_percentage < 0.333 * unit.build_progress * unit.build_progress
         ):
             unit(AbilityId.CANCEL)
-            self.strategy.on_unit_took_damage(self, unit, amount_damage_taken)
         await self.strategy.on_unit_took_damage(self, unit, amount_damage_taken)
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
@@ -182,6 +190,10 @@ class SunTzuBot(BotAI):
         if not enemyArmy.exists:
             enemyArmy = self.enemy_units | self.enemy_structures
 
+        enemyArmy = enemyArmy.filter(lambda e : not e.is_gathering)
+        enemyArmy = enemyArmy.filter(lambda e : not e.is_carrying_resource)
+        # enemyArmy = enemyArmy.exclude_type(race_worker.values())
+
         # if destroyRocks:
         #     print("destroyRocks")
 
@@ -201,12 +213,14 @@ class SunTzuBot(BotAI):
 
             friends = army.closer_than(16, unit)
 
-            if enemyArmy.exists:
+            if enemyArmy.closer_than(self.mapSize / 2, self.start_location).exists:
                 target = enemyArmy.closest_to(self.start_location).position
             elif neutrals.exists:
                 target = neutrals.closest_to(unit)
             elif rocks.exists and destroyRocks:
                 target = rocks.closest_to(unit)
+            elif enemyArmy.exists:
+                target = enemyArmy.closest_to(self.start_location).position
             else:
                 target = random.choice(self.enemy_start_locations)
 
@@ -217,11 +231,13 @@ class SunTzuBot(BotAI):
                 enemyValue = sum([(e.shield + e.health) * max(e.ground_dps, e.air_dps) for e in enemies])
                 friendsValue = sum([(f.shield + f.health) * max(f.ground_dps, f.air_dps) for f in friends])
 
+            numbersAdvantage = (1 + friends.amount) / (1 + enemies.amount)
+
             defendersBias = 32
             defendersAdvantage = (defendersBias + unit.distance_to(self.enemy_start_locations[0])) / (defendersBias + unit.distance_to(self.start_location))
             defendersAdvantage = max(1, defendersAdvantage)
 
-            if defendersAdvantage * friendsValue < enemyValue:
+            if numbersAdvantage * defendersAdvantage * friendsValue < enemyValue:
                 retreatTo = unit.position.towards(center(enemies), -16)
                 unit.move(retreatTo)
             else:
@@ -242,33 +258,29 @@ class SunTzuBot(BotAI):
         changelings = self.units(CHANGELINGS).idle
         if changelings.exists:
             changeling = changelings.random
-            target = self.getScoutTarget()
+            target = self.getScoutTarget(towardEnemy=True)
             changeling.move(target)
 
-    def getScoutTarget(self):
-        enemies = self.enemy_structures | self.enemy_units
-        # if enemies.exists:
-        #     return random.choice(enemies).position
-        # else:
-        return random.choice(self.expansion_locations_list)
+    def getScoutTarget(self, towardEnemy=False, uniformBias=0.1):
+        p = [
+            (uniformBias * self.mapSize + b.distance_to(self.enemy_start_locations[0])) / (uniformBias * self.mapSize + b.distance_to(self.start_location))
+            for b in self.expansion_locations_list
+        ]
+        if towardEnemy:
+            p = [1.0 / pi for pi in p]
+        ps = sum(p)
+        p = [pi / ps for pi in p]
+
+        bi = np.random.choice(range(len(p)), p=p)
+        target = self.expansion_locations_list[bi]
+        
+        return target
 
     def moveOverlord(self, bias=1):
         overlords = self.units(UnitTypeId.OVERLORD).idle
         if overlords.exists:
             overlord = overlords.random
-            bases = [
-                p for p in self.expansion_locations_list
-                if (lambda p: p.distance_to(self.start_location) < p.distance_to(self.enemy_start_locations[0]))
-            ]
-            p = [
-                (bias + b.distance_to(self.enemy_start_locations[0])) / (bias + b.distance_to(self.start_location))
-                for b in bases
-            ]
-            ps = sum(p)
-            p = [pi / ps for pi in p]
-            bi = np.random.choice(range(len(bases)), p=p)
-            target = bases[bi]
-            # target = self.getScoutTarget()
+            target = self.getScoutTarget()
             overlord.move(target)
 
     def isStructure(self, unit):
@@ -294,14 +306,18 @@ class SunTzuBot(BotAI):
 
         unit = SUPPLY[self.race]
         if self.isStructure(unit):
-            supplyActual = self.structures(unit).amount
+            supplyActual = self.structures(unit).ready.amount
         else:
-            supplyActual = self.units(unit).amount
+            supplyActual = self.units(unit).ready.amount
         if self.supply_cap == 200:
             return supplyActual
-        supplyPending = self.already_pending(unit)
+        # supplyPending = sum((8 * u.build_progress for u in self.units(UnitTypeId.HATCHERY).not_ready))
+        supplyPending = 8 * self.already_pending(unit)
+        supplyPending += sum((6 * h.build_progress for h in self.structures(UnitTypeId.HATCHERY).not_ready))
+        supplyPending += sum((15 * h.build_progress for h in self.structures(UnitTypeId.NEXUS).not_ready))
+        supplyPending += sum((15 * h.build_progress for h in self.structures(UnitTypeId.COMMANDCENTER).not_ready))
         supplyBuffer = self.getSupplyBuffer()
-        supplyNeeded = 1 + math.floor((supplyBuffer - self.supply_left) / 8) - supplyPending
+        supplyNeeded = 1 + math.floor((supplyBuffer - self.supply_left - supplyPending) / 8)
         return supplyActual + supplyNeeded
 
     def count(self, unit):
@@ -376,20 +392,11 @@ class SunTzuBot(BotAI):
                     continue
                 abilityTarget = geysers.closest_to(trainer.position)
             elif "requires_placement_position" in info:
-                maxDistance = 20
-                if self.isStructure(target):
-                    if target in race_townhalls[self.race]:
-                        position = await self.get_next_expansion()
-                        maxDistance = 2
-                    else:
-                        position = self.townhalls.random.position
-                        position = position.towards(self.game_info.map_center, 4)
-                else:
-                    position = trainer.position
+                position = await self.strategy.getTargetPosition(self, target, trainer)
                 if not position:
                     continue
                 withAddon = target in { UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT }
-                abilityTarget = await self.find_placement(ability, position, max_distance=maxDistance, placement_step=1, addon_place=withAddon)
+                abilityTarget = await self.find_placement(ability, position, max_distance=5, placement_step=1, addon_place=withAddon)
             else:
                 abilityTarget = None
 
@@ -482,6 +489,16 @@ class SunTzuBot(BotAI):
             return True
         else:
             return False
+
+    def getMaxWorkers(self):
+        workers = 0
+        for loc in self.owned_expansions.keys():
+            base = self.expansion_locations_dict[loc]
+            minerals = base.filter(lambda m : m.is_mineral_field)
+            workers += 2 * minerals.amount
+        geysers = self.gas_buildings.filter(lambda g : g.has_vespene)
+        workers += 3 * geysers.amount
+        return workers
 
     def createReserve(self, item, trainer=None):
         cost = self.calculate_cost(item)

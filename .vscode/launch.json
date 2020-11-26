@@ -5,10 +5,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Local",
+            "name": "Run",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}\\run_local.py",
+            "program": "${workspaceFolder}\\run.py",
             "console": "integratedTerminal"
         }
     ]
