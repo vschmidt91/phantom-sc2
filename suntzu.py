@@ -76,13 +76,13 @@ class SunTzuBot(BotAI):
         await self.strategy.on_enemy_unit_left_vision(self, unit_tag)
 
     async def on_start(self):
-        await self.chat_send("(glhf)")
         if self.race == Race.Zerg:
             if self.rush:
-                await self.setStrategy(Zerg12Pool())
+                self.strategy = Zerg12Pool()
             else:
-                await self.setStrategy(ZergMacro())
+                self.strategy = ZergMacro()
         self.mapSize = max((self.start_location.distance_to(b) for b in self.enemy_start_locations))
+        self.greetedOpponent = False
         await self.strategy.on_start(self)
 
     async def setStrategy(self, strategy):
@@ -90,6 +90,11 @@ class SunTzuBot(BotAI):
         await self.chat_send(f"going for {type(self.strategy).__name__}")
 
     async def on_step(self, iteration: int):
+
+        if 3 < iteration and not self.greetedOpponent:
+            await self.chat_send("(glhf)")
+            await self.chat_send(f"going for {type(self.strategy).__name__}")
+            self.greetedOpponent = True
 
         if 2 <= self.townhalls.amount:
             if type(self.strategy) is not ZergMacro:
