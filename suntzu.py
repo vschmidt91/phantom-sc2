@@ -521,7 +521,7 @@ class SunTzuBot(BotAI):
         return self.canPlace(addonPosition, UnitTypeId.SUPPLYDEPOT)
 
     def isBlockingExpansion(self, position):
-        return any((e.distance_to(position) < 3 for e in self.expansion_locations_list))
+        return any((e.distance_to(position) < 4 for e in self.expansion_locations_list))
 
     async def buildCreepTumor(self, unit):
         position = None
