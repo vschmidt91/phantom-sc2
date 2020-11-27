@@ -297,7 +297,7 @@ class SunTzuBot(BotAI):
     def getSupplyBuffer(self):
         supplyBuffer = 0
         supplyBuffer += self.townhalls.amount
-        supplyBuffer += 3 * self.units(UnitTypeId.QUEEN).amount
+        supplyBuffer += 4 * self.units(UnitTypeId.QUEEN).amount
         supplyBuffer += 2 * self.structures(UnitTypeId.BARRACKS).amount
         supplyBuffer += 2 * self.structures(UnitTypeId.FACTORY).amount
         supplyBuffer += 2 * self.structures(UnitTypeId.STARPORT).amount
@@ -526,7 +526,7 @@ class SunTzuBot(BotAI):
         return self.canPlace(addonPosition, UnitTypeId.SUPPLYDEPOT)
 
     def isBlockingExpansion(self, position):
-        return any((e.distance_to(position) < 4 for e in self.expansion_locations_list))
+        return any((e.distance_to(position) < 5 for e in self.expansion_locations_list))
 
     async def buildCreepTumor(self, unit):
         position = None

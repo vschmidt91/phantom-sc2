@@ -14,8 +14,8 @@ def main():
     sc2.run_game(
         sc2.maps.get("LightshadeLE"),
         [
-            Bot(Race.Zerg, SunTzuBot()),
-            Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.RandomBuild)
+            Bot(Race.Zerg, SunTzuBot(rush=False)),
+            Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
         ],
         realtime=True,
         save_replay_as=replayPath,

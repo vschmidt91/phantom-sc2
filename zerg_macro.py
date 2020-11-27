@@ -94,7 +94,7 @@ class ZergMacro(BotStrategy):
         if bot.enemy_race == Race.Zerg:
             sporeTime = 8 * 60
         else:
-            sporeTime = 4 * 60
+            sporeTime = 6 * 60
 
         if sporeTime <= bot.time and bot.already_pending(UnitTypeId.SPORECRAWLER) == 0:
 
@@ -108,10 +108,10 @@ class ZergMacro(BotStrategy):
             and 2 <= bot.townhalls.ready.amount
             and 3 <= bot.townhalls.amount
         ):
-            if bot.count(UnitTypeId.ROACHWARREN) < 1:
-                macroTargets.append(UnitTypeId.ROACHWARREN)
-            elif bot.count(UnitTypeId.LAIR) + bot.count(UnitTypeId.HIVE) < 1:
+            if bot.count(UnitTypeId.LAIR) + bot.count(UnitTypeId.HIVE) < 1:
                 macroTargets.append(UnitTypeId.LAIR)
+            elif bot.count(UnitTypeId.ROACHWARREN) < 1:
+                macroTargets.append(UnitTypeId.ROACHWARREN)
             elif bot.count(UnitTypeId.EVOLUTIONCHAMBER) < 1:
                 macroTargets.append(UnitTypeId.EVOLUTIONCHAMBER)
             
