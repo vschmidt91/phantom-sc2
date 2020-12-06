@@ -4,9 +4,9 @@ from sc2 import Race, Difficulty
 from sc2.player import Bot, Computer
 
 # Load bot
-from suntzu import CommonAI
+ladderfrom zerg import ZergAI
 
-bot = Bot(Race.Zerg, CommonAI())
+bot = Bot(Race.Zerg, ZergAI())
 
 # Start game
 if __name__ == "__main__":

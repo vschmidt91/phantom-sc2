@@ -110,7 +110,7 @@ class ZergAI(CommonAI):
             evoUpgrades += MELEE_UPGRADES
 
         if UnitTypeId.ULTRALISK in self.composition:
-            unitUpgrades.append(UpgradeId.CHITINOUSPLATING)
+            unitUpgrades += [UpgradeId.CHITINOUSPLATING, UpgradeId.ANABOLICSYNTHESIS]
             evoUpgrades += MELEE_UPGRADES
             self.goHive = True
 
