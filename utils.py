@@ -1,10 +1,10 @@
 
-import inspect
 from sc2.ids.unit_typeid import UnitTypeId
 
 from sc2.unit import Unit
 from sc2.data import Alliance, Result, race_townhalls, race_worker
 from sc2.position import Point2
+from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 
 from reserve import Reserve
 
@@ -17,13 +17,16 @@ CHANGELINGS = {
     UnitTypeId.CHANGELINGZEALOT,
 }
 
-def hasCapacity(unit: Unit) -> bool:
-    if unit.type_id in race_worker.values():
-        return 1
-    elif unit.has_reactor:
-        return len(unit.orders) < 2
-    else:
-        return unit.is_idle
+def canAttack(a, b):
+    return a.distance_to(b) < a.air_range if b.is_flying else a.ground_range
+
+def makeUnique(a):
+    b = []
+    for x in a:
+        # check if exists in unq_list
+        if x not in b:
+            b.append(x)
+    return b
 
 def armyValue(group):
     return sum([max(u.air_dps, u.ground_dps) * (u.shield + u.health) for u in group])
@@ -33,13 +36,11 @@ def center(group):
     ys = sum((u.position[1] for u in group)) / group.amount
     return Point2((xs, ys))
 
-async def doChain(chain):
-    reserve = Reserve()
-    for step in chain:
-        reserve = step(reserve)
-        if inspect.iscoroutine(reserve):
-            reserve = await reserve
-    return reserve
+def withEquivalents(unit):
+    if unit in EQUIVALENTS_FOR_TECH_PROGRESS:
+        return { unit } | EQUIVALENTS_FOR_TECH_PROGRESS[unit]
+    else:
+        return { unit }
 
 def filterArmy(units):
     units = units.filter(lambda u: 0 < u.air_dps + u.ground_dps)
@@ -47,3 +48,6 @@ def filterArmy(units):
     units = units.exclude_type({ UnitTypeId.QUEEN })
     units = units.exclude_type(CHANGELINGS)
     return units
+
+def dot(x, y):
+    return sum((xi * yi for xi, yi in zip(x, y)))
