@@ -4,7 +4,7 @@ from sc2 import Race, Difficulty
 from sc2.player import Bot, Computer
 
 # Load bot
-ladderfrom zerg import ZergAI
+from zerg import ZergAI
 
 bot = Bot(Race.Zerg, ZergAI())
 
