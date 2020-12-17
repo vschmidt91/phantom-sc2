@@ -1,8 +1,5 @@
 
 from sc2.ids.unit_typeid import UnitTypeId
-
-from sc2.unit import Unit
-from sc2.data import Alliance, Result, race_townhalls, race_worker
 from sc2.position import Point2
 from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 
@@ -18,7 +15,7 @@ CHANGELINGS = {
 }
 
 def canAttack(a, b):
-    return a.distance_to(b) < a.air_range if b.is_flying else a.ground_range
+    return a.distance_to(b) < 6 + (a.air_range if b.is_flying else a.ground_range)
 
 def makeUnique(a):
     b = []
@@ -29,7 +26,7 @@ def makeUnique(a):
     return b
 
 def armyValue(group):
-    return sum([max(u.air_dps, u.ground_dps) * (u.shield + u.health) for u in group])
+    return sum((unitValue(unit) for unit in group))
 
 def center(group):
     xs = sum((u.position[0] for u in group)) / group.amount
@@ -41,6 +38,9 @@ def withEquivalents(unit):
         return { unit } | EQUIVALENTS_FOR_TECH_PROGRESS[unit]
     else:
         return { unit }
+
+def unitValue(unit):
+    return max(unit.air_dps, unit.ground_dps) * (unit.shield + unit.health)
 
 def filterArmy(units):
     units = units.filter(lambda u: 0 < u.air_dps + u.ground_dps)

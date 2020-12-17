@@ -1,9 +1,11 @@
 
 import inspect
 import itertools
+import time
 
 import math
 import random
+from s2clientprotocol.error_pb2 import CantAddMoreCharges
 
 from sc2.game_data import Cost
 from utils import CHANGELINGS, armyValue, canAttack, center, dot, filterArmy, withEquivalents
@@ -59,8 +61,9 @@ class CommonAI(BotAI):
         self.gasTarget = 0
         self.advantage = 0
         self.injectQueens = []
+        self.timing = {}
 
-    def micro(self):
+    def micro(self, reserve):
 
         CIVILIANS = { UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.PROBE }
         CIVILIANS |= withEquivalents(UnitTypeId.DRONE)
@@ -75,88 +78,84 @@ class CommonAI(BotAI):
         army = self.units.exclude_type(CIVILIANS)
         army = army.tags_not_in(self.injectQueens)
 
-        if not army.exists:
-            return
-        arymCenter = center(army)
-
-        retreatPoint = self.center + .5 * self.advantage * (arymCenter - self.center)
-
         enemyArmy = self.enemy_units | self.enemy_structures
-        # for d in STATIC_DEFENSE.values():
-        #     enemyArmy += self.enemy_structures(d)
-        enemyArmy = enemyArmy.filter(lambda e : not e.is_gathering)
-        enemyArmy = enemyArmy.filter(lambda e : not e.is_carrying_resource)
-        enemyArmy = enemyArmy.filter(lambda e : not e.is_hallucination)
         enemyArmy = enemyArmy.exclude_type(withEquivalents(UnitTypeId.OVERLORD))
         enemyArmy = enemyArmy.exclude_type(withEquivalents(UnitTypeId.OVERSEER))
         enemyArmy = enemyArmy.exclude_type(withEquivalents(UnitTypeId.OBSERVER))
 
-        # rocks = self.all_units.filter(lambda r: "Destructible" in r.name)
-        # rocks = rocks.filter(lambda r: r.distance_to(self.center) < 2 * r.distance_to(self.enemyCenter))
-
         neutrals = self.enemy_units(CIVILIANS)
         rocks = self.all_units.filter(lambda r: "Destructible" in r.name)
-        rocks = rocks.filter(lambda r: r.distance_to(self.center) < 2 * r.distance_to(self.enemyCenter))
 
-        if self.destroyRocks:
-            neutrals |= rocks
+        # if self.destroyRocks:
+        #     neutrals |= rocks
 
-        if self.iteration % 32 == 0:
-            print(self.advantage)
+        enemyArmy |= neutrals
 
-        if enemyArmy.exists:
+        enemyArmy = enemyArmy.sorted_by_distance_to(self.center)
 
-            for unit in army:
+        for unit in army:
 
-                # if self.iteration % 8 != unit.tag % 8:
-                #     continue
+            enemies = enemyArmy.filter(lambda e : canAttack(e, unit))
+            friends = set().union(*[army.filter(lambda f : canAttack(f, e)) for e in enemies])
+            friends = Units(friends, self)
+            friends = friends.tags_not_in({ unit.tag })
 
-                enemy = enemyArmy.closest_to(unit)
+            # enemies = enemyArmy.closer_than(12, unit)
+            # friends = army.closer_than(12, unit)
 
-                enemies = enemyArmy.filter(lambda e : canAttack(e, unit))
-                friends = army.filter(lambda f : canAttack(f, enemy))
+            biasValue = 1000
+            enemyValue = biasValue + armyValue(enemies) * len(enemies)
+            friendsValue = biasValue + armyValue(friends) * len(friends)
 
-                # enemies = enemyArmy
-                # friends = army
+            biasDistance = 32
+            enemyDistance = biasDistance + unit.distance_to(self.center)
+            friendDistance = biasDistance + unit.distance_to(self.enemyCenter)
 
-                biasValue = 1
-                enemyValue = biasValue + sum(((e.shield + e.health) * e.calculate_dps_vs_target(unit) / max(8, e.distance_to(unit)) for e in enemies)) * enemies.amount
-                friendsValue = biasValue + sum(((f.shield + f.health) * f.calculate_dps_vs_target(enemy) / max(8, f.distance_to(unit)) for f in friends)) * friends.amount
+            localAdvantage = 1
+            localAdvantage *= pow(friendsValue / enemyValue, 3)
+            localAdvantage *= pow(self.advantage, 2)
+            localAdvantage *= pow(friendDistance / enemyDistance, 1)
+            # localAdvantage *= pow(unit.health_percentage, 1)
 
-                biasDistance = 12
-                enemyDistance = biasDistance + enemy.distance_to(self.center)
-                friendDistance = biasDistance + unit.distance_to(self.enemyCenter)
-
-                localAdvantage = 1
-                localAdvantage *= pow(friendDistance / enemyDistance, 0.666)
-                localAdvantage *= pow(friendsValue / enemyValue, 1.0)
-                localAdvantage *= pow(self.advantage, 0.666)
-
-                if unit.type_id is UnitTypeId.QUEEN and not self.has_creep(unit):
-                    localAdvantage = 0
-
-                # orderTarget = unit.position.towards(enemy, math.copysign(12, localAdvantage - 1))
-
-                if enemy.type_id in CHANGELINGS:
-                    unit.attack(enemy)
-                elif localAdvantage < 1:
-                    if math.modf(unit.tag  * PHI)[0] < localAdvantage:
-                        unit.move(unit.position.towards(enemy, -12))
-                    elif 5 < unit.distance_to(retreatPoint):
-                        unit.move(retreatPoint)
+            if enemies.exists:
+                if localAdvantage < 1:
+                    unit.move(unit.position.towards(enemies.center, -12))
+                elif not unit.is_idle:
+                    unit.attack(enemies.center)
+            elif enemyArmy.exists:
+                target = enemyArmy.first
+                if target in neutrals:
+                    unit.attack(target)
                 else:
-                    unit.attack(enemy.position)
+                    unit.attack(target.position)
+            elif unit.is_idle:
+                unit.attack(random.choice(self.expansion_locations_list))
 
-
-        elif neutrals.exists:
-            for u in army.idle.exclude_type(UnitTypeId.BANELING):
-                u.attack(neutrals.closest_to(u))
-        else:
-            for u in army.idle:
-                u.attack(self.getScoutTarget(towardEnemy=True))
+        return reserve
 
     def getChain(self):
-        return [self.macro]
+        return [
+            self.micro,
+            self.assignWorker,
+            self.macro,
+        ]
+
+    def getTechDistance(self, unit: UnitTypeId):
+
+        if unit not in UNIT_TRAINED_FROM:
+            return 0
+
+        minDistance = 999
+        for trainer in UNIT_TRAINED_FROM[unit]:
+            info = TRAIN_INFO[trainer][unit]
+            distance = 0
+            if "required_building" in info:
+                structure = info["required_building"]
+                if self.structures(structure).ready.exists < 1:
+                    distance = max(distance, 1 + self.getTechDistance(info["required_building"]))
+            minDistance = min(minDistance, distance)
+
+        return minDistance
 
     async def getTargetPosition(self, target: UnitTypeId, trainer: UnitTypeId):
         if target in STATIC_DEFENSE[self.race]:
@@ -167,7 +166,7 @@ class CommonAI(BotAI):
                 # if townhall.position in self.expansion_locations_list:
                 #     return self.expansion_locations_dict[townhall.position].center
                 # else:
-                return townhall.position.towards(self.game_info.map_center, -3)
+                return townhall.position.towards(self.game_info.map_center, -5)
             # else:
             #     return self.townhalls.random.position.towards(self.game_info.map_center, -7)
         elif self.isStructure(target):
@@ -203,24 +202,25 @@ class CommonAI(BotAI):
 
         self.iteration = iteration
 
-        if not self.townhalls.exists:
+        if self.townhalls.empty:
             return
- 
-        self.assignWorker()
-        self.micro()
 
         chain = self.getChain()
         reserve = Reserve()
         
         for step in chain:
+            start = time.perf_counter()
+            name = step.__func__.__name__
             reserve = step(reserve)
             if inspect.iscoroutine(reserve):
                 reserve = await reserve
+            self.timing[name] = self.timing.get(name, 0) + time.perf_counter() - start
+
+        if iteration % 100 == 0:
+            print(self.timing)
 
         # if 0 < len(reserve.items):
         #     print(reserve)
-
-        pass
 
     async def on_end(self, game_result: Result):
         pass
@@ -340,10 +340,8 @@ class CommonAI(BotAI):
         #     target = position
         #     break
 
-        target = spreader.position.towards(self.center, -10)
-
-        if spreader.distance_to(self.center) < .1 * self.mapSize:
-            target = spreader.position.towards(self.getScoutTarget(True), 10)
+        if random.random() < 0.5:
+            target = spreader.position.towards(random.choice(self.expansion_locations_list), 10)
         else:
             target = spreader.position.towards(self.center, -10)
 
@@ -379,20 +377,22 @@ class CommonAI(BotAI):
             if not queen.is_idle:
                 continue
             abilities = await self.get_available_abilities(queen)
-            if AbilityId.EFFECT_INJECTLARVA in abilities and hatchery.is_ready:
-                    queen(AbilityId.EFFECT_INJECTLARVA, hatchery)
+            if AbilityId.BUILD_CREEPTUMOR_QUEEN in abilities and 7 < self.larva.amount and random.random() < math.exp(-.01*self.count(UnitTypeId.CREEPTUMORBURROWED)):
+                await self.spreadCreep(spreader=queen)
+            elif AbilityId.EFFECT_INJECTLARVA in abilities and hatchery.is_ready:
+                queen(AbilityId.EFFECT_INJECTLARVA, hatchery)
             elif 5 < queen.distance_to(hatchery):
                 queen.attack(hatchery.position)
-        for queen in queens:
-            if queen.tag in self.injectQueens:
-                continue
-            if not queen.is_idle:
-                continue
-            abilities = await self.get_available_abilities(queen)
-            if AbilityId.BUILD_CREEPTUMOR_QUEEN in abilities:
-                await self.spreadCreep(spreader=queen)
-            elif 5 < queen.distance_to(self.center):
-                queen.attack(self.center)
+        # for queen in queens:
+        #     if queen.tag in self.injectQueens:
+        #         continue
+        #     if not queen.is_idle:
+        #         continue
+        #     abilities = await self.get_available_abilities(queen)
+        #     if AbilityId.BUILD_CREEPTUMOR_QUEEN in abilities:
+        #         await self.spreadCreep(spreader=queen)
+        #     elif 5 < queen.distance_to(self.center):
+        #         queen.attack(self.center)
 
 
     async def changelingScout(self):
@@ -407,31 +407,14 @@ class CommonAI(BotAI):
         changelings = self.units(CHANGELINGS).idle
         if changelings.exists:
             changeling = changelings.random
-            target = self.getScoutTarget(towardEnemy=True)
+            target = random.choice(self.expansion_locations_list)
             changeling.move(target)
-
-    def getScoutTarget(self, towardEnemy=False, uniformBias=0.1):
-        # p = [
-        #     (uniformBias * self.mapSize + b.distance_to(self.enemy_start_locations[0])) / (uniformBias * self.mapSize + b.distance_to(self.start_location))
-        #     for b in self.expansion_locations_list
-        # ]
-        # if towardEnemy:
-        #     p = [1.0 / pi for pi in p]
-        # ps = sum(p)
-        # p = [pi / ps for pi in p]
-
-        # bi = np.random.choice(range(len(p)), p=p)
-        # target = self.expansion_locations_list[bi]
-
-        target = random.choice(self.expansion_locations_list)
-        
-        return target
 
     def moveOverlord(self, bias=1):
         overlords = self.units(withEquivalents(UnitTypeId.OVERLORD)).idle
         if overlords.exists:
             overlord = overlords.random
-            target = self.getScoutTarget()
+            target = random.choice(self.expansion_locations_list)
             overlord.move(target)
 
     def isStructure(self, unit):
@@ -477,7 +460,7 @@ class CommonAI(BotAI):
         count = 0
         count += self.structures(unit).amount
         count += self.units(unit).amount
-        if type(unit) is UnitTypeId:
+        if not isinstance(unit, set):
             unit = { unit }
         for u in unit:
             if u is UnitTypeId.ZERGLING:
@@ -485,6 +468,114 @@ class CommonAI(BotAI):
             else:
                 count += self.already_pending(u)
         return count
+
+    def canUse(self, info):
+        if "required_building" in info:
+            building = info["required_building"]
+            building = withEquivalents(building)
+            if self.structures(building).ready.empty:
+                return False
+        if "required_upgrade" in info:
+            if info["required_upgrade"] not in self.state.upgrades:
+                return False
+        return True
+
+    async def research(self, upgrade, reserve):
+
+        if upgrade in self.state.upgrades:
+            return reserve
+        
+        if self.already_pending_upgrade(upgrade):
+            return reserve
+
+        trainerTypes = UPGRADE_RESEARCHED_FROM[upgrade]
+        trainers = self.structures(trainerTypes)
+        trainers = trainers.ready.idle
+        trainers = trainers.tags_not_in(reserve.trainers)
+        
+        for trainer in trainers:
+
+            info = RESEARCH_INFO[trainer.type_id][upgrade]
+
+            if not self.canUse(info):
+                return reserve
+
+            if not self.canAffordWithReserve(upgrade, reserve):
+                return reserve + self.createReserve(upgrade, trainer)
+
+            ability = info["ability"]
+            abilities = await self.get_available_abilities(trainer)
+            if ability not in abilities:
+                continue
+
+            assert(trainer(ability))
+
+            return reserve + self.createReserve(None, trainer)
+
+        return reserve
+
+    async def train(self, unit, reserve):
+
+        trainerTypes = UNIT_TRAINED_FROM[unit]
+
+        trainers = self.structures(trainerTypes) | self.units(trainerTypes)
+        trainers = trainers.ready
+        trainers = trainers.tags_not_in(reserve.trainers)
+        
+        for trainer in trainers:
+
+            if not self.hasCapacity(trainer):
+                continue
+
+            info = TRAIN_INFO[trainer.type_id][unit]
+
+            if "requires_techlab" in info and not trainer.has_techlab:
+                continue
+
+            if not self.canUse(info):
+                return reserve
+
+            if not self.canAffordWithReserve(unit, reserve):
+                return reserve + self.createReserve(unit, trainer)
+
+            ability = info["ability"]
+            abilities = await self.get_available_abilities(trainer)
+            if ability not in abilities:
+                continue
+
+            if unit in ALL_GAS:
+                geysers = []
+                for b in self.owned_expansions.keys():
+                    geysers += [g for g in self.expansion_locations_dict[b] if g.is_vespene_geyser]
+                geysers = Units(geysers, self)
+                geysers = geysers.filter(lambda g : not self.gas_buildings.closer_than(1, g).exists)
+                # geysers = geysers.filter(lambda g : not self.workers.filter(lambda w : w.order_target == g.tag).exists)
+                if geysers.empty:
+                    continue
+                abilityTarget = geysers.closest_to(trainer.position)
+            elif "requires_placement_position" in info:
+                position = await self.getTargetPosition(unit, trainer)
+                if not position:
+                    return reserve
+                withAddon = unit in { UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT }
+                abilityTarget = await self.find_placement(ability, position, max_distance=8, placement_step=1, addon_place=withAddon)
+            else:
+                abilityTarget = None
+
+            if trainer.is_carrying_resource:
+                trainer.return_resource()
+                queue = True
+            else:
+                queue = False
+
+            if abilityTarget is None:
+                assert(trainer(ability, queue=queue))
+            else:
+                assert(trainer(ability, target=abilityTarget, queue=queue))
+
+            return reserve + self.createReserve(None, trainer)
+
+        return reserve
 
     async def reachTarget(self, target, reserve):
 
@@ -542,7 +633,6 @@ class CommonAI(BotAI):
 
             abilities = await self.get_available_abilities(trainer)
             if not ability in abilities:
-                # print(abilities)
                 continue
 
             if target in ALL_GAS:
@@ -552,7 +642,7 @@ class CommonAI(BotAI):
                 geysers = Units(geysers, self)
                 geysers = geysers.filter(lambda g : not self.gas_buildings.closer_than(1, g).exists)
                 # geysers = geysers.filter(lambda g : not self.workers.filter(lambda w : w.order_target == g.tag).exists)
-                if not geysers.exists:
+                if geysers.empty:
                     continue
                 abilityTarget = geysers.closest_to(trainer.position)
             elif "requires_placement_position" in info:
@@ -585,7 +675,7 @@ class CommonAI(BotAI):
         value = self.calculate_unit_value(unit)
         return value.minerals + 2 * value.vespene
 
-    def assignWorker(self):
+    def assignWorker(self, reserve):
 
         gasActual = sum((g.assigned_harvesters for g in self.gas_buildings))
 
@@ -601,7 +691,7 @@ class CommonAI(BotAI):
         if worker is None:
             for gas in self.gas_buildings.ready:
                 workers = self.workers.filter(lambda w : w.order_target == gas.tag)
-                if workers.exists and (0 < gas.surplus_harvesters or self.gasTarget + 1 < gasActual):
+                if workers.exists and (0 < gas.surplus_harvesters or self.gasTarget < gasActual):
                     worker = workers.furthest_to(gas)
                 elif gas.surplus_harvesters < 0 and gasActual < self.gasTarget:
                     target = gas
@@ -615,7 +705,7 @@ class CommonAI(BotAI):
                         break
 
         if worker is None:
-            return False
+            return reserve
 
         if target is None:
             for gas in self.gas_buildings.ready:
@@ -630,7 +720,7 @@ class CommonAI(BotAI):
                     target = minerals
 
         if target is None:
-            return False
+            return reserve
 
         if worker.is_carrying_resource:
             worker.return_resource()
@@ -638,12 +728,15 @@ class CommonAI(BotAI):
         else:
             worker.gather(target)
 
-        return True
+        return reserve
 
     async def macro(self, reserve):
         targets = self.getTargets()
         for target in targets:
-            reserve = await self.reachTarget(target, reserve)
+            if target in UpgradeId:
+                reserve = await self.research(target, reserve)
+            elif target in UnitTypeId:
+                reserve = await self.train(target, reserve)
         return reserve
 
     def canAffordWithReserve(self, item, reserve):
@@ -674,7 +767,7 @@ class CommonAI(BotAI):
         else:
             cost = self.calculate_cost(item)
             names = [item.name]
-        if not isinstance(item, UnitTypeId):
+        if item not in UnitTypeId:
             food = 0
         else:
             food = int(self.calculate_supply_cost(item))

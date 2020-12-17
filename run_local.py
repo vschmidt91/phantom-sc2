@@ -13,10 +13,10 @@ def main():
     # replayPath = os.path.join("replays", time + ".SC2Replay")
     replayPath = os.path.join("C:\\Users", "Ryzen", "Documents", "StarCraft II", "Accounts", "490189910", "2-S2-1-9348025", "Replays", "Multiplayer", time + ".SC2Replay")
     sc2.run_game(
-        sc2.maps.get("DeathAuraLE"),
+        sc2.maps.get("OxideLE"),
         [
             Bot(Race.Zerg, ZergAI()),
-            Computer(Race.Terran, Difficulty.VeryHard, ai_build=AIBuild.RandomBuild)
+            Computer(Race.Terran, Difficulty.CheatInsane, ai_build=AIBuild.Macro),
         ],
         realtime=False,
         save_replay_as=replayPath,

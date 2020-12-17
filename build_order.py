@@ -67,23 +67,15 @@ class Hatch16(BuildOrder):
             return [UnitTypeId.DRONE]
         elif bot.count(UnitTypeId.OVERLORD) < 2:
             return [UnitTypeId.OVERLORD]
-        if bot.count(UnitTypeId.DRONE) < 16:
+        elif bot.count(UnitTypeId.DRONE) < 16:
             return [UnitTypeId.DRONE]
         elif bot.count(UnitTypeId.HATCHERY) < 2:
             return [UnitTypeId.HATCHERY]
-        if bot.count(UnitTypeId.DRONE) < 18:
+        elif bot.count(UnitTypeId.DRONE) < 18:
             return [UnitTypeId.DRONE]
         elif bot.count(UnitTypeId.EXTRACTOR) < 1:
-            bot.gasTarget = 3
             return [UnitTypeId.EXTRACTOR]
         elif bot.count(UnitTypeId.SPAWNINGPOOL) < 1:
             return [UnitTypeId.SPAWNINGPOOL]
-        elif bot.count(UnitTypeId.DRONE) < 18:
-            return [UnitTypeId.DRONE]
-        elif bot.count(UnitTypeId.OVERLORD) < 3:
-            return [UnitTypeId.OVERLORD]
-        elif not bot.structures(UnitTypeId.SPAWNINGPOOL).ready.exists:
-            bot.gasTarget = 3
-            return []
 
         return None

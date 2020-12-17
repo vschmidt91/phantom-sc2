@@ -1,5 +1,6 @@
 
 import itertools, random
+from s2clientprotocol.raw_pb2 import Unit
 
 from sc2 import AbilityId
 from sc2 import unit
@@ -53,25 +54,29 @@ class ZergAI(CommonAI):
 
         # await self.client.debug_show_map()
 
-        self.destroyRocks = False
-        self.enemies = { u: 0 for u in UNIT_COUNTERS[UnitTypeId.ZERGLING].keys() }
-        self.buildOrder = random.choice((Pool12(), Pool16(), Hatch16()))
+        self.enemies = { u: 0 for u in UNIT_COUNTERS[UnitTypeId.ROACH].keys() }
+        self.buildOrder = random.choice((Pool12, Pool16, Hatch16))()
+        # self.buildOrder = Hatch16()
         self.goLair = False
         self.goHive = False
         await super(self.__class__, self).on_before_start()
 
     async def on_step(self, iteration: int):
+        self.destroyRocks = 2 <= self.townhalls.ready.amount
         await self.microQueens()
         await self.spreadCreep()
         # self.moveOverlord()
         await self.changelingScout()
         await super(self.__class__, self).on_step(iteration)
 
-    def counterComposition(self, enemies: Units):
+    def counterComposition(self, enemies):
 
         enemyValue = sum((self.unitValue(u) * n for u, n in enemies.items()))
+        if enemyValue == 0:
+            return {}, []
+
         weights = {
-            u: sum((w * self.unitValue(v) * enemies[v] for v, w in vw.items()))
+            u: sum((w * self.unitValue(v) * enemies[v] for v, w in vw.items())) / (1 + 2 * self.getTechDistance(u))
             for u, vw in UNIT_COUNTERS.items()
         }
 
@@ -81,11 +86,11 @@ class ZergAI(CommonAI):
         weights = sorted(weights.items(), key=lambda p: p[1], reverse=True)
 
         for u, w in weights:
-            if self.tech_requirement_progress(u) == 0 or (u is UnitTypeId.ULTRALISK and not self.structures(UnitTypeId.ULTRALISKCAVERN).exists):
+            if 0 < self.getTechDistance(u):
                 if len(techTargets) < 1:
                     techTargets.append(u)
                 continue
-            elif w < 0 and 0 < len(composition):
+            elif w <= 0 and 0 < len(composition):
                 break
             composition[u] = max(1, w)
             
@@ -105,9 +110,11 @@ class ZergAI(CommonAI):
         unitUpgrades = []
         evoUpgrades = []
 
-        if 16 <= self.composition.get(UnitTypeId.ZERGLING, 0):
-            unitUpgrades += [UpgradeId.ZERGLINGMOVEMENTSPEED, UpgradeId.ZERGLINGATTACKSPEED]
-            evoUpgrades += MELEE_UPGRADES
+        if UnitTypeId.ZERGLING in self.composition:
+            unitUpgrades.append(UpgradeId.ZERGLINGMOVEMENTSPEED)
+            if 1 < self.composition[UnitTypeId.ZERGLING]:
+                unitUpgrades.append(UpgradeId.ZERGLINGATTACKSPEED)
+                evoUpgrades += MELEE_UPGRADES
 
         if UnitTypeId.ULTRALISK in self.composition:
             unitUpgrades += [UpgradeId.CHITINOUSPLATING, UpgradeId.ANABOLICSYNTHESIS]
@@ -130,11 +137,11 @@ class ZergAI(CommonAI):
             self.goLair = True
 
         if UnitTypeId.MUTALISK in self.composition:
-            unitUpgrades += FLYER_UPGRADES
+            # unitUpgrades += FLYER_UPGRADES
             self.goLair = True
 
         if UnitTypeId.CORRUPTOR in self.composition:
-            unitUpgrades += FLYER_UPGRADES
+            # unitUpgrades += FLYER_UPGRADES
             self.goLair = True
 
         if UnitTypeId.BROODLORD in self.composition:
@@ -205,7 +212,7 @@ class ZergAI(CommonAI):
 
         self.goLair |= self.goHive
 
-        if 33 * (1 + self.count(UnitTypeId.EVOLUTIONCHAMBER)) < self.workers.amount:
+        if 30 * (1 + self.count(UnitTypeId.EVOLUTIONCHAMBER)) < self.workers.amount:
             targets.append(UnitTypeId.EVOLUTIONCHAMBER)
 
         if self.goLair:
@@ -240,45 +247,57 @@ class ZergAI(CommonAI):
 
         if self.buildOrder is not None:
             buildOrderTargets = self.buildOrder.getTargets(self)
-            if buildOrderTargets is None:
-                self.buildOrder = None
-            else:
+            if buildOrderTargets is not None:
                 return buildOrderTargets
-
+            # else:
+            #     self.buildOrder = None
+                
         workersMax = self.getMaxWorkers()
-        workersTarget = min(60 , workersMax)
+        workersTarget = min(70, workersMax)
         
         self.enemies = { u: max(.999 * v, self.enemy_units(u).amount) for u, v in self.enemies.items() }
 
         counterComposition, techTargets = self.counterComposition(self.enemies)
 
+        # counterComposition = {}
+        # techTargets = []
+
+        # if self.townhalls.amount < 3:
+        #     pass
+        # elif 0 < self.getTechDistance(UnitTypeId.ROACH):
+        #     techTargets.append(UnitTypeId.ROACH)
+        # else:
+        #     counterComposition[UnitTypeId.ROACH] = 30
+
+        # if self.townhalls.amount < 4:
+        #     pass
+        # elif 0 < self.getTechDistance(UnitTypeId.HYDRALISK):
+        #     techTargets.append(UnitTypeId.HYDRALISK)
+        # else:
+        #     counterComposition[UnitTypeId.HYDRALISK] = 30
+
         self.composition = {
-            **counterComposition,
             UnitTypeId.DRONE: workersTarget,
+            UnitTypeId.ZERGLING: 1,
             UnitTypeId.OVERSEER: 1,
+            **counterComposition,
         }
 
-        self.composition[UnitTypeId.ZERGLING] = max(4, self.composition.get(UnitTypeId.ZERGLING, 0))
-        # self.composition[UnitTypeId.QUEEN] = min(4, self.townhalls.amount) + self.composition.get(UnitTypeId.QUEEN, 0)
-        
         compositionCounts = { u: self.count(u) for u in self.composition.keys() }
         compositionMissing = { u: max(0, n - compositionCounts[u]) for u, n in self.composition.items() }
+        compositionTargets = { u: compositionCounts[u] / n for u, n in self.composition.items() if 0 < n }
+
+        self.advantage = sum((compositionCounts[u] * self.unitValue(u) for u in self.composition.keys())) / sum((self.composition[u] * self.unitValue(u) for u in self.composition.keys()))
         
         compositionCost = { u: self.calculate_cost(u) for u in self.composition.keys() }
         compositionGas = sum((compositionMissing[u] * compositionCost[u].vespene for u in self.composition.keys()))
-        compositionGas = max(0, compositionGas - self.vespene)
+        compositionGas = max(1, compositionGas - self.vespene)
         compositionMinerals = sum((compositionMissing[u] * compositionCost[u].minerals for u in self.composition.keys()))
-        compositionMinerals = max(0, compositionMinerals - self.minerals)
-        gasRatio = (1 + compositionGas) / (2 + compositionGas + compositionMinerals)
-
-        if self.goLair:
-            gasRatio = max(.1, gasRatio)
-
-        if self.goHive:
-            gasRatio = max(.2, gasRatio)
+        compositionMinerals = max(2, compositionMinerals - self.minerals)
+        gasRatio = compositionGas / (compositionGas + compositionMinerals)
 
         self.gasTarget = gasRatio * self.workers.amount
-
+        self.gasTarget += 3
 
         targets = []
 
@@ -286,46 +305,36 @@ class ZergAI(CommonAI):
         gasPending = self.already_pending(UnitTypeId.EXTRACTOR)
         gasCount = gasActual + gasPending
         gasMax = sum((sum((1 for g in self.expansion_locations_dict[b] if g.is_vespene_geyser)) for b in self.owned_expansions.keys()))
+        queenTarget = min(4, self.townhalls.amount)
+
+        targets += self.upgrade()
+        targets += self.techUp(techTargets)
+        targets += self.techBuildings(techTargets[0:1])
+        targets += self.buildSpores()
 
         targets += itertools.repeat(UnitTypeId.EXTRACTOR, max(0, min(gasMax, int(self.gasTarget / 3)) - gasCount))
-
         targets += itertools.repeat(UnitTypeId.OVERLORD, max(0, self.getSupplyTarget() - self.count(UnitTypeId.OVERLORD)))
-        
-        queenTarget = min(4, self.townhalls.amount)
         targets += itertools.repeat(UnitTypeId.QUEEN, max(0, queenTarget - self.count(UnitTypeId.QUEEN)))
-    
-        if .333 < self.advantage:
-            targets += self.buildSpores()
-            targets += self.techBuildings(techTargets[0:1])
-        if .666 < self.advantage:
-            targets += self.upgrade()
-            targets += self.techUp(techTargets)
-
-
         if self.already_pending(UnitTypeId.HATCHERY) < 1 and -8 < sum((h.surplus_harvesters for h in self.townhalls)):
             targets.append(UnitTypeId.HATCHERY)
 
-        compositionTargets = { u: compositionCounts[u] / n for u, n in self.composition.items() if 0 < n }
+        if 1 <= compositionTargets[UnitTypeId.DRONE]:
+            targets.append(UnitTypeId.SPINECRAWLER)
 
-        # if all((.5 < w for w in compositionTargets.values())):
-        #     if not self.goLair:
-        #         self.goLair = True
-            # elif not self.goHive:
-            #     self.goHive = True
-
-        unitTargets = []
         for u, w in sorted(compositionTargets.items(), key=lambda p: p[1]):
+            if u is UnitTypeId.DRONE:
+                if 1 <= w:
+                    continue
+            else:
+                if 2 <= w:
+                    continue
             t = list(UNIT_TRAINED_FROM[u])[0]
             if t in UNIT_COUNTERS.keys() and self.count(t) < max(1, compositionMissing[u]):
-                unitTargets.append(t)
+                targets.append(t)
             else:
-                unitTargets.append(u)
+                targets.append(u)
 
-        self.advantage = sum((compositionCounts[u] * self.unitValue(u) for u in self.composition.keys())) / sum((self.composition[u] * self.unitValue(u) for u in self.composition.keys()))
-
-        targets += unitTargets
-
-        if 50 < self.supply_used and self.already_pending(UnitTypeId.OVERLORD) < 1:
+        if 50 < self.supply_used and self.supply_cap < 200 and self.already_pending(UnitTypeId.OVERLORD) < 1:
             targets.append(UnitTypeId.OVERLORD)
 
         return targets
