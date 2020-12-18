@@ -5,12 +5,14 @@ import time
 
 import math
 import random
+from numpy.lib.function_base import insert
 from s2clientprotocol.error_pb2 import CantAddMoreCharges
 
 from sc2.game_data import Cost
 from utils import CHANGELINGS, armyValue, canAttack, center, dot, filterArmy, withEquivalents
 
 import numpy as np
+import json
 from sc2.position import Point2
 
 from sc2 import Race, BotAI
@@ -62,8 +64,12 @@ class CommonAI(BotAI):
         self.advantage = 0
         self.injectQueens = []
         self.timing = {}
+        self.enableTiming = False
 
-    def micro(self, reserve):
+    def getChain(self):
+        return []
+
+    def micro(self):
 
         CIVILIANS = { UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.PROBE }
         CIVILIANS |= withEquivalents(UnitTypeId.DRONE)
@@ -82,26 +88,26 @@ class CommonAI(BotAI):
         enemyArmy = enemyArmy.exclude_type(withEquivalents(UnitTypeId.OVERLORD))
         enemyArmy = enemyArmy.exclude_type(withEquivalents(UnitTypeId.OVERSEER))
         enemyArmy = enemyArmy.exclude_type(withEquivalents(UnitTypeId.OBSERVER))
+        enemyArmy = enemyArmy.sorted_by_distance_to(self.center)
 
-        neutrals = self.enemy_units(CIVILIANS)
-        rocks = self.all_units.filter(lambda r: "Destructible" in r.name)
+        # neutrals = self.enemy_units(CIVILIANS)
+        # rocks = self.all_units.filter(lambda r: "Destructible" in r.name)
 
         # if self.destroyRocks:
         #     neutrals |= rocks
 
-        enemyArmy |= neutrals
+        # enemyArmy |= neutrals
 
-        enemyArmy = enemyArmy.sorted_by_distance_to(self.center)
 
         for unit in army:
 
-            enemies = enemyArmy.filter(lambda e : canAttack(e, unit))
-            friends = set().union(*[army.filter(lambda f : canAttack(f, e)) for e in enemies])
-            friends = Units(friends, self)
-            friends = friends.tags_not_in({ unit.tag })
+            # enemies = enemyArmy.filter(lambda e : canAttack(e, unit))
+            # friends = set().union(*[army.filter(lambda f : canAttack(f, e)) for e in enemies])
+            # friends = Units(friends, self)
+            # friends = friends.tags_not_in({ unit.tag })
 
-            # enemies = enemyArmy.closer_than(12, unit)
-            # friends = army.closer_than(12, unit)
+            enemies = enemyArmy.closer_than(12, unit)
+            friends = army.closer_than(12, unit)
 
             biasValue = 1000
             enemyValue = biasValue + armyValue(enemies) * len(enemies)
@@ -112,33 +118,21 @@ class CommonAI(BotAI):
             friendDistance = biasDistance + unit.distance_to(self.enemyCenter)
 
             localAdvantage = 1
-            localAdvantage *= pow(friendsValue / enemyValue, 3)
-            localAdvantage *= pow(self.advantage, 2)
-            localAdvantage *= pow(friendDistance / enemyDistance, 1)
-            # localAdvantage *= pow(unit.health_percentage, 1)
+            localAdvantage *= pow(friendsValue / enemyValue, 1)
+            localAdvantage *= pow(self.advantage, .2)
+            localAdvantage *= pow(friendDistance / enemyDistance, .2)
+            localAdvantage *= pow(unit.health_percentage, .2)
 
             if enemies.exists:
-                if localAdvantage < 1:
+                if localAdvantage < random.random():
                     unit.move(unit.position.towards(enemies.center, -12))
                 elif not unit.is_idle:
                     unit.attack(enemies.center)
             elif enemyArmy.exists:
-                target = enemyArmy.first
-                if target in neutrals:
-                    unit.attack(target)
-                else:
-                    unit.attack(target.position)
+                target = enemyArmy.random
+                unit.attack(target.position)
             elif unit.is_idle:
                 unit.attack(random.choice(self.expansion_locations_list))
-
-        return reserve
-
-    def getChain(self):
-        return [
-            self.micro,
-            self.assignWorker,
-            self.macro,
-        ]
 
     def getTechDistance(self, unit: UnitTypeId):
 
@@ -180,15 +174,12 @@ class CommonAI(BotAI):
 
         return None
 
-    def getTargets(self):
-        return []
-
     async def on_before_start(self):
         pass
 
     async def on_start(self):
+        self.client.game_step = 1
         self.mapSize = max((self.start_location.distance_to(b) for b in self.enemy_start_locations))
-        self.greetedOpponent = False
 
     async def on_step(self, iteration: int):
 
@@ -205,19 +196,28 @@ class CommonAI(BotAI):
         if self.townhalls.empty:
             return
 
-        chain = self.getChain()
         reserve = Reserve()
         
-        for step in chain:
-            start = time.perf_counter()
-            name = step.__func__.__name__
-            reserve = step(reserve)
-            if inspect.iscoroutine(reserve):
-                reserve = await reserve
-            self.timing[name] = self.timing.get(name, 0) + time.perf_counter() - start
+        for step in self.getChain():
+            signature = inspect.signature(step)
+            if self.enableTiming:
+                name = step.__func__.__name__
+                start = time.perf_counter()
+            if 0 == len(signature.parameters):
+                result = step()
+            elif 1 == len(signature.parameters):
+                result = step(reserve)
+            else:
+                raise Exception()
+            if inspect.iscoroutine(result):
+                result = await result
+            reserve = result or reserve
+            if self.enableTiming:
+                self.timing[name] = self.timing.get(name, 0) + time.perf_counter() - start
 
-        if iteration % 100 == 0:
-            print(self.timing)
+        if self.enableTiming and iteration % 100 == 0:
+            timingSorted = dict(sorted(self.timing.items(), key=lambda t: t[1], reverse=True))
+            print(json.dumps(timingSorted, indent=4))
 
         # if 0 < len(reserve.items):
         #     print(reserve)
@@ -258,17 +258,17 @@ class CommonAI(BotAI):
             and unit.health_percentage < 0.333 * unit.build_progress * unit.build_progress
         ):
             unit(AbilityId.CANCEL)
-        elif (
-            50 <= unit.health_max - unit.health
-        ):
-            for queen in self.units(UnitTypeId.QUEEN):
-                if queen.tag in self.injectQueens:
-                    continue
-                if 7 < queen.distance_to(unit):
-                    continue
-                ability = AbilityId.TRANSFUSION_TRANSFUSION
-                if ability in await self.get_available_abilities(queen):
-                    queen(ability, unit)
+        # elif (
+        #     50 <= unit.health_max - unit.health
+        # ):
+        #     for queen in self.units(UnitTypeId.QUEEN):
+        #         if queen.tag in self.injectQueens:
+        #             continue
+        #         if 7 < queen.distance_to(unit):
+        #             continue
+        #         ability = AbilityId.TRANSFUSION_TRANSFUSION
+        #         if ability in await self.get_available_abilities(queen):
+        #             queen(ability, unit)
         
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
@@ -365,7 +365,6 @@ class CommonAI(BotAI):
 
     async def microQueens(self):
 
-
         queens = self.units(UnitTypeId.QUEEN)
         hatcheries = sorted(self.townhalls, key=lambda h: h.tag)
         queens = sorted(queens, key=lambda q: q.tag)
@@ -436,6 +435,17 @@ class CommonAI(BotAI):
         supplyBuffer += 2 * self.count(UnitTypeId.ROBOTICSFACILITY)
         supplyBuffer += 2 * self.count(UnitTypeId.STARGATE)
         return supplyBuffer
+
+    def getSupplyPending(self):
+        supplyPending = 0
+        supplyPending = 8 * self.already_pending(SUPPLY[self.race])
+        if self.race is Race.Zerg:
+            supplyPending += sum((6 * h.build_progress for h in self.structures(UnitTypeId.HATCHERY).not_ready))
+        elif self.race is Race.Protoss:
+            supplyPending += sum((15 * h.build_progress for h in self.structures(UnitTypeId.NEXUS).not_ready))
+        elif self.race is Race.Terran:
+            supplyPending += sum((15 * h.build_progress for h in self.structures(UnitTypeId.COMMANDCENTER).not_ready))
+        return supplyPending
 
     def getSupplyTarget(self):
 
@@ -691,9 +701,9 @@ class CommonAI(BotAI):
         if worker is None:
             for gas in self.gas_buildings.ready:
                 workers = self.workers.filter(lambda w : w.order_target == gas.tag)
-                if workers.exists and (0 < gas.surplus_harvesters or self.gasTarget < gasActual):
+                if workers.exists and (0 < gas.surplus_harvesters or self.gasTarget + 1 < gasActual):
                     worker = workers.furthest_to(gas)
-                elif gas.surplus_harvesters < 0 and gasActual < self.gasTarget:
+                elif gas.surplus_harvesters < 0 and gasActual + 1 < self.gasTarget:
                     target = gas
 
         if worker is None:
@@ -728,15 +738,6 @@ class CommonAI(BotAI):
         else:
             worker.gather(target)
 
-        return reserve
-
-    async def macro(self, reserve):
-        targets = self.getTargets()
-        for target in targets:
-            if target in UpgradeId:
-                reserve = await self.research(target, reserve)
-            elif target in UnitTypeId:
-                reserve = await self.train(target, reserve)
         return reserve
 
     def canAffordWithReserve(self, item, reserve):
