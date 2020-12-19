@@ -16,7 +16,7 @@ def main():
         sc2.maps.get("OxideLE"),
         [
             Bot(Race.Zerg, ZergAI()),
-            Computer(Race.Protoss, Difficulty.VeryHard, ai_build=AIBuild.Macro),
+            Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Macro),
         ],
         realtime=False,
         save_replay_as=replayPath,

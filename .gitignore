@@ -1,2 +1,3 @@
-publish/*
-__pycache__
+publish/
+__pycache__/
+.vscode/
