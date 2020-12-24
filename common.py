@@ -178,7 +178,7 @@ class CommonAI(BotAI):
         pass
 
     async def on_start(self):
-        self.client.game_step = 1
+        self.client.game_step = 4
         self.mapSize = max((self.start_location.distance_to(b) for b in self.enemy_start_locations))
 
     async def on_step(self, iteration: int):
