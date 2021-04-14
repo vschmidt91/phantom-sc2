@@ -1,6 +1,9 @@
 
+import math
 import itertools, random
+from reserve import Reserve
 from s2clientprotocol.raw_pb2 import Unit
+from typing import List, Coroutine, Dict, Union
 
 from sc2 import AbilityId
 from sc2 import unit
@@ -12,9 +15,10 @@ from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
+from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 
 from common import CommonAI
-from utils import armyValue, filterArmy, makeUnique, withEquivalents
+from utils import CHANGELINGS, armyValue, filterArmy, makeUnique, withEquivalents
 from unit_counters import UNIT_COUNTERS
 
 MELEE_UPGRADES = [
@@ -50,50 +54,63 @@ class ZergAI(CommonAI):
         super(self.__class__, self).__init__()
         self.enemies = { u: 0 for u in UNIT_COUNTERS[UnitTypeId.ROACH].keys() }
         # self.buildOrder = random.choice((Pool12, Pool16, Hatch16))()
+        self.composition = {}
+        self.compositionTargets = {}
+        self.techTargets = []
         self.buildOrder = Hatch16()
         self.goLair = False
         self.goHive = False
 
-    def getChain(self):
-        if self.buildOrder is None:
-            return [
-                self.micro,
-                self.assignWorker,
-                self.microQueens,
-                self.spreadCreepTumor,
-                # self.moveOverlord,
-                self.changelingScout,
-                self.adjustComposition,
-                self.adjustGasTarget,
-                self.upgrade,
-                self.techUp,
-                self.techBuildings,
-                self.expandIfNecessary,
-                # self.buildSpores,
-                self.trainQueens,
-                self.buildGasses,
-                self.morphOverlords,
-                self.morphUnits,
-            ]
-        else:
-            return [
-                self.micro,
-                self.executeBuildOrder,
-            ]
-
-    async def on_unit_created(self, unit):
-        if unit.type_id is UnitTypeId.OVERLORD and  self.structures(withEquivalents(UnitTypeId.LAIR)).exists:
+    async def on_unit_created(self, unit: Unit):
+        if unit.type_id is UnitTypeId.OVERLORD and self.structures(withEquivalents(UnitTypeId.LAIR)).exists:
             unit(AbilityId.BEHAVIOR_GENERATECREEPON)
+        await super(self.__class__, self).on_unit_created(unit)
 
-    async def on_before_start(self):
-        await super(self.__class__, self).on_before_start()
-        # await self.client.debug_show_map()
+    async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
+        if unit.type_id == UnitTypeId.OVERLORD:
+            enemies = self.enemy_units | self.enemy_structures
+            if enemies.exists:
+                enemy = enemies.closest_to(unit)
+                unit.move(unit.position.towards(enemy.position, -20))
+            else:
+                unit.move(unit.position.towards(self.start_location, 20))
+        await super(self.__class__, self).on_unit_took_damage(unit, amount_damage_taken)
 
     async def on_step(self, iteration):
-        await super(self.__class__, self).on_step(iteration)
         self.destroyRocks = 2 <= self.townhalls.ready.amount
+        await super(self.__class__, self).on_step(iteration)
+        self.micro()
+        self.assignWorker()
+        await self.microQueens()
+        await self.spreadCreepTumor()
+        # self.moveOverlord()
+        await self.changelingScout()
+        self.adjustGasTarget()
+        self.adjustComposition()
 
-    def counterComposition(self, enemies):
+    def getTargets(self) -> List[Union[UnitTypeId, UpgradeId]]:
+
+        if self.buildOrder is not None:
+            targets = self.buildOrder.execute(self)
+            if targets is None:
+                self.buildOrder = None
+                return []
+            else:
+                return targets
+        else:
+            targets = []
+            targets += self.trainQueens()
+            targets += self.upgrade()
+            targets += self.techUp()
+            targets += self.techBuildings()
+            targets += self.expandIfNecessary()
+            # targets += self.buildSpores()
+            targets += self.buildGasses()
+            targets += self.morphOverlords()
+            targets += self.morphUnits()
+            return targets
+
+    def counterComposition(self, enemies: Dict[UnitTypeId, int]) -> Dict[UnitTypeId, int]:
 
         enemyValue = sum((self.unitValue(u) * n for u, n in enemies.items()))
         if enemyValue == 0:
@@ -119,16 +136,13 @@ class ZergAI(CommonAI):
             
         weightSum = sum(composition.values())
         composition = {
-            u: (w  / weightSum) * (enemyValue / self.unitValue(u))
+            u: math.ceil((w  / weightSum) * (enemyValue / self.unitValue(u)))
             for u, w in composition.items()
         }
 
-        # if 2 <= len(composition):
-        #     techTargets = []
-
         return composition, techTargets
 
-    async def upgrade(self, reserve):
+    def upgrade(self) -> List[UpgradeId]:
 
         upgrades = []
 
@@ -151,7 +165,8 @@ class ZergAI(CommonAI):
             upgrades.extend(RANGED_UPGRADES)
 
         if UnitTypeId.HYDRALISK in self.composition:
-            upgrades += [UpgradeId.EVOLVEGROOVEDSPINES, UpgradeId.EVOLVEMUSCULARAUGMENTS]
+            upgrades.append(UpgradeId.EVOLVEGROOVEDSPINES)
+            upgrades.append(UpgradeId.EVOLVEMUSCULARAUGMENTS)
             upgrades.extend(RANGED_UPGRADES)
 
         if UnitTypeId.MUTALISK in self.composition:
@@ -160,83 +175,142 @@ class ZergAI(CommonAI):
         if UnitTypeId.CORRUPTOR in self.composition:
             upgrades.extend(FLYER_UPGRADES)
 
-        # if UnitTypeId.BROODLORD in self.composition:
-        #     upgrades.extend(FLYER_UPGRADES)
-        #     upgrades.extend(MELEE_UPGRADES)
+        if UnitTypeId.BROODLORD in self.composition:
+            upgrades.append(UpgradeId.ZERGFLYERARMORSLEVEL1)
+            upgrades.append(UpgradeId.ZERGFLYERARMORSLEVEL2)
+            upgrades.append(UpgradeId.ZERGFLYERARMORSLEVEL3)
+            upgrades.extend(MELEE_UPGRADES)
 
-        if 4 <= self.townhalls.amount:
-            upgrades.append(UpgradeId.OVERLORDSPEED)
+        # upgrades.append(UpgradeId.OVERLORDSPEED)
 
-        upgradesUnique = makeUnique(upgrades)
-        upgradesUnique = sorted(upgradesUnique, key=lambda u : upgrades.count(u), reverse=True)
+        upgrades = makeUnique(upgrades)
+        upgrades = [
+            u for u in upgrades
+            if self.tech_requirement_progress(u) == 1
+        ]
 
-        for upgrade in upgradesUnique:
-            reserve = await self.research(upgrade, reserve)
+        return upgrades
 
-        return reserve
+    def techBuildings(self) -> List[UnitTypeId]:
 
-    async def techBuildings(self, reserve):
+        structures = []
 
         if (UnitTypeId.ROACH in self.techTargets or UnitTypeId.RAVAGER in self.techTargets) and self.count(UnitTypeId.ROACHWARREN) < 1:
-            reserve = await self.train(UnitTypeId.ROACHWARREN, reserve)
+            structures.append(UnitTypeId.ROACHWARREN)
         if UnitTypeId.BANELING in self.techTargets and self.count(UnitTypeId.BANELINGNEST) < 1:
-            reserve = await self.train(UnitTypeId.BANELINGNEST, reserve)
+            structures.append(UnitTypeId.BANELINGNEST)
         if (UnitTypeId.HYDRALISK in self.techTargets or UnitTypeId.LURKER in self.techTargets) and self.count(UnitTypeId.HYDRALISKDEN) < 1:
-            reserve = await self.train(UnitTypeId.HYDRALISKDEN, reserve)
+            structures.append(UnitTypeId.HYDRALISKDEN)
         if (UnitTypeId.MUTALISK in self.techTargets or UnitTypeId.CORRUPTOR in self.techTargets or UnitTypeId.BROODLORD in self.techTargets) and self.count(UnitTypeId.SPIRE) < 1:
-            reserve = await self.train(UnitTypeId.SPIRE, reserve)
+            structures.append(UnitTypeId.SPIRE)
         if UnitTypeId.BROODLORD in self.techTargets and self.count(UnitTypeId.GREATERSPIRE) < 1:
-            reserve = await self.train(UnitTypeId.GREATERSPIRE, reserve)
+            structures.append(UnitTypeId.GREATERSPIRE)
         if UnitTypeId.ULTRALISK in self.techTargets and self.count(UnitTypeId.ULTRALISKCAVERN) < 1:
-            reserve = await self.train(UnitTypeId.ULTRALISKCAVERN, reserve)
+            structures.append(UnitTypeId.ULTRALISKCAVERN)
 
-        return reserve
+        return structures
 
     async def spreadCreepTumor(self):
         await self.spreadCreep()
 
-    async def techUp(self, reserve):
+    async def changelingScout(self):
+
+        overseers = self.units(withEquivalents(UnitTypeId.OVERSEER))
+        if overseers.exists:
+            overseer = overseers.random
+            ability = TRAIN_INFO[overseer.type_id][UnitTypeId.CHANGELING]["ability"]
+            if ability in await self.get_available_abilities(overseer):
+                overseer(ability)
+
+        changelings = self.units(CHANGELINGS).idle
+        if changelings.exists:
+            changeling = changelings.random
+            target = random.choice(self.expansion_locations_list)
+            changeling.move(target)
+
+    def moveOverlord(self, bias=1):
+        overlords = self.units(withEquivalents(UnitTypeId.OVERLORD)).idle
+        if overlords.exists:
+            overlord = overlords.random
+            target = random.choice(self.expansion_locations_list)
+            overlord.move(target)
+
+    def techUp(self) -> List[UnitTypeId]:
 
         if not self.goLair:
-
             self.goLair |= UnitTypeId.BANELING in self.techTargets
             self.goLair |= UnitTypeId.ROACH in self.techTargets
             self.goLair |= UnitTypeId.HYDRALISK in self.techTargets
             self.goLair |= UnitTypeId.MUTALISK in self.techTargets
             self.goLair |= UnitTypeId.CORRUPTOR in self.techTargets
-
             self.goLair |= UpgradeId.ZERGMISSILEWEAPONSLEVEL1 in self.state.upgrades
             self.goLair |= UpgradeId.ZERGMELEEWEAPONSLEVEL1 in self.state.upgrades
             self.goLair |= UpgradeId.ZERGGROUNDARMORSLEVEL1 in self.state.upgrades
-
             self.goLair |= self.goHive
 
         if not self.goHive:
-
             self.goHive |= UnitTypeId.ULTRALISK in self.techTargets
             self.goHive |= UnitTypeId.BROODLORD in self.techTargets
-
             self.goHive |= UpgradeId.ZERGMISSILEWEAPONSLEVEL2 in self.state.upgrades
             self.goHive |= UpgradeId.ZERGMELEEWEAPONSLEVEL2 in self.state.upgrades
             self.goHive |= UpgradeId.ZERGGROUNDARMORSLEVEL2 in self.state.upgrades
             self.goHive |= UpgradeId.ZERGFLYERARMORSLEVEL2 in self.state.upgrades
             self.goHive |= UpgradeId.ZERGFLYERARMORSLEVEL2 in self.state.upgrades
 
+        structures = []
         if 30 * (1 + self.count(UnitTypeId.EVOLUTIONCHAMBER)) < self.workers.amount:
-            reserve = await self.train(UnitTypeId.EVOLUTIONCHAMBER, reserve)
+            structures.append(UnitTypeId.EVOLUTIONCHAMBER)
 
         if self.goLair:
             if self.count(withEquivalents(UnitTypeId.LAIR)) < 1:
-                reserve = await self.train(UnitTypeId.LAIR, reserve)
+                structures.append(UnitTypeId.LAIR)
         if self.goHive:
             if self.count(withEquivalents(UnitTypeId.INFESTATIONPIT)) < 1:
-                reserve = await self.train(UnitTypeId.INFESTATIONPIT, reserve)
+                structures.append(UnitTypeId.INFESTATIONPIT)
             elif self.count(withEquivalents(UnitTypeId.HIVE)) < 1:
-                reserve = await self.train(UnitTypeId.HIVE, reserve)
+                structures.append(UnitTypeId.HIVE)
 
-        return reserve
+        return structures
 
-    async def buildSpores(self, reserve):
+    async def spreadCreep(self, spreader: Unit = None, numAttempts: int = 3):
+
+        if spreader is None:
+
+            tumors = self.structures(UnitTypeId.CREEPTUMORBURROWED)
+            for _ in range(min(tumors.amount, numAttempts)):
+                tumor = tumors.random
+                if not AbilityId.BUILD_CREEPTUMOR_TUMOR in await self.get_available_abilities(tumor):
+                    continue
+                spreader = tumor
+                break
+
+        if spreader is None:
+            return
+
+        if random.random() < 0.5:
+            target = spreader.position.towards(random.choice(self.expansion_locations_list), 10)
+        else:
+            target = spreader.position.towards(self.center, -10)
+
+        if target is None:
+            return
+
+        tumorPlacement = None
+        for _ in range(numAttempts):
+            position = await self.find_placement(AbilityId.ZERGBUILD_CREEPTUMOR, target, placement_step=1)
+            if position is None:
+                continue
+            if self.isBlockingExpansion(position):
+                continue
+            tumorPlacement = position
+            break
+
+        if tumorPlacement is None:
+            return
+
+        assert(spreader.build(UnitTypeId.CREEPTUMOR, tumorPlacement))
+
+    def buildSpores(self) -> List[UnitTypeId]:
 
         sporeTime = {
             Race.Zerg: 8 * 60,
@@ -249,16 +323,40 @@ class ZergAI(CommonAI):
             and self.count(UnitTypeId.SPORECRAWLER) < self.townhalls.amount
             and self.already_pending(UnitTypeId.SPORECRAWLER) < 1
         ):
-            reserve = await self.train(UnitTypeId.SPORECRAWLER, reserve)
+            return [UnitTypeId.SPORECRAWLER]
+        else:
+            return[]
 
-        return reserve
+    async def microQueens(self):
+
+        queens = self.units(UnitTypeId.QUEEN)
+        hatcheries = sorted(self.townhalls, key=lambda h: h.tag)
+        queens = sorted(queens, key=lambda q: q.tag)
+        assignment = list(zip(hatcheries[:4], queens))
+
+        self.armyBlacklist = { q.tag for _, q in assignment }
+
+        for hatchery, queen in assignment:
+            if not queen.is_idle:
+                continue
+            abilities = await self.get_available_abilities(queen)
+            if AbilityId.BUILD_CREEPTUMOR_QUEEN in abilities and 7 < self.larva.amount and random.random() < .3 * math.exp(-.03*self.count(UnitTypeId.CREEPTUMORBURROWED)):
+                await self.spreadCreep(spreader=queen)
+            elif AbilityId.EFFECT_INJECTLARVA in abilities and hatchery.is_ready:
+                queen(AbilityId.EFFECT_INJECTLARVA, hatchery)
+            elif 5 < queen.distance_to(hatchery):
+                queen.attack(hatchery.position)
 
     def adjustComposition(self):
         
         self.enemies = { u: max(.999 * v, self.enemy_units(u).amount) for u, v in self.enemies.items() }
 
         counterComposition, techTargets = self.counterComposition(self.enemies)
-        self.techTargets = techTargets[0:1]
+        if 2 < self.townhalls.amount:
+            self.techTargets = [UnitTypeId.ROACH]
+        if 3 < self.townhalls.amount:
+            self.techTargets = [UnitTypeId.HYDRALISK, UnitTypeId.ROACH]
+        # self.techTargets = techTargets[0:1]
 
         # counterComposition = {}
         # techTargets = []
@@ -286,6 +384,18 @@ class ZergAI(CommonAI):
             **counterComposition,
         }
 
+        if self.townhalls.amount < 4:
+            self.composition = {
+                UnitTypeId.DRONE: workersTarget,
+            }
+        else:
+            self.composition = {
+                UnitTypeId.DRONE: workersTarget,
+                UnitTypeId.HYDRALISK: workersTarget,
+                UnitTypeId.ROACH: workersTarget,
+                UnitTypeId.OVERSEER: 1,
+            }
+
         self.compositionCounts = { u: self.count(u) for u in self.composition.keys() }
         self.compositionMissing = { u: max(0, n - self.compositionCounts[u]) for u, n in self.composition.items() }
         self.compositionTargets = { u: self.compositionCounts[u] / n for u, n in self.composition.items() if 0 < n }
@@ -293,7 +403,7 @@ class ZergAI(CommonAI):
         self.advantage = sum((self.compositionCounts[u] * self.unitValue(u) for u in self.composition.keys())) / sum((self.composition[u] * self.unitValue(u) for u in self.composition.keys()))
 
     def adjustGasTarget(self):
-
+        
         compositionCost = { u: self.calculate_cost(u) for u in self.composition.keys() }
         compositionGas = sum((self.compositionMissing[u] * compositionCost[u].vespene for u in self.composition.keys()))
         compositionGas = max(1, compositionGas - self.vespene)
@@ -302,7 +412,7 @@ class ZergAI(CommonAI):
         gasRatio = compositionGas / (compositionGas + compositionMinerals)
 
         self.gasTarget = gasRatio * self.workers.amount
-        self.gasTarget += 3
+        # self.gasTarget += 3
 
     async def executeBuildOrder(self, reserve):
 
@@ -311,56 +421,53 @@ class ZergAI(CommonAI):
             
         return reserve
 
-    async def buildGasses(self, reserve):
-
+    def buildGasses(self) -> List[UnitTypeId]:
         gasActual = self.gas_buildings.filter(lambda v : v.has_vespene).amount
         gasPending = self.already_pending(UnitTypeId.EXTRACTOR)
-        if gasActual + gasPending < int(self.gasTarget / 3):
-            reserve = await self.train(UnitTypeId.EXTRACTOR, reserve)
-
-        return reserve
+        gasNeeded = max(0, int(self.gasTarget / 3) - (gasActual + gasPending))
+        return gasNeeded * [UnitTypeId.EXTRACTOR]
     
-    async def trainQueens(self, reserve):
-        
+    def trainQueens(self) -> List[UnitTypeId]:
         queenTarget = min(4, self.townhalls.amount)
         queenNeeded = max(0, queenTarget - self.count(UnitTypeId.QUEEN))
+        return queenNeeded * [UnitTypeId.QUEEN]
 
-        for _ in range(queenNeeded):
-            reserve = await self.train(UnitTypeId.QUEEN, reserve)
-
-        return reserve
-
-    async def morphOverlords(self, reserve):
-
+    def morphOverlords(self) -> List[UnitTypeId]:
         if (
             self.supply_cap < 200
             and self.supply_left + self.getSupplyPending() < self.getSupplyBuffer()
         ):
-            reserve = await self.train(UnitTypeId.OVERLORD, reserve)
+            return [UnitTypeId.OVERLORD]
+        else:
+            return []
 
-        return reserve
-
-    async def expandIfNecessary(self, reserve):
+    def expandIfNecessary(self) -> List[UnitTypeId]:
 
         workerSurplus = sum((h.surplus_harvesters for h in self.townhalls))
         if self.already_pending(UnitTypeId.HATCHERY) < 1 and -8 < workerSurplus:
-            reserve = await self.train(UnitTypeId.HATCHERY, reserve)
+            return [UnitTypeId.HATCHERY]
+        else:
+            return []
 
-        return reserve
-
-    async def morphUnits(self, reserve):
-
-        for u, w in sorted(self.compositionTargets.items(), key=lambda p: p[1]):
-            if u is UnitTypeId.DRONE:
-                if 1 <= w:
-                    continue
-            else:
-                if 2 <= w:
-                    continue
+    def morphUnits(self) -> List[UnitTypeId]:
+        units = []
+        for u, n in sorted(self.compositionMissing.items(), key=lambda p: p[1], reverse=True):
             t = list(UNIT_TRAINED_FROM[u])[0]
-            if t in UNIT_COUNTERS.keys() and self.count(t) < max(1, self.compositionMissing[u]):
-                reserve = await self.train(t, reserve)
-            else:
-                reserve = await self.train(u, reserve)
-
-        return reserve
+            if t in UNIT_COUNTERS.keys() and self.count(t) < n:
+                w2 = max(0, n - self.count(t))
+                units.extend(w2 * [t])
+            units.extend(n * [u])
+        # for u, w in sorted(self.compositionTargets.items(), key=lambda p: p[1]):
+        #     if u is UnitTypeId.DRONE:
+        #         if 1 <= w:
+        #             continue
+        #     else:
+        #         if 2 <= w:
+        #             continue
+        #     t = list(UNIT_TRAINED_FROM[u])[0]
+        #     if t in UNIT_COUNTERS.keys() and self.count(t) < max(1, self.compositionMissing[u]):
+        #         units.append(t)
+        #     else:
+        #         units.append(u)
+        random.shuffle(units)
+        return units

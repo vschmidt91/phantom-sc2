@@ -4,85 +4,81 @@ from reserve import Reserve
 
 from sc2.ids.upgrade_id import UpgradeId
 
-
+from typing import Coroutine, List, Union
 from common import CommonAI
 from sc2 import UnitTypeId
 
 class BuildOrder(ABC):
 
     @abstractmethod
-    def execute(self, bot: CommonAI, reserve: Reserve):
+    def execute(self, bot: CommonAI) -> List[Union[UnitTypeId, UpgradeId]]:
         raise NotImplementedError()
 
 class Pool12(BuildOrder):
 
-    async def execute(self, bot, reserve):
+    def execute(self, bot: CommonAI) -> List[Union[UnitTypeId, UpgradeId]]:
 
         if bot.count(UnitTypeId.SPAWNINGPOOL) < 1:
-            reserve = await bot.train(UnitTypeId.SPAWNINGPOOL, reserve)
+            return [UnitTypeId.SPAWNINGPOOL]
         elif bot.count(UnitTypeId.DRONE) < 14 and bot.count(UnitTypeId.HATCHERY) < 2:
-            reserve = await bot.train(UnitTypeId.DRONE, reserve)
+            return [UnitTypeId.DRONE]
         elif bot.count(UnitTypeId.OVERLORD) < 2:
-            reserve = await bot.train(UnitTypeId.OVERLORD, reserve)
+            return [UnitTypeId.OVERLORD]
         elif bot.count(UnitTypeId.QUEEN) < 1:
-            reserve = await bot.train(UnitTypeId.QUEEN, reserve)
+            return [UnitTypeId.QUEEN]
         elif bot.count(UnitTypeId.ZERGLING) < 10:
-            reserve = await bot.train(UnitTypeId.ZERGLING, reserve)
+            return [UnitTypeId.ZERGLING]
         elif bot.count(UnitTypeId.HATCHERY) < 2:
-            reserve = await bot.train(UnitTypeId.HATCHERY, reserve)
+            return [UnitTypeId.HATCHERY]
         elif bot.count(UnitTypeId.QUEEN) < 2:
-            reserve = await bot.train(UnitTypeId.QUEEN, reserve)
+            return [UnitTypeId.QUEEN]
         else:
-            bot.buildOrder = None
-
-        return reserve
+            return None
 
 class Pool16(BuildOrder):
 
-    async def execute(self, bot, reserve):
+    def execute(self, bot: CommonAI) -> List[Union[UnitTypeId, UpgradeId]]:
             
         if bot.count(UnitTypeId.DRONE) < 13:
-            reserve = await bot.train(UnitTypeId.DRONE, reserve)
+            return [UnitTypeId.DRONE]
         elif bot.count(UnitTypeId.OVERLORD) < 2:
-            reserve = await bot.train(UnitTypeId.OVERLORD, reserve)
+            return [UnitTypeId.OVERLORD]
         elif bot.count(UnitTypeId.DRONE) < 16:
-            reserve = await bot.train(UnitTypeId.DRONE, reserve)
+            return [UnitTypeId.DRONE]
         elif bot.count(UnitTypeId.SPAWNINGPOOL) < 1:
-            reserve = await bot.train(UnitTypeId.SPAWNINGPOOL, reserve)
+            return [UnitTypeId.SPAWNINGPOOL]
         elif bot.count(UnitTypeId.DRONE) < 17 and bot.count(UnitTypeId.EXTRACTOR) < 1:
-            reserve = await bot.train(UnitTypeId.DRONE, reserve)
+            return [UnitTypeId.DRONE]
         elif bot.count(UnitTypeId.HATCHERY) < 2:
-            reserve = await bot.train(UnitTypeId.HATCHERY, reserve)
+            return [UnitTypeId.HATCHERY]
         elif bot.count(UnitTypeId.QUEEN) < 1:
-            reserve = await bot.train(UnitTypeId.QUEEN, reserve)
+            return [UnitTypeId.QUEEN]
         elif bot.count(UnitTypeId.ZERGLING) < 6:
-            reserve = await bot.train(UnitTypeId.ZERGLING, reserve)
+            return [UnitTypeId.ZERGLING]
         elif bot.count(UnitTypeId.EXTRACTOR) < 1:
-            reserve = await bot.train(UnitTypeId.EXTRACTOR, reserve)
-        elif bot.structures(UnitTypeId.EXTRACTOR).exists:
-            bot.buildOrder = None
-
-        return reserve
+            return [UnitTypeId.EXTRACTOR]
+        elif bot.count(UnitTypeId.EXTRACTOR) < 1:
+            return []
+        else:
+            return None
 
 class Hatch16(BuildOrder):
 
-    async def execute(self, bot, reserve):
+    def execute(self, bot: CommonAI) -> List[Union[UnitTypeId, UpgradeId]]:
             
         if bot.count(UnitTypeId.DRONE) < 13:
-            reserve = await bot.train(UnitTypeId.DRONE, reserve)
+            return [UnitTypeId.DRONE]
         elif bot.count(UnitTypeId.OVERLORD) < 2:
-            reserve = await bot.train(UnitTypeId.OVERLORD, reserve)
+            return [UnitTypeId.OVERLORD]
         elif bot.count(UnitTypeId.DRONE) < 16:
-            reserve = await bot.train(UnitTypeId.DRONE, reserve)
+            return [UnitTypeId.DRONE]
         elif bot.count(UnitTypeId.HATCHERY) < 2:
-            reserve = await bot.train(UnitTypeId.HATCHERY, reserve)
+            return [UnitTypeId.HATCHERY]
         elif bot.count(UnitTypeId.DRONE) < 18:
-            reserve = await bot.train(UnitTypeId.DRONE, reserve)
+            return [UnitTypeId.DRONE]
         elif bot.count(UnitTypeId.EXTRACTOR) < 1:
-            reserve = await bot.train(UnitTypeId.EXTRACTOR, reserve)
+            return [UnitTypeId.EXTRACTOR]
         elif bot.count(UnitTypeId.SPAWNINGPOOL) < 1:
-            reserve = await bot.train(UnitTypeId.SPAWNINGPOOL, reserve)
-        elif bot.structures(UnitTypeId.SPAWNINGPOOL).exists:
-            bot.buildOrder = None
-
-        return reserve
+            return [UnitTypeId.SPAWNINGPOOL]
+        else:
+            return None

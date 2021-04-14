@@ -1,7 +1,9 @@
 
+from typing import List
+
 class Reserve(object):
 
-    def __init__(self, minerals=0, vespene=0, food=0, trainers=[], items=[]):
+    def __init__(self, minerals: int = 0, vespene: int = 0, food: int = 0, trainers: List = [], items: List = []):
         self.minerals = minerals
         self.vespene = vespene
         self.food = food

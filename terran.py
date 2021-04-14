@@ -235,3 +235,7 @@ class TerranAI(CommonAI):
             if expansion is not None:
                 if not cc(AbilityId.LAND, expansion):
                     cc.move(expansion)
+
+    def canPlaceAddon(self, position):
+        addonPosition = position + Point2((2.5, -0.5))
+        return self.canPlace(addonPosition, UnitTypeId.SUPPLYDEPOT)

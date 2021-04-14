@@ -5,6 +5,7 @@ import time
 
 import math
 import random
+from typing import Iterable, Union, Coroutine, Set, List, Callable
 from numpy.lib.function_base import insert
 from s2clientprotocol.error_pb2 import CantAddMoreCharges
 
@@ -59,14 +60,82 @@ class CommonAI(BotAI):
     def __init__(self):
         self.raw_affects_selection = True
         self.destroyRocks = False
-        self.iteration = 0
         self.gasTarget = 0
         self.advantage = 0
-        self.injectQueens = []
+        self.armyBlacklist = {}
         self.timing = {}
-        self.enableTiming = False
+        self.printTiming = False
+        self.printReserve = False
 
-    def getChain(self):
+    async def on_before_start(self):
+        pass
+
+    async def on_start(self):
+        self.client.game_step = 4
+
+    async def on_step(self, iteration: int):
+
+        if self.townhalls.empty:
+            return
+
+        self.center = center(self.structures)
+        if self.enemy_structures.exists:
+            self.enemyCenter = center(self.enemy_structures)
+        else:
+            self.enemyCenter = self.enemy_start_locations[0]
+
+        targets = self.getTargets()
+        reserve = Reserve()
+        for target in targets:
+            reserve = await self.reachTarget(target, reserve)
+            if self.minerals < reserve.minerals:
+                break
+
+        if self.printReserve and reserve.items:
+            print(reserve)
+
+    async def on_end(self, game_result: Result):
+        pass
+
+    async def on_building_construction_started(self, unit: Unit):
+        pass
+
+    async def on_building_construction_complete(self, unit: Unit):
+        if unit.type_id in race_townhalls[self.race] and self.mineral_field.exists:
+            unit.smart(self.mineral_field.closest_to(unit))
+
+    async def on_enemy_unit_entered_vision(self, unit: Unit):
+        pass
+
+    async def on_enemy_unit_left_vision(self, unit_tag: int):
+        pass
+
+    async def on_unit_created(self, unit: Unit):
+        pass
+
+    async def on_unit_destroyed(self, unit_tag: int):
+        pass
+
+    async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
+        if (
+            unit.is_structure
+            and not unit.is_ready
+            and unit.health_percentage < 0.333 * unit.build_progress * unit.build_progress
+        ):
+            unit(AbilityId.CANCEL)
+        
+
+    async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
+        if unit.type_id == UnitTypeId.LAIR:
+            ability = AbilityId.BEHAVIOR_GENERATECREEPON
+            for overlord in self.units(UnitTypeId.OVERLORD):
+                if ability in await self.get_available_abilities(overlord):
+                    overlord(ability)
+
+    async def on_upgrade_complete(self, upgrade: UpgradeId):
+        pass
+
+    def getTargets(self) -> List[Union[UnitTypeId, UpgradeId]]:
         return []
 
     def micro(self):
@@ -82,7 +151,7 @@ class CommonAI(BotAI):
         CIVILIANS |= CHANGELINGS
 
         army = self.units.exclude_type(CIVILIANS)
-        army = army.tags_not_in(self.injectQueens)
+        army = army.tags_not_in(self.armyBlacklist)
 
         enemyArmy = self.enemy_units | self.enemy_structures
         enemyArmy = enemyArmy.exclude_type(withEquivalents(UnitTypeId.OVERLORD))
@@ -124,7 +193,7 @@ class CommonAI(BotAI):
             localAdvantage *= pow(unit.health_percentage, .2)
 
             if enemies.exists:
-                if localAdvantage < random.random():
+                if localAdvantage < 1:
                     unit.move(unit.position.towards(enemies.center, -12))
                 elif not unit.is_idle:
                     unit.attack(enemies.center)
@@ -134,170 +203,48 @@ class CommonAI(BotAI):
             elif unit.is_idle:
                 unit.attack(random.choice(self.expansion_locations_list))
 
-    def getTechDistance(self, unit: UnitTypeId):
-
-        if unit not in UNIT_TRAINED_FROM:
+    def getTechDistanceForTrainer(self, unit: UnitTypeId, trainer: UnitTypeId) -> int:
+        info = TRAIN_INFO[trainer][unit]
+        structure = info.get("required_building")
+        if structure is None:
             return 0
+        elif self.structures(structure).ready.exists:
+            return 0
+        else:
+            return 1 + self.getTechDistance(structure)
 
-        minDistance = 999
-        for trainer in UNIT_TRAINED_FROM[unit]:
-            info = TRAIN_INFO[trainer][unit]
-            distance = 0
-            if "required_building" in info:
-                structure = info["required_building"]
-                if self.structures(structure).ready.exists < 1:
-                    distance = max(distance, 1 + self.getTechDistance(info["required_building"]))
-            minDistance = min(minDistance, distance)
+    def getTechDistance(self, unit: UnitTypeId) -> int:
+        trainers = UNIT_TRAINED_FROM.get(unit)
+        if not trainers:
+            return 0
+        return min((self.getTechDistanceForTrainer(unit, t) for t in trainers))
 
-        return minDistance
-
-    async def getTargetPosition(self, target: UnitTypeId, trainer: UnitTypeId):
+    def getTargetPosition(self, target: UnitTypeId, trainer: UnitTypeId) -> Point2:
         if target in STATIC_DEFENSE[self.race]:
-            defenses = self.structures(STATIC_DEFENSE[self.race])
-            undefendedTownhalls = self.townhalls.filter(lambda t : not defenses.closer_than(8, t).exists)
-            if undefendedTownhalls.exists:
-                townhall = undefendedTownhalls.closest_to(trainer)
-                # if townhall.position in self.expansion_locations_list:
-                #     return self.expansion_locations_dict[townhall.position].center
-                # else:
-                return townhall.position.towards(self.game_info.map_center, -5)
-            # else:
-            #     return self.townhalls.random.position.towards(self.game_info.map_center, -7)
+            return self.townhalls.random.position.towards(self.game_info.map_center, -7)
         elif self.isStructure(target):
             if target in race_townhalls[self.race]:
-                return await self.getNextExpansion()
+                return self.getNextExpansion()
             else:
                 position = self.townhalls.closest_to(self.start_location).position
                 return position.towards(self.game_info.map_center, 4)
         else:
             return trainer.position
 
-        return None
-
-    async def on_before_start(self):
-        pass
-
-    async def on_start(self):
-        self.client.game_step = 4
-        self.mapSize = max((self.start_location.distance_to(b) for b in self.enemy_start_locations))
-
-    async def on_step(self, iteration: int):
-
-        self.center = center(self.structures)
-
-        enemies = self.enemy_structures
-        if enemies.exists:
-            self.enemyCenter = center(enemies)
-        else:
-            self.enemyCenter = self.enemy_start_locations[0]
-
-        self.iteration = iteration
-
-        if self.townhalls.empty:
-            return
-
-        reserve = Reserve()
-        
-        for step in self.getChain():
-            signature = inspect.signature(step)
-            if self.enableTiming:
-                name = step.__func__.__name__
-                start = time.perf_counter()
-            if 0 == len(signature.parameters):
-                result = step()
-            elif 1 == len(signature.parameters):
-                result = step(reserve)
-            else:
-                raise Exception()
-            if inspect.iscoroutine(result):
-                result = await result
-            reserve = result or reserve
-            if self.enableTiming:
-                self.timing[name] = self.timing.get(name, 0) + time.perf_counter() - start
-
-        if self.enableTiming and iteration % 100 == 0:
-            timingSorted = dict(sorted(self.timing.items(), key=lambda t: t[1], reverse=True))
-            print(json.dumps(timingSorted, indent=4))
-
-        # if 0 < len(reserve.items):
-        #     print(reserve)
-
-    async def on_end(self, game_result: Result):
-        pass
-
-    async def on_building_construction_started(self, unit: Unit):
-        pass
-
-    async def on_building_construction_complete(self, unit: Unit):
-        if unit.type_id in race_townhalls[self.race] and self.mineral_field.exists:
-            mf = self.mineral_field.closest_to(unit)
-            unit.smart(mf)
-
-    async def on_enemy_unit_entered_vision(self, unit: Unit):
-        pass
-
-    async def on_enemy_unit_left_vision(self, unit_tag: int):
-        pass
-
-    async def on_unit_created(self, unit: Unit):
-        pass
-    async def on_unit_destroyed(self, unit_tag: int):
-        pass
-
-    async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
-        if unit.type_id == UnitTypeId.OVERLORD:
-            enemies = self.enemy_units | self.enemy_structures
-            if enemies.exists:
-                enemy = enemies.closest_to(unit)
-                unit.move(unit.position.towards(enemy.position, -20))
-            else:
-                unit.move(unit.position.towards(self.start_location, 20))
-        elif (
-            unit.is_structure
-            and not unit.is_ready
-            and unit.health_percentage < 0.333 * unit.build_progress * unit.build_progress
-        ):
-            unit(AbilityId.CANCEL)
-        # elif (
-        #     50 <= unit.health_max - unit.health
-        # ):
-        #     for queen in self.units(UnitTypeId.QUEEN):
-        #         if queen.tag in self.injectQueens:
-        #             continue
-        #         if 7 < queen.distance_to(unit):
-        #             continue
-        #         ability = AbilityId.TRANSFUSION_TRANSFUSION
-        #         if ability in await self.get_available_abilities(queen):
-        #             queen(ability, unit)
-        
-
-    async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
-        if unit.type_id == UnitTypeId.LAIR:
-            ability = AbilityId.BEHAVIOR_GENERATECREEPON
-            for overlord in self.units(UnitTypeId.OVERLORD):
-                if ability in await self.get_available_abilities(overlord):
-                    overlord(ability)
-
-    async def on_upgrade_complete(self, upgrade: UpgradeId):
-        pass
-
-    async def getNextExpansion(self):
-        bases = []
-        for base, resources in self.expansion_locations_dict.items():
-            if base in self.owned_expansions:
-                continue
-            if self.townhalls.closer_than(3, base).exists:
-                continue
-            if not resources.filter(lambda r : r.is_mineral_field).exists:
-                continue
-            distance = await self.client.query_pathing(self.start_location, base)
-            if distance is not None:
-                bases.append((base, distance))
-        if 0 == len(bases):
+    def getNextExpansion(self) -> Point2:
+        bases = [
+            base
+            for base, resources in self.expansion_locations_dict.items()
+            if (
+                not base in self.owned_expansions
+                and not self.townhalls.closer_than(3, base).exists
+                and resources.filter(lambda r : r.is_mineral_field or r.has_vespene).exists
+            )
+        ]
+        if not bases:
             return None
-        else:
-            bases = sorted(bases, key=lambda p : p[1])
-            return bases[0][0]
+        bases = sorted(bases, key=lambda b : b.distance_to(self.start_location))
+        return bases[0]
 
     def hasCapacity(self, unit: Unit) -> bool:
         if self.isStructure(unit.type_id):
@@ -308,121 +255,13 @@ class CommonAI(BotAI):
         else:
             return True
 
-    async def spreadCreep(self, spreader=None, numAttempts=3):
-
-        if spreader is None:
-
-            tumors = self.structures(UnitTypeId.CREEPTUMORBURROWED)
-            for _ in range(min(tumors.amount, numAttempts)):
-                tumor = tumors.random
-                if not AbilityId.BUILD_CREEPTUMOR_TUMOR in await self.get_available_abilities(tumor):
-                    continue
-                spreader = tumor
-                break
-
-        if spreader is None:
-            return
-
-        # target = None
-        # for _ in range(numAttempts):
-        #     position = np.random.uniform(0, self.mapSize, 2)
-        #     position = Point2(tuple(position))
-        #     if not self.in_map_bounds(position):
-        #         continue
-        #     if self.has_creep(position):
-        #         continue
-        #     if self.is_visible(position):
-        #         continue
-        #     if not self.in_placement_grid(position):
-        #         continue
-        #     if 10 < spreader.distance_to(position):
-        #         position = spreader.position.towards(position, 10)
-        #     target = position
-        #     break
-
-        if random.random() < 0.5:
-            target = spreader.position.towards(random.choice(self.expansion_locations_list), 10)
-        else:
-            target = spreader.position.towards(self.center, -10)
-
-        if target is None:
-            return
-
-        tumorPlacement = None
-        for _ in range(numAttempts):
-            position = await self.find_placement(AbilityId.ZERGBUILD_CREEPTUMOR, target, placement_step=1)
-            if position is None:
-                continue
-            if self.isBlockingExpansion(position):
-                continue
-            tumorPlacement = position
-            break
-
-        if tumorPlacement is None:
-            return
-
-        assert(spreader.build(UnitTypeId.CREEPTUMOR, tumorPlacement))
-
-    async def microQueens(self):
-
-        queens = self.units(UnitTypeId.QUEEN)
-        hatcheries = sorted(self.townhalls, key=lambda h: h.tag)
-        queens = sorted(queens, key=lambda q: q.tag)
-        assignment = list(zip(hatcheries[:4], queens))
-
-        self.injectQueens = [ q.tag for h, q in assignment]
-
-        for hatchery, queen in assignment:
-            if not queen.is_idle:
-                continue
-            abilities = await self.get_available_abilities(queen)
-            if AbilityId.BUILD_CREEPTUMOR_QUEEN in abilities and 7 < self.larva.amount and random.random() < math.exp(-.01*self.count(UnitTypeId.CREEPTUMORBURROWED)):
-                await self.spreadCreep(spreader=queen)
-            elif AbilityId.EFFECT_INJECTLARVA in abilities and hatchery.is_ready:
-                queen(AbilityId.EFFECT_INJECTLARVA, hatchery)
-            elif 5 < queen.distance_to(hatchery):
-                queen.attack(hatchery.position)
-        # for queen in queens:
-        #     if queen.tag in self.injectQueens:
-        #         continue
-        #     if not queen.is_idle:
-        #         continue
-        #     abilities = await self.get_available_abilities(queen)
-        #     if AbilityId.BUILD_CREEPTUMOR_QUEEN in abilities:
-        #         await self.spreadCreep(spreader=queen)
-        #     elif 5 < queen.distance_to(self.center):
-        #         queen.attack(self.center)
-
-
-    async def changelingScout(self):
-
-        overseers = self.units(withEquivalents(UnitTypeId.OVERSEER))
-        if overseers.exists:
-            overseer = overseers.random
-            ability = TRAIN_INFO[overseer.type_id][UnitTypeId.CHANGELING]["ability"]
-            if ability in await self.get_available_abilities(overseer):
-                overseer(ability)
-
-        changelings = self.units(CHANGELINGS).idle
-        if changelings.exists:
-            changeling = changelings.random
-            target = random.choice(self.expansion_locations_list)
-            changeling.move(target)
-
-    def moveOverlord(self, bias=1):
-        overlords = self.units(withEquivalents(UnitTypeId.OVERLORD)).idle
-        if overlords.exists:
-            overlord = overlords.random
-            target = random.choice(self.expansion_locations_list)
-            overlord.move(target)
-
-    def isStructure(self, unit):
-        if unit.value not in self.game_data.units:
+    def isStructure(self, unit: UnitTypeId) -> bool:
+        unitData = self.game_data.units.get(unit.value)
+        if unitData is None:
             return False
-        unitData = self.game_data.units[unit.value]
         return IS_STRUCTURE in unitData.attributes
 
-    def getSupplyBuffer(self):
+    def getSupplyBuffer(self) -> int:
         supplyBuffer = 0
         supplyBuffer += self.townhalls.amount
         supplyBuffer += self.larva.amount
@@ -436,7 +275,7 @@ class CommonAI(BotAI):
         supplyBuffer += 2 * self.count(UnitTypeId.STARGATE)
         return supplyBuffer
 
-    def getSupplyPending(self):
+    def getSupplyPending(self) -> int:
         supplyPending = 0
         supplyPending = 8 * self.already_pending(SUPPLY[self.race])
         if self.race is Race.Zerg:
@@ -447,7 +286,7 @@ class CommonAI(BotAI):
             supplyPending += sum((15 * h.build_progress for h in self.structures(UnitTypeId.COMMANDCENTER).not_ready))
         return supplyPending
 
-    def getSupplyTarget(self):
+    def getSupplyTarget(self) -> int:
 
         unit = SUPPLY[self.race]
         if self.isStructure(unit):
@@ -466,11 +305,11 @@ class CommonAI(BotAI):
 
         return supplyActual + supplyNeeded
 
-    def count(self, unit):
+    def count(self, unit: Union[UnitTypeId, Set[UnitTypeId]]) -> int:
         count = 0
         count += self.structures(unit).amount
         count += self.units(unit).amount
-        if not isinstance(unit, set):
+        if unit in UnitTypeId:
             unit = { unit }
         for u in unit:
             if u is UnitTypeId.ZERGLING:
@@ -479,120 +318,11 @@ class CommonAI(BotAI):
                 count += self.already_pending(u)
         return count
 
-    def canUse(self, info):
-        if "required_building" in info:
-            building = info["required_building"]
-            building = withEquivalents(building)
-            if self.structures(building).ready.empty:
-                return False
-        if "required_upgrade" in info:
-            if info["required_upgrade"] not in self.state.upgrades:
-                return False
-        return True
-
-    async def research(self, upgrade, reserve):
-
-        if upgrade in self.state.upgrades:
-            return reserve
-        
-        if self.already_pending_upgrade(upgrade):
-            return reserve
-
-        trainerTypes = UPGRADE_RESEARCHED_FROM[upgrade]
-        trainers = self.structures(trainerTypes)
-        trainers = trainers.ready.idle
-        trainers = trainers.tags_not_in(reserve.trainers)
-        
-        for trainer in trainers:
-
-            info = RESEARCH_INFO[trainer.type_id][upgrade]
-
-            if not self.canUse(info):
-                return reserve
-
-            if not self.canAffordWithReserve(upgrade, reserve):
-                return reserve + self.createReserve(upgrade, trainer)
-
-            ability = info["ability"]
-            abilities = await self.get_available_abilities(trainer)
-            if ability not in abilities:
-                continue
-
-            assert(trainer(ability))
-
-            return reserve + self.createReserve(None, trainer)
-
-        return reserve
-
-    async def train(self, unit, reserve):
-
-        trainerTypes = UNIT_TRAINED_FROM[unit]
-
-        trainers = self.structures(trainerTypes) | self.units(trainerTypes)
-        trainers = trainers.ready
-        trainers = trainers.tags_not_in(reserve.trainers)
-        
-        for trainer in trainers:
-
-            if not self.hasCapacity(trainer):
-                continue
-
-            info = TRAIN_INFO[trainer.type_id][unit]
-
-            if "requires_techlab" in info and not trainer.has_techlab:
-                continue
-
-            if not self.canUse(info):
-                return reserve
-
-            if not self.canAffordWithReserve(unit, reserve):
-                return reserve + self.createReserve(unit, trainer)
-
-            ability = info["ability"]
-            abilities = await self.get_available_abilities(trainer)
-            if ability not in abilities:
-                continue
-
-            if unit in ALL_GAS:
-                geysers = []
-                for b in self.owned_expansions.keys():
-                    geysers += [g for g in self.expansion_locations_dict[b] if g.is_vespene_geyser]
-                geysers = Units(geysers, self)
-                geysers = geysers.filter(lambda g : not self.gas_buildings.closer_than(1, g).exists)
-                # geysers = geysers.filter(lambda g : not self.workers.filter(lambda w : w.order_target == g.tag).exists)
-                if geysers.empty:
-                    continue
-                abilityTarget = geysers.closest_to(trainer.position)
-            elif "requires_placement_position" in info:
-                position = await self.getTargetPosition(unit, trainer)
-                if not position:
-                    return reserve
-                withAddon = unit in { UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT }
-                abilityTarget = await self.find_placement(ability, position, max_distance=8, placement_step=1, addon_place=withAddon)
-            else:
-                abilityTarget = None
-
-            if trainer.is_carrying_resource:
-                trainer.return_resource()
-                queue = True
-            else:
-                queue = False
-
-            if abilityTarget is None:
-                assert(trainer(ability, queue=queue))
-            else:
-                assert(trainer(ability, target=abilityTarget, queue=queue))
-
-            return reserve + self.createReserve(None, trainer)
-
-        return reserve
-
-    async def reachTarget(self, target, reserve):
-
-        if self.tech_requirement_progress(target) < 1:
-            return reserve
+    async def reachTarget(self, target: Union[UnitTypeId, UpgradeId], reserve: Reserve) -> Coroutine[any, any, Reserve]:
 
         if type(target) is UnitTypeId:
+            if self.tech_requirement_progress(target) < 1:
+                return reserve
             trainerTypes = UNIT_TRAINED_FROM[target]
         elif type(target) is UpgradeId:
             if target in self.state.upgrades:
@@ -600,32 +330,21 @@ class CommonAI(BotAI):
             elif self.already_pending_upgrade(target):
                 return reserve
             trainerTypes = UPGRADE_RESEARCHED_FROM[target]
-        else:
-            return reserve
 
         trainers = self.structures(trainerTypes) | self.units(trainerTypes)
         trainers = trainers.ready
-        # trainers = trainers.sorted_by_distance_to(center(self.townhalls))
+        trainers = trainers.tags_not_in(reserve.trainers)
+        trainers = trainers.filter(lambda t: self.hasCapacity(t))
         
         for trainer in trainers:
-
-            if trainer.tag in reserve.trainers:
-                continue
-
-            if not self.hasCapacity(trainer):
-                continue
 
             if type(target) is UnitTypeId:
                 info = TRAIN_INFO[trainer.type_id][target]
             elif type(target) is UpgradeId:
                 info = RESEARCH_INFO[trainer.type_id][target]
-            else:
-                continue
 
             if "requires_techlab" in info and not trainer.has_techlab:
                 continue
-
-            ability = info["ability"]
 
             if "required_building" in info:
                 building = info["required_building"]
@@ -638,25 +357,25 @@ class CommonAI(BotAI):
                     continue
 
             if not self.canAffordWithReserve(target, reserve):
-                reserve = reserve + self.createReserve(target, trainer)
+                reserve = reserve + self.createReserve(target, [trainer.tag])
                 break
 
+            ability = info["ability"]
             abilities = await self.get_available_abilities(trainer)
             if not ability in abilities:
                 continue
 
             if target in ALL_GAS:
                 geysers = []
-                for b in self.owned_expansions.keys():
-                    geysers += [g for g in self.expansion_locations_dict[b] if g.is_vespene_geyser]
-                geysers = Units(geysers, self)
-                geysers = geysers.filter(lambda g : not self.gas_buildings.closer_than(1, g).exists)
-                # geysers = geysers.filter(lambda g : not self.workers.filter(lambda w : w.order_target == g.tag).exists)
-                if geysers.empty:
+                for b, h in self.owned_expansions.items():
+                    if not h.is_ready:
+                        continue
+                    geysers.extend(g for g in self.expansion_locations_dict[b].vespene_geyser)
+                if not geysers:
                     continue
-                abilityTarget = geysers.closest_to(trainer.position)
+                abilityTarget = random.choice(geysers)
             elif "requires_placement_position" in info:
-                position = await self.getTargetPosition(target, trainer)
+                position = self.getTargetPosition(target, trainer)
                 if not position:
                     continue
                 withAddon = target in { UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT }
@@ -664,39 +383,38 @@ class CommonAI(BotAI):
             else:
                 abilityTarget = None
 
-            reserve = reserve + self.createReserve(None, trainer)
+            reserve = reserve + self.createReserve(None, [trainer.tag])
 
+            queue = False
             if trainer.is_carrying_resource:
                 trainer.return_resource()
                 queue = True
-            else:
-                queue = False
 
-            if abilityTarget is None:
-                assert(trainer(ability, queue=queue))
-            else:
-                assert(trainer(ability, target=abilityTarget, queue=queue))
+            assert(trainer(ability, target=abilityTarget, queue=queue))
 
             break
 
         return reserve
 
-    def unitValue(self, unit):
+    def unitValue(self, unit: UnitTypeId) -> int:
         value = self.calculate_unit_value(unit)
         return value.minerals + 2 * value.vespene
 
-    def assignWorker(self, reserve):
+    def assignWorker(self):
 
         gasActual = sum((g.assigned_harvesters for g in self.gas_buildings))
 
         worker = None
         target = None
 
-        if self.workers.idle.exists and self.townhalls.ready.exists:
+        # if self.workers.idle.exists and self.townhalls.ready.exists:
+        #     worker = self.workers.idle.random
+        #     townhall = self.townhalls.ready.random
+        #     minerals = self.mineral_field.closest_to(townhall)
+        #     target = minerals
+
+        if self.workers.idle.exists:
             worker = self.workers.idle.random
-            townhall = self.townhalls.ready.random
-            minerals = self.mineral_field.closest_to(townhall)
-            target = minerals
 
         if worker is None:
             for gas in self.gas_buildings.ready:
@@ -715,13 +433,13 @@ class CommonAI(BotAI):
                         break
 
         if worker is None:
-            return reserve
+            return
 
-        if target is None:
-            for gas in self.gas_buildings.ready:
-                if gas.surplus_harvesters < 0 and gasActual + 1 < self.gasTarget:
-                    target = gas
-                    break
+        # if target is None:
+        #     for gas in self.gas_buildings.ready:
+        #         if gas.surplus_harvesters < 0 and gasActual + 1 < self.gasTarget:
+        #             target = gas
+        #             break
 
         if target is None:
             for townhall in self.townhalls.ready:
@@ -730,7 +448,7 @@ class CommonAI(BotAI):
                     target = minerals
 
         if target is None:
-            return reserve
+            return
 
         if worker.is_carrying_resource:
             worker.return_resource()
@@ -738,20 +456,18 @@ class CommonAI(BotAI):
         else:
             worker.gather(target)
 
-        return reserve
-
-    def canAffordWithReserve(self, item, reserve):
+    def canAffordWithReserve(self, item: Union[UnitTypeId, UpgradeId, AbilityId], reserve: Reserve) -> bool:
         cost = self.createReserve(item)
-        if (
-            (cost.minerals == 0 or cost.minerals + reserve.minerals <= self.minerals)
-            and (cost.vespene == 0 or cost.vespene + reserve.vespene <= self.vespene)
-            and (cost.food == 0 or cost.food + reserve.food <= self.supply_left)
-        ):
-            return True
-        else:
+        if cost.minerals and self.minerals < reserve.minerals + cost.minerals:
             return False
+        elif cost.vespene and self.vespene < reserve.vespene + cost.vespene:
+            return False
+        elif cost.food and self.supply_left < reserve.food + cost.food:
+            return False
+        else:
+            return True
 
-    def getMaxWorkers(self):
+    def getMaxWorkers(self) -> int:
         workers = 0
         for loc in self.owned_expansions.keys():
             base = self.expansion_locations_dict[loc]
@@ -761,34 +477,31 @@ class CommonAI(BotAI):
         workers += 3 * geysers.amount
         return workers
 
-    def createReserve(self, item=None, trainer=None):
-        if item is None:
-            cost = Cost(0, 0)
-            names = []
-        else:
+    def createReserve(self, item: Union[UnitTypeId, UpgradeId, AbilityId], tags = []) -> Reserve:
+        cost = Cost(0, 0)
+        names = []
+        food = 0
+        tags = []
+        if item is not None:
             cost = self.calculate_cost(item)
-            names = [item.name]
-        if item not in UnitTypeId:
-            food = 0
-        else:
+            names.append(item.name)
+        if item in UnitTypeId:
             food = int(self.calculate_supply_cost(item))
-        if trainer is None:
-            tag = 0
-        else:
-            tag = trainer.tag
-        return Reserve(cost.minerals, cost.vespene, food, [tag], names)
+        return Reserve(cost.minerals, cost.vespene, food, tags, names)
 
-    def canPlace(self, position, unit):
-        if unit in UNIT_TECH_ALIAS:
-            unit = list(UNIT_TECH_ALIAS[unit])[0]
-        trainer = list(UNIT_TRAINED_FROM[unit])[0]
-        ability = TRAIN_INFO[trainer][unit]["ability"]
-        abilityData = self.game_data.abilities[ability.value]
-        return self.can_place_single(abilityData, position)
+    async def canPlace(self, position: Point2, unit: UnitTypeId) -> Coroutine[any, any, bool]:
+        aliases = UNIT_TECH_ALIAS.get(unit)
+        if aliases:
+            return any((await self.canPlace(position, a) for a in aliases))
+        trainers = UNIT_TRAINED_FROM.get(unit)
+        if not trainers:
+            return False
+        for trainer in trainers:
+            ability = TRAIN_INFO[trainer][unit]["ability"]
+            abilityData = self.game_data.abilities[ability.value]
+            if await self.can_place_single(abilityData, position):
+                return True
+        return False
 
-    def canPlaceAddon(self, position):
-        addonPosition = position + Point2((2.5, -0.5))
-        return self.canPlace(addonPosition, UnitTypeId.SUPPLYDEPOT)
-
-    def isBlockingExpansion(self, position):
+    def isBlockingExpansion(self, position: Point2) -> bool:
         return any((e.distance_to(position) < 4.25 for e in self.expansion_locations_list))
