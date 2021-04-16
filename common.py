@@ -10,7 +10,7 @@ from numpy.lib.function_base import insert
 from s2clientprotocol.error_pb2 import CantAddMoreCharges
 
 from sc2.game_data import Cost
-from utils import CHANGELINGS, armyValue, canAttack, center, dot, filterArmy, withEquivalents
+from utils import CHANGELINGS, armyValue, canAttack, center, dot, filterArmy, unitValue, withEquivalents
 
 import numpy as np
 import json
@@ -74,6 +74,8 @@ class CommonAI(BotAI):
         self.client.game_step = 4
 
     async def on_step(self, iteration: int):
+
+        self.iteration = iteration
 
         if self.townhalls.empty:
             return
@@ -140,6 +142,9 @@ class CommonAI(BotAI):
 
     def micro(self):
 
+        if self.iteration % 2 != 0:
+            return
+
         CIVILIANS = { UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.PROBE }
         CIVILIANS |= withEquivalents(UnitTypeId.DRONE)
         # CIVILIANS |= withEquivalents(UnitTypeId.QUEEN)
@@ -154,9 +159,10 @@ class CommonAI(BotAI):
         army = army.tags_not_in(self.armyBlacklist)
 
         enemyArmy = self.enemy_units | self.enemy_structures
-        enemyArmy = enemyArmy.exclude_type(withEquivalents(UnitTypeId.OVERLORD))
-        enemyArmy = enemyArmy.exclude_type(withEquivalents(UnitTypeId.OVERSEER))
-        enemyArmy = enemyArmy.exclude_type(withEquivalents(UnitTypeId.OBSERVER))
+        enemyArmy = enemyArmy.exclude_type(CIVILIANS)
+        # enemyArmy = enemyArmy.exclude_type(withEquivalents(UnitTypeId.OVERLORD))
+        # enemyArmy = enemyArmy.exclude_type(withEquivalents(UnitTypeId.OVERSEER))
+        # enemyArmy = enemyArmy.exclude_type(withEquivalents(UnitTypeId.OBSERVER))
         enemyArmy = enemyArmy.sorted_by_distance_to(self.center)
 
         # neutrals = self.enemy_units(CIVILIANS)
@@ -167,41 +173,25 @@ class CommonAI(BotAI):
 
         # enemyArmy |= neutrals
 
+        biasValue = 1000
+        enemyValue = biasValue + sum((unitValue(e) for e in enemyArmy))
+        friendsValue = biasValue + sum((unitValue(f) for f in army))
+        advantage = friendsValue / enemyValue
 
-        for unit in army:
-
-            # enemies = enemyArmy.filter(lambda e : canAttack(e, unit))
-            # friends = set().union(*[army.filter(lambda f : canAttack(f, e)) for e in enemies])
-            # friends = Units(friends, self)
-            # friends = friends.tags_not_in({ unit.tag })
-
-            enemies = enemyArmy.closer_than(12, unit)
-            friends = army.closer_than(12, unit)
-
-            biasValue = 1000
-            enemyValue = biasValue + armyValue(enemies) * len(enemies)
-            friendsValue = biasValue + armyValue(friends) * len(friends)
-
-            biasDistance = 32
-            enemyDistance = biasDistance + unit.distance_to(self.center)
-            friendDistance = biasDistance + unit.distance_to(self.enemyCenter)
-
-            localAdvantage = 1
-            localAdvantage *= pow(friendsValue / enemyValue, 1)
-            localAdvantage *= pow(self.advantage, .2)
-            localAdvantage *= pow(friendDistance / enemyDistance, .2)
-            localAdvantage *= pow(unit.health_percentage, .2)
-
-            if enemies.exists:
-                if localAdvantage < 1:
-                    unit.move(unit.position.towards(enemies.center, -12))
-                elif not unit.is_idle:
-                    unit.attack(enemies.center)
-            elif enemyArmy.exists:
-                target = enemyArmy.random
-                unit.attack(target.position)
-            elif unit.is_idle:
-                unit.attack(random.choice(self.expansion_locations_list))
+        if army.exists:
+            armyCenter = center(army)
+            if enemyArmy.exists:
+                enemyCenter = center(enemyArmy)
+                for unit in army:
+                    if 15 < unit.distance_to(armyCenter):
+                        unit.move(armyCenter)
+                    elif advantage < 1 and unit.is_attacking and unit.distance_to(enemyCenter) < 15:
+                        unit.move(unit.position.towards(enemyCenter, -12))
+                    else:
+                        unit.attack(enemyCenter)
+            else:
+                for unit in army.idle:
+                    unit.attack(random.choice(self.expansion_locations_list))
 
     def getTechDistanceForTrainer(self, unit: UnitTypeId, trainer: UnitTypeId) -> int:
         info = TRAIN_INFO[trainer][unit]
@@ -477,11 +467,10 @@ class CommonAI(BotAI):
         workers += 3 * geysers.amount
         return workers
 
-    def createReserve(self, item: Union[UnitTypeId, UpgradeId, AbilityId], tags = []) -> Reserve:
+    def createReserve(self, item: Union[UnitTypeId, UpgradeId, AbilityId], tags: List[int] = []) -> Reserve:
         cost = Cost(0, 0)
         names = []
         food = 0
-        tags = []
         if item is not None:
             cost = self.calculate_cost(item)
             names.append(item.name)

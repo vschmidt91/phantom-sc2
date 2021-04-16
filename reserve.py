@@ -3,7 +3,7 @@ from typing import List
 
 class Reserve(object):
 
-    def __init__(self, minerals: int = 0, vespene: int = 0, food: int = 0, trainers: List = [], items: List = []):
+    def __init__(self, minerals: int = 0, vespene: int = 0, food: int = 0, trainers: List[int] = [], items: List[str] = []):
         self.minerals = minerals
         self.vespene = vespene
         self.food = food
