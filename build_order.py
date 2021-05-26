@@ -47,18 +47,18 @@ class Pool16(BuildOrder):
             return [UnitTypeId.DRONE]
         elif bot.count(UnitTypeId.SPAWNINGPOOL) < 1:
             return [UnitTypeId.SPAWNINGPOOL]
-        elif bot.count(UnitTypeId.DRONE) < 17 and bot.count(UnitTypeId.EXTRACTOR) < 1:
+        elif bot.count(UnitTypeId.DRONE) < 17:
             return [UnitTypeId.DRONE]
         elif bot.count(UnitTypeId.HATCHERY) < 2:
             return [UnitTypeId.HATCHERY]
+        elif bot.count(UnitTypeId.DRONE) < 17:
+            return [UnitTypeId.DRONE]
         elif bot.count(UnitTypeId.QUEEN) < 1:
             return [UnitTypeId.QUEEN]
         elif bot.count(UnitTypeId.ZERGLING) < 6:
             return [UnitTypeId.ZERGLING]
         elif bot.count(UnitTypeId.EXTRACTOR) < 1:
             return [UnitTypeId.EXTRACTOR]
-        elif bot.count(UnitTypeId.EXTRACTOR) < 1:
-            return []
         else:
             return None
 

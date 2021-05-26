@@ -1,6 +1,7 @@
 
 import math
 import itertools, random
+from target import Target
 from reserve import Reserve
 from s2clientprotocol.raw_pb2 import Unit
 from typing import List, Coroutine, Dict, Union
@@ -57,9 +58,43 @@ class ZergAI(CommonAI):
         super(self.__class__, self).__init__()
         # self.buildOrder = random.choice((Pool12, Pool16, Hatch16))()
         self.composition = {}
-        self.buildOrder = Hatch16()
+        buildOrder = [
+            UnitTypeId.DRONE,
+            UnitTypeId.OVERLORD,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
+            UnitTypeId.SPAWNINGPOOL,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
+            UnitTypeId.HATCHERY,
+            UnitTypeId.QUEEN,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.EXTRACTOR,
+            UnitTypeId.OVERLORD,
+        ]
+        # buildOrder = [
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.OVERLORD,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.HATCHERY,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.EXTRACTOR,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.SPAWNINGPOOL,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.OVERLORD,
+        # ]
         self.goLair = False
         self.goHive = False
+        self.targets = [Target(t) for t in buildOrder]
 
     async def on_unit_created(self, unit: Unit):
         if unit.type_id is UnitTypeId.OVERLORD and self.structures(withEquivalents(UnitTypeId.LAIR)).exists:
@@ -78,6 +113,7 @@ class ZergAI(CommonAI):
 
     async def on_step(self, iteration):
         self.destroyRocks = 2 <= self.townhalls.ready.amount
+        self.adjustComposition()
         await super(self.__class__, self).on_step(iteration)
         self.micro()
         self.assignWorker()
@@ -85,30 +121,21 @@ class ZergAI(CommonAI):
         await self.spreadCreepTumor()
         # self.moveOverlord()
         await self.changelingScout()
-        self.adjustComposition()
 
-    def getTargets(self) -> List[Union[UnitTypeId, UpgradeId]]:
+    def getTargets(self) -> List[Target]:
 
-        if self.buildOrder is not None:
-            targets = self.buildOrder.execute(self)
-            if targets is None:
-                self.buildOrder = None
-                return []
-            else:
-                return targets
-        else:
-            targets = []
-            targets += self.trainQueens()
-            targets += self.upgrade()
-            targets += self.techUp()
-            targets += self.techBuildings()
-            targets += self.expandIfNecessary()
-            # targets += self.buildSpores()
-            targets += self.morphOverlords()
-            targets += self.morphUnits()
-            self.adjustGasTarget(targets)
-            targets += self.buildGasses()
-            return targets
+        targets = []
+        targets += self.trainQueens()
+        targets += self.upgrade()
+        targets += self.techUp()
+        targets += self.techBuildings()
+        targets += self.expandIfNecessary()
+        # targets += self.buildSpores()
+        targets += self.morphOverlords()
+        targets += self.morphUnits()
+        self.adjustGasTarget(targets)
+        targets += self.buildGasses()
+        return [Target(t) for t in targets]
 
     def counterComposition(self, enemies: Dict[UnitTypeId, int]) -> Dict[UnitTypeId, int]:
 
@@ -176,7 +203,8 @@ class ZergAI(CommonAI):
         if UnitTypeId.OVERSEER in self.composition:
             targets.append(UpgradeId.OVERLORDSPEED)
         targets = makeUnique(targets)
-        targets = [t for t in targets if t not in self.state.upgrades]
+        pendingUpgrades = list(self.state.upgrades) + [t.item for t in self.targets]
+        targets = [t for t in targets if t not in pendingUpgrades]
         return targets
 
     def upgradeSequence(self, upgrades) -> List[UpgradeId]:
@@ -324,7 +352,6 @@ class ZergAI(CommonAI):
     def adjustComposition(self):
         workersTarget = min(80, self.getMaxWorkers())
         self.composition = { UnitTypeId.DRONE: workersTarget }
-        # if 3 <= self.townhalls.ready.amount:
         if 4 <= self.townhalls.amount:
             self.composition[UnitTypeId.ROACH] = workersTarget
             self.composition[UnitTypeId.HYDRALISK] = workersTarget
@@ -339,7 +366,7 @@ class ZergAI(CommonAI):
 
     def buildGasses(self) -> List[UnitTypeId]:
         gasActual = self.gas_buildings.filter(lambda v : v.has_vespene).amount
-        gasPending = self.already_pending(UnitTypeId.EXTRACTOR)
+        gasPending = self.already_pending(UnitTypeId.EXTRACTOR) + sum(1 for t in self.targets if t.item is UnitTypeId.EXTRACTOR)
         gasNeeded = max(0, int(self.gasTarget / 3) - (gasActual + gasPending))
         return gasNeeded * [UnitTypeId.EXTRACTOR]
     
@@ -349,9 +376,10 @@ class ZergAI(CommonAI):
         return queenNeeded * [UnitTypeId.QUEEN]
 
     def morphOverlords(self) -> List[UnitTypeId]:
+        s = sum(t.cost.food for t in self.targets if t.cost is not None)
         if (
             self.supply_cap < 200
-            and self.supply_left + self.getSupplyPending() < self.getSupplyBuffer()
+            and self.supply_left + self.getSupplyPending() < s + self.getSupplyBuffer()
         ):
             return [UnitTypeId.OVERLORD]
         else:
@@ -361,7 +389,8 @@ class ZergAI(CommonAI):
 
         workerSurplus = sum((h.surplus_harvesters for h in self.townhalls))
         surplusRatio = workerSurplus / self.composition[UnitTypeId.DRONE]
-        if self.already_pending(UnitTypeId.HATCHERY) < 1 and -0.2 < surplusRatio:
+        pendingCount = self.already_pending(UnitTypeId.HATCHERY) + sum(1 for t in self.targets if t.item is UnitTypeId.HATCHERY)
+        if pendingCount < 1 and -0.2 < surplusRatio:
             return [UnitTypeId.HATCHERY]
         else:
             return []
@@ -369,6 +398,8 @@ class ZergAI(CommonAI):
     def morphUnits(self) -> List[UnitTypeId]:
         targets = []
         for unit, target in self.composition.items():
+            if self.tech_requirement_progress(unit) < 1:
+                continue
             missing = target - self.count(unit)
             if missing <= 0:
                 continue
@@ -377,10 +408,14 @@ class ZergAI(CommonAI):
                 missingTrainers = max(0, missing - self.count(trainer))
                 if missingTrainers <= 0:
                     continue
-                targets.append(missingTrainers * [trainer])
-            targets.append(missing * [unit])
+                targets.append((trainer, missingTrainers))
+            targets.append((unit, missing))
         # random.shuffle(targets)
-        targets = sorted(targets, key=lambda t : len(t), reverse=True)
-        targets = list(zip(*targets))
-        targets = [ti for t in targets for ti in t]
-        return targets
+        if not targets:
+            return []
+
+        targets = sorted(targets, key=lambda p : p[1], reverse=True)
+        return min(3, targets[0][1]) * [targets[0][0]]
+        # targets = list(zip(*targets))
+        # targets = [ti for t in targets for ti in t]
+        # return targets
