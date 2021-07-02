@@ -1,5 +1,6 @@
 
 
+from macro_objective import MacroObjective
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -17,6 +18,10 @@ class TerranAI(CommonAI):
         await self.landFlyingBuildings()
         self.buildAbandonedBuildings()
         await super(self.__class__, self).on_step(iteration)
+        self.manageCCs()
+
+        targets = self.getTargets()
+        self.macroObjectives += [MacroObjective(t) for t in targets]
 
     def getChain(self):
         return [
@@ -74,8 +79,8 @@ class TerranAI(CommonAI):
 
         if self.count(UnitTypeId.ORBITALCOMMAND) < 3:
             macroTargets.append(UnitTypeId.ORBITALCOMMAND)
-        else:
-            macroTargets.append(UnitTypeId.PLANETARYFORTRESS)
+        # else:
+        #     macroTargets.append(UnitTypeId.PLANETARYFORTRESS)
 
         if self.count(UnitTypeId.SCV) < workers_target:
             macroTargets.append(UnitTypeId.SCV)
@@ -87,15 +92,18 @@ class TerranAI(CommonAI):
 
         if self.count(UnitTypeId.REFINERY) < gas_target:
             macroTargets.append(UnitTypeId.REFINERY)
+        self.gasTarget = 3 * gas_target
 
-        # if self.count(UnitTypeId.BARRACKS) < min(12, int(seselflf.workers.amount / 7)):
-        if self.count(UnitTypeId.BARRACKS) < 1:
+        if self.count(UnitTypeId.BARRACKS) < min(12, int(self.workers.amount / 7)):
+        # if self.count(UnitTypeId.BARRACKS) < 1:
             macroTargets.append(UnitTypeId.BARRACKS)
 
-        if self.count(UnitTypeId.FACTORY) < 1 + self.townhalls.amount:
+        # if self.count(UnitTypeId.FACTORY) < 1 + self.townhalls.amount:
+        if self.count(UnitTypeId.FACTORY) < 1:
             macroTargets.append(UnitTypeId.FACTORY)
 
-        if self.count(UnitTypeId.STARPORT) < min(2, int(self.workers.amount / 22)):
+        # if self.count(UnitTypeId.STARPORT) < min(2, int(self.workers.amount / 22)):
+        if self.count(UnitTypeId.STARPORT) < 1:
             macroTargets.append(UnitTypeId.STARPORT)
 
         if self.count(UnitTypeId.ARMORY) < max(0, min(2, self.townhalls.amount - 1)):
@@ -108,26 +116,31 @@ class TerranAI(CommonAI):
             if self.count(UnitTypeId.FUSIONCORE) == 0:
                 macroTargets.append(UnitTypeId.FUSIONCORE)
 
-        armyTargets = [UnitTypeId.THOR, UnitTypeId.BATTLECRUISER, UnitTypeId.HELLION]
+        # armyTargets = [UnitTypeId.THOR, UnitTypeId.BATTLECRUISER, UnitTypeId.HELLION]
 
-        if self.count(UnitTypeId.RAVEN) < 1:
-            armyTargets.append(UnitTypeId.RAVEN)
+        # if self.count(UnitTypeId.RAVEN) < 1:
+        #     armyTargets.append(UnitTypeId.RAVEN)
 
         # if self.count(UnitTypeId.MEDIVAC) < 4:
         #     armyTargets.append(UnitTypeId.MEDIVAC)
 
-        # if self.count(UnitTypeId.MARINE) < 2 * self.count(UnitTypeId.MARAUDER):
-        #     armyTargets += [UnitTypeId.MARINE, UnitTypeId.MARAUDER]
-        # else:
-        #     armyTargets += [UnitTypeId.MARAUDER, UnitTypeId.MARINE]
+        armyTargets = []
+        if 30 < self.count(UnitTypeId.SCV):
+            if self.count(UnitTypeId.MARINE) < 2 * self.count(UnitTypeId.MARAUDER):
+                armyTargets += [UnitTypeId.MARINE, UnitTypeId.MARAUDER]
+            else:
+                armyTargets += [UnitTypeId.MARAUDER, UnitTypeId.MARINE]
+
+        armyTargets = [a for a in armyTargets if not any((o.item == a for o in self.macroObjectives))]
         
         expandTarget = []
-        if self.already_pending(UnitTypeId.COMMANDCENTER) == 0:
+        if self.already_pending(UnitTypeId.COMMANDCENTER) == 0 and not any((o.item == UnitTypeId.COMMANDCENTER for o in self.macroObjectives)):
             expandTarget.append(UnitTypeId.COMMANDCENTER)
 
-        return upgradeTargets + armyTargets + macroTargets + expandTarget
+        return armyTargets + macroTargets + expandTarget
+        # return upgradeTargets + armyTargets + macroTargets + expandTarget
 
-    async def manageCCs(self, reserve):
+    async def manageCCs(self):
 
         gases = self.gas_buildings.filter(lambda g: g.has_vespene)
         minedOutCCs = self.townhalls.ready.idle
@@ -137,23 +150,6 @@ class TerranAI(CommonAI):
         if minedOutCCs.exists:
             cc = minedOutCCs.random
             cc(AbilityId.LIFT)
-
-        # townhalls = self.townhalls.ready.idle
-        # if townhalls.exists:
-        #     townhall = townhalls.random
-        #     buildOrbitals = self.townhalls.amount <= 3
-        #     if townhall.type_id == UnitTypeId.COMMANDCENTER and buildOrbitals and self.tech_requirement_progress(UnitTypeId.ORBITALCOMMAND) == 1:
-        #         if self.canAffordWithReserve(UnitTypeId.ORBITALCOMMAND, reserve) and townhall.build(UnitTypeId.ORBITALCOMMAND):
-        #             return reserve
-        #         else:
-        #             return reserve + self.createReserve(UnitTypeId.ORBITALCOMMAND)
-        #     elif townhall.type_id == UnitTypeId.COMMANDCENTER and not buildOrbitals and self.tech_requirement_progress(UnitTypeId.PLANETARYFORTRESS) == 1:
-        #         if self.canAffordWithReserve(UnitTypeId.PLANETARYFORTRESS, reserve) and townhall.build(UnitTypeId.PLANETARYFORTRESS):
-        #             return reserve
-        #         else:
-        #             return reserve + self.createReserve(UnitTypeId.PLANETARYFORTRESS)
-
-        return reserve
 
     async def dropMules(self):
 

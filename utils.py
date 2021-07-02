@@ -1,4 +1,5 @@
 
+from typing import Set
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
@@ -33,7 +34,7 @@ def center(group):
     ys = sum((u.position[1] for u in group)) / group.amount
     return Point2((xs, ys))
 
-def withEquivalents(unit):
+def withEquivalents(unit: UnitTypeId) -> Set[UnitTypeId]:
     if unit in EQUIVALENTS_FOR_TECH_PROGRESS:
         return { unit } | EQUIVALENTS_FOR_TECH_PROGRESS[unit]
     else:
