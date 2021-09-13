@@ -10,8 +10,8 @@ from common import CommonAI
 
 class TerranAI(CommonAI):
 
-    def __init__(self):
-        super(self.__class__, self).__init__()
+    def __init__(self, **kwargs):
+        super(self.__class__, self).__init__(**kwargs)
 
     async def on_step(self, iteration):
         await self.dropMules()
@@ -165,7 +165,7 @@ class TerranAI(CommonAI):
     async def buildAddonSingle(self, reserve, structure, addon, reserveIfCannotAfford=False):
         if not self.canAffordWithReserve(addon, reserve):
             if reserveIfCannotAfford:
-                reserve = reserve + self.createReserve(addon)
+                reserve = reserve + self.createCost(addon)
         elif not await self.canPlaceAddon(structure.position):
             structure(AbilityId.LIFT)
         else:

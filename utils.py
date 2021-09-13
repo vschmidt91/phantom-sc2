@@ -4,8 +4,6 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 
-from reserve import Reserve
-
 CHANGELINGS = {
     UnitTypeId.CHANGELING,
     UnitTypeId.CHANGELINGMARINE,
@@ -29,6 +27,13 @@ def makeUnique(a):
 def armyValue(group):
     return sum((unitValue(unit) for unit in group))
 
+def unitPriority(unit, target = None):
+    if target is None:
+        dps = max(unit.air_dps, unit.ground_dps)
+    else:
+        dps = unit.calculate_dps_vs_target(target)
+    return dps / (unit.shield + unit.health)
+
 def center(group):
     xs = sum((u.position[0] for u in group)) / group.amount
     ys = sum((u.position[1] for u in group)) / group.amount
@@ -40,8 +45,12 @@ def withEquivalents(unit: UnitTypeId) -> Set[UnitTypeId]:
     else:
         return { unit }
 
-def unitValue(unit):
-    return max(unit.air_dps, unit.ground_dps) * (unit.shield + unit.health)
+def unitValue(unit, target = None):
+    if target is None:
+        dps = max(unit.air_dps, unit.ground_dps)
+    else:
+        dps = unit.calculate_dps_vs_target(target)
+    return dps * (unit.shield + unit.health)
 
 def filterArmy(units):
     units = units.filter(lambda u: 0 < u.air_dps + u.ground_dps)

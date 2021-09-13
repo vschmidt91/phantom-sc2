@@ -27,7 +27,7 @@ def zipLibrary(zipFile):
             zipFile.write(absPath, relPath)
 
 if __name__ == '__main__':
-    path = 'SunTzuBot.zip'
+    path = './publish/SunTzuBot.zip'
     if os.path.exists(path):
         os.remove(path)
     zipFile = zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED)

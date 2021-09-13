@@ -1,6 +1,5 @@
 
 from abc import ABC, abstractmethod
-from reserve import Reserve
 
 from sc2.ids.upgrade_id import UpgradeId
 
