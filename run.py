@@ -7,7 +7,7 @@ from datetime import datetime
 # Load bot
 from zerg import ZergAI
 
-bot = Bot(Race.Zerg, ZergAI(game_step = 4), 'SunTzu')
+bot = Bot(Race.Zerg, ZergAI(game_step = 1), 'SunTzu')
 
 # Start game
 if __name__ == "__main__":
