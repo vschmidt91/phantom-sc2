@@ -439,7 +439,7 @@ class CommonAI(BotAI):
         if worker is None:
             for gas in self.gas_buildings.ready:
                 workers = self.workers.filter(lambda w : w.order_target == gas.tag)
-                if workers.exists and (0 < gas.surplus_harvesters or self.gasTarget < gasActual):
+                if workers.exists and (0 < gas.surplus_harvesters or self.gasTarget + 1 < gasActual):
                     worker = workers.furthest_to(gas)
                 elif gas.surplus_harvesters < 0 and gasActual + 1 <= self.gasTarget:
                     target = gas
