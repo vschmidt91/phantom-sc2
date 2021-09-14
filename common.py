@@ -277,7 +277,7 @@ class CommonAI(BotAI):
                     unit.move(unit.position.towards(retreat_from, -15))
                 else:
                     target = enemies.closest_to(unit)
-                    unit.attack(target)
+                    unit.attack(target.position)
 
             elif unit.is_idle:
                 target = random.choice(self.expansion_locations_list)
