@@ -66,10 +66,16 @@ CIVILIANS |= withEquivalents(UnitTypeId.DRONE)
 CIVILIANS |= withEquivalents(UnitTypeId.QUEEN)
 CIVILIANS |= withEquivalents(UnitTypeId.OVERLORD)
 CIVILIANS |= withEquivalents(UnitTypeId.BROODLING)
-# CIVILIANS |= withEquivalents(UnitTypeId.OVERSEER)
+CIVILIANS |= withEquivalents(UnitTypeId.OVERSEER)
 CIVILIANS |= withEquivalents(UnitTypeId.OBSERVER)
 CIVILIANS |= { UnitTypeId.LARVA, UnitTypeId.EGG }
 CIVILIANS |= CHANGELINGS
+
+TRAINABLE_UNITS = set(u for e in TRAIN_INFO.values() for u in e.keys())
+TRAIN_ABILITIES = {
+    u: [e[u]["ability"] for e in TRAIN_INFO.values() if u in e]
+    for u in TRAINABLE_UNITS
+}
 
 class CommonAI(BotAI):
 
@@ -83,6 +89,7 @@ class CommonAI(BotAI):
         self.printTiming = False
         self.printReserve = False
         self.macroObjectives = []
+        self.enemies = {}
         self.game_step = game_step
 
     async def on_before_start(self):
@@ -224,6 +231,8 @@ class CommonAI(BotAI):
             unit.smart(self.mineral_field.closest_to(unit))
 
     async def on_enemy_unit_entered_vision(self, unit: Unit):
+        if unit.tag not in self.enemies:
+            self.enemies[unit.tag] = unit
         pass
 
     async def on_enemy_unit_left_vision(self, unit_tag: int):
@@ -233,6 +242,8 @@ class CommonAI(BotAI):
         pass
 
     async def on_unit_destroyed(self, unit_tag: int):
+        if unit_tag in self.enemies:
+            del self.enemies[unit_tag]
         pass
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
@@ -262,6 +273,8 @@ class CommonAI(BotAI):
         enemies = self.enemy_units | self.enemy_structures
         enemies = enemies.exclude_type(CIVILIANS)
         
+        # friends_rating = sum(unitValue(f) for f in friends)
+        # enemies_rating = sum(unitValue(e)for e in enemies)
 
         for unit in friends:
 
@@ -269,18 +282,33 @@ class CommonAI(BotAI):
 
                 target = enemies.closest_to(unit)
 
-                friends_rating = sum(unitValue(f) / target.distance_to(f) for f in friends)
-                enemies_rating = sum(unitValue(e) / unit.distance_to(e) for e in enemies)
+                friends_rating = sum(unitValue(f, target) / target.distance_to(f) for f in friends)
+                enemies_rating = sum(unitValue(e, unit) / unit.distance_to(e) for e in enemies)
 
-                if friends_rating * unit.distance_to(target) < enemies_rating * 15 and 0 < unit.weapon_cooldown:
-                    retreat_from = target.position
-                    unit.move(unit.position.towards(retreat_from, -15))
+                if 1 < unit.ground_range:
+                    if unit.weapon_cooldown:
+                        if unit.is_attacking:
+                            if friends_rating < enemies_rating:
+                                retreat_from = target.position
+                                unit.move(unit.position.towards(retreat_from, -15))
+                        else:
+                            if enemies_rating < friends_rating:
+                                unit.attack(target.position)
+                    else:
+                        unit.attack(target.position)
                 else:
-                    target = enemies.closest_to(unit)
-                    unit.attack(target.position)
+                    if 2 * friends_rating < enemies_rating:
+                        retreat_from = target.position
+                        unit.move(unit.position.towards(retreat_from, -15))
+                    else:
+                        unit.attack(target.position)
+
 
             elif unit.is_idle:
-                target = random.choice(self.expansion_locations_list)
+                if self.time < 10 * 60:
+                    target = random.choice(self.enemy_start_locations)
+                else:
+                    target = random.choice(self.expansion_locations_list)
                 unit.attack(target)
             else:
                 pass
@@ -347,7 +375,7 @@ class CommonAI(BotAI):
         supplyBuffer = 0
         supplyBuffer += self.townhalls.amount
         supplyBuffer += self.larva.amount
-        # supplyBuffer += 3 * self.count(UnitTypeId.QUEEN)
+        supplyBuffer += 3 * self.count(UnitTypeId.QUEEN)
         # supplyBuffer += 2 * self.count(UnitTypeId.BARRACKS)
         # supplyBuffer += 2 * self.count(UnitTypeId.FACTORY)
         # supplyBuffer += 2 * self.count(UnitTypeId.STARPORT)
@@ -385,11 +413,13 @@ class CommonAI(BotAI):
 
     def getTraining(self, unit: UnitTypeId) -> Units:
         trained_from = UNIT_TRAINED_FROM[unit]
-        trainers = self.units(trained_from) | self.structures(trained_from)
-        trainers = trainers.filter(lambda t : any(o.ability.id == TRAIN_INFO[t.type_id][unit]["ability"] for o in t.orders))
+        # trainers = self.units(trained_from) | self.structures(trained_from)
+        trainers = (self.units | self.structures)
+        abilities = TRAIN_ABILITIES[unit]
+        trainers = trainers.filter(lambda t : any(o.ability.id in abilities for o in t.orders))
         return trainers
 
-    def count(self, unit: Union[UnitTypeId, Set[UnitTypeId]]) -> int:
+    def count(self, unit: Union[UnitTypeId, Set[UnitTypeId]], include_objectives = True) -> int:
         count = 0
         count += self.structures(unit).amount
         count += self.units(unit).amount
@@ -398,13 +428,16 @@ class CommonAI(BotAI):
         for u in unit:
             # pendingCount = self.already_pending(u)
             pendingCount = self.getTraining(u).amount
-            targetCount = sum(1 for t in self.macroObjectives if t.item is u)
             if u is UnitTypeId.ZERGLING:
                 count += 2 * pendingCount
-                count += 2 * targetCount
             else:
                 count += pendingCount
-                count += targetCount
+            if include_objectives:
+                targetCount = sum(1 for t in self.macroObjectives if t.item == u)
+                if u == UnitTypeId.ZERGLING:
+                    count += 2 * targetCount
+                else:
+                    count += targetCount
         return count
 
     def createCost(self, unit: UnitTypeId):
