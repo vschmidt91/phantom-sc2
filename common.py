@@ -1,6 +1,7 @@
 
 from macro_objective import MacroObjective
 from cost import Cost
+from collections import Counter
 import inspect
 import itertools
 import time
@@ -9,7 +10,7 @@ import math
 import random
 from typing import Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable
 from numpy.lib.function_base import insert
-from s2clientprotocol.error_pb2 import CantAddMoreCharges
+from s2clientprotocol.error_pb2 import CantAddMoreCharges, Error
 
 from utils import CHANGELINGS, armyValue, unitPriority, canAttack, center, dot, filterArmy, unitValue, withEquivalents
 
@@ -77,6 +78,12 @@ TRAIN_ABILITIES = {
     for u in TRAINABLE_UNITS
 }
 
+TRAIN_UNIT_BY_ABIITY = {
+     unit_element["ability"] : unit
+    for trainer_element in TRAIN_INFO.values()
+    for unit, unit_element in trainer_element.items()
+}
+
 class CommonAI(BotAI):
 
     def __init__(self, game_step: int = 1):
@@ -89,8 +96,9 @@ class CommonAI(BotAI):
         self.printTiming = False
         self.printReserve = False
         self.macroObjectives = []
-        self.enemies = {}
+        self.enemies = dict()
         self.game_step = game_step
+        self.pending = Counter()
 
     async def on_before_start(self):
         pass
@@ -103,6 +111,33 @@ class CommonAI(BotAI):
         # self.micro()
         # self.assignWorker()
         # await self.reachMacroObjective()
+
+    def count_planned(self, unit: Union[UnitTypeId, Set[UnitTypeId]]) -> int:
+        if type(unit) is set:
+            return sum(self.count_planned(u) for u in unit)
+        elif type(unit) is UnitTypeId:
+            return sum(1 for t in self.macroObjectives if t.item == unit)
+        else:
+            raise TypeError()
+
+    def count_pending(self, unit: Union[UnitTypeId, Set[UnitTypeId]]) -> int:
+        if type(unit) is set:
+            return sum(self.count_pending(u) for u in unit)
+        elif type(unit) is UnitTypeId:
+            ability = self.game_data.units[unit.value].creation_ability
+            return self._abilities_all_units[0][ability]
+            # return self.pending[unit]
+        else:
+            raise TypeError()
+
+    def update_pending(self):
+        self.pending = Counter()
+        for trainer in self.units + self.structures:
+            for order in trainer.orders:
+                unit = TRAIN_UNIT_BY_ABIITY.get(order.ability.id)
+                if not unit:
+                    continue
+                self.pending[unit] += 1
 
     async def reachMacroObjective(self):
 
@@ -232,7 +267,7 @@ class CommonAI(BotAI):
 
     async def on_enemy_unit_entered_vision(self, unit: Unit):
         if unit.tag not in self.enemies:
-            self.enemies[unit.tag] = unit
+            self.enemies[unit.tag] = self.unit_cost(unit)
         pass
 
     async def on_enemy_unit_left_vision(self, unit_tag: int):
@@ -265,16 +300,26 @@ class CommonAI(BotAI):
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         pass
 
+    def unit_cost(self, unit: Unit) -> int:
+        cost = self.game_data.units[unit.type_id.value].cost
+        return cost.minerals + cost.vespene
+
     def micro(self):
 
         friends = self.units
         friends = friends.exclude_type(CIVILIANS)
 
-        enemies = self.enemy_units | self.enemy_structures
+        enemies = self.enemy_units
         enemies = enemies.exclude_type(CIVILIANS)
         
-        # friends_rating = sum(unitValue(f) for f in friends)
-        # enemies_rating = sum(unitValue(e)for e in enemies)
+        friends_rating_global = sum(self.unit_cost(f) for f in friends + self.structures)
+        enemies_rating_global = sum(self.enemies.values())
+
+        if self.enemy_structures.exists:
+            enemyBaseCenter = center(self.enemy_structures)
+        else:
+            enemyBaseCenter = self.enemy_start_locations[0]
+        baseCenter = center(self.structures)
 
         for unit in friends:
 
@@ -282,31 +327,41 @@ class CommonAI(BotAI):
 
                 target = enemies.closest_to(unit)
 
-                friends_rating = sum(unitValue(f, target) / target.distance_to(f) for f in friends)
-                enemies_rating = sum(unitValue(e, unit) / unit.distance_to(e) for e in enemies)
+                friends_rating_local = sum(self.unit_cost(f) / max(1, target.distance_to(f)) for f in friends)
+                enemies_rating_local = sum(self.unit_cost(e) / max(1, unit.distance_to(e)) for e in enemies)
+
+                distance_bias = 64
+
+                advantage = 1
+                # advantage *= friends_rating_global / max(1, enemies_rating_global)
+                advantage *= friends_rating_local / max(1, enemies_rating_local)
+                advantage *= max(1, distance_bias + target.distance_to(enemyBaseCenter)) / (distance_bias + unit.distance_to(baseCenter))
 
                 if 1 < unit.ground_range:
-                    if unit.weapon_cooldown:
-                        if unit.is_attacking:
-                            if friends_rating < enemies_rating:
-                                retreat_from = target.position
-                                unit.move(unit.position.towards(retreat_from, -15))
+                    if advantage < 1:
+
+                        if not unit.weapon_cooldown and unit.target_in_range(target):
+                            unit.stop()
+                        elif any(e.target_in_range(unit, 5) for e in enemies):
+                            retreat_from = target.position
+                            retreat_to = unit.position.towards(retreat_from, -15)
+                            # retreat_to = sorted(self.game_info.map_ramps, key=lambda r:retreat_to.distance_to(r.top_center))[0].top_center
+                            unit.move(retreat_to)
                         else:
-                            if enemies_rating < friends_rating:
-                                unit.attack(target.position)
+                            unit.attack(target.position)
+                        
                     else:
                         unit.attack(target.position)
+                        
                 else:
-                    if 2 * friends_rating < enemies_rating:
-                        retreat_from = target.position
-                        unit.move(unit.position.towards(retreat_from, -15))
-                    else:
-                        unit.attack(target.position)
+                    pass
 
 
             elif unit.is_idle:
-                if self.time < 10 * 60:
+                if self.time < 8 * 60:
                     target = random.choice(self.enemy_start_locations)
+                elif self.enemy_structures.exists:
+                    target = self.enemy_structures.random.position
                 else:
                     target = random.choice(self.expansion_locations_list)
                 unit.attack(target)
@@ -353,7 +408,7 @@ class CommonAI(BotAI):
         ]
         if not bases:
             return None
-        bases = sorted(bases, key=lambda b : b.distance_to(self.start_location))
+        bases = sorted(bases, key=lambda b : b.distance_to(self.start_location) - min(b.distance_to(e) for e in self.enemy_start_locations))
         return bases[0]
 
     def hasCapacity(self, unit: Unit) -> bool:
@@ -387,7 +442,7 @@ class CommonAI(BotAI):
 
     def getSupplyPending(self) -> int:
         supplyPending = 0
-        supplyPending += 8 * self.getTraining(SUPPLY[self.race]).amount
+        supplyPending += 8 * self.count_pending(SUPPLY[self.race])
         supplyPending += sum(8 for t in self.macroObjectives if t.item is SUPPLY[self.race])
         supplyPending += sum(TOWNHALL_SUPPLY[self.race] * t.build_progress for t in self.townhalls.not_ready)
         return supplyPending
@@ -419,25 +474,15 @@ class CommonAI(BotAI):
         trainers = trainers.filter(lambda t : any(o.ability.id in abilities for o in t.orders))
         return trainers
 
-    def count(self, unit: Union[UnitTypeId, Set[UnitTypeId]], include_objectives = True) -> int:
+    def count(self, unit: Union[UnitTypeId, Set[UnitTypeId]], include_pending: bool = True, include_planned: bool = True) -> int:
+        
         count = 0
         count += self.structures(unit).amount
         count += self.units(unit).amount
-        if type(unit) is UnitTypeId:
-            unit = { unit }
-        for u in unit:
-            # pendingCount = self.already_pending(u)
-            pendingCount = self.getTraining(u).amount
-            if u is UnitTypeId.ZERGLING:
-                count += 2 * pendingCount
-            else:
-                count += pendingCount
-            if include_objectives:
-                targetCount = sum(1 for t in self.macroObjectives if t.item == u)
-                if u == UnitTypeId.ZERGLING:
-                    count += 2 * targetCount
-                else:
-                    count += targetCount
+        if include_pending:
+            count += self.count_pending(unit)
+        if include_planned:
+            count += self.count_planned(unit)
         return count
 
     def createCost(self, unit: UnitTypeId):
