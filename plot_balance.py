@@ -11,7 +11,7 @@ CATEGORIES_MATCHUP = ('Matchup', True)
 CATEGORIES_RACE = ('Race', False)
 
 competition_title, competition_id = DIVISION_UPPER
-categories_title, category_by_matchup = CATEGORIES_MATCHUP
+categories_title, category_by_matchup = CATEGORIES_RACE
 round_limit = 1000
 confidence_alpha = 0.15
 plot_args = { 'dpi': 200 }
@@ -36,25 +36,18 @@ def match_to_categories(match):
         return []
     race1 = bots_by_name[result['bot1_name']]['plays_race']
     race2 = bots_by_name[result['bot2_name']]['plays_race']
-    matchup = { race1, race2 }
     if category_by_matchup:
-        if matchup == { 'T', 'Z' }:
-            return ['TvZ']
-        elif matchup == { 'T', 'P' }:
-            return ['TvP']
-        elif matchup == { 'Z', 'P' }:
-            return ['ZvP']
-        else:
+        if race1 == race2:
             return []
+        elif 'R' in { race1, race2 }:
+            return []
+        else:
+            return ['v'.join(sorted([race1, race2]))]
     else:
-        if matchup == { 'T', 'Z' }:
-            return [race1, race2]
-        elif matchup == { 'T', 'P' }:
-            return [race1, race2]
-        elif matchup == { 'Z', 'P' }:
-            return [race1, race2]
-        else:
+        if race1 == race2:
             return []
+        else:
+            return [race1, race2]
 
 def result_to_outcome(result, category):
     if result['type'] not in { 'Player1Win', 'Player2Win' }:
@@ -63,20 +56,13 @@ def result_to_outcome(result, category):
         raise Exception()
     winner_race = bots_by_id[result['winner']]['plays_race']
     if category_by_matchup:
-        if category == 'TvZ':
-            return 1 if winner_race == 'T' else 0
-        elif category == 'TvP':
-            return 1 if winner_race == 'T' else 0
-        elif category == 'ZvP':
-            return 1 if winner_race == 'Z' else 0
-        else:
-            raise Exception()
+        return 1 if winner_race == category[0] else 0
     else:
         return 1 if winner_race == category else 0
 
 legend = []
 intervals_by_category = winrate_intervals(competition_id, match_to_categories, result_to_outcome, round_limit, length_bins)
-for category, intervals in sorted(intervals_by_category.items(), key=lambda p:p[0]):
+for category, intervals in sorted(intervals_by_category.items()):
     y, n, y_min, y_max = list(zip(*intervals))
     plt.xlabel('Game Length (min)')
     plt.ylabel('Winrate')
