@@ -9,9 +9,10 @@ from s2clientprotocol.raw_pb2 import Unit
 from typing import List, Coroutine, Dict, Union
 
 from cost import Cost
-from sc2 import AbilityId
+from sc2 import AbilityId, game_info
 from sc2 import unit
 from sc2.game_data import AbilityData
+from sc2.ids import upgrade_id
 from sc2.units import Units
 from build_order import Hatch16, Pool12, Pool16
 from timer import run_timed
@@ -23,7 +24,7 @@ from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 
 from common import CommonAI
-from utils import CHANGELINGS, armyValue, filterArmy, makeUnique, withEquivalents, unitValue
+from utils import CHANGELINGS, armyValue, filterArmy, makeUnique, withEquivalents, unitValue, choose_by_distance_to
 from unit_counters import UNIT_COUNTERS
 
 MELEE_UPGRADES = [
@@ -99,6 +100,8 @@ POOL_FIRST = [
     UnitTypeId.OVERLORD,
 ]
 
+CREEP_RANGE = 10
+
 class ZergAI(CommonAI):
 
     def __init__(self, **kwargs):
@@ -111,6 +114,7 @@ class ZergAI(CommonAI):
         self.gasTarget = 0
         self.timings_acc = {}
         self.timings_interval = 64
+        self.tumors_inactive = set()
 
     async def on_unit_created(self, unit: Unit):
         if unit.type_id is UnitTypeId.OVERLORD and self.structures(withEquivalents(UnitTypeId.LAIR)).exists:
@@ -134,15 +138,15 @@ class ZergAI(CommonAI):
             self.followBuildOrder: 1,
             self.adjustComposition: 1,
             self.microQueens: 1,
-            self.spreadCreep: 8,
+            self.spreadCreep: 4,
             self.moveOverlord: 4,
             self.changelingScout: 8,
             self.morphOverlords: 8,
             self.adjustGasTarget: 1,
-            self.morphUnits: 8,
+            self.morphUnits: 16,
             self.buildGasses: 1,
             self.trainQueens: 4,
-            self.techBuildings: 8,
+            self.techBuildings: 16,
             self.upgrade: 8,
             self.techUp: 8,
             self.expandIfNecessary: 8,
@@ -168,9 +172,12 @@ class ZergAI(CommonAI):
         #     print(sum(self.enemies.values()), sum(unitValue(u) for u in self.units))
 
     def followBuildOrder(self):
-        if self.buildOrder and not self.macroObjectives:
-            target = self.buildOrder.pop(0)
-            self.macroObjectives.append(MacroObjective(target))
+        if not self.buildOrder:
+            return
+        if self.macroObjectives:
+            return
+        target = self.buildOrder.pop(0)
+        self.macroObjectives.append(MacroObjective(target))
 
     def counterComposition(self, enemies: Dict[UnitTypeId, int]) -> Dict[UnitTypeId, int]:
 
@@ -202,43 +209,43 @@ class ZergAI(CommonAI):
     def upgrade(self):
         if self.buildOrder:
             return
-        targets = []
+        upgrades_want = set()
         if UnitTypeId.ZERGLING in self.composition:
-            targets.append(UpgradeId.ZERGLINGMOVEMENTSPEED)
+            upgrades_want.add(UpgradeId.ZERGLINGMOVEMENTSPEED)
             if self.goHive:
-                targets.append(UpgradeId.ZERGLINGATTACKSPEED)
-            targets.extend(self.upgradeSequence(MELEE_UPGRADES))
-            targets.extend(self.upgradeSequence(ARMOR_UPGRADES))
+                upgrades_want.add(UpgradeId.ZERGLINGATTACKSPEED)
+            upgrades_want.update(self.upgradeSequence(MELEE_UPGRADES))
+            upgrades_want.update(self.upgradeSequence(ARMOR_UPGRADES))
         if UnitTypeId.ULTRALISK in self.composition:
-            targets.append(UpgradeId.CHITINOUSPLATING)
-            targets.append(UpgradeId.ANABOLICSYNTHESIS)
-            targets.extend(self.upgradeSequence(MELEE_UPGRADES))
-            targets.extend(self.upgradeSequence(ARMOR_UPGRADES))
+            upgrades_want.add(UpgradeId.CHITINOUSPLATING)
+            upgrades_want.add(UpgradeId.ANABOLICSYNTHESIS)
+            upgrades_want.update(self.upgradeSequence(MELEE_UPGRADES))
+            upgrades_want.update(self.upgradeSequence(ARMOR_UPGRADES))
         if UnitTypeId.BANELING in self.composition:
-            targets.append(UpgradeId.CENTRIFICALHOOKS)
-            targets.extend(self.upgradeSequence(MELEE_UPGRADES))
-            targets.extend(self.upgradeSequence(ARMOR_UPGRADES))
+            upgrades_want.add(UpgradeId.CENTRIFICALHOOKS)
+            upgrades_want.update(self.upgradeSequence(MELEE_UPGRADES))
+            upgrades_want.update(self.upgradeSequence(ARMOR_UPGRADES))
         if UnitTypeId.ROACH in self.composition:
-            targets.append(UpgradeId.GLIALRECONSTITUTION)
-            targets.extend(self.upgradeSequence(RANGED_UPGRADES))
-            targets.extend(self.upgradeSequence(ARMOR_UPGRADES))
+            upgrades_want.add(UpgradeId.GLIALRECONSTITUTION)
+            upgrades_want.update(self.upgradeSequence(RANGED_UPGRADES))
+            upgrades_want.update(self.upgradeSequence(ARMOR_UPGRADES))
         if UnitTypeId.HYDRALISK in self.composition:
-            targets.append(UpgradeId.EVOLVEGROOVEDSPINES)
-            targets.append(UpgradeId.EVOLVEMUSCULARAUGMENTS)
-            targets.extend(self.upgradeSequence(RANGED_UPGRADES))
-            targets.extend(self.upgradeSequence(ARMOR_UPGRADES))
+            upgrades_want.add(UpgradeId.EVOLVEGROOVEDSPINES)
+            upgrades_want.add(UpgradeId.EVOLVEMUSCULARAUGMENTS)
+            upgrades_want.update(self.upgradeSequence(RANGED_UPGRADES))
+            upgrades_want.update(self.upgradeSequence(ARMOR_UPGRADES))
         if UnitTypeId.MUTALISK in self.composition:
-            targets.extend(self.upgradeSequence(FLYER_UPGRADES))
-            targets.extend(self.upgradeSequence(FLYER_ARMOR_UPGRADES))
+            upgrades_want.update(self.upgradeSequence(FLYER_UPGRADES))
+            upgrades_want.update(self.upgradeSequence(FLYER_ARMOR_UPGRADES))
         if UnitTypeId.CORRUPTOR in self.composition:
-            targets.extend(self.upgradeSequence(FLYER_UPGRADES))
-            targets.extend(self.upgradeSequence(FLYER_ARMOR_UPGRADES))
+            upgrades_want.update(self.upgradeSequence(FLYER_UPGRADES))
+            upgrades_want.update(self.upgradeSequence(FLYER_ARMOR_UPGRADES))
         if UnitTypeId.BROODLORD in self.composition:
-        #     targets.extend(self.upgradeSequence(FLYER_ARMOR_UPGRADES))
-            targets.extend(self.upgradeSequence(MELEE_UPGRADES))
-            targets.extend(self.upgradeSequence(ARMOR_UPGRADES))
+        #     upgrades_want.update(self.upgradeSequence(FLYER_ARMOR_UPGRADES))
+            upgrades_want.update(self.upgradeSequence(MELEE_UPGRADES))
+            upgrades_want.update(self.upgradeSequence(ARMOR_UPGRADES))
         if UnitTypeId.OVERSEER in self.composition:
-            targets.append(UpgradeId.OVERLORDSPEED)
+            upgrades_want.add(UpgradeId.OVERLORDSPEED)
 
         # targets = set(targets)
         # targets = { t for t in targets if not self.already_pending_upgrade(t) }
@@ -246,15 +253,10 @@ class ZergAI(CommonAI):
         # pendingUpgrades = { t for t in pendingUpgrades if type(t) is UpgradeId }
         # targets = targets.difference(pendingUpgrades)
 
-        for t in targets:
-            if t in self.state.upgrades:
-                pass
-            elif self.already_pending_upgrade(t):
-                pass
-            elif any(o.item is t for o in self.macroObjectives):
-                pass
-            else:
-                self.macroObjectives.append(MacroObjective(t))
+        for upgrade in upgrades_want:
+            if self.count(upgrade) < 1:
+                self.macroObjectives.append(MacroObjective(upgrade))
+                return
 
     def upgradeSequence(self, upgrades) -> List[UpgradeId]:
         for upgrade in upgrades:
@@ -263,22 +265,35 @@ class ZergAI(CommonAI):
         return []
 
     def techBuildings(self):
+
         if self.buildOrder:
             return
-        if UnitTypeId.ZERGLING in self.composition and self.count(UnitTypeId.SPAWNINGPOOL) < 1:
-            self.macroObjectives.append(MacroObjective(UnitTypeId.SPAWNINGPOOL))
-        elif (UnitTypeId.ROACH in self.composition or UnitTypeId.RAVAGER in self.composition) and self.count(UnitTypeId.ROACHWARREN) < 1:
-            self.macroObjectives.append(MacroObjective(UnitTypeId.ROACHWARREN))
-        elif UnitTypeId.BANELING in self.composition and self.count(UnitTypeId.BANELINGNEST) < 1:
-            self.macroObjectives.append(MacroObjective(UnitTypeId.BANELINGNEST))
-        elif (UnitTypeId.HYDRALISK in self.composition or UnitTypeId.LURKER in self.composition) and self.count(UnitTypeId.HYDRALISKDEN) < 1:
-            self.macroObjectives.append(MacroObjective(UnitTypeId.HYDRALISKDEN))
-        elif (UnitTypeId.MUTALISK in self.composition or UnitTypeId.CORRUPTOR in self.composition or UnitTypeId.BROODLORD in self.composition) and self.count(withEquivalents(UnitTypeId.SPIRE)) < 1:
-            self.macroObjectives.append(MacroObjective(UnitTypeId.SPIRE))
-        elif UnitTypeId.BROODLORD in self.composition and self.count(UnitTypeId.GREATERSPIRE) < 1:
-            self.macroObjectives.append(MacroObjective(UnitTypeId.GREATERSPIRE))
-        elif UnitTypeId.ULTRALISK in self.composition and self.count(UnitTypeId.ULTRALISKCAVERN) < 1:
-            self.macroObjectives.append(MacroObjective(UnitTypeId.ULTRALISKCAVERN))
+
+        structures_want = set()
+        if UnitTypeId.ZERGLING in self.composition:
+            structures_want.add(UnitTypeId.SPAWNINGPOOL)
+        if (UnitTypeId.ROACH in self.composition or UnitTypeId.RAVAGER in self.composition):
+            structures_want.add(UnitTypeId.ROACHWARREN)
+        if UnitTypeId.BANELING in self.composition:
+            structures_want.add(UnitTypeId.BANELINGNEST)
+        if (UnitTypeId.HYDRALISK in self.composition or UnitTypeId.LURKER in self.composition):
+            structures_want.add(UnitTypeId.HYDRALISKDEN)
+        if (UnitTypeId.MUTALISK in self.composition or UnitTypeId.CORRUPTOR in self.composition or UnitTypeId.BROODLORD in self.composition):
+            structures_want.add(UnitTypeId.SPIRE)
+        if UnitTypeId.BROODLORD in self.composition:
+            structures_want.add(UnitTypeId.GREATERSPIRE)
+        if UnitTypeId.ULTRALISK in self.composition:
+            structures_want.add(UnitTypeId.ULTRALISKCAVERN)
+
+        structures_have = self.structures(structures_want)
+        for structure in structures_want:
+            if structures_have(structure).exists:
+                continue
+            elif self.count(structure):
+                continue
+            else:
+                self.macroObjectives.append(MacroObjective(structure))
+                return
 
     async def changelingScout(self):
         overseers = self.units(withEquivalents(UnitTypeId.OVERSEER))
@@ -296,7 +311,7 @@ class ZergAI(CommonAI):
     def moveOverlord(self):
 
         overlords = self.units(UnitTypeId.OVERLORD)
-        targets = self.structures(UnitTypeId.CREEPTUMOR) | self.structures(UnitTypeId.CREEPTUMORQUEEN) | self.townhalls
+        targets = self.structures
         # targets = targets.filter(lambda s : not s.is_idle)
         overlords_idle = overlords.idle
         if overlords_idle.exists and targets.exists:
@@ -305,11 +320,11 @@ class ZergAI(CommonAI):
             if 1 < unit.distance_to(target):
                 unit.move(target.position)
 
-        overseers_idle = self.units(UnitTypeId.OVERSEER).idle
-        if overseers_idle.exists:
-            overseer = overseers_idle.random
-            target = self.units.random
-            overseer.move(target.position)
+        # overseers_idle = self.units(UnitTypeId.OVERSEER).idle
+        # if overseers_idle.exists:
+        #     overseer = overseers_idle.random
+        #     target = self.units.random
+        #     overseer.move(target.position)
 
     def techUp(self):
         if self.buildOrder:
@@ -346,27 +361,40 @@ class ZergAI(CommonAI):
             self.goHive |= UpgradeId.ZERGFLYERARMORSLEVEL2 in self.state.upgrades
             self.goHive |= UpgradeId.ZERGFLYERARMORSLEVEL2 in self.state.upgrades
 
-    async def spreadCreep(self, spreader: Unit = None, numAttempts: int = 3):
-        if spreader is None:
+    async def spreadCreep(self, spreader: Unit = None, numAttempts: int = 5):
+        
+        # find spreader
+        if not spreader:
             tumors = self.structures(UnitTypeId.CREEPTUMORBURROWED)
-            for _ in range(min(tumors.amount, numAttempts)):
-                tumor = tumors.random
-                if not AbilityId.BUILD_CREEPTUMOR_TUMOR in await self.get_available_abilities(tumor):
+            if not tumors.exists:
+                return
+            tumor_abilities = await self.get_available_abilities(self.structures(UnitTypeId.CREEPTUMORBURROWED))
+            for tumor, abilities in zip(tumors, tumor_abilities):
+                if not AbilityId.BUILD_CREEPTUMOR_TUMOR in abilities:
                     continue
                 spreader = tumor
                 break
+
         if spreader is None:
             return
-        if random.random() < 0.3:
-            target = spreader.position.towards(random.choice(self.expansion_locations_list), 10)
-        else:
-            target = spreader.position.towards(self.townhalls.center, -10)
-        target = spreader.position.towards(random.choice(self.expansion_locations_list), 10)
-        if target is None:
+
+        # find target
+        targets = [
+            *self.expansion_locations_list,
+            *(r.top_center for r in self.game_info.map_ramps),
+            self.game_info.map_center,
+        ]
+
+        targets = [t for t in targets if not self.has_creep(t)]
+        if not targets:
             return
+        
+        target = choose_by_distance_to(targets, spreader)
+        target = spreader.position.towards(target, CREEP_RANGE)
+
         tumorPlacement = None
         for _ in range(numAttempts):
-            position = await self.find_placement(AbilityId.ZERGBUILD_CREEPTUMOR, target, placement_step=1)
+            position = await self.find_placement(AbilityId.ZERGBUILD_CREEPTUMOR, target)
             if position is None:
                 continue
             if self.isBlockingExpansion(position):
@@ -375,7 +403,9 @@ class ZergAI(CommonAI):
             break
         if tumorPlacement is None:
             return
-        assert(spreader.build(UnitTypeId.CREEPTUMOR, tumorPlacement))
+
+        if spreader.build(UnitTypeId.CREEPTUMOR, tumorPlacement):
+            self.tumors_inactive.add(spreader.tag)
 
     def buildSpores(self):
         if self.buildOrder:
@@ -392,21 +422,24 @@ class ZergAI(CommonAI):
             self.macroObjectives.append(MacroObjective(UnitTypeId.SPORECRAWLER))
 
     async def microQueens(self):
+
         queens = self.units(UnitTypeId.QUEEN).sorted(key=lambda q: q.tag)
-        hatcheries = self.townhalls.sorted(key=lambda h: h.tag)
-        assignment = zip(hatcheries, queens)
-        creep_count = self.structures(UnitTypeId.CREEPTUMORBURROWED).amount
-        creep_chance = math.exp(-creep_count / 30)
-        for hatchery, queen in assignment:
+        townhalls = self.townhalls.sorted(key=lambda h: h.tag)
+        
+        for i, queen in enumerate(queens):
+            if i < len(queens) - 1 and i < self.townhalls.amount:
+                townhall = townhalls[i]
+            else:
+                townhall = None
             if not queen.is_idle:
                 continue
             elif queen.energy < 25:
-                if 5 < queen.distance_to(hatchery):
-                    queen.attack(hatchery.position)
-            elif 7 < self.larva.amount and random.random() < creep_chance:
+                if townhall and 5 < queen.distance_to(townhall):
+                    queen.attack(townhall.position)
+            elif not townhall:
                 await self.spreadCreep(spreader=queen)
-            elif hatchery.is_ready:
-                queen(AbilityId.EFFECT_INJECTLARVA, hatchery)
+            elif townhall.is_ready:
+                queen(AbilityId.EFFECT_INJECTLARVA, townhall)
 
             # abilities = await self.get_available_abilities(queen)
             # if AbilityId.BUILD_CREEPTUMOR_QUEEN in abilities and 7 < self.larva.amount and random.random() < math.exp(-.03*self.count(UnitTypeId.CREEPTUMORBURROWED)):
@@ -419,17 +452,17 @@ class ZergAI(CommonAI):
     def adjustComposition(self):
         workersTarget = min(80, self.getMaxWorkers())
         self.composition = { UnitTypeId.DRONE: workersTarget }
-        # self.composition[UnitTypeId.OVERSEER] = 1
+        self.composition[UnitTypeId.OVERSEER] = 1
         if self.townhalls.amount < 3:
             pass
         elif not self.goLair:
             self.composition[UnitTypeId.ROACH] = 60
-            # self.composition[UnitTypeId.ZERGLING] = 80
+            # self.composition[UnitTypeId.ZERGLING] = 50
         elif not self.goHive:
             self.composition[UnitTypeId.ROACH] = 40
             self.composition[UnitTypeId.HYDRALISK] = 40
             # self.composition[UnitTypeId.HYDRALISK] = 20
-            # self.composition[UnitTypeId.ZERGLING] = 80
+            # self.composition[UnitTypeId.ZERGLING] = 40
             # self.composition[UnitTypeId.BANELING] = 40
         else:
             self.composition[UnitTypeId.BROODLORD] = 20
@@ -452,7 +485,7 @@ class ZergAI(CommonAI):
         minerals = max(0, cost_minerals - self.minerals)
         vespene = max(0, cost_vespene - self.vespene)
         gasRatio = vespene / max(1, vespene + minerals)
-        self.gasTarget = 3 + int(1.3 * gasRatio * self.workers.amount)
+        self.gasTarget = 3 + int(gasRatio * self.workers.amount)
 
     def buildGasses(self):
         if self.buildOrder:
@@ -467,7 +500,7 @@ class ZergAI(CommonAI):
     def trainQueens(self):
         if self.buildOrder:
             return
-        queenTarget = min(5, self.townhalls.amount)
+        queenTarget = min(6, 2 * self.townhalls.amount)
         queenPending = sum(1 for o in self.macroObjectives if o.item is UnitTypeId.QUEEN)
         queenTrainer = self.townhalls
         queenTrainer = queenTrainer.filter(lambda t : not t.is_idle)
@@ -480,13 +513,10 @@ class ZergAI(CommonAI):
     def morphOverlords(self):
         if self.buildOrder:
             return
-        if (
-            self.supply_cap < 200
-            and self.supply_left + self.getSupplyPending() < self.getSupplyBuffer()
-        ):
+        if self.supply_cap == 200:
+            return
+        if self.supply_left + self.getSupplyPending() < self.getSupplyBuffer():
             self.macroObjectives.append(MacroObjective(UnitTypeId.OVERLORD))
-        if self.goLair and self.count(UnitTypeId.OVERSEER) < 3:
-            self.macroObjectives.append(MacroObjective(UnitTypeId.OVERSEER))
 
     def expandIfNecessary(self, max_pending = 1, saturation_target = 0.8):
         if self.buildOrder:
@@ -499,31 +529,30 @@ class ZergAI(CommonAI):
             self.macroObjectives.append(MacroObjective(UnitTypeId.HATCHERY))
 
     def morphUnits(self):
+
         if self.buildOrder:
             return
-        reserve = Cost(0, 0, 0)
-        for t in self.macroObjectives:
-            if t.cost is not None:
-                reserve = reserve + t.cost
-        items = list(self.composition.items())
-        random.shuffle(items)
-        for unit, target in items:
-            if 3 <= sum(1 if t.item is unit else 0 for t in self.macroObjectives):
-                continue
-            # if not self.canAffordWithReserve(self.createCost(unit), reserve):
-            #     continue
-            if self.tech_requirement_progress(unit) < 1:
-                continue
-            missing = target - self.count(unit)
-            if missing <= 0:
-                continue
-            self.macroObjectives.append(MacroObjective(unit))
 
-            trainer = list(UNIT_TRAINED_FROM[unit])[0]
+        if self.supply_used == 200:
+            return
+
+        composition_ratio = {
+            unit: self.count(unit) / n
+            for unit, n in self.composition.items()
+        }
+
+        for unit, ratio in sorted(composition_ratio.items(), key=lambda p : p[1]):
+
+            n = 5
+
+            if 0 < self.count_planned(unit):
+                continue
+
+            if 1 <= ratio:
+                continue
+
+            self.macroObjectives.extend((MacroObjective(unit, -1) for i in range(n)))
+
+            trainer = sorted(UNIT_TRAINED_FROM[unit], key=lambda v:v.value)[0]
             if not self.isStructure(trainer) and trainer is not UnitTypeId.LARVA:
-                if any(t.item is trainer for t in self.macroObjectives):
-                    continue
-                missingTrainers = max(0, missing - self.count(trainer))
-                if missingTrainers <= 0:
-                    continue
-                self.macroObjectives.append(MacroObjective(trainer))
+                self.macroObjectives.extend((MacroObjective(trainer, -1) for i in range(n)))

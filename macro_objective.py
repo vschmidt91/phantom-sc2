@@ -12,12 +12,13 @@ from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 
 class MacroObjective(object):
 
-    def __init__(self, item: Union[UnitTypeId, UpgradeId]):
+    def __init__(self, item: Union[UnitTypeId, UpgradeId], priority: float = 0):
         self.item = item
         self.ability = None
         self.cost = None
         self.unit = None
         self.target = None
+        self.priority = 0
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.item}, {self.ability}, {self.cost}, {self.unit}, {self.target})"

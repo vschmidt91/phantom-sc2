@@ -4,6 +4,8 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 
+import numpy as np
+
 CHANGELINGS = {
     UnitTypeId.CHANGELING,
     UnitTypeId.CHANGELINGMARINE,
@@ -61,3 +63,10 @@ def filterArmy(units):
 
 def dot(x, y):
     return sum((xi * yi for xi, yi in zip(x, y)))
+
+def choose_by_distance_to(choices, subject):
+    w = [pow(max(1, subject.distance_to(c)), -2) for c in choices]
+    ws = sum(w)
+    p = [wi / ws for wi in w]
+    i = np.random.choice(len(choices), p=p)
+    return choices[i]

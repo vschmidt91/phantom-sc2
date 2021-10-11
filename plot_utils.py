@@ -22,8 +22,8 @@ def api_list(url, params={}):
     results = []
     while url:
         result = api(url, params)
-        results += result['results']
-        url = result['next']
+        results += result.get('results', [])
+        url = result.get('next')
         params = {}
     return results
 
