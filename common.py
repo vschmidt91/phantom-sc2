@@ -189,7 +189,11 @@ class CommonAI(BotAI):
                 minerals_needed = objective.cost.minerals + reserve.minerals - self.minerals
                 vespene_needed = objective.cost.vespene + reserve.vespene - self.vespene
                 if not objective.unit.is_moving and self.time_to_harvest(minerals_needed, vespene_needed) < self.time_to_reach(objective.unit, objective.target):
-                    objective.unit.move(objective.target)
+                    if objective.unit.is_carrying_resource:
+                        objective.unit.return_resource()
+                        objective.unit.move(objective.target, queue=True)
+                    else:
+                        objective.unit.move(objective.target, queue=True)
 
             if not self.canAffordWithReserve(objective.cost, reserve=reserve):
                 reserve += objective.cost
