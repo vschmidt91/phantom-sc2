@@ -145,6 +145,22 @@ class CommonAI(BotAI):
                     continue
                 self.pending[unit] += 1
 
+    def estimate_income(self):
+        harvesters_on_minerals = sum(t.assigned_harvesters for t in self.townhalls)
+        harvesters_on_vespene = sum(g.assigned_harvesters for g in self.gas_buildings)
+        income_minerals = 50 * harvesters_on_minerals / 60
+        income_vespene = 55 * harvesters_on_vespene / 60
+        return income_minerals, income_vespene
+
+    def time_to_harvest(self, minerals, vespene):
+        income_minerals, income_vespene = self.estimate_income()
+        time_minerals = minerals / max(1, income_minerals)
+        time_vespene = vespene / max(1, income_vespene)
+        return max(0, time_minerals, time_vespene)
+
+    def time_to_reach(self, unit, target):
+        return unit.distance_to(target) / unit.movement_speed
+
     async def reachMacroObjective(self):
 
         reserve = Cost(0, 0, 0)
@@ -156,10 +172,6 @@ class CommonAI(BotAI):
             if objective.cost is None:
                 objective.cost = self.getCost(objective.item)
 
-            if not self.canAffordWithReserve(objective.cost, reserve=reserve):
-                reserve += objective.cost
-                continue
-
             if objective.unit is None:
                 objective.unit, objective.ability = await self.findTrainer(objective.item, exclude=units)
 
@@ -167,13 +179,23 @@ class CommonAI(BotAI):
                 # reserve += objective.cost
                 continue
 
-            units.add(objective.unit.tag)
-
             if objective.target is None:
                 try:
                     objective.target = await self.getTarget(objective)
                 except: 
                     continue
+
+            if objective.target is not None:
+                minerals_needed = objective.cost.minerals + reserve.minerals - self.minerals
+                vespene_needed = objective.cost.vespene + reserve.vespene - self.vespene
+                if not objective.unit.is_moving and self.time_to_harvest(minerals_needed, vespene_needed) < self.time_to_reach(objective.unit, objective.target):
+                    objective.unit.move(objective.target)
+
+            if not self.canAffordWithReserve(objective.cost, reserve=reserve):
+                reserve += objective.cost
+                continue
+
+            units.add(objective.unit.tag)
 
             queue = False
             if objective.unit.is_carrying_resource:
@@ -191,8 +213,8 @@ class CommonAI(BotAI):
 
         self.macroObjectives = sorted(nextMacroObjectives, key=lambda o:-o.priority)
 
-    async def getTarget(self, target: MacroObjective) -> Coroutine[any, any, Union[Unit, Point2]]:
-        if target.item in ALL_GAS:
+    async def getTarget(self, objective: MacroObjective) -> Coroutine[any, any, Union[Unit, Point2]]:
+        if objective.item in ALL_GAS:
             geysers = []
             for b, h in self.owned_expansions.items():
                 if not h.is_ready:
@@ -201,10 +223,10 @@ class CommonAI(BotAI):
             if not geysers:
                 return None
             return random.choice(geysers)
-        elif "requires_placement_position" in target.ability:
-            position = await self.getTargetPosition(target.item, target.unit)
-            withAddon = target in { UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT }
-            position = await self.find_placement(target.ability["ability"], position, max_distance=8, placement_step=1, addon_place=withAddon)
+        elif "requires_placement_position" in objective.ability:
+            position = await self.getTargetPosition(objective.item, objective.unit)
+            withAddon = objective in { UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT }
+            position = await self.find_placement(objective.ability["ability"], position, max_distance=8, placement_step=1, addon_place=withAddon)
             if position is None:
                 raise Exception()
             else:
@@ -253,9 +275,9 @@ class CommonAI(BotAI):
                 if not requiredUpgrade in self.state.upgrades:
                     continue
 
-            abilities = await self.get_available_abilities(trainer)
-            if ability["ability"] not in abilities:
-                continue
+            # abilities = await self.get_available_abilities(trainer)
+            # if ability["ability"] not in abilities:
+            #     continue
                 
             return trainer, ability
 
