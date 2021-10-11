@@ -537,7 +537,7 @@ class ZergAI(CommonAI):
             return
 
         composition_ratio = {
-            unit: self.count(unit) / n
+            unit: self.count(unit) / max(1, n)
             for unit, n in self.composition.items()
         }
 
