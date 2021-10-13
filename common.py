@@ -171,7 +171,7 @@ class CommonAI(BotAI):
         return max(0, time_minerals, time_vespene)
 
     def time_to_reach(self, unit, target):
-        return unit.distance_to(target) / max(.01, unit.movement_speed)
+        return unit.position.distance_to(target.position) / max(.01, unit.movement_speed)
 
     async def reachMacroObjective(self):
 
