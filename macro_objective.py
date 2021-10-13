@@ -18,7 +18,7 @@ class MacroObjective(object):
         self.cost = None
         self.unit = None
         self.target = None
-        self.priority = 0
+        self.priority = priority
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.item}, {self.ability}, {self.cost}, {self.unit}, {self.target})"

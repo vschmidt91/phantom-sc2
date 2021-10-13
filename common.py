@@ -546,7 +546,7 @@ class CommonAI(BotAI):
     def getSupplyBuffer(self) -> int:
         supplyBuffer = 0
         supplyBuffer += self.townhalls.amount
-        supplyBuffer += 2 * self.larva.amount
+        supplyBuffer += self.larva.amount
         supplyBuffer += 3 * self.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
         # supplyBuffer += 2 * self.count(UnitTypeId.BARRACKS)
         # supplyBuffer += 2 * self.count(UnitTypeId.FACTORY)

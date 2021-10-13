@@ -68,17 +68,17 @@ HATCH_FIRST = [
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.SPAWNINGPOOL,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
     UnitTypeId.EXTRACTOR,
+    UnitTypeId.DRONE,
+    UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.OVERLORD,
     UnitTypeId.QUEEN,
     UnitTypeId.QUEEN,
     UpgradeId.ZERGLINGMOVEMENTSPEED,
-    # UnitTypeId.ZERGLING,
-    # UnitTypeId.ZERGLING,
+    UnitTypeId.ZERGLING,
+    UnitTypeId.ZERGLING,
 ]
 
 POOL_FIRST = [
@@ -150,10 +150,10 @@ class ZergAI(CommonAI):
         steps = {
             # self.update_pending: 1,
             self.followBuildOrder: 1,
-            self.adjustComposition: 16,
+            self.adjustComposition: 4,
             self.microQueens: 1,
             self.spreadCreep: 4,
-            self.moveOverlord: 16,
+            self.moveOverlord: 4,
             self.changelingScout: 1,
             self.morphOverlords: 1,
             self.adjustGasTarget: 4,
@@ -225,6 +225,8 @@ class ZergAI(CommonAI):
 
     def upgrade(self):
         if self.buildOrder:
+            return
+        if self.townhalls.amount < 4:
             return
         upgrades_want = set()
         if UnitTypeId.ZERGLING in self.composition:
@@ -351,6 +353,8 @@ class ZergAI(CommonAI):
     def techUp(self):
         if self.buildOrder:
             return
+        if self.townhalls.amount < 4:
+            return
         if self.goLair:
             if self.count(UnitTypeId.EVOLUTIONCHAMBER) < 1:
                 self.macroObjectives.append(MacroObjective(UnitTypeId.EVOLUTIONCHAMBER))
@@ -476,8 +480,12 @@ class ZergAI(CommonAI):
     def adjustComposition(self):
         workersTarget = min(80, self.getMaxWorkers())
         self.composition = { UnitTypeId.DRONE: workersTarget }
-        if self.townhalls.ready.amount < 3:
+        if self.townhalls.ready.amount < 2:
             pass
+        elif self.townhalls.amount < 4:
+            # self.composition[UnitTypeId.ZERGLING] = 8
+            self.composition[UnitTypeId.ROACH] = 8
+            # self.composition[UnitTypeId.ZERGLING] = 50
         elif not self.goLair:
             self.composition[UnitTypeId.ROACH] = 60
             # self.composition[UnitTypeId.ZERGLING] = 50
@@ -552,18 +560,19 @@ class ZergAI(CommonAI):
         if 200 <= self.supply_cap + supply_pending + supply_planned:
             return
         if self.supply_left + supply_pending + supply_planned < self.getSupplyBuffer():
-            self.macroObjectives.append(MacroObjective(UnitTypeId.OVERLORD))
+            self.macroObjectives.append(MacroObjective(UnitTypeId.OVERLORD, 1))
 
-    def expandIfNecessary(self, max_pending = 1, saturation_target = 0.8):
+    def expandIfNecessary(self, max_pending = 1):
         if self.buildOrder:
             return
+        saturation_target = 0.5 + 0.5 * (1 - math.exp(-.1 * self.time / 60))
         pendingCount = (
             self.count_pending(UnitTypeId.HATCHERY) +
             self.count_planned(UnitTypeId.HATCHERY) +
             self.townhalls.not_ready.amount
         )
         if pendingCount < max_pending and saturation_target * self.composition[UnitTypeId.DRONE] < self.workers.amount:
-            self.macroObjectives.append(MacroObjective(UnitTypeId.HATCHERY))
+            self.macroObjectives.append(MacroObjective(UnitTypeId.HATCHERY, 1))
 
     def morphUnits(self):
 
