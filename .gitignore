@@ -2,3 +2,4 @@ publish/
 __pycache__/
 .vscode/
 api_key.txt
+replays/

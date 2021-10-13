@@ -1,4 +1,5 @@
 
+from numpy.core.fromnumeric import sort
 from numpy.lib.shape_base import expand_dims
 from macro_objective import MacroObjective
 from cost import Cost
@@ -56,14 +57,23 @@ STATIC_DEFENSE = {
     Race.Zerg: { UnitTypeId.SPINECRAWLER, UnitTypeId.SPORECRAWLER },
 }
 
-TOWNHALL_SUPPLY = {
-    Race.Protoss: 15,
-    Race.Terran: 15,
-    Race.Zerg: 6,
+SUPPLY_PROVIDED = {
+    UnitTypeId.PYLON: 8,
+    UnitTypeId.SUPPLYDEPOT: 8,
+    UnitTypeId.OVERLORD: 8,
+    UnitTypeId.NEXUS: 15,
+    UnitTypeId.HATCHERY: 6,
+    UnitTypeId.LAIR: 6,
+    UnitTypeId.HIVE: 6,
+    UnitTypeId.COMMANDCENTER: 15,
+    UnitTypeId.COMMANDCENTERFLYING: 15,
+    UnitTypeId.ORBITALCOMMAND: 15,
+    UnitTypeId.ORBITALCOMMANDFLYING: 15,
+    UnitTypeId.PLANETARYFORTRESS: 15,
 }
 
 CIVILIANS = set()
-# CIVILIANS = { UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.PROBE }
+CIVILIANS = { UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.PROBE }
 CIVILIANS |= withEquivalents(UnitTypeId.DRONE)
 CIVILIANS |= withEquivalents(UnitTypeId.QUEEN)
 CIVILIANS |= withEquivalents(UnitTypeId.OVERLORD)
@@ -79,10 +89,16 @@ TRAIN_ABILITIES = {
     for u in TRAINABLE_UNITS
 }
 
-TRAIN_UNIT_BY_ABIITY = {
-     unit_element["ability"] : unit
+UNIT_BY_TRAIN_ABILITY = {
+    unit_element["ability"] : unit
     for trainer_element in TRAIN_INFO.values()
     for unit, unit_element in trainer_element.items()
+}
+
+UPGRADE_BY_RESEARCH_ABILITY = {
+    upgrade_element["ability"] : upgrade
+    for research_element in RESEARCH_INFO.values()
+    for upgrade, upgrade_element in research_element.items()
 }
 
 class CommonAI(BotAI):
@@ -97,7 +113,6 @@ class CommonAI(BotAI):
         self.printTiming = False
         self.printReserve = False
         self.macroObjectives = []
-        self.enemies = dict()
         self.game_step = game_step
         self.pending = Counter()
 
@@ -112,38 +127,35 @@ class CommonAI(BotAI):
         }
 
     async def on_step(self, iteration: int):
-        raise NotImplementedError()
-        # self.micro()
-        # self.assignWorker()
-        # await self.reachMacroObjective()
+        for error in self.state.action_errors:
+            unit = UNIT_BY_TRAIN_ABILITY.get(error.exact_id)
+            if unit and unit in self.pending:
+                self.pending.subtract((unit,))
+        if self.state.action_errors:
+            print('action_errors', self.state.action_errors)
+        # if self.state.alerts:
+        #     print(self.state.alerts)
 
-    def count_planned(self, item) -> int:
-        if type(item) is set:
-            return sum(self.count_planned(u) for u in item)
-        elif type(item) in { UnitTypeId, UpgradeId }:
-            return sum(1 for t in self.macroObjectives if t.item == item)
-        else:
-            raise TypeError()
+    def count_planned(self, items) -> int:
+        if type(items) is not set:
+            items = { items }
+        return sum(1 for t in self.macroObjectives if t.item in items)
 
     def count_pending(self, item) -> int:
         if type(item) is set:
             return sum(self.count_pending(u) for u in item)
         if type(item) is UnitTypeId:
-            ability = self.game_data.units[item.value].creation_ability
+            # if self.isStructure(item):
+                ability = self.game_data.units[item.value].creation_ability
+                return self._abilities_all_units[0][ability]
+            # else:
+            #     return self.pending[item]
         elif type(item) is UpgradeId:
-            ability = self.game_data.upgrades[item.value].research_ability
+            return self.pending[item]
+            # ability = self.game_data.upgrades[item.value].research_ability
+            # return self._abilities_all_units[0][ability]
         else:
             raise TypeError()
-        return self._abilities_all_units[0][ability]
-
-    def update_pending(self):
-        self.pending = Counter()
-        for trainer in self.units + self.structures:
-            for order in trainer.orders:
-                unit = TRAIN_UNIT_BY_ABIITY.get(order.ability.id)
-                if not unit:
-                    continue
-                self.pending[unit] += 1
 
     def estimate_income(self):
         harvesters_on_minerals = sum(t.assigned_harvesters for t in self.townhalls)
@@ -159,7 +171,7 @@ class CommonAI(BotAI):
         return max(0, time_minerals, time_vespene)
 
     def time_to_reach(self, unit, target):
-        return unit.distance_to(target) / unit.movement_speed
+        return unit.distance_to(target) / max(.01, unit.movement_speed)
 
     async def reachMacroObjective(self):
 
@@ -179,27 +191,32 @@ class CommonAI(BotAI):
                 # reserve += objective.cost
                 continue
 
+            units.add(objective.unit.tag)
+
             if objective.target is None:
                 try:
                     objective.target = await self.getTarget(objective)
                 except: 
                     continue
 
-            if objective.target is not None:
+            if objective.target is not None and objective.unit.movement_speed and len(objective.unit.orders) < 2:
                 minerals_needed = objective.cost.minerals + reserve.minerals - self.minerals
                 vespene_needed = objective.cost.vespene + reserve.vespene - self.vespene
-                if not objective.unit.is_moving and self.time_to_harvest(minerals_needed, vespene_needed) < self.time_to_reach(objective.unit, objective.target):
+                if self.time_to_harvest(minerals_needed, vespene_needed) < self.time_to_reach(objective.unit, objective.target):
+                    
+                    if type(objective.target) is Unit:
+                        move_to = objective.target.position
+                    else:
+                        move_to = objective.target
                     if objective.unit.is_carrying_resource:
                         objective.unit.return_resource()
-                        objective.unit.move(objective.target, queue=True)
+                        objective.unit.move(move_to, queue=True)
                     else:
-                        objective.unit.move(objective.target, queue=True)
+                        objective.unit.move(move_to)
 
             if not self.canAffordWithReserve(objective.cost, reserve=reserve):
                 reserve += objective.cost
                 continue
-
-            units.add(objective.unit.tag)
 
             queue = False
             if objective.unit.is_carrying_resource:
@@ -207,10 +224,13 @@ class CommonAI(BotAI):
                 queue = True
 
             if not objective.unit(objective.ability["ability"], target=objective.target, queue=queue):
+                print("objective failed:" + str(objective))
                 # reserve += objective.cost
                 objective.unit = None
                 objective.target = None
                 continue
+
+            self.pending.update((objective.item,))
 
             nextMacroObjectives.remove(objective)
             break
@@ -223,9 +243,14 @@ class CommonAI(BotAI):
             for b, h in self.owned_expansions.items():
                 if not h.is_ready:
                     continue
-                geysers.extend(g for g in self.expansion_locations_dict[b].vespene_geyser)
+                geysers.extend(
+                    g
+                    for g in self.expansion_locations_dict[b].vespene_geyser
+                    if not any(e.position == g.position for e in self.gas_buildings)
+                )
             if not geysers:
-                return None
+                raise Exception()
+            # return sorted(geysers, key=lambda g:g.tag)[0]
             return random.choice(geysers)
         elif "requires_placement_position" in objective.ability:
             position = await self.getTargetPosition(objective.item, objective.unit)
@@ -246,19 +271,37 @@ class CommonAI(BotAI):
             food = int(self.calculate_supply_cost(item))
         return Cost(cost.minerals, cost.vespene, food)
 
-    async def findTrainer(self, item: Union[UnitTypeId, UpgradeId], exclude: List[int]) -> Coroutine[any, any, Tuple[Unit, any]]:
+    async def findTrainer(self, item: Union[UnitTypeId, UpgradeId], exclude: Set[int]) -> Coroutine[any, any, Tuple[Unit, any]]:
 
         if type(item) is UnitTypeId:
             trainerTypes = UNIT_TRAINED_FROM[item]
         elif type(item) is UpgradeId:
             trainerTypes = UPGRADE_RESEARCHED_FROM[item]
 
+        if item in ALL_GAS:
+            ls = { w.tag : len(w.orders) for w in self.workers }
+            exclude.add(0)
+
         trainers = self.structures(trainerTypes) | self.units(trainerTypes)
         trainers = trainers.ready
         trainers = trainers.tags_not_in(exclude)
         trainers = trainers.filter(lambda t: self.hasCapacity(t))
+
+        if not trainers.exists:
+            return None, None
+
+        trainers_abilities = await self.get_available_abilities(trainers, ignore_resource_requirements=True)
         
-        for trainer in trainers:
+        for trainer, abilities in zip(trainers, trainers_abilities):
+
+            already_training = False
+            for order in trainer.orders:
+                order_unit = UNIT_BY_TRAIN_ABILITY.get(order.ability.id)
+                if order_unit in self.pending:
+                    already_training = True
+                    break
+            if already_training:
+                continue
 
             if type(item) is UnitTypeId:
                 ability = TRAIN_INFO[trainer.type_id][item]
@@ -279,9 +322,8 @@ class CommonAI(BotAI):
                 if not requiredUpgrade in self.state.upgrades:
                     continue
 
-            # abilities = await self.get_available_abilities(trainer)
-            # if ability["ability"] not in abilities:
-            #     continue
+            if ability["ability"] not in abilities:
+                continue
                 
             return trainer, ability
 
@@ -291,27 +333,31 @@ class CommonAI(BotAI):
         pass
 
     async def on_building_construction_started(self, unit: Unit):
-        pass
+        if unit.type_id in self.pending:
+            self.pending.subtract((unit.type_id,))
 
     async def on_building_construction_complete(self, unit: Unit):
         if unit.type_id in race_townhalls[self.race] and self.mineral_field.exists:
             unit.smart(self.mineral_field.closest_to(unit))
 
     async def on_enemy_unit_entered_vision(self, unit: Unit):
-        if unit.tag not in self.enemies:
-            self.enemies[unit.tag] = self.unit_cost(unit)
         pass
 
     async def on_enemy_unit_left_vision(self, unit_tag: int):
         pass
 
     async def on_unit_created(self, unit: Unit):
-        pass
+        if unit.type_id in self.pending:
+            self.pending.subtract((unit.type_id,))
 
     async def on_unit_destroyed(self, unit_tag: int):
-        if unit_tag in self.enemies:
-            del self.enemies[unit_tag]
         pass
+        # unit = self.units.by_tag(unit_tag) or self.structures.by_tag(unit_tag)
+        # if unit:
+        #     for order in unit.orders:
+        #         order_unit = UNIT_BY_TRAIN_ABILITY.get(order.ability.id)
+        #         if order_unit and order_unit in self.pending:
+        #             self.pending.subtract((order_unit,))
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         if (
@@ -320,23 +366,33 @@ class CommonAI(BotAI):
             and unit.health_percentage < 0.333 * unit.build_progress * unit.build_progress
         ):
             unit(AbilityId.CANCEL)
+        elif unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
+            unit(AbilityId.CANCEL)
         
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
-        if unit.type_id == UnitTypeId.LAIR:
-            ability = AbilityId.BEHAVIOR_GENERATECREEPON
-            for overlord in self.units(UnitTypeId.OVERLORD):
-                if ability in await self.get_available_abilities(overlord):
-                    overlord(ability)
+
+        if unit.type_id in self.pending:
+            self.pending.subtract((unit.type_id,))
+        
+        # if unit.type_id == UnitTypeId.EGG:
+        #     unit_morph = UNIT_BY_TRAIN_ABILITY[unit.orders[0].ability.id]
+        #     self.pending.update((unit_morph,))
+
+        await super().on_unit_type_changed(unit, previous_type)
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
-        pass
+        if upgrade in self.pending:
+            self.pending.subtract((upgrade,))
 
     def unit_cost(self, unit: Unit) -> int:
         cost = self.game_data.units[unit.type_id.value].cost
         return cost.minerals + cost.vespene
 
     def micro(self):
+
+        # if self.time < 7 * 60:
+        #     return
 
         friends = self.units
         friends = friends.exclude_type(CIVILIANS)
@@ -350,8 +406,11 @@ class CommonAI(BotAI):
             enemyBaseCenter = self.enemy_start_locations[0]
         baseCenter = center(self.structures)
 
-        friends_rating = sum(self.unit_cost(f) for f in friends)
-        enemies_rating = sum(self.unit_cost(e) for e in enemies)
+        friends_rating_global = sum(self.unit_cost(f) for f in friends)
+        enemies_rating_global = sum(self.unit_cost(e) for e in enemies)
+
+        # advantage_threshold = 1 - 0.5 * (self.supply_used / 200)
+        advantage_threshold = 1
 
         for unit in friends:
 
@@ -359,8 +418,8 @@ class CommonAI(BotAI):
 
                 target = enemies.closest_to(unit)
 
-                friends_rating = sum(self.unit_cost(f) / max(1, target.distance_to(f)) for f in friends)
-                enemies_rating = sum(self.unit_cost(e) / max(1, unit.distance_to(e)) for e in enemies)
+                friends_rating = sum(unitValue(f, target) / max(1, target.distance_to(f)) for f in friends)
+                enemies_rating = sum(unitValue(e, unit) / max(1, unit.distance_to(e)) for e in enemies)
 
                 distance_bias = 64
 
@@ -369,10 +428,12 @@ class CommonAI(BotAI):
                 advantage *= friends_rating / max(1, enemies_rating)
                 advantage *= max(1, (distance_bias + target.distance_to(enemyBaseCenter)) / (distance_bias + unit.distance_to(baseCenter)))
 
-                if advantage < 1:
 
-                    if not unit.weapon_cooldown and unit.target_in_range(target):
-                        unit.stop()
+                if advantage < advantage_threshold:
+
+                    if not unit.weapon_cooldown:
+                        # unit.stop()
+                        unit.attack(target.position)
                     elif any(e.target_in_range(unit, 5) for e in enemies):
                         retreat_from = target.position
                         retreat_to = unit.position.towards(retreat_from, -15)
@@ -381,18 +442,32 @@ class CommonAI(BotAI):
                     else:
                         unit.attack(target.position)
                     
-                else:
+                elif advantage < 2 * advantage_threshold:
+
                     unit.attack(target.position)
 
+                else:
+
+                    if unit.weapon_cooldown:
+                        unit.move(unit.position.towards(target.position, 2))
+                    else:
+                        unit.attack(target.position)
+
+    
+            elif self.destructables.exists:
+                unit.attack(self.destructables.closest_to(unit))
 
             elif unit.is_idle:
+
                 if self.time < 8 * 60:
                     target = random.choice(self.enemy_start_locations)
                 elif self.enemy_structures.exists:
-                    target = self.enemy_structures.random.position
+                    target = self.enemy_structures.closest_to(unit)
                 else:
                     target = random.choice(self.expansion_locations_list)
+
                 unit.attack(target)
+
             else:
                 pass
 
@@ -420,7 +495,7 @@ class CommonAI(BotAI):
                 return await self.getNextExpansion()
             else:
                 position = self.townhalls.closest_to(self.start_location).position
-                return position.towards(self.game_info.map_center, 4)
+                return position.towards(self.game_info.map_center, 5)
         else:
             return trainer.position
 
@@ -471,7 +546,7 @@ class CommonAI(BotAI):
     def getSupplyBuffer(self) -> int:
         supplyBuffer = 0
         supplyBuffer += self.townhalls.amount
-        supplyBuffer += self.larva.amount
+        supplyBuffer += 2 * self.larva.amount
         supplyBuffer += 3 * self.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
         # supplyBuffer += 2 * self.count(UnitTypeId.BARRACKS)
         # supplyBuffer += 2 * self.count(UnitTypeId.FACTORY)
@@ -551,6 +626,8 @@ class CommonAI(BotAI):
 
         gasActual = sum((g.assigned_harvesters for g in self.gas_buildings))
 
+        exclude = { o.unit.tag for o in self.macroObjectives if o.unit }
+
         worker = None
         target = None
 
@@ -560,12 +637,16 @@ class CommonAI(BotAI):
         #     minerals = self.mineral_field.closest_to(townhall)
         #     target = minerals
 
-        if self.workers.idle.exists:
-            worker = self.workers.idle.random
+        workers_idle = self.workers.idle
+        # workers_idle = workers_idle.filter(lambda w : not w.is_gathering and not w.is_returning)
+        workers_idle = workers_idle.tags_not_in(exclude)
+
+        if workers_idle.exists:
+            worker = workers_idle.random
 
         if worker is None:
             for gas in self.gas_buildings.ready:
-                workers = self.workers.filter(lambda w : w.order_target == gas.tag)
+                workers = self.workers.tags_not_in(exclude).filter(lambda w : w.order_target == gas.tag)
                 if workers.exists and (0 < gas.surplus_harvesters or self.gasTarget + 1 < gasActual):
                     worker = workers.furthest_to(gas)
                 elif gas.surplus_harvesters < 0 and gasActual + 1 <= self.gasTarget:
@@ -574,7 +655,7 @@ class CommonAI(BotAI):
         if worker is None:
             for townhall in self.townhalls.ready:
                 if 0 < townhall.surplus_harvesters or target is not None:
-                    workers = self.workers.closer_than(5, townhall)
+                    workers = self.workers.tags_not_in(exclude).closer_than(5, townhall)
                     if workers.exists:
                         worker = workers.random
                         break
@@ -593,6 +674,13 @@ class CommonAI(BotAI):
                 if townhall.surplus_harvesters < 0:
                     minerals = self.mineral_field.closest_to(townhall)
                     target = minerals
+                    break
+                    
+        if target is None:
+            for gas in self.gas_buildings.ready:
+                if gas.surplus_harvesters < 0:
+                    target = gas
+                    break
 
         if target is None:
             return

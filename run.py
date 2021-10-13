@@ -13,7 +13,7 @@ if __name__ == "__main__":
     if "--LadderServer" in sys.argv:
         # Ladder game started by LadderManager
         print("Starting ladder game...")        
-        bot = Bot(Race.Zerg, ZergAI(game_step = 1), 'SunTzu')
+        bot = Bot(Race.Zerg, ZergAI(game_step = 4), 'SunTzu')
         result, opponentid = run_ladder_game(bot)
         print(result, " against opponent ", opponentid)
     else:
@@ -21,12 +21,13 @@ if __name__ == "__main__":
         print("Starting local game...")
 
         time = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
-        # replayPath = os.path.join("replays", time + ".SC2Replay")
-        replayPath = os.path.join("C:\\Users", "Ryzen", "Documents", "StarCraft II", "Accounts", "490189910", "2-S2-1-9348025", "Replays", "Multiplayer", time + ".SC2Replay")
-        bot = Bot(Race.Zerg, ZergAI(game_step = 4), 'SunTzu')
+        replayPath = os.path.join("replays", time + ".SC2Replay")
+        # replayPath = os.path.join("C:\\Users", "Ryzen", "Documents", "StarCraft II", "Accounts", "490189910", "2-S2-1-9348025", "Replays", "Multiplayer", time + ".SC2Replay")
+        bot = Bot(Race.Zerg, ZergAI(game_step = 4), 'SunTzu')        
+        # opponent = Bot(Race.Zerg, ZergAI(game_step = 4), 'SunTzu')
         opponent = Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
         sc2.run_game(
-            sc2.maps.get("LightshadeAIE"),
+            sc2.maps.get("OxideAIE"),
             [bot, opponent],
             realtime=False,
             save_replay_as=replayPath,

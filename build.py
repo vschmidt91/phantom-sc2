@@ -7,10 +7,10 @@ import zipfile
 
 def zipBot(zipFile):
     root = os.getcwd()
-    botFiles = [
+    botFiles = (
         f for f in os.listdir(root)
         if ".py" in f or ".txt" in f or ".json" in f
-    ]
+    )
     for file in botFiles:
         zipFile.write(os.path.join(root, file), file)
 
