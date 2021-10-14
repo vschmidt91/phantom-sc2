@@ -131,8 +131,8 @@ class CommonAI(BotAI):
             unit = UNIT_BY_TRAIN_ABILITY.get(error.exact_id)
             if unit and unit in self.pending:
                 self.pending.subtract((unit,))
-        if self.state.action_errors:
-            print('action_errors', self.state.action_errors)
+        # if self.state.action_errors:
+        #     print('action_errors', self.state.action_errors)
         # if self.state.alerts:
         #     print(self.state.alerts)
 
@@ -218,17 +218,24 @@ class CommonAI(BotAI):
                 reserve += objective.cost
                 continue
 
+            abilities = await self.get_available_abilities(objective.unit)
+            if not objective.ability["ability"] in abilities:
+                # print("ability failed:" + str(objective))
+                objective.unit = None
+                objective.target = None
+                break
+
             queue = False
             if objective.unit.is_carrying_resource:
                 objective.unit.return_resource()
                 queue = True
 
             if not objective.unit(objective.ability["ability"], target=objective.target, queue=queue):
-                print("objective failed:" + str(objective))
+                # print("objective failed:" + str(objective))
                 # reserve += objective.cost
                 objective.unit = None
                 objective.target = None
-                continue
+                break
 
             self.pending.update((objective.item,))
 
@@ -237,17 +244,20 @@ class CommonAI(BotAI):
 
         self.macroObjectives = sorted(nextMacroObjectives, key=lambda o:-o.priority)
 
+    def get_owned_geysers(self):
+        for b, h in self.owned_expansions.items():
+            if not h.is_ready:
+                continue
+            for g in self.expansion_locations_dict[b].vespene_geyser:
+                yield g
+
     async def getTarget(self, objective: MacroObjective) -> Coroutine[any, any, Union[Unit, Point2]]:
         if objective.item in ALL_GAS:
-            geysers = []
-            for b, h in self.owned_expansions.items():
-                if not h.is_ready:
-                    continue
-                geysers.extend(
-                    g
-                    for g in self.expansion_locations_dict[b].vespene_geyser
-                    if not any(e.position == g.position for e in self.gas_buildings)
-                )
+            geysers = [
+                g
+                for g in self.get_owned_geysers()
+                if not any(e.position == g.position for e in self.gas_buildings)
+            ]
             if not geysers:
                 raise Exception()
             # return sorted(geysers, key=lambda g:g.tag)[0]
@@ -255,7 +265,11 @@ class CommonAI(BotAI):
         elif "requires_placement_position" in objective.ability:
             position = await self.getTargetPosition(objective.item, objective.unit)
             withAddon = objective in { UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT }
-            position = await self.find_placement(objective.ability["ability"], position, max_distance=8, placement_step=1, addon_place=withAddon)
+            if objective.unit == TOWNHALL[self.race]:
+                max_distance = 0
+            else:
+                max_distance = 8
+            position = await self.find_placement(objective.ability["ability"], position, max_distance=max_distance, placement_step=1, addon_place=withAddon)
             if position is None:
                 raise Exception()
             else:
@@ -389,7 +403,7 @@ class CommonAI(BotAI):
         cost = self.game_data.units[unit.type_id.value].cost
         return cost.minerals + cost.vespene
 
-    def micro(self):
+    async def micro(self):
 
         # if self.time < 7 * 60:
         #     return
@@ -400,6 +414,11 @@ class CommonAI(BotAI):
         enemies = self.enemy_units
         enemies = enemies.exclude_type(CIVILIANS)
 
+        if not enemies.exists:
+            enemies = self.enemy_units
+        if not enemies.exclude_type:
+            enemies = self.enemy_structures
+
         if self.enemy_structures.exists:
             enemyBaseCenter = center(self.enemy_structures)
         else:
@@ -409,17 +428,14 @@ class CommonAI(BotAI):
         friends_rating_global = sum(self.unit_cost(f) for f in friends)
         enemies_rating_global = sum(self.unit_cost(e) for e in enemies)
 
-        # advantage_threshold = 1 - 0.5 * (self.supply_used / 200)
-        advantage_threshold = 1
-
         for unit in friends:
 
             if enemies.exists:
 
                 target = enemies.closest_to(unit)
 
-                friends_rating = sum(unitValue(f, target) / max(1, target.distance_to(f)) for f in friends)
-                enemies_rating = sum(unitValue(e, unit) / max(1, unit.distance_to(e)) for e in enemies)
+                friends_rating = sum(unitValue(f) / max(1, target.distance_to(f)) for f in friends)
+                enemies_rating = sum(unitValue(e) / max(1, unit.distance_to(e)) for e in enemies)
 
                 distance_bias = 64
 
@@ -428,34 +444,40 @@ class CommonAI(BotAI):
                 advantage *= friends_rating / max(1, enemies_rating)
                 advantage *= max(1, (distance_bias + target.distance_to(enemyBaseCenter)) / (distance_bias + unit.distance_to(baseCenter)))
 
+                if advantage < .5:
 
-                if advantage < advantage_threshold:
+                    if not unit.is_moving:
 
-                    if not unit.weapon_cooldown:
-                        # unit.stop()
-                        unit.attack(target.position)
-                    elif any(e.target_in_range(unit, 5) for e in enemies):
-                        retreat_from = target.position
-                        retreat_to = unit.position.towards(retreat_from, -15)
-                        # retreat_to = sorted(self.game_info.map_ramps, key=lambda r:retreat_to.distance_to(r.top_center))[0].top_center
-                        unit.move(retreat_to)
-                    else:
+                        unit.move(unit.position.towards(target, -15))
+
+                elif advantage < 1:
+
+                    if unit.weapon_cooldown:
+
+                        if not unit.is_moving:
+                            unit.move(unit.position.towards(target, -15))
+
+                    elif not unit.is_attacking:
+
                         unit.attack(target.position)
                     
-                elif advantage < 2 * advantage_threshold:
+                elif advantage < 2:
 
-                    unit.attack(target.position)
+                    if not unit.is_attacking:
+
+                        unit.attack(target.position)
 
                 else:
 
                     if unit.weapon_cooldown:
-                        unit.move(unit.position.towards(target.position, 2))
-                    else:
+                        if not unit.is_moving and 1 < unit.distance_to(target):
+                            unit.move(unit.position.towards(target.position, 3))
+                    elif not unit.is_attacking:
                         unit.attack(target.position)
 
     
             elif self.destructables.exists:
-                unit.attack(self.destructables.closest_to(unit))
+                unit.attack(self.destructables.closest_to(self.start_location))
 
             elif unit.is_idle:
 
@@ -676,11 +698,11 @@ class CommonAI(BotAI):
                     target = minerals
                     break
                     
-        if target is None:
-            for gas in self.gas_buildings.ready:
-                if gas.surplus_harvesters < 0:
-                    target = gas
-                    break
+        # if target is None:
+        #     for gas in self.gas_buildings.ready:
+        #         if gas.surplus_harvesters < 0:
+        #             target = gas
+        #             break
 
         if target is None:
             return

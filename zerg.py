@@ -6,7 +6,7 @@ from s2clientprotocol.error_pb2 import QueueIsFull
 from s2clientprotocol.sc2api_pb2 import Macro
 from macro_objective import MacroObjective
 from s2clientprotocol.raw_pb2 import Unit
-from typing import Counter, List, Coroutine, Dict, Union
+from typing import Counter, Iterable, List, Coroutine, Dict, Union
 
 from cost import Cost
 from sc2 import AbilityId, game_info
@@ -67,8 +67,8 @@ HATCH_FIRST = [
     UnitTypeId.HATCHERY,
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
-    UnitTypeId.SPAWNINGPOOL,
     UnitTypeId.EXTRACTOR,
+    UnitTypeId.SPAWNINGPOOL,
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
@@ -111,7 +111,7 @@ class ZergAI(CommonAI):
         self.buildOrder = HATCH_FIRST
         self.goLair = False
         self.goHive = False
-        self.macroObjectives = []
+        self.macroObjectives = [MacroObjective(o, 10) for o in HATCH_FIRST]
         self.gasTarget = 0
         self.timings_acc = {}
         self.timings_interval = 64
@@ -149,7 +149,7 @@ class ZergAI(CommonAI):
 
         steps = {
             # self.update_pending: 1,
-            self.followBuildOrder: 1,
+            # self.followBuildOrder: 1,
             self.adjustComposition: 4,
             self.microQueens: 1,
             self.spreadCreep: 4,
@@ -179,8 +179,9 @@ class ZergAI(CommonAI):
         if iteration % self.timings_interval == 0:
             timings_items = ((k, round(1e3 * n / self.timings_interval, 1)) for k, n in self.timings_acc.items())
             timings_sorted = dict(sorted(timings_items, key=lambda p : p[1], reverse=True))
-            print(timings_sorted)
+            # print(timings_sorted)
             # print(self.pending)
+            # print(len(self.macroObjectives))
             self.timings_acc = {}
 
         # if iteration % 100 == 0:
@@ -224,10 +225,8 @@ class ZergAI(CommonAI):
         return composition, techTargets
 
     def upgrade(self):
-        if self.buildOrder:
-            return
-        if self.townhalls.amount < 4:
-            return
+        # if self.buildOrder:
+        #     return
         upgrades_want = set()
         if UnitTypeId.ZERGLING in self.composition:
             upgrades_want.add(UpgradeId.ZERGLINGMOVEMENTSPEED)
@@ -257,8 +256,9 @@ class ZergAI(CommonAI):
             upgrades_want.update(self.upgradeSequence(FLYER_UPGRADES))
             upgrades_want.update(self.upgradeSequence(FLYER_ARMOR_UPGRADES))
         if UnitTypeId.CORRUPTOR in self.composition:
-            upgrades_want.update(self.upgradeSequence(FLYER_UPGRADES))
-            upgrades_want.update(self.upgradeSequence(FLYER_ARMOR_UPGRADES))
+            pass
+            # upgrades_want.update(self.upgradeSequence(FLYER_UPGRADES))
+            # upgrades_want.update(self.upgradeSequence(FLYER_ARMOR_UPGRADES))
         if UnitTypeId.BROODLORD in self.composition:
         #     upgrades_want.update(self.upgradeSequence(FLYER_ARMOR_UPGRADES))
             upgrades_want.update(self.upgradeSequence(MELEE_UPGRADES))
@@ -266,6 +266,7 @@ class ZergAI(CommonAI):
         if UnitTypeId.OVERSEER in self.composition:
             upgrades_want.add(UpgradeId.OVERLORDSPEED)
 
+    
         # targets = set(targets)
         # targets = { t for t in targets if not self.already_pending_upgrade(t) }
         # pendingUpgrades = self.state.upgrades | set(t.item for t in self.macroObjectives)
@@ -282,16 +283,16 @@ class ZergAI(CommonAI):
             self.macroObjectives.append(MacroObjective(upgrade))
             return
 
-    def upgradeSequence(self, upgrades) -> List[UpgradeId]:
+    def upgradeSequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
             if upgrade not in self.state.upgrades:
-                return [upgrade]
-        return []
+                return (upgrade,)
+        return tuple()
 
     def techBuildings(self):
 
-        if self.buildOrder:
-            return
+        # if self.buildOrder:
+        #     return
 
         structures_want = set()
         if UnitTypeId.ZERGLING in self.composition:
@@ -316,7 +317,7 @@ class ZergAI(CommonAI):
             elif self.count(structure):
                 continue
             else:
-                self.macroObjectives.append(MacroObjective(structure))
+                self.macroObjectives.append(MacroObjective(structure, 1))
                 return
 
     async def changelingScout(self):
@@ -351,15 +352,15 @@ class ZergAI(CommonAI):
         #     overseer.move(target.position)
 
     def techUp(self):
-        if self.buildOrder:
-            return
-        if self.townhalls.amount < 4:
+        # if self.buildOrder:
+        #     return
+        if self.townhalls.amount < 3:
             return
         if self.goLair:
             if self.count(UnitTypeId.EVOLUTIONCHAMBER) < 1:
-                self.macroObjectives.append(MacroObjective(UnitTypeId.EVOLUTIONCHAMBER))
+                self.macroObjectives.append(MacroObjective(UnitTypeId.EVOLUTIONCHAMBER, 1))
             if self.count(withEquivalents(UnitTypeId.LAIR)) < 1:
-                self.macroObjectives.append(MacroObjective(UnitTypeId.LAIR))
+                self.macroObjectives.append(MacroObjective(UnitTypeId.LAIR, 1))
         else:
             self.goLair |= UnitTypeId.BANELING in self.composition
             self.goLair |= UnitTypeId.ROACH in self.composition
@@ -372,11 +373,11 @@ class ZergAI(CommonAI):
             self.goLair |= self.goHive
         if self.goHive:
             if self.count(UnitTypeId.INFESTATIONPIT) < 1:
-                self.macroObjectives.append(MacroObjective(UnitTypeId.INFESTATIONPIT))
+                self.macroObjectives.append(MacroObjective(UnitTypeId.INFESTATIONPIT, 1))
             elif self.count(withEquivalents(UnitTypeId.HIVE)) < 1:
-                self.macroObjectives.append(MacroObjective(UnitTypeId.HIVE))
+                self.macroObjectives.append(MacroObjective(UnitTypeId.HIVE, 1))
             if self.count(UnitTypeId.EVOLUTIONCHAMBER) < 2:
-                self.macroObjectives.append(MacroObjective(UnitTypeId.EVOLUTIONCHAMBER))
+                self.macroObjectives.append(MacroObjective(UnitTypeId.EVOLUTIONCHAMBER, 1))
         else:
             self.goHive |= UnitTypeId.ULTRALISK in self.composition
             self.goHive |= UnitTypeId.BROODLORD in self.composition
@@ -434,8 +435,8 @@ class ZergAI(CommonAI):
         spreader.build(UnitTypeId.CREEPTUMOR, tumorPlacement)
 
     def buildSpores(self):
-        if self.buildOrder:
-            return
+        # if self.buildOrder:
+        #     return
         sporeTime = {
             Race.Zerg: 8 * 60,
             Race.Protoss: 5 * 60,
@@ -479,29 +480,31 @@ class ZergAI(CommonAI):
 
     def adjustComposition(self):
         workersTarget = min(80, self.getMaxWorkers())
-        self.composition = { UnitTypeId.DRONE: workersTarget }
+        self.composition = { UnitTypeId.DRONE: workersTarget, UnitTypeId.ZERGLING: 4 }
         if self.townhalls.ready.amount < 2:
+            # self.composition[UnitTypeId.ZERGLING] = 16
             pass
-        elif self.townhalls.amount < 4:
+        elif self.townhalls.amount < 3:
             # self.composition[UnitTypeId.ZERGLING] = 8
             self.composition[UnitTypeId.ROACH] = 8
             # self.composition[UnitTypeId.ZERGLING] = 50
-        elif not self.goLair:
-            self.composition[UnitTypeId.ROACH] = 60
-            # self.composition[UnitTypeId.ZERGLING] = 50
-        elif not self.goHive:
-            self.composition[UnitTypeId.OVERSEER] = 1
-            self.composition[UnitTypeId.ROACH] = 40
-            self.composition[UnitTypeId.HYDRALISK] = 40
-            # self.composition[UnitTypeId.HYDRALISK] = 20
-            # self.composition[UnitTypeId.ZERGLING] = 40
-            # self.composition[UnitTypeId.BANELING] = 40
         else:
-            self.composition[UnitTypeId.OVERSEER] = 1
-            self.composition[UnitTypeId.CORRUPTOR] = 3
-            self.composition[UnitTypeId.BROODLORD] = 20
-            self.composition[UnitTypeId.HYDRALISK] = 40
-            self.composition[UnitTypeId.ROACH] = 20
+            if not self.goLair:
+                self.composition[UnitTypeId.ROACH] = 60
+                # self.composition[UnitTypeId.ZERGLING] = 50
+            elif not self.goHive:
+                self.composition[UnitTypeId.OVERSEER] = 1
+                self.composition[UnitTypeId.ROACH] = 40
+                self.composition[UnitTypeId.HYDRALISK] = 40
+                # self.composition[UnitTypeId.HYDRALISK] = 20
+                # self.composition[UnitTypeId.ZERGLING] = 40
+                # self.composition[UnitTypeId.BANELING] = 40
+            else:
+                self.composition[UnitTypeId.OVERSEER] = 1
+                self.composition[UnitTypeId.CORRUPTOR] = 3
+                self.composition[UnitTypeId.BROODLORD] = 20
+                self.composition[UnitTypeId.HYDRALISK] = 40
+                self.composition[UnitTypeId.ROACH] = 20
         # else:
         #     self.composition[UnitTypeId.ZERGLING] = 4
         # if 5 <= self.townhalls.amount:
@@ -512,28 +515,39 @@ class ZergAI(CommonAI):
     def adjustGasTarget(self):
         cost_minerals = 0
         cost_vespene = 0
-        for t, n in self.composition.items():
-            cost = self.calculate_cost(t)
-            cost_minerals += n * cost.minerals
-            cost_vespene += n * cost.vespene
+
+        for objective in self.macroObjectives:
+            if objective.cost:
+                cost_minerals += objective.cost.minerals
+                cost_vespene += objective.cost.vespene
+
+        # for t, n in self.composition.items():
+        #     cost = self.calculate_cost(t)
+        #     cost_minerals += n * cost.minerals
+        #     cost_vespene += n * cost.vespene
+
         minerals = max(0, cost_minerals - self.minerals)
         vespene = max(0, cost_vespene - self.vespene)
         gasRatio = vespene / max(1, vespene + minerals)
-        self.gasTarget = 3 + int(1.25 * gasRatio * self.workers.amount)
+        self.gasTarget = int(gasRatio * self.workers.amount)
+        self.gasTarget = 3 * int(self.gasTarget / 3)
+        # print(self.gasTarget)
 
     def buildGasses(self):
-        if self.buildOrder:
-            return
-        gasActual = self.gas_buildings.filter(lambda v : v.has_vespene).amount
-        # gasPending = self.already_pending(UnitTypeId.EXTRACTOR) + sum(1 for t in self.macroObjectives if t.item is UnitTypeId.EXTRACTOR)
-        gasPending = self.count_pending(UnitTypeId.EXTRACTOR) + self.count_planned(UnitTypeId.EXTRACTOR)
-        gasNeeded = max(0, int(math.ceil(self.gasTarget / 3)) - (gasActual + gasPending))
-        if 0 < gasNeeded:
+        # if self.buildOrder:
+        #     return
+        gas_max = sum(1 for g in self.get_owned_geysers())
+        gas_actual = self.gas_buildings.filter(lambda v : v.has_vespene).amount
+        gas_pending = self.count_pending(UnitTypeId.EXTRACTOR) + self.count_planned(UnitTypeId.EXTRACTOR)
+        gas_have = gas_actual + gas_pending
+        gas_want = min(gas_max, int(self.gasTarget / 3))
+        gas_need = gas_want - gas_have
+        if 0 < gas_need:
             self.macroObjectives.append(MacroObjective(UnitTypeId.EXTRACTOR))
     
     def trainQueens(self):
-        if self.buildOrder:
-            return
+        # if self.buildOrder:
+        #     return
         queenTarget = min(5, 1 + self.townhalls.amount)
         queenPending = sum(1 for o in self.macroObjectives if o.item is UnitTypeId.QUEEN)
         queenTrainer = self.townhalls
@@ -545,8 +559,8 @@ class ZergAI(CommonAI):
             self.macroObjectives.append(MacroObjective(UnitTypeId.QUEEN))
 
     def morphOverlords(self):
-        if self.buildOrder:
-            return
+        # if self.buildOrder:
+        #     return
         if 200 <= self.supply_cap:
             return
         supply_planned = sum(
@@ -563,42 +577,49 @@ class ZergAI(CommonAI):
             self.macroObjectives.append(MacroObjective(UnitTypeId.OVERLORD, 1))
 
     def expandIfNecessary(self, max_pending = 1):
-        if self.buildOrder:
-            return
-        saturation_target = 0.5 + 0.5 * (1 - math.exp(-.1 * self.time / 60))
+        # if self.buildOrder:
+        #     return
+        saturation_target = 1
         pendingCount = (
             self.count_pending(UnitTypeId.HATCHERY) +
             self.count_planned(UnitTypeId.HATCHERY) +
             self.townhalls.not_ready.amount
         )
-        if pendingCount < max_pending and saturation_target * self.composition[UnitTypeId.DRONE] < self.workers.amount:
-            self.macroObjectives.append(MacroObjective(UnitTypeId.HATCHERY, 1))
+        if pendingCount < max_pending and saturation_target * self.composition[UnitTypeId.DRONE] < self.count(UnitTypeId.DRONE):
+            self.macroObjectives.append(MacroObjective(UnitTypeId.HATCHERY, 0))
 
     def morphUnits(self):
-
-        if self.buildOrder:
-            return
+        
 
         if self.supply_used == 200:
             return
 
-        composition_ratio = {
-            unit: self.count(unit) / max(1, n)
+        composition_missing = [
+            MacroObjective(unit, 0 if unit is UnitTypeId.DRONE else -1)
             for unit, n in self.composition.items()
-        }
+            for i in range(n - self.count(unit))
+        ]
 
-        for unit, ratio in sorted(composition_ratio.items(), key=lambda p : p[1]):
+        random.shuffle(composition_missing)
+        self.macroObjectives.extend(composition_missing)
 
-            n = 1
+        # composition_ratio = {
+        #     unit: self.count(unit) / max(1, n)
+        #     for unit, n in self.composition.items()
+        # }
 
-            if 3 < self.count_planned(unit):
-                continue
+        # for unit, ratio in sorted(composition_ratio.items(), key=lambda p : p[1]):
 
-            if 1 <= ratio:
-                continue
+        #     n = 1
 
-            self.macroObjectives.extend((MacroObjective(unit, -1) for i in range(n)))
+        #     if 3 < self.count_planned(unit):
+        #         continue
 
-            trainer = sorted(UNIT_TRAINED_FROM[unit], key=lambda v:v.value)[0]
-            if not self.isStructure(trainer) and trainer is not UnitTypeId.LARVA:
-                self.macroObjectives.extend((MacroObjective(trainer, -1) for i in range(n)))
+        #     if 1 <= ratio:
+        #         continue
+
+        #     self.macroObjectives.extend((MacroObjective(unit, -1) for i in range(n)))
+
+        #     trainer = sorted(UNIT_TRAINED_FROM[unit], key=lambda v:v.value)[0]
+        #     if not self.isStructure(trainer) and trainer is not UnitTypeId.LARVA:
+        #         self.macroObjectives.extend((MacroObjective(trainer, -1) for i in range(n)))
