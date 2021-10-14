@@ -7,6 +7,7 @@ from collections import Counter
 import inspect
 import itertools
 import time
+import io
 
 import math
 import random
@@ -104,6 +105,13 @@ UPGRADE_BY_RESEARCH_ABILITY = {
 class CommonAI(BotAI):
 
     def __init__(self, game_step: int = 1):
+
+        try:
+            with open('quotes.txt', 'r') as file:
+                self.quotes = file.readlines()
+        except:
+            self.quotes = None
+
         self.raw_affects_selection = True
         self.destroyRocks = False
         self.gasTarget = 0
@@ -120,6 +128,11 @@ class CommonAI(BotAI):
         pass
 
     async def on_start(self):
+
+        if self.quotes:
+            quote = random.choice(self.quotes)
+            await self.client.chat_send(quote, False)
+
         self.client.game_step = self.game_step
         self.expansion_distances = {
             b: await self.get_base_distance(b)
@@ -127,6 +140,9 @@ class CommonAI(BotAI):
         }
 
     async def on_step(self, iteration: int):
+
+        # if iteration == 0:
+
         for error in self.state.action_errors:
             unit = UNIT_BY_TRAIN_ABILITY.get(error.exact_id)
             if unit and unit in self.pending:

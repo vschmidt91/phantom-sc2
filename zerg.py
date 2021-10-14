@@ -79,6 +79,8 @@ HATCH_FIRST = [
     UpgradeId.ZERGLINGMOVEMENTSPEED,
     UnitTypeId.ZERGLING,
     UnitTypeId.ZERGLING,
+    UnitTypeId.ZERGLING,
+    UnitTypeId.ZERGLING,
 ]
 
 POOL_FIRST = [
@@ -256,13 +258,12 @@ class ZergAI(CommonAI):
             upgrades_want.update(self.upgradeSequence(FLYER_UPGRADES))
             upgrades_want.update(self.upgradeSequence(FLYER_ARMOR_UPGRADES))
         if UnitTypeId.CORRUPTOR in self.composition:
-            pass
-            # upgrades_want.update(self.upgradeSequence(FLYER_UPGRADES))
-            # upgrades_want.update(self.upgradeSequence(FLYER_ARMOR_UPGRADES))
+            upgrades_want.update(self.upgradeSequence(FLYER_UPGRADES))
+            upgrades_want.update(self.upgradeSequence(FLYER_ARMOR_UPGRADES))
         if UnitTypeId.BROODLORD in self.composition:
-        #     upgrades_want.update(self.upgradeSequence(FLYER_ARMOR_UPGRADES))
-            upgrades_want.update(self.upgradeSequence(MELEE_UPGRADES))
-            upgrades_want.update(self.upgradeSequence(ARMOR_UPGRADES))
+            upgrades_want.update(self.upgradeSequence(FLYER_ARMOR_UPGRADES))
+            # upgrades_want.update(self.upgradeSequence(MELEE_UPGRADES))
+            # upgrades_want.update(self.upgradeSequence(ARMOR_UPGRADES))
         if UnitTypeId.OVERSEER in self.composition:
             upgrades_want.add(UpgradeId.OVERLORDSPEED)
 
@@ -312,9 +313,10 @@ class ZergAI(CommonAI):
 
         structures_have = self.structures(structures_want)
         for structure in structures_want:
-            if structures_have(structure).exists:
+            structure_equivalents = withEquivalents(structure)
+            if structures_have(structure_equivalents).exists:
                 continue
-            elif self.count(structure):
+            elif self.count(structure_equivalents):
                 continue
             else:
                 self.macroObjectives.append(MacroObjective(structure, 1))
@@ -480,9 +482,9 @@ class ZergAI(CommonAI):
 
     def adjustComposition(self):
         workersTarget = min(80, self.getMaxWorkers())
-        self.composition = { UnitTypeId.DRONE: workersTarget, UnitTypeId.ZERGLING: 4 }
+        self.composition = { UnitTypeId.DRONE: workersTarget }
         if self.townhalls.ready.amount < 2:
-            # self.composition[UnitTypeId.ZERGLING] = 16
+            self.composition[UnitTypeId.ZERGLING] = 8
             pass
         elif self.townhalls.amount < 3:
             # self.composition[UnitTypeId.ZERGLING] = 8
@@ -500,8 +502,8 @@ class ZergAI(CommonAI):
                 # self.composition[UnitTypeId.ZERGLING] = 40
                 # self.composition[UnitTypeId.BANELING] = 40
             else:
-                self.composition[UnitTypeId.OVERSEER] = 1
-                self.composition[UnitTypeId.CORRUPTOR] = 3
+                self.composition[UnitTypeId.OVERSEER] = 3
+                self.composition[UnitTypeId.CORRUPTOR] = 10
                 self.composition[UnitTypeId.BROODLORD] = 20
                 self.composition[UnitTypeId.HYDRALISK] = 40
                 self.composition[UnitTypeId.ROACH] = 20
