@@ -239,7 +239,8 @@ class CommonAI(BotAI):
                 # print("ability failed:" + str(objective))
                 objective.unit = None
                 objective.target = None
-                break
+                reserve += objective.cost
+                continue
 
             queue = False
             if objective.unit.is_carrying_resource:
@@ -251,7 +252,8 @@ class CommonAI(BotAI):
                 # reserve += objective.cost
                 objective.unit = None
                 objective.target = None
-                break
+                reserve += objective.cost
+                continue
 
             self.pending.update((objective.item,))
 
@@ -281,7 +283,7 @@ class CommonAI(BotAI):
         elif "requires_placement_position" in objective.ability:
             position = await self.getTargetPosition(objective.item, objective.unit)
             withAddon = objective in { UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT }
-            if objective.unit == TOWNHALL[self.race]:
+            if objective.item == TOWNHALL[self.race]:
                 max_distance = 0
             else:
                 max_distance = 8
@@ -341,19 +343,19 @@ class CommonAI(BotAI):
             if "requires_techlab" in ability and not trainer.has_techlab:
                 continue
 
-            requiredBuilding = ability.get("required_building", None)
-            if requiredBuilding is not None:
-                requiredBuilding = withEquivalents(requiredBuilding)
-                if not self.structures(requiredBuilding).ready.exists:
-                    continue
+            # requiredBuilding = ability.get("required_building", None)
+            # if requiredBuilding is not None:
+            #     requiredBuilding = withEquivalents(requiredBuilding)
+            #     if not self.structures(requiredBuilding).ready.exists:
+            #         continue
 
-            requiredUpgrade = ability.get("required_upgrade", None)
-            if requiredUpgrade is not None:
-                if not requiredUpgrade in self.state.upgrades:
-                    continue
+            # requiredUpgrade = ability.get("required_upgrade", None)
+            # if requiredUpgrade is not None:
+            #     if not requiredUpgrade in self.state.upgrades:
+            #         continue
 
-            if ability["ability"] not in abilities:
-                continue
+            # if ability["ability"] not in abilities:
+            #     continue
                 
             return trainer, ability
 
@@ -464,7 +466,7 @@ class CommonAI(BotAI):
 
                     if not unit.is_moving:
 
-                        unit.move(unit.position.towards(target, -15))
+                        unit.move(unit.position.towards(target, -12))
 
                 elif advantage < 1:
 
