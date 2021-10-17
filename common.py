@@ -4,10 +4,7 @@ from numpy.lib.shape_base import expand_dims
 from macro_objective import MacroObjective
 from cost import Cost
 from collections import Counter
-import inspect
-import itertools
-import time
-import io
+from itertools import chain
 
 import math
 import random
@@ -122,7 +119,10 @@ class CommonAI(BotAI):
         self.printReserve = False
         self.macroObjectives = []
         self.game_step = game_step
-        self.pending = Counter()
+
+        self.table_actual = Counter()
+        self.table_pending = Counter()
+        self.table_planned = Counter()
 
     async def on_before_start(self):
         pass
@@ -139,39 +139,97 @@ class CommonAI(BotAI):
             for b in self.expansion_locations_list
         }
 
+    def update_tables(self):
+
+        self.table_actual.clear()
+        self.table_actual.update((u.type_id for u in self.all_own_units))
+        self.table_actual.update(self.state.upgrades)
+
+        self.table_pending.clear()
+        self.table_pending.update((
+            UNIT_BY_TRAIN_ABILITY.get(o.ability.id) or UPGRADE_BY_RESEARCH_ABILITY.get(o.ability.id)
+            for u in self.all_own_units
+            for o in u.orders
+        ))
+
+        self.table_planned.clear()
+        self.table_planned.update((o.item for o in self.macroObjectives))
+
+        # fix worker count (so that it includes workers in gas buildings)
+        worker_type = race_worker[self.race]
+        worker_supply = self.supply_used - self.supply_army
+        self.table_actual[worker_type] = worker_supply - self.table_pending[worker_type]
+
     async def on_step(self, iteration: int):
 
         # if iteration == 0:
 
-        for error in self.state.action_errors:
-            unit = UNIT_BY_TRAIN_ABILITY.get(error.exact_id)
-            if unit and unit in self.pending:
-                self.pending.subtract((unit,))
+        # for error in self.state.action_errors:
+        #     unit = UNIT_BY_TRAIN_ABILITY.get(error.exact_id)
+        #     if unit and unit in self.pending:
+        #         self.pending.subtract((unit,))
         # if self.state.action_errors:
         #     print('action_errors', self.state.action_errors)
         # if self.state.alerts:
         #     print(self.state.alerts)
 
-    def count_planned(self, items) -> int:
-        if type(items) is not set:
-            items = { items }
-        return sum(1 for t in self.macroObjectives if t.item in items)
+        pass
 
-    def count_pending(self, item) -> int:
-        if type(item) is set:
-            return sum(self.count_pending(u) for u in item)
-        if type(item) is UnitTypeId:
-            # if self.isStructure(item):
-                ability = self.game_data.units[item.value].creation_ability
-                return self._abilities_all_units[0][ability]
-            # else:
-            #     return self.pending[item]
-        elif type(item) is UpgradeId:
-            return self.pending[item]
-            # ability = self.game_data.upgrades[item.value].research_ability
-            # return self._abilities_all_units[0][ability]
-        else:
-            raise TypeError()
+    def count(self, item, include_pending: bool = True, include_planned: bool = True) -> int:
+        
+        sum = self.count_actual(item)
+        if include_pending:
+            sum += self.count_pending(item)
+        if include_planned:
+            sum += self.count_planned(item)
+        return sum
+
+        # count = 0
+        # if type(item) is set:
+        #     return sum(self.count(i) for i in item)
+        # elif type(item) is UnitTypeId:
+        #     count += self.structures(item).amount
+        #     count += self.units(item).amount
+        # elif type(item) is UpgradeId:
+        #     count += 1 if item in self.state.upgrades else 0
+        # else:
+        #     raise TypeError()
+        # if include_pending:
+        #     count += self.count_pending(item)
+        # if include_planned:
+        #     count += self.count_planned(item)
+        # return count
+
+    def count_actual(self, items) -> int:
+        if not isinstance(items, Iterable):
+            items = (items,)
+        return sum(self.table_actual[i] for i in items)
+
+    def count_planned(self, items) -> int:
+        if not isinstance(items, Iterable):
+            items = (items,)
+        return sum(self.table_planned[i] for i in items)
+        # return sum(1 for t in self.macroObjectives if t.item in items)
+
+    def count_pending(self, items) -> int:
+        if not isinstance(items, Iterable):
+            items = (items,)
+        return sum(self.table_pending[i] for i in items)
+
+        # if type(item) is set:
+        #     return sum(self.count_pending(u) for u in item)
+        # if type(item) is UnitTypeId:
+        #     # if self.isStructure(item):
+        #         ability = self.game_data.units[item.value].creation_ability
+        #         return self._abilities_all_units[0][ability]
+        #     # else:
+        #     #     return self.pending[item]
+        # elif type(item) is UpgradeId:
+        #     return self.pending[item]
+        #     # ability = self.game_data.upgrades[item.value].research_ability
+        #     # return self._abilities_all_units[0][ability]
+        # else:
+        #     raise TypeError()
 
     def estimate_income(self):
         harvesters_on_minerals = sum(t.assigned_harvesters for t in self.townhalls)
@@ -192,7 +250,6 @@ class CommonAI(BotAI):
     async def reachMacroObjective(self):
 
         reserve = Cost(0, 0, 0)
-        units = { t.unit.tag for t in self.macroObjectives if t.unit is not None }
         nextMacroObjectives = list(self.macroObjectives)
 
         for objective in self.macroObjectives:
@@ -201,13 +258,20 @@ class CommonAI(BotAI):
                 objective.cost = self.getCost(objective.item)
 
             if objective.unit is None:
-                objective.unit, objective.ability = await self.findTrainer(objective.item, exclude=units)
+                exclude = { o.unit.tag for o in nextMacroObjectives if o.unit }
+                objective.unit, objective.ability = await self.findTrainer(objective.item, exclude=exclude)
+            else:
+                if any((o for o in nextMacroObjectives if o != objective and o.unit and o.unit.tag == objective.unit.tag)):
+                    raise Error()
+                unit_new = self.units.find_by_tag(objective.unit.tag) or self.structures.find_by_tag(objective.unit.tag)
+                # if unit_new is None:
+                #     raise Error()
+                objective.unit = unit_new
+
 
             if objective.unit is None:
                 # reserve += objective.cost
                 continue
-
-            units.add(objective.unit.tag)
 
             if objective.target is None:
                 try:
@@ -215,15 +279,37 @@ class CommonAI(BotAI):
                 except: 
                     continue
 
-            if objective.target is not None and objective.unit.movement_speed and len(objective.unit.orders) < 2:
+            # requiredBuilding = objective.ability.get("required_building", None)
+            # if requiredBuilding is not None:
+            #     requiredBuilding = withEquivalents(requiredBuilding)
+            #     if not self.structures(requiredBuilding).ready.exists:
+            #         reserve += objective.cost
+            #         continue
+
+            # requiredUpgrade = objective.ability.get("required_upgrade", None)
+            # if requiredUpgrade is not None:
+            #     if not requiredUpgrade in self.state.upgrades:
+            #         reserve += objective.cost
+            #         continue
+
+            if (
+                objective.target is not None
+                and not objective.unit.is_moving
+                and not objective.unit.is_returning
+                and objective.unit.movement_speed
+                and 1 < objective.unit.distance_to(objective.target)
+            ):
                 minerals_needed = objective.cost.minerals + reserve.minerals - self.minerals
                 vespene_needed = objective.cost.vespene + reserve.vespene - self.vespene
-                if self.time_to_harvest(minerals_needed, vespene_needed) < self.time_to_reach(objective.unit, objective.target):
+                if (
+                    self.time_to_harvest(minerals_needed, vespene_needed) < self.time_to_reach(objective.unit, objective.target)
+                ):
                     
                     if type(objective.target) is Unit:
                         move_to = objective.target.position
                     else:
                         move_to = objective.target
+
                     if objective.unit.is_carrying_resource:
                         objective.unit.return_resource()
                         objective.unit.move(move_to, queue=True)
@@ -255,7 +341,7 @@ class CommonAI(BotAI):
                 reserve += objective.cost
                 continue
 
-            self.pending.update((objective.item,))
+            # self.pending.update((objective.item,))
 
             nextMacroObjectives.remove(objective)
             break
@@ -329,7 +415,7 @@ class CommonAI(BotAI):
             already_training = False
             for order in trainer.orders:
                 order_unit = UNIT_BY_TRAIN_ABILITY.get(order.ability.id)
-                if order_unit in self.pending:
+                if order_unit:
                     already_training = True
                     break
             if already_training:
@@ -365,8 +451,9 @@ class CommonAI(BotAI):
         pass
 
     async def on_building_construction_started(self, unit: Unit):
-        if unit.type_id in self.pending:
-            self.pending.subtract((unit.type_id,))
+        # if unit.type_id in self.pending:
+        #     self.pending.subtract((unit.type_id,))
+        pass
 
     async def on_building_construction_complete(self, unit: Unit):
         if unit.type_id in race_townhalls[self.race] and self.mineral_field.exists:
@@ -379,8 +466,9 @@ class CommonAI(BotAI):
         pass
 
     async def on_unit_created(self, unit: Unit):
-        if unit.type_id in self.pending:
-            self.pending.subtract((unit.type_id,))
+        # if unit.type_id in self.pending:
+        #     self.pending.subtract((unit.type_id,))
+        pass
 
     async def on_unit_destroyed(self, unit_tag: int):
         pass
@@ -404,8 +492,8 @@ class CommonAI(BotAI):
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
 
-        if unit.type_id in self.pending:
-            self.pending.subtract((unit.type_id,))
+        # if unit.type_id in self.pending:
+        #     self.pending.subtract((unit.type_id,))
         
         # if unit.type_id == UnitTypeId.EGG:
         #     unit_morph = UNIT_BY_TRAIN_ABILITY[unit.orders[0].ability.id]
@@ -414,8 +502,9 @@ class CommonAI(BotAI):
         await super().on_unit_type_changed(unit, previous_type)
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
-        if upgrade in self.pending:
-            self.pending.subtract((upgrade,))
+        # if upgrade in self.pending:
+        #     self.pending.subtract((upgrade,))
+        pass
 
     def unit_cost(self, unit: Unit) -> int:
         cost = self.game_data.units[unit.type_id.value].cost
@@ -460,7 +549,7 @@ class CommonAI(BotAI):
                 advantage = 1
                 # advantage *= friends_rating_global / max(1, enemies_rating_global)
                 advantage *= friends_rating / max(1, enemies_rating)
-                advantage *= max(1, (distance_bias + target.distance_to(enemyBaseCenter)) / (distance_bias + unit.distance_to(baseCenter)))
+                advantage *= (distance_bias + target.distance_to(enemyBaseCenter)) / (distance_bias + unit.distance_to(baseCenter))
 
                 if advantage < .5:
 
@@ -630,24 +719,6 @@ class CommonAI(BotAI):
         abilities = TRAIN_ABILITIES[unit]
         trainers = trainers.filter(lambda t : any(o.ability.id in abilities for o in t.orders))
         return trainers
-
-    def count(self, item, include_pending: bool = True, include_planned: bool = True) -> int:
-        
-        count = 0
-        if type(item) is set:
-            return sum(self.count(i) for i in item)
-        elif type(item) is UnitTypeId:
-            count += self.structures(item).amount
-            count += self.units(item).amount
-        elif type(item) is UpgradeId:
-            count += 1 if item in self.state.upgrades else 0
-        else:
-            raise TypeError()
-        if include_pending:
-            count += self.count_pending(item)
-        if include_planned:
-            count += self.count_planned(item)
-        return count
 
     def createCost(self, unit: UnitTypeId):
         cost = self.calculate_cost(unit)

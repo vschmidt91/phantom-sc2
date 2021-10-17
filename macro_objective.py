@@ -21,4 +21,4 @@ class MacroObjective(object):
         self.priority = priority
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.item}, {self.ability}, {self.cost}, {self.unit}, {self.target})"
+        return f"{self.__class__.__name__}({self.item}, {self.ability}, {self.cost}, {self.unit}, {self.target}, {self.priority})"
