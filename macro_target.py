@@ -10,7 +10,7 @@ from sc2.position import Point2
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 
-class MacroObjective(object):
+class MacroTarget(object):
 
     def __init__(self, item: Union[UnitTypeId, UpgradeId], priority: float = 0):
         self.item = item

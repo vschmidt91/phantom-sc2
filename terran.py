@@ -1,6 +1,6 @@
 
 
-from macro_objective import MacroObjective
+from macro_target import MacroTarget
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -21,7 +21,7 @@ class TerranAI(CommonAI):
         self.manageCCs()
 
         targets = self.getTargets()
-        self.macroObjectives += [MacroObjective(t) for t in targets]
+        self.macro_targets += [MacroTarget(t) for t in targets]
 
     def getChain(self):
         return [
@@ -131,10 +131,10 @@ class TerranAI(CommonAI):
             else:
                 armyTargets += [UnitTypeId.MARAUDER, UnitTypeId.MARINE]
 
-        armyTargets = [a for a in armyTargets if not any((o.item == a for o in self.macroObjectives))]
+        armyTargets = [a for a in armyTargets if not any((o.item == a for o in self.macro_targets))]
         
         expandTarget = []
-        if self.already_pending(UnitTypeId.COMMANDCENTER) == 0 and not any((o.item == UnitTypeId.COMMANDCENTER for o in self.macroObjectives)):
+        if self.already_pending(UnitTypeId.COMMANDCENTER) == 0 and not any((o.item == UnitTypeId.COMMANDCENTER for o in self.macro_targets)):
             expandTarget.append(UnitTypeId.COMMANDCENTER)
 
         return armyTargets + macroTargets + expandTarget
