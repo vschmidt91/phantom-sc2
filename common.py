@@ -20,7 +20,7 @@ from constants import CHANGELINGS
 
 import numpy as np
 import json
-from sc2.position import Point2
+from sc2.position import Point2, Point3
 
 from sc2 import Race, BotAI
 from sc2.constants import ALL_GAS
@@ -47,11 +47,15 @@ REQUIREMENTS_EXCLUDE = {
     UnitTypeId.HATCHERY,
 }
 
+class PlacementNotFound(Exception):
+    pass
+
 class CommonAI(BotAI):
 
-    def __init__(self, game_step: int = 1):
+    def __init__(self, game_step: int = 1, debug: bool = False):
 
         self.game_step = game_step
+        self.debug = debug
 
         try:
             with open('quotes.txt', 'r') as file:
@@ -59,7 +63,7 @@ class CommonAI(BotAI):
         except:
             self.quotes = None
 
-        self.raw_affects_selection = True
+        # self.raw_affects_selection = True
         self.gas_target = 0
         self.macro_targets = list()
         self.table_actual = Counter()
@@ -84,13 +88,49 @@ class CommonAI(BotAI):
 
     async def  on_step(self, iteration: int):
 
+        self.unit_by_tag = { u.tag: u for u in self.all_own_units }
+
         if iteration == 0:
 
             if self.quotes:
                 quote = random.choice(self.quotes)
                 await self.client.chat_send(quote, False)
 
+        if self.debug:
+
+            font_color = (255, 255, 255)
+            font_size = 12
+
+            for i, target in enumerate(self.macro_targets):
+
+                positions = []
+
+                if not target.target:
+                    pass
+                elif isinstance(target.target, Unit):
+                    positions.append(target.target)
+                elif isinstance(target.target, Point3):
+                    positions.append(target.target)
+                elif isinstance(target.target, Point2):
+                    z = self.get_terrain_z_height(target.target)
+                    positions.append(Point3((target.target.x, target.target.y, z)))
+
+                if target.unit:
+                    unit = self.unit_by_tag.get(target.unit)
+                    if unit:
+                        positions.append(unit)
+
+                text = f"{str(i+1)} {str(target.item.name)}"
+
+                for position in positions:
+                    self.client.debug_text_world(
+                        text,
+                        position,
+                        color=font_color,
+                        size=font_size)
+
         pass
+
 
     async def on_end(self, game_result: Result):
         pass
@@ -134,18 +174,19 @@ class CommonAI(BotAI):
     def update_tables(self):
 
         self.table_actual.clear()
-        self.table_actual.update((u.type_id for u in self.all_own_units))
+        self.table_actual.update(u.type_id for u in self.all_own_units.ready)
         self.table_actual.update(self.state.upgrades)
 
         self.table_pending.clear()
-        self.table_pending.update((
+        self.table_pending.update(u.type_id for u in self.all_own_units.not_ready)
+        self.table_pending.update(
             UNIT_BY_TRAIN_ABILITY.get(o.ability.exact_id) or UPGRADE_BY_RESEARCH_ABILITY.get(o.ability.exact_id)
             for u in self.all_own_units
             for o in u.orders
-        ))
+        )
 
         self.table_planned.clear()
-        self.table_planned.update((o.item for o in self.macro_targets))
+        self.table_planned.update(o.item for o in self.macro_targets)
 
         # fix worker count (so that it includes workers in gas buildings)
         worker_type = race_worker[self.race]
@@ -181,8 +222,19 @@ class CommonAI(BotAI):
         time_vespene = vespene / max(1, income_vespene)
         return max(0, time_minerals, time_vespene)
 
-    def time_to_reach(self, unit, target):
-        return unit.position.distance_to(target.position) / max(.01, unit.movement_speed)
+    async def time_to_reach(self, unit, target):
+        if isinstance(target, Unit):
+            position = target.position
+        elif isinstance(target, Point2):
+            position = target
+        else:
+            raise TypeError()
+        path = await self.client.query_pathing(unit, position)
+        if not path:
+            path = unit.position.distance_to(position)
+        if not unit.movement_speed:
+            raise Error()
+        return path / unit.movement_speed
 
     def get_requirements(self, item):
         requirements = REQUIREMENTS[item]
@@ -196,101 +248,89 @@ class CommonAI(BotAI):
         reserve = Cost(0, 0, 0)
         macro_targets_new = list(self.macro_targets)
 
+        income_minerals, income_vespene = self.estimate_income()
+
         for objective in self.macro_targets:
 
-            if objective.cost is None:
+            if not objective.cost:
                 objective.cost = self.getCost(objective.item)
 
-            if objective.unit is None:
-                exclude = { o.unit.tag for o in macro_targets_new if o.unit }
-                objective.unit, objective.ability = await self.findTrainer(objective.item, exclude=exclude)
+            can_afford = self.canAffordWithReserve(objective.cost, reserve)
+
+            if objective.unit:
+                unit = self.unit_by_tag.get(objective.unit)
             else:
-                if any((o for o in macro_targets_new if o != objective and o.unit and o.unit.tag == objective.unit.tag)):
-                    raise Error()
-                unit_new = self.units.find_by_tag(objective.unit.tag) or self.structures.find_by_tag(objective.unit.tag)
-                # if unit_new is None:
-                #     raise Error()
-                objective.unit = unit_new
+                exclude = { o.unit for o in macro_targets_new }
+                unit, objective.ability = self.findTrainer(objective.item, exclude=exclude)
 
-
-            if objective.unit is None:
-                # reserve += objective.cost
+            if unit is None:
                 continue
+
+            objective.unit = unit.tag
 
             if objective.target is None:
                 try:
-                    objective.target = await self.get_target(objective)
-                except: 
+                    objective.target = await self.get_target(unit, objective)
+                except PlacementNotFound as p: 
                     continue
 
-            # requiredBuilding = objective.ability.get("required_building", None)
-            # if requiredBuilding is not None:
-            #     requiredBuilding = withEquivalents(requiredBuilding)
-            #     if not self.structures(requiredBuilding).ready.exists:
-            #         reserve += objective.cost
-            #         continue
+            requirement_missing = False
+            for requirement in REQUIREMENTS[objective.item]:
+                if not self.count(requirement, include_pending=False, include_planned=False):
+                    requirement_missing = True
+                    break
 
-            # requiredUpgrade = objective.ability.get("required_upgrade", None)
-            # if requiredUpgrade is not None:
-            #     if not requiredUpgrade in self.state.upgrades:
-            #         reserve += objective.cost
-            #         continue
-
-            if not objective.ability["ability"] in await self.get_available_abilities(objective.unit, ignore_resource_requirements=True):
-                # print("ability failed:" + str(objective))
-                objective.unit = None
-                objective.target = None
-                reserve += objective.cost
+            if requirement_missing:
                 continue
+
+            if not objective.ability["ability"] in await self.get_available_abilities(unit, ignore_resource_requirements=True):
+                continue
+
+            reserve += objective.cost
 
             if (
                 objective.target is not None
-                and not objective.unit.is_moving
-                and not objective.unit.is_returning
-                and objective.unit.movement_speed
-                and 1 < objective.unit.distance_to(objective.target)
+                and not unit.is_moving
+                and unit.movement_speed
             ):
-                minerals_needed = objective.cost.minerals + reserve.minerals - self.minerals
-                vespene_needed = objective.cost.vespene + reserve.vespene - self.vespene
-                if (
-                    self.time_to_harvest(minerals_needed, vespene_needed) < self.time_to_reach(objective.unit, objective.target)
-                ):
+            
+                time = await self.time_to_reach(unit, objective.target)
+                
+                minerals_needed = reserve.minerals - self.minerals
+                vespene_needed = reserve.vespene - self.vespene
+                time_minerals = minerals_needed / max(1, income_minerals)
+                time_vespene = vespene_needed / max(1, income_vespene)
+                time_to_harvest =  max(0, time_minerals, time_vespene)
+
+                if time_to_harvest < time:
                     
                     if type(objective.target) is Unit:
                         move_to = objective.target.position
                     else:
                         move_to = objective.target
 
-                    if objective.unit.is_carrying_resource:
-                        objective.unit.return_resource()
-                        objective.unit.move(move_to, queue=True)
+                    if unit.is_carrying_resource:
+                        unit.return_resource()
+                        unit.move(move_to, queue=True)
                     else:
-                        objective.unit.move(move_to)
+                        unit.move(move_to)
 
-            if not self.canAffordWithReserve(objective.cost, reserve=reserve):
-                reserve += objective.cost
+            if not can_afford:
                 continue
-
-            abilities = await self.get_available_abilities(objective.unit)
+            
+            abilities = await self.get_available_abilities(unit)
             if not objective.ability["ability"] in abilities:
-                # print("ability failed:" + str(objective))
-                objective.unit = None
-                objective.target = None
-                reserve += objective.cost
-                continue
+                print("ability with cost failed:" + str(objective))
+                raise Error()
 
             queue = False
-            if objective.unit.is_carrying_resource:
-                objective.unit.return_resource()
+            if unit.is_carrying_resource:
+                unit.return_resource()
                 queue = True
 
-            if not objective.unit(objective.ability["ability"], target=objective.target, queue=queue):
-                # print("objective failed:" + str(objective))
-                # reserve += objective.cost
-                objective.unit = None
-                objective.target = None
-                reserve += objective.cost
-                continue
+            if not unit(objective.ability["ability"], target=objective.target, queue=queue):
+                print("objective failed:" + str(objective))
+                raise Error()
 
             # self.pending.update((objective.item,))
 
@@ -307,7 +347,7 @@ class CommonAI(BotAI):
             if geyser.distance_to(townhall) < RESOURCE_DISTANCE_THRESHOLD:
                 yield geyser
 
-    async def get_target(self, objective: MacroTarget) -> Coroutine[any, any, Union[Unit, Point2]]:
+    async def get_target(self, unit: Unit, objective: MacroTarget) -> Coroutine[any, any, Union[Unit, Point2]]:
         if objective.item in ALL_GAS:
             geysers = [
                 g
@@ -315,11 +355,11 @@ class CommonAI(BotAI):
                 if not any(e.position == g.position for e in self.gas_buildings)
             ]
             if not geysers:
-                raise Exception()
+                raise PlacementNotFound()
             # return sorted(geysers, key=lambda g:g.tag)[0]
             return random.choice(geysers)
         elif "requires_placement_position" in objective.ability:
-            position = await self.get_target_position(objective.item, objective.unit)
+            position = await self.get_target_position(objective.item, unit)
             withAddon = objective in { UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT }
             if objective.item == TOWNHALL[self.race]:
                 max_distance = 0
@@ -327,7 +367,7 @@ class CommonAI(BotAI):
                 max_distance = 8
             position = await self.find_placement(objective.ability["ability"], position, max_distance=max_distance, placement_step=1, addon_place=withAddon)
             if position is None:
-                raise Exception()
+                raise PlacementNotFound()
             else:
                 return position
         else:
@@ -341,7 +381,7 @@ class CommonAI(BotAI):
             food = int(self.calculate_supply_cost(item))
         return Cost(cost.minerals, cost.vespene, food)
 
-    async def findTrainer(self, item: Union[UnitTypeId, UpgradeId], exclude: Set[int]) -> Coroutine[any, any, Tuple[Unit, any]]:
+    def findTrainer(self, item: Union[UnitTypeId, UpgradeId], exclude: Set[int]) -> Coroutine[any, any, Tuple[Unit, any]]:
 
         if type(item) is UnitTypeId:
             trainerTypes = UNIT_TRAINED_FROM[item]
@@ -359,10 +399,8 @@ class CommonAI(BotAI):
 
         if not trainers.exists:
             return None, None
-
-        trainers_abilities = await self.get_available_abilities(trainers, ignore_resource_requirements=True)
-        
-        for trainer, abilities in zip(trainers, trainers_abilities):
+            
+        for trainer in sorted(trainers, key=lambda t:t.tag, reverse=True):
 
             already_training = False
             for order in trainer.orders:
@@ -477,7 +515,7 @@ class CommonAI(BotAI):
                         unit.attack(target.position)
 
     
-            elif self.destructables.exists:
+            elif self.destructables.exists and 5 * 60 < self.time:
 
                 if unit.type_id == UnitTypeId.BANELING:
                     continue
@@ -518,7 +556,7 @@ class CommonAI(BotAI):
     async def get_target_position(self, target: UnitTypeId, trainer: Unit) -> Point2:
         if target in STATIC_DEFENSE[self.race]:
             townhalls = self.townhalls.ready.sorted_by_distance_to(self.start_location)
-            i = self.count(target)
+            i = self.count(target) - 1
             return townhalls[i].position.towards(self.game_info.map_center, -5)
         elif self.isStructure(target):
             if target in race_townhalls[self.race]:
@@ -574,9 +612,17 @@ class CommonAI(BotAI):
 
     def getSupplyBuffer(self) -> int:
         supplyBuffer = 0
-        supplyBuffer += self.townhalls.amount
-        supplyBuffer += self.larva.amount
-        supplyBuffer += 3 * self.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
+
+        # supplyBuffer += sum(
+        #     target.cost.food
+        #     for target in self.macro_targets
+        #     if target.cost
+        # )
+
+        supplyBuffer += 2 * self.townhalls.amount
+        # supplyBuffer += 2 * self.larva.amount
+        supplyBuffer += 6 * self.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
+
         # supplyBuffer += 2 * self.count(UnitTypeId.BARRACKS)
         # supplyBuffer += 2 * self.count(UnitTypeId.FACTORY)
         # supplyBuffer += 2 * self.count(UnitTypeId.STARPORT)
@@ -644,7 +690,7 @@ class CommonAI(BotAI):
 
         gasActual = sum(g.assigned_harvesters for g in self.gas_buildings)
 
-        exclude = { o.unit.tag for o in self.macro_targets if o.unit }
+        exclude = { o.unit for o in self.macro_targets if o.unit }
 
         worker = None
         target = None

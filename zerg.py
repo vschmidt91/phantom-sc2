@@ -3,7 +3,7 @@ import math
 import itertools, random
 import build
 
-from constants import ZERG_ARMOR_UPGRADES, HATCH_FIRST, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
+from constants import ZERG_ARMOR_UPGRADES, HATCH17, POOL12, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
 from cost import Cost
 from macro_target import MacroTarget
 from typing import Counter, Iterable, List, Coroutine, Dict, Set, Union, Tuple
@@ -33,7 +33,7 @@ SPORE_TIMING = {
 
 class ZergAI(CommonAI):
 
-    def __init__(self, build_order=HATCH_FIRST, **kwargs):
+    def __init__(self, build_order=HATCH17, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
         self.macro_targets.extend(MacroTarget(step, 10) for step in build_order)
         self.composition = dict()
@@ -84,22 +84,22 @@ class ZergAI(CommonAI):
             self.update_tables: 1,
             # self.update_abilities: 1,
             # self.update_pending: 1,
-            self.adjustComposition: 4,
+            self.adjustComposition: 1,
             self.microQueens: 1,
-            self.spreadCreep: 4,
-            self.moveOverlord: 4,
+            self.spreadCreep: 1,
+            self.moveOverlord: 1,
             self.changelingScout: 1,
             self.morphOverlords: 1,
             self.adjustGasTarget: 4,
             self.morphUnits: 1,
-            self.buildGasses: 10,
+            self.buildGasses: 1,
             # self.trainQueens: 4,
             # self.tech: 4,
             self.upgrade: 1,
-            self.expandIfNecessary: 4,
+            self.expandIfNecessary: 1,
             self.micro: 1,
             self.assignWorker: 1,
-            self.macro: 4,
+            self.macro: 3,
         }
 
         steps_filtered = [s for s, m in steps.items() if iteration % m == 0]
@@ -203,7 +203,7 @@ class ZergAI(CommonAI):
 
         for target in targets:
             if not self.count(target):
-                self.macro_targets.append(MacroTarget(target, 1))
+                self.macro_targets.append(MacroTarget(target, 0))
 
         # self.tech_targets.update(upgrades_want)
         # self.tech_targets.update(self.composition.keys())
@@ -332,20 +332,21 @@ class ZergAI(CommonAI):
             UnitTypeId.QUEEN: queens_target,
         }
 
-        if SPORE_TIMING[self.enemy_race] < self.time:
-            self.composition[UnitTypeId.SPORECRAWLER] = self.townhalls.ready.amount
+        # if SPORE_TIMING[self.enemy_race] < self.time:
+        #     self.composition[UnitTypeId.SPORECRAWLER] = self.townhalls.ready.amount
 
         # supply_left = 200 - self.composition[UnitTypeId.DRONE] - 2 * self.composition[UnitTypeId.QUEEN]
 
-        if self.townhalls.amount < 4:
+        if self.townhalls.amount < 3:
             pass
-        # elif self.townhalls.amount < 4:
-        #     self.composition[UnitTypeId.ROACH] = 8
+        elif self.townhalls.amount < 4:
+            self.composition[UnitTypeId.ZERGLING] = 20
         elif (
             not self.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
             and not self.count(UnitTypeId.HIVE, include_pending=False, include_planned=False)
         ):
-            self.composition[UnitTypeId.ROACH] = 60
+            self.composition[UnitTypeId.ROACH] = 40
+            self.composition[UnitTypeId.ZERGLING] = 20
         elif not self.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
             self.composition[UnitTypeId.OVERSEER] = 1
             self.composition[UnitTypeId.HYDRALISK] = 20
@@ -370,15 +371,16 @@ class ZergAI(CommonAI):
         minerals = max(0, cost_sum.minerals - self.minerals)
         vespene = max(0, cost_sum.vespene - self.vespene)
         gasRatio = vespene / max(1, vespene + minerals)
-        self.gas_target = gasRatio * self.count(UnitTypeId.DRONE)
+        self.gas_target = gasRatio * self.count(UnitTypeId.DRONE, include_pending=False, include_planned=False)
         # self.gasTarget = 3 * int(self.gasTarget / 3)
         # print(self.gasTarget)
 
     def buildGasses(self):
         gas_depleted = self.gas_buildings.filter(lambda g : not g.has_vespene).amount
         gas_have = self.count(UnitTypeId.EXTRACTOR) - gas_depleted
-        gas_max = sum(1 for g in self.get_owned_geysers())
-        gas_want = min(gas_max, int(self.gas_target / 3))
+        # gas_max = sum(1 for g in self.get_owned_geysers())
+        # gas_want = min(gas_max, int(self.gas_target / 3))
+        gas_want = math.ceil(self.gas_target / 3)
         if gas_have < gas_want:
             self.macro_targets.append(MacroTarget(UnitTypeId.EXTRACTOR, 1))
 
@@ -400,7 +402,7 @@ class ZergAI(CommonAI):
         if (
             not self.count(UnitTypeId.HATCHERY, include_actual=False)
             and not self.townhalls.not_ready.exists
-            and worker_max <= self.count(UnitTypeId.DRONE)
+            and worker_max <= self.count(UnitTypeId.DRONE, include_planned=False)
         ):
             self.macro_targets.append(MacroTarget(UnitTypeId.HATCHERY, 1))
 
@@ -410,15 +412,21 @@ class ZergAI(CommonAI):
         if self.supply_used == 200:
             return
 
+        composition_have = {
+            unit: self.count(unit)
+            for unit in self.composition.keys()
+        }
+
         composition_missing = {
-            unit: count - self.count(unit)
+            unit: count - composition_have[unit]
             for unit, count in self.composition.items()
         }
 
         targets = [
-            MacroTarget(unit, -(i - 1) / count)
+            MacroTarget(unit, -composition_have[unit] / self.composition[unit])
             for unit, count in composition_missing.items()
-            for i in range(count)
+            if 0 < count
+            # for i in range(count)
         ]
 
         self.macro_targets.extend(targets)

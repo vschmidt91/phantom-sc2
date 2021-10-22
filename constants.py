@@ -148,7 +148,7 @@ ROACH_RUSH = [
     UnitTypeId.ROACH,
 ]
 
-HATCH_FIRST = [
+HATCH17 = [
     UnitTypeId.DRONE,
     UnitTypeId.OVERLORD,
     UnitTypeId.DRONE,
@@ -172,7 +172,7 @@ HATCH_FIRST = [
     UnitTypeId.ZERGLING,
 ]
 
-POOL_FIRST = [
+POOL16 = [
     UnitTypeId.DRONE,
     UnitTypeId.OVERLORD,
     UnitTypeId.DRONE,
@@ -188,5 +188,21 @@ POOL_FIRST = [
     UnitTypeId.ZERGLING,
     UnitTypeId.ZERGLING,
     UnitTypeId.DRONE,
+    UnitTypeId.OVERLORD,
+]
+
+POOL12 = [
+    UnitTypeId.SPAWNINGPOOL,
+    UnitTypeId.DRONE,
+    UnitTypeId.DRONE,
+    UnitTypeId.DRONE,
+    UnitTypeId.OVERLORD,
+    UnitTypeId.ZERGLING,
+    UnitTypeId.ZERGLING,
+    UnitTypeId.ZERGLING,
+    UnitTypeId.HATCHERY,
+    UnitTypeId.QUEEN,
+    UnitTypeId.ZERGLING,
+    UnitTypeId.ZERGLING,
     UnitTypeId.OVERLORD,
 ]
