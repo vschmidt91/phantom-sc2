@@ -62,7 +62,7 @@ CIVILIANS = {
     UnitTypeId.LARVA, UnitTypeId.EGG,
     *withEquivalents(UnitTypeId.WARPPRISM),
     *withEquivalents(UnitTypeId.DRONE),
-    *withEquivalents(UnitTypeId.QUEEN),
+    # *withEquivalents(UnitTypeId.QUEEN),
     *withEquivalents(UnitTypeId.OVERLORD),
     *withEquivalents(UnitTypeId.BROODLING),
     *withEquivalents(UnitTypeId.OBSERVER),
@@ -163,13 +163,12 @@ HATCH17 = [
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
     UnitTypeId.OVERLORD,
-    UnitTypeId.QUEEN,
-    UnitTypeId.QUEEN,
-    UpgradeId.ZERGLINGMOVEMENTSPEED,
-    UnitTypeId.ZERGLING,
-    UnitTypeId.ZERGLING,
+    # UnitTypeId.QUEEN,
+    # UnitTypeId.QUEEN,
+    # UpgradeId.ZERGLINGMOVEMENTSPEED,
+    # UnitTypeId.ZERGLING,
+    # UnitTypeId.ZERGLING,
 ]
 
 POOL16 = [
@@ -187,7 +186,7 @@ POOL16 = [
     UnitTypeId.QUEEN,
     UnitTypeId.ZERGLING,
     UnitTypeId.ZERGLING,
-    UnitTypeId.DRONE,
+    UnitTypeId.ZERGLING,
     UnitTypeId.OVERLORD,
 ]
 

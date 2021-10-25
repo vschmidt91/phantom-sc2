@@ -1,9 +1,10 @@
 
+import inspect
 import math
 import itertools, random
 import build
 
-from constants import ZERG_ARMOR_UPGRADES, HATCH17, POOL12, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
+from constants import POOL16, ZERG_ARMOR_UPGRADES, HATCH17, POOL12, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
 from cost import Cost
 from macro_target import MacroTarget
 from typing import Counter, Iterable, List, Coroutine, Dict, Set, Union, Tuple
@@ -19,7 +20,7 @@ from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 
 from constants import CHANGELINGS, SUPPLY_PROVIDED
 from common import CommonAI
-from utils import withEquivalents, choose_by_distance_to
+from utils import withEquivalents, sample
 from unit_counters import UNIT_COUNTERS
 
 CREEP_RANGE = 10
@@ -35,16 +36,19 @@ class ZergAI(CommonAI):
 
     def __init__(self, build_order=HATCH17, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
-        self.macro_targets.extend(MacroTarget(step, 10) for step in build_order)
+        for step in build_order:
+            self.add_macro_target(MacroTarget(step))
         self.composition = dict()
         self.timings_acc = dict()
         self.abilities = dict()
+        self.inject_assigments = dict()
         self.timings_interval = 64
+        self.inject_assigments_max = 5
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         if unit.type_id == UnitTypeId.LAIR:
             ability = AbilityId.BEHAVIOR_GENERATECREEPON
-            for overlord in self.units(UnitTypeId.OVERLORD):
+            for overlord in self.units_by_type[UnitTypeId.OVERLORD]:
                 if ability in await self.get_available_abilities(overlord):
                     overlord(ability)
                     
@@ -85,9 +89,9 @@ class ZergAI(CommonAI):
             # self.update_abilities: 1,
             # self.update_pending: 1,
             self.adjustComposition: 1,
-            self.microQueens: 1,
+            self.micro_queens: 1,
             self.spreadCreep: 1,
-            self.moveOverlord: 1,
+            # self.moveOverlord: 1,
             self.changelingScout: 1,
             self.morphOverlords: 1,
             self.adjustGasTarget: 4,
@@ -96,30 +100,30 @@ class ZergAI(CommonAI):
             # self.trainQueens: 4,
             # self.tech: 4,
             self.upgrade: 1,
-            self.expandIfNecessary: 1,
+            self.expand: 1,
             self.micro: 1,
             self.assignWorker: 1,
             self.macro: 3,
         }
 
         steps_filtered = [s for s, m in steps.items() if iteration % m == 0]
-        timings = await run_timed(steps_filtered)
             
-        for key, value in timings.items():
-            self.timings_acc[key] = self.timings_acc.get(key, 0) + value
-
-        if iteration % self.timings_interval == 0:
-            timings_items = ((k, round(1e3 * n / self.timings_interval, 1)) for k, n in self.timings_acc.items())
-            timings_sorted = dict(sorted(timings_items, key=lambda p : p[1], reverse=True))
-            print(timings_sorted)
-            # print(self.pending)
-            # print(len(self.macroObjectives))
-            self.timings_acc = {}
-
-        # if iteration % 100 == 0:
-        #     print(sum(self.enemies.values()), sum(unitValue(u) for u in self.units))
-
-
+        if self.timings_interval:
+            timings = await run_timed(steps_filtered)
+            for key, value in timings.items():
+                self.timings_acc[key] = self.timings_acc.get(key, 0) + value
+            if iteration % self.timings_interval == 0:
+                timings_items = ((k, round(1e3 * n / self.timings_interval, 1)) for k, n in self.timings_acc.items())
+                timings_sorted = dict(sorted(timings_items, key=lambda p : p[1], reverse=True))
+                print(timings_sorted)
+                # print(self.pending)
+                # print(len(self.macroObjectives))
+                self.timings_acc = {}
+        else:
+            for step in steps_filtered:
+                result = step()
+                if inspect.isawaitable(result):
+                    result = await result
     def counterComposition(self, enemies: Dict[UnitTypeId, int]) -> Dict[UnitTypeId, int]:
 
         enemyValue = sum((self.unitValue(u) * n for u, n in enemies.items()))
@@ -196,14 +200,14 @@ class ZergAI(CommonAI):
 
         requirements = {
             requirement
-            for upgrade in itertools.chain(targets, self.composition.keys())
+            for upgrade in itertools.chain(self.composition.keys(), targets)
             for requirement in self.get_requirements(upgrade)
         }
         targets.update(requirements)
 
         for target in targets:
             if not self.count(target):
-                self.macro_targets.append(MacroTarget(target, 0))
+                self.add_macro_target(MacroTarget(target, 0))
 
         # self.tech_targets.update(upgrades_want)
         # self.tech_targets.update(self.composition.keys())
@@ -222,23 +226,17 @@ class ZergAI(CommonAI):
             ability = AbilityId.SPAWNCHANGELING_SPAWNCHANGELING
             if ability in await self.get_available_abilities(overseer):
                 overseer(ability)
-        changelings = self.units(CHANGELINGS).idle
-        if changelings.exists:
-            changeling = changelings.random
-            target = random.choice(self.expansion_locations_list)
-            changeling.move(target)
+        for chanceling_type in CHANGELINGS:
+            for changeling in self.units_by_type[chanceling_type]:
+                if not changeling.is_moving:
+                    target = random.choice(self.expansion_locations_list)
+                    changeling.move(target)
 
     def moveOverlord(self):
 
-        overlords = self.units(UnitTypeId.OVERLORD)
-        targets = self.structures
-        # targets = targets.filter(lambda s : not s.is_idle)
-        overlords_idle = overlords.idle
-        if overlords_idle.exists and targets.exists:
-            unit = overlords_idle.random
-            target = targets.random
-            if 1 < unit.distance_to(target):
-                unit.move(target.position)
+        for overlord in self.units_by_type[UnitTypeId.OVERLORD]:
+            if not overlord.is_moving:
+                overlord.move(self.structures.random.position)
 
     async def spreadCreep(self, spreader: Unit = None, numAttempts: int = 5):
 
@@ -269,8 +267,13 @@ class ZergAI(CommonAI):
         targets = [t for t in targets if not self.has_creep(t)]
         if not targets:
             return
+
+        def weight(p):
+            d = sum(t.distance_to(p) for t in self.townhalls)
+            d = len(self.townhalls) * spreader.distance_to(p)
+            return pow(10 + d, -2)
         
-        target = choose_by_distance_to(targets, spreader)
+        target = sample(targets, key=weight)
         target = spreader.position.towards(target, CREEP_RANGE)
 
         tumorPlacement = None
@@ -299,69 +302,140 @@ class ZergAI(CommonAI):
             sporeTime[self.enemy_race] < self.time
             and self.count(UnitTypeId.SPORECRAWLER) < self.townhalls.amount
         ):
-            self.macro_targets.append(MacroTarget(UnitTypeId.SPORECRAWLER))
+            self.add_macro_target(MacroTarget(UnitTypeId.SPORECRAWLER))
 
-    async def microQueens(self):
+    def enumerate_army(self):
+        for unit in super().enumerate_army():
+            if unit.type_id == UnitTypeId.QUEEN:
+                if unit.tag in self.inject_assigments.keys():
+                    continue
+                elif unit in self.pending_by_type[UnitTypeId.CREEPTUMORQUEEN]:
+                    continue
+            yield unit
 
-        queens = self.units(UnitTypeId.QUEEN).sorted_by_distance_to(self.start_location)
-        townhalls = self.townhalls.sorted_by_distance_to(self.start_location)
-        
-        for i, queen in enumerate(queens):
-            if self.townhalls.amount <= i:
-                townhall = None
-            elif 2 < len(queens) and i == len(queens) - 1:
-                townhall = None
-            else:
-                townhall = townhalls[i]
-            if not queen.is_idle:
-                continue
-            elif queen.energy < 25:
-                if townhall and 5 < queen.distance_to(townhall):
-                    queen.attack(townhall.position)
-            elif not townhall:
-                await self.spreadCreep(spreader=queen)
-            elif townhall.is_ready:
+    async def micro_queens(self):
+
+        queens_delete = set()
+        for queen_tag, townhall_tag in self.inject_assigments.items():
+            
+            queen = self.units_by_tag.get(queen_tag)
+            townhall = self.units_by_tag.get(townhall_tag)
+
+            if not (queen and townhall):
+                queens_delete.add(queen_tag)
+            elif not queen.is_idle:
+                pass
+            elif 5 < queen.distance_to(townhall):
+                queen.attack(townhall.position)
+            elif 25 <= queen.energy:
                 queen(AbilityId.EFFECT_INJECTLARVA, townhall)
+
+        for queen_tag in queens_delete:
+            del self.inject_assigments[queen_tag]
+
+        queens = sorted(self.units_by_type[UnitTypeId.QUEEN], key=lambda u:u.tag)
+        townhalls = sorted(self.townhalls, key=lambda u:u.tag)
+
+        queens_unassigned = [
+            queen
+            for queen in queens
+            if not queen.tag in self.inject_assigments.keys()
+        ]
+
+        if len(self.inject_assigments) < self.inject_assigments_max:
+
+            townhalls_unassigned = (
+                townhall
+                for townhall in townhalls
+                if not townhall.tag in self.inject_assigments.values()
+            )
+
+            self.inject_assigments.update({
+                queen.tag: townhall.tag
+                for queen, townhall in zip(queens_unassigned, townhalls_unassigned)
+            })
+
+        queens_unassigned = [
+            queen
+            for queen in queens
+            if not queen.tag in self.inject_assigments.keys()
+        ]
+
+        for queen in queens_unassigned:
+
+            if queen in self.pending_by_type[UnitTypeId.CREEPTUMORQUEEN]:
+                pass
+            # elif queen.is_attacking:
+            #     pass
+            elif 25 <= queen.energy:
+                await self.spreadCreep(queen)
+
+        # queens = self.units(UnitTypeId.QUEEN).sorted_by_distance_to(self.start_location)
+        # townhalls = self.townhalls.sorted_by_distance_to(self.start_location)
+        
+        # for i, queen in enumerate(queens):
+        #     if self.townhalls.amount <= i:
+        #         townhall = None
+        #     elif 2 < len(queens) and i == len(queens) - 1:
+        #         townhall = None
+        #     else:
+        #         townhall = townhalls[i]
+        #     if not queen.is_idle:
+        #         continue
+        #     elif queen.energy < 25:
+        #         if townhall and 5 < queen.distance_to(townhall):
+        #             queen.attack(townhall.position)
+        #     elif not townhall:
+        #         await self.spreadCreep(spreader=queen)
+        #     elif townhall.is_ready:
+        #         queen(AbilityId.EFFECT_INJECTLARVA, townhall)
 
     def adjustComposition(self):
 
         workers_target = min(80, self.getMaxWorkers())
-        queens_target = min(5, 1 + self.townhalls.amount)
         self.composition = {
             UnitTypeId.DRONE: workers_target,
-            UnitTypeId.QUEEN: queens_target,
+            UnitTypeId.QUEEN: min(3 + self.inject_assigments_max, 2 * self.townhalls.amount),
         }
 
-        # if SPORE_TIMING[self.enemy_race] < self.time:
-        #     self.composition[UnitTypeId.SPORECRAWLER] = self.townhalls.ready.amount
+        if SPORE_TIMING[self.enemy_race] < self.time:
+            self.composition[UnitTypeId.SPORECRAWLER] = self.townhalls.ready.amount
+        if 2 * SPORE_TIMING[self.enemy_race] < self.time:
+            self.composition[UnitTypeId.SPINECRAWLER] = self.townhalls.ready.amount
 
         # supply_left = 200 - self.composition[UnitTypeId.DRONE] - 2 * self.composition[UnitTypeId.QUEEN]
 
-        if self.townhalls.amount < 3:
+        if self.townhalls.amount <= 2:
             pass
-        elif self.townhalls.amount < 4:
-            self.composition[UnitTypeId.ZERGLING] = 20
+        elif self.townhalls.amount <= 3:
+            # self.composition[UnitTypeId.ZERGLING] = 12
+            self.composition[UnitTypeId.ROACH] = workers_target / 8
         elif (
             not self.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
             and not self.count(UnitTypeId.HIVE, include_pending=False, include_planned=False)
         ):
-            self.composition[UnitTypeId.ROACH] = 40
-            self.composition[UnitTypeId.ZERGLING] = 20
+            self.composition[UnitTypeId.ROACH] = workers_target / 4
         elif not self.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
             self.composition[UnitTypeId.OVERSEER] = 1
-            self.composition[UnitTypeId.HYDRALISK] = 20
-            self.composition[UnitTypeId.ROACH] = 40
-            # self.composition[UnitTypeId.BANELING] = 40
-            # self.composition[UnitTypeId.HYDRALISK] = 40
+            self.composition[UnitTypeId.HYDRALISK] = workers_target / 4
+            self.composition[UnitTypeId.ROACH] = workers_target / 2
+            # if UpgradeId.CENTRIFICALHOOKS in self.state.upgrades:
+            #     self.composition[UnitTypeId.BANELING] = 40
+            # else:
+            #     self.composition[UnitTypeId.BANELING] = 0
+                
         else:
             self.composition[UnitTypeId.OVERSEER] = 2
-            self.composition[UnitTypeId.HYDRALISK] = 40
-            self.composition[UnitTypeId.ROACH] = 40
+            self.composition[UnitTypeId.HYDRALISK] = 30
+            self.composition[UnitTypeId.ROACH] = 30
+            # self.composition[UnitTypeId.RAVAGER] = 40
+            # self.composition[UnitTypeId.ZERGLING] = 40
+            # self.composition[UnitTypeId.BANELING] = 40
             if self.count(UnitTypeId.GREATERSPIRE, include_pending=False, include_planned=False):
                 self.composition[UnitTypeId.CORRUPTOR] = 10
                 self.composition[UnitTypeId.BROODLORD] = 10
             else:
-                self.composition[UnitTypeId.BROODLORD] = 1
+                self.composition[UnitTypeId.BROODLORD] = 0
 
     def adjustGasTarget(self):
 
@@ -382,7 +456,7 @@ class ZergAI(CommonAI):
         # gas_want = min(gas_max, int(self.gas_target / 3))
         gas_want = math.ceil(self.gas_target / 3)
         if gas_have < gas_want:
-            self.macro_targets.append(MacroTarget(UnitTypeId.EXTRACTOR, 1))
+            self.add_macro_target(MacroTarget(UnitTypeId.EXTRACTOR, 1))
 
     def morphOverlords(self):
         if 200 <= self.supply_cap:
@@ -393,18 +467,18 @@ class ZergAI(CommonAI):
         )
         if 200 <= self.supply_cap + supply_pending:
             return
-        if self.supply_left + supply_pending < self.getSupplyBuffer():
-            self.macro_targets.append(MacroTarget(UnitTypeId.OVERLORD, 1))
+        if self.supply_left + supply_pending < self.get_supply_buffer():
+            self.add_macro_target(MacroTarget(UnitTypeId.OVERLORD, 1))
 
-    def expandIfNecessary(self):
+    def expand(self, saturation_target: float = 0.9):
         
         worker_max = self.getMaxWorkers()
         if (
             not self.count(UnitTypeId.HATCHERY, include_actual=False)
             and not self.townhalls.not_ready.exists
-            and worker_max <= self.count(UnitTypeId.DRONE, include_planned=False)
+            and saturation_target * worker_max <= self.count(UnitTypeId.DRONE, include_planned=False)
         ):
-            self.macro_targets.append(MacroTarget(UnitTypeId.HATCHERY, 1))
+            self.add_macro_target(MacroTarget(UnitTypeId.HATCHERY, 1))
 
     def morphUnits(self):
         
@@ -423,10 +497,12 @@ class ZergAI(CommonAI):
         }
 
         targets = [
-            MacroTarget(unit, -composition_have[unit] / self.composition[unit])
+            MacroTarget(unit, -random.random() * composition_have[unit] / self.composition[unit])
+            # MacroTarget(unit, -random.random())
             for unit, count in composition_missing.items()
             if 0 < count
             # for i in range(count)
         ]
 
-        self.macro_targets.extend(targets)
+        for target in targets:
+            self.add_macro_target(target)

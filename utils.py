@@ -58,12 +58,15 @@ def unitValue(unit, target = None):
 def dot(x, y):
     return sum((xi * yi for xi, yi in zip(x, y)))
 
-def choose_by_distance_to(choices, subject):
-    w = [pow(max(1, subject.distance_to(c)), -2) for c in choices]
-    ws = sum(w)
-    p = [wi / ws for wi in w]
-    i = np.random.choice(len(choices), p=p)
-    return choices[i]
+def sample(choices, key=None):
+    if key:
+        w = [key(c) for c in choices]
+        ws = sum(w)
+        p = [wi / ws for wi in w]
+        i = np.random.choice(len(choices), p=p)
+        return choices[i]
+    else:
+        return np.random.choice(choices)
 
 def get_requirements(item: Union[UnitTypeId, UpgradeId]) -> Iterable[Union[UnitTypeId, UpgradeId]]:
 
