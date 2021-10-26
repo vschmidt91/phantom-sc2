@@ -598,7 +598,7 @@ class CommonAI(BotAI):
 
                 unit.attack(self.destructables.closest_to(unit))
 
-            elif not unit.is_attacking:
+            elif unit.is_idle:
 
                 if self.time < 8 * 60:
                     target = random.choice(self.enemy_start_locations)
