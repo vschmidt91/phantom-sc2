@@ -60,7 +60,10 @@ class CommonAI(BotAI):
             self.version = file.readline()
 
         with open(QUOTES_PATH, 'r') as file:
-            self.quotes = file.readlines()
+            self.quotes = [
+                line.replace('\n', '')
+                for line in file.readlines()
+            ]
 
         # self.raw_affects_selection = True
         self.gas_target = 0

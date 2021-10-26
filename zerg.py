@@ -201,8 +201,8 @@ class ZergAI(CommonAI):
             )
         elif unit == UnitTypeId.QUEEN:
             return chain(
-                self.upgradeSequence(ZERG_RANGED_UPGRADES),
-                self.upgradeSequence(ZERG_ARMOR_UPGRADES),
+                # self.upgradeSequence(ZERG_RANGED_UPGRADES),
+                # self.upgradeSequence(ZERG_ARMOR_UPGRADES),
             )
         elif unit == UnitTypeId.MUTALISK:
             return chain(
@@ -226,9 +226,6 @@ class ZergAI(CommonAI):
             return []
 
     def upgrade(self):
-
-        if self.townhalls.amount < 3:
-            return
 
         upgrades = set(chain(*(self.upgrades_by_unit(unit) for unit in self.composition)))
         targets = {
@@ -423,10 +420,11 @@ class ZergAI(CommonAI):
 
     def adjustComposition(self):
 
-        workers_target = min(80, self.getMaxWorkers())
+        worker_limit = 80
+        worker_target = min(worker_limit, self.getMaxWorkers())
         self.composition = {
             # UnitTypeId.ZERGLING: 2,
-            UnitTypeId.DRONE: workers_target,
+            UnitTypeId.DRONE: worker_target,
             UnitTypeId.QUEEN: 1 + min(self.inject_assigments_max, self.townhalls.amount),
         }
 
@@ -437,21 +435,24 @@ class ZergAI(CommonAI):
 
         # supply_left = 200 - self.composition[UnitTypeId.DRONE] - 2 * self.composition[UnitTypeId.QUEEN]
 
-        drone_count = self.count(UnitTypeId.DRONE, include_planned=False)
-
-        if self.townhalls.amount < 3:
+        worker_count = self.count(UnitTypeId.DRONE, include_planned=False)
+        ratio = pow(worker_count / worker_limit, 2)
+    
+        if self.time < 3.5 * 60:
             pass
-        elif drone_count < 53:
-            self.composition[UnitTypeId.ROACH] = 0
-        elif drone_count < 70:
-            self.composition[UnitTypeId.ROACH] = 7
-        elif not self.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
-            self.composition[UnitTypeId.ROACH] = 50
-            self.composition[UnitTypeId.RAVAGER] = 7
+        elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2):
+            self.composition[UnitTypeId.OVERSEER] = 1
+            self.composition[UnitTypeId.ROACH] = int(ratio * 60)
+            self.composition[UnitTypeId.RAVAGER] = int(ratio * 7)
+        elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3):
+            self.composition[UnitTypeId.OVERSEER] = 2
+            self.composition[UnitTypeId.ROACH] = int(ratio * 40)
+            self.composition[UnitTypeId.HYDRALISK] = int(ratio * 40)
         else:
+            self.composition[UnitTypeId.OVERSEER] = 3
             self.composition[UnitTypeId.ROACH] = 40
             self.composition[UnitTypeId.HYDRALISK] = 40
-            if not self.state.upgrades.difference(ZERG_ARMOR_UPGRADES):
+            if not self.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
                 self.composition[UnitTypeId.CORRUPTOR] = 3
                 self.composition[UnitTypeId.BROODLORD] = 7
 
