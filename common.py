@@ -585,8 +585,8 @@ class CommonAI(BotAI):
 
                 else:
 
-                    if unit.weapon_cooldown:
-                        unit.move(unit.position.towards(target.position, 3))
+                    if unit.weapon_cooldown and 2 < unit.distance_to(target):
+                        unit.move(target.position)
                     else:
                         unit.attack(target.position)
 
@@ -598,19 +598,16 @@ class CommonAI(BotAI):
 
                 unit.attack(self.destructables.closest_to(unit))
 
-            elif unit.is_idle:
+            else:
 
                 if self.time < 8 * 60:
-                    target = random.choice(self.enemy_start_locations)
+                    target = min(self.enemy_start_locations, key=lambda e:e.distance_to(unit))
                 elif self.enemy_structures.exists:
                     target = self.enemy_structures.closest_to(unit)
                 else:
-                    target = random.choice(self.expansion_locations_list)
+                    target = min(self.expansion_locations_list, key=lambda e:e.distance_to(unit))
 
                 unit.attack(target)
-
-            else:
-                pass
 
     def getTechDistanceForTrainer(self, unit: UnitTypeId, trainer: UnitTypeId) -> int:
         info = TRAIN_INFO[trainer][unit]
