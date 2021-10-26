@@ -24,7 +24,7 @@ if __name__ == "__main__":
         # replayPath = os.path.join("C:\\Users", "Ryzen", "Documents", "StarCraft II", "Accounts", "490189910", "2-S2-1-9348025", "Replays", "Multiplayer", time + ".SC2Replay")
         bot = Bot(Race.Zerg, ZergAI(game_step = 8, debug = True), 'Sun Tzu')   
         # opponent = Bot(Race.Zerg, ZergAI(game_step = 4), 'SunTzu')
-        opponent = Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Timing)
+        opponent = Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
         sc2.run_game(
             sc2.maps.get("OxideAIE"),
             [bot, opponent],

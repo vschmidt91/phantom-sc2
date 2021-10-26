@@ -564,7 +564,7 @@ class CommonAI(BotAI):
                     advantage_creep = 1 / creep_bonus
 
                 advantage *= advantage_value
-                advantage *= advantage_defender
+                # advantage *= advantage_defender
                 advantage *= advantage_creep
                 advantage_threshold = 1
 

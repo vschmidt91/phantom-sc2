@@ -436,25 +436,28 @@ class ZergAI(CommonAI):
         # supply_left = 200 - self.composition[UnitTypeId.DRONE] - 2 * self.composition[UnitTypeId.QUEEN]
 
         worker_count = self.count(UnitTypeId.DRONE, include_planned=False)
-        ratio = pow(worker_count / worker_limit, 3)
+        ratio = pow(worker_count / worker_limit, 2)
     
         if self.time < 3.5 * 60:
             pass
-        elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2):
+        elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False):
             self.composition[UnitTypeId.OVERSEER] = 1
             self.composition[UnitTypeId.ROACH] = int(ratio * 60)
             self.composition[UnitTypeId.RAVAGER] = int(ratio * 7)
-        elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3):
-            self.composition[UnitTypeId.OVERSEER] = 2
-            self.composition[UnitTypeId.ROACH] = int(ratio * 40)
-            self.composition[UnitTypeId.HYDRALISK] = int(ratio * 40)
-        else:
-            self.composition[UnitTypeId.OVERSEER] = 3
+        elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False):
+            self.composition[UnitTypeId.OVERSEER] = 1
             self.composition[UnitTypeId.ROACH] = 40
             self.composition[UnitTypeId.HYDRALISK] = 40
-            if not self.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
-                self.composition[UnitTypeId.CORRUPTOR] = 3
-                self.composition[UnitTypeId.BROODLORD] = 7
+        elif not self.count(UnitTypeId.HIVE, include_planned=False):
+            self.composition[UnitTypeId.OVERSEER] = 1
+            self.composition[UnitTypeId.ROACH] = 40
+            self.composition[UnitTypeId.HYDRALISK] = 40
+        else:
+            self.composition[UnitTypeId.OVERSEER] = 1
+            self.composition[UnitTypeId.ROACH] = 40
+            self.composition[UnitTypeId.HYDRALISK] = 40
+            self.composition[UnitTypeId.CORRUPTOR] = 3
+            self.composition[UnitTypeId.BROODLORD] = 7
 
         # if self.townhalls.amount <= 2:
         #     pass
