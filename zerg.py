@@ -489,11 +489,11 @@ class ZergAI(CommonAI):
 
         minerals = max(0, cost_sum.minerals - self.minerals)
         vespene = max(0, cost_sum.vespene - self.vespene)
-        # if minerals + vespene == 0:
-        #     gas_ratio = 6 / 22
-        # else:
-        gas_ratio = vespene / max(1, vespene + minerals)
-        self.gas_target = math.ceil(1.1 * gas_ratio * self.count(UnitTypeId.DRONE, include_planned=False))
+        if 7 * 60 < self.time and (minerals + vespene) == 0:
+            gas_ratio = 6 / 22
+        else:
+            gas_ratio = vespene / max(1, vespene + minerals)
+        self.gas_target = math.ceil(gas_ratio * self.count(UnitTypeId.DRONE, include_planned=False))
         # self.gasTarget = 3 * int(self.gasTarget / 3)
         # print(self.gasTarget)
 
