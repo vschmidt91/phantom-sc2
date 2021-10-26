@@ -72,7 +72,7 @@ class CommonAI(BotAI):
         self.pending_by_type = defaultdict(lambda:[])
         self.planned_by_type = defaultdict(lambda:[])
         self.units_by_tag = dict()
-        self.first_iteration = True
+        self.greet_enabled = True
 
     async def on_before_start(self):
         self.client.game_step = self.game_step
@@ -92,16 +92,11 @@ class CommonAI(BotAI):
 
     async def on_step(self, iteration: int):
 
-        # if self.state.effects:
-        #     print(self.state.effects)
-            
-            # self.townhalls[0](AbilityId.RALLY_WORKERS, target=self.townhalls[0])
-
-        if self.first_iteration:
-            await self.client.chat_send(self.version, True)
+        if 1 < self.time and self.greet_enabled:
+            await self.client.chat_send(self.version, False)
             quote = random.choice(self.quotes)
             await self.client.chat_send(quote, False)
-            self.first_iteration = False
+            self.greet_enabled = False
 
         if self.debug:
 
@@ -551,11 +546,11 @@ class CommonAI(BotAI):
                 friends_rating = sum(unitValue(f) / max(8, target.distance_to(f)) for f in friends)
                 enemies_rating = sum(unitValue(e) / max(8, unit.distance_to(e)) for e in enemies)
 
-                distance_bias = 64
+                distance_bias = self.game_info.map_size.length
 
                 advantage = 1
                 advantage_value = friends_rating / max(1, enemies_rating)
-                advantage_defender = max(1, (distance_bias + target.distance_to(enemyBaseCenter)) / (distance_bias + target.distance_to(baseCenter)))
+                advantage_defender = (distance_bias + target.distance_to(enemyBaseCenter)) / (distance_bias + target.distance_to(baseCenter))
                 
                 advantage_creep = 1
                 creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id)
@@ -575,7 +570,7 @@ class CommonAI(BotAI):
                 elif advantage < 1 * advantage_threshold:
 
                     if unit.weapon_cooldown:
-                        unit.move(unit.position.towards(target, -15))
+                        unit.move(unit.position.towards(target, -12))
                     else:
                         unit.attack(target.position)
                     
@@ -602,8 +597,8 @@ class CommonAI(BotAI):
 
                 if self.time < 8 * 60:
                     target = min(self.enemy_start_locations, key=lambda e:e.distance_to(unit))
-                elif self.enemy_structures.exists:
-                    target = self.enemy_structures.closest_to(unit)
+                elif self.all_enemy_units.exists:
+                    target = self.all_enemy_units.closest_to(unit)
                 else:
                     target = min(self.expansion_locations_list, key=lambda e:e.distance_to(unit))
 
@@ -669,7 +664,7 @@ class CommonAI(BotAI):
         ]
         bases = sorted(bases, key=lambda b : self.expansion_distances[b])
         if not bases:
-            return None
+            raise PlacementNotFound()
         return bases[0]
 
     def has_capacity(self, unit: Unit) -> bool:

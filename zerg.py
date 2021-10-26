@@ -436,7 +436,7 @@ class ZergAI(CommonAI):
         # supply_left = 200 - self.composition[UnitTypeId.DRONE] - 2 * self.composition[UnitTypeId.QUEEN]
 
         worker_count = self.count(UnitTypeId.DRONE, include_planned=False)
-        ratio = pow(worker_count / worker_limit, 2.5)
+        ratio = pow(worker_count / worker_limit, 3)
     
         if self.time < 3.5 * 60:
             pass
