@@ -1,10 +1,12 @@
 
+from collections import defaultdict
 import inspect
 import math
 import itertools, random
 import build
 
-from constants import POOL16, ZERG_ARMOR_UPGRADES, HATCH17, POOL12, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
+from itertools import chain
+from constants import POOL16, REQUIREMENTS, ZERG_ARMOR_UPGRADES, HATCH17, POOL12, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
 from cost import Cost
 from macro_target import MacroTarget
 from typing import Counter, Iterable, List, Coroutine, Dict, Set, Union, Tuple
@@ -37,13 +39,14 @@ class ZergAI(CommonAI):
     def __init__(self, build_order=HATCH17, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
         for step in build_order:
-            self.add_macro_target(MacroTarget(step))
+            self.add_macro_target(MacroTarget(step, 10))
         self.composition = dict()
         self.timings_acc = dict()
         self.abilities = dict()
         self.inject_assigments = dict()
         self.timings_interval = 64
         self.inject_assigments_max = 5
+        self.extractor_trick_enabled = True
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         if unit.type_id == UnitTypeId.LAIR:
@@ -86,6 +89,7 @@ class ZergAI(CommonAI):
 
         steps = {
             self.update_tables: 1,
+            self.extractor_trick: 1,
             # self.update_abilities: 1,
             # self.update_pending: 1,
             self.adjustComposition: 1,
@@ -94,16 +98,16 @@ class ZergAI(CommonAI):
             # self.moveOverlord: 1,
             self.changelingScout: 1,
             self.morphOverlords: 1,
-            self.adjustGasTarget: 4,
             self.morphUnits: 1,
-            self.buildGasses: 1,
             # self.trainQueens: 4,
             # self.tech: 4,
             self.upgrade: 1,
             self.expand: 1,
             self.micro: 1,
             self.assignWorker: 1,
-            self.macro: 3,
+            self.macro: 1,
+            self.adjustGasTarget: 1,
+            self.buildGasses: 1,
         }
 
         steps_filtered = [s for s, m in steps.items() if iteration % m == 0]
@@ -151,67 +155,94 @@ class ZergAI(CommonAI):
 
         return composition, techTargets
 
+    def extractor_trick(self):
+        if not self.extractor_trick_enabled:
+            return
+        extractors = [
+            extractor
+            for extractor in self.pending_by_type[UnitTypeId.EXTRACTOR]
+            if extractor.type_id == UnitTypeId.EXTRACTOR
+        ]
+        if not self.supply_left and extractors:
+            for extractor in extractors:
+                extractor(AbilityId.CANCEL)
+            self.extractor_trick_enabled = False
+
+    def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
+        if unit == UnitTypeId.ZERGLING:
+            return chain(
+                (UpgradeId.ZERGLINGMOVEMENTSPEED, UpgradeId.ZERGLINGATTACKSPEED),
+                self.upgradeSequence(ZERG_MELEE_UPGRADES),
+                self.upgradeSequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.ULTRALISK:
+            return chain(
+                (UpgradeId.CHITINOUSPLATING, UpgradeId.ANABOLICSYNTHESIS),
+                self.upgradeSequence(ZERG_MELEE_UPGRADES),
+                self.upgradeSequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.BANELING:
+            return chain(
+                (UpgradeId.CENTRIFICALHOOKS,),
+                self.upgradeSequence(ZERG_MELEE_UPGRADES),
+                self.upgradeSequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.ROACH:
+            return chain(
+                (UpgradeId.GLIALRECONSTITUTION,),
+                self.upgradeSequence(ZERG_RANGED_UPGRADES),
+                self.upgradeSequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.HYDRALISK:
+            return chain(
+                (UpgradeId.EVOLVEGROOVEDSPINES, UpgradeId.EVOLVEMUSCULARAUGMENTS),
+                self.upgradeSequence(ZERG_RANGED_UPGRADES),
+                self.upgradeSequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.QUEEN:
+            return chain(
+                self.upgradeSequence(ZERG_RANGED_UPGRADES),
+                self.upgradeSequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.MUTALISK:
+            return chain(
+                self.upgradeSequence(ZERG_FLYER_UPGRADES),
+                self.upgradeSequence(ZERG_FLYER_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.CORRUPTOR:
+            return chain(
+                self.upgradeSequence(ZERG_FLYER_UPGRADES),
+                self.upgradeSequence(ZERG_FLYER_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.BROODLORD:
+            return chain(
+                self.upgradeSequence(ZERG_FLYER_ARMOR_UPGRADES),
+                self.upgradeSequence(ZERG_MELEE_UPGRADES),
+                self.upgradeSequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.OVERSEER:
+            return (UpgradeId.OVERLORDSPEED,)
+        else:
+            return []
+
     def upgrade(self):
 
-        targets = set()
-        if UnitTypeId.ZERGLING in self.composition:
-            targets.add(UpgradeId.ZERGLINGMOVEMENTSPEED)
-            if self.count(UnitTypeId.HIVE):
-                targets.add(UpgradeId.ZERGLINGATTACKSPEED)
-            targets.update(self.upgradeSequence(ZERG_MELEE_UPGRADES))
-            targets.update(self.upgradeSequence(ZERG_ARMOR_UPGRADES))
-        if UnitTypeId.ULTRALISK in self.composition:
-            targets.add(UpgradeId.CHITINOUSPLATING)
-            targets.add(UpgradeId.ANABOLICSYNTHESIS)
-            targets.update(self.upgradeSequence(ZERG_MELEE_UPGRADES))
-            targets.update(self.upgradeSequence(ZERG_ARMOR_UPGRADES))
-        if UnitTypeId.BANELING in self.composition:
-            targets.add(UpgradeId.CENTRIFICALHOOKS)
-            targets.update(self.upgradeSequence(ZERG_MELEE_UPGRADES))
-            targets.update(self.upgradeSequence(ZERG_ARMOR_UPGRADES))
-        if UnitTypeId.ROACH in self.composition:
-            targets.add(UpgradeId.GLIALRECONSTITUTION)
-            targets.update(self.upgradeSequence(ZERG_RANGED_UPGRADES))
-            targets.update(self.upgradeSequence(ZERG_ARMOR_UPGRADES))
-        if UnitTypeId.HYDRALISK in self.composition:
-            targets.add(UpgradeId.EVOLVEGROOVEDSPINES)
-            targets.add(UpgradeId.EVOLVEMUSCULARAUGMENTS)
-            targets.update(self.upgradeSequence(ZERG_RANGED_UPGRADES))
-            targets.update(self.upgradeSequence(ZERG_ARMOR_UPGRADES))
-        if UnitTypeId.MUTALISK in self.composition:
-            targets.update(self.upgradeSequence(ZERG_FLYER_UPGRADES))
-            targets.update(self.upgradeSequence(ZERG_FLYER_ARMOR_UPGRADES))
-        if UnitTypeId.CORRUPTOR in self.composition:
-            targets.update(self.upgradeSequence(ZERG_FLYER_UPGRADES))
-            targets.update(self.upgradeSequence(ZERG_FLYER_ARMOR_UPGRADES))
-        if UnitTypeId.BROODLORD in self.composition:
-            if self.count(UnitTypeId.GREATERSPIRE, include_pending=False, include_planned=False):
-                targets.update(self.upgradeSequence(ZERG_FLYER_ARMOR_UPGRADES))
-                targets.update(self.upgradeSequence(ZERG_MELEE_UPGRADES))
-                targets.update(self.upgradeSequence(ZERG_ARMOR_UPGRADES))
-        if UnitTypeId.OVERSEER in self.composition:
-            targets.add(UpgradeId.OVERLORDSPEED)
+        if self.townhalls.amount < 3:
+            return
 
-        # targets = {
-        #     target
-        #     for target in targets
-        #     # if not self.count(upgrade)
-        # }
-
-        requirements = {
-            requirement
-            for upgrade in itertools.chain(self.composition.keys(), targets)
-            for requirement in self.get_requirements(upgrade)
+        upgrades = set(chain(*(self.upgrades_by_unit(unit) for unit in self.composition)))
+        targets = {
+            *chain(*(REQUIREMENTS[unit] for unit in self.composition)),
+            *chain(*(REQUIREMENTS[upgrade] for upgrade in upgrades)),
+            *upgrades,
         }
-        targets.update(requirements)
 
         for target in targets:
             if not self.count(target):
-                self.add_macro_target(MacroTarget(target, 0))
+                self.add_macro_target(MacroTarget(target))
 
-        # self.tech_targets.update(upgrades_want)
-        # self.tech_targets.update(self.composition.keys())
-
+        # if not self.count(UnitTypeId.ROACH, include_actual=False, include_pending=False):
+        #     self.add_macro_target(MacroTarget(UnitTypeId.ROACH))
 
     def upgradeSequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
@@ -325,7 +356,7 @@ class ZergAI(CommonAI):
                 queens_delete.add(queen_tag)
             elif not queen.is_idle:
                 pass
-            elif 5 < queen.distance_to(townhall):
+            elif 7 < queen.distance_to(townhall):
                 queen.attack(townhall.position)
             elif 25 <= queen.energy:
                 queen(AbilityId.EFFECT_INJECTLARVA, townhall)
@@ -394,48 +425,58 @@ class ZergAI(CommonAI):
 
         workers_target = min(80, self.getMaxWorkers())
         self.composition = {
+            # UnitTypeId.ZERGLING: 2,
             UnitTypeId.DRONE: workers_target,
-            UnitTypeId.QUEEN: min(3 + self.inject_assigments_max, 2 * self.townhalls.amount),
+            UnitTypeId.QUEEN: 1 + min(self.inject_assigments_max, self.townhalls.amount),
         }
 
-        if SPORE_TIMING[self.enemy_race] < self.time:
-            self.composition[UnitTypeId.SPORECRAWLER] = self.townhalls.ready.amount
-        if 2 * SPORE_TIMING[self.enemy_race] < self.time:
-            self.composition[UnitTypeId.SPINECRAWLER] = self.townhalls.ready.amount
+        # if SPORE_TIMING[self.enemy_race] < self.time:
+        #     self.composition[UnitTypeId.SPORECRAWLER] = self.townhalls.ready.amount
+        # if 2 * SPORE_TIMING[self.enemy_race] < self.time:
+        #     self.composition[UnitTypeId.SPINECRAWLER] = self.townhalls.ready.amount
 
         # supply_left = 200 - self.composition[UnitTypeId.DRONE] - 2 * self.composition[UnitTypeId.QUEEN]
 
-        if self.townhalls.amount <= 2:
+        drone_count = self.count(UnitTypeId.DRONE, include_planned=False)
+
+        if self.townhalls.amount < 3:
             pass
-        elif self.townhalls.amount <= 3:
-            # self.composition[UnitTypeId.ZERGLING] = 12
-            self.composition[UnitTypeId.ROACH] = workers_target / 8
-        elif (
-            not self.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
-            and not self.count(UnitTypeId.HIVE, include_pending=False, include_planned=False)
-        ):
-            self.composition[UnitTypeId.ROACH] = workers_target / 4
+        elif drone_count < 53:
+            self.composition[UnitTypeId.ROACH] = 0
+        elif drone_count < 70:
+            self.composition[UnitTypeId.ROACH] = 7
         elif not self.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
-            self.composition[UnitTypeId.OVERSEER] = 1
-            self.composition[UnitTypeId.HYDRALISK] = workers_target / 4
-            self.composition[UnitTypeId.ROACH] = workers_target / 2
-            # if UpgradeId.CENTRIFICALHOOKS in self.state.upgrades:
-            #     self.composition[UnitTypeId.BANELING] = 40
-            # else:
-            #     self.composition[UnitTypeId.BANELING] = 0
-                
+            self.composition[UnitTypeId.ROACH] = 50
+            self.composition[UnitTypeId.RAVAGER] = 7
         else:
-            self.composition[UnitTypeId.OVERSEER] = 2
-            self.composition[UnitTypeId.HYDRALISK] = 30
-            self.composition[UnitTypeId.ROACH] = 30
-            # self.composition[UnitTypeId.RAVAGER] = 40
-            # self.composition[UnitTypeId.ZERGLING] = 40
-            # self.composition[UnitTypeId.BANELING] = 40
-            if self.count(UnitTypeId.GREATERSPIRE, include_pending=False, include_planned=False):
-                self.composition[UnitTypeId.CORRUPTOR] = 10
-                self.composition[UnitTypeId.BROODLORD] = 10
-            else:
-                self.composition[UnitTypeId.BROODLORD] = 0
+            self.composition[UnitTypeId.ROACH] = 40
+            self.composition[UnitTypeId.HYDRALISK] = 40
+            if not self.state.upgrades.difference(ZERG_ARMOR_UPGRADES):
+                self.composition[UnitTypeId.CORRUPTOR] = 3
+                self.composition[UnitTypeId.BROODLORD] = 7
+
+        # if self.townhalls.amount <= 2:
+        #     pass
+        # elif self.townhalls.amount <= 3:
+        #     self.composition[UnitTypeId.ROACH] = workers_target / 6
+        # elif (
+        #     not self.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
+        #     and not self.count(UnitTypeId.HIVE, include_pending=False, include_planned=False)
+        # ):
+        #     self.composition[UnitTypeId.ROACH] = workers_target
+        # elif not self.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
+        #     self.composition[UnitTypeId.OVERSEER] = 1
+        #     self.composition[UnitTypeId.ROACH] = workers_target
+                
+        # else:
+        #     self.composition[UnitTypeId.OVERSEER] = 2
+        #     self.composition[UnitTypeId.HYDRALISK] = 30
+        #     self.composition[UnitTypeId.ROACH] = 30
+        #     if self.count(UnitTypeId.GREATERSPIRE, include_pending=False, include_planned=False):
+        #         self.composition[UnitTypeId.CORRUPTOR] = 10
+        #         self.composition[UnitTypeId.BROODLORD] = 10
+        #     else:
+        #         self.composition[UnitTypeId.BROODLORD] = 0
 
     def adjustGasTarget(self):
 
@@ -444,18 +485,20 @@ class ZergAI(CommonAI):
 
         minerals = max(0, cost_sum.minerals - self.minerals)
         vespene = max(0, cost_sum.vespene - self.vespene)
-        gasRatio = vespene / max(1, vespene + minerals)
-        self.gas_target = gasRatio * self.count(UnitTypeId.DRONE, include_pending=False, include_planned=False)
+        # if minerals + vespene == 0:
+        #     gas_ratio = 6 / 22
+        # else:
+        gas_ratio = vespene / max(1, vespene + minerals)
+        self.gas_target = math.ceil(gas_ratio * self.count(UnitTypeId.DRONE, include_planned=False))
         # self.gasTarget = 3 * int(self.gasTarget / 3)
         # print(self.gasTarget)
 
     def buildGasses(self):
         gas_depleted = self.gas_buildings.filter(lambda g : not g.has_vespene).amount
         gas_have = self.count(UnitTypeId.EXTRACTOR) - gas_depleted
-        # gas_max = sum(1 for g in self.get_owned_geysers())
-        # gas_want = min(gas_max, int(self.gas_target / 3))
-        gas_want = math.ceil(self.gas_target / 3)
-        if gas_have < gas_want:
+        gas_max = sum(1 for g in self.get_owned_geysers())
+        gas_want = min(gas_max, math.ceil(self.gas_target / 3))
+        for i in range(gas_want - gas_have):
             self.add_macro_target(MacroTarget(UnitTypeId.EXTRACTOR, 1))
 
     def morphOverlords(self):
@@ -467,7 +510,8 @@ class ZergAI(CommonAI):
         )
         if 200 <= self.supply_cap + supply_pending:
             return
-        if self.supply_left + supply_pending < self.get_supply_buffer():
+        supply_buffer = 3 * (self.townhalls.amount + len(self.inject_assigments))
+        if self.supply_left + supply_pending < supply_buffer:
             self.add_macro_target(MacroTarget(UnitTypeId.OVERLORD, 1))
 
     def expand(self, saturation_target: float = 0.9):
@@ -497,12 +541,18 @@ class ZergAI(CommonAI):
         }
 
         targets = [
-            MacroTarget(unit, -random.random() * composition_have[unit] / self.composition[unit])
+            MacroTarget(unit, -composition_have[unit] / count)
             # MacroTarget(unit, -random.random())
             for unit, count in composition_missing.items()
             if 0 < count
-            # for i in range(count)
+            # for i in range(int(count))
         ]
 
         for target in targets:
             self.add_macro_target(target)
+
+        
+        # if 3 < self.townhalls.amount:
+        #     for unit in self.composition.keys():
+        #         for plan in self.planned_by_type[unit]:
+        #             plan.priority = -random.random()

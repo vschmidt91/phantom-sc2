@@ -7,6 +7,7 @@ from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
+from sc2.unit import Unit
 from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 
 import numpy as np
@@ -67,6 +68,12 @@ def sample(choices, key=None):
         return choices[i]
     else:
         return np.random.choice(choices)
+
+def can_attack(unit: Unit, target: Unit) -> bool:
+    if target.is_flying:
+        return unit.can_attack_air
+    else:
+        return unit.can_attack_ground
 
 def get_requirements(item: Union[UnitTypeId, UpgradeId]) -> Iterable[Union[UnitTypeId, UpgradeId]]:
 

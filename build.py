@@ -4,6 +4,10 @@ import sc2
 import inspect
 import os
 import zipfile
+import subprocess
+
+OUTPUT_PATH = './publish/SunTzuBot.zip'
+VERSION_PATH = './version.txt'
 
 def zipBot(zipFile):
     root = os.getcwd()
@@ -27,9 +31,17 @@ def zipLibrary(zipFile):
             zipFile.write(absPath, relPath)
 
 if __name__ == '__main__':
-    path = './publish/SunTzuBot.zip'
+
+    path = OUTPUT_PATH
     if os.path.exists(path):
         os.remove(path)
+
+    version_path = VERSION_PATH
+    version = subprocess.check_output('git rev-parse HEAD', shell=True).decode('utf-8')
+    version = version.replace('\n', '')
+    with open(version_path, 'w') as version_file:
+        version_file.write(version)
+
     zipFile = zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED)
     zipBot(zipFile)
     zipLibrary(zipFile)

@@ -87,9 +87,27 @@ UPGRADE_BY_RESEARCH_ABILITY = {
     for upgrade, upgrade_element in research_element.items()
 }
 
+GAS_BY_RACE = {
+    Race.Zerg: UnitTypeId.EXTRACTOR,
+    Race.Protoss: UnitTypeId.ASSIMILATOR,
+    Race.Terran: UnitTypeId.REFINERY,
+}
+
+REQUIREMENTS_EXCLUDE = {
+    UnitTypeId.DRONE,
+    UnitTypeId.LARVA,
+    UnitTypeId.HATCHERY,
+}
+
+REQUIREMENTS_KEYS = set(chain(UNIT_TRAINED_FROM.keys(), UPGRADE_RESEARCHED_FROM.keys()))
+
 REQUIREMENTS = {
-    item: set(get_requirements(item))
-    for item in chain(UNIT_TRAINED_FROM.keys(), UPGRADE_RESEARCHED_FROM.keys())
+    item: {
+        requirement
+        for requirement in get_requirements(item)
+        if requirement in REQUIREMENTS_KEYS
+    }
+    for item in REQUIREMENTS_KEYS
 }
 
 ZERG_MELEE_UPGRADES = [
@@ -150,8 +168,9 @@ ROACH_RUSH = [
 
 HATCH17 = [
     UnitTypeId.DRONE,
-    UnitTypeId.OVERLORD,
     UnitTypeId.DRONE,
+    UnitTypeId.OVERLORD,
+    UnitTypeId.EXTRACTOR,
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
@@ -164,17 +183,16 @@ HATCH17 = [
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.OVERLORD,
-    # UnitTypeId.QUEEN,
-    # UnitTypeId.QUEEN,
-    # UpgradeId.ZERGLINGMOVEMENTSPEED,
+    # UnitTypeId.ZERGLING,
     # UnitTypeId.ZERGLING,
     # UnitTypeId.ZERGLING,
 ]
 
 POOL16 = [
     UnitTypeId.DRONE,
-    UnitTypeId.OVERLORD,
     UnitTypeId.DRONE,
+    UnitTypeId.OVERLORD,
+    UnitTypeId.EXTRACTOR,
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.SPAWNINGPOOL,
