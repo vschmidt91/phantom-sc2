@@ -97,10 +97,11 @@ class CommonAI(BotAI):
             
             # self.townhalls[0](AbilityId.RALLY_WORKERS, target=self.townhalls[0])
 
-        if iteration == 0:
+        if self.first_iteration:
             await self.client.chat_send(self.version, True)
             quote = random.choice(self.quotes)
             await self.client.chat_send(quote, False)
+            self.first_iteration = False
 
         if self.debug:
 
