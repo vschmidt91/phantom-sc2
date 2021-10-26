@@ -80,10 +80,6 @@ class CommonAI(BotAI):
 
     async def on_start(self):
 
-        await self.client.chat_send(self.version, True)
-        quote = random.choice(self.quotes)
-        await self.client.chat_send(quote, False)
-
         self.position_to_expansion = dict()
         for resource in self.resources:
             expansion = min(self.expansion_locations_list, key = lambda e : e.distance_to(resource))
@@ -100,6 +96,11 @@ class CommonAI(BotAI):
         #     print(self.state.effects)
             
             # self.townhalls[0](AbilityId.RALLY_WORKERS, target=self.townhalls[0])
+
+        if iteration == 0:
+            await self.client.chat_send(self.version, True)
+            quote = random.choice(self.quotes)
+            await self.client.chat_send(quote, False)
 
         if self.debug:
 

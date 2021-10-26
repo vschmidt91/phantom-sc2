@@ -436,7 +436,7 @@ class ZergAI(CommonAI):
         # supply_left = 200 - self.composition[UnitTypeId.DRONE] - 2 * self.composition[UnitTypeId.QUEEN]
 
         worker_count = self.count(UnitTypeId.DRONE, include_planned=False)
-        ratio = pow(worker_count / worker_limit, 2)
+        ratio = pow(worker_count / worker_limit, 2.5)
     
         if self.time < 3.5 * 60:
             pass
@@ -493,7 +493,7 @@ class ZergAI(CommonAI):
         #     gas_ratio = 6 / 22
         # else:
         gas_ratio = vespene / max(1, vespene + minerals)
-        self.gas_target = math.ceil(gas_ratio * self.count(UnitTypeId.DRONE, include_planned=False))
+        self.gas_target = math.ceil(1.1 * gas_ratio * self.count(UnitTypeId.DRONE, include_planned=False))
         # self.gasTarget = 3 * int(self.gasTarget / 3)
         # print(self.gasTarget)
 
