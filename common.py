@@ -631,10 +631,10 @@ class CommonAI(BotAI):
         if target in STATIC_DEFENSE[self.race]:
             townhalls = self.townhalls.ready.sorted_by_distance_to(self.start_location)
             if townhalls.exists:
-                i = self.count(target) - 1
+                i = (self.count(target) - 1) % townhalls.amount
                 return townhalls[i].position.towards(self.game_info.map_center, -5)
             else:
-                return None
+                return self.start_location
         elif self.isStructure(target):
             if target in race_townhalls[self.race]:
                 return await self.getNextExpansion()
