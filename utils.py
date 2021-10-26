@@ -49,7 +49,7 @@ def withEquivalents(unit: UnitTypeId) -> Set[UnitTypeId]:
     else:
         return { unit }
 
-def unitValue(unit, target = None):
+def unitValue(unit: Unit, target = None):
     if target is None:
         dps = max(unit.air_dps, unit.ground_dps)
     else:
@@ -70,7 +70,9 @@ def sample(choices, key=None):
         return np.random.choice(choices)
 
 def can_attack(unit: Unit, target: Unit) -> bool:
-    if target.is_flying:
+    if not target.can_be_attacked:
+        return False
+    elif target.is_flying:
         return unit.can_attack_air
     else:
         return unit.can_attack_ground

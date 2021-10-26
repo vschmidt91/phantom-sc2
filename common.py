@@ -537,7 +537,10 @@ class CommonAI(BotAI):
 
         for unit in friends:
 
-            enemies_valid = enemies.filter(lambda e : can_attack(unit, e))
+            if unit.type_id == UnitTypeId.OVERSEER:
+                enemies_valid = enemies
+            else:
+                enemies_valid = enemies.filter(lambda e : can_attack(unit, e))
 
             if enemies_valid.exists:
 

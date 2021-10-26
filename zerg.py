@@ -83,6 +83,28 @@ class ZergAI(CommonAI):
             units = self.abilities.setdefault(unit.type_id, dict())
             units[unit.tag] = abilties
 
+    async def corrosive_biles(self):
+        ability = AbilityId.EFFECT_CORROSIVEBILE
+        ability_data = self.game_data.abilities[ability.value]._proto
+        ravagers = self.units_by_type[UnitTypeId.RAVAGER]
+        if not ravagers:
+            return
+        ravager_abilities = await self.get_available_abilities(ravagers)
+        for ravager, abilities in zip(ravagers, ravager_abilities):
+            if ability not in abilities:
+                continue
+            targets = (
+                target
+                for target in chain(self.all_enemy_units, self.destructables)
+                if (
+                    target.movement_speed < 1
+                    and ravager.position.distance_to(target.position) <= ravager.radius + ability_data.cast_range
+                )
+            )
+            target = next(targets, None)
+            if target:
+                ravager(ability, target=target.position)
+
     async def on_step(self, iteration):
 
         await super().on_step(iteration)
@@ -108,6 +130,7 @@ class ZergAI(CommonAI):
             self.macro: 1,
             self.adjustGasTarget: 1,
             self.buildGasses: 1,
+            self.corrosive_biles: 1,
         }
 
         steps_filtered = [s for s, m in steps.items() if iteration % m == 0]
