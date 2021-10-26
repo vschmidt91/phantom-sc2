@@ -13,7 +13,7 @@ from typing import Counter, Iterable, List, Coroutine, Dict, Set, Union, Tuple
 
 from timer import run_timed
 
-from sc2 import AbilityId
+from sc2.ids.ability_id import AbilityId
 from sc2.unit import Unit
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId

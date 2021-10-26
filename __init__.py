@@ -5,7 +5,7 @@ import asyncio
 import aiohttp
 
 import sc2
-from sc2 import Race, Difficulty
+from sc2.data import Race, Difficulty
 from sc2.player import Bot, Computer
 from sc2.protocol import ConnectionAlreadyClosed
 

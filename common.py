@@ -15,8 +15,8 @@ import random
 from typing import Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable
 from numpy.lib.function_base import insert
 from s2clientprotocol.error_pb2 import CantAddMoreCharges, Error
-from sc2 import unit
-from sc2 import position
+from sc2.unit import Unit
+from sc2.position import Point2
 from sc2.game_state import Common
 
 from utils import can_attack, get_requirements, armyValue, unitPriority, canAttack, center, dot, unitValue, withEquivalents
@@ -25,8 +25,8 @@ from constants import CHANGELINGS
 import numpy as np
 import json
 from sc2.position import Point2, Point3
-
-from sc2 import Race, BotAI
+from sc2.bot_ai import BotAI
+from sc2.data import Race
 from sc2.constants import ALL_GAS, SPEED_INCREASE_ON_CREEP_DICT
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId

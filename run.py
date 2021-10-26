@@ -1,8 +1,9 @@
 import sc2, sys, os
 from __init__ import run_ladder_game
-from sc2 import Race, Difficulty, AIBuild
+from sc2.data import Race, Difficulty, AIBuild
 from sc2.player import Bot, Computer
 from datetime import datetime
+from sc2.main import run_game
 
 # Load bot
 from zerg import ZergAI
@@ -12,7 +13,7 @@ if __name__ == "__main__":
     if "--LadderServer" in sys.argv:
         # Ladder game started by LadderManager
         print("Starting ladder game...")        
-        bot = Bot(Race.Zerg, ZergAI(game_step = 2), 'Sun Tzu')
+        bot = Bot(Race.Zerg, ZergAI(game_step = 4), 'Sun Tzu')
         result, opponentid = run_ladder_game(bot)
         print(result, " against opponent ", opponentid)
     else:
@@ -25,7 +26,7 @@ if __name__ == "__main__":
         bot = Bot(Race.Zerg, ZergAI(game_step = 8, debug = True), 'Sun Tzu')   
         # opponent = Bot(Race.Zerg, ZergAI(game_step = 4), 'SunTzu')
         opponent = Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
-        sc2.run_game(
+        run_game(
             sc2.maps.get("OxideAIE"),
             [bot, opponent],
             realtime=False,
