@@ -550,7 +550,7 @@ class CommonAI(BotAI):
                 friends_rating = sum(unitValue(f) / max(8, target.distance_to(f)) for f in friends)
                 enemies_rating = sum(unitValue(e) / max(8, unit.distance_to(e)) for e in enemies)
 
-                distance_bias = 50
+                distance_bias = 64
 
                 advantage = 1
                 advantage_value = friends_rating / max(1, enemies_rating)
@@ -562,7 +562,7 @@ class CommonAI(BotAI):
                     advantage_creep = 1 / creep_bonus
 
                 advantage *= advantage_value
-                # advantage *= advantage_defender
+                advantage *= advantage_defender
                 advantage *= advantage_creep
                 advantage_threshold = 1
 
