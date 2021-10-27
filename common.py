@@ -523,7 +523,7 @@ class CommonAI(BotAI):
 
         if not enemies.exists:
             enemies = self.enemy_units
-        if not enemies.exclude_type:
+        if not enemies.exists:
             enemies = self.enemy_structures
 
         if self.enemy_structures.exists:
