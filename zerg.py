@@ -129,7 +129,7 @@ class ZergAI(CommonAI):
             # self.tech: 4,
             self.upgrade: 1,
             self.expand: 1,
-            self.micro: 1,
+            # self.micro: 1,
             self.assignWorker: 1,
             self.macro: 1,
             self.adjustGasTarget: 1,
@@ -264,9 +264,6 @@ class ZergAI(CommonAI):
         for target in targets:
             if not sum(self.count(t) for t in withEquivalents(target)):
                 self.add_macro_target(MacroTarget(target))
-
-        # if not self.count(UnitTypeId.ROACH, include_actual=False, include_pending=False):
-        #     self.add_macro_target(MacroTarget(UnitTypeId.ROACH))
 
     def upgradeSequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:

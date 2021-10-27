@@ -182,9 +182,13 @@ HATCH17 = [
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
+    UnitTypeId.DRONE,
+    # UnitTypeId.DRONE,
+    # UnitTypeId.DRONE,
     UnitTypeId.OVERLORD,
-    # UnitTypeId.ZERGLING,
-    # UnitTypeId.ZERGLING,
+    UpgradeId.ZERGLINGMOVEMENTSPEED,
+    UnitTypeId.ZERGLING,
+    UnitTypeId.ZERGLING,
     # UnitTypeId.ZERGLING,
 ]
 

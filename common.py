@@ -1,85 +1,76 @@
 
-from time import process_time
-from numpy.core.fromnumeric import sort
-from numpy.lib.arraysetops import isin
-from numpy.lib.shape_base import expand_dims
 from build import VERSION_PATH
 from constants import CIVILIANS, GAS_BY_RACE, REQUIREMENTS, REQUIREMENTS_EXCLUDE, STATIC_DEFENSE, SUPPLY, SUPPLY_PROVIDED, TOWNHALL, TRAIN_ABILITIES, UNIT_BY_TRAIN_ABILITY, UPGRADE_BY_RESEARCH_ABILITY
 from macro_target import MacroTarget
 from cost import Cost
-from collections import Counter, defaultdict
-from itertools import chain, count
+from collections import defaultdict
 
 import math
 import random
-from typing import Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable
+from typing import Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
 from numpy.lib.function_base import insert
-from s2clientprotocol.error_pb2 import CantAddMoreCharges, Error
-from sc2.unit import Unit
-from sc2.position import Point2
-from sc2.game_state import Common
 
 from utils import can_attack, get_requirements, armyValue, unitPriority, canAttack, center, dot, unitValue, withEquivalents
-from constants import CHANGELINGS
 
-import numpy as np
-import json
 from sc2.position import Point2, Point3
 from sc2.bot_ai import BotAI
-from sc2.data import Race
-from sc2.constants import ALL_GAS, SPEED_INCREASE_ON_CREEP_DICT
+from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT, IS_STRUCTURE
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
-from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
-from sc2.constants import IS_STRUCTURE
-from sc2.data import Alliance, Result, race_townhalls, race_worker
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_tech_alias import UNIT_TECH_ALIAS
+from sc2.data import Result, race_townhalls, race_worker
 from sc2.unit import Unit
 from sc2.units import Units
-from sc2.position import Point2
 
 RESOURCE_DISTANCE_THRESHOLD = 10
-QUOTES_PATH = './quotes.txt'
 
 class PlacementNotFound(Exception):
     pass
 
 class CommonAI(BotAI):
 
-    def __init__(self, game_step: int = 1, debug: bool = False):
+    def __init__(self,
+        game_step: int = 1,
+        debug: bool = False,
+        version_path: str = 'version.txt',
+        greetings_path: str = 'greetings.txt',
+    ):
 
-        self.game_step = game_step
-        self.debug = debug
-
-        with open(VERSION_PATH, 'r') as file:
+        with open(version_path, 'r') as file:
             self.version = file.readline()
 
-        with open(QUOTES_PATH, 'r') as file:
-            self.quotes = [
+        with open(greetings_path, 'r') as file:
+            self.greetings = [
                 line.replace('\n', '')
                 for line in file.readlines()
             ]
 
-        # self.raw_affects_selection = True
+        self.game_step = game_step
+        self.debug = debug
+        self.raw_affects_selection = True
         self.gas_target = 0
+        self.greet_enabled = True
         self.macro_targets = list()
         self.units_by_type = defaultdict(lambda:[])
         self.pending_by_type = defaultdict(lambda:[])
         self.planned_by_type = defaultdict(lambda:[])
         self.units_by_tag = dict()
         self.resource_by_position = dict()
-        self.greet_enabled = True
+
+        self.worker_split = dict()
 
     async def on_before_start(self):
         self.client.game_step = self.game_step
         pass
 
     async def on_start(self):
+
+        self.split_workers()
 
         self.geysers_by_expanion = {
             base: {
@@ -97,25 +88,44 @@ class CommonAI(BotAI):
             for base, resources in self.expansion_locations_dict.items()
         }
 
-        self.position_to_expansion = dict()
-        for resource in self.resources:
-            expansion = min(self.expansion_locations_list, key = lambda e : e.distance_to(resource))
-            self.position_to_expansion[resource.position] = expansion
-
         self.expansion_distances = {
             base: await self.get_base_distance(base)
             for base in self.expansion_locations_list
         }
 
-        for worker in self.workers:
-            mineral = self.mineral_field.closest_to(worker)
+
+    def split_workers(self):
+        start_townhall = self.townhalls[0]
+        start_minerals = self.expansion_locations_dict[start_townhall.position].mineral_field.sorted_by_distance_to(start_townhall)
+        assigned_workers = set()
+        for mineral in start_minerals:
+            worker = self.workers.tags_not_in(assigned_workers).closest_to(mineral)
+            assigned_workers.add(worker.tag)
+            worker.gather(mineral)
+        for mineral in start_minerals:
+            unassigned_workers = self.workers.tags_not_in(assigned_workers)
+            if not unassigned_workers.exists:
+                break
+            worker = unassigned_workers.closest_to(mineral)
+            self.worker_split[worker.tag] = mineral.tag
+            assigned_workers.add(worker.tag)
             worker.gather(mineral)
 
     async def on_step(self, iteration: int):
+        
+        for worker_tag, mineral_tag in list(self.worker_split.items()):
+
+            worker = self.units.by_tag(worker_tag)
+            mineral = self.resources.by_tag(mineral_tag)
+            if worker.is_carrying_minerals:
+                del self.worker_split[worker_tag]
+            else:
+                worker.gather(mineral)
+
 
         if 1 < self.time and self.greet_enabled:
             await self.client.chat_send(self.version, False)
-            quote = random.choice(self.quotes)
+            quote = random.choice(self.greetings)
             await self.client.chat_send(quote, False)
             self.greet_enabled = False
 
@@ -159,8 +169,6 @@ class CommonAI(BotAI):
         pass
 
     async def on_building_construction_started(self, unit: Unit):
-        # if unit.type_id in race_townhalls[self.race] and self.mineral_field.exists:
-        #     unit.smart(self.mineral_field.closest_to(unit))
         pass
 
     async def on_building_construction_complete(self, unit: Unit):
@@ -181,14 +189,6 @@ class CommonAI(BotAI):
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         pass
-        # if (
-        #     unit.is_structure
-        #     and not unit.is_ready
-        #     and unit.health_percentage < 0.333 * unit.build_progress * unit.build_progress
-        # ):
-        #     unit(AbilityId.CANCEL)
-        # elif unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
-        #     unit(AbilityId.CANCEL)
         
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
@@ -221,19 +221,8 @@ class CommonAI(BotAI):
         for upgrade in self.state.upgrades:
             self.units_by_type[upgrade].append(True)
 
-        # self.table_actual.update(u.type_id for u in self.all_own_units.ready)
-        # self.table_actual.update(self.state.upgrades)
-
-        # self.table_pending.update(u.type_id for u in self.all_own_units.not_ready)
-        # self.table_pending.update(
-        #     UNIT_BY_TRAIN_ABILITY.get(o.ability.exact_id) or UPGRADE_BY_RESEARCH_ABILITY.get(o.ability.exact_id)
-        #     for u in self.all_own_units
-        #     for o in u.orders
-        # )
-
         for target in self.macro_targets:
             self.planned_by_type[target.item].append(target)
-        # self.table_planned.update(o.item for o in self.macro_targets)
 
 
     def count(
@@ -281,7 +270,7 @@ class CommonAI(BotAI):
         if not path:
             path = unit.position.distance_to(position)
         if not unit.movement_speed:
-            raise Error()
+            raise Exception()
         return path / unit.movement_speed
 
     def get_requirements(self, item):
@@ -394,21 +383,16 @@ class CommonAI(BotAI):
 
             if not unit(objective.ability["ability"], target=objective.target, queue=queue):
                 print("objective failed:" + str(objective))
-                raise Error()
+                raise Exception()
 
             took_action = True
-
-            # self.pending.update((objective.item,))
 
             self.pending_by_type[objective.item].append(unit)
 
             i -= 1
             self.macro_targets.pop(i)
-            # macro_targets_new.remove(objective)
-            # break
 
         self.macro_targets.sort(key = lambda t : t.priority, reverse=True)
-        # self.macro_targets = sorted(macro_targets_new, key=lambda o:-o.priority)
 
     def get_owned_geysers(self):
         for townhall in self.townhalls.ready:
@@ -536,9 +520,6 @@ class CommonAI(BotAI):
 
     async def micro(self):
 
-        # if self.time < 7 * 60:
-        #     return
-
         friends = list(self.enumerate_army())
 
         enemies = self.enemy_units
@@ -548,15 +529,6 @@ class CommonAI(BotAI):
             enemies = self.enemy_units
         if not enemies.exists:
             enemies = self.enemy_structures
-
-        if self.enemy_structures.exists:
-            enemyBaseCenter = center(self.enemy_structures)
-        else:
-            enemyBaseCenter = self.enemy_start_locations[0]
-        baseCenter = center(self.structures)
-
-        # friends_rating = sum(self.unit_cost(f) for f in friends)
-        # enemies_rating = sum(self.unit_cost(e) for e in enemies)
 
         for unit in friends:
 
@@ -573,7 +545,7 @@ class CommonAI(BotAI):
                 enemies_rating = sum(unitValue(e) / max(8, unit.distance_to(e)) for e in enemies)
 
                 distance_ref = self.game_info.map_size.length
-                distance_to_base = min(unit.distance_to(t) for t in self.townhalls, 0)
+                distance_to_base = min((unit.distance_to(t) for t in self.townhalls), default=0)
 
                 advantage = 1
                 advantage_value = friends_rating / max(1, enemies_rating)
@@ -621,14 +593,14 @@ class CommonAI(BotAI):
 
                 unit.attack(self.destructables.closest_to(unit))
 
-            else:
+            elif unit.is_idle:
 
                 if self.time < 8 * 60:
-                    target = min(self.enemy_start_locations, key=lambda e:e.distance_to(unit))
+                    target = random.choice(self.enemy_start_locations)
                 elif self.all_enemy_units.exists:
                     target = self.all_enemy_units.closest_to(unit)
                 else:
-                    target = min(self.expansion_locations_list, key=lambda e:e.distance_to(unit))
+                    target = random.choice(self.expansion_locations_list)
 
                 unit.attack(target)
 
@@ -658,12 +630,15 @@ class CommonAI(BotAI):
                 return self.start_location
         elif self.isStructure(target):
             if target in race_townhalls[self.race]:
-                return await self.getNextExpansion()
+                base = await self.get_next_expansion()
+                if not base:
+                    raise PlacementNotFound()
+                return base
             elif self.townhalls.exists:
                 position = self.townhalls.closest_to(self.start_location).position
                 return position.towards(self.game_info.map_center, 5)
             else:
-                return self.start_location
+                raise PlacementNotFound()
         else:
             return trainer.position
 
@@ -680,18 +655,6 @@ class CommonAI(BotAI):
             distances_enemy.append(distance)
 
         return max(distances_self) - min(distances_enemy)
-
-    async def getNextExpansion(self) -> Point2:
-        bases = (
-            base
-            for base in self.expansion_locations_list
-            if not self.townhalls.closer_than(3, base).exists
-        )
-        # bases = sorted(bases, key=lambda b : self.expansion_distances[b])
-        base = min(bases, key=lambda b : self.expansion_distances[b], default=None)
-        if not base:
-            raise PlacementNotFound()
-        return base
 
     def has_capacity(self, unit: Unit) -> bool:
         if self.isStructure(unit.type_id):
@@ -795,9 +758,9 @@ class CommonAI(BotAI):
         if worker is None:
             for gas in self.gas_buildings.ready:
                 workers_gas = workers.filter(lambda w : w.order_target == gas.tag)
-                if workers_gas.exists and (0 < gas.surplus_harvesters or self.gas_target + 1 < gasActual):
+                if workers_gas.exists and (0 < gas.surplus_harvesters or self.gas_target + 1 <= gasActual):
                     worker = workers_gas.furthest_to(gas)
-                elif gas.surplus_harvesters < 0 and gasActual + 1 <= self.gas_target:
+                elif gas.surplus_harvesters < 0 and gasActual + 1 < self.gas_target:
                     target = gas
 
         if worker is None:
