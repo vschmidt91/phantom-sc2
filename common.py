@@ -573,7 +573,7 @@ class CommonAI(BotAI):
                 enemies_rating = sum(unitValue(e) / max(8, unit.distance_to(e)) for e in enemies)
 
                 distance_ref = self.game_info.map_size.length
-                distance_to_base = min(unit.distance_to(t) for t in self.townhalls)
+                distance_to_base = min(unit.distance_to(t) for t in self.townhalls, 0)
 
                 advantage = 1
                 advantage_value = friends_rating / max(1, enemies_rating)
