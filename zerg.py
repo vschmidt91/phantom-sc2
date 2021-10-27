@@ -87,7 +87,7 @@ class ZergAI(CommonAI):
 
         def target_priority(target):
             priority = 10 + max(target.ground_dps, target.air_dps)
-            priority /= 100 + target.health + target.shield
+            # priority /= 100 + target.health + target.shield
             priority /= 1 + target.movement_speed
             return priority
 
