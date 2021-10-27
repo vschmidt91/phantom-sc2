@@ -86,11 +86,7 @@ class ZergAI(CommonAI):
     async def corrosive_bile(self):
 
         def target_priority(target):
-            if target.type_id == UnitTypeId.LIBERATORAG:
-                dps = 65.8
-            else:
-                dps = max(target.ground_dps, target.air_dps)
-            priority = 10 + dps
+            priority = 10 + max(target.ground_dps, target.air_dps)
             priority /= 100 + target.health + target.shield
             priority /= 1 + target.movement_speed
             return priority
@@ -429,68 +425,37 @@ class ZergAI(CommonAI):
             elif 25 <= queen.energy:
                 await self.spreadCreep(queen)
 
-        # queens = self.units(UnitTypeId.QUEEN).sorted_by_distance_to(self.start_location)
-        # townhalls = self.townhalls.sorted_by_distance_to(self.start_location)
-        
-        # for i, queen in enumerate(queens):
-        #     if self.townhalls.amount <= i:
-        #         townhall = None
-        #     elif 2 < len(queens) and i == len(queens) - 1:
-        #         townhall = None
-        #     else:
-        #         townhall = townhalls[i]
-        #     if not queen.is_idle:
-        #         continue
-        #     elif queen.energy < 25:
-        #         if townhall and 5 < queen.distance_to(townhall):
-        #             queen.attack(townhall.position)
-        #     elif not townhall:
-        #         await self.spreadCreep(spreader=queen)
-        #     elif townhall.is_ready:
-        #         queen(AbilityId.EFFECT_INJECTLARVA, townhall)
-
     def adjustComposition(self):
 
         worker_limit = 80
         worker_target = min(worker_limit, self.getMaxWorkers())
         self.composition = {
-            # UnitTypeId.ZERGLING: 2,
             UnitTypeId.DRONE: worker_target,
             UnitTypeId.QUEEN: 1 + min(self.inject_assigments_max, self.townhalls.amount),
         }
-
-        # if SPORE_TIMING[self.enemy_race] < self.time:
-        #     self.composition[UnitTypeId.SPORECRAWLER] = self.townhalls.ready.amount
-        # if 2 * SPORE_TIMING[self.enemy_race] < self.time:
-        #     self.composition[UnitTypeId.SPINECRAWLER] = self.townhalls.ready.amount
-
-        # supply_left = 200 - self.composition[UnitTypeId.DRONE] - 2 * self.composition[UnitTypeId.QUEEN]
-
         worker_count = self.count(UnitTypeId.DRONE, include_planned=False)
         ratio = pow(worker_count / worker_limit, 3)
     
         if self.time < 3.5 * 60:
             pass
-        else:
-        # elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False):
+        elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False):
             self.composition[UnitTypeId.OVERSEER] = 1
-            self.composition[UnitTypeId.ZERGLING] = int(ratio * 20)
             self.composition[UnitTypeId.ROACH] = int(ratio * 60)
-            self.composition[UnitTypeId.RAVAGER] = int(ratio * 10)
-        # elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False):
-        #     self.composition[UnitTypeId.OVERSEER] = 1
-        #     self.composition[UnitTypeId.ROACH] = 40
-        #     self.composition[UnitTypeId.HYDRALISK] = 40
-        # elif not self.count(UnitTypeId.HIVE, include_planned=False):
-        #     self.composition[UnitTypeId.OVERSEER] = 1
-        #     self.composition[UnitTypeId.ROACH] = 40
-        #     self.composition[UnitTypeId.HYDRALISK] = 40
-        # else:
-        #     self.composition[UnitTypeId.OVERSEER] = 1
-        #     self.composition[UnitTypeId.ROACH] = 40
-        #     self.composition[UnitTypeId.HYDRALISK] = 40
-        #     self.composition[UnitTypeId.CORRUPTOR] = 3
-        #     self.composition[UnitTypeId.BROODLORD] = 7
+            self.composition[UnitTypeId.RAVAGER] = int(ratio * 7)
+        elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False):
+            self.composition[UnitTypeId.OVERSEER] = 1
+            self.composition[UnitTypeId.ROACH] = 40
+            self.composition[UnitTypeId.HYDRALISK] = 40
+        elif not self.count(UnitTypeId.HIVE, include_planned=False):
+            self.composition[UnitTypeId.OVERSEER] = 1
+            self.composition[UnitTypeId.ROACH] = 40
+            self.composition[UnitTypeId.HYDRALISK] = 40
+        else:
+            self.composition[UnitTypeId.OVERSEER] = 1
+            self.composition[UnitTypeId.ROACH] = 40
+            self.composition[UnitTypeId.HYDRALISK] = 40
+            self.composition[UnitTypeId.CORRUPTOR] = 3
+            self.composition[UnitTypeId.BROODLORD] = 7
 
     def adjustGasTarget(self):
 
@@ -528,7 +493,7 @@ class ZergAI(CommonAI):
         if self.supply_left + supply_pending < supply_buffer:
             self.add_macro_target(MacroTarget(UnitTypeId.OVERLORD, 1))
 
-    def expand(self, saturation_target: float = 1):
+    def expand(self, saturation_target: float = .9):
         
         worker_max = self.getMaxWorkers()
         if (

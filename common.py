@@ -72,6 +72,7 @@ class CommonAI(BotAI):
         self.pending_by_type = defaultdict(lambda:[])
         self.planned_by_type = defaultdict(lambda:[])
         self.units_by_tag = dict()
+        self.resource_by_position = dict()
         self.greet_enabled = True
 
     async def on_before_start(self):
@@ -80,14 +81,30 @@ class CommonAI(BotAI):
 
     async def on_start(self):
 
+        self.geysers_by_expanion = {
+            base: {
+                geyser.position
+                for geyser in resources.vespene_geyser
+            }
+            for base, resources in self.expansion_locations_dict.items()
+        }
+
+        self.minerals_by_expansion = {
+            base: {
+                mineral.position
+                for mineral in resources.mineral_field
+            }
+            for base, resources in self.expansion_locations_dict.items()
+        }
+
         self.position_to_expansion = dict()
         for resource in self.resources:
             expansion = min(self.expansion_locations_list, key = lambda e : e.distance_to(resource))
             self.position_to_expansion[resource.position] = expansion
 
         self.expansion_distances = {
-            b: await self.get_base_distance(b)
-            for b in self.expansion_locations_list
+            base: await self.get_base_distance(base)
+            for base in self.expansion_locations_list
         }
 
     async def on_step(self, iteration: int):
@@ -177,6 +194,9 @@ class CommonAI(BotAI):
         pass
 
     def update_tables(self):
+
+        self.resource_by_position.clear()
+        self.resource_by_position.update((r.position, r) for r in self.resources)
 
         self.units_by_tag.clear()
         self.units_by_type.clear()
@@ -320,8 +340,8 @@ class CommonAI(BotAI):
             if requirement_missing:
                 continue
 
-            if not objective.ability["ability"] in await self.get_available_abilities(unit, ignore_resource_requirements=True):
-                continue
+            # if not objective.ability["ability"] in await self.get_available_abilities(unit, ignore_resource_requirements=True):
+            #     continue
 
             reserve += objective.cost
 
@@ -355,10 +375,10 @@ class CommonAI(BotAI):
             if not can_afford:
                 continue
             
-            abilities = await self.get_available_abilities(unit)
-            if not objective.ability["ability"] in abilities:
-                print("ability with cost failed:" + str(objective))
-                raise Error()
+            # abilities = await self.get_available_abilities(unit)
+            # if not objective.ability["ability"] in abilities:
+            #     print("ability with cost failed:" + str(objective))
+            #     raise Error()
 
             if took_action:
                 continue
@@ -387,12 +407,11 @@ class CommonAI(BotAI):
         # self.macro_targets = sorted(macro_targets_new, key=lambda o:-o.priority)
 
     def get_owned_geysers(self):
-        if not self.townhalls.ready.exists:
-            return
-        for geyser in self.resources.vespene_geyser:
-            townhall = self.townhalls.ready.closest_to(geyser)
-            if geyser.distance_to(townhall) < RESOURCE_DISTANCE_THRESHOLD:
-                yield geyser
+        for townhall in self.townhalls.ready:
+            for geyser_position in self.geysers_by_expanion.get(townhall.position, []):
+                geyser = self.resource_by_position.get(geyser_position)
+                if geyser:
+                    yield geyser
 
     async def get_target(self, unit: Unit, objective: MacroTarget) -> Coroutine[any, any, Union[Unit, Point2]]:
         gas_type = GAS_BY_RACE[self.race]
@@ -549,11 +568,13 @@ class CommonAI(BotAI):
                 friends_rating = sum(unitValue(f) / max(8, target.distance_to(f)) for f in friends)
                 enemies_rating = sum(unitValue(e) / max(8, unit.distance_to(e)) for e in enemies)
 
-                distance_bias = self.game_info.map_size.length
+                distance_ref = self.game_info.map_size.length
+                distance_to_base = min(unit.distance_to(t) for t in self.townhalls)
 
                 advantage = 1
                 advantage_value = friends_rating / max(1, enemies_rating)
-                advantage_defender = (distance_bias + target.distance_to(enemyBaseCenter)) / (distance_bias + target.distance_to(baseCenter))
+                advantage_defender = distance_ref / (distance_ref + distance_to_base)
+                # advantage_defender = (distance_bias + target.distance_to(enemyBaseCenter)) / (distance_bias + target.distance_to(baseCenter))
                 
                 advantage_creep = 1
                 creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id)
@@ -657,18 +678,16 @@ class CommonAI(BotAI):
         return max(distances_self) - min(distances_enemy)
 
     async def getNextExpansion(self) -> Point2:
-        bases = [
+        bases = (
             base
-            for base, resources in self.expansion_locations_dict.items()
-            if (
-                not self.townhalls.closer_than(3, base).exists
-                and resources.filter(lambda r : r.is_mineral_field or r.has_vespene).exists
-            )
-        ]
-        bases = sorted(bases, key=lambda b : self.expansion_distances[b])
-        if not bases:
+            for base in self.expansion_locations_list
+            if not self.townhalls.closer_than(3, base).exists
+        )
+        # bases = sorted(bases, key=lambda b : self.expansion_distances[b])
+        base = min(bases, key=lambda b : self.expansion_distances[b], default=None)
+        if not base:
             raise PlacementNotFound()
-        return bases[0]
+        return base
 
     def has_capacity(self, unit: Unit) -> bool:
         if self.isStructure(unit.type_id):
@@ -801,19 +820,15 @@ class CommonAI(BotAI):
             return
 
         if target is None:
-
-            # for location, townhall in expansion_to_townhall.items():
-            #     if townhall.surplus_harvesters < 0:
-            #         target = expansion_to_mineral_fields[location][0]
-            #         break
             
-                for townhall in self.townhalls.ready:
-                    if townhall.surplus_harvesters < 0:
-                        minerals = self.expansion_locations_dict[townhall.position].mineral_field
-                        if minerals.exists:
-                            target = minerals.closest_to(worker)
-                        elif self.mineral_field.exists:
-                            target = self.mineral_field.closest_to(townhall)
+            for townhall in self.townhalls.ready:
+                if townhall.surplus_harvesters < 0:
+                    minerals = (
+                        self.resource_by_position[position]
+                        for position in self.minerals_by_expansion.get(townhall.position, [])
+                        if position in self.resource_by_position
+                    )
+                    target = min(minerals, key=lambda m : m.distance_to(worker), default=None) or self.mineral_field.closest_to(townhall)
                     break
 
         if target is None:
