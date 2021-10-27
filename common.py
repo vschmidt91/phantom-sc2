@@ -562,19 +562,19 @@ class CommonAI(BotAI):
                 advantage *= advantage_creep
                 advantage_threshold = 1
 
-                if advantage < .5 * advantage_threshold:
+                if advantage < advantage_threshold / 3:
 
                     if not unit.is_moving:
                         unit.move(unit.position.towards(target, -12))
 
-                elif advantage < 1 * advantage_threshold:
+                elif advantage < advantage_threshold:
 
                     if unit.weapon_cooldown:
                         unit.move(unit.position.towards(target, -12))
                     else:
                         unit.attack(target.position)
                     
-                elif advantage < 2 * advantage_threshold:
+                elif advantage < advantage_threshold * 3:
 
                     unit.attack(target.position)
 
@@ -593,7 +593,7 @@ class CommonAI(BotAI):
 
                 unit.attack(self.destructables.closest_to(unit))
 
-            elif unit.is_idle:
+            elif not unit.is_attacking:
 
                 if self.time < 8 * 60:
                     target = random.choice(self.enemy_start_locations)
@@ -826,7 +826,7 @@ class CommonAI(BotAI):
     def getMaxWorkers(self) -> int:
         workers = 0
         workers += sum((h.ideal_harvesters for h in self.townhalls.ready))
-        workers += 16 * self.count(UnitTypeId.HATCHERY, include_actual=False)
+        workers += 16 * self.count(UnitTypeId.HATCHERY, include_actual=False, include_planned=False)
         workers += self.gas_target
         # workers += sum((g.ideal_harvesters if g.build_progress == 1 else 3 * g.build_progress for g in self.gas_buildings))
 

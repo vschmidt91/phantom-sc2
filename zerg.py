@@ -129,7 +129,7 @@ class ZergAI(CommonAI):
             # self.tech: 4,
             self.upgrade: 1,
             self.expand: 1,
-            # self.micro: 1,
+            self.micro: 1,
             self.assignWorker: 1,
             self.macro: 1,
             self.adjustGasTarget: 1,
