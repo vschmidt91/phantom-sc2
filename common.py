@@ -540,6 +540,7 @@ class CommonAI(BotAI):
             if enemies_valid.exists:
 
                 target = enemies_valid.closest_to(unit)
+                range = unit.air_range if target.is_flying else unit.ground_range
 
                 friends_rating = sum(unitValue(f) / max(8, target.distance_to(f)) for f in friends)
                 enemies_rating = sum(unitValue(e) / max(8, unit.distance_to(e)) for e in enemies)
@@ -569,7 +570,10 @@ class CommonAI(BotAI):
 
                 elif advantage < advantage_threshold:
 
-                    if unit.weapon_cooldown:
+                    if (
+                        unit.weapon_cooldown
+                        and unit.distance_to(target) < unit.radius + range + unit.distance_to_weapon_ready
+                    ):
                         unit.move(unit.position.towards(target, -12))
                     else:
                         unit.attack(target.position)
@@ -580,7 +584,7 @@ class CommonAI(BotAI):
 
                 else:
 
-                    if unit.weapon_cooldown and 2 < unit.distance_to(target):
+                    if unit.weapon_cooldown:
                         unit.move(target.position)
                     else:
                         unit.attack(target.position)

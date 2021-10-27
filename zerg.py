@@ -255,11 +255,11 @@ class ZergAI(CommonAI):
     def upgrade(self):
 
         upgrades = set(chain(*(self.upgrades_by_unit(unit) for unit in self.composition)))
-        targets = {
+        targets = [
             *chain(*(REQUIREMENTS[unit] for unit in self.composition)),
             *chain(*(REQUIREMENTS[upgrade] for upgrade in upgrades)),
             *upgrades,
-        }
+        ]
 
         for target in targets:
             if not sum(self.count(t) for t in withEquivalents(target)):
@@ -375,8 +375,8 @@ class ZergAI(CommonAI):
 
             if not (queen and townhall):
                 queens_delete.add(queen_tag)
-            elif not queen.is_idle:
-                pass
+            # elif not queen.is_idle:
+            #     pass
             elif 7 < queen.distance_to(townhall):
                 queen.attack(townhall.position)
             elif 25 <= queen.energy:
@@ -439,18 +439,16 @@ class ZergAI(CommonAI):
             self.composition[UnitTypeId.OVERSEER] = 1
             self.composition[UnitTypeId.ROACH] = int(ratio * 60)
             self.composition[UnitTypeId.RAVAGER] = int(ratio * 7)
-        elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False):
+        elif not self.count(UnitTypeId.HIVE, include_planned=False, include_pending=False):
             self.composition[UnitTypeId.OVERSEER] = 1
             self.composition[UnitTypeId.ROACH] = 40
-            self.composition[UnitTypeId.HYDRALISK] = 40
-        elif not self.count(UnitTypeId.HIVE, include_planned=False):
-            self.composition[UnitTypeId.OVERSEER] = 1
-            self.composition[UnitTypeId.ROACH] = 40
-            self.composition[UnitTypeId.HYDRALISK] = 40
+            self.composition[UnitTypeId.RAVAGER] = 10
+            self.composition[UnitTypeId.HYDRALISK] = 20
         else:
             self.composition[UnitTypeId.OVERSEER] = 1
             self.composition[UnitTypeId.ROACH] = 40
-            self.composition[UnitTypeId.HYDRALISK] = 40
+            self.composition[UnitTypeId.RAVAGER] = 10
+            self.composition[UnitTypeId.HYDRALISK] = 20
             self.composition[UnitTypeId.CORRUPTOR] = 3
             self.composition[UnitTypeId.BROODLORD] = 7
 
