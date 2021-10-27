@@ -107,6 +107,10 @@ class CommonAI(BotAI):
             for base in self.expansion_locations_list
         }
 
+        for worker in self.workers:
+            mineral = self.mineral_field.closest_to(worker)
+            worker.gather(mineral)
+
     async def on_step(self, iteration: int):
 
         if 1 < self.time and self.greet_enabled:
