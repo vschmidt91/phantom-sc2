@@ -23,7 +23,7 @@ if __name__ == "__main__":
         time = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
         replayPath = os.path.join("replays", time + ".SC2Replay")
         # replayPath = os.path.join("C:\\Users", "Ryzen", "Documents", "StarCraft II", "Accounts", "490189910", "2-S2-1-9348025", "Replays", "Multiplayer", time + ".SC2Replay")
-        bot = Bot(Race.Zerg, ZergAI(game_step = 8, debug = True), 'Sun Tzu')   
+        bot = Bot(Race.Zerg, ZergAI(game_step = 4, debug = True), 'Sun Tzu')   
         # opponent = Bot(Race.Zerg, ZergAI(game_step = 4), 'SunTzu')
         opponent = Computer(Race.Terran, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
         run_game(

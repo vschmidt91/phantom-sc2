@@ -83,7 +83,18 @@ class ZergAI(CommonAI):
             units = self.abilities.setdefault(unit.type_id, dict())
             units[unit.tag] = abilties
 
-    async def corrosive_biles(self):
+    async def corrosive_bile(self):
+
+        def target_priority(target):
+            if target.type_id == UnitTypeId.LIBERATORAG:
+                dps = 65.8
+            else:
+                dps = max(target.ground_dps, target.air_dps)
+            priority = 10 + dps
+            priority /= 100 + target.health + target.shield
+            priority /= 1 + target.movement_speed
+            return priority
+
         ability = AbilityId.EFFECT_CORROSIVEBILE
         ability_data = self.game_data.abilities[ability.value]._proto
         ravagers = self.units_by_type[UnitTypeId.RAVAGER]
@@ -96,12 +107,9 @@ class ZergAI(CommonAI):
             targets = (
                 target
                 for target in chain(self.all_enemy_units, self.destructables)
-                if (
-                    target.movement_speed < 1
-                    and ravager.position.distance_to(target.position) <= ravager.radius + ability_data.cast_range
-                )
+                if ravager.distance_to(target) <= ravager.radius + ability_data.cast_range
             )
-            target = next(targets, None)
+            target = max(targets, key=target_priority, default=None)
             if target:
                 ravager(ability, target=target.position)
 
@@ -130,7 +138,7 @@ class ZergAI(CommonAI):
             self.macro: 1,
             self.adjustGasTarget: 1,
             self.buildGasses: 1,
-            self.corrosive_biles: 1,
+            self.corrosive_bile: 1,
         }
 
         steps_filtered = [s for s, m in steps.items() if iteration % m == 0]
@@ -258,7 +266,7 @@ class ZergAI(CommonAI):
         }
 
         for target in targets:
-            if not self.count(target):
+            if not sum(self.count(t) for t in withEquivalents(target)):
                 self.add_macro_target(MacroTarget(target))
 
         # if not self.count(UnitTypeId.ROACH, include_actual=False, include_pending=False):
@@ -463,47 +471,26 @@ class ZergAI(CommonAI):
     
         if self.time < 3.5 * 60:
             pass
-        elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False):
-            self.composition[UnitTypeId.OVERSEER] = 1
-            self.composition[UnitTypeId.ROACH] = int(ratio * 60)
-            self.composition[UnitTypeId.RAVAGER] = int(ratio * 7)
-        elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False):
-            self.composition[UnitTypeId.OVERSEER] = 1
-            self.composition[UnitTypeId.ROACH] = 40
-            self.composition[UnitTypeId.HYDRALISK] = 40
-        elif not self.count(UnitTypeId.HIVE, include_planned=False):
-            self.composition[UnitTypeId.OVERSEER] = 1
-            self.composition[UnitTypeId.ROACH] = 40
-            self.composition[UnitTypeId.HYDRALISK] = 40
         else:
+        # elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False):
             self.composition[UnitTypeId.OVERSEER] = 1
-            self.composition[UnitTypeId.ROACH] = 40
-            self.composition[UnitTypeId.HYDRALISK] = 40
-            self.composition[UnitTypeId.CORRUPTOR] = 3
-            self.composition[UnitTypeId.BROODLORD] = 7
-
-        # if self.townhalls.amount <= 2:
-        #     pass
-        # elif self.townhalls.amount <= 3:
-        #     self.composition[UnitTypeId.ROACH] = workers_target / 6
-        # elif (
-        #     not self.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
-        #     and not self.count(UnitTypeId.HIVE, include_pending=False, include_planned=False)
-        # ):
-        #     self.composition[UnitTypeId.ROACH] = workers_target
-        # elif not self.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
+            self.composition[UnitTypeId.ZERGLING] = int(ratio * 20)
+            self.composition[UnitTypeId.ROACH] = int(ratio * 60)
+            self.composition[UnitTypeId.RAVAGER] = int(ratio * 10)
+        # elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False):
         #     self.composition[UnitTypeId.OVERSEER] = 1
-        #     self.composition[UnitTypeId.ROACH] = workers_target
-                
+        #     self.composition[UnitTypeId.ROACH] = 40
+        #     self.composition[UnitTypeId.HYDRALISK] = 40
+        # elif not self.count(UnitTypeId.HIVE, include_planned=False):
+        #     self.composition[UnitTypeId.OVERSEER] = 1
+        #     self.composition[UnitTypeId.ROACH] = 40
+        #     self.composition[UnitTypeId.HYDRALISK] = 40
         # else:
-        #     self.composition[UnitTypeId.OVERSEER] = 2
-        #     self.composition[UnitTypeId.HYDRALISK] = 30
-        #     self.composition[UnitTypeId.ROACH] = 30
-        #     if self.count(UnitTypeId.GREATERSPIRE, include_pending=False, include_planned=False):
-        #         self.composition[UnitTypeId.CORRUPTOR] = 10
-        #         self.composition[UnitTypeId.BROODLORD] = 10
-        #     else:
-        #         self.composition[UnitTypeId.BROODLORD] = 0
+        #     self.composition[UnitTypeId.OVERSEER] = 1
+        #     self.composition[UnitTypeId.ROACH] = 40
+        #     self.composition[UnitTypeId.HYDRALISK] = 40
+        #     self.composition[UnitTypeId.CORRUPTOR] = 3
+        #     self.composition[UnitTypeId.BROODLORD] = 7
 
     def adjustGasTarget(self):
 
@@ -541,7 +528,7 @@ class ZergAI(CommonAI):
         if self.supply_left + supply_pending < supply_buffer:
             self.add_macro_target(MacroTarget(UnitTypeId.OVERLORD, 1))
 
-    def expand(self, saturation_target: float = 0.9):
+    def expand(self, saturation_target: float = 1):
         
         worker_max = self.getMaxWorkers()
         if (
