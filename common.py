@@ -95,21 +95,18 @@ class CommonAI(BotAI):
 
 
     def split_workers(self):
+
         start_townhall = self.townhalls[0]
         start_minerals = self.expansion_locations_dict[start_townhall.position].mineral_field.sorted_by_distance_to(start_townhall)
-        assigned_workers = set()
-        for mineral in start_minerals:
-            worker = self.workers.tags_not_in(assigned_workers).closest_to(mineral)
-            assigned_workers.add(worker.tag)
-            worker.gather(mineral)
-        for mineral in start_minerals:
-            unassigned_workers = self.workers.tags_not_in(assigned_workers)
-            if not unassigned_workers.exists:
-                break
-            worker = unassigned_workers.closest_to(mineral)
-            self.worker_split[worker.tag] = mineral.tag
-            assigned_workers.add(worker.tag)
-            worker.gather(mineral)
+
+        while len(self.worker_split) < self.workers.amount:
+            for mineral in start_minerals:
+                unassigned_workers = self.workers.tags_not_in(self.worker_split.keys())
+                if not unassigned_workers.exists:
+                    break
+                worker = unassigned_workers.closest_to(mineral)
+                self.worker_split[worker.tag] = mineral.tag
+                worker.gather(mineral)
 
     async def on_step(self, iteration: int):
         
