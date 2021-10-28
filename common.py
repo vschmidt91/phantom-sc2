@@ -337,7 +337,11 @@ class CommonAI(BotAI):
 
             requirement_missing = False
             for requirement in REQUIREMENTS[objective.item]:
-                if not self.count(requirement, include_pending=False, include_planned=False):
+                requirement_have = False
+                for e in withEquivalents(requirement):
+                    if self.count(e, include_pending=False, include_planned=False):
+                        requirement_have = True
+                if not requirement_have:
                     requirement_missing = True
                     break
 

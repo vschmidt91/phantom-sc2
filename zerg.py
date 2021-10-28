@@ -147,7 +147,7 @@ class ZergAI(CommonAI):
             # self.tech: 4,
             self.upgrade: 1,
             self.expand: 1,
-            self.micro: 1,
+            # self.micro: 1,
             self.assignWorker: 1,
             self.macro: 1,
             self.adjustGasTarget: 1,
@@ -529,16 +529,16 @@ class ZergAI(CommonAI):
             for unit in self.composition.keys()
         }
 
-        composition_missing = {
-            unit: count - composition_have[unit]
-            for unit, count in self.composition.items()
-        }
+        # composition_missing = {
+        #     unit: count - composition_have[unit]
+        #     for unit, count in self.composition.items()
+        # }
 
         targets = [
             MacroTarget(unit, -(composition_have[unit] + 1) / count)
             # MacroTarget(unit, -random.random())
-            for unit, count in composition_missing.items()
-            if 0 < count
+            for unit, count in self.composition.items()
+            if composition_have[unit] < count
             # for i in range(int(count))
         ]
 
