@@ -470,7 +470,7 @@ class ZergAI(CommonAI):
             self.composition[UnitTypeId.RAVAGER] = 10
             self.composition[UnitTypeId.HYDRALISK] = 20
             self.composition[UnitTypeId.CORRUPTOR] = 3
-            self.composition[UnitTypeId.BROODLORD] = 7
+            self.composition[UnitTypeId.BROODLORD] = 10
 
     def adjustGasTarget(self):
 
@@ -543,11 +543,17 @@ class ZergAI(CommonAI):
         ]
 
         for target in targets:
+
             requirement_missing = False
             for requirement in REQUIREMENTS[target.item]:
-                if not self.count(requirement, include_planned=False, include_pending=False):
+                requirement_have = False
+                for e in withEquivalents(requirement):
+                    if self.count(e, include_pending=False, include_planned=False):
+                        requirement_have = True
+                if not requirement_have:
                     requirement_missing = True
                     break
+
             if not requirement_missing:
                 self.add_macro_target(target)
 
