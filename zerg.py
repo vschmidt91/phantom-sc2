@@ -449,7 +449,7 @@ class ZergAI(CommonAI):
             UnitTypeId.QUEEN: 1 + min(self.inject_assigments_max, self.townhalls.amount),
         }
         worker_count = self.count(UnitTypeId.DRONE, include_planned=False)
-        ratio = pow(worker_count / worker_limit, 3)
+        ratio = pow(worker_count / worker_limit, 2)
 
         self.destroy_destructables = self.tech_time < self.time
     
