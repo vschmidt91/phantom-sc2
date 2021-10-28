@@ -41,11 +41,13 @@ class ZergAI(CommonAI):
 
         if random.random() < 0.5:
             build_order = ROACH_RUSH
+            self.tag = "Roach Rush"
             self.tech_time = 4.5 * 60
             self.extractor_trick_enabled = True
             self.destroy_destructables = False
         else:
             build_order = HATCH17
+            self.tag = "Hatch First"
             self.tech_time = 3.5 * 60
             self.extractor_trick_enabled = False
             self.destroy_destructables = True

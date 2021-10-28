@@ -41,6 +41,7 @@ class CommonAI(BotAI):
         greetings_path: str = 'greetings.txt',
     ):
 
+
         with open(version_path, 'r') as file:
             self.version = file.readline()
 
@@ -64,6 +65,7 @@ class CommonAI(BotAI):
         self.print_first_iteration = True
         self.worker_split = dict()
         self.destroy_destructables = True
+        self.tag = None
 
     async def on_before_start(self):
         self.client.game_step = self.game_step
@@ -132,6 +134,8 @@ class CommonAI(BotAI):
             await self.client.chat_send(self.version, False)
             quote = random.choice(self.greetings)
             await self.client.chat_send(quote, False)
+            if self.tag:
+                await self.client.chat_send('Tag:' + self.tag, True)
             self.greet_enabled = False
 
         if self.debug:
