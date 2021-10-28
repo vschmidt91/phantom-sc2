@@ -39,7 +39,7 @@ class ZergAI(CommonAI):
     def __init__(self, build_order=ROACH_RUSH, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
 
-        if random.random() < 0.5:
+        if random.random() < 1:
             build_order = ROACH_RUSH
             self.tag = "RoachRush"
             self.tech_time = 4.5 * 60

@@ -315,6 +315,7 @@ class CommonAI(BotAI):
                 objective.cost = self.getCost(objective.item)
 
             can_afford = self.canAffordWithReserve(objective.cost, reserve)
+            reserve += objective.cost
 
             if objective.unit:
                 unit = self.units_by_tag.get(objective.unit)
@@ -323,8 +324,6 @@ class CommonAI(BotAI):
 
             if unit is None:
                 continue
-
-            reserve += objective.cost
 
             if unit.type_id != UnitTypeId.LARVA:
                 objective.unit = unit.tag
