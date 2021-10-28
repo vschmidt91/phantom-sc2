@@ -459,7 +459,7 @@ class ZergAI(CommonAI):
             self.composition[UnitTypeId.OVERSEER] = 1
             self.composition[UnitTypeId.ROACH] = int(ratio * 60)
             self.composition[UnitTypeId.RAVAGER] = int(ratio * 10)
-        elif not self.count(UnitTypeId.HIVE, include_planned=False, include_pending=False):
+        elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False):
             self.composition[UnitTypeId.OVERSEER] = 1
             self.composition[UnitTypeId.ROACH] = 40
             self.composition[UnitTypeId.RAVAGER] = 10
