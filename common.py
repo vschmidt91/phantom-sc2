@@ -131,7 +131,7 @@ class CommonAI(BotAI):
 
 
         if 1 < self.time and self.greet_enabled:
-            await self.client.chat_send(self.version, False)
+            await self.client.chat_send('Tag:' + self.version, True)
             quote = random.choice(self.greetings)
             await self.client.chat_send(quote, False)
             if self.tag:
