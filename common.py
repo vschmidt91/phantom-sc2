@@ -14,7 +14,7 @@ from utils import can_attack, get_requirements, armyValue, unitPriority, canAtta
 
 from sc2.position import Point2, Point3
 from sc2.bot_ai import BotAI
-from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT, IS_STRUCTURE
+from sc2.constants import ALL_GAS, SPEED_INCREASE_ON_CREEP_DICT, IS_STRUCTURE
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
@@ -61,8 +61,9 @@ class CommonAI(BotAI):
         self.planned_by_type = defaultdict(lambda:[])
         self.units_by_tag = dict()
         self.resource_by_position = dict()
-
+        self.print_first_iteration = True
         self.worker_split = dict()
+        self.destroy_destructables = True
 
     async def on_before_start(self):
         self.client.game_step = self.game_step
@@ -109,6 +110,13 @@ class CommonAI(BotAI):
                 worker.gather(mineral)
 
     async def on_step(self, iteration: int):
+
+        self.destructables_filtered = self.destructables.filter(lambda d : 0 < d.armor)
+        # self.destructables_filtered = Units([], self)
+
+        # if self.print_first_iteration:
+        #     print(iteration)
+        #     self.print_first_iteration = False
         
         for worker_tag, mineral_tag in list(self.worker_split.items()):
 
@@ -187,7 +195,6 @@ class CommonAI(BotAI):
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         pass
         
-
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         pass
 
@@ -291,6 +298,8 @@ class CommonAI(BotAI):
 
         income_minerals, income_vespene = self.estimate_income()
 
+        self.macro_targets.sort(key = lambda t : t.priority, reverse=True)
+
         i = 0
         while i < len(self.macro_targets):
         # for objective in self.macro_targets:
@@ -310,6 +319,8 @@ class CommonAI(BotAI):
 
             if unit is None:
                 continue
+
+            reserve += objective.cost
 
             if unit.type_id != UnitTypeId.LARVA:
                 objective.unit = unit.tag
@@ -333,7 +344,6 @@ class CommonAI(BotAI):
             # if not objective.ability["ability"] in await self.get_available_abilities(unit, ignore_resource_requirements=True):
             #     continue
 
-            reserve += objective.cost
 
             if (
                 objective.target
@@ -370,6 +380,11 @@ class CommonAI(BotAI):
             #     print("ability with cost failed:" + str(objective))
             #     raise Error()
 
+            if self.isStructure(objective.item) and isinstance(objective.target, Point2):
+                if not await self.can_place_single(objective.item, objective.target):
+                    objective.target = None
+                    continue
+
             if took_action:
                 continue
 
@@ -389,7 +404,6 @@ class CommonAI(BotAI):
             i -= 1
             self.macro_targets.pop(i)
 
-        self.macro_targets.sort(key = lambda t : t.priority, reverse=True)
 
     def get_owned_geysers(self):
         for townhall in self.townhalls.ready:
@@ -587,12 +601,12 @@ class CommonAI(BotAI):
                         unit.attack(target.position)
 
     
-            elif self.destructables.exists:
+            elif self.destroy_destructables and self.destructables_filtered.exists:
 
                 if unit.type_id == UnitTypeId.BANELING:
                     continue
 
-                unit.attack(self.destructables.closest_to(unit))
+                unit.attack(self.destructables_filtered.closest_to(unit))
 
             elif not unit.is_attacking:
 
@@ -761,7 +775,7 @@ class CommonAI(BotAI):
                 workers_gas = workers.filter(lambda w : w.order_target == gas.tag)
                 if workers_gas.exists and (0 < gas.surplus_harvesters or self.gas_target + 1 <= gasActual):
                     worker = workers_gas.furthest_to(gas)
-                elif gas.surplus_harvesters < 0 and gasActual + 1 < self.gas_target:
+                elif gas.surplus_harvesters < 0 and gasActual + 1 <= self.gas_target:
                     target = gas
 
         if worker is None:
