@@ -43,12 +43,6 @@ def center(group):
     ys /= group.amount
     return Point2((xs, ys))
 
-def withEquivalents(unit: UnitTypeId) -> Set[UnitTypeId]:
-    if unit in EQUIVALENTS_FOR_TECH_PROGRESS:
-        return { unit } | EQUIVALENTS_FOR_TECH_PROGRESS[unit]
-    else:
-        return { unit }
-
 def unitValue(unit: Unit, target = None):
     if target is None:
         dps = max(unit.air_dps, unit.ground_dps)

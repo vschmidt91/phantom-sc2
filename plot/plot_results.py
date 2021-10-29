@@ -52,6 +52,6 @@ for category, intervals in intervals_by_category.items():
     plt.fill_between(length_bins, y_min, y_max, alpha=confidence_alpha)
 
 plt.legend(legend)
-plt.savefig("./publish/plot.svg", **plot_args)
-plt.savefig("./publish/plot.png", **plot_args)
+plt.savefig("../publish/plot.svg", **plot_args)
+plt.savefig("../publish/plot.png", **plot_args)
 plt.show()

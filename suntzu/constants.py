@@ -1,18 +1,26 @@
 
+from collections import defaultdict
 import math
 
 from itertools import chain
-from sc2.ids.upgrade_id import UpgradeId
-from utils import get_requirements, withEquivalents
+from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 
+from .utils import get_requirements
+
 PHI = .5 * (1 + math.sqrt(5))
+
+WITH_TECH_EQUIVALENTS = {
+    unit: { unit } | EQUIVALENTS_FOR_TECH_PROGRESS.get(unit, set())
+    for unit in UnitTypeId
+}
 
 SUPPLY = {
     Race.Protoss: UnitTypeId.PYLON,
@@ -60,19 +68,22 @@ CIVILIANS = set()
 CIVILIANS = {
     UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.PROBE,
     UnitTypeId.LARVA, UnitTypeId.EGG,
-    *withEquivalents(UnitTypeId.WARPPRISM),
-    *withEquivalents(UnitTypeId.DRONE),
-    # *withEquivalents(UnitTypeId.QUEEN),
-    *withEquivalents(UnitTypeId.OVERLORD),
-    *withEquivalents(UnitTypeId.BROODLING),
-    *withEquivalents(UnitTypeId.OBSERVER),
+    *WITH_TECH_EQUIVALENTS[UnitTypeId.WARPPRISM],
+    *WITH_TECH_EQUIVALENTS[UnitTypeId.DRONE],
+    # *WITH_TECH_EQUIVALENTS[UnitTypeId.QUEEN],
+    *WITH_TECH_EQUIVALENTS[UnitTypeId.OVERLORD],
+    *WITH_TECH_EQUIVALENTS[UnitTypeId.BROODLING],
+    *WITH_TECH_EQUIVALENTS[UnitTypeId.OBSERVER],
     *CHANGELINGS
 }
 
-TRAINABLE_UNITS = set(u for e in TRAIN_INFO.values() for u in e.keys())
 TRAIN_ABILITIES = {
-    u: [e[u]["ability"] for e in TRAIN_INFO.values() if u in e]
-    for u in TRAINABLE_UNITS
+    u: {
+        e[u]["ability"]
+        for e in TRAIN_INFO.values()
+        if u in e
+    }
+    for u in UnitTypeId
 }
 
 UNIT_BY_TRAIN_ABILITY = {
@@ -94,12 +105,15 @@ GAS_BY_RACE = {
 }
 
 REQUIREMENTS_EXCLUDE = {
-    UnitTypeId.DRONE,
+    # UnitTypeId.DRONE,
     UnitTypeId.LARVA,
-    UnitTypeId.HATCHERY,
+    # UnitTypeId.HATCHERY,
 }
 
-REQUIREMENTS_KEYS = set(chain(UNIT_TRAINED_FROM.keys(), UPGRADE_RESEARCHED_FROM.keys()))
+REQUIREMENTS_KEYS = {
+    *UNIT_TRAINED_FROM.keys(),
+    *UPGRADE_RESEARCHED_FROM.keys()
+}.difference(REQUIREMENTS_EXCLUDE)
 
 REQUIREMENTS = {
     item: {
@@ -138,111 +152,4 @@ ZERG_FLYER_ARMOR_UPGRADES = [
     UpgradeId.ZERGFLYERARMORSLEVEL1,
     UpgradeId.ZERGFLYERARMORSLEVEL2,
     UpgradeId.ZERGFLYERARMORSLEVEL3,
-]
-
-ROACH_RUSH = [
-
-    UnitTypeId.DRONE,
-    UnitTypeId.OVERLORD,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    UnitTypeId.SPAWNINGPOOL,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    UnitTypeId.EXTRACTOR,
-    UnitTypeId.HATCHERY,
-
-    # UnitTypeId.DRONE,
-    # UnitTypeId.DRONE,
-    # UnitTypeId.DRONE,
-    # UnitTypeId.EXTRACTOR,
-    # UnitTypeId.OVERLORD,
-    # UnitTypeId.SPAWNINGPOOL,
-    # UnitTypeId.DRONE,
-    # UnitTypeId.DRONE,
-    # UnitTypeId.DRONE,
-    # UnitTypeId.EXTRACTOR,
-    # UnitTypeId.HATCHERY,
-    # UnitTypeId.DRONE,
-
-    UnitTypeId.QUEEN,
-    UnitTypeId.DRONE,
-    # UnitTypeId.DRONE,
-    UnitTypeId.ROACHWARREN,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    UnitTypeId.OVERLORD,
-    UnitTypeId.ROACH,
-    UnitTypeId.ROACH,
-    UnitTypeId.ROACH,
-    UnitTypeId.ROACH,
-    UnitTypeId.ROACH,
-    UnitTypeId.ROACH,
-    UnitTypeId.ROACH,
-    UnitTypeId.ROACH,
-    UnitTypeId.EXTRACTOR,
-]
-
-HATCH17 = [
-    UnitTypeId.DRONE,
-    UnitTypeId.OVERLORD,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    UnitTypeId.HATCHERY,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    UnitTypeId.EXTRACTOR,
-    UnitTypeId.SPAWNINGPOOL,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    # UnitTypeId.DRONE,
-    # UnitTypeId.DRONE,
-    UnitTypeId.OVERLORD,
-    UpgradeId.ZERGLINGMOVEMENTSPEED,
-    UnitTypeId.ZERGLING,
-    UnitTypeId.ZERGLING,
-    # UnitTypeId.ZERGLING,
-]
-
-POOL16 = [
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    UnitTypeId.OVERLORD,
-    UnitTypeId.DRONE,
-    UnitTypeId.EXTRACTOR,
-    UnitTypeId.DRONE,
-    UnitTypeId.SPAWNINGPOOL,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    UnitTypeId.HATCHERY,
-    UnitTypeId.DRONE,
-    UnitTypeId.EXTRACTOR,
-    UnitTypeId.QUEEN,
-    UnitTypeId.ZERGLING,
-    UnitTypeId.ZERGLING,
-    UnitTypeId.ZERGLING,
-    UnitTypeId.OVERLORD,
-]
-
-POOL12 = [
-    UnitTypeId.SPAWNINGPOOL,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
-    UnitTypeId.OVERLORD,
-    UnitTypeId.ZERGLING,
-    UnitTypeId.ZERGLING,
-    UnitTypeId.ZERGLING,
-    UnitTypeId.HATCHERY,
-    UnitTypeId.QUEEN,
-    UnitTypeId.ZERGLING,
-    UnitTypeId.ZERGLING,
-    UnitTypeId.OVERLORD,
 ]

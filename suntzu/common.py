@@ -1,16 +1,9 @@
 
-from build import VERSION_PATH
-from constants import CIVILIANS, GAS_BY_RACE, REQUIREMENTS, REQUIREMENTS_EXCLUDE, STATIC_DEFENSE, SUPPLY, SUPPLY_PROVIDED, TOWNHALL, TRAIN_ABILITIES, UNIT_BY_TRAIN_ABILITY, UPGRADE_BY_RESEARCH_ABILITY
-from macro_target import MacroTarget
-from cost import Cost
 from collections import defaultdict
-
 import math
 import random
 from typing import Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
-from numpy.lib.function_base import insert
-
-from utils import can_attack, get_requirements, armyValue, unitPriority, canAttack, center, dot, unitValue, withEquivalents
+from sc2 import constants
 
 from sc2.position import Point2, Point3
 from sc2.bot_ai import BotAI
@@ -27,6 +20,11 @@ from sc2.data import Result, race_townhalls, race_worker
 from sc2.unit import Unit
 from sc2.units import Units
 
+from .constants import REQUIREMENTS_KEYS, WITH_TECH_EQUIVALENTS, CIVILIANS, GAS_BY_RACE, REQUIREMENTS, REQUIREMENTS_EXCLUDE, STATIC_DEFENSE, SUPPLY, SUPPLY_PROVIDED, TOWNHALL, TRAIN_ABILITIES, UNIT_BY_TRAIN_ABILITY, UPGRADE_BY_RESEARCH_ABILITY
+from .macro_target import MacroTarget
+from .cost import Cost
+from .utils import can_attack, get_requirements, armyValue, unitPriority, canAttack, center, dot, unitValue
+
 RESOURCE_DISTANCE_THRESHOLD = 10
 
 class PlacementNotFound(Exception):
@@ -37,8 +35,8 @@ class CommonAI(BotAI):
     def __init__(self,
         game_step: int = 1,
         debug: bool = False,
-        version_path: str = 'version.txt',
-        greetings_path: str = 'greetings.txt',
+        version_path: str = './version.txt',
+        greetings_path: str = './greetings.txt',
     ):
 
 
@@ -232,7 +230,6 @@ class CommonAI(BotAI):
         for target in self.macro_targets:
             self.planned_by_type[target.item].append(target)
 
-
     def count(
         self,
         item: Union[UnitTypeId, UpgradeId],
@@ -281,16 +278,50 @@ class CommonAI(BotAI):
             raise Exception()
         return path / unit.movement_speed
 
-    def get_requirements(self, item):
-        requirements = REQUIREMENTS[item]
-        requirements.difference_update(REQUIREMENTS_EXCLUDE)
-        for requirement in requirements:
-            if not self.count(requirement):
-                yield requirement
-
     def add_macro_target(self, target: MacroTarget):
         self.macro_targets.append(target)
         self.planned_by_type[target.item].append(target)
+
+    def get_missing_requirements(self, item: Union[UnitTypeId, UpgradeId], **kwargs) -> Set[Union[UnitTypeId, UpgradeId]]:
+
+        if item not in REQUIREMENTS_KEYS:
+            return set()
+
+        requirements = list()
+
+        if type(item) is UnitTypeId:
+            trainers = UNIT_TRAINED_FROM[item]
+            trainer = min(trainers, key=lambda v:v.value)
+            requirements.append(trainer)
+            info = TRAIN_INFO[trainer][item]
+        elif type(item) is UpgradeId:
+            researcher = UPGRADE_RESEARCHED_FROM[item]
+            requirements.append(researcher)
+            info = RESEARCH_INFO[researcher][item]
+        else:
+            raise TypeError()
+
+        requirements.append(info.get('required_building'))
+        requirements.append(info.get('required_upgrade'))
+        
+        missing = set()
+        i = 0
+        while i < len(requirements):
+            requirement = requirements[i]
+            i += 1
+            if not requirement:
+                continue
+            if self.count(requirement, **kwargs):
+                continue
+            missing.add(requirement)
+            requirements.extend(self.get_missing_requirements(requirement, **kwargs))
+
+        return missing
+
+        # for r in requirements:
+        #     yield r
+        #     for r2 in get_requirements(r):
+        #         yield r2
 
     async def macro(self):
 
@@ -317,6 +348,9 @@ class CommonAI(BotAI):
             can_afford = self.canAffordWithReserve(objective.cost, reserve)
             reserve += objective.cost
 
+            if objective.condition and not objective.condition(self):
+                continue
+
             if objective.unit:
                 unit = self.units_by_tag.get(objective.unit)
             else:
@@ -335,17 +369,19 @@ class CommonAI(BotAI):
                 except PlacementNotFound as p: 
                     continue
 
-            requirement_missing = False
-            for requirement in REQUIREMENTS[objective.item]:
-                requirement_have = False
-                for e in withEquivalents(requirement):
-                    if self.count(e, include_pending=False, include_planned=False):
-                        requirement_have = True
-                if not requirement_have:
-                    requirement_missing = True
-                    break
+            # requirement_missing = False
+            # for requirement in REQUIREMENTS[objective.item]:
+            #     if not sum(
+            #         self.count(equivalent, include_pending=False, include_planned=False)
+            #         for equivalent in WITH_TECH_EQUIVALENTS[requirement]
+            #     ):
+            #         requirement_missing = True
+            #         break
 
-            if requirement_missing:
+            # if requirement_missing:
+            #     continue
+
+            if any(self.get_missing_requirements(objective.item, include_pending=False, include_planned=False)):
                 continue
 
             # if not objective.ability["ability"] in await self.get_available_abilities(unit, ignore_resource_requirements=True):
@@ -477,7 +513,7 @@ class CommonAI(BotAI):
         if type(item) is UnitTypeId:
             trainer_types = UNIT_TRAINED_FROM[item]
         elif type(item) is UpgradeId:
-            trainer_types = withEquivalents(UPGRADE_RESEARCHED_FROM[item])
+            trainer_types = WITH_TECH_EQUIVALENTS[UPGRADE_RESEARCHED_FROM[item]]
 
         # trainers = self.structures(trainerTypes) | self.units(trainerTypes)
         # trainers = trainers.ready
@@ -866,19 +902,8 @@ class CommonAI(BotAI):
             food = int(self.calculate_supply_cost(item))
         return Cost(minerals, vespene, food)
 
-    async def canPlace(self, position: Point2, unit: UnitTypeId) -> Coroutine[any, any, bool]:
-        aliases = UNIT_TECH_ALIAS.get(unit)
-        if aliases:
-            return any((await self.canPlace(position, a) for a in aliases))
-        trainers = UNIT_TRAINED_FROM.get(unit)
-        if not trainers:
-            return False
-        for trainer in trainers:
-            ability = TRAIN_INFO[trainer][unit]["ability"]
-            abilityData = self.game_data.abilities[ability.value]
-            if await self.can_place_single(abilityData, position):
-                return True
-        return False
-
-    def isBlockingExpansion(self, position: Point2) -> bool:
-        return any((e.distance_to(position) < 4.25 for e in self.expansion_locations_list))
+    def is_blocking_base(self, position: Point2) -> bool:
+        return any(
+            base.distance_to(position) < 4.25
+            for base in self.expansion_locations_list
+        )

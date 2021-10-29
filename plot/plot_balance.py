@@ -15,7 +15,7 @@ categories_title, category_by_matchup = CATEGORIES_RACE
 round_limit = 1000
 confidence_alpha = 0.15
 plot_args = { 'dpi': 200 }
-plot_path = './publish/plot_balance'
+plot_path = '../publish/plot_balance'
 length_bins = np.arange(0, 25, 1)
 
 bots = api_list(api_url + 'bots')
