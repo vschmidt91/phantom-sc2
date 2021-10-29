@@ -20,7 +20,7 @@ from sc2.data import Result, race_townhalls, race_worker
 from sc2.unit import Unit
 from sc2.units import Units
 
-from .constants import REQUIREMENTS_KEYS, WITH_TECH_EQUIVALENTS, CIVILIANS, GAS_BY_RACE, REQUIREMENTS, REQUIREMENTS_EXCLUDE, STATIC_DEFENSE, SUPPLY, SUPPLY_PROVIDED, TOWNHALL, TRAIN_ABILITIES, UNIT_BY_TRAIN_ABILITY, UPGRADE_BY_RESEARCH_ABILITY
+from .constants import CHANGELINGS, REQUIREMENTS_KEYS, WITH_TECH_EQUIVALENTS, CIVILIANS, GAS_BY_RACE, REQUIREMENTS, REQUIREMENTS_EXCLUDE, STATIC_DEFENSE, SUPPLY, SUPPLY_PROVIDED, TOWNHALL, TRAIN_ABILITIES, UNIT_BY_TRAIN_ABILITY, UPGRADE_BY_RESEARCH_ABILITY
 from .macro_target import MacroTarget
 from .cost import Cost
 from .utils import can_attack, get_requirements, armyValue, unitPriority, canAttack, center, dot, unitValue
@@ -589,7 +589,11 @@ class CommonAI(BotAI):
             if unit.type_id == UnitTypeId.OVERSEER:
                 enemies_valid = enemies
             else:
-                enemies_valid = enemies.filter(lambda e : can_attack(unit, e))
+                enemies_valid = enemies.filter(lambda e : (
+                    can_attack(unit, e)
+                    and not unit.is_hallucination
+                    and not unit.type_id in CHANGELINGS
+                ))
 
             if enemies_valid.exists:
 

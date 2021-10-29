@@ -19,15 +19,14 @@ def zipBot(zipFile):
         zipFile.write(os.path.join(root, file), file)
 
 
-def zipLibrary(zipFile):
-    libraryFile = inspect.getfile(sc2)
-    libraryDir = os.path.dirname(libraryFile)
-    for root, dirs, files in os.walk(libraryDir):
+def zipLibrary(zipFile, dir_name: str):
+    # libraryDir = os.path.dirname(dir_name)
+    for root, dirs, files in os.walk(dir_name):
         for file in files:
             if ".pyc" in file:
                 continue
             absPath = os.path.join(root, file)
-            relPath = os.path.join("sc2", os.path.relpath(absPath, libraryDir))
+            relPath = os.path.join(dir_name, os.path.relpath(absPath, dir_name))
             zipFile.write(absPath, relPath)
 
 if __name__ == '__main__':
@@ -44,5 +43,6 @@ if __name__ == '__main__':
 
     zipFile = zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED)
     zipBot(zipFile)
-    zipLibrary(zipFile)
+    zipLibrary(zipFile, 'sc2')
+    zipLibrary(zipFile, 'suntzu')
     zipFile.close()

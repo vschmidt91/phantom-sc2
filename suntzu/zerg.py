@@ -13,8 +13,8 @@ from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
-from tools.timer import run_timed
 
+from .timer import run_timed
 from .constants import CHANGELINGS, SUPPLY_PROVIDED
 from .common import CommonAI
 from .utils import sample
