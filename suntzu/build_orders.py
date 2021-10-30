@@ -11,8 +11,8 @@ ROACH_RUSH = [
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
     UnitTypeId.SPAWNINGPOOL,
+    UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
@@ -32,6 +32,8 @@ ROACH_RUSH = [
     UnitTypeId.ROACH,
     UnitTypeId.ROACH,
     UnitTypeId.ROACH,
+    UnitTypeId.RAVAGER,
+    UnitTypeId.RAVAGER,
 ]
 
 HATCH17 = [
@@ -55,9 +57,13 @@ HATCH17 = [
     UnitTypeId.OVERLORD,
     # UnitTypeId.QUEEN,
     # UnitTypeId.QUEEN,
+    UnitTypeId.ZERGLING,
+    UnitTypeId.ZERGLING,
     UpgradeId.ZERGLINGMOVEMENTSPEED,
-    UnitTypeId.ZERGLING,
-    UnitTypeId.ZERGLING,
+    # UnitTypeId.DRONE,
+    # UnitTypeId.DRONE,
+    # UnitTypeId.DRONE,
+    # UnitTypeId.DRONE,
     # UnitTypeId.ZERGLING,
 ]
 

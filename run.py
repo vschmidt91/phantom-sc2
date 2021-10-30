@@ -13,7 +13,7 @@ if __name__ == "__main__":
     if "--LadderServer" in sys.argv:
         # Ladder game started by LadderManager
         print("Starting ladder game...")        
-        bot = Bot(Race.Zerg, ZergAI(game_step = 3), 'Sun Tzu')
+        bot = Bot(Race.Zerg, ZergAI(game_step = 4), 'Sun Tzu')
         result, opponentid = run_ladder_game(bot)
         print(result, " against opponent ", opponentid)
     else:
@@ -23,9 +23,9 @@ if __name__ == "__main__":
         time = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
         replayPath = os.path.join("replays", time + ".SC2Replay")
         # replayPath = os.path.join("C:\\Users", "Ryzen", "Documents", "StarCraft II", "Accounts", "490189910", "2-S2-1-9348025", "Replays", "Multiplayer", time + ".SC2Replay")
-        bot = Bot(Race.Zerg, ZergAI(game_step = 3, debug = True), 'Sun Tzu')   
+        bot = Bot(Race.Zerg, ZergAI(game_step = 4, debug = True), 'Sun Tzu')   
         # opponent = Bot(Race.Zerg, ZergAI(game_step = 4), 'SunTzu')
-        opponent = Computer(Race.Zerg, Difficulty.VeryEasy, ai_build=AIBuild.Macro)
+        opponent = Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
         run_game(
             sc2.maps.get("JagannathaAIE"),
             [bot, opponent],

@@ -9,7 +9,7 @@ from itertools import chain
 
 from sc2.ids.ability_id import AbilityId
 from sc2.unit import Unit
-from sc2.data import Race
+from sc2.data import Race, race_townhalls, race_worker, Result
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
@@ -38,7 +38,7 @@ class ZergAI(CommonAI):
     def __init__(self, build_order=ROACH_RUSH, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
 
-        if random.random() < 0.5:
+        if random.random() < 1:
             build_order = ROACH_RUSH
             self.tag = "RoachRush"
             self.tech_time = 4.25 * 60
@@ -54,6 +54,7 @@ class ZergAI(CommonAI):
         for step in build_order:
             self.add_macro_target(MacroTarget(step, priority=10))
 
+        self.gas_target = 3
         self.composition = dict()
         self.timings_acc = dict()
         self.abilities = dict()
@@ -64,7 +65,7 @@ class ZergAI(CommonAI):
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         if unit.type_id == UnitTypeId.LAIR:
             ability = AbilityId.BEHAVIOR_GENERATECREEPON
-            for overlord in self.units_by_type[UnitTypeId.OVERLORD]:
+            for overlord in self.observation.actual_by_type[UnitTypeId.OVERLORD]:
                 if ability in await self.get_available_abilities(overlord):
                     overlord(ability)
                     
@@ -100,7 +101,7 @@ class ZergAI(CommonAI):
 
         ability = AbilityId.EFFECT_CORROSIVEBILE
         ability_data = self.game_data.abilities[ability.value]._proto
-        ravagers = self.units_by_type[UnitTypeId.RAVAGER]
+        ravagers = list(self.observation.actual_by_type[UnitTypeId.RAVAGER])
         if not ravagers:
             return
         ravager_abilities = await self.get_available_abilities(ravagers)
@@ -112,9 +113,37 @@ class ZergAI(CommonAI):
                 for target in chain(self.all_enemy_units, self.destructables_filtered)
                 if ravager.distance_to(target) <= ravager.radius + ability_data.cast_range
             )
-            target = max(targets, key=target_priority, default=None)
+            target: Unit = max(targets, key=target_priority, default=None)
             if target:
                 ravager(ability, target=target.position)
+
+    def update_gas_ratio(self):
+
+        if self.time < self.tech_time:
+            return
+
+        cost_zero = Cost(0, 0, 0)
+        cost_sum = sum((target.cost or cost_zero for target in self.macro_targets), cost_zero)
+        cs = [self.createCost(unit)
+            for unit, count in self.composition.items()
+            for i in range(count)]
+        cost_sum += sum(cs, cost_zero)
+
+        minerals = max(0, cost_sum.minerals - self.minerals)
+        vespene = max(0, cost_sum.vespene - self.vespene)
+        if 7 * 60 < self.time and (minerals + vespene) == 0:
+            self.gas_ratio = 6 / 22
+        else:
+            self.gas_ratio = vespene / max(1, vespene + minerals)
+
+        # self.gas_ratio = 4 / 22
+        worker_type = race_worker[self.race]
+        self.gas_target = self.gas_ratio * self.observation.count(worker_type, include_planned=False)
+        # (self.mineral_harvester_count + self.gas_harvester_count)
+
+        # worker_type = race_worker[self.race]
+        # self.gas_target = self.gas_ratio * self.observation.count(worker_type, include_planned=False)
+        self.gas_target = 3 * round(self.gas_target / 3)
 
     async def on_step(self, iteration):
 
@@ -124,10 +153,15 @@ class ZergAI(CommonAI):
         # if 3.5 * 60 < self.time:
         #     await self.client.debug_leave()
 
-        await super().on_step(iteration)
+        # await super().on_step(iteration)
+
+        def on_step_base():
+            return super(self.__class__, self).on_step(iteration)
 
         steps = {
-            self.update_tables: 1,
+            # self.update_tables: 1,
+            on_step_base: 1,
+            # self.update_bases: 1,
             self.extractor_trick: 1,
             # self.update_abilities: 1,
             # self.update_pending: 1,
@@ -145,7 +179,7 @@ class ZergAI(CommonAI):
             self.micro: 1,
             self.assignWorker: 1,
             self.macro: 1,
-            self.adjustGasTarget: 1,
+            self.update_gas_ratio: 1,
             self.buildGasses: 1,
             self.corrosive_bile: 1,
         }
@@ -275,7 +309,7 @@ class ZergAI(CommonAI):
         ]
 
         for target in targets:
-            if not sum(self.count(t) for t in WITH_TECH_EQUIVALENTS.get(target, { target })):
+            if not sum(self.observation.count(t) for t in WITH_TECH_EQUIVALENTS.get(target, { target })):
                 self.add_macro_target(MacroTarget(target))
 
     def upgradeSequence(self, upgrades) -> Iterable[UpgradeId]:
@@ -292,14 +326,14 @@ class ZergAI(CommonAI):
             if ability in await self.get_available_abilities(overseer):
                 overseer(ability)
         for chanceling_type in CHANGELINGS:
-            for changeling in self.units_by_type[chanceling_type]:
+            for changeling in self.observation.actual_by_type[chanceling_type]:
                 if not changeling.is_moving:
                     target = random.choice(self.expansion_locations_list)
                     changeling.move(target)
 
     def moveOverlord(self):
 
-        for overlord in self.units_by_type[UnitTypeId.OVERLORD]:
+        for overlord in self.observation.actual_by_type[UnitTypeId.OVERLORD]:
             if not overlord.is_moving:
                 overlord.move(self.structures.random.position)
 
@@ -365,7 +399,7 @@ class ZergAI(CommonAI):
         }
         if (
             sporeTime[self.enemy_race] < self.time
-            and self.count(UnitTypeId.SPORECRAWLER) < self.townhalls.amount
+            and self.observation.count(UnitTypeId.SPORECRAWLER) < self.townhalls.amount
         ):
             self.add_macro_target(MacroTarget(UnitTypeId.SPORECRAWLER))
 
@@ -374,7 +408,7 @@ class ZergAI(CommonAI):
             if unit.type_id == UnitTypeId.QUEEN:
                 if unit.tag in self.inject_assigments.keys():
                     continue
-                elif unit in self.pending_by_type[UnitTypeId.CREEPTUMORQUEEN]:
+                elif unit in self.observation.pending_by_type[UnitTypeId.CREEPTUMORQUEEN]:
                     continue
             yield unit
 
@@ -383,8 +417,8 @@ class ZergAI(CommonAI):
         queens_delete = set()
         for queen_tag, townhall_tag in self.inject_assigments.items():
             
-            queen = self.units_by_tag.get(queen_tag)
-            townhall = self.units_by_tag.get(townhall_tag)
+            queen = self.observation.unit_by_tag.get(queen_tag)
+            townhall = self.observation.unit_by_tag.get(townhall_tag)
 
             if not (queen and townhall):
                 queens_delete.add(queen_tag)
@@ -398,7 +432,7 @@ class ZergAI(CommonAI):
         for queen_tag in queens_delete:
             del self.inject_assigments[queen_tag]
 
-        queens = sorted(self.units_by_type[UnitTypeId.QUEEN], key=lambda u:u.tag)
+        queens = sorted(self.observation.actual_by_type[UnitTypeId.QUEEN], key=lambda u:u.tag)
         townhalls = sorted(self.townhalls, key=lambda u:u.tag)
 
         queens_unassigned = [
@@ -428,7 +462,7 @@ class ZergAI(CommonAI):
 
         for queen in queens_unassigned:
 
-            if queen in self.pending_by_type[UnitTypeId.CREEPTUMORQUEEN]:
+            if queen in self.observation.pending_by_type[UnitTypeId.CREEPTUMORQUEEN]:
                 pass
             # elif queen.is_attacking:
             #     pass
@@ -441,49 +475,43 @@ class ZergAI(CommonAI):
         worker_target = min(worker_limit, self.getMaxWorkers())
         self.composition = {
             UnitTypeId.DRONE: worker_target,
-            UnitTypeId.QUEEN: 1 + min(self.inject_assigments_max, self.townhalls.amount),
+            UnitTypeId.QUEEN: min(self.inject_assigments_max, self.townhalls.amount),
         }
-        worker_count = self.count(UnitTypeId.DRONE, include_planned=False)
-        ratio = pow(worker_count / worker_limit, 2)
+        if 4 <= self.townhalls.amount:
+            self.composition[UnitTypeId.QUEEN] += 1
+        worker_count = self.observation.count(UnitTypeId.DRONE, include_planned=False)
+        
+        ratio = worker_count / worker_limit
+        # ratio = pow(ratio, 2)
+
+        # ratio = 1 if 70 < worker_count else 0
 
         self.destroy_destructables = self.tech_time < self.time
     
         if self.time < self.tech_time:
             pass
-        elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False):
+        elif not self.observation.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False):
             self.composition[UnitTypeId.OVERSEER] = 1
-            self.composition[UnitTypeId.ROACH] = int(ratio * 40)
-            self.composition[UnitTypeId.RAVAGER] = int(ratio * 20)
-        elif not self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False):
+            self.composition[UnitTypeId.ROACH] = int(ratio * 50)
+            self.composition[UnitTypeId.RAVAGER] = int(ratio * 15)
+        elif not self.observation.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False):
             self.composition[UnitTypeId.OVERSEER] = 1
-            self.composition[UnitTypeId.ROACH] = 20
-            self.composition[UnitTypeId.RAVAGER] = 20
-            self.composition[UnitTypeId.HYDRALISK] = 20
+            self.composition[UnitTypeId.ROACH] = 30
+            self.composition[UnitTypeId.RAVAGER] = 10
+            self.composition[UnitTypeId.HYDRALISK] = 30
         else:
             self.composition[UnitTypeId.OVERSEER] = 1
-            self.composition[UnitTypeId.ROACH] = 40
+            self.composition[UnitTypeId.ROACH] = 30
             self.composition[UnitTypeId.RAVAGER] = 10
-            self.composition[UnitTypeId.HYDRALISK] = 20
+            self.composition[UnitTypeId.HYDRALISK] = 30
             self.composition[UnitTypeId.CORRUPTOR] = 3
             self.composition[UnitTypeId.BROODLORD] = 10
 
-    def adjustGasTarget(self):
-
-        cost_zero = Cost(0, 0, 0)
-        cost_sum = sum((target.cost or cost_zero for target in self.macro_targets), cost_zero)
-
-        minerals = max(0, cost_sum.minerals - self.minerals)
-        vespene = max(0, cost_sum.vespene - self.vespene)
-        if 7 * 60 < self.time and (minerals + vespene) == 0:
-            gas_ratio = 6 / 22
-        else:
-            gas_ratio = vespene / max(1, vespene + minerals)
-        self.gas_target = gas_ratio * self.count(UnitTypeId.DRONE, include_planned=False)
-        self.gas_target = 3 * math.ceil(self.gas_target / 3)
-
     def buildGasses(self):
+        if self.time < self.tech_time:
+            return
         gas_depleted = self.gas_buildings.filter(lambda g : not g.has_vespene).amount
-        gas_have = self.count(UnitTypeId.EXTRACTOR) - gas_depleted
+        gas_have = self.observation.count(UnitTypeId.EXTRACTOR) - gas_depleted
         gas_max = sum(1 for g in self.get_owned_geysers())
         gas_want = min(gas_max, math.ceil(self.gas_target / 3))
         for i in range(gas_want - gas_have):
@@ -493,7 +521,7 @@ class ZergAI(CommonAI):
         if 200 <= self.supply_cap:
             return
         supply_pending = sum(
-            provided * self.count(unit, include_actual=False)
+            provided * self.observation.count(unit, include_actual=False)
             for unit, provided in SUPPLY_PROVIDED.items()
         )
         if 200 <= self.supply_cap + supply_pending:
@@ -506,9 +534,9 @@ class ZergAI(CommonAI):
         
         worker_max = self.getMaxWorkers()
         if (
-            not self.count(UnitTypeId.HATCHERY, include_actual=False)
+            not self.observation.count(UnitTypeId.HATCHERY, include_actual=False)
             and not self.townhalls.not_ready.exists
-            and saturation_target * worker_max <= self.count(UnitTypeId.DRONE, include_planned=False)
+            and saturation_target * worker_max <= self.observation.count(UnitTypeId.DRONE, include_planned=False)
         ):
             self.add_macro_target(MacroTarget(UnitTypeId.HATCHERY, priority=1))
 
@@ -519,41 +547,26 @@ class ZergAI(CommonAI):
             return
 
         composition_have = {
-            unit: self.count(unit)
+            unit: self.observation.count(unit)
             for unit in self.composition.keys()
         }
 
-        # composition_missing = {
-        #     unit: count - composition_have[unit]
-        #     for unit, count in self.composition.items()
-        # }
+        composition_missing = {
+            unit: count - composition_have[unit]
+            for unit, count in self.composition.items()
+        }
 
         targets = [
-            MacroTarget(unit, priority = -(composition_have[unit] + 1) / count)
-            # MacroTarget(unit, -random.random())
+            MacroTarget(unit, priority = -composition_have[unit] /  count)
             for unit, count in self.composition.items()
-            if composition_have[unit] < count
-            # for i in range(int(count))
+            if (
+                0 < count
+                and composition_have[unit] < count
+                and self.observation.count(unit, include_actual=False, include_pending=False, include_planned=True) < 1
+            )
         ]
 
         for target in targets:
 
             if not any(self.get_missing_requirements(target.item, include_pending=False, include_planned=False)):
                 self.add_macro_target(target)
-
-            # requirement_missing = False
-            # for requirement in REQUIREMENTS[target.item]:
-            #     if not sum(
-            #         self.count(equivalent, include_pending=False, include_planned=False)
-            #         for equivalent in WITH_TECH_EQUIVALENTS[requirement]
-            #     ):
-            #         requirement_missing = True
-            #         break
-
-            # if not requirement_missing:
-
-        
-        # if 3 < self.townhalls.amount:
-        #     for unit in self.composition.keys():
-        #         for plan in self.planned_by_type[unit]:
-        #             plan.priority = -random.random()

@@ -3,7 +3,11 @@ from collections import defaultdict
 import math
 import random
 from typing import Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
+
+from numpy.lib.function_base import select
+from s2clientprotocol.error_pb2 import Error
 from sc2 import constants
+from sc2 import unit
 
 from sc2.position import Point2, Point3
 from sc2.bot_ai import BotAI
@@ -19,11 +23,16 @@ from sc2.dicts.unit_tech_alias import UNIT_TECH_ALIAS
 from sc2.data import Result, race_townhalls, race_worker
 from sc2.unit import Unit
 from sc2.units import Units
+from suntzu.gas import Gas
+from suntzu.minerals import Minerals
+from suntzu.observation import Observation
 
 from .constants import CHANGELINGS, REQUIREMENTS_KEYS, WITH_TECH_EQUIVALENTS, CIVILIANS, GAS_BY_RACE, REQUIREMENTS, REQUIREMENTS_EXCLUDE, STATIC_DEFENSE, SUPPLY, SUPPLY_PROVIDED, TOWNHALL, TRAIN_ABILITIES, UNIT_BY_TRAIN_ABILITY, UPGRADE_BY_RESEARCH_ABILITY
 from .macro_target import MacroTarget
 from .cost import Cost
 from .utils import can_attack, get_requirements, armyValue, unitPriority, canAttack, center, dot, unitValue
+
+import suntzu.base
 
 RESOURCE_DISTANCE_THRESHOLD = 10
 
@@ -55,23 +64,145 @@ class CommonAI(BotAI):
         self.gas_target = 0
         self.greet_enabled = True
         self.macro_targets = list()
-        self.units_by_type = defaultdict(lambda:[])
-        self.pending_by_type = defaultdict(lambda:[])
-        self.planned_by_type = defaultdict(lambda:[])
-        self.units_by_tag = dict()
-        self.resource_by_position = dict()
+        self.gas_ratio = 6 / 22
+
+        self.observation: Observation = Observation()
+
         self.print_first_iteration = True
         self.worker_split = dict()
         self.destroy_destructables = True
         self.tag = None
+        self.bases: Dict[Point2, suntzu.base.Base] = dict()
+        self.base_distance_matrix: Dict[Point2, Dict[Point2, float]] = dict()
+
+    @property
+    def mineral_harvester_count(self) -> int:
+        return sum(b.mineral_harvester_count for b in self.bases.values())
+
+    @property
+    def mineral_harvester_target(self) -> int:
+        return sum(b.mineral_harvester_target for b in self.bases.values())
+
+    @property
+    def mineral_harvester_balance(self) -> int:
+        return sum(b.mineral_harvester_balance for b in self.bases.values())
+
+    @property
+    def gas_harvester_count(self) -> int:
+        return sum(b.gas_harvester_count for b in self.bases.values())
+
+    @property
+    def gas_harvester_target(self) -> int:
+        return sum(b.gas_harvester_target for b in self.bases.values())
+
+    @property
+    def gas_harvester_balance(self) -> int:
+        return sum(b.gas_harvester_balance for b in self.bases.values())
+
+    def update_bases(self):
+
+        for base in self.bases.values():
+            base.update(self.observation)
+
+        for townhall in self.townhalls:
+            base = self.bases.get(townhall.position, None)
+            if not base:
+                continue
+            base.townhall = townhall.tag
+
+        while self.gas_harvester_count + 1 <= self.gas_target:
+            base_to = min(
+                (b for b in self.bases.values() if b.townhall and self.observation.unit_by_tag[b.townhall].is_ready),
+                key=lambda b:b.mineral_harvester_balance,
+                default=None
+            )
+            if not base_to:
+                break
+            base_from = max(
+                (
+                    b for b in self.bases.values()
+                    if b.townhall and self.observation.unit_by_tag[b.townhall].is_ready and b.gas_harvester_balance < 0),
+                key=lambda b:b.gas_harvester_balance,
+                default=None
+            )
+            if not base_from:
+                break
+            harvester = base_from.request_mineral_harvester()
+            if not harvester:
+                break
+            base_to.add_gas_harvester(harvester)
+
+        while self.gas_target <= self.gas_harvester_count - 1:
+            base_to = min(
+                (b for b in self.bases.values() if b.townhall and self.observation.unit_by_tag[b.townhall].is_ready),
+                key=lambda b:b.gas_harvester_balance,
+                default=None
+            )
+            if not base_to:
+                break
+            base_from = max(
+                (
+                    b for b in self.bases.values()
+                    if b.townhall and self.observation.unit_by_tag[b.townhall].is_ready and b.mineral_harvester_balance < 0),
+                key=lambda b:b.mineral_harvester_balance,
+                default=None
+            )
+            if not base_from:
+                break
+            harvester = base_from.request_gas_harvester()
+            if not harvester:
+                break
+            base_to.add_mineral_harvester(harvester)
+
+        while True:
+            bases_sorted = sorted(
+                (b for b in self.bases.values() if b.townhall and self.observation.unit_by_tag[b.townhall].is_ready),
+                key=lambda b:b.harvester_balance
+            )
+            base_to = bases_sorted[0]
+            base_from = bases_sorted[-1]
+            if 0 < base_from.harvester_balance and base_to.harvester_balance < 0:
+                harvester = base_from.request_harvester()
+                base_to.add_harvester(harvester)
+                continue
+            break
+
+    @property
+    def main_base(self):
+        return self.bases[self.start_location]
+
+    async def init_bases(self):
+
+        main = self.townhalls[0]
+        main(AbilityId.RALLY_WORKERS, target=main)
+
+        self.base_distance_matrix = dict()
+        for a in self.expansion_locations_list:
+            self.base_distance_matrix[a] = dict()
+            for b in self.expansion_locations_list:
+                self.base_distance_matrix[a][b] = await self.client.query_pathing(a, b) or a.distance_to(b)
+
+        townhall_positions = sorted(
+            (p for p in self.expansion_locations_list),
+            key = lambda p : self.base_distance_matrix[main.position][p]
+        )
+
+        for townhall_position in townhall_positions:
+            resources = self.expansion_locations_dict[townhall_position]
+            minerals = (Minerals(m.position) for m in resources.mineral_field)
+            gasses = (Gas(m.position) for m in resources.vespene_geyser)
+            base = suntzu.base.Base(townhall_position, minerals, gasses)
+            self.bases[townhall_position] = base
+
+        self.main_base.townhall = main.tag
+        for worker in self.workers:
+            self.main_base.add_mineral_harvester(worker.tag)
 
     async def on_before_start(self):
         self.client.game_step = self.game_step
         pass
 
     async def on_start(self):
-
-        self.split_workers()
 
         self.geysers_by_expanion = {
             base: {
@@ -89,44 +220,23 @@ class CommonAI(BotAI):
             for base, resources in self.expansion_locations_dict.items()
         }
 
-        self.expansion_distances = {
-            base: await self.get_base_distance(base)
-            for base in self.expansion_locations_list
-        }
-
-
-    def split_workers(self):
-
-        start_townhall = self.townhalls[0]
-        start_minerals = self.expansion_locations_dict[start_townhall.position].mineral_field.sorted_by_distance_to(start_townhall)
-
-        while len(self.worker_split) < self.workers.amount:
-            for mineral in start_minerals:
-                unassigned_workers = self.workers.tags_not_in(self.worker_split.keys())
-                if not unassigned_workers.exists:
-                    break
-                worker = unassigned_workers.closest_to(mineral)
-                self.worker_split[worker.tag] = mineral.tag
-                worker.gather(mineral)
+        await self.init_bases()
 
     async def on_step(self, iteration: int):
 
+        # if 8 * 60 < self.time:
+        #     await self.client.debug_leave()
+
+        self.observation = self.create_observation()
         self.destructables_filtered = self.destructables.filter(lambda d : 0 < d.armor)
-        # self.destructables_filtered = Units([], self)
 
-        # if self.print_first_iteration:
-        #     print(iteration)
-        #     self.print_first_iteration = False
-        
-        for worker_tag, mineral_tag in list(self.worker_split.items()):
-
-            worker = self.units.by_tag(worker_tag)
-            mineral = self.resources.by_tag(mineral_tag)
-            if worker.is_carrying_minerals:
-                del self.worker_split[worker_tag]
-            else:
-                worker.gather(mineral)
-
+        for worker in self.workers.idle:
+            if any(step.unit == worker.tag for step in self.macro_targets):
+                continue
+            base = min((
+                b for b in self.bases.values()
+                if b.townhall and self.observation.unit_by_tag[b.townhall].is_ready), key=lambda b : b.mineral_harvester_balance)
+            base.add_mineral_harvester(worker.tag)
 
         if 1 < self.time and self.greet_enabled:
             await self.client.chat_send('Tag:' + self.version, True)
@@ -156,7 +266,7 @@ class CommonAI(BotAI):
                     positions.append(Point3((target.target.x, target.target.y, z)))
 
                 if target.unit:
-                    unit = self.units_by_tag.get(target.unit)
+                    unit = self.observation.unit_by_tag.get(target.unit)
                     if unit:
                         positions.append(unit)
 
@@ -181,6 +291,7 @@ class CommonAI(BotAI):
     async def on_building_construction_complete(self, unit: Unit):
         if unit.type_id in race_townhalls[self.race] and self.mineral_field.exists:
             unit.smart(self.mineral_field.closest_to(unit))
+        pass
 
     async def on_enemy_unit_entered_vision(self, unit: Unit):
         pass
@@ -189,6 +300,11 @@ class CommonAI(BotAI):
         pass
 
     async def on_unit_created(self, unit: Unit):
+        if self.time == 0:
+            pass
+        # elif unit.type_id == race_worker[self.race]:
+        #     base = min(self.bases.values(), key = lambda b : b.townhall_position.distance_to(unit))
+        #     base.add_mineral_harvester(unit.tag)
         pass
 
     async def on_unit_destroyed(self, unit_tag: int):
@@ -202,54 +318,21 @@ class CommonAI(BotAI):
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         pass
-
-    def update_tables(self):
-
-        self.resource_by_position.clear()
-        self.resource_by_position.update((r.position, r) for r in self.resources)
-
-        self.units_by_tag.clear()
-        self.units_by_type.clear()
-        self.pending_by_type.clear()
-        self.planned_by_type.clear()
-
+    
+    def create_observation(self):
+        observation = Observation()
         for unit in self.all_own_units:
-            self.units_by_tag[unit.tag] = unit
-            if unit.is_ready:
-                self.units_by_type[unit.type_id].append(unit)
-            else:
-                self.pending_by_type[unit.type_id].append(unit)
-            for order in unit.orders:
-                ability = order.ability.exact_id
-                training = UNIT_BY_TRAIN_ABILITY.get(ability) or UPGRADE_BY_RESEARCH_ABILITY.get(ability)
-                if training:
-                    self.pending_by_type[training].append(unit)
+            observation.add_unit(unit)
         for upgrade in self.state.upgrades:
-            self.units_by_type[upgrade].append(True)
-
-        for target in self.macro_targets:
-            self.planned_by_type[target.item].append(target)
-
-    def count(
-        self,
-        item: Union[UnitTypeId, UpgradeId],
-        include_pending: bool = True,
-        include_planned: bool = True,
-        include_actual: bool = True) -> int:
-        
-        sum = 0
-        if include_actual:
-            if item == race_worker[self.race]:
-                # fix worker count (so that it includes workers in gas buildings)
-                sum += self.supply_used - self.supply_army - len(self.pending_by_type[item])
-            else:
-                sum += len(self.units_by_type[item])
-        if include_pending:
-            sum += len(self.pending_by_type[item])
-        if include_planned:
-            sum += len(self.planned_by_type[item])
-
-        return sum
+            observation.add_upgrade(upgrade)
+        for resource in self.resources:
+            observation.add_unit(resource)
+        for plan in self.macro_targets:
+            observation.add_plan(plan)
+        worker_type = race_worker[self.race]
+        worker_pending = observation.count(worker_type, include_actual=False, include_pending=False, include_planned=False)
+        observation.worker_supply_fixed = self.supply_used - self.supply_army - worker_pending
+        return observation
 
     def estimate_income(self):
         harvesters_on_minerals = sum(t.assigned_harvesters for t in self.townhalls)
@@ -280,7 +363,7 @@ class CommonAI(BotAI):
 
     def add_macro_target(self, target: MacroTarget):
         self.macro_targets.append(target)
-        self.planned_by_type[target.item].append(target)
+        self.observation.add_plan(target)
 
     def get_missing_requirements(self, item: Union[UnitTypeId, UpgradeId], **kwargs) -> Set[Union[UnitTypeId, UpgradeId]]:
 
@@ -311,7 +394,7 @@ class CommonAI(BotAI):
             i += 1
             if not requirement:
                 continue
-            if self.count(requirement, **kwargs):
+            if self.observation.count(requirement, **kwargs):
                 continue
             missing.add(requirement)
             requirements.extend(self.get_missing_requirements(requirement, **kwargs))
@@ -352,9 +435,9 @@ class CommonAI(BotAI):
                 continue
 
             if objective.unit:
-                unit = self.units_by_tag.get(objective.unit)
+                unit = self.observation.unit_by_tag.get(objective.unit)
             else:
-                unit, objective.ability = self.findTrainer(objective.item, exclude=exclude)
+                unit, objective.ability = self.search_trainer(objective.item, exclude=exclude)
 
             if unit is None:
                 continue
@@ -372,7 +455,7 @@ class CommonAI(BotAI):
             # requirement_missing = False
             # for requirement in REQUIREMENTS[objective.item]:
             #     if not sum(
-            #         self.count(equivalent, include_pending=False, include_planned=False)
+            #         self.observation.count(equivalent, include_pending=False, include_planned=False)
             #         for equivalent in WITH_TECH_EQUIVALENTS[requirement]
             #     ):
             #         requirement_missing = True
@@ -387,6 +470,14 @@ class CommonAI(BotAI):
             # if not objective.ability["ability"] in await self.get_available_abilities(unit, ignore_resource_requirements=True):
             #     continue
 
+
+            if unit.type_id == race_worker[self.race]:
+                for base in self.bases.values():
+                    base.remove_harvester(unit.tag)
+                
+            # base = next((b for b in self.bases if any(unit.tag in hs for hs in b.mineral_harvesters.values())), None)
+            # if base:
+            #     base.remove_mineral_harvester(unit.tag)
 
             if (
                 objective.target
@@ -431,6 +522,23 @@ class CommonAI(BotAI):
             if took_action:
                 continue
 
+            # if unit.type_id == race_worker[self.race]:
+            #     removed = False
+            #     for base in self.bases.values():
+            #         for minerals in base.minerals:
+            #             if unit.tag in minerals.harvesters:
+            #                 minerals.harvesters.remove(unit.tag)
+            #                 removed = True
+            #         for gas in base.gasses:
+            #             if unit.tag in gas.harvesters:
+            #                 gas.harvesters.remove(unit.tag)
+            #                 removed = True
+            #         if removed:
+            #             break
+
+            #     if not removed:
+            #         raise Error()
+
             queue = False
             if unit.is_carrying_resource:
                 unit.return_resource()
@@ -442,7 +550,7 @@ class CommonAI(BotAI):
 
             took_action = True
 
-            self.pending_by_type[objective.item].append(unit)
+            self.observation.add_pending(objective.item, unit)
 
             i -= 1
             self.macro_targets.pop(i)
@@ -451,7 +559,7 @@ class CommonAI(BotAI):
     def get_owned_geysers(self):
         for townhall in self.townhalls.ready:
             for geyser_position in self.geysers_by_expanion.get(townhall.position, []):
-                geyser = self.resource_by_position.get(geyser_position)
+                geyser = self.observation.resource_by_position.get(geyser_position)
                 if geyser:
                     yield geyser
 
@@ -464,13 +572,13 @@ class CommonAI(BotAI):
             }
             exclude_tags = {
                 order.target
-                for trainer in self.pending_by_type[gas_type]
+                for trainer in self.observation.pending_by_type[gas_type]
                 for order in trainer.orders
                 if isinstance(order.target, int)
             }
             exclude_tags.update({
                 step.target.tag
-                for step in self.planned_by_type[gas_type]
+                for step in self.observation.planned_by_type[gas_type]
                 if step.target
             })
             geysers = [
@@ -485,6 +593,7 @@ class CommonAI(BotAI):
                 raise PlacementNotFound()
             else:
                 return geysers[0]
+                
         elif "requires_placement_position" in objective.ability:
             position = await self.get_target_position(objective.item, unit)
             withAddon = objective in { UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT }
@@ -508,30 +617,36 @@ class CommonAI(BotAI):
             food = int(self.calculate_supply_cost(item))
         return Cost(cost.minerals, cost.vespene, food)
 
-    def findTrainer(self, item: Union[UnitTypeId, UpgradeId], exclude: Set[int]) -> Coroutine[any, any, Tuple[Unit, any]]:
+    def search_trainer(self, item: Union[UnitTypeId, UpgradeId], exclude: Set[int]) -> Tuple[Unit, any]:
 
         if type(item) is UnitTypeId:
-            trainer_types = UNIT_TRAINED_FROM[item]
+            trainer_types = {
+                equivalent
+                for trainer in UNIT_TRAINED_FROM[item]
+                for equivalent in WITH_TECH_EQUIVALENTS[trainer]
+            }
         elif type(item) is UpgradeId:
             trainer_types = WITH_TECH_EQUIVALENTS[UPGRADE_RESEARCHED_FROM[item]]
 
-        # trainers = self.structures(trainerTypes) | self.units(trainerTypes)
-        # trainers = trainers.ready
-        # trainers = trainers.tags_not_in(exclude)
-        # trainers = trainers.filter(lambda t: self.hasCapacity(t))
+        # if trainer_types == { race_worker[self.race] }:
+        #     trainers = { self.}
 
         trainers = (
-            trainer
+            unit
             for trainer_type in trainer_types
-            for trainer in self.units_by_type[trainer_type]
-            if (
-                trainer.is_ready
-                and not trainer.tag in exclude
-                and self.has_capacity(trainer)
-            )
+            for unit in self.observation.actual_by_type[trainer_type]
         )
             
         for trainer in trainers:
+
+            if not trainer.is_ready:
+                continue
+
+            if trainer.tag in exclude:
+                continue
+
+            if not self.has_capacity(trainer):
+                continue
 
             already_training = False
             for order in trainer.orders:
@@ -686,7 +801,7 @@ class CommonAI(BotAI):
         if target in STATIC_DEFENSE[self.race]:
             townhalls = self.townhalls.ready.sorted_by_distance_to(self.start_location)
             if townhalls.exists:
-                i = (self.count(target) - 1) % townhalls.amount
+                i = (self.observation.count(target) - 1) % townhalls.amount
                 return townhalls[i].position.towards(self.game_info.map_center, -5)
             else:
                 return self.start_location
@@ -745,25 +860,25 @@ class CommonAI(BotAI):
 
         supplyBuffer += 1 * self.townhalls.amount
         # supplyBuffer += 2 * self.larva.amount
-        supplyBuffer += 3 * self.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
+        supplyBuffer += 3 * self.observation.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
 
-        # supplyBuffer += 2 * self.count(UnitTypeId.BARRACKS)
-        # supplyBuffer += 2 * self.count(UnitTypeId.FACTORY)
-        # supplyBuffer += 2 * self.count(UnitTypeId.STARPORT)
-        # supplyBuffer += 2 * self.count(UnitTypeId.GATEWAY)
-        # supplyBuffer += 2 * self.count(UnitTypeId.WARPGATE)
-        # supplyBuffer += 2 * self.count(UnitTypeId.ROBOTICSFACILITY)
-        # supplyBuffer += 2 * self.count(UnitTypeId.STARGATE)
+        # supplyBuffer += 2 * self.observation.count(UnitTypeId.BARRACKS)
+        # supplyBuffer += 2 * self.observation.count(UnitTypeId.FACTORY)
+        # supplyBuffer += 2 * self.observation.count(UnitTypeId.STARPORT)
+        # supplyBuffer += 2 * self.observation.count(UnitTypeId.GATEWAY)
+        # supplyBuffer += 2 * self.observation.count(UnitTypeId.WARPGATE)
+        # supplyBuffer += 2 * self.observation.count(UnitTypeId.ROBOTICSFACILITY)
+        # supplyBuffer += 2 * self.observation.count(UnitTypeId.STARGATE)
         return supplyBuffer
 
     def getSupplyTarget(self) -> int:
 
-        supply_have = self.count(SUPPLY[self.race], include_pending=False, include_planned=False)
+        supply_have = self.observation.count(SUPPLY[self.race], include_pending=False, include_planned=False)
         if self.supply_cap == 200:
             return supply_have
 
         supply_pending = sum(
-            provided * self.count(unit)
+            provided * self.observation.count(unit)
             for unit, provided in SUPPLY_PROVIDED.items()
         )
             
@@ -853,9 +968,9 @@ class CommonAI(BotAI):
             for townhall in self.townhalls.ready:
                 if townhall.surplus_harvesters < 0:
                     minerals = (
-                        self.resource_by_position[position]
+                        self.observation.resource_by_position[position]
                         for position in self.minerals_by_expansion.get(townhall.position, [])
-                        if position in self.resource_by_position
+                        if position in self.observation.resource_by_position
                     )
                     target = min(minerals, key=lambda m : m.distance_to(worker), default=None) or self.mineral_field.closest_to(townhall)
                     break
@@ -888,7 +1003,7 @@ class CommonAI(BotAI):
     def getMaxWorkers(self) -> int:
         workers = 0
         workers += sum((h.ideal_harvesters for h in self.townhalls.ready))
-        workers += 16 * self.count(UnitTypeId.HATCHERY, include_actual=False, include_planned=False)
+        workers += 16 * self.observation.count(UnitTypeId.HATCHERY, include_actual=False, include_planned=False)
         workers += self.gas_target
         # workers += sum((g.ideal_harvesters if g.build_progress == 1 else 3 * g.build_progress for g in self.gas_buildings))
 
