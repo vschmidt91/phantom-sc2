@@ -69,11 +69,39 @@ class CommonAI(BotAI):
         self.observation: Observation = Observation()
 
         self.print_first_iteration = True
-        self.worker_split = dict()
+        self.worker_split: Dict[int, int] = None
         self.destroy_destructables = True
         self.tag = None
         self.bases: Dict[Point2, suntzu.base.Base] = dict()
         self.base_distance_matrix: Dict[Point2, Dict[Point2, float]] = dict()
+
+
+    def split_workers(self):
+
+        if self.worker_split == None:
+
+            start_townhall = self.townhalls[0]
+            start_minerals = self.expansion_locations_dict[start_townhall.position].mineral_field.sorted_by_distance_to(start_townhall)
+
+            self.worker_split = dict()
+            while len(self.worker_split) < self.workers.amount:
+                for mineral in start_minerals:
+                    unassigned_workers = self.workers.tags_not_in(self.worker_split.keys())
+                    if not unassigned_workers.exists:
+                        break
+                    worker = unassigned_workers.closest_to(mineral)
+                    self.worker_split[worker.tag] = mineral.tag
+                    worker.gather(mineral)
+
+                    
+        for worker_tag, mineral_tag in list(self.worker_split.items()):
+
+            worker = self.units.by_tag(worker_tag)
+            mineral = self.resources.by_tag(mineral_tag)
+            if worker.is_carrying_minerals:
+                del self.worker_split[worker_tag]
+            else:
+                worker.gather(mineral)
 
     @property
     def mineral_harvester_count(self) -> int:
@@ -224,8 +252,10 @@ class CommonAI(BotAI):
 
     async def on_step(self, iteration: int):
 
-        # if 8 * 60 < self.time:
-        #     await self.client.debug_leave()
+        if 5 * 60 < self.time:
+            await self.client.debug_leave()
+        
+        self.split_workers()
 
         self.observation = self.create_observation()
         self.destructables_filtered = self.destructables.filter(lambda d : 0 < d.armor)
@@ -543,6 +573,9 @@ class CommonAI(BotAI):
             if unit.is_carrying_resource:
                 unit.return_resource()
                 queue = True
+
+            if objective.item == UnitTypeId.RAVAGER:
+                queue = queue
 
             if not unit(objective.ability["ability"], target=objective.target, queue=queue):
                 print("objective failed:" + str(objective))

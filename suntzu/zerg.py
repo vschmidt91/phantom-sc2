@@ -38,11 +38,11 @@ class ZergAI(CommonAI):
     def __init__(self, build_order=ROACH_RUSH, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
 
-        if random.random() < 1:
+        if random.random() < 0.5:
             build_order = ROACH_RUSH
             self.tag = "RoachRush"
             self.tech_time = 4.25 * 60
-            self.extractor_trick_enabled = False
+            self.extractor_trick_enabled = True
             self.destroy_destructables = False
         else:
             build_order = HATCH17
@@ -165,7 +165,7 @@ class ZergAI(CommonAI):
             self.extractor_trick: 1,
             # self.update_abilities: 1,
             # self.update_pending: 1,
-            self.adjustComposition: 1,
+            self.update_composition: 1,
             self.micro_queens: 1,
             self.spreadCreep: 1,
             # self.moveOverlord: 1,
@@ -234,7 +234,7 @@ class ZergAI(CommonAI):
             return
         extractors = [
             extractor
-            for extractor in self.pending_by_type[UnitTypeId.EXTRACTOR]
+            for extractor in self.observation.pending_by_type[UnitTypeId.EXTRACTOR]
             if extractor.type_id == UnitTypeId.EXTRACTOR
         ]
         if not self.supply_left and extractors:
@@ -469,7 +469,7 @@ class ZergAI(CommonAI):
             elif 25 <= queen.energy:
                 await self.spreadCreep(queen)
 
-    def adjustComposition(self):
+    def update_composition(self):
 
         worker_limit = 80
         worker_target = min(worker_limit, self.getMaxWorkers())
