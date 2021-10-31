@@ -124,9 +124,7 @@ class ZergAI(CommonAI):
 
         cost_zero = Cost(0, 0, 0)
         cost_sum = sum((target.cost or cost_zero for target in self.macro_targets), cost_zero)
-        cs = [self.createCost(unit)
-            for unit, count in self.composition.items()
-            for i in range(count)]
+        cs = [self.createCost(unit) * count for unit, count in self.composition.items()]
         cost_sum += sum(cs, cost_zero)
 
         minerals = max(0, cost_sum.minerals - self.minerals)
@@ -177,7 +175,7 @@ class ZergAI(CommonAI):
             # self.tech: 4,
             self.upgrade: 1,
             self.expand: 1,
-            self.micro: 1,
+            # self.micro: 1,
             # self.assignWorker: 1,
             self.macro: 1,
             self.update_gas_ratio: 1,
@@ -303,7 +301,8 @@ class ZergAI(CommonAI):
 
     def upgrade(self):
 
-        upgrades = set(chain(*(self.upgrades_by_unit(unit) for unit in self.composition)))
+        upgrades = chain(*(self.upgrades_by_unit(unit) for unit in self.composition))
+        upgrades = list(dict.fromkeys(upgrades))
         targets = [
             *chain(*(REQUIREMENTS[unit] for unit in self.composition)),
             *chain(*(REQUIREMENTS[upgrade] for upgrade in upgrades)),
