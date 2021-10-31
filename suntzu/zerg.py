@@ -41,7 +41,7 @@ class ZergAI(CommonAI):
         if random.random() < 0.5:
             build_order = ROACH_RUSH
             self.tag = "RoachRush"
-            self.tech_time = 4.25 * 60
+            self.tech_time = 4.5 * 60
             self.extractor_trick_enabled = True
             self.destroy_destructables = False
         else:
@@ -54,7 +54,7 @@ class ZergAI(CommonAI):
         for step in build_order:
             self.add_macro_target(MacroTarget(step, priority=10))
 
-        self.gas_target = 3
+        # self.gas_target = 3
         self.composition = dict()
         self.timings_acc = dict()
         self.abilities = dict()
@@ -119,8 +119,8 @@ class ZergAI(CommonAI):
 
     def update_gas_ratio(self):
 
-        if self.time < self.tech_time:
-            return
+        # if self.time < self.tech_time:
+        #     return
 
         cost_zero = Cost(0, 0, 0)
         cost_sum = sum((target.cost or cost_zero for target in self.macro_targets), cost_zero)
@@ -143,7 +143,7 @@ class ZergAI(CommonAI):
 
         # worker_type = race_worker[self.race]
         # self.gas_target = self.gas_ratio * self.observation.count(worker_type, include_planned=False)
-        self.gas_target = 3 * round(self.gas_target / 3)
+        self.gas_target = 3 * math.ceil(self.gas_target / 3)
 
     async def on_step(self, iteration):
 
@@ -161,7 +161,8 @@ class ZergAI(CommonAI):
         steps = {
             # self.update_tables: 1,
             on_step_base: 1,
-            # self.update_bases: 1,
+            self.update_bases: 1,
+            self.assign_idle_workers: 1,
             self.extractor_trick: 1,
             # self.update_abilities: 1,
             # self.update_pending: 1,
@@ -177,7 +178,7 @@ class ZergAI(CommonAI):
             self.upgrade: 1,
             self.expand: 1,
             self.micro: 1,
-            self.assignWorker: 1,
+            # self.assignWorker: 1,
             self.macro: 1,
             self.update_gas_ratio: 1,
             self.buildGasses: 1,
@@ -193,7 +194,7 @@ class ZergAI(CommonAI):
             if iteration % self.timings_interval == 0:
                 timings_items = ((k, round(1e3 * n / self.timings_interval, 1)) for k, n in self.timings_acc.items())
                 timings_sorted = dict(sorted(timings_items, key=lambda p : p[1], reverse=True))
-                print(timings_sorted)
+                # print(timings_sorted)
                 # print(self.pending)
                 # print(len(self.macroObjectives))
                 self.timings_acc = {}
@@ -202,6 +203,7 @@ class ZergAI(CommonAI):
                 result = step()
                 if inspect.isawaitable(result):
                     result = await result
+
     def counterComposition(self, enemies: Dict[UnitTypeId, int]) -> Dict[UnitTypeId, int]:
 
         enemyValue = sum((self.unitValue(u) * n for u, n in enemies.items()))
@@ -294,8 +296,8 @@ class ZergAI(CommonAI):
                 self.upgradeSequence(ZERG_MELEE_UPGRADES),
                 self.upgradeSequence(ZERG_ARMOR_UPGRADES),
             )
-        elif unit == UnitTypeId.OVERSEER:
-            return (UpgradeId.OVERLORDSPEED,)
+        # elif unit == UnitTypeId.OVERSEER:
+        #     return (UpgradeId.OVERLORDSPEED,)
         else:
             return []
 
@@ -482,7 +484,7 @@ class ZergAI(CommonAI):
         worker_count = self.observation.count(UnitTypeId.DRONE, include_planned=False)
         
         ratio = worker_count / worker_limit
-        # ratio = pow(ratio, 2)
+        # ratio = pow(ratio, 3)
 
         # ratio = 1 if 70 < worker_count else 0
 
@@ -493,7 +495,7 @@ class ZergAI(CommonAI):
         elif not self.observation.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False):
             self.composition[UnitTypeId.OVERSEER] = 1
             self.composition[UnitTypeId.ROACH] = int(ratio * 50)
-            self.composition[UnitTypeId.RAVAGER] = int(ratio * 15)
+            self.composition[UnitTypeId.RAVAGER] = int(ratio * 10)
         elif not self.observation.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False):
             self.composition[UnitTypeId.OVERSEER] = 1
             self.composition[UnitTypeId.ROACH] = 30

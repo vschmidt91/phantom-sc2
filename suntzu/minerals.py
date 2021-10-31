@@ -14,13 +14,15 @@ class Minerals(Resource):
 
         super().update(observation)
 
-        self.harvesters = { h for h in self.harvesters if h in observation.unit_by_tag }
+        # self.harvesters = { h for h in self.harvesters if h in observation.unit_by_tag }
         
         patch = observation.resource_by_position.get(self.position)
 
         if not patch:
             self.remaining = 0
-            for harvester in (observation.unit_by_tag[h] for h in self.harvesters):
+            for harvester in (observation.unit_by_tag.get(h) for h in self.harvesters):
+                if not harvester:
+                    continue
                 if harvester.is_carrying_resource:
                     harvester.return_resource()
                     harvester.stop(queue=True)
@@ -31,13 +33,17 @@ class Minerals(Resource):
 
         self.remaining = patch.mineral_contents
 
-        for harvester in (observation.unit_by_tag[h] for h in self.harvesters):
-            if harvester.is_gathering:
-                if harvester.order_target != patch.tag:
-                    harvester.gather(patch)
-            elif harvester.is_carrying_resource:
+        for harvester in (observation.unit_by_tag.get(h) for h in self.harvesters):
+            if not harvester:
+                continue
+            # if harvester.is_gathering:
+            #     if harvester.order_target != patch.tag:
+            #         harvester.gather(patch)
+            if harvester.is_carrying_resource:
                 if not harvester.is_returning:
                     harvester.return_resource()
+            elif harvester.is_returning:
+                pass
             else:
                 harvester.gather(patch)
 

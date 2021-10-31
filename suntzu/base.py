@@ -19,6 +19,7 @@ class Base(object):
         gasses: Iterable[Gas],
     ):
         self.townhall_position: Point2 = townhall_position
+        self.townhall_ready: bool = False
         self.minerals: List[Minerals] = sorted(
             minerals,
             key = lambda m : m.position.distance_to(townhall_position)
@@ -30,57 +31,69 @@ class Base(object):
         self.mineral_harvesters_max: int = 0
         self.townhall: Optional[int] = None
 
-    def add_mineral_harvester(self, harvester: int):
-        mineral = next((
-            m for m in self.minerals
-            if m.harvester_balance < 0
-        ), None)
+    def add_mineral_harvester(self, harvester: int) -> bool:
+        mineral = next(
+            (m for m in self.minerals if 0 < m.remaining and m.harvester_balance < 0),
+            None
+        ) or min(
+            (m for m in self.minerals if 0 < m.remaining),
+            key=lambda m : m.harvester_balance,
+            default=None
+        )
         if not mineral:
-            mineral = min(self.minerals, key=lambda m : m.harvester_balance)
+            return False
         mineral.harvesters.add(harvester)
+        return True
 
     def request_mineral_harvester(self) -> Optional[int]:
-        mineral = next((
-            m
-            for m in self.minerals
-            if 0 <= m.harvester_balance
-        ), None)
-        if not mineral:
-            mineral = next((
-                m
+        mineral = next(
+            (m
                 for m in self.minerals[::-1]
-                if any(m.harvesters)
-            ), None)
+                if m.harvester_count and 0 < m.harvester_balance
+            ),
+            None
+        ) or next(
+            (m
+                for m in self.minerals[::-1]
+                if m.harvester_count
+            ),
+            None
+        )
+        # or max((m for m in self.minerals if 0 < m.harvester_count),
+        #     key=lambda m : m.harvester_balance,
+        #     default=None)
         if not mineral:
             return None
         harvester = next(iter(mineral.harvesters), None)
-        if harvester:
-            mineral.harvesters.remove(harvester)
+        assert(harvester)
+        mineral.harvesters.remove(harvester)
         return harvester
 
-    def add_gas_harvester(self, harvester: int):
-        gas = min(self.gasses, key=lambda g : g.harvester_balance)
+    def add_gas_harvester(self, harvester: int) -> bool:
+        gas = min((g for g in self.gasses if 0 < g.remaining),
+            key=lambda g : g.harvester_balance,
+            default=None)
+        if not gas:
+            return False
         gas.harvesters.add(harvester)
+        return True
 
     def request_gas_harvester(self) -> Optional[int]:
-        gas = max((
-            g for g in self.gasses
-            if any(g.harvesters)),
+        gas = max((g for g in self.gasses if 0 < g.harvester_count),
             key=lambda g : g.harvester_balance,
-            default=None
-        )
+            default=None)
         if not gas:
             return None
         harvester = next(iter(gas.harvesters), None)
-        if harvester:
-            gas.harvesters.remove(harvester)
+        assert(harvester)
+        gas.harvesters.remove(harvester)
         return harvester
 
-    def add_harvester(self, harvester: int) -> Optional[int]:
+    def add_harvester(self, harvester: int) -> bool:
         if self.mineral_harvester_balance < self.gas_harvester_balance:
-            return self.add_mineral_harvester(harvester)
+            return self.add_mineral_harvester(harvester) or self.add_gas_harvester(harvester)
         else:
-            return self.add_gas_harvester(harvester)
+            return self.add_gas_harvester(harvester) or self.add_mineral_harvester(harvester)
 
     def request_harvester(self) -> Optional[int]:
         if self.gas_harvester_balance <= self.mineral_harvester_balance:
@@ -92,6 +105,14 @@ class Base(object):
         for resource in chain(self.minerals, self.gasses):
             if harvester in resource.harvesters:
                 resource.harvesters.remove(harvester)
+
+    @property
+    def harvesters(self) -> Iterable[int]:
+        return (
+            h
+            for m in chain(self.minerals, self.gasses)
+            for h in m.harvesters
+        )
 
     @property
     def mineral_harvester_count(self) -> int:
@@ -121,18 +142,49 @@ class Base(object):
     def harvester_balance(self) -> int:
         return self.mineral_harvester_balance + self.gas_harvester_balance
 
+    def try_transfer_minerals_to_gas(self) -> bool:
+        harvester = self.request_mineral_harvester()
+        if not harvester:
+            return False
+        if self.add_gas_harvester(harvester):
+            return True
+        if self.add_mineral_harvester(harvester):
+            return False
+        raise Exception()
+
+    def try_transfer_gas_to_minerals(self) -> bool:
+        harvester = self.request_gas_harvester()
+        if not harvester:
+            return False
+        if self.add_mineral_harvester(harvester):
+            return True
+        if self.add_gas_harvester(harvester):
+            return False
+        raise Exception()
+
     def update(self, observation: Observation):
         
-        for mineral in self.minerals:
+        for mineral in list(self.minerals):
             mineral.update(observation)
 
         for gas in self.gasses:
             gas.update(observation)
 
-        while self.mineral_harvester_balance < 0 and 0 < self.gas_harvester_balance:
-            harvester = self.request_gas_harvester()
-            self.add_mineral_harvester(harvester)
+        townhall = observation.unit_by_tag.get(self.townhall)
+        if not townhall:
+            self.townhall = None
+            self.townhall_ready = False
+        else:
+            self.townhall_ready = townhall.is_ready
 
-        while 0 < self.mineral_harvester_balance and self.gas_harvester_balance < 0:
-            harvester = self.request_mineral_harvester()
-            self.add_gas_harvester(harvester)
+        # while self.mineral_harvester_balance < 0 and 0 < self.gas_harvester_balance:
+        #     harvester = self.request_gas_harvester()
+        #     print('gas to minerals (internal) ' + str(harvester))
+        #     assert(harvester)
+        #     assert(self.add_mineral_harvester(harvester))
+
+        # while 0 < self.mineral_harvester_balance and self.gas_harvester_balance < 0:
+        #     harvester = self.request_mineral_harvester()
+        #     print('minerals to gas (internal) ' + str(harvester))
+        #     assert(harvester)
+        #     assert(self.add_gas_harvester(harvester))

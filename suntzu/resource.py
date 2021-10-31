@@ -9,7 +9,7 @@ class Resource(object):
 
     def __init__(self, position: Point2):
         self.position: Point2 = position
-        self.remaining: int = None
+        self.remaining: int = 0
         self.harvesters: Set[int] = set()
 
     @abstractmethod
@@ -30,7 +30,4 @@ class Resource(object):
         return len(self.harvesters) - self.harvester_target
 
     def update(self, observation: Observation):
-        # for harvester in frozenset(self.harvesters):
-        #     if harvester not in observation.unit_by_tag:
-        #         self.harvesters.remove(harvester)
         pass

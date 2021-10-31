@@ -16,10 +16,10 @@ ROACH_RUSH = [
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
+    UnitTypeId.DRONE,
     UnitTypeId.EXTRACTOR,
     UnitTypeId.HATCHERY,
     UnitTypeId.QUEEN,
-    UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.ROACHWARREN,
@@ -35,10 +35,10 @@ ROACH_RUSH = [
     UnitTypeId.ROACH,
     UnitTypeId.ROACH,
     UnitTypeId.EXTRACTOR,
-    UnitTypeId.OVERLORD,
-    UnitTypeId.OVERLORD,
-    UnitTypeId.RAVAGER,
-    UnitTypeId.RAVAGER,
+    # UnitTypeId.OVERLORD,
+    # UnitTypeId.OVERLORD,
+    # UnitTypeId.RAVAGER,
+    # UnitTypeId.RAVAGER,
 ]
 
 HATCH17 = [

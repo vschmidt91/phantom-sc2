@@ -104,6 +104,14 @@ class CommonAI(BotAI):
                 worker.gather(mineral)
 
     @property
+    def harvesters(self) -> Iterable[int]:
+        return (
+            h
+            for b in self.bases.values()
+            for h in b.harvesters
+        )
+
+    @property
     def mineral_harvester_count(self) -> int:
         return sum(b.mineral_harvester_count for b in self.bases.values())
 
@@ -136,62 +144,48 @@ class CommonAI(BotAI):
             base = self.bases.get(townhall.position, None)
             if not base:
                 continue
+            # if base.mineral_harvester_count != townhall.assigned_harvesters:
+            #     raise Error()
             base.townhall = townhall.tag
 
         while self.gas_harvester_count + 1 <= self.gas_target:
-            base_to = min(
-                (b for b in self.bases.values() if b.townhall and self.observation.unit_by_tag[b.townhall].is_ready),
-                key=lambda b:b.mineral_harvester_balance,
-                default=None
-            )
-            if not base_to:
+            success = False
+            for base in self.bases.values():
+                if 0 <= base.gas_harvester_balance:
+                    continue
+                if base.try_transfer_minerals_to_gas():
+                    success = True
+                    break
+            if not success:
                 break
-            base_from = max(
-                (
-                    b for b in self.bases.values()
-                    if b.townhall and self.observation.unit_by_tag[b.townhall].is_ready and b.gas_harvester_balance < 0),
-                key=lambda b:b.gas_harvester_balance,
-                default=None
-            )
-            if not base_from:
-                break
-            harvester = base_from.request_mineral_harvester()
-            if not harvester:
-                break
-            base_to.add_gas_harvester(harvester)
+            print('minerals to gas')
 
         while self.gas_target <= self.gas_harvester_count - 1:
-            base_to = min(
-                (b for b in self.bases.values() if b.townhall and self.observation.unit_by_tag[b.townhall].is_ready),
-                key=lambda b:b.gas_harvester_balance,
-                default=None
-            )
-            if not base_to:
+            success = False
+            for base in self.bases.values():
+                if 0 <= base.mineral_harvester_balance:
+                    continue
+                if base.try_transfer_gas_to_minerals():
+                    success = True
+                    break
+            if not success:
                 break
-            base_from = max(
-                (
-                    b for b in self.bases.values()
-                    if b.townhall and self.observation.unit_by_tag[b.townhall].is_ready and b.mineral_harvester_balance < 0),
-                key=lambda b:b.mineral_harvester_balance,
-                default=None
-            )
-            if not base_from:
-                break
-            harvester = base_from.request_gas_harvester()
-            if not harvester:
-                break
-            base_to.add_mineral_harvester(harvester)
+            print('gas to minerals')
 
         while True:
             bases_sorted = sorted(
-                (b for b in self.bases.values() if b.townhall and self.observation.unit_by_tag[b.townhall].is_ready),
-                key=lambda b:b.harvester_balance
+                (b for b in self.bases.values() if b.townhall_ready),
+                key=lambda b:b.mineral_harvester_balance
             )
             base_to = bases_sorted[0]
             base_from = bases_sorted[-1]
-            if 0 < base_from.harvester_balance and base_to.harvester_balance < 0:
-                harvester = base_from.request_harvester()
-                base_to.add_harvester(harvester)
+            if base_to.mineral_harvester_balance + 1 <= base_from.mineral_harvester_balance - 1:
+                harvester = base_from.request_mineral_harvester()
+                if not harvester:
+                    break
+                print('base to base')
+                if not base_to.add_mineral_harvester(harvester):
+                    assert(base_from.add_mineral_harvester())
                 continue
             break
 
@@ -224,7 +218,9 @@ class CommonAI(BotAI):
 
         self.main_base.townhall = main.tag
         for worker in self.workers:
-            self.main_base.add_mineral_harvester(worker.tag)
+            worker.stop()
+        # for worker in self.workers:
+        #     self.main_base.add_mineral_harvester(worker.tag)
 
     async def on_before_start(self):
         self.client.game_step = self.game_step
@@ -250,23 +246,36 @@ class CommonAI(BotAI):
 
         await self.init_bases()
 
-    async def on_step(self, iteration: int):
+    def assign_idle_workers(self):
 
-        if 5 * 60 < self.time:
-            await self.client.debug_leave()
-        
-        self.split_workers()
+        harvesters = list(self.harvesters)
 
-        self.observation = self.create_observation()
-        self.destructables_filtered = self.destructables.filter(lambda d : 0 < d.armor)
+        for worker in self.workers:
 
-        for worker in self.workers.idle:
+            if worker.tag in harvesters:
+                continue
             if any(step.unit == worker.tag for step in self.macro_targets):
+                continue
+            if not worker.is_idle:
                 continue
             base = min((
                 b for b in self.bases.values()
-                if b.townhall and self.observation.unit_by_tag[b.townhall].is_ready), key=lambda b : b.mineral_harvester_balance)
-            base.add_mineral_harvester(worker.tag)
+                if b.townhall_ready),
+                key=lambda b : b.mineral_harvester_balance)
+            # print('assigning idle worker: ' + str(worker.tag))
+            base.add_harvester(worker.tag)
+
+    async def on_step(self, iteration: int):
+
+        self.iteration = iteration
+
+        # if 8 * 60 < self.time:
+        #     await self.client.debug_leave()
+        
+        # self.split_workers()
+
+        self.observation = self.create_observation()
+        self.destructables_filtered = self.destructables.filter(lambda d : 0 < d.armor)
 
         if 1 < self.time and self.greet_enabled:
             await self.client.chat_send('Tag:' + self.version, True)
@@ -319,8 +328,8 @@ class CommonAI(BotAI):
         pass
 
     async def on_building_construction_complete(self, unit: Unit):
-        if unit.type_id in race_townhalls[self.race] and self.mineral_field.exists:
-            unit.smart(self.mineral_field.closest_to(unit))
+        # if unit.type_id in race_townhalls[self.race] and self.mineral_field.exists:
+        #     unit.smart(self.mineral_field.closest_to(unit))
         pass
 
     async def on_enemy_unit_entered_vision(self, unit: Unit):
@@ -501,9 +510,6 @@ class CommonAI(BotAI):
             #     continue
 
 
-            if unit.type_id == race_worker[self.race]:
-                for base in self.bases.values():
-                    base.remove_harvester(unit.tag)
                 
             # base = next((b for b in self.bases if any(unit.tag in hs for hs in b.mineral_harvesters.values())), None)
             # if base:
@@ -536,6 +542,10 @@ class CommonAI(BotAI):
                     else:
                         unit.move(move_to)
 
+                    if unit.type_id == race_worker[self.race]:
+                        for base in self.bases.values():
+                            base.remove_harvester(unit.tag)
+
             if not can_afford:
                 continue
             
@@ -543,6 +553,10 @@ class CommonAI(BotAI):
             # if not objective.ability["ability"] in abilities:
             #     print("ability with cost failed:" + str(objective))
             #     raise Error()
+
+            if unit.type_id == race_worker[self.race]:
+                for base in self.bases.values():
+                    base.remove_harvester(unit.tag)
 
             if self.isStructure(objective.item) and isinstance(objective.target, Point2):
                 if not await self.can_place_single(objective.item, objective.target):
