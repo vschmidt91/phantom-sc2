@@ -35,18 +35,18 @@ SPORE_TIMING = {
 
 class ZergAI(CommonAI):
 
-    def __init__(self, build_order=ROACH_RUSH, **kwargs):
+    def __init__(self, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
 
-        if random.random() < 0.5:
+        if random.random() < 0:
             build_order = ROACH_RUSH
-            self.tag = "RoachRush"
+            self.tags.append("RoachRush")
             self.tech_time = 4.5 * 60
             self.extractor_trick_enabled = True
             self.destroy_destructables = False
         else:
             build_order = HATCH17
-            self.tag = "HatchFirst"
+            self.tags.append("HatchFirst")
             self.tech_time = 3.5 * 60
             self.extractor_trick_enabled = False
             self.destroy_destructables = True
@@ -159,6 +159,7 @@ class ZergAI(CommonAI):
         steps = {
             # self.update_tables: 1,
             on_step_base: 1,
+            self.update_observation: 1,
             self.update_bases: 1,
             self.assign_idle_workers: 1,
             self.extractor_trick: 1,
@@ -175,7 +176,7 @@ class ZergAI(CommonAI):
             # self.tech: 4,
             self.upgrade: 1,
             self.expand: 1,
-            # self.micro: 1,
+            self.micro: 1,
             # self.assignWorker: 1,
             self.macro: 1,
             self.update_gas_ratio: 1,
@@ -192,7 +193,7 @@ class ZergAI(CommonAI):
             if iteration % self.timings_interval == 0:
                 timings_items = ((k, round(1e3 * n / self.timings_interval, 1)) for k, n in self.timings_acc.items())
                 timings_sorted = dict(sorted(timings_items, key=lambda p : p[1], reverse=True))
-                # print(timings_sorted)
+                print(timings_sorted)
                 # print(self.pending)
                 # print(len(self.macroObjectives))
                 self.timings_acc = {}
@@ -294,8 +295,8 @@ class ZergAI(CommonAI):
                 self.upgradeSequence(ZERG_MELEE_UPGRADES),
                 self.upgradeSequence(ZERG_ARMOR_UPGRADES),
             )
-        # elif unit == UnitTypeId.OVERSEER:
-        #     return (UpgradeId.OVERLORDSPEED,)
+        elif unit == UnitTypeId.OVERSEER:
+            return (UpgradeId.OVERLORDSPEED,)
         else:
             return []
 
@@ -303,11 +304,13 @@ class ZergAI(CommonAI):
 
         upgrades = chain(*(self.upgrades_by_unit(unit) for unit in self.composition))
         upgrades = list(dict.fromkeys(upgrades))
-        targets = [
+        
+        targets = (
             *chain(*(REQUIREMENTS[unit] for unit in self.composition)),
             *chain(*(REQUIREMENTS[upgrade] for upgrade in upgrades)),
             *upgrades,
-        ]
+        )
+        targets = list(dict.fromkeys(targets))
 
         for target in targets:
             if not sum(self.observation.count(t) for t in WITH_TECH_EQUIVALENTS.get(target, { target })):
@@ -338,7 +341,7 @@ class ZergAI(CommonAI):
             if not overlord.is_moving:
                 overlord.move(self.structures.random.position)
 
-    async def spreadCreep(self, spreader: Unit = None, numAttempts: int = 5):
+    async def spreadCreep(self, spreader: Unit = None, numAttempts: int = 1):
 
         if not CREEP_ENABLED:
             return
@@ -378,11 +381,11 @@ class ZergAI(CommonAI):
 
         tumorPlacement = None
         for _ in range(numAttempts):
-            position = await self.find_placement(AbilityId.ZERGBUILD_CREEPTUMOR, target)
+            position = await self.find_placement(AbilityId.ZERGBUILD_CREEPTUMOR, target, max_distance=12, placement_step=3)
             if position is None:
                 continue
             if self.is_blocking_base(position):
-                continue
+                continue 
             tumorPlacement = position
             break
         if tumorPlacement is None:

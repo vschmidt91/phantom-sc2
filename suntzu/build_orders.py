@@ -56,7 +56,7 @@ HATCH17 = [
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
-    UnitTypeId.DRONE,
+    # UnitTypeId.DRONE,
     # UnitTypeId.DRONE,
     # UnitTypeId.DRONE,
     UnitTypeId.OVERLORD,

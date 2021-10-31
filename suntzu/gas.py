@@ -12,7 +12,6 @@ class Gas(Resource):
 
     def __init__(self, position: Point2):
         super().__init__(position)
-        self.remaining: Optional[int] = None
         self.building: Optional[int] = None
 
     def update(self, observation: Observation):
@@ -32,7 +31,8 @@ class Gas(Resource):
             }
             building = next(filter(lambda g : g.position == self.position, gas_buildings), None)
 
-        if not building:
+
+        if not (building and building.is_ready):
             self.remaining = 0
             return
 

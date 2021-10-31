@@ -9,7 +9,7 @@ class Resource(object):
 
     def __init__(self, position: Point2):
         self.position: Point2 = position
-        self.remaining: int = 0
+        self.remaining: Optional[int] = None
         self.harvesters: Set[int] = set()
 
     @abstractmethod

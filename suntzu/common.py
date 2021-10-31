@@ -49,11 +49,14 @@ class CommonAI(BotAI):
     ):
 
 
+        self.tags: List[str] = []
+
         with open(version_path, 'r') as file:
-            self.version = file.readline()
+            version = file.readline()
+            self.tags.append(version)
 
         with open(greetings_path, 'r') as file:
-            self.greetings = [
+            self.quotes = [
                 line.replace('\n', '')
                 for line in file.readlines()
             ]
@@ -65,43 +68,13 @@ class CommonAI(BotAI):
         self.greet_enabled = True
         self.macro_targets = list()
         self.gas_ratio = 6 / 22
-
         self.observation: Observation = Observation()
-
         self.print_first_iteration = True
         self.worker_split: Dict[int, int] = None
         self.destroy_destructables = True
         self.tag = None
         self.bases: Dict[Point2, suntzu.base.Base] = dict()
         self.base_distance_matrix: Dict[Point2, Dict[Point2, float]] = dict()
-
-
-    def split_workers(self):
-
-        if self.worker_split == None:
-
-            start_townhall = self.townhalls[0]
-            start_minerals = self.expansion_locations_dict[start_townhall.position].mineral_field.sorted_by_distance_to(start_townhall)
-
-            self.worker_split = dict()
-            while len(self.worker_split) < self.workers.amount:
-                for mineral in start_minerals:
-                    unassigned_workers = self.workers.tags_not_in(self.worker_split.keys())
-                    if not unassigned_workers.exists:
-                        break
-                    worker = unassigned_workers.closest_to(mineral)
-                    self.worker_split[worker.tag] = mineral.tag
-                    worker.gather(mineral)
-
-                    
-        for worker_tag, mineral_tag in list(self.worker_split.items()):
-
-            worker = self.units.by_tag(worker_tag)
-            mineral = self.resources.by_tag(mineral_tag)
-            if worker.is_carrying_minerals:
-                del self.worker_split[worker_tag]
-            else:
-                worker.gather(mineral)
 
     @property
     def harvesters(self) -> Iterable[int]:
@@ -113,27 +86,27 @@ class CommonAI(BotAI):
 
     @property
     def mineral_harvester_count(self) -> int:
-        return sum(b.mineral_harvester_count for b in self.bases.values())
+        return sum(b.minerals.harvester_count for b in self.bases.values())
 
     @property
     def mineral_harvester_target(self) -> int:
-        return sum(b.mineral_harvester_target for b in self.bases.values())
+        return sum(b.minerals.harvester_target for b in self.bases.values())
 
     @property
     def mineral_harvester_balance(self) -> int:
-        return sum(b.mineral_harvester_balance for b in self.bases.values())
+        return sum(b.minerals.harvester_balance for b in self.bases.values())
 
     @property
     def gas_harvester_count(self) -> int:
-        return sum(b.gas_harvester_count for b in self.bases.values())
+        return sum(b.gasses.harvester_count for b in self.bases.values())
 
     @property
     def gas_harvester_target(self) -> int:
-        return sum(b.gas_harvester_target for b in self.bases.values())
+        return sum(b.gasses.harvester_target for b in self.bases.values())
 
     @property
     def gas_harvester_balance(self) -> int:
-        return sum(b.gas_harvester_balance for b in self.bases.values())
+        return sum(b.gasses.harvester_balance for b in self.bases.values())
 
     def update_bases(self):
 
@@ -151,41 +124,39 @@ class CommonAI(BotAI):
         while self.gas_harvester_count + 1 <= self.gas_target:
             success = False
             for base in self.bases.values():
-                if 0 <= base.gas_harvester_balance:
+                if 0 <= base.gasses.harvester_balance:
                     continue
-                if base.try_transfer_minerals_to_gas():
+                if base.minerals.try_transfer_to(base.gasses):
                     success = True
                     break
             if not success:
                 break
-            print('minerals to gas')
+            # print('minerals to gas')
 
         while self.gas_target <= self.gas_harvester_count - 1:
             success = False
             for base in self.bases.values():
-                if 0 <= base.mineral_harvester_balance:
-                    continue
-                if base.try_transfer_gas_to_minerals():
+                # if 0 <= base.minerals.harvester_balance:
+                #     continue
+                if base.gasses.try_transfer_to(base.minerals):
                     success = True
                     break
             if not success:
                 break
-            print('gas to minerals')
+            # print('gas to minerals')
 
         while True:
             bases_sorted = sorted(
                 (b for b in self.bases.values() if b.townhall_ready),
-                key=lambda b:b.mineral_harvester_balance
+                key=lambda b:b.minerals.harvester_balance
             )
+            if not bases_sorted:
+                break
             base_to = bases_sorted[0]
             base_from = bases_sorted[-1]
-            if base_to.mineral_harvester_balance + 1 <= base_from.mineral_harvester_balance - 1:
-                harvester = base_from.request_mineral_harvester()
-                if not harvester:
-                    break
-                print('base to base')
-                if not base_to.add_mineral_harvester(harvester):
-                    assert(base_from.add_mineral_harvester())
+            if base_to.minerals.harvester_balance < 0 and 0 < base_from.minerals.harvester_balance:
+            # if base_to.minerals.harvester_balance + 1 <= base_from.minerals.harvester_balance - 1:
+                assert(base_from.minerals.try_transfer_to(base_to.minerals))
                 continue
             break
 
@@ -216,9 +187,12 @@ class CommonAI(BotAI):
             base = suntzu.base.Base(townhall_position, minerals, gasses)
             self.bases[townhall_position] = base
 
-        self.main_base.townhall = main.tag
-        for worker in self.workers:
-            worker.stop()
+
+        self.main_base.do_worker_split(self.workers)
+
+        # self.main_base.townhall = main.tag
+        # for worker in self.workers:
+        #     worker.stop()
         # for worker in self.workers:
         #     self.main_base.add_mineral_harvester(worker.tag)
 
@@ -258,68 +232,70 @@ class CommonAI(BotAI):
                 continue
             if not worker.is_idle:
                 continue
-            base = min((
-                b for b in self.bases.values()
-                if b.townhall_ready),
-                key=lambda b : b.mineral_harvester_balance)
+            # base = min((
+            #     b for b in self.bases.values()
+            #     if b.townhall_ready),
+            #     key=lambda b : b.minerals.harvester_balance)
+            base = min(
+                (b for b in self.bases.values() if b.townhall_ready),
+                key=lambda b : worker.distance_to(b.townhall_position)
+            )
             # print('assigning idle worker: ' + str(worker.tag))
             base.add_harvester(worker.tag)
+
+    def update_observation(self):
+        self.observation = self.create_observation()
 
     async def on_step(self, iteration: int):
 
         self.iteration = iteration
+        self.destructables_filtered = self.destructables.filter(lambda d : 0 < d.armor)
 
         # if 8 * 60 < self.time:
         #     await self.client.debug_leave()
-        
-        # self.split_workers()
-
-        self.observation = self.create_observation()
-        self.destructables_filtered = self.destructables.filter(lambda d : 0 < d.armor)
 
         if 1 < self.time and self.greet_enabled:
-            await self.client.chat_send('Tag:' + self.version, True)
-            quote = random.choice(self.greetings)
+            for tag in self.tags:
+                await self.client.chat_send('Tag:' + tag, True)
+            quote = random.choice(self.quotes)
             await self.client.chat_send(quote, False)
-            if self.tag:
-                await self.client.chat_send('Tag:' + self.tag, True)
             self.greet_enabled = False
 
         if self.debug:
+            self.draw_debug()
 
-            font_color = (255, 255, 255)
-            font_size = 12
+    def draw_debug(self):
 
-            for i, target in enumerate(self.macro_targets):
+        font_color = (255, 255, 255)
+        font_size = 12
 
-                positions = []
+        for i, target in enumerate(self.macro_targets):
 
-                if not target.target:
-                    pass
-                elif isinstance(target.target, Unit):
-                    positions.append(target.target)
-                elif isinstance(target.target, Point3):
-                    positions.append(target.target)
-                elif isinstance(target.target, Point2):
-                    z = self.get_terrain_z_height(target.target)
-                    positions.append(Point3((target.target.x, target.target.y, z)))
+            positions = []
 
-                if target.unit:
-                    unit = self.observation.unit_by_tag.get(target.unit)
-                    if unit:
-                        positions.append(unit)
+            if not target.target:
+                pass
+            elif isinstance(target.target, Unit):
+                positions.append(target.target)
+            elif isinstance(target.target, Point3):
+                positions.append(target.target)
+            elif isinstance(target.target, Point2):
+                z = self.get_terrain_z_height(target.target)
+                positions.append(Point3((target.target.x, target.target.y, z)))
 
-                text = f"{str(i+1)} {str(target.item.name)}"
+            if target.unit:
+                unit = self.observation.unit_by_tag.get(target.unit)
+                if unit:
+                    positions.append(unit)
 
-                for position in positions:
-                    self.client.debug_text_world(
-                        text,
-                        position,
-                        color=font_color,
-                        size=font_size)
+            text = f"{str(i+1)} {str(target.item.name)}"
 
-        pass
-
+            for position in positions:
+                self.client.debug_text_world(
+                    text,
+                    position,
+                    color=font_color,
+                    size=font_size)
 
     async def on_end(self, game_result: Result):
         pass
@@ -433,7 +409,13 @@ class CommonAI(BotAI):
             i += 1
             if not requirement:
                 continue
-            if self.observation.count(requirement, **kwargs):
+            if type(requirement) is UnitTypeId:
+                equivalents = WITH_TECH_EQUIVALENTS[requirement]
+            elif type(requirement) is UpgradeId:
+                equivalents = { requirement }
+            else:
+                raise TypeError()
+            if any(self.observation.count(e, **kwargs) for e in equivalents):
                 continue
             missing.add(requirement)
             requirements.extend(self.get_missing_requirements(requirement, **kwargs))
@@ -792,7 +774,8 @@ class CommonAI(BotAI):
 
                     if (
                         unit.weapon_cooldown
-                        and unit.distance_to(target) < unit.radius + range + unit.distance_to_weapon_ready
+                        and unit.target_in_range(target, unit.distance_to_weapon_ready)
+                        # and unit.distance_to(target) < unit.radius + range + unit.distance_to_weapon_ready + target.radius
                     ):
                         unit.move(unit.position.towards(target, -12))
                     else:
