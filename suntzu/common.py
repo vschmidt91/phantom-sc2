@@ -677,10 +677,13 @@ class CommonAI(BotAI):
                 priority = 1
                 priority *= 1 + unitValue(target, target=unit)
                 priority /= 1 + unit.distance_to(target)
-                priority /= 30 + unit.distance_to(self.start_location)
-                priority /= 10 if target.is_structure else 1
-                priority /= 30 if target.type_id in CIVILIANS else 1
-                priority /= 10 if not target.is_enemy else 1
+                priority /= 10 + unit.distance_to(self.start_location)
+                priority /= 3 if target.is_structure else 1
+                priority /= 3 if target.type_id in CIVILIANS else 1
+                priority /= 3 if not target.is_enemy else 1
+                if unit.is_detector:
+                    priority *= 10 if target.is_cloaked else 1
+                    priority *= 10 if not target.is_revealed else 1
                 return priority
 
             if enemies:
@@ -734,7 +737,8 @@ class CommonAI(BotAI):
                 else:
 
                     # PURSUE
-                    if unit.weapon_cooldown:
+                    distance = unit.position.distance_to(target.position) - unit.radius - target.radius
+                    if unit.weapon_cooldown and 1 < distance:
                         unit.move(target.position)
                     else:
                         unit.attack(attack_target)
