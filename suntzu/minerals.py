@@ -3,12 +3,20 @@ from typing import Set, Union, Iterable
 from sc2.position import Point2
 from suntzu.resource import Resource
 
-from .observation import Observation
+from suntzu.observation import Observation
+from suntzu.resource_single import ResourceSingle
 
-class Minerals(Resource):
+class Minerals(ResourceSingle):
 
     def __init__(self, position: Point2):
         super().__init__(position)
+
+    @property
+    def harvester_target(self):
+        if self.remaining:
+            return 2
+        else:
+            return 0
 
     def update(self, observation: Observation):
 
@@ -20,7 +28,7 @@ class Minerals(Resource):
 
         if not patch:
             self.remaining = 0
-            for harvester in (observation.unit_by_tag.get(h) for h in self.harvesters):
+            for harvester in (observation.unit_by_tag.get(h) for h in self.harvester_set):
                 if not harvester:
                     continue
                 if harvester.is_carrying_resource:
@@ -33,7 +41,7 @@ class Minerals(Resource):
 
         self.remaining = patch.mineral_contents
 
-        for harvester in (observation.unit_by_tag.get(h) for h in self.harvesters):
+        for harvester in (observation.unit_by_tag.get(h) for h in self.harvester_set):
             if not harvester:
                 continue
             # if harvester.is_gathering:
@@ -46,10 +54,3 @@ class Minerals(Resource):
                 pass
             else:
                 harvester.gather(patch)
-
-    @property
-    def harvester_target(self):
-        if self.remaining:
-            return 2
-        else:
-            return 0

@@ -6,13 +6,21 @@ from sc2.constants import ALL_GAS
 from sc2.position import Point2
 from suntzu.resource import Resource
 
-from .observation import Observation
+from suntzu.observation import Observation
+from suntzu.resource_single import ResourceSingle
 
-class Gas(Resource):
+class Gas(ResourceSingle):
 
     def __init__(self, position: Point2):
         super().__init__(position)
         self.building: Optional[int] = None
+
+    @property
+    def harvester_target(self):
+        if self.remaining:
+            return 3
+        else:
+            return 0
 
     def update(self, observation: Observation):
         super().update(observation)
@@ -53,13 +61,13 @@ class Gas(Resource):
         self.remaining = building.vespene_contents
 
         if self.building and not self.remaining:
-            for harvester in (observation.unit_by_tag.get(h) for h in self.harvesters):
+            for harvester in (observation.unit_by_tag.get(h) for h in self.harvester_set):
                 if not harvester:
                     continue
                 harvester.stop()
-            self.harvesters.clear()
+            self.harvester_set.clear()
         else:
-            for harvester in (observation.unit_by_tag.get(h) for h in self.harvesters):
+            for harvester in (observation.unit_by_tag.get(h) for h in self.harvester_set):
                 if not harvester:
                     continue
                 elif harvester.is_carrying_resource:
@@ -69,11 +77,3 @@ class Gas(Resource):
                     pass
                 else:
                     harvester.gather(building)
-
-
-    @property
-    def harvester_target(self):
-        if self.remaining:
-            return 3
-        else:
-            return 0

@@ -33,12 +33,14 @@ SPORE_TIMING = {
     Race.Terran: 4.5 * 60,
 }
 
+BUILD_ORDER_PRIORITY = 10
+
 class ZergAI(CommonAI):
 
     def __init__(self, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
 
-        if random.random() < 0:
+        if random.random() < 0.5:
             build_order = ROACH_RUSH
             self.tags.append("RoachRush")
             self.tech_time = 4.5 * 60
@@ -52,7 +54,7 @@ class ZergAI(CommonAI):
             self.destroy_destructables = True
 
         for step in build_order:
-            self.add_macro_target(MacroTarget(step, priority=10))
+            self.add_macro_target(MacroTarget(step, priority=BUILD_ORDER_PRIORITY))
 
         # self.gas_target = 3
         self.composition = dict()
@@ -160,7 +162,7 @@ class ZergAI(CommonAI):
             # self.update_tables: 1,
             on_step_base: 1,
             self.update_observation: 1,
-            self.update_bases: 1,
+            # self.update_bases: 1,
             self.assign_idle_workers: 1,
             self.extractor_trick: 1,
             # self.update_abilities: 1,
@@ -177,9 +179,9 @@ class ZergAI(CommonAI):
             self.upgrade: 1,
             self.expand: 1,
             self.micro: 1,
-            # self.assignWorker: 1,
+            self.assignWorker: 1,
             self.macro: 1,
-            self.update_gas_ratio: 1,
+            self.update_gas_ratio: 16,
             self.buildGasses: 1,
             self.corrosive_bile: 1,
         }
@@ -555,22 +557,34 @@ class ZergAI(CommonAI):
             for unit in self.composition.keys()
         }
 
-        composition_missing = {
-            unit: count - composition_have[unit]
-            for unit, count in self.composition.items()
-        }
+        # targets = [
+        #     MacroTarget(unit, priority = -composition_have[unit] /  count)
+        #     for unit, count in self.composition.items()
+        #     if (
+        #         0 < count
+        #         and composition_have[unit] < count
+        #         and self.observation.count(unit, include_actual=False, include_pending=False, include_planned=True) < 1
+        #     )
+        # ]
 
-        targets = [
-            MacroTarget(unit, priority = -composition_have[unit] /  count)
-            for unit, count in self.composition.items()
-            if (
-                0 < count
-                and composition_have[unit] < count
-                and self.observation.count(unit, include_actual=False, include_pending=False, include_planned=True) < 1
-            )
-        ]
+        # for target in targets:
 
-        for target in targets:
+        #     if not any(self.get_missing_requirements(target.item, include_pending=False, include_planned=False)):
+        #         self.add_macro_target(target)
 
-            if not any(self.get_missing_requirements(target.item, include_pending=False, include_planned=False)):
-                self.add_macro_target(target)
+        for unit, count in self.composition.items():
+            if count < 1:
+                continue
+            elif count <= composition_have[unit]:
+                continue
+            if any(self.get_missing_requirements(unit, include_pending=False, include_planned=False)):
+                continue
+            priority = -composition_have[unit] /  count
+            plans = self.observation.planned_by_type[unit]
+            if not plans:
+                self.add_macro_target(MacroTarget(unit, priority=priority))
+            else:
+                for plan in plans:
+                    if plan.priority == BUILD_ORDER_PRIORITY:
+                        continue
+                    plan.priority = priority
