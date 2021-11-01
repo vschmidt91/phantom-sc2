@@ -6,7 +6,7 @@ import random
 from typing import Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
 
 from numpy.lib.function_base import select
-from s2clientprotocol.error_pb2 import Error
+from s2clientprotocol.error_pb2 import Error, QueueIsFull
 from sc2 import constants
 from sc2 import unit
 
@@ -652,29 +652,44 @@ class CommonAI(BotAI):
 
         friends = list(self.enumerate_army())
 
-        enemies = self.enemy_units
-        enemies = enemies.exclude_type(CIVILIANS)
+        # enemies = self.enemy_units
+        # enemies = enemies.exclude_type(CIVILIANS)
 
-        if not enemies.exists:
-            enemies = self.enemy_units
-        if not enemies.exists:
-            enemies = self.enemy_structures
+        # if not enemies.exists:
+        #     enemies = self.enemy_units
+        # if not enemies.exists:
+        #     enemies = self.enemy_structures
+
+        enemies = self.all_enemy_units
+        if self.destroy_destructables:
+            enemies += self.destructables_filtered
+        enemies = list(enemies)
 
         for unit in friends:
 
-            if unit.type_id == UnitTypeId.OVERSEER:
-                enemies_valid = enemies
-            else:
-                enemies_valid = enemies.filter(lambda e : (
-                    can_attack(unit, e)
-                    and not unit.is_hallucination
-                    and not unit.type_id in CHANGELINGS
-                ))
+            def target_priority(target: Unit) -> float:
+                if target.is_hallucination:
+                    return 0
+                if target.type_id in CHANGELINGS:
+                    return 0
+                if not can_attack(unit, target):
+                    return 0
+                priority = 1
+                priority *= 1 + unitValue(target, target=unit)
+                priority /= 1 + unit.distance_to(target)
+                priority /= 30 + unit.distance_to(self.start_location)
+                priority /= 10 if target.is_structure else 1
+                priority /= 30 if target.type_id in CIVILIANS else 1
+                priority /= 10 if not target.is_enemy else 1
+                return priority
 
-            if enemies_valid.exists:
+            if enemies:
 
-                target = enemies_valid.closest_to(unit)
-                range = unit.air_range if target.is_flying else unit.ground_range
+                target = max(enemies, key=target_priority)
+                if target.is_enemy:
+                    attack_target = target.position
+                else:
+                    attack_target = target
 
                 friends_rating = sum(unitValue(f) / max(8, target.distance_to(f)) for f in friends)
                 enemies_rating = sum(unitValue(e) / max(8, unit.distance_to(e)) for e in enemies)
@@ -699,45 +714,43 @@ class CommonAI(BotAI):
 
                 if advantage < advantage_threshold / 3:
 
+                    # FLEE
                     if not unit.is_moving:
                         unit.move(unit.position.towards(target, -12))
 
                 elif advantage < advantage_threshold:
 
-                    if (
-                        unit.weapon_cooldown
-                        and unit.target_in_range(target, unit.distance_to_weapon_ready)
-                        # and unit.distance_to(target) < unit.radius + range + unit.distance_to_weapon_ready + target.radius
-                    ):
+                    # RETREAT
+                    if unit.weapon_cooldown and unit.target_in_range(target, unit.distance_to_weapon_ready):
                         unit.move(unit.position.towards(target, -12))
                     else:
-                        unit.attack(target.position)
+                        unit.attack(attack_target)
                     
                 elif advantage < advantage_threshold * 3:
 
-                    unit.attack(target.position)
+                    # FIGHT
+                    unit.attack(attack_target)
 
                 else:
 
+                    # PURSUE
                     if unit.weapon_cooldown:
                         unit.move(target.position)
                     else:
-                        unit.attack(target.position)
+                        unit.attack(attack_target)
 
     
-            elif self.destroy_destructables and self.destructables_filtered.exists:
+            # elif self.destroy_destructables and self.destructables_filtered.exists:
 
-                if unit.type_id == UnitTypeId.BANELING:
-                    continue
+            #     if unit.type_id == UnitTypeId.BANELING:
+            #         continue
 
-                unit.attack(self.destructables_filtered.closest_to(unit))
+            #     unit.attack(self.destructables_filtered.closest_to(unit))
 
             elif not unit.is_attacking:
 
                 if self.time < 8 * 60:
                     target = random.choice(self.enemy_start_locations)
-                elif self.all_enemy_units.exists:
-                    target = self.all_enemy_units.closest_to(unit)
                 else:
                     target = random.choice(self.expansion_locations_list)
 
