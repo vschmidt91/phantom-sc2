@@ -5,7 +5,8 @@ from functools import reduce
 import math
 import random
 from typing import Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
-from numpy.lib.function_base import select
+import numpy as np
+from s2clientprotocol.error_pb2 import Error
 
 from sc2.position import Point2, Point3
 from sc2.bot_ai import BotAI
@@ -173,9 +174,7 @@ class CommonAI(BotAI):
     def gas_harvesters(self):
         return sum(b.vespene_geysers.harvester_count for b in self.bases)
 
-    def update_bases(self):
-
-        self.bases.update(self.observation)
+    def transfer_to_and_from_gas(self):
 
         while self.gas_harvesters + 1 <= self.gas_target:
             minerals_from = max(
@@ -207,6 +206,10 @@ class CommonAI(BotAI):
                 continue
             break
 
+    def update_bases(self):
+
+        self.bases.update(self.observation)
+
         # if we are oversaturated, enable long distance mining
         # self.bases.balance_aggressively = 0 < self.bases.harvester_balance
 
@@ -216,8 +219,19 @@ class CommonAI(BotAI):
         for a in self.expansion_locations_list:
             self.base_distance_matrix[a] = dict()
             for b in self.expansion_locations_list:
-                path = await self.client.query_pathing(a, b)
-                self.base_distance_matrix[a][b] = path or a.distance_to(b)
+                path = None
+                for sigma in range(5):
+                    for i in range(1 + sigma * sigma):
+                        sa = Point2(np.random.normal(a, sigma))
+                        sb = Point2(np.random.normal(b, sigma))
+                        path = await self.client.query_pathing(sa, sb)
+                        if path:
+                            break
+                    if path:
+                        break
+                if not path:
+                    raise Error(f'could not find path between bases {str(a)} and {str(b)}')
+                self.base_distance_matrix[a][b] = path
 
 
         expansions = [self.start_location]

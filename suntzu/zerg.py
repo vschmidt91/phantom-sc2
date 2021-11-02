@@ -33,13 +33,14 @@ SPORE_TIMING = {
 }
 
 BUILD_ORDER_PRIORITY = 10
+TIMING_INTERVAL = 64
 
 class ZergAI(CommonAI):
 
     def __init__(self, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
 
-        if random.random() < 0:
+        if random.random() < 0.5:
             build_order = ROACH_RUSH
             self.tags.append("RoachRush")
             self.tech_time = 4.5 * 60
@@ -59,7 +60,6 @@ class ZergAI(CommonAI):
         self.timings_acc = dict()
         self.abilities = dict()
         self.inject_assigments = dict()
-        self.timings_interval = 64
         self.inject_assigments_max = 5
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
@@ -142,6 +142,7 @@ class ZergAI(CommonAI):
         steps = {
             self.update_observation: 1,
             self.update_bases: 1,
+            self.transfer_to_and_from_gas: 1,
             self.extractor_trick: 1,
             self.update_composition: 1,
             self.micro_queens: 1,
@@ -160,14 +161,14 @@ class ZergAI(CommonAI):
 
         steps_filtered = [s for s, m in steps.items() if iteration % m == 0]
             
-        if self.timings_interval:
+        if self.debug:
             timings = await run_timed(steps_filtered)
             for key, value in timings.items():
                 self.timings_acc[key] = self.timings_acc.get(key, 0) + value
-            if iteration % self.timings_interval == 0:
-                timings_items = ((k, round(1e3 * n / self.timings_interval, 1)) for k, n in self.timings_acc.items())
+            if iteration % TIMING_INTERVAL == 0:
+                timings_items = ((k, round(1e3 * n / TIMING_INTERVAL, 1)) for k, n in self.timings_acc.items())
                 timings_sorted = dict(sorted(timings_items, key=lambda p : p[1], reverse=True))
-                # print(timings_sorted)
+                print(timings_sorted)
                 self.timings_acc = {}
         else:
             for step in steps_filtered:
