@@ -29,7 +29,7 @@ if __name__ == "__main__":
         # opponent = Bot(Race.Zerg, DummmyAI(), 'Dummy')
         opponent = Computer(Race.Zerg, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
         run_game(
-            sc2.maps.get('RomanticideAIE'),
+            sc2.maps.get('BlackburnAIE'),
             [bot, opponent],
             realtime=False,
             save_replay_as=replayPath,

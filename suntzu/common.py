@@ -215,22 +215,23 @@ class CommonAI(BotAI):
 
     async def init_bases(self):
 
+        num_attempts = 100
+        max_sigma = 5
+
         self.base_distance_matrix = dict()
         for a in self.expansion_locations_list:
             self.base_distance_matrix[a] = dict()
             for b in self.expansion_locations_list:
                 path = None
-                for sigma in range(5):
-                    for i in range(1 + sigma * sigma):
-                        sa = Point2(np.random.normal(a, sigma))
-                        sb = Point2(np.random.normal(b, sigma))
-                        path = await self.client.query_pathing(sa, sb)
-                        if path:
-                            break
+                for i in range(100):
+                    sigma = max_sigma * i / num_attempts
+                    sa = Point2(np.random.normal(a, sigma))
+                    sb = Point2(np.random.normal(b, sigma))
+                    path = await self.client.query_pathing(sa, sb)
                     if path:
                         break
                 if not path:
-                    raise Error(f'could not find path between bases {str(a)} and {str(b)}')
+                    path = a.distance_to(b)
                 self.base_distance_matrix[a][b] = path
 
 
