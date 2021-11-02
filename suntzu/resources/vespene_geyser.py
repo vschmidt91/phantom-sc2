@@ -1,15 +1,14 @@
 
 from typing import Optional, Set
 
-from s2clientprotocol.error_pb2 import Error
-from sc2.constants import ALL_GAS
 from sc2.position import Point2
-from suntzu.resource import Resource
+from sc2.constants import ALL_GAS
 
-from suntzu.observation import Observation
-from suntzu.resource_single import ResourceSingle
+from ..observation import Observation
+from .resource_single import ResourceSingle
+from .resource import Resource
 
-class Gas(ResourceSingle):
+class VespeneGeyser(ResourceSingle):
 
     def __init__(self, position: Point2):
         super().__init__(position)
@@ -60,13 +59,7 @@ class Gas(ResourceSingle):
 
         self.remaining = building.vespene_contents
 
-        if self.building and not self.remaining:
-            for harvester in (observation.unit_by_tag.get(h) for h in self.harvester_set):
-                if not harvester:
-                    continue
-                harvester.stop()
-            self.harvester_set.clear()
-        else:
+        if self.building and self.remaining:
             for harvester in (observation.unit_by_tag.get(h) for h in self.harvester_set):
                 if not harvester:
                     continue

@@ -1,18 +1,15 @@
 
 from collections import defaultdict
+from enum import Enum
 from functools import reduce
 import math
 import random
 from typing import Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
-
 from numpy.lib.function_base import select
-from s2clientprotocol.error_pb2 import Error, QueueIsFull
-from sc2 import constants
-from sc2 import unit
 
 from sc2.position import Point2, Point3
 from sc2.bot_ai import BotAI
-from sc2.constants import ALL_GAS, SPEED_INCREASE_ON_CREEP_DICT, IS_STRUCTURE
+from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT, IS_STRUCTURE
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
@@ -24,30 +21,33 @@ from sc2.dicts.unit_tech_alias import UNIT_TECH_ALIAS
 from sc2.data import Result, race_townhalls, race_worker
 from sc2.unit import Unit
 from sc2.units import Units
-from suntzu.gas import Gas
-from suntzu.base import Base
-from suntzu.minerals import Minerals
-from suntzu.observation import Observation
-from suntzu.resource import Resource
-from suntzu.resource_group import ResourceGroup
 
-from .constants import CHANGELINGS, REQUIREMENTS_KEYS, WITH_TECH_EQUIVALENTS, CIVILIANS, GAS_BY_RACE, REQUIREMENTS, REQUIREMENTS_EXCLUDE, STATIC_DEFENSE, SUPPLY, SUPPLY_PROVIDED, TOWNHALL, TRAIN_ABILITIES, UNIT_BY_TRAIN_ABILITY, UPGRADE_BY_RESEARCH_ABILITY
+from .resources.vespene_geyser import VespeneGeyser
+from .resources.base import Base
+from .resources.mineral_patch import MineralPatch
+from .observation import Observation
+from .resources.resource import Resource
+from .resources.resource_group import ResourceGroup
+from .constants import WORKERS, CHANGELINGS, REQUIREMENTS_KEYS, WITH_TECH_EQUIVALENTS, CIVILIANS, GAS_BY_RACE, REQUIREMENTS, REQUIREMENTS_EXCLUDE, STATIC_DEFENSE, SUPPLY, SUPPLY_PROVIDED, TOWNHALL, TRAIN_ABILITIES, UNIT_BY_TRAIN_ABILITY, UPGRADE_BY_RESEARCH_ABILITY
 from .macro_target import MacroTarget
 from .cost import Cost
 from .utils import can_attack, get_requirements, armyValue, unitPriority, canAttack, center, dot, unitValue
-
-import suntzu.base
 
 RESOURCE_DISTANCE_THRESHOLD = 10
 
 class PlacementNotFound(Exception):
     pass
 
+class PerformanceMode(Enum):
+    DEFAULT = 1
+    HIGH_PERFORMANCE = 2
+
 class CommonAI(BotAI):
 
     def __init__(self,
         game_step: int = 1,
         debug: bool = False,
+        performance: PerformanceMode = PerformanceMode.DEFAULT,
         version_path: str = './version.txt',
         greetings_path: str = './greetings.txt',
     ):
@@ -66,6 +66,7 @@ class CommonAI(BotAI):
             ]
 
         self.game_step = game_step
+        self.performance = performance
         self.debug = debug
         self.raw_affects_selection = True
         self.gas_target = 0
@@ -76,103 +77,22 @@ class CommonAI(BotAI):
         self.print_first_iteration = True
         self.worker_split: Dict[int, int] = None
         self.destroy_destructables = True
+        self.destructables_filtered = {}
         self.tag = None
-        self.bases: ResourceGroup = None
+        self.bases: ResourceGroup[Base] = None
         self.base_distance_matrix: Dict[Point2, Dict[Point2, float]] = dict()
-
-    def update_bases(self):
-
-        self.bases.update(self.observation)
-
-        # while self.gas_resources.harvester_count + 1 <= min(self.gas_resources.harvester_target, self.gas_target):
-        #     harvester = self.mineral_resources.try_transfer_to(self.gas_resources)
-        #     if not harvester:
-        #         break
-        #     print('transfer minerals to gas external')
-
-        # while self.gas_target <= self.gas_resources.harvester_count - 1:
-        #     harvester = self.gas_resources.try_transfer_to(self.mineral_resources)
-        #     if not harvester:
-        #         break
-        #     print('transfer gas to minerals external')
-
-    async def init_bases(self):
-
-        main = self.townhalls[0]
-        main(AbilityId.RALLY_WORKERS, target=main)
-
-        self.base_distance_matrix = dict()
-        for a in self.expansion_locations_list:
-            self.base_distance_matrix[a] = dict()
-            for b in self.expansion_locations_list:
-                self.base_distance_matrix[a][b] = await self.client.query_pathing(a, b) or a.distance_to(b)
-
-        townhall_positions = sorted(
-            (p for p in self.expansion_locations_list),
-            key = lambda p : self.base_distance_matrix[main.position][p]
-        )
-
-        bases = []
-        for townhall_position in townhall_positions:
-            resources = self.expansion_locations_dict[townhall_position]
-            minerals = (m.position for m in resources.mineral_field)
-            gasses = (g.position for g in resources.vespene_geyser)
-            base = Base(townhall_position, minerals, gasses)
-            bases.append(base)
-
-        self.bases = ResourceGroup(bases)
-        self.bases.resources[0].minerals.do_worker_split(self.workers)
 
     async def on_before_start(self):
         self.client.game_step = self.game_step
         pass
 
     async def on_start(self):
-
-        self.geysers_by_expanion = {
-            base: {
-                geyser.position
-                for geyser in resources.vespene_geyser
-            }
-            for base, resources in self.expansion_locations_dict.items()
-        }
-
-        self.minerals_by_expansion = {
-            base: {
-                mineral.position
-                for mineral in resources.mineral_field
-            }
-            for base, resources in self.expansion_locations_dict.items()
-        }
-
         await self.init_bases()
-
-    def assign_idle_workers(self):
-
-        harvesters = list(self.bases.harvesters)
-
-        for worker in self.workers:
-
-            if worker.tag in harvesters:
-                continue
-            if any(step.unit == worker.tag for step in self.macro_targets):
-                continue
-            if not worker.is_idle:
-                continue
-
-            self.bases.try_add(worker.tag)
-            # print('assigning idle worker: ' + str(worker.tag))
-
-    def update_observation(self):
-        self.observation = self.create_observation()
 
     async def on_step(self, iteration: int):
 
         self.iteration = iteration
         self.destructables_filtered = self.destructables.filter(lambda d : 0 < d.armor)
-
-        # if 8 * 60 < self.time:
-        #     await self.client.debug_leave()
 
         if 1 < self.time and self.greet_enabled:
             for tag in self.tags:
@@ -183,6 +103,141 @@ class CommonAI(BotAI):
 
         if self.debug:
             self.draw_debug()
+
+    async def on_end(self, game_result: Result):
+        pass
+
+    async def on_building_construction_started(self, unit: Unit):
+        # if unit.type_id in race_townhalls[self.race]:
+        #     base = next((b for b in self.bases.items if b.position == unit.position), None)
+        #     if base:
+        #         base.townhall = unit.tag
+        #         base.townhall_ready = False
+        pass
+
+    async def on_building_construction_complete(self, unit: Unit):
+        if unit.type_id in race_townhalls[self.race]:
+            base = next((b for b in self.bases if b.position == unit.position), None)
+            if base:
+                base.townhall = unit.tag
+        if unit.type_id in race_townhalls[self.race]:
+            if self.mineral_field.exists:
+                unit.smart(self.mineral_field.closest_to(unit))
+        pass
+
+    async def on_enemy_unit_entered_vision(self, unit: Unit):
+        pass
+
+    async def on_enemy_unit_left_vision(self, unit_tag: int):
+        pass
+
+    async def on_unit_created(self, unit: Unit):
+        if unit.type_id == race_worker[self.race]:
+            if self.time == 0:
+                return
+            base = min(self.bases, key = lambda b : unit.distance_to(b.position))
+            base.try_add(unit.tag)
+        pass
+
+    async def on_unit_destroyed(self, unit_tag: int):
+        base = next((b for b in self.bases if b.townhall == unit_tag), None)
+        if base:
+            base.townhall = None
+        pass
+
+    async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
+        if (unit.is_structure and not unit.is_ready):
+            if self.performance == PerformanceMode.DEFAULT:
+                potential_damage = 0
+                for enemy in self.all_enemy_units:
+                    damage, speed, range = enemy.calculate_damage_vs_target(unit)
+                    if  unit.distance_to(enemy) < unit.radius + range + enemy.radius:
+                        potential_damage += damage
+                if unit.health + unit.shield <= potential_damage:
+                    unit(AbilityId.CANCEL)
+            else:
+                if unit.shield_health_percentage < 0.1:
+                    unit(AbilityId.CANCEL)
+        pass
+        
+    async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
+        pass
+
+    async def on_upgrade_complete(self, upgrade: UpgradeId):
+        pass
+
+    def update_observation(self):
+        self.observation = self.create_observation()
+
+    @property
+    def gas_harvesters(self):
+        return sum(b.vespene_geysers.harvester_count for b in self.bases)
+
+    def update_bases(self):
+
+        self.bases.update(self.observation)
+
+        while self.gas_harvesters + 1 <= self.gas_target:
+            minerals_from = max(
+                (b.mineral_patches for b in self.bases if 0 < b.mineral_patches.harvester_count),
+                key = lambda m : m.harvester_balance,
+                default = None
+            )
+            gas_to = min(
+                (b.vespene_geysers for b in self.bases if b.vespene_geysers.harvester_balance < 0),
+                key = lambda g : g.harvester_balance,
+                default = None
+            )
+            if minerals_from and gas_to and minerals_from.try_transfer_to(gas_to):
+                continue
+            break
+
+        while self.gas_target <= self.gas_harvesters - 1:
+            gas_from = max(
+                (b.vespene_geysers for b in self.bases if 0 < b.vespene_geysers.harvester_count),
+                key = lambda g : g.harvester_balance,
+                default = None
+            )
+            minerals_to = min(
+                (b.mineral_patches for b in self.bases if 0 < b.mineral_patches.remaining),
+                key = lambda m : m.harvester_balance,
+                default = None
+            )
+            if gas_from and minerals_to and gas_from.try_transfer_to(minerals_to):
+                continue
+            break
+
+        # if we are oversaturated, enable long distance mining
+        # self.bases.balance_aggressively = 0 < self.bases.harvester_balance
+
+    async def init_bases(self):
+
+        self.base_distance_matrix = dict()
+        for a in self.expansion_locations_list:
+            self.base_distance_matrix[a] = dict()
+            for b in self.expansion_locations_list:
+                path = await self.client.query_pathing(a, b)
+                self.base_distance_matrix[a][b] = path or a.distance_to(b)
+
+
+        expansions = [self.start_location]
+        while len(expansions) < len(self.expansion_locations_list):
+            expansion = min(
+                (e for e in self.expansion_locations_list if e not in expansions),
+                key=lambda e: max(self.base_distance_matrix[e][f] for f in expansions) - min(self.base_distance_matrix[e][f] for f in self.enemy_start_locations)
+            )
+            expansions.append(expansion)
+
+        bases = []
+        for townhall_position in expansions:
+            resources = self.expansion_locations_dict[townhall_position]
+            minerals = (m.position for m in resources.mineral_field)
+            gasses = (g.position for g in resources.vespene_geyser)
+            base = Base(townhall_position, minerals, gasses)
+            bases.append(base)
+
+        self.bases = ResourceGroup(bases)
+        self.bases.items[0].mineral_patches.do_worker_split(self.workers)
 
     def draw_debug(self):
 
@@ -216,57 +271,6 @@ class CommonAI(BotAI):
                     position,
                     color=font_color,
                     size=font_size)
-
-    async def on_end(self, game_result: Result):
-        pass
-
-    async def on_building_construction_started(self, unit: Unit):
-        if unit.type_id in race_townhalls[self.race]:
-            base = next((b for b in self.bases.resources if b.townhall_position == unit.position), None)
-            if base:
-                base.townhall = unit.tag
-                base.townhall_ready = False
-        pass
-
-    async def on_building_construction_complete(self, unit: Unit):
-        if unit.type_id in race_townhalls[self.race]:
-            base = next((b for b in self.bases.resources if b.townhall_position == unit.position), None)
-            if base:
-                base.townhall = unit.tag
-                base.townhall_ready = True
-        # if unit.type_id in race_townhalls[self.race] and self.mineral_field.exists:
-        #     unit.smart(self.mineral_field.closest_to(unit))
-        pass
-
-    async def on_enemy_unit_entered_vision(self, unit: Unit):
-        pass
-
-    async def on_enemy_unit_left_vision(self, unit_tag: int):
-        pass
-
-    async def on_unit_created(self, unit: Unit):
-        if self.time == 0:
-            pass
-        # elif unit.type_id == race_worker[self.race]:
-        #     base = min(self.bases.values(), key = lambda b : b.townhall_position.distance_to(unit))
-        #     base.add_mineral_harvester(unit.tag)
-        pass
-
-    async def on_unit_destroyed(self, unit_tag: int):
-        base = next((b for b in self.bases.resources if b.townhall == unit_tag), None)
-        if base:
-            base.townhall = None
-            base.townhall_ready = False
-        pass
-
-    async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
-        pass
-        
-    async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
-        pass
-
-    async def on_upgrade_complete(self, upgrade: UpgradeId):
-        pass
     
     def create_observation(self):
         observation = Observation()
@@ -356,16 +360,10 @@ class CommonAI(BotAI):
 
         return missing
 
-        # for r in requirements:
-        #     yield r
-        #     for r2 in get_requirements(r):
-        #         yield r2
-
     async def macro(self):
 
         reserve = Cost(0, 0, 0)
         exclude = { o.unit for o in self.macro_targets }
-        # macro_targets_new = list(self.macro_targets)
 
         took_action = False
 
@@ -375,15 +373,14 @@ class CommonAI(BotAI):
 
         i = 0
         while i < len(self.macro_targets):
-        # for objective in self.macro_targets:
 
             objective = self.macro_targets[i]
             i += 1
 
             if not objective.cost:
-                objective.cost = self.getCost(objective.item)
+                objective.cost = self.get_cost(objective.item)
 
-            can_afford = self.canAffordWithReserve(objective.cost, reserve)
+            can_afford = self.can_afford_with_reserve(objective.cost, reserve)
             reserve += objective.cost
 
             if objective.condition and not objective.condition(self):
@@ -407,29 +404,8 @@ class CommonAI(BotAI):
                 except PlacementNotFound as p: 
                     continue
 
-            # requirement_missing = False
-            # for requirement in REQUIREMENTS[objective.item]:
-            #     if not sum(
-            #         self.observation.count(equivalent, include_pending=False, include_planned=False)
-            #         for equivalent in WITH_TECH_EQUIVALENTS[requirement]
-            #     ):
-            #         requirement_missing = True
-            #         break
-
-            # if requirement_missing:
-            #     continue
-
             if any(self.get_missing_requirements(objective.item, include_pending=False, include_planned=False)):
                 continue
-
-            # if not objective.ability["ability"] in await self.get_available_abilities(unit, ignore_resource_requirements=True):
-            #     continue
-
-
-                
-            # base = next((b for b in self.bases if any(unit.tag in hs for hs in b.mineral_harvesters.values())), None)
-            # if base:
-            #     base.remove_mineral_harvester(unit.tag)
 
             if (
                 objective.target
@@ -463,39 +439,17 @@ class CommonAI(BotAI):
 
             if not can_afford:
                 continue
-            
-            # abilities = await self.get_available_abilities(unit)
-            # if not objective.ability["ability"] in abilities:
-            #     print("ability with cost failed:" + str(objective))
-            #     raise Error()
 
             if unit.type_id == race_worker[self.race]:
                 self.bases.try_remove(unit.tag)
 
-            if self.isStructure(objective.item) and isinstance(objective.target, Point2):
+            if self.is_structure(objective.item) and isinstance(objective.target, Point2):
                 if not await self.can_place_single(objective.item, objective.target):
                     objective.target = None
                     continue
 
             if took_action:
                 continue
-
-            # if unit.type_id == race_worker[self.race]:
-            #     removed = False
-            #     for base in self.bases.values():
-            #         for minerals in base.minerals:
-            #             if unit.tag in minerals.harvesters:
-            #                 minerals.harvesters.remove(unit.tag)
-            #                 removed = True
-            #         for gas in base.gasses:
-            #             if unit.tag in gas.harvesters:
-            #                 gas.harvesters.remove(unit.tag)
-            #                 removed = True
-            #         if removed:
-            #             break
-
-            #     if not removed:
-            #         raise Error()
 
             queue = False
             if unit.is_carrying_resource:
@@ -518,11 +472,12 @@ class CommonAI(BotAI):
 
 
     def get_owned_geysers(self):
-        for townhall in self.townhalls.ready:
-            for geyser_position in self.geysers_by_expanion.get(townhall.position, []):
-                geyser = self.observation.resource_by_position.get(geyser_position)
-                if geyser:
-                    yield geyser
+        for base in self.bases:
+            if not base.townhall:
+                continue
+            for gas in base.vespene_geysers:
+                geyser = self.observation.resource_by_position[gas.position]
+                yield geyser
 
     async def get_target(self, unit: Unit, objective: MacroTarget) -> Coroutine[any, any, Union[Unit, Point2]]:
         gas_type = GAS_BY_RACE[self.race]
@@ -571,7 +526,7 @@ class CommonAI(BotAI):
             return None
 
 
-    def getCost(self, item: Union[UnitTypeId, UpgradeId]) -> Cost:
+    def get_cost(self, item: Union[UnitTypeId, UpgradeId]) -> Cost:
         cost = self.calculate_cost(item)
         food = 0
         if type(item) is UnitTypeId:
@@ -588,9 +543,6 @@ class CommonAI(BotAI):
             }
         elif type(item) is UpgradeId:
             trainer_types = WITH_TECH_EQUIVALENTS[UPGRADE_RESEARCHED_FROM[item]]
-
-        # if trainer_types == { race_worker[self.race] }:
-        #     trainers = { self.}
 
         trainers = (
             unit
@@ -625,20 +577,6 @@ class CommonAI(BotAI):
 
             if "requires_techlab" in ability and not trainer.has_techlab:
                 continue
-
-            # requiredBuilding = ability.get("required_building", None)
-            # if requiredBuilding is not None:
-            #     requiredBuilding = withEquivalents(requiredBuilding)
-            #     if not self.structures(requiredBuilding).ready.exists:
-            #         continue
-
-            # requiredUpgrade = ability.get("required_upgrade", None)
-            # if requiredUpgrade is not None:
-            #     if not requiredUpgrade in self.state.upgrades:
-            #         continue
-
-            # if ability["ability"] not in abilities:
-            #     continue
                 
             return trainer, ability
 
@@ -651,14 +589,6 @@ class CommonAI(BotAI):
     async def micro(self):
 
         friends = list(self.enumerate_army())
-
-        # enemies = self.enemy_units
-        # enemies = enemies.exclude_type(CIVILIANS)
-
-        # if not enemies.exists:
-        #     enemies = self.enemy_units
-        # if not enemies.exists:
-        #     enemies = self.enemy_structures
 
         enemies = self.all_enemy_units
         if self.destroy_destructables:
@@ -677,8 +607,9 @@ class CommonAI(BotAI):
                 priority = 1
                 priority *= 1 + unitValue(target, target=unit)
                 priority /= 1 + unit.distance_to(target)
-                priority /= 10 + unit.distance_to(self.start_location)
+                priority /= 30 + unit.distance_to(self.start_location)
                 priority /= 3 if target.is_structure else 1
+                priority *= 3 if target.type_id in WORKERS else 1
                 priority /= 3 if target.type_id in CIVILIANS else 1
                 priority /= 3 if not target.is_enemy else 1
                 if unit.is_detector:
@@ -703,7 +634,6 @@ class CommonAI(BotAI):
                 advantage = 1
                 advantage_value = friends_rating / max(1, enemies_rating)
                 advantage_defender = distance_ref / (distance_ref + distance_to_base)
-                # advantage_defender = (distance_bias + target.distance_to(enemyBaseCenter)) / (distance_bias + target.distance_to(baseCenter))
                 
                 advantage_creep = 1
                 creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id)
@@ -743,14 +673,6 @@ class CommonAI(BotAI):
                     else:
                         unit.attack(attack_target)
 
-    
-            # elif self.destroy_destructables and self.destructables_filtered.exists:
-
-            #     if unit.type_id == UnitTypeId.BANELING:
-            #         continue
-
-            #     unit.attack(self.destructables_filtered.closest_to(unit))
-
             elif not unit.is_attacking:
 
                 if self.time < 8 * 60:
@@ -760,22 +682,6 @@ class CommonAI(BotAI):
 
                 unit.attack(target)
 
-    def getTechDistanceForTrainer(self, unit: UnitTypeId, trainer: UnitTypeId) -> int:
-        info = TRAIN_INFO[trainer][unit]
-        structure = info.get("required_building")
-        if structure is None:
-            return 0
-        elif self.structures(structure).ready.exists:
-            return 0
-        else:
-            return 1 + self.getTechDistance(structure)
-
-    def getTechDistance(self, unit: UnitTypeId) -> int:
-        trainers = UNIT_TRAINED_FROM.get(unit)
-        if not trainers:
-            return 0
-        return min((self.getTechDistanceForTrainer(unit, t) for t in trainers))
-
     async def get_target_position(self, target: UnitTypeId, trainer: Unit) -> Point2:
         if target in STATIC_DEFENSE[self.race]:
             townhalls = self.townhalls.ready.sorted_by_distance_to(self.start_location)
@@ -784,12 +690,15 @@ class CommonAI(BotAI):
                 return townhalls[i].position.towards(self.game_info.map_center, -5)
             else:
                 return self.start_location
-        elif self.isStructure(target):
+        elif self.is_structure(target):
             if target in race_townhalls[self.race]:
-                base = await self.get_next_expansion()
-                if not base:
-                    raise PlacementNotFound()
-                return base
+                for b in self.bases:
+                    if b.townhall:
+                        continue
+                    if not await self.can_place_single(target, b.position):
+                        continue
+                    return b.position
+                raise PlacementNotFound()
             elif self.townhalls.exists:
                 position = self.townhalls.closest_to(self.start_location).position
                 return position.towards(self.game_info.map_center, 5)
@@ -798,22 +707,8 @@ class CommonAI(BotAI):
         else:
             return trainer.position
 
-    async def get_base_distance(self, base):
-
-        distances_self = []
-        for b in self.owned_expansions.keys():
-            distance = await self.client.query_pathing(b, base) or b.distance_to(base)
-            distances_self.append(distance)
-
-        distances_enemy = []
-        for b in self.enemy_start_locations:
-            distance = await self.client.query_pathing(b, base) or b.distance_to(base)
-            distances_enemy.append(distance)
-
-        return max(distances_self) - min(distances_enemy)
-
     def has_capacity(self, unit: Unit) -> bool:
-        if self.isStructure(unit.type_id):
+        if self.is_structure(unit.type_id):
             if unit.has_reactor:
                 return len(unit.orders) < 2
             else:
@@ -821,155 +716,24 @@ class CommonAI(BotAI):
         else:
             return True
 
-    def isStructure(self, unit: UnitTypeId) -> bool:
-        unitData = self.game_data.units.get(unit.value)
-        if unitData is None:
+    def is_structure(self, unit: UnitTypeId) -> bool:
+        data = self.game_data.units.get(unit.value)
+        if data is None:
             return False
-        return IS_STRUCTURE in unitData.attributes
+        return IS_STRUCTURE in data.attributes
 
     def get_supply_buffer(self) -> int:
-
-        supplyBuffer = 4
-
-        # supplyBuffer += sum(
-        #     target.cost.food
-        #     for target in self.macro_targets
-        #     if target.cost
-        # )
-
-        supplyBuffer += 1 * self.townhalls.amount
-        # supplyBuffer += 2 * self.larva.amount
-        supplyBuffer += 3 * self.observation.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
-
-        # supplyBuffer += 2 * self.observation.count(UnitTypeId.BARRACKS)
-        # supplyBuffer += 2 * self.observation.count(UnitTypeId.FACTORY)
-        # supplyBuffer += 2 * self.observation.count(UnitTypeId.STARPORT)
-        # supplyBuffer += 2 * self.observation.count(UnitTypeId.GATEWAY)
-        # supplyBuffer += 2 * self.observation.count(UnitTypeId.WARPGATE)
-        # supplyBuffer += 2 * self.observation.count(UnitTypeId.ROBOTICSFACILITY)
-        # supplyBuffer += 2 * self.observation.count(UnitTypeId.STARGATE)
-        return supplyBuffer
-
-    def getSupplyTarget(self) -> int:
-
-        supply_have = self.observation.count(SUPPLY[self.race], include_pending=False, include_planned=False)
-        if self.supply_cap == 200:
-            return supply_have
-
-        supply_pending = sum(
-            provided * self.observation.count(unit)
-            for unit, provided in SUPPLY_PROVIDED.items()
-        )
-            
-        supply_buffer = self.get_supply_buffer()
-        supplyNeeded = 1 + math.floor((supply_buffer - self.supply_left - supply_pending) / 8)
-
-        return supply_have + supplyNeeded
-
-    def createCost(self, unit: UnitTypeId):
-        cost = self.calculate_cost(unit)
-        food = self.calculate_supply_cost(unit)
-        return Cost(cost.minerals, cost.vespene, food)
-
-    def createCost(self, upgrade: UpgradeId):
-        cost = self.calculate_cost(upgrade)
-        return Cost(cost.minerals, cost.vespene, 0)
-
-    def unitValue(self, unit: UnitTypeId) -> int:
-        value = self.calculate_unit_value(unit)
-        return value.minerals + 2 * value.vespene
+        buffer = 4
+        buffer += 1 * self.townhalls.amount
+        buffer += 3 * self.observation.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
+        return buffer
 
     def enumerate_army(self):
         for unit in self.units:
             if not unit.type_id in CIVILIANS:
                 yield unit
 
-    def assignWorker(self):
-
-        # mineral_field_to_position = dict()
-        # expansion_to_mineral_fields = dict()
-        # for mineral_field in self.resources.mineral_field:
-        #     mineral_field_to_position[mineral_field.tag] = mineral_field.position
-        #     expansion = self.position_to_expansion[mineral_field.position]
-        #     expansion_to_mineral_fields.setdefault(expansion, list()).append(mineral_field)
-
-
-        # expansion_to_townhall = dict()
-        # for expansion in self.expansion_locations_list:
-        #     townhall = self.townhalls.ready.closest_to(expansion)
-        #     if expansion.distance_to(townhall) < RESOURCE_DISTANCE_THRESHOLD:
-        #         expansion_to_townhall[expansion] = townhall
-
-        gasActual = sum(g.assigned_harvesters for g in self.gas_buildings)
-
-        exclude = { o.unit for o in self.macro_targets if o.unit }
-
-        worker = None
-        target = None
-
-        workers = self.workers.tags_not_in(exclude)
-        if workers.idle.exists:
-            worker = workers.idle.random
-
-        if worker is None:
-            for gas in self.gas_buildings.ready:
-                workers_gas = workers.filter(lambda w : w.order_target == gas.tag)
-                if workers_gas.exists and (0 < gas.surplus_harvesters or self.gas_target + 1 <= gasActual):
-                    worker = workers_gas.furthest_to(gas)
-                elif gas.surplus_harvesters < 0 and gasActual + 1 <= self.gas_target:
-                    target = gas
-
-        if worker is None:
-
-            # for w in workers:
-            #     position = mineral_field_to_position.get(w.order_target)
-            #     expansion = self.position_to_expansion.get(position)
-            #     townhall = expansion_to_townhall.get(expansion)
-            #     if (
-            #         townhall is not None
-            #         and (0 < townhall.surplus_harvesters or target)
-            #     ):
-            #         worker = w
-            #         break
-
-            for townhall in self.townhalls.ready:
-                if 0 < townhall.surplus_harvesters or target is not None:
-                    workers = self.workers.tags_not_in(exclude).closer_than(5, townhall)
-                    if workers.exists:
-                        worker = workers.random
-                        break
-
-        if worker is None:
-            return
-
-        if target is None:
-            
-            for townhall in self.townhalls.ready:
-                if townhall.surplus_harvesters < 0:
-                    minerals = (
-                        self.observation.resource_by_position[position]
-                        for position in self.minerals_by_expansion.get(townhall.position, [])
-                        if position in self.observation.resource_by_position
-                    )
-                    target = min(minerals, key=lambda m : m.distance_to(worker), default=None) or self.mineral_field.closest_to(townhall)
-                    break
-
-        if target is None:
-            for gas in self.gas_buildings.ready:
-                if gas.surplus_harvesters < 0:
-                    target = gas
-                    break
-
-        if target is None:
-            return
-
-        if worker.is_carrying_resource:
-            worker.return_resource()
-            worker.gather(target, queue=True)
-        else:
-            worker.gather(target)
-
-    def canAffordWithReserve(self, cost: Cost, reserve: Cost) -> bool:
+    def can_afford_with_reserve(self, cost: Cost, reserve: Cost) -> bool:
         if 0 < cost.minerals and self.minerals < reserve.minerals + cost.minerals:
             return False
         elif 0 < cost.vespene and self.vespene < reserve.vespene + cost.vespene:
@@ -979,29 +743,20 @@ class CommonAI(BotAI):
         else:
             return True
 
-    def getMaxWorkers(self) -> int:
+    def get_max_harvester(self) -> int:
         workers = 0
         workers += sum((h.ideal_harvesters for h in self.townhalls.ready))
         workers += 16 * self.observation.count(UnitTypeId.HATCHERY, include_actual=False, include_planned=False)
         workers += self.gas_target
-        # workers += sum((g.ideal_harvesters if g.build_progress == 1 else 3 * g.build_progress for g in self.gas_buildings))
-
         return int(workers)
 
-    def createCost(self, item: Union[UnitTypeId, UpgradeId, AbilityId]) -> Cost:
-        minerals = 0
-        vespene = 0
-        food = 0
-        if item is not None:
-            cost = self.calculate_cost(item)
-            minerals = cost.minerals
-            vespene = cost.vespene
-        if item in UnitTypeId:
-            food = int(self.calculate_supply_cost(item))
-        return Cost(minerals, vespene, food)
-
-    def is_blocking_base(self, position: Point2) -> bool:
-        return any(
-            base.distance_to(position) < 4.25
-            for base in self.expansion_locations_list
-        )
+    def blocking_expansion(self, position: Point2) -> bool:
+        px, py = position
+        radius = self.game_data.units[UnitTypeId.HATCHERY.value].footprint_radius
+        for base in self.expansion_locations_list:
+            bx, by = base
+            if abs(px - bx) < radius:
+                return base
+            elif abs(py - by) < radius:
+                return base
+        return None

@@ -1,33 +1,32 @@
 
-from s2clientprotocol.common_pb2 import Point
-from s2clientprotocol.error_pb2 import HarvestersNotRequired
-from s2clientprotocol.sc2api_pb2 import Observation
-from sc2.position import Point2
-from typing import Dict, Iterable, Set, List, Optional
+from typing import Dict, Iterable, Set, List, Optional, TypeVar, Generic
 from itertools import chain
 
 from sc2.unit import Unit
-from sc2.units import Units
-from suntzu import minerals
-from suntzu.minerals import Minerals
-from suntzu.gas import Gas
-from suntzu.resource import Resource
+from sc2.position import Point2
 
-class ResourceGroup(Resource):
+from .resource import Resource
+from ..utils import center
+from ..observation import Observation
 
-    def __init__(self, resources: List[Resource]):
-        position = sum((r.position for r in resources), Point2((0, 0))) / sum(1 for r in resources)
+T = TypeVar('T', bound=Resource)
+
+class ResourceGroup(Resource, Generic[T], Iterable[T]):
+
+    def __init__(self, items: List[T], position: Optional[Point2] = None):
+        if position == None:
+            position = center((r.position for r in items))
         super().__init__(position)
-        self.resources: List[Resource] = resources
+        self.items: List[T] = items
         self.balance_aggressively: bool = False
 
+    def __iter__(self):
+        return iter(self.items)
+
     def try_add(self, harvester: int) -> bool:
-        resource = next(
-            (r for r in self.resources if 0 < r.remaining and r.harvester_balance < 0),
-            None
-        ) or min(
-            (r for r in self.resources if 0 < r.remaining),
-            key=lambda m : m.harvester_balance,
+        resource = min(
+            (r for r in self.items if 0 < r.remaining),
+            key=lambda r : r.harvester_balance,
             default=None
         )
         if not resource:
@@ -35,12 +34,9 @@ class ResourceGroup(Resource):
         return resource.try_add(harvester)
 
     def try_remove_any(self) -> Optional[int]:
-        # resource = next((r for r in self.resources[::-1] if 0 < r.harvester_count and 0 < r.harvester_balance), None)
-        # if not resource:
-        #     resource = next((r for r in self.resources[::-1] if 0 < r.harvester_count), None)
         resource = max(
-            (r for r in self.resources if 0 < r.harvester_count),
-            key=lambda r:r.harvester_balance,
+            (r for r in self.items if 0 < r.harvester_count),
+            key = lambda r : r.harvester_balance,
             default=None
         )
         if not resource:
@@ -48,19 +44,19 @@ class ResourceGroup(Resource):
         return resource.try_remove_any()
 
     def try_remove(self, harvester: int) -> bool:
-        return any(r.try_remove(harvester) for r in self.resources)
+        return any(r.try_remove(harvester) for r in self.items)
 
     @property
     def harvesters(self) -> Iterable[int]:
-        return (h in r.harvesters for r in self.resources for h in r.harvesters)
+        return (h in r.harvesters for r in self.items for h in r.harvesters)
 
     @property
     def harvester_target(self):
-        return sum(r.harvester_target for r in self.resources)
+        return sum(r.harvester_target for r in self.items)
 
     def do_worker_split(self, harvesters: List[Unit]):
         while self.harvester_count < len(harvesters):
-            for resource in self.resources:
+            for resource in self.items:
                 harvesters_unassigned = [
                     h for h in harvesters
                     if h.tag not in self.harvesters
@@ -75,30 +71,30 @@ class ResourceGroup(Resource):
 
     @property
     def harvesters(self) -> Iterable[int]:
-        return (h for r in self.resources for h in r.harvesters)
+        return (h for r in self.items for h in r.harvesters)
 
     @property
     def harvester_target(self) -> int:
-        return sum(r.harvester_target for r in self.resources)
+        return sum(r.harvester_target for r in self.items)
 
     def update(self, observation: Observation):
 
-        for resource in self.resources:
+        for resource in self.items:
             resource.update(observation)
 
         super().update(observation)
 
-        self.remaining = sum(r.remaining for r in self.resources)
+        self.remaining = sum(r.remaining for r in self.items)
 
         while True:
             resource_from = max(
-                (r for r in self.resources if 0 < r.harvester_count),
+                (r for r in self.items if 0 < r.harvester_count),
                 key=lambda r:r.harvester_balance,
                 default=None
             )
             if not resource_from:
                 break
-            resource_to = min(self.resources, key=lambda r:r.harvester_balance)
+            resource_to = min(self.items, key=lambda r:r.harvester_balance)
             if self.balance_aggressively:
                 if resource_from.harvester_count == 0:
                     break

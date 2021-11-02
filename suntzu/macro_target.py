@@ -1,5 +1,5 @@
 
-from typing import List, Union
+from typing import List, Union, Optional, Callable
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
@@ -15,11 +15,11 @@ class MacroTarget(object):
     def __init__(self, item: Union[UnitTypeId, UpgradeId], **kwargs):
         self.item = item
         self.ability = None
-        self.cost = None
-        self.unit = None
+        self.cost: Cost = None
+        self.unit: Optional[int] = None
         self.target = None
-        self.priority = 0
-        self.condition = None
+        self.priority: float = 0
+        self.condition: Callable = None
         self.__dict__.update(**kwargs)
 
     def __repr__(self) -> str:

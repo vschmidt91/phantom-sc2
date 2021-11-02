@@ -2,7 +2,7 @@
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from suntzu.macro_target import MacroTarget
+from .macro_target import MacroTarget
 
 
 ROACH_RUSH = [
@@ -23,8 +23,6 @@ ROACH_RUSH = [
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.ROACHWARREN,
-    # UnitTypeId.DRONE,
-    # UnitTypeId.ZERGLING,
     UnitTypeId.OVERLORD,
     UnitTypeId.ROACH,
     UnitTypeId.ROACH,
@@ -35,10 +33,6 @@ ROACH_RUSH = [
     UnitTypeId.ROACH,
     UnitTypeId.ROACH,
     UnitTypeId.EXTRACTOR,
-    # UnitTypeId.OVERLORD,
-    # UnitTypeId.OVERLORD,
-    # UnitTypeId.RAVAGER,
-    # UnitTypeId.RAVAGER,
 ]
 
 HATCH17 = [
@@ -56,20 +50,10 @@ HATCH17 = [
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
-    # UnitTypeId.DRONE,
-    # UnitTypeId.DRONE,
-    # UnitTypeId.DRONE,
     UnitTypeId.OVERLORD,
-    # UnitTypeId.QUEEN,
-    # UnitTypeId.QUEEN,
     UnitTypeId.ZERGLING,
     UnitTypeId.ZERGLING,
     UpgradeId.ZERGLINGMOVEMENTSPEED,
-    # UnitTypeId.DRONE,
-    # UnitTypeId.DRONE,
-    # UnitTypeId.DRONE,
-    # UnitTypeId.DRONE,
-    # UnitTypeId.ZERGLING,
 ]
 
 POOL16 = [

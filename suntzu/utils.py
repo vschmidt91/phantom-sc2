@@ -33,14 +33,16 @@ def unitPriority(unit, target = None):
         dps = unit.calculate_dps_vs_target(target)
     return dps / (unit.shield + unit.health)
 
-def center(group):
+def center(points: Iterable[Point2]) -> Point2:
     xs = 0
     ys = 0
-    for unit in group:
-        xs += unit.position[0]
-        ys += unit.position[1]
-    xs /= group.amount
-    ys /= group.amount
+    n = 0
+    for p in points:
+        xs += p.position[0]
+        ys += p.position[1]
+        n += 1
+    xs /= n
+    ys /= n
     return Point2((xs, ys))
 
 def unitValue(unit: Unit, target = None):

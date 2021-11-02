@@ -3,8 +3,8 @@ from typing import Optional, Set, Union, Iterable
 from sc2.position import Point2
 from abc import ABC, abstractmethod
 
-from suntzu.resource import Resource
-from suntzu.observation import Observation
+from .resource import Resource
+from ..observation import Observation
 
 class ResourceSingle(Resource):
 

@@ -5,7 +5,7 @@ from s2clientprotocol.error_pb2 import Error
 from sc2.position import Point2
 from abc import ABC, abstractmethod
 
-from .observation import Observation
+from ..observation import Observation
 
 class Resource(object):
 

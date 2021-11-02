@@ -1,10 +1,9 @@
 
 from collections import defaultdict
 import math
-
 from itertools import chain
-from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 
+from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -40,7 +39,7 @@ STATIC_DEFENSE = {
     Race.Zerg: { UnitTypeId.SPINECRAWLER, UnitTypeId.SPORECRAWLER },
 }
 
-ALL_WORKERS = {
+WORKERS = {
     *WITH_TECH_EQUIVALENTS[UnitTypeId.DRONE],
     *WITH_TECH_EQUIVALENTS[UnitTypeId.PROBE],
     *WITH_TECH_EQUIVALENTS[UnitTypeId.SCV],

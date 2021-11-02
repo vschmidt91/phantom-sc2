@@ -12,7 +12,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from suntzu.macro_target import MacroTarget
 
-from .constants import  UNIT_BY_TRAIN_ABILITY, UPGRADE_BY_RESEARCH_ABILITY, ALL_WORKERS
+from .constants import  UNIT_BY_TRAIN_ABILITY, UPGRADE_BY_RESEARCH_ABILITY, WORKERS
 
 class Observation(object):
 
@@ -61,7 +61,7 @@ class Observation(object):
         
         sum = 0
         if include_actual:
-            if item in ALL_WORKERS and self.worker_supply_fixed is not None:
+            if item in WORKERS and self.worker_supply_fixed is not None:
                 sum += self.worker_supply_fixed
                 # fix worker count (so that it includes workers in gas buildings)
                 # sum += self.supply_used - self.supply_army - len(self.pending_by_type[item])
