@@ -21,7 +21,7 @@ from .utils import sample
 from .build_orders import ROACH_RUSH, HATCH17
 from .constants import WITH_TECH_EQUIVALENTS, REQUIREMENTS, ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
 from .cost import Cost
-from .macro_target import MacroTarget
+from .macro_plan import MacroPlan
 
 CREEP_RANGE = 10
 CREEP_ENABLED = True
@@ -44,7 +44,7 @@ class ZergAI(CommonAI):
             build_order = ROACH_RUSH
             self.tags.append("RoachRush")
             self.tech_time = 4.5 * 60
-            self.extractor_trick_enabled = True
+            self.extractor_trick_enabled = False
             self.destroy_destructables = False
         else:
             build_order = HATCH17
@@ -54,7 +54,7 @@ class ZergAI(CommonAI):
             self.destroy_destructables = True
 
         for step in build_order:
-            self.add_macro_target(MacroTarget(step, priority=BUILD_ORDER_PRIORITY))
+            self.add_macro_plan(MacroPlan(step, priority=BUILD_ORDER_PRIORITY))
 
         self.composition = dict()
         self.timings_acc = dict()
@@ -65,7 +65,13 @@ class ZergAI(CommonAI):
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         if unit.type_id == UnitTypeId.LAIR:
             ability = AbilityId.BEHAVIOR_GENERATECREEPON
-            for overlord in self.observation.actual_by_type[UnitTypeId.OVERLORD]:
+            overlords = [
+                self.observation.unit_by_tag.get(t)
+                for t in self.observation.actual_by_type[UnitTypeId.OVERLORD]
+            ]
+            for overlord in overlords:
+                if not overlord:
+                    continue
                 if ability in await self.get_available_abilities(overlord):
                     overlord(ability)
         await super().on_unit_type_changed(unit, previous_type)
@@ -96,7 +102,10 @@ class ZergAI(CommonAI):
 
         ability = AbilityId.EFFECT_CORROSIVEBILE
         ability_data = self.game_data.abilities[ability.value]._proto
-        ravagers = list(self.observation.actual_by_type[UnitTypeId.RAVAGER])
+        ravagers = [
+            self.observation.unit_by_tag[t]
+            for t in self.observation.actual_by_type[UnitTypeId.RAVAGER]
+        ]
         if not ravagers:
             return
         ravager_abilities = await self.get_available_abilities(ravagers)
@@ -105,7 +114,7 @@ class ZergAI(CommonAI):
                 continue
             targets = (
                 target
-                for target in chain(self.all_enemy_units, self.destructables_filtered)
+                for target in chain(self.all_enemy_units, self.observation.destructables)
                 if ravager.distance_to(target) <= ravager.radius + ability_data.cast_range
             )
             target: Unit = max(targets, key=target_priority, default=None)
@@ -115,8 +124,8 @@ class ZergAI(CommonAI):
     def update_gas_ratio(self):
 
         cost_zero = Cost(0, 0, 0)
-        cost_sum = sum((target.cost or cost_zero for target in self.macro_targets), cost_zero)
-        cs = [self.get_cost(unit) * count for unit, count in self.composition.items()]
+        cost_sum = sum((self.cost[plan.item] or cost_zero for plan in self.macro_plans), cost_zero)
+        cs = [self.cost[unit] * count for unit, count in self.composition.items()]
         cost_sum += sum(cs, cost_zero)
 
         minerals = max(0, cost_sum.minerals - self.minerals)
@@ -143,7 +152,7 @@ class ZergAI(CommonAI):
             self.update_observation: 1,
             self.update_bases: 1,
             self.transfer_to_and_from_gas: 1,
-            self.extractor_trick: 1,
+            # self.extractor_trick: 1,
             self.update_composition: 1,
             self.micro_queens: 1,
             self.spread_creep: 1,
@@ -260,7 +269,7 @@ class ZergAI(CommonAI):
 
         for target in targets:
             if not sum(self.observation.count(t) for t in WITH_TECH_EQUIVALENTS.get(target, { target })):
-                self.add_macro_target(MacroTarget(target))
+                self.add_macro_plan(MacroPlan(target))
 
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
@@ -275,16 +284,26 @@ class ZergAI(CommonAI):
             ability = AbilityId.SPAWNCHANGELING_SPAWNCHANGELING
             if ability in await self.get_available_abilities(overseer):
                 overseer(ability)
-        for chanceling_type in CHANGELINGS:
-            for changeling in self.observation.actual_by_type[chanceling_type]:
-                if not changeling.is_moving:
-                    target = random.choice(self.expansion_locations_list)
-                    changeling.move(target)
-        for overlord in self.observation.actual_by_type[UnitTypeId.OVERLORD]:
-            if not overlord.is_moving:
-                target = self.structures.random
-                if 1 < overlord.distance_to(target):
-                    overlord.move(target)
+        changelings = [
+            self.observation.unit_by_tag[t]
+            for tt in CHANGELINGS
+            for t in self.observation.actual_by_type[tt]
+        ]
+        for changeling in changelings:
+            if not changeling:
+                continue
+            if not changeling.is_moving:
+                target = random.choice(self.expansion_locations_list)
+                changeling.move(target)
+        # overlords = [
+        #     self.observation.unit_by_tag[t]
+        #     for t in self.observation.actual_by_type[UnitTypeId.OVERLORD]
+        # ]
+        # for overlord in overlords:
+        #     if not overlord.is_moving:
+        #         target = self.structures.random
+        #         if 1 < overlord.distance_to(target):
+        #             overlord.move(target.position)
 
     async def spread_creep(self, spreader: Unit = None, numAttempts: int = 1):
 
@@ -348,15 +367,17 @@ class ZergAI(CommonAI):
             sporeTime[self.enemy_race] < self.time
             and self.observation.count(UnitTypeId.SPORECRAWLER) < self.townhalls.amount
         ):
-            self.add_macro_target(MacroTarget(UnitTypeId.SPORECRAWLER))
+            self.add_macro_plan(MacroPlan(UnitTypeId.SPORECRAWLER))
 
     def enumerate_army(self):
         for unit in super().enumerate_army():
             if unit.type_id == UnitTypeId.QUEEN:
                 if unit.tag in self.inject_assigments.keys():
                     continue
-                elif unit in self.observation.pending_by_type[UnitTypeId.CREEPTUMORQUEEN]:
+                elif any(o.ability.exact_id == AbilityId.ZERGBUILD_CREEPTUMOR for o in unit.orders):
                     continue
+                # elif unit in self.observation.pending_by_type[UnitTypeId.CREEPTUMORQUEEN]:
+                #     continue
             yield unit
 
     async def micro_queens(self):
@@ -379,7 +400,7 @@ class ZergAI(CommonAI):
         for queen_tag in queens_delete:
             del self.inject_assigments[queen_tag]
 
-        queens = sorted(self.observation.actual_by_type[UnitTypeId.QUEEN], key=lambda u:u.tag)
+        queens = sorted((self.observation.unit_by_tag[t] for t in self.observation.actual_by_type[UnitTypeId.QUEEN]), key=lambda u:u.tag)
         townhalls = sorted(self.townhalls, key=lambda u:u.tag)
 
         queens_unassigned = [
@@ -409,8 +430,10 @@ class ZergAI(CommonAI):
 
         for queen in queens_unassigned:
 
-            if queen in self.observation.pending_by_type[UnitTypeId.CREEPTUMORQUEEN]:
+            if any(o.ability.exact_id == AbilityId.ZERGBUILD_CREEPTUMOR for o in queen.orders):
                 pass
+            # if queen in self.observation.pending_by_type[UnitTypeId.CREEPTUMORQUEEN]:
+            #     pass
             # elif queen.is_attacking:
             #     pass
             elif 25 <= queen.energy:
@@ -457,7 +480,7 @@ class ZergAI(CommonAI):
         gas_max = sum(1 for g in self.get_owned_geysers())
         gas_want = min(gas_max, gas_depleted + math.ceil(self.gas_target / 3))
         for i in range(gas_want - gas_have):
-            self.add_macro_target(MacroTarget(UnitTypeId.EXTRACTOR, priority=1))
+            self.add_macro_plan(MacroPlan(UnitTypeId.EXTRACTOR, priority=1))
 
     def morph_overlords(self):
         if 200 <= self.supply_cap:
@@ -470,7 +493,7 @@ class ZergAI(CommonAI):
             return
         supply_buffer = 3 * (self.townhalls.amount + len(self.inject_assigments))
         if self.supply_left + supply_pending < supply_buffer:
-            self.add_macro_target(MacroTarget(UnitTypeId.OVERLORD, priority=1))
+            self.add_macro_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
 
     def expand(self, saturation_target: float = .9):
         
@@ -480,7 +503,7 @@ class ZergAI(CommonAI):
             and not self.townhalls.not_ready.exists
             and saturation_target * worker_max <= self.observation.count(UnitTypeId.DRONE, include_planned=False)
         ):
-            self.add_macro_target(MacroTarget(UnitTypeId.HATCHERY, priority=1))
+            self.add_macro_plan(MacroPlan(UnitTypeId.HATCHERY, priority=1))
 
     def morph_units(self):
 
@@ -502,7 +525,7 @@ class ZergAI(CommonAI):
             priority = -composition_have[unit] /  count
             plans = self.observation.planned_by_type[unit]
             if not plans:
-                self.add_macro_target(MacroTarget(unit, priority=priority))
+                self.add_macro_plan(MacroPlan(unit, priority=priority))
             else:
                 for plan in plans:
                     if plan.priority == BUILD_ORDER_PRIORITY:

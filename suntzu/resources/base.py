@@ -2,6 +2,8 @@
 from typing import Dict, Iterable, Set, List, Optional
 from itertools import chain
 
+from s2clientprotocol.sc2api_pb2 import Observation
+
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
@@ -36,3 +38,8 @@ class Base(ResourceGroup[Resource]):
         if self.townhall == None:
             return 0
         return super().harvester_target
+
+    def update(self, observation: Observation):
+        if self.townhall == None:
+            return
+        super().update(observation)

@@ -32,7 +32,7 @@ class VespeneGeyser(ResourceSingle):
         if not building:
             self.building = None
             gas_buildings = {
-                g
+                observation.unit_by_tag[g]
                 for t in ALL_GAS
                 for g in observation.actual_by_type[t]
             }
@@ -68,5 +68,8 @@ class VespeneGeyser(ResourceSingle):
                         harvester.return_resource()
                 elif harvester.is_returning:
                     pass
+                elif harvester.is_gathering:
+                    if harvester.order_target != building.tag:
+                        harvester.gather(building)
                 else:
                     harvester.gather(building)

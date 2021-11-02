@@ -10,16 +10,14 @@ from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 
 from .cost import Cost
 
-class MacroTarget(object):
+class MacroPlan(object):
 
     def __init__(self, item: Union[UnitTypeId, UpgradeId], **kwargs):
         self.item = item
         self.ability = None
-        self.cost: Cost = None
         self.unit: Optional[int] = None
         self.target = None
         self.priority: float = 0
-        self.condition: Callable = None
         self.__dict__.update(**kwargs)
 
     def __repr__(self) -> str:

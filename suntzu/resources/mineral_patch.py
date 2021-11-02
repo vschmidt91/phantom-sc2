@@ -30,22 +30,22 @@ class MineralPatch(ResourceSingle):
         if not patch:
             self.remaining = 0
             return
-
-        if patch.is_visible:
+        elif patch.is_visible:
             self.remaining = patch.mineral_contents
         else:
             self.remaining = 1000
 
-        for harvester in (observation.unit_by_tag.get(h) for h in self.harvester_set):
+        for harvester_tag in self.harvester_set:
+            harvester = observation.unit_by_tag.get(harvester_tag)
             if not harvester:
                 continue
-            # if harvester.is_gathering:
-            #     if harvester.order_target != patch.tag:
-            #         harvester.gather(patch)
-            if harvester.is_carrying_resource:
+            elif harvester.is_carrying_resource:
                 if not harvester.is_returning:
                     harvester.return_resource()
             elif harvester.is_returning:
                 pass
+            elif harvester.is_gathering:
+                if harvester.order_target != patch.tag:
+                    harvester.gather(patch)
             else:
                 harvester.gather(patch)

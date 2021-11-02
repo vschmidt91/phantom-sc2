@@ -5,6 +5,7 @@ from itertools import chain
 
 from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 from sc2.data import Race
+from sc2.helpers.devtools import time_this
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -43,6 +44,17 @@ WORKERS = {
     *WITH_TECH_EQUIVALENTS[UnitTypeId.DRONE],
     *WITH_TECH_EQUIVALENTS[UnitTypeId.PROBE],
     *WITH_TECH_EQUIVALENTS[UnitTypeId.SCV],
+}
+
+TRAINERS = {
+    ttt
+    for t in UNIT_TRAINED_FROM.values()
+    for tt in t
+    for ttt in WITH_TECH_EQUIVALENTS[tt]
+} | {
+    tt
+    for t in UPGRADE_RESEARCHED_FROM.values()
+    for tt in WITH_TECH_EQUIVALENTS[t]
 }
 
 SUPPLY_PROVIDED = {

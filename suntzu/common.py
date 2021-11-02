@@ -8,6 +8,8 @@ from typing import Iterable, Optional, Tuple, Union, Coroutine, Set, List, Calla
 import numpy as np
 from s2clientprotocol.error_pb2 import Error
 
+from sc2.game_state import ActionRawUnitCommand
+
 from sc2.position import Point2, Point3
 from sc2.bot_ai import BotAI
 from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT, IS_STRUCTURE
@@ -30,7 +32,7 @@ from .observation import Observation
 from .resources.resource import Resource
 from .resources.resource_group import ResourceGroup
 from .constants import WORKERS, CHANGELINGS, REQUIREMENTS_KEYS, WITH_TECH_EQUIVALENTS, CIVILIANS, GAS_BY_RACE, REQUIREMENTS, REQUIREMENTS_EXCLUDE, STATIC_DEFENSE, SUPPLY, SUPPLY_PROVIDED, TOWNHALL, TRAIN_ABILITIES, UNIT_BY_TRAIN_ABILITY, UPGRADE_BY_RESEARCH_ABILITY
-from .macro_target import MacroTarget
+from .macro_plan import MacroPlan
 from .cost import Cost
 from .utils import can_attack, get_requirements, armyValue, unitPriority, canAttack, center, dot, unitValue
 
@@ -72,28 +74,43 @@ class CommonAI(BotAI):
         self.raw_affects_selection = True
         self.gas_target = 0
         self.greet_enabled = True
-        self.macro_targets = list()
+        self.macro_plans = list()
         self.gas_ratio = 6 / 22
         self.observation: Observation = Observation()
         self.print_first_iteration = True
         self.worker_split: Dict[int, int] = None
         self.destroy_destructables = True
-        self.destructables_filtered = {}
         self.tag = None
+        self.cost: Dict[Union[UnitTypeId, UpgradeId], Cost] = dict()
         self.bases: ResourceGroup[Base] = None
         self.base_distance_matrix: Dict[Point2, Dict[Point2, float]] = dict()
 
     async def on_before_start(self):
         self.client.game_step = self.game_step
-        pass
+        self.cost = dict()
+        for unit in  UnitTypeId:
+            try:
+                cost = self.calculate_cost(unit)
+                food = int(self.calculate_supply_cost(unit))
+                self.cost[unit] = Cost(cost.minerals, cost.vespene, food)
+            except:
+                pass
+        for upgrade in UpgradeId:
+            try:
+                cost = self.calculate_cost(upgrade)
+                self.cost[upgrade] = Cost(cost.minerals, cost.vespene, 0)
+            except:
+                pass
 
     async def on_start(self):
+        self.observation.destructables_tags.update((
+            unit.tag
+            for unit in self.destructables
+            if 0 < unit.armor
+        ))
         await self.init_bases()
 
     async def on_step(self, iteration: int):
-
-        self.iteration = iteration
-        self.destructables_filtered = self.destructables.filter(lambda d : 0 < d.armor)
 
         if 1 < self.time and self.greet_enabled:
             for tag in self.tags:
@@ -101,22 +118,20 @@ class CommonAI(BotAI):
             quote = random.choice(self.quotes)
             await self.client.chat_send(quote, False)
             self.greet_enabled = False
-
         if self.debug:
             self.draw_debug()
+
+        for error in self.state.action_errors:
+            print(error)
 
     async def on_end(self, game_result: Result):
         pass
 
     async def on_building_construction_started(self, unit: Unit):
-        # if unit.type_id in race_townhalls[self.race]:
-        #     base = next((b for b in self.bases.items if b.position == unit.position), None)
-        #     if base:
-        #         base.townhall = unit.tag
-        #         base.townhall_ready = False
         pass
 
     async def on_building_construction_complete(self, unit: Unit):
+        self.observation.actual_by_type[unit.type_id].add(unit.tag)
         if unit.type_id in race_townhalls[self.race]:
             base = next((b for b in self.bases if b.position == unit.position), None)
             if base:
@@ -133,6 +148,7 @@ class CommonAI(BotAI):
         pass
 
     async def on_unit_created(self, unit: Unit):
+        self.observation.actual_by_type[unit.type_id].add(unit.tag)
         if unit.type_id == race_worker[self.race]:
             if self.time == 0:
                 return
@@ -141,6 +157,16 @@ class CommonAI(BotAI):
         pass
 
     async def on_unit_destroyed(self, unit_tag: int):
+        unit = self.observation.unit_by_tag.get(unit_tag)
+        if unit:
+            self.observation.actual_by_type[unit.type_id].difference_update((unit.tag,))
+            # self.observation.actual_by_type[unit.type_id].remove(unit.tag)
+        else:  
+            # for unit_type, units in self.observation.actual_by_type.items():
+            #     if unit_tag in units:
+            #         units.remove(unit_tag)
+            pass
+          
         base = next((b for b in self.bases if b.townhall == unit_tag), None)
         if base:
             base.townhall = None
@@ -162,13 +188,36 @@ class CommonAI(BotAI):
         pass
         
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
+        self.observation.actual_by_type[previous_type].remove(unit.tag)
+        self.observation.actual_by_type[unit.type_id].add(unit.tag)
         pass
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
+        self.observation.add_upgrade(upgrade)
         pass
 
     def update_observation(self):
-        self.observation = self.create_observation()
+        self.observation.clear()
+        for unit in self.all_own_units:
+            self.observation.add_unit(unit)
+        for resource in self.resources:
+            self.observation.add_resource(resource)
+        worker_type = race_worker[self.race]
+        worker_pending = self.observation.count(worker_type, include_actual=False, include_pending=False, include_planned=False)
+        self.observation.worker_supply_fixed = self.supply_used - self.supply_army - worker_pending
+
+        # for action in self.state.actions_unit_commands:
+        #     ability = action.exact_id
+        #     unit = UNIT_BY_TRAIN_ABILITY.get(ability)
+        #     if unit:
+        #         trainer = [
+        #             self.observation.unit_by_tag.get(u)
+        #             for u in action.unit_tags
+        #         ]
+        #         print(unit, trainer)
+        #     upgrade = UPGRADE_BY_RESEARCH_ABILITY.get(ability)
+        #     if upgrade:
+        #         print(upgrade, action.unit_tags)
 
     @property
     def gas_harvesters(self):
@@ -215,15 +264,14 @@ class CommonAI(BotAI):
 
     async def init_bases(self):
 
-        num_attempts = 100
-        max_sigma = 5
-
+        num_attempts = 32
+        max_sigma = 3
         self.base_distance_matrix = dict()
         for a in self.expansion_locations_list:
             self.base_distance_matrix[a] = dict()
             for b in self.expansion_locations_list:
                 path = None
-                for i in range(100):
+                for i in range(num_attempts):
                     sigma = max_sigma * i / num_attempts
                     sa = Point2(np.random.normal(a, sigma))
                     sb = Point2(np.random.normal(b, sigma))
@@ -233,7 +281,6 @@ class CommonAI(BotAI):
                 if not path:
                     path = a.distance_to(b)
                 self.base_distance_matrix[a][b] = path
-
 
         expansions = [self.start_location]
         while len(expansions) < len(self.expansion_locations_list):
@@ -250,16 +297,15 @@ class CommonAI(BotAI):
             gasses = (g.position for g in resources.vespene_geyser)
             base = Base(townhall_position, minerals, gasses)
             bases.append(base)
-
         self.bases = ResourceGroup(bases)
-        self.bases.items[0].mineral_patches.do_worker_split(self.workers)
+        self.bases.items[0].mineral_patches.do_worker_split(set(self.workers))
 
     def draw_debug(self):
 
         font_color = (255, 255, 255)
         font_size = 12
 
-        for i, target in enumerate(self.macro_targets):
+        for i, target in enumerate(self.macro_plans):
 
             positions = []
 
@@ -286,21 +332,6 @@ class CommonAI(BotAI):
                     position,
                     color=font_color,
                     size=font_size)
-    
-    def create_observation(self):
-        observation = Observation()
-        for unit in self.all_own_units:
-            observation.add_unit(unit)
-        for upgrade in self.state.upgrades:
-            observation.add_upgrade(upgrade)
-        for resource in self.resources:
-            observation.add_unit(resource)
-        for plan in self.macro_targets:
-            observation.add_plan(plan)
-        worker_type = race_worker[self.race]
-        worker_pending = observation.count(worker_type, include_actual=False, include_pending=False, include_planned=False)
-        observation.worker_supply_fixed = self.supply_used - self.supply_army - worker_pending
-        return observation
 
     def estimate_income(self):
         harvesters_on_minerals = sum(t.assigned_harvesters for t in self.townhalls)
@@ -329,9 +360,9 @@ class CommonAI(BotAI):
             raise Exception()
         return path / unit.movement_speed
 
-    def add_macro_target(self, target: MacroTarget):
-        self.macro_targets.append(target)
-        self.observation.add_plan(target)
+    def add_macro_plan(self, plan: MacroPlan):
+        self.macro_plans.append(plan)
+        self.observation.add_plan(plan)
 
     def get_missing_requirements(self, item: Union[UnitTypeId, UpgradeId], **kwargs) -> Set[Union[UnitTypeId, UpgradeId]]:
 
@@ -378,57 +409,49 @@ class CommonAI(BotAI):
     async def macro(self):
 
         reserve = Cost(0, 0, 0)
-        exclude = { o.unit for o in self.macro_targets }
-
+        exclude = { o.unit for o in self.macro_plans }
         took_action = False
-
         income_minerals, income_vespene = self.estimate_income()
-
-        self.macro_targets.sort(key = lambda t : t.priority, reverse=True)
+        self.macro_plans.sort(key = lambda t : t.priority, reverse=True)
 
         i = 0
-        while i < len(self.macro_targets):
+        while i < len(self.macro_plans):
 
-            objective = self.macro_targets[i]
+            plan = self.macro_plans[i]
             i += 1
 
-            if not objective.cost:
-                objective.cost = self.get_cost(objective.item)
+            cost = self.cost[plan.item]
+            can_afford = self.can_afford_with_reserve(cost, reserve)
+            reserve += cost
 
-            can_afford = self.can_afford_with_reserve(objective.cost, reserve)
-            reserve += objective.cost
-
-            if objective.condition and not objective.condition(self):
-                continue
-
-            if objective.unit:
-                unit = self.observation.unit_by_tag.get(objective.unit)
-            else:
-                unit, objective.ability = self.search_trainer(objective.item, exclude=exclude)
-
-            if unit is None:
+            unit = None
+            if plan.unit:
+                unit = self.observation.unit_by_tag.get(plan.unit)
+            if not unit:
+                unit, plan.ability = self.search_trainer(plan.item, exclude=exclude)
+            if not unit:
                 continue
 
             if unit.type_id != UnitTypeId.LARVA:
-                objective.unit = unit.tag
-            exclude.add(objective.unit)
+                plan.unit = unit.tag
+            exclude.add(plan.unit)
 
-            if objective.target is None:
+            if plan.target is None:
                 try:
-                    objective.target = await self.get_target(unit, objective)
+                    plan.target = await self.get_target(unit, plan)
                 except PlacementNotFound as p: 
                     continue
 
-            if any(self.get_missing_requirements(objective.item, include_pending=False, include_planned=False)):
+            if any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
                 continue
 
             if (
-                objective.target
+                plan.target
                 and not unit.is_moving
                 and unit.movement_speed
             ):
             
-                time = await self.time_to_reach(unit, objective.target)
+                time = await self.time_to_reach(unit, plan.target)
                 
                 minerals_needed = reserve.minerals - self.minerals
                 vespene_needed = reserve.vespene - self.vespene
@@ -438,10 +461,10 @@ class CommonAI(BotAI):
 
                 if time_to_harvest < time:
                     
-                    if type(objective.target) is Unit:
-                        move_to = objective.target.position
+                    if type(plan.target) is Unit:
+                        move_to = plan.target
                     else:
-                        move_to = objective.target
+                        move_to = plan.target
 
                     if unit.is_carrying_resource:
                         unit.return_resource()
@@ -458,9 +481,9 @@ class CommonAI(BotAI):
             if unit.type_id == race_worker[self.race]:
                 self.bases.try_remove(unit.tag)
 
-            if self.is_structure(objective.item) and isinstance(objective.target, Point2):
-                if not await self.can_place_single(objective.item, objective.target):
-                    objective.target = None
+            if self.is_structure(plan.item) and isinstance(plan.target, Point2):
+                if not await self.can_place_single(plan.item, plan.target):
+                    plan.target = None
                     continue
 
             if took_action:
@@ -471,19 +494,20 @@ class CommonAI(BotAI):
                 unit.return_resource()
                 queue = True
 
-            if objective.item == UnitTypeId.RAVAGER:
+            if plan.item == UnitTypeId.RAVAGER:
                 queue = queue
 
-            if not unit(objective.ability["ability"], target=objective.target, queue=queue):
-                print("objective failed:" + str(objective))
+            if not unit(plan.ability["ability"], target=plan.target, queue=queue):
+                print("objective failed:" + str(plan))
                 raise Exception()
 
             took_action = True
 
-            self.observation.add_pending(objective.item, unit)
+            self.observation.remove_plan(plan)
+            self.observation.add_pending(plan.item, unit)
 
             i -= 1
-            self.macro_targets.pop(i)
+            self.macro_plans.pop(i)
 
 
     def get_owned_geysers(self):
@@ -494,7 +518,7 @@ class CommonAI(BotAI):
                 geyser = self.observation.resource_by_position[gas.position]
                 yield geyser
 
-    async def get_target(self, unit: Unit, objective: MacroTarget) -> Coroutine[any, any, Union[Unit, Point2]]:
+    async def get_target(self, unit: Unit, objective: MacroPlan) -> Coroutine[any, any, Union[Unit, Point2]]:
         gas_type = GAS_BY_RACE[self.race]
         if objective.item == gas_type:
             exclude_positions = {
@@ -515,15 +539,15 @@ class CommonAI(BotAI):
             geysers = [
                 geyser
                 for geyser in self.get_owned_geysers()
-                if (
-                    geyser.position not in exclude_positions
-                    and geyser.tag not in exclude_tags
-                )
+                # if (
+                #     geyser.position not in exclude_positions
+                #     and geyser.tag not in exclude_tags
+                # )
             ]
             if not any(geysers):
                 raise PlacementNotFound()
             else:
-                return geysers[0]
+                return random.choice(geysers)
                 
         elif "requires_placement_position" in objective.ability:
             position = await self.get_target_position(objective.item, unit)
@@ -540,14 +564,6 @@ class CommonAI(BotAI):
         else:
             return None
 
-
-    def get_cost(self, item: Union[UnitTypeId, UpgradeId]) -> Cost:
-        cost = self.calculate_cost(item)
-        food = 0
-        if type(item) is UnitTypeId:
-            food = int(self.calculate_supply_cost(item))
-        return Cost(cost.minerals, cost.vespene, food)
-
     def search_trainer(self, item: Union[UnitTypeId, UpgradeId], exclude: Set[int]) -> Tuple[Unit, any]:
 
         if type(item) is UnitTypeId:
@@ -560,12 +576,15 @@ class CommonAI(BotAI):
             trainer_types = WITH_TECH_EQUIVALENTS[UPGRADE_RESEARCHED_FROM[item]]
 
         trainers = (
-            unit
+            self.observation.unit_by_tag.get(trainer_tag)
             for trainer_type in trainer_types
-            for unit in self.observation.actual_by_type[trainer_type]
+            for trainer_tag in self.observation.actual_by_type[trainer_type]
         )
             
         for trainer in trainers:
+
+            if not trainer:
+                continue
 
             if not trainer.is_ready:
                 continue
@@ -607,7 +626,7 @@ class CommonAI(BotAI):
 
         enemies = self.all_enemy_units
         if self.destroy_destructables:
-            enemies += self.destructables_filtered
+            enemies += self.observation.destructables
         enemies = list(enemies)
 
         for unit in friends:
@@ -620,8 +639,8 @@ class CommonAI(BotAI):
                 if not can_attack(unit, target):
                     return 0
                 priority = 1
-                priority *= 1 + unitValue(target, target=unit)
-                priority /= 1 + unit.distance_to(target)
+                priority *= 100 + unitValue(target, target=unit)
+                priority /= 10 + unit.distance_to(target)
                 priority /= 30 + unit.distance_to(self.start_location)
                 priority /= 3 if target.is_structure else 1
                 priority *= 3 if target.type_id in WORKERS else 1

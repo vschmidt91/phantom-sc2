@@ -2,7 +2,7 @@
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from .macro_target import MacroTarget
+from .macro_plan import MacroPlan
 
 
 ROACH_RUSH = [
@@ -23,6 +23,7 @@ ROACH_RUSH = [
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.ROACHWARREN,
+    UnitTypeId.ZERGLING,
     UnitTypeId.OVERLORD,
     UnitTypeId.ROACH,
     UnitTypeId.ROACH,
@@ -31,8 +32,7 @@ ROACH_RUSH = [
     UnitTypeId.ROACH,
     UnitTypeId.ROACH,
     UnitTypeId.ROACH,
-    UnitTypeId.ROACH,
-    UnitTypeId.EXTRACTOR,
+    UnitTypeId.RAVAGER,
 ]
 
 HATCH17 = [

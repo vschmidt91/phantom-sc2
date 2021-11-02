@@ -1,18 +1,19 @@
 
 
 from collections import defaultdict
-from typing import DefaultDict, Dict, Iterable, Optional, Set, Union
+from typing import DefaultDict, Dict, Iterable, Optional, Set, Union, List
 
 from s2clientprotocol.sc2api_pb2 import Macro
 from sc2.constants import ALL_GAS
+from sc2.data import Alliance
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 
 from sc2.unit import Unit
-from suntzu.macro_target import MacroTarget
+from .macro_plan import MacroPlan
 
-from .constants import  UNIT_BY_TRAIN_ABILITY, UPGRADE_BY_RESEARCH_ABILITY, WORKERS
+from .constants import  UNIT_BY_TRAIN_ABILITY, UPGRADE_BY_RESEARCH_ABILITY, WORKERS, TRAINERS
 
 class Observation(object):
 
@@ -20,28 +21,43 @@ class Observation(object):
 
         self.resource_by_position: Dict[Point2, Unit] = dict()
         self.unit_by_tag: Dict[int, Unit] = dict()
-        self.actual_by_type: DefaultDict[Union[UnitTypeId, UpgradeId], Set[Unit]] = defaultdict(lambda:set())
+        self.actual_by_type: DefaultDict[Union[UnitTypeId, UpgradeId], Set[int]] = defaultdict(lambda:set())
         self.pending_by_type: DefaultDict[Union[UnitTypeId, UpgradeId], Set[Unit]] = defaultdict(lambda:set())
-        self.planned_by_type: DefaultDict[Union[UnitTypeId, UpgradeId], Set[MacroTarget]] = defaultdict(lambda:set())
+        self.planned_by_type: DefaultDict[Union[UnitTypeId, UpgradeId], Set[MacroPlan]] = defaultdict(lambda:set())
         self.worker_supply_fixed: int = None
+        self.destructables_tags: Set[int] = set()
+
+    @property
+    def destructables(self) -> Iterable[Unit]:
+        for tag in self.destructables_tags:
+            unit = self.unit_by_tag.get(tag)
+            if unit:
+                yield unit
+
+    def clear(self):
+        self.resource_by_position.clear()
+        self.unit_by_tag.clear()
+        self.pending_by_type.clear()
+        self.worker_supply_fixed = None
+
+    def add_resource(self, unit: Unit):
+        if unit.type_id in ALL_GAS:
+            raise Exception
+        self.resource_by_position[unit.position] = unit
 
     def add_unit(self, unit: Unit):
         self.unit_by_tag[unit.tag] = unit
-        if (
-            unit.is_mineral_field
-            or (unit.is_vespene_geyser and unit.type_id not in ALL_GAS)
-        ):
-            self.resource_by_position[unit.position] = unit
-        if unit.is_ready:
-            self.actual_by_type[unit.type_id].add(unit)
-        else:
+        if not unit.is_ready:
             self.pending_by_type[unit.type_id].add(unit)
+        # if unit.type_id in TRAINERS:
         for order in unit.orders:
             ability = order.ability.exact_id
             training = UNIT_BY_TRAIN_ABILITY.get(ability) or UPGRADE_BY_RESEARCH_ABILITY.get(ability)
             if training:
                 self.pending_by_type[training].add(unit)
 
+    def remove_unit(self, unit: Unit):
+        pass
 
     def add_pending(self, item: Union[UnitTypeId, UpgradeId], unit: Unit):
         self.pending_by_type[item].add(unit)
@@ -49,8 +65,11 @@ class Observation(object):
     def add_upgrade(self, upgrade: UpgradeId):
         self.actual_by_type[upgrade].add(None)
 
-    def add_plan(self, plan: MacroTarget):
+    def add_plan(self, plan: MacroPlan):
         self.planned_by_type[plan.item].add(plan)
+
+    def remove_plan(self, plan: MacroPlan):
+        self.planned_by_type[plan.item].remove(plan)
 
     def count(self,
         item: Union[UnitTypeId, UpgradeId],
