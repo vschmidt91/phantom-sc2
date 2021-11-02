@@ -265,7 +265,7 @@ class CommonAI(BotAI):
     async def init_bases(self):
 
         num_attempts = 32
-        max_sigma = 3
+        max_sigma = 5
         self.base_distance_matrix = dict()
         for a in self.expansion_locations_list:
             self.base_distance_matrix[a] = dict()
@@ -636,10 +636,11 @@ class CommonAI(BotAI):
                     return 0
                 if target.type_id in CHANGELINGS:
                     return 0
-                if not can_attack(unit, target):
+                if not can_attack(unit, target) and not unit.is_detector:
                     return 0
                 priority = 1
-                priority *= 100 + unitValue(target, target=unit)
+                priority *= 1 + target.calculate_dps_vs_target(unit)
+                priority /= 10 + target.shield + target.health
                 priority /= 10 + unit.distance_to(target)
                 priority /= 30 + unit.distance_to(self.start_location)
                 priority /= 3 if target.is_structure else 1
@@ -651,9 +652,9 @@ class CommonAI(BotAI):
                     priority *= 10 if not target.is_revealed else 1
                 return priority
 
-            if enemies:
+            target = max(enemies, key=target_priority, default=None)
+            if target and 0 < target_priority(target):
 
-                target = max(enemies, key=target_priority)
                 if target.is_enemy:
                     attack_target = target.position
                 else:
@@ -690,13 +691,18 @@ class CommonAI(BotAI):
                     # RETREAT
                     if unit.weapon_cooldown and unit.target_in_range(target, unit.distance_to_weapon_ready):
                         unit.move(unit.position.towards(target, -12))
+                    elif unit.target_in_range(target):
+                        unit.attack(target)
                     else:
                         unit.attack(attack_target)
                     
                 elif advantage < advantage_threshold * 3:
 
                     # FIGHT
-                    unit.attack(attack_target)
+                    if unit.target_in_range(target):
+                        unit.attack(target)
+                    else:
+                        unit.attack(attack_target)
 
                 else:
 
@@ -704,6 +710,8 @@ class CommonAI(BotAI):
                     distance = unit.position.distance_to(target.position) - unit.radius - target.radius
                     if unit.weapon_cooldown and 1 < distance:
                         unit.move(target.position)
+                    elif unit.target_in_range(target):
+                        unit.attack(target)
                     else:
                         unit.attack(attack_target)
 
