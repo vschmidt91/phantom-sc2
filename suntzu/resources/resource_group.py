@@ -75,6 +75,10 @@ class ResourceGroup(Resource, Generic[T], Iterable[T]):
     def harvester_target(self) -> int:
         return sum(r.harvester_target for r in self.items)
 
+    @property
+    def income(self):
+        return sum(r.income for r in self.items)
+
     def update(self, observation: Observation):
 
         for resource in self.items:

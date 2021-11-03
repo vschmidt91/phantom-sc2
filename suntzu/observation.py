@@ -25,20 +25,18 @@ class Observation(object):
         self.pending_by_type: DefaultDict[Union[UnitTypeId, UpgradeId], Set[Unit]] = defaultdict(lambda:set())
         self.planned_by_type: DefaultDict[Union[UnitTypeId, UpgradeId], Set[MacroPlan]] = defaultdict(lambda:set())
         self.worker_supply_fixed: int = None
-        self.destructables_tags: Set[int] = set()
-
-    @property
-    def destructables(self) -> Iterable[Unit]:
-        for tag in self.destructables_tags:
-            unit = self.unit_by_tag.get(tag)
-            if unit:
-                yield unit
+        self.destructables: Set[Unit] = set()
 
     def clear(self):
         self.resource_by_position.clear()
         self.unit_by_tag.clear()
         self.pending_by_type.clear()
+        self.destructables.clear()
         self.worker_supply_fixed = None
+
+    def add_destructable(self, unit: Unit):
+        if 0 < unit.armor:
+            self.destructables.add(unit)
 
     def add_resource(self, unit: Unit):
         if unit.type_id in ALL_GAS:

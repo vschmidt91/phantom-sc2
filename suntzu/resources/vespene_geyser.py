@@ -3,6 +3,7 @@ from typing import Optional, Set
 
 from sc2.position import Point2
 from sc2.constants import ALL_GAS
+from suntzu.constants import RICH_GAS
 
 from ..observation import Observation
 from .resource_single import ResourceSingle
@@ -13,6 +14,7 @@ class VespeneGeyser(ResourceSingle):
     def __init__(self, position: Point2):
         super().__init__(position)
         self.building: Optional[int] = None
+        self.is_rich = False
 
     @property
     def harvester_target(self):
@@ -27,6 +29,8 @@ class VespeneGeyser(ResourceSingle):
         if not geyser:
             self.remaining = 0
             return
+
+        self.is_rich = geyser.type_id in RICH_GAS
 
         building = observation.unit_by_tag.get(self.building)
         if not building:
@@ -73,3 +77,17 @@ class VespeneGeyser(ResourceSingle):
                         harvester.gather(building)
                 else:
                     harvester.gather(building)
+
+    @property
+    def income(self):
+        income_per_trip = 8 if self.is_rich else 4
+        if not self.remaining:
+            return 0
+        elif self.harvester_count == 0:
+            return 0
+        elif self.harvester_count == 1:
+            return income_per_trip * 15 / 60
+        elif self.harvester_count == 2:
+            return income_per_trip * 30 / 60
+        else:
+            return income_per_trip * 41 / 60

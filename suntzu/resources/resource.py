@@ -36,6 +36,11 @@ class Resource(object):
         raise NotImplementedError()
 
     @property
+    @abstractmethod
+    def income(self):
+        raise NotImplementedError()
+
+    @property
     def harvester_count(self):
         return sum(1 for _ in self.harvesters)
 

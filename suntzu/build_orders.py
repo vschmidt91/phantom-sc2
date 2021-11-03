@@ -23,7 +23,7 @@ ROACH_RUSH = [
     UnitTypeId.DRONE,
     UnitTypeId.DRONE,
     UnitTypeId.ROACHWARREN,
-    UnitTypeId.ZERGLING,
+    UnitTypeId.DRONE,
     UnitTypeId.OVERLORD,
     UnitTypeId.ROACH,
     UnitTypeId.ROACH,
@@ -32,7 +32,6 @@ ROACH_RUSH = [
     UnitTypeId.ROACH,
     UnitTypeId.ROACH,
     UnitTypeId.ROACH,
-    UnitTypeId.RAVAGER,
 ]
 
 HATCH17 = [

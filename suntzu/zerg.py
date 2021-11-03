@@ -43,7 +43,7 @@ class ZergAI(CommonAI):
         if random.random() < 0.5:
             build_order = ROACH_RUSH
             self.tags.append("RoachRush")
-            self.tech_time = 4.5 * 60
+            self.tech_time = 4.25 * 60
             self.extractor_trick_enabled = False
             self.destroy_destructables = False
         else:
@@ -131,12 +131,12 @@ class ZergAI(CommonAI):
         minerals = max(0, cost_sum.minerals - self.minerals)
         vespene = max(0, cost_sum.vespene - self.vespene)
         if 7 * 60 < self.time and (minerals + vespene) == 0:
-            self.gas_ratio = 6 / 22
+            gas_ratio = 6 / 22
         else:
-            self.gas_ratio = vespene / max(1, vespene + minerals)
+            gas_ratio = vespene / max(1, vespene + minerals)
 
         worker_type = race_worker[self.race]
-        self.gas_target = self.gas_ratio * self.observation.count(worker_type, include_planned=False)
+        self.gas_target = gas_ratio * self.observation.count(worker_type, include_planned=False)
         self.gas_target = 3 * math.ceil(self.gas_target / 3)
 
     async def on_step(self, iteration):
@@ -305,7 +305,7 @@ class ZergAI(CommonAI):
         #         if 1 < overlord.distance_to(target):
         #             overlord.move(target.position)
 
-    async def spread_creep(self, spreader: Unit = None, numAttempts: int = 1):
+    async def spread_creep(self, spreader: Unit = None, numAttempts: int = 5):
 
         if not CREEP_ENABLED:
             return
@@ -374,10 +374,10 @@ class ZergAI(CommonAI):
             if unit.type_id == UnitTypeId.QUEEN:
                 if unit.tag in self.inject_assigments.keys():
                     continue
-                elif any(o.ability.exact_id == AbilityId.ZERGBUILD_CREEPTUMOR for o in unit.orders):
+                elif any(o.ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN for o in unit.orders):
                     continue
-                # elif unit in self.observation.pending_by_type[UnitTypeId.CREEPTUMORQUEEN]:
-                #     continue
+                elif unit in self.observation.pending_by_type[UnitTypeId.CREEPTUMORQUEEN]:
+                    continue
             yield unit
 
     async def micro_queens(self):
@@ -430,7 +430,7 @@ class ZergAI(CommonAI):
 
         for queen in queens_unassigned:
 
-            if any(o.ability.exact_id == AbilityId.ZERGBUILD_CREEPTUMOR for o in queen.orders):
+            if any(o.ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN for o in queen.orders):
                 pass
             # if queen in self.observation.pending_by_type[UnitTypeId.CREEPTUMORQUEEN]:
             #     pass
@@ -460,7 +460,7 @@ class ZergAI(CommonAI):
             self.composition[UnitTypeId.ROACH] = int(ratio * 50)
             self.composition[UnitTypeId.RAVAGER] = int(ratio * 10)
         elif not self.observation.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False):
-            self.composition[UnitTypeId.OVERSEER] = 1
+            self.composition[UnitTypeId.OVERSEER] = 2
             self.composition[UnitTypeId.ROACH] = 40
             self.composition[UnitTypeId.HYDRALISK] = 40
         else:

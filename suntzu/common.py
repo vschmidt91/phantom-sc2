@@ -52,21 +52,13 @@ class CommonAI(BotAI):
         debug: bool = False,
         performance: PerformanceMode = PerformanceMode.DEFAULT,
         version_path: str = './version.txt',
-        greetings_path: str = './greetings.txt',
     ):
-
 
         self.tags: List[str] = []
 
         with open(version_path, 'r') as file:
             version = file.readline()
             self.tags.append(version)
-
-        with open(greetings_path, 'r') as file:
-            self.quotes = [
-                line.replace('\n', '')
-                for line in file.readlines()
-            ]
 
         self.game_step = game_step
         self.performance = performance
@@ -75,12 +67,9 @@ class CommonAI(BotAI):
         self.gas_target = 0
         self.greet_enabled = True
         self.macro_plans = list()
-        self.gas_ratio = 6 / 22
         self.observation: Observation = Observation()
-        self.print_first_iteration = True
         self.worker_split: Dict[int, int] = None
         self.destroy_destructables = True
-        self.tag = None
         self.cost: Dict[Union[UnitTypeId, UpgradeId], Cost] = dict()
         self.bases: ResourceGroup[Base] = None
         self.base_distance_matrix: Dict[Point2, Dict[Point2, float]] = dict()
@@ -103,20 +92,13 @@ class CommonAI(BotAI):
                 pass
 
     async def on_start(self):
-        self.observation.destructables_tags.update((
-            unit.tag
-            for unit in self.destructables
-            if 0 < unit.armor
-        ))
-        await self.init_bases()
+        await self.initialize_bases()
 
     async def on_step(self, iteration: int):
 
         if 1 < self.time and self.greet_enabled:
             for tag in self.tags:
                 await self.client.chat_send('Tag:' + tag, True)
-            quote = random.choice(self.quotes)
-            await self.client.chat_send(quote, False)
             self.greet_enabled = False
         if self.debug:
             self.draw_debug()
@@ -160,12 +142,6 @@ class CommonAI(BotAI):
         unit = self.observation.unit_by_tag.get(unit_tag)
         if unit:
             self.observation.actual_by_type[unit.type_id].difference_update((unit.tag,))
-            # self.observation.actual_by_type[unit.type_id].remove(unit.tag)
-        else:  
-            # for unit_type, units in self.observation.actual_by_type.items():
-            #     if unit_tag in units:
-            #         units.remove(unit_tag)
-            pass
           
         base = next((b for b in self.bases if b.townhall == unit_tag), None)
         if base:
@@ -202,30 +178,26 @@ class CommonAI(BotAI):
             self.observation.add_unit(unit)
         for resource in self.resources:
             self.observation.add_resource(resource)
+        for destructable in self.destructables:
+            self.observation.add_destructable(destructable)
         worker_type = race_worker[self.race]
         worker_pending = self.observation.count(worker_type, include_actual=False, include_pending=False, include_planned=False)
         self.observation.worker_supply_fixed = self.supply_used - self.supply_army - worker_pending
 
-        # for action in self.state.actions_unit_commands:
-        #     ability = action.exact_id
-        #     unit = UNIT_BY_TRAIN_ABILITY.get(ability)
-        #     if unit:
-        #         trainer = [
-        #             self.observation.unit_by_tag.get(u)
-        #             for u in action.unit_tags
-        #         ]
-        #         print(unit, trainer)
-        #     upgrade = UPGRADE_BY_RESEARCH_ABILITY.get(ability)
-        #     if upgrade:
-        #         print(upgrade, action.unit_tags)
+    @property
+    def gas_harvesters(self) -> Iterable[int]:
+        for base in self.bases:
+            for gas in base.vespene_geysers:
+                for harvester in gas.harvesters:
+                    yield harvester
 
     @property
-    def gas_harvesters(self):
-        return sum(b.vespene_geysers.harvester_count for b in self.bases)
+    def gas_harvester_count(self) -> int:
+        return sum(1 for _ in self.gas_harvesters)
 
     def transfer_to_and_from_gas(self):
 
-        while self.gas_harvesters + 1 <= self.gas_target:
+        while self.gas_harvester_count + 1 <= self.gas_target:
             minerals_from = max(
                 (b.mineral_patches for b in self.bases if 0 < b.mineral_patches.harvester_count),
                 key = lambda m : m.harvester_balance,
@@ -240,7 +212,7 @@ class CommonAI(BotAI):
                 continue
             break
 
-        while self.gas_target <= self.gas_harvesters - 1:
+        while self.gas_target <= self.gas_harvester_count - 1:
             gas_from = max(
                 (b.vespene_geysers for b in self.bases if 0 < b.vespene_geysers.harvester_count),
                 key = lambda g : g.harvester_balance,
@@ -262,7 +234,7 @@ class CommonAI(BotAI):
         # if we are oversaturated, enable long distance mining
         # self.bases.balance_aggressively = 0 < self.bases.harvester_balance
 
-    async def init_bases(self):
+    async def initialize_bases(self):
 
         num_attempts = 32
         max_sigma = 5
@@ -333,11 +305,10 @@ class CommonAI(BotAI):
                     color=font_color,
                     size=font_size)
 
-    def estimate_income(self):
-        harvesters_on_minerals = sum(t.assigned_harvesters for t in self.townhalls)
-        harvesters_on_vespene = sum(g.assigned_harvesters for g in self.gas_buildings)
-        income_minerals = 48 * harvesters_on_minerals / 60
-        income_vespene = 54 * harvesters_on_vespene / 60
+    @property
+    def income(self):
+        income_minerals = sum(base.mineral_patches.income for base in self.bases)
+        income_vespene = sum(base.vespene_geysers.income for base in self.bases)
         return income_minerals, income_vespene
 
     def time_to_harvest(self, minerals, vespene):
@@ -411,7 +382,7 @@ class CommonAI(BotAI):
         reserve = Cost(0, 0, 0)
         exclude = { o.unit for o in self.macro_plans }
         took_action = False
-        income_minerals, income_vespene = self.estimate_income()
+        income_minerals, income_vespene = self.income
         self.macro_plans.sort(key = lambda t : t.priority, reverse=True)
 
         i = 0
@@ -539,10 +510,10 @@ class CommonAI(BotAI):
             geysers = [
                 geyser
                 for geyser in self.get_owned_geysers()
-                # if (
-                #     geyser.position not in exclude_positions
-                #     and geyser.tag not in exclude_tags
-                # )
+                if (
+                    geyser.position not in exclude_positions
+                    and geyser.tag not in exclude_tags
+                )
             ]
             if not any(geysers):
                 raise PlacementNotFound()
@@ -615,10 +586,6 @@ class CommonAI(BotAI):
             return trainer, ability
 
         return None, None
-
-    def unit_cost(self, unit: Unit) -> int:
-        cost = self.game_data.units[unit.type_id.value].cost
-        return cost.minerals + cost.vespene
 
     async def micro(self):
 
