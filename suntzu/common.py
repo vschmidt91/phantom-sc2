@@ -188,7 +188,7 @@ class CommonAI(BotAI):
         pass
         
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
-        self.observation.actual_by_type[previous_type].remove(unit.tag)
+        self.observation.actual_by_type[previous_type].difference_update((unit.tag,))
         self.observation.actual_by_type[unit.type_id].add(unit.tag)
         pass
 
