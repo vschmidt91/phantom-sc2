@@ -328,7 +328,10 @@ class CommonAI(BotAI):
         if not path:
             path = unit.position.distance_to(position)
         if not unit.movement_speed:
-            raise Exception()
+            if self.debug:
+                raise Exception()
+            else:
+                return 0
         return path / unit.movement_speed
 
     def add_macro_plan(self, plan: MacroPlan):
@@ -469,8 +472,9 @@ class CommonAI(BotAI):
                 queue = queue
 
             if not unit(plan.ability["ability"], target=plan.target, queue=queue):
-                print("objective failed:" + str(plan))
-                raise Exception()
+                if self.debug:
+                    print("objective failed:" + str(plan))
+                    raise Exception()
 
             took_action = True
 
@@ -606,7 +610,7 @@ class CommonAI(BotAI):
                 if not can_attack(unit, target) and not unit.is_detector:
                     return 0
                 priority = 1
-                priority *= 1 + target.calculate_dps_vs_target(unit)
+                priority *= 10 + target.calculate_dps_vs_target(unit)
                 priority /= 10 + target.shield + target.health
                 priority /= 10 + unit.distance_to(target)
                 priority /= 30 + unit.distance_to(self.start_location)

@@ -125,7 +125,7 @@ class ZergAI(CommonAI):
 
         cost_zero = Cost(0, 0, 0)
         cost_sum = sum((self.cost[plan.item] or cost_zero for plan in self.macro_plans), cost_zero)
-        cs = [self.cost[unit] * count for unit, count in self.composition.items()]
+        cs = [self.cost[unit] * max(0, count - self.observation.count(unit, include_planned=False)) for unit, count in self.composition.items()]
         cost_sum += sum(cs, cost_zero)
 
         minerals = max(0, cost_sum.minerals - self.minerals)
