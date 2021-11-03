@@ -4,6 +4,7 @@ import inspect
 import math
 import itertools, random
 import build
+import numpy as np
 from typing import Counter, Iterable, List, Coroutine, Dict, Set, Union, Tuple
 from itertools import chain
 
@@ -14,11 +15,13 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 
+from .strategies.roach_rush import RoachRush
+from .strategies.hatch_first import HatchFirst
+from .strategies.zerg_strategy import ZergStrategy
 from .timer import run_timed
 from .constants import CHANGELINGS, SUPPLY_PROVIDED
 from .common import CommonAI, PerformanceMode
 from .utils import sample
-from .build_orders import ROACH_RUSH, HATCH17
 from .constants import WITH_TECH_EQUIVALENTS, REQUIREMENTS, ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
 from .cost import Cost
 from .macro_plan import MacroPlan
@@ -37,30 +40,30 @@ TIMING_INTERVAL = 64
 
 class ZergAI(CommonAI):
 
-    def __init__(self, **kwargs):
+    def __init__(self, strategy: ZergStrategy = None, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
 
-        if random.random() < 0.5:
-            build_order = ROACH_RUSH
-            self.tags.append("RoachRush")
-            self.tech_time = 4.25 * 60
-            self.extractor_trick_enabled = False
-            self.destroy_destructables = False
-        else:
-            build_order = HATCH17
-            self.tags.append("HatchFirst")
-            self.tech_time = 3.5 * 60
-            self.extractor_trick_enabled = False
-            self.destroy_destructables = True
+        if not strategy:
+            strategy_types = [RoachRush, HatchFirst]
+            strategy_type = sample(strategy_types)
+            strategy = strategy_type()
 
-        for step in build_order:
-            self.add_macro_plan(MacroPlan(step, priority=BUILD_ORDER_PRIORITY))
-
-        self.composition = dict()
+        self.strategy: ZergStrategy = strategy
+        self.tags.append(self.strategy.name)
+        self.composition: Dict[UnitTypeId, int] = dict()
         self.timings_acc = dict()
         self.abilities = dict()
         self.inject_assigments = dict()
         self.inject_assigments_max = 5
+
+    @property
+    def destroy_destructables(self):
+        return self.strategy.destroy_destructables
+
+    async def on_start(self):
+        for step in self.strategy.build_order():
+            self.add_macro_plan(MacroPlan(step, priority=BUILD_ORDER_PRIORITY))
+        return await super().on_start()
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         if unit.type_id == UnitTypeId.LAIR:
@@ -74,13 +77,13 @@ class ZergAI(CommonAI):
                     continue
                 if ability in await self.get_available_abilities(overlord):
                     overlord(ability)
-        await super().on_unit_type_changed(unit, previous_type)
+        return await super().on_unit_type_changed(unit, previous_type)
 
     async def on_unit_created(self, unit: Unit):
         if unit.type_id is UnitTypeId.OVERLORD:
             if self.structures(WITH_TECH_EQUIVALENTS[UnitTypeId.LAIR]).exists:
                 unit(AbilityId.BEHAVIOR_GENERATECREEPON)
-        await super(self.__class__, self).on_unit_created(unit)
+        return await super(self.__class__, self).on_unit_created(unit)
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         if unit.type_id == UnitTypeId.OVERLORD:
@@ -90,7 +93,7 @@ class ZergAI(CommonAI):
                 unit.move(unit.position.towards(enemy.position, -20))
             else:
                 unit.move(unit.position.towards(self.start_location, 20))
-        await super(self.__class__, self).on_unit_took_damage(unit, amount_damage_taken)
+        return await super(self.__class__, self).on_unit_took_damage(unit, amount_damage_taken)
 
     async def corrosive_bile(self):
 
@@ -145,8 +148,6 @@ class ZergAI(CommonAI):
 
         if iteration == 0:
             return
-
-        self.destroy_destructables = self.tech_time < self.time
 
         steps = {
             self.update_observation: 1,
@@ -348,7 +349,7 @@ class ZergAI(CommonAI):
             position = await self.find_placement(AbilityId.ZERGBUILD_CREEPTUMOR, target, max_distance=12, placement_step=3)
             if position is None:
                 continue
-            if self.blocking_expansion(position):
+            if self.blocked_base(position):
                 continue 
             tumorPlacement = position
             break
@@ -440,44 +441,14 @@ class ZergAI(CommonAI):
                 await self.spread_creep(queen)
 
     def update_composition(self):
-
-        worker_limit = 80
-        worker_target = min(worker_limit, self.get_max_harvester())
-        self.composition = {
-            UnitTypeId.DRONE: worker_target,
-            UnitTypeId.QUEEN: min(self.inject_assigments_max, self.townhalls.amount),
-        }
-        if 4 <= self.townhalls.amount:
-            self.composition[UnitTypeId.QUEEN] += 1
-        worker_count = self.observation.count(UnitTypeId.DRONE, include_planned=False)
-        
-        ratio = worker_count / worker_limit
-    
-        if self.time < self.tech_time:
-            pass
-        elif not self.observation.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False):
-            self.composition[UnitTypeId.OVERSEER] = 1
-            self.composition[UnitTypeId.ROACH] = int(ratio * 50)
-            self.composition[UnitTypeId.RAVAGER] = int(ratio * 10)
-        elif not self.observation.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False):
-            self.composition[UnitTypeId.OVERSEER] = 2
-            self.composition[UnitTypeId.ROACH] = 40
-            self.composition[UnitTypeId.HYDRALISK] = 40
-        else:
-            self.composition[UnitTypeId.OVERSEER] = 3
-            self.composition[UnitTypeId.ROACH] = 40
-            self.composition[UnitTypeId.HYDRALISK] = 40
-            self.composition[UnitTypeId.CORRUPTOR] = 3
-            self.composition[UnitTypeId.BROODLORD] = 10
+        self.composition = self.strategy.composition(self)
 
     def build_gasses(self):
-        if self.time < self.tech_time:
-            return
         gas_depleted = self.gas_buildings.filter(lambda g : not g.has_vespene).amount
         gas_have = self.observation.count(UnitTypeId.EXTRACTOR)
         gas_max = sum(1 for g in self.get_owned_geysers())
         gas_want = min(gas_max, gas_depleted + math.ceil(self.gas_target / 3))
-        for i in range(gas_want - gas_have):
+        if gas_have < gas_want:
             self.add_macro_plan(MacroPlan(UnitTypeId.EXTRACTOR, priority=1))
 
     def morph_overlords(self):

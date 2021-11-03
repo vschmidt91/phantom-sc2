@@ -56,6 +56,7 @@ def dot(x, y):
     return sum((xi * yi for xi, yi in zip(x, y)))
 
 def sample(choices, key=None):
+    choices = list(choices)
     if key:
         w = [key(c) for c in choices]
         ws = sum(w)

@@ -6,6 +6,7 @@ import math
 import random
 from typing import Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
 import numpy as np
+from s2clientprotocol.common_pb2 import Point
 from s2clientprotocol.error_pb2 import Error
 
 from sc2.game_state import ActionRawUnitCommand
@@ -69,10 +70,13 @@ class CommonAI(BotAI):
         self.macro_plans = list()
         self.observation: Observation = Observation()
         self.worker_split: Dict[int, int] = None
-        self.destroy_destructables = True
         self.cost: Dict[Union[UnitTypeId, UpgradeId], Cost] = dict()
         self.bases: ResourceGroup[Base] = None
         self.base_distance_matrix: Dict[Point2, Dict[Point2, float]] = dict()
+
+    @property
+    def destroy_destructables(self):
+        return True
 
     async def on_before_start(self):
         self.client.game_step = self.game_step
@@ -611,7 +615,7 @@ class CommonAI(BotAI):
                     return 0
                 priority = 1
                 priority *= 10 + target.calculate_dps_vs_target(unit)
-                priority /= 10 + target.shield + target.health
+                priority /= 100 + target.shield + target.health
                 priority /= 10 + unit.distance_to(target)
                 priority /= 30 + unit.distance_to(self.start_location)
                 priority /= 3 if target.is_structure else 1
@@ -758,12 +762,11 @@ class CommonAI(BotAI):
 
     def get_max_harvester(self) -> int:
         workers = 0
-        workers += sum((h.ideal_harvesters for h in self.townhalls.ready))
+        workers += sum((b.harvester_target for b in self.bases))
         workers += 16 * self.observation.count(UnitTypeId.HATCHERY, include_actual=False, include_planned=False)
-        workers += self.gas_target
-        return int(workers)
+        return workers
 
-    def blocking_expansion(self, position: Point2) -> bool:
+    def blocked_base(self, position: Point2) -> Optional[Point]:
         px, py = position
         radius = self.game_data.units[UnitTypeId.HATCHERY.value].footprint_radius
         for base in self.expansion_locations_list:
