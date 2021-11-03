@@ -8,7 +8,9 @@ from ..observation import Observation
 
 class ZergStrategy(object):
 
-    @property
+    def __init__(self):
+        self.tech_time = 3.5 * 60
+
     def build_order(self) -> Iterable[Union[UnitTypeId, UpgradeId]]:
         return list()
 
@@ -18,6 +20,5 @@ class ZergStrategy(object):
     def destroy_destructables(self, bot) -> bool:
         return False
 
-    @property
     def name(self) -> str:
         return type(self).__name__

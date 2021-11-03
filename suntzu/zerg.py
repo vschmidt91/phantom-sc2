@@ -49,16 +49,15 @@ class ZergAI(CommonAI):
             strategy = strategy_type()
 
         self.strategy: ZergStrategy = strategy
-        self.tags.append(self.strategy.name)
+        self.tags.append(self.strategy.name())
         self.composition: Dict[UnitTypeId, int] = dict()
         self.timings_acc = dict()
         self.abilities = dict()
         self.inject_assigments = dict()
         self.inject_assigments_max = 5
 
-    @property
     def destroy_destructables(self):
-        return self.strategy.destroy_destructables
+        return self.strategy.destroy_destructables(self)
 
     async def on_start(self):
         for step in self.strategy.build_order():

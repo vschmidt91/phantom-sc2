@@ -74,7 +74,6 @@ class CommonAI(BotAI):
         self.bases: ResourceGroup[Base] = None
         self.base_distance_matrix: Dict[Point2, Dict[Point2, float]] = dict()
 
-    @property
     def destroy_destructables(self):
         return True
 
@@ -600,7 +599,7 @@ class CommonAI(BotAI):
         friends = list(self.enumerate_army())
 
         enemies = self.all_enemy_units
-        if self.destroy_destructables:
+        if self.destroy_destructables():
             enemies += self.observation.destructables
         enemies = list(enemies)
 
