@@ -8,6 +8,7 @@ from typing import Iterable, Optional, Tuple, Union, Coroutine, Set, List, Calla
 import numpy as np
 from s2clientprotocol.common_pb2 import Point
 from s2clientprotocol.error_pb2 import Error
+from sc2 import game_state
 
 from sc2.game_state import ActionRawUnitCommand
 
@@ -32,10 +33,10 @@ from .resources.mineral_patch import MineralPatch
 from .observation import Observation
 from .resources.resource import Resource
 from .resources.resource_group import ResourceGroup
-from .constants import WORKERS, CHANGELINGS, REQUIREMENTS_KEYS, WITH_TECH_EQUIVALENTS, CIVILIANS, GAS_BY_RACE, REQUIREMENTS, REQUIREMENTS_EXCLUDE, STATIC_DEFENSE, SUPPLY, SUPPLY_PROVIDED, TOWNHALL, TRAIN_ABILITIES, UNIT_BY_TRAIN_ABILITY, UPGRADE_BY_RESEARCH_ABILITY
+from .constants import BUILD_ORDER_PRIORITY, WORKERS, CHANGELINGS, REQUIREMENTS_KEYS, WITH_TECH_EQUIVALENTS, CIVILIANS, GAS_BY_RACE, REQUIREMENTS, REQUIREMENTS_EXCLUDE, STATIC_DEFENSE, SUPPLY, SUPPLY_PROVIDED, TOWNHALL, TRAIN_ABILITIES, UNIT_BY_TRAIN_ABILITY, UPGRADE_BY_RESEARCH_ABILITY
 from .macro_plan import MacroPlan
 from .cost import Cost
-from .utils import can_attack, get_requirements, armyValue, unitPriority, canAttack, center, dot, unitValue
+from .utils import bilinear_sample, can_attack, get_requirements, armyValue, unitPriority, canAttack, center, dot, unitValue
 
 RESOURCE_DISTANCE_THRESHOLD = 10
 
@@ -65,14 +66,15 @@ class CommonAI(BotAI):
         self.performance = performance
         self.debug = debug
         self.raw_affects_selection = True
-        self.gas_target = 0
         self.greet_enabled = True
         self.macro_plans = list()
+        self.composition: Dict[UnitTypeId, int] = dict()
         self.observation: Observation = Observation()
         self.worker_split: Dict[int, int] = None
         self.cost: Dict[Union[UnitTypeId, UpgradeId], Cost] = dict()
         self.bases: ResourceGroup[Base] = None
         self.base_distance_matrix: Dict[Point2, Dict[Point2, float]] = dict()
+        self.enemy_positions: Optional[Dict[int, Point2]] = dict()
 
     def destroy_destructables(self):
         return True
@@ -145,7 +147,6 @@ class CommonAI(BotAI):
         unit = self.observation.unit_by_tag.get(unit_tag)
         if unit:
             self.observation.actual_by_type[unit.type_id].difference_update((unit.tag,))
-          
         base = next((b for b in self.bases if b.townhall == unit_tag), None)
         if base:
             base.townhall = None
@@ -198,9 +199,67 @@ class CommonAI(BotAI):
     def gas_harvester_count(self) -> int:
         return sum(1 for _ in self.gas_harvesters)
 
-    def transfer_to_and_from_gas(self):
+    def save_enemy_positions(self):
+        self.enemy_positions.clear()
+        for enemy in self.all_enemy_units:
+            self.enemy_positions[enemy.tag] = enemy.position
 
-        while self.gas_harvester_count + 1 <= self.gas_target:
+    def make_composition(self):
+        if self.supply_used == 200:
+            return
+        composition_have = {
+            unit: self.observation.count(unit)
+            for unit in self.composition.keys()
+        }
+        for unit, count in self.composition.items():
+            if count < 1:
+                continue
+            elif count <= composition_have[unit]:
+                continue
+            if any(self.get_missing_requirements(unit, include_pending=False, include_planned=False)):
+                continue
+            priority = -composition_have[unit] /  count
+            plans = self.observation.planned_by_type[unit]
+            if not plans:
+                self.add_macro_plan(MacroPlan(unit, priority=priority))
+            else:
+                for plan in plans:
+                    if plan.priority == BUILD_ORDER_PRIORITY:
+                        continue
+                    plan.priority = priority
+
+    def update_gas(self):
+        gas_target = self.get_gas_target()
+        self.transfer_to_and_from_gas(gas_target)
+        self.build_gasses(gas_target)
+
+    def build_gasses(self, gas_target: int):
+        gas_depleted = self.gas_buildings.filter(lambda g : not g.has_vespene).amount
+        gas_have = self.observation.count(UnitTypeId.EXTRACTOR)
+        gas_max = sum(1 for g in self.get_owned_geysers())
+        gas_want = min(gas_max, gas_depleted + math.ceil(gas_target / 3))
+        if gas_have < gas_want:
+            self.add_macro_plan(MacroPlan(UnitTypeId.EXTRACTOR, priority=1))
+
+    def get_gas_target(self):
+        cost_zero = Cost(0, 0, 0)
+        cost_sum = sum((self.cost[plan.item] or cost_zero for plan in self.macro_plans), cost_zero)
+        cs = [self.cost[unit] * max(0, count - self.observation.count(unit, include_planned=False)) for unit, count in self.composition.items()]
+        cost_sum += sum(cs, cost_zero)
+        minerals = max(0, cost_sum.minerals - self.minerals)
+        vespene = max(0, cost_sum.vespene - self.vespene)
+        if 7 * 60 < self.time and (minerals + vespene) == 0:
+            gas_ratio = 6 / 22
+        else:
+            gas_ratio = vespene / max(1, vespene + minerals)
+        worker_type = race_worker[self.race]
+        gas_target = gas_ratio * self.observation.count(worker_type, include_planned=False)
+        gas_target = 3 * math.ceil(gas_target / 3)
+        return gas_target
+
+    def transfer_to_and_from_gas(self, gas_target: int):
+
+        while self.gas_harvester_count + 1 <= gas_target:
             minerals_from = max(
                 (b.mineral_patches for b in self.bases if 0 < b.mineral_patches.harvester_count),
                 key = lambda m : m.harvester_balance,
@@ -215,7 +274,7 @@ class CommonAI(BotAI):
                 continue
             break
 
-        while self.gas_target <= self.gas_harvester_count - 1:
+        while gas_target <= self.gas_harvester_count - 1:
             gas_from = max(
                 (b.vespene_geysers for b in self.bases if 0 < b.vespene_geysers.harvester_count),
                 key = lambda g : g.harvester_balance,
@@ -594,7 +653,10 @@ class CommonAI(BotAI):
 
         return None, None
 
-    async def micro(self):
+    async def micro2(self):
+
+        if self.time < 8 * 60:
+            return
 
         friends = list(self.enumerate_army())
 
@@ -603,6 +665,92 @@ class CommonAI(BotAI):
             enemies += self.observation.destructables
         enemies = list(enemies)
 
+        map_size = (32, 32)
+
+        enemy_map = np.zeros(map_size)
+        for enemy in enemies:
+            p = enemy.position / self.game_info.map_size * Point2(map_size)
+            enemy_map[p.rounded] += unitValue(enemy)
+
+        friend_map = np.zeros(map_size)
+        for friend in friends:
+            p = friend.position / self.game_info.map_size * Point2(map_size)
+            friend_map[p.rounded] += unitValue(friend)
+
+        enemies_exists = any(enemies)
+            
+        for unit in friends:
+
+            if enemies_exists:
+
+                p = unit.position / self.game_info.map_size * Point2(map_size)
+                friends_rating = bilinear_sample(friend_map, p)
+                enemies_rating = bilinear_sample(enemy_map, p)
+                # friends_rating = friend_map[p.rounded]
+                # enemies_rating = enemy_map[p.rounded]
+
+                distance_ref = self.game_info.map_size.length
+                distance_to_base = min((unit.distance_to(t) for t in self.townhalls), default=0)
+
+                advantage = 1
+                advantage_value = friends_rating / max(1, enemies_rating)
+                advantage_defender = distance_ref / (distance_ref + distance_to_base)
+                
+                advantage_creep = 1
+                creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id)
+                if creep_bonus and self.state.creep.is_empty(unit.position.rounded):
+                    advantage_creep = 1 / creep_bonus
+
+                advantage *= advantage_value
+                advantage *= advantage_defender
+                advantage *= advantage_creep
+                advantage_threshold = 1
+
+                if advantage < advantage_threshold / 3:
+
+                    # FLEE
+                    if not unit.is_moving:
+                        unit.move(self.start_location)
+
+                elif advantage < advantage_threshold:
+
+                    # RETREAT
+                    if unit.weapon_cooldown:
+                        unit.move(self.start_location)
+                    else:
+                        unit.attack(self.enemy_start_locations[0])
+                    
+                elif advantage < advantage_threshold * 3:
+
+                    # FIGHT
+                    unit.attack(self.enemy_start_locations[0])
+
+                else:
+
+                    # PURSUE
+                    if unit.weapon_cooldown:
+                        unit.move(self.enemy_start_locations[0])
+                    else:
+                        unit.attack(self.enemy_start_locations[0])
+
+            elif not unit.is_attacking:
+
+                if self.time < 8 * 60:
+                    target = random.choice(self.enemy_start_locations)
+                else:
+                    target = random.choice(self.expansion_locations_list)
+
+                unit.attack(target)
+
+    async def micro(self):
+
+        friends = list(self.enumerate_army())
+
+        enemies = self.all_enemy_units
+        if self.destroy_destructables():
+            enemies += self.observation.destructables
+        enemies = list(enemies)
+            
         for unit in friends:
 
             def target_priority(target: Unit) -> float:

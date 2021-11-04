@@ -49,9 +49,9 @@ class MineralPatch(ResourceSingle):
                     harvester.return_resource()
             elif harvester.is_returning:
                 pass
-            elif harvester.is_gathering:
-                if harvester.order_target != patch.tag:
-                    harvester.gather(patch)
+            # elif harvester.is_gathering:
+            #     if harvester.order_target != patch.tag:
+            #         harvester.gather(patch)
             else:
                 harvester.gather(patch)
 

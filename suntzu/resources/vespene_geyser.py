@@ -72,9 +72,9 @@ class VespeneGeyser(ResourceSingle):
                         harvester.return_resource()
                 elif harvester.is_returning:
                     pass
-                elif harvester.is_gathering:
-                    if harvester.order_target != building.tag:
-                        harvester.gather(building)
+                # elif harvester.is_gathering:
+                #     if harvester.order_target != building.tag:
+                #         harvester.gather(building)
                 else:
                     harvester.gather(building)
 

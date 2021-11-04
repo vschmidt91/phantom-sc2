@@ -9,12 +9,15 @@ from typing import Counter, Iterable, List, Coroutine, Dict, Set, Union, Tuple
 from itertools import chain
 
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.buff_id import BuffId
 from sc2.unit import Unit
 from sc2.data import Race, race_townhalls, race_worker, Result
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
+from sc2.position import Point2
 
+from .strategies.gasless import GasLess
 from .strategies.roach_rush import RoachRush
 from .strategies.hatch_first import HatchFirst
 from .strategies.zerg_strategy import ZergStrategy
@@ -22,12 +25,12 @@ from .timer import run_timed
 from .constants import CHANGELINGS, SUPPLY_PROVIDED
 from .common import CommonAI, PerformanceMode
 from .utils import sample
-from .constants import WITH_TECH_EQUIVALENTS, REQUIREMENTS, ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
+from .constants import BUILD_ORDER_PRIORITY, WITH_TECH_EQUIVALENTS, REQUIREMENTS, ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
 from .cost import Cost
 from .macro_plan import MacroPlan
 
 CREEP_RANGE = 10
-CREEP_ENABLED = True
+CREEP_ENABLED = False
 
 SPORE_TIMING = {
     Race.Zerg: 7 * 60,
@@ -35,13 +38,14 @@ SPORE_TIMING = {
     Race.Terran: 4.5 * 60,
 }
 
-BUILD_ORDER_PRIORITY = 10
 TIMING_INTERVAL = 64
 
 class ZergAI(CommonAI):
 
     def __init__(self, strategy: ZergStrategy = None, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
+
+        # strategy = GasLess()
 
         if not strategy:
             strategy_types = [RoachRush, HatchFirst]
@@ -52,7 +56,6 @@ class ZergAI(CommonAI):
         self.tags.append(self.strategy.name())
         self.composition: Dict[UnitTypeId, int] = dict()
         self.timings_acc = dict()
-        self.abilities = dict()
         self.inject_assigments = dict()
         self.inject_assigments_max = 5
 
@@ -94,6 +97,38 @@ class ZergAI(CommonAI):
                 unit.move(unit.position.towards(self.start_location, 20))
         return await super(self.__class__, self).on_unit_took_damage(unit, amount_damage_taken)
 
+    async def transfuse(self):
+
+        ability = AbilityId.TRANSFUSION_TRANSFUSION
+        queens = list(self.observation.unit_by_tag[t] for t in self.observation.actual_by_type[UnitTypeId.QUEEN])
+        if not any(queens):
+            return
+        queens_abilities = await self.get_available_abilities(queens)
+
+        def priority(queen: Unit, target: Unit) -> float:
+            if queen.tag == target.tag:
+                return 0
+            if not queen.in_ability_cast_range(ability, target):
+                return 0
+            # if BuffId.TRANSFUSION in target.buffs:
+            #     return 0
+            if target.health_max <= target.health + 75:
+                return 0
+            priority = 1
+            priority *= 10 + target.health_max - target.health
+            return priority
+
+        for queen, abilities in zip(queens, queens_abilities):
+
+            if ability not in abilities:
+                continue
+
+            target = max(self.all_own_units, key = lambda t : priority(queen, t))
+            if priority(queen, target) <= 0:
+                continue
+
+            queen(ability, target=target)
+
     async def corrosive_bile(self):
 
         def target_priority(target):
@@ -120,26 +155,24 @@ class ZergAI(CommonAI):
                 if ravager.distance_to(target) <= ravager.radius + ability_data.cast_range
             )
             target: Unit = max(targets, key=target_priority, default=None)
-            if target:
-                ravager(ability, target=target.position)
+            if not target:
+                continue
+            previous_position = self.enemy_positions.get(target.tag)
+            if previous_position:
+                velocity = 22.4 * (target.position - previous_position) / (self.game_step)
+                predicted_position = target.position + 2.5 * velocity
+            else:
+                predicted_position = target.position
+            ravager(ability, target=predicted_position)
 
-    def update_gas_ratio(self):
+    def update_strategy(self):
+        self.strategy.update(self)
 
-        cost_zero = Cost(0, 0, 0)
-        cost_sum = sum((self.cost[plan.item] or cost_zero for plan in self.macro_plans), cost_zero)
-        cs = [self.cost[unit] * max(0, count - self.observation.count(unit, include_planned=False)) for unit, count in self.composition.items()]
-        cost_sum += sum(cs, cost_zero)
-
-        minerals = max(0, cost_sum.minerals - self.minerals)
-        vespene = max(0, cost_sum.vespene - self.vespene)
-        if 7 * 60 < self.time and (minerals + vespene) == 0:
-            gas_ratio = 6 / 22
-        else:
-            gas_ratio = vespene / max(1, vespene + minerals)
-
-        worker_type = race_worker[self.race]
-        self.gas_target = gas_ratio * self.observation.count(worker_type, include_planned=False)
-        self.gas_target = 3 * math.ceil(self.gas_target / 3)
+    def get_gas_target(self):
+        gas_target = self.strategy.gas_target(self)
+        if gas_target == None:
+            gas_target = super().get_gas_target()
+        return gas_target
 
     async def on_step(self, iteration):
 
@@ -151,21 +184,21 @@ class ZergAI(CommonAI):
         steps = {
             self.update_observation: 1,
             self.update_bases: 1,
-            self.transfer_to_and_from_gas: 1,
-            # self.extractor_trick: 1,
             self.update_composition: 1,
+            self.update_gas: 16,
             self.micro_queens: 1,
             self.spread_creep: 1,
             self.scout: 1,
+            self.transfuse: 4,
             self.morph_overlords: 1,
-            self.morph_units: 1,
+            self.make_composition: 1,
             self.upgrade: 1,
             self.expand: 1,
             self.micro: 1,
             self.macro: 1,
-            self.update_gas_ratio: 16,
-            self.build_gasses: 1,
             self.corrosive_bile: 1,
+            self.update_strategy: 1,
+            self.save_enemy_positions: 1,
         }
 
         steps_filtered = [s for s, m in steps.items() if iteration % m == 0]
@@ -184,19 +217,6 @@ class ZergAI(CommonAI):
                 result = step()
                 if inspect.isawaitable(result):
                     result = await result
-
-    def extractor_trick(self):
-        if not self.extractor_trick_enabled:
-            return
-        extractors = [
-            extractor
-            for extractor in self.observation.pending_by_type[UnitTypeId.EXTRACTOR]
-            if extractor.type_id == UnitTypeId.EXTRACTOR
-        ]
-        if not self.supply_left and extractors:
-            for extractor in extractors:
-                extractor(AbilityId.CANCEL)
-            self.extractor_trick_enabled = False
 
     def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
         if unit == UnitTypeId.ZERGLING:
@@ -256,17 +276,14 @@ class ZergAI(CommonAI):
             return []
 
     def upgrade(self):
-
         upgrades = chain(*(self.upgrades_by_unit(unit) for unit in self.composition))
         upgrades = list(dict.fromkeys(upgrades))
-        
         targets = (
             *chain(*(REQUIREMENTS[unit] for unit in self.composition)),
             *chain(*(REQUIREMENTS[upgrade] for upgrade in upgrades)),
             *upgrades,
         )
         targets = list(dict.fromkeys(targets))
-
         for target in targets:
             if not sum(self.observation.count(t) for t in WITH_TECH_EQUIVALENTS.get(target, { target })):
                 self.add_macro_plan(MacroPlan(target))
@@ -306,9 +323,6 @@ class ZergAI(CommonAI):
         #             overlord.move(target.position)
 
     async def spread_creep(self, spreader: Unit = None, numAttempts: int = 5):
-
-        if not CREEP_ENABLED:
-            return
         
         # find spreader
         if not spreader:
@@ -422,6 +436,9 @@ class ZergAI(CommonAI):
                 for queen, townhall in zip(queens_unassigned, townhalls_unassigned)
             })
 
+        if not CREEP_ENABLED:
+            return
+
         queens_unassigned = [
             queen
             for queen in queens
@@ -441,14 +458,6 @@ class ZergAI(CommonAI):
 
     def update_composition(self):
         self.composition = self.strategy.composition(self)
-
-    def build_gasses(self):
-        gas_depleted = self.gas_buildings.filter(lambda g : not g.has_vespene).amount
-        gas_have = self.observation.count(UnitTypeId.EXTRACTOR)
-        gas_max = sum(1 for g in self.get_owned_geysers())
-        gas_want = min(gas_max, gas_depleted + math.ceil(self.gas_target / 3))
-        if gas_have < gas_want:
-            self.add_macro_plan(MacroPlan(UnitTypeId.EXTRACTOR, priority=1))
 
     def morph_overlords(self):
         if 200 <= self.supply_cap:
@@ -472,30 +481,3 @@ class ZergAI(CommonAI):
             and saturation_target * worker_max <= self.observation.count(UnitTypeId.DRONE, include_planned=False)
         ):
             self.add_macro_plan(MacroPlan(UnitTypeId.HATCHERY, priority=1))
-
-    def morph_units(self):
-
-        if self.supply_used == 200:
-            return
-
-        composition_have = {
-            unit: self.observation.count(unit)
-            for unit in self.composition.keys()
-        }
-
-        for unit, count in self.composition.items():
-            if count < 1:
-                continue
-            elif count <= composition_have[unit]:
-                continue
-            if any(self.get_missing_requirements(unit, include_pending=False, include_planned=False)):
-                continue
-            priority = -composition_have[unit] /  count
-            plans = self.observation.planned_by_type[unit]
-            if not plans:
-                self.add_macro_plan(MacroPlan(unit, priority=priority))
-            else:
-                for plan in plans:
-                    if plan.priority == BUILD_ORDER_PRIORITY:
-                        continue
-                    plan.priority = priority
