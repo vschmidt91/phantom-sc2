@@ -15,7 +15,6 @@ class ZergMacro(ZergStrategy):
         worker_target = min(worker_limit, bot.get_max_harvester())
         composition = {
             UnitTypeId.DRONE: worker_target,
-            UnitTypeId.ZERGLING: 12,
             UnitTypeId.QUEEN: min(8, 2 * bot.townhalls.amount),
         }
         if 4 <= bot.townhalls.amount:
@@ -25,7 +24,7 @@ class ZergMacro(ZergStrategy):
         ratio = worker_count / worker_limit
     
         if bot.time < self.tech_time:
-            pass
+            composition[UnitTypeId.ZERGLING] = 6
         elif not bot.observation.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False):
             composition[UnitTypeId.OVERSEER] = 1
             composition[UnitTypeId.ROACH] = int(ratio * 50)
