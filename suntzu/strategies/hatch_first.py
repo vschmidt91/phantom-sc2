@@ -12,7 +12,7 @@ class HatchFirst(ZergMacro):
 
     def __init__(self):
         super().__init__()
-        self.tech_time = 3.5 * 60
+        self.tech_time = 4 * 60
 
     def build_order(self) -> Iterable[Union[UnitTypeId, UpgradeId]]:
         return [
@@ -35,6 +35,3 @@ class HatchFirst(ZergMacro):
             # UnitTypeId.ZERGLING,
             # UpgradeId.ZERGLINGMOVEMENTSPEED,
         ]
-
-    def destroy_destructables(self, bot) -> bool:
-        return self.tech_time < bot.time

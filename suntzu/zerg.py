@@ -159,13 +159,12 @@ class ZergAI(CommonAI):
             target: Unit = max(targets, key=target_priority, default=None)
             if not target:
                 continue
+            predicted_position = target.position
             previous_position = self.enemy_positions.get(target.tag)
             if previous_position:
                 velocity = 22.4 * (target.position - previous_position) / (self.game_step)
                 if velocity.length < 2:
                     predicted_position = target.position + 2.5 * velocity
-            if not previous_position:
-                predicted_position = target.position
             ravager(ability, target=predicted_position)
 
     def update_strategy(self):
@@ -185,6 +184,7 @@ class ZergAI(CommonAI):
             return
 
         steps = {
+            self.draw_debug: 1,
             self.assess_threat_level: 1,
             self.update_observation: 1,
             self.update_bases: 1,
@@ -408,7 +408,7 @@ class ZergAI(CommonAI):
             return a / (a + b)
 
         self.threat_level = max(
-            (proportion(self.sample_map(self.enemy_map_blur, base.position), max(1, self.sample_map(self.friend_map, base.position)))
+            (proportion(self.enemy_map_blur[base.position.rounded], max(1, self.friend_map[base.position.rounded]))
             for base in self.bases
             if base.townhall),
             default=1)

@@ -21,7 +21,7 @@ class ZergMacro(ZergStrategy):
             composition[UnitTypeId.QUEEN] += 1
         worker_count = bot.observation.count(UnitTypeId.DRONE, include_planned=False)
         
-        ratio = worker_count / worker_limit
+        ratio = max(bot.threat_level, worker_count / worker_limit)
     
         if bot.time < self.tech_time:
             composition[UnitTypeId.ZERGLING] = 6
@@ -41,3 +41,6 @@ class ZergMacro(ZergStrategy):
             composition[UnitTypeId.BROODLORD] = 10
 
         return composition
+
+    def destroy_destructables(self, bot) -> bool:
+        return self.tech_time < bot.time

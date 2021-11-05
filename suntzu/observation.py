@@ -75,6 +75,8 @@ class Observation(object):
         include_planned: bool = True,
         include_actual: bool = True
     ) -> int:
+
+        factor = 2 if item == UnitTypeId.ZERGLING else 1
         
         sum = 0
         if include_actual:
@@ -85,8 +87,8 @@ class Observation(object):
             else:
                 sum += len(self.actual_by_type[item])
         if include_pending:
-            sum += len(self.pending_by_type[item])
+            sum += factor * len(self.pending_by_type[item])
         if include_planned:
-            sum += len(self.planned_by_type[item])
+            sum += factor * len(self.planned_by_type[item])
 
         return sum

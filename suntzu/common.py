@@ -98,10 +98,9 @@ class CommonAI(BotAI):
                 pass
 
     async def on_start(self):
-        self.map_size = [int(n / 7) for n in self.game_info.map_size]
-        self.enemy_map = np.zeros(self.map_size)
-        self.enemy_map_blur = np.zeros(self.map_size)
-        self.friend_map = np.zeros(self.map_size)
+        self.enemy_map = np.zeros(self.game_info.map_size)
+        self.enemy_map_blur = np.zeros(self.game_info.map_size)
+        self.friend_map = np.zeros(self.game_info.map_size)
         await self.initialize_bases()
 
     async def on_step(self, iteration: int):
@@ -110,8 +109,6 @@ class CommonAI(BotAI):
             for tag in self.tags:
                 await self.client.chat_send('Tag:' + tag, True)
             self.greet_enabled = False
-        if self.debug:
-            self.draw_debug()
 
         for error in self.state.action_errors:
             print(error)
@@ -341,6 +338,9 @@ class CommonAI(BotAI):
 
     def draw_debug(self):
 
+        if not self.debug:
+            return
+
         font_color = (255, 255, 255)
         font_size = 12
 
@@ -372,9 +372,20 @@ class CommonAI(BotAI):
                     color=font_color,
                     size=font_size)
 
-        map_scale = 1 / 100
-        self.debug_draw_map(self.friend_map, color=(0, 255, 0), scale=map_scale)
-        self.debug_draw_map(self.enemy_map_blur, color=(255, 0, 0), scale=map_scale)
+        # map_scale = 1 / 10
+        # self.debug_draw_map(self.friend_map, color=(0, 255, 0), scale=map_scale)
+        # self.debug_draw_map(self.enemy_map_blur, color=(255, 0, 0), scale=map_scale)
+
+        # for p, v in np.ndenumerate(self.friend_map):
+
+        #     e = self.enemy_map_blur[p]
+        #     f = self.friend_map[p]
+        #     pz = self.get_terrain_z_height(Point2(p))
+        #     p = Point3([p[0], p[1], pz])
+        #     v = int(255 * f / (1 + e + f))
+        #     self.client.debug_text_world(f'{round(f)} {round(e)}', p,
+        #         color = (255 - v, v, 0),
+        #         size=font_size)
 
     def debug_draw_map(self, map: np.ndarray, color: tuple = (255, 255, 255), scale: float = 1):
 
@@ -676,10 +687,6 @@ class CommonAI(BotAI):
 
         return None, None
 
-    def sample_map(self, map: np.ndarray, position: Point2):
-        p = np.array(position) / self.game_info.map_size * map.shape
-        return bilinear_sample(map, p)
-
     async def micro(self):
 
         friends = list(self.enumerate_army())
@@ -689,23 +696,22 @@ class CommonAI(BotAI):
             enemies += self.observation.destructables
         enemies = list(enemies)
 
-        enemy_map = np.zeros(self.map_size)
+        enemy_map = np.zeros(self.game_info.map_size)
         for enemy in enemies:
-            p = enemy.position / self.game_info.map_size * Point2(enemy_map.shape)
-            enemy_map[p.rounded] += unitValue(enemy)
+            enemy_map[enemy.position.rounded] += unitValue(enemy)
 
-        for i, v in np.ndenumerate(enemy_map):
-            p = Point2(np.array(i) * self.game_info.map_size / self.enemy_map.shape)
-            if self.is_visible(p):
-                self.enemy_map[i] = v
+        visibility = np.transpose(self.state.visibility.data_numpy)
+        self.enemy_map = np.select([visibility < 2, visibility == 2], [self.enemy_map, enemy_map])
 
-        friend_map = np.zeros(self.map_size)
+        friend_map = np.zeros(self.game_info.map_size)
         for friend in friends:
-            p = friend.position / self.game_info.map_size * Point2(friend_map.shape)
-            friend_map[p.rounded] += unitValue(friend)
+            friend_map[friend.position.rounded] += unitValue(friend)
 
-        self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, 3)
-        self.friend_map = ndimage.gaussian_filter(friend_map, 3)
+        blur_sigma = 20
+        self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
+        self.friend_map = ndimage.gaussian_filter(friend_map, blur_sigma)
+        # self.enemy_map_blur = self.enemy_map
+        # self.friend_map = self.friend_map
             
         for unit in friends:
 
@@ -730,7 +736,6 @@ class CommonAI(BotAI):
                     priority *= 10 if not target.is_revealed else 1
                 return priority
 
-            p = np.array(enemy_map.shape) / self.game_info.map_size * unit.position
             # gx = bilinear_sample(enemy_gradient[0], p)
             # gy = bilinear_sample(enemy_gradient[1], p)
             # gradient = Point2((gx, gy))
@@ -747,8 +752,8 @@ class CommonAI(BotAI):
                 # friends_rating = sum(unitValue(f) / max(1, target.distance_to(f)) for f in friends)
                 # enemies_rating = sum(unitValue(e) / max(1, unit.distance_to(e)) for e in enemies)
 
-                friends_rating = self.sample_map(self.friend_map, unit.position)
-                enemies_rating = self.sample_map(self.enemy_map_blur, unit.position)
+                friends_rating = self.friend_map[unit.position.rounded]
+                enemies_rating = self.enemy_map_blur[unit.position.rounded]
                 advantage_army = friends_rating / max(1, enemies_rating)
 
                 distance_point = .5 * (unit.position + target.position)

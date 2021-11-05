@@ -7,8 +7,9 @@ from sc2.ids.unit_typeid import UnitTypeId
 from .zerg_macro import ZergMacro
 from .zerg_strategy import ZergStrategy
 from ..observation import Observation
+from ..macro_plan import MacroPlan
 
-class RoachRush(ZergMacro):
+class Pool12(ZergMacro):
 
     def __init__(self):
         super().__init__()
@@ -16,31 +17,18 @@ class RoachRush(ZergMacro):
 
     def build_order(self) -> Iterable[Union[UnitTypeId, UpgradeId]]:
         return [
-            UnitTypeId.DRONE,
-            UnitTypeId.OVERLORD,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
             UnitTypeId.SPAWNINGPOOL,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
-            UnitTypeId.EXTRACTOR,
+            UnitTypeId.OVERLORD,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
             UnitTypeId.HATCHERY,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
             UnitTypeId.QUEEN,
             UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
-            UnitTypeId.ROACHWARREN,
-            UnitTypeId.ZERGLING,
             UnitTypeId.OVERLORD,
-            UnitTypeId.ROACH,
-            UnitTypeId.ROACH,
-            UnitTypeId.ROACH,
-            UnitTypeId.ROACH,
-            UnitTypeId.ROACH,
-            UnitTypeId.ROACH,
-            UnitTypeId.ROACH,
-            UnitTypeId.RAVAGER,
         ]
