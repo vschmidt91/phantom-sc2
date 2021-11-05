@@ -45,7 +45,7 @@ class ZergAI(CommonAI):
     def __init__(self, strategy: ZergStrategy = None, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
 
-        # strategy = HatchFirst()
+        strategy = HatchFirst()
 
         if not strategy:
             strategy_types = [RoachRush, HatchFirst]
@@ -56,8 +56,7 @@ class ZergAI(CommonAI):
         self.tags.append(self.strategy.name())
         self.composition: Dict[UnitTypeId, int] = dict()
         self.timings_acc = dict()
-        self.inject_assigments = dict()
-        self.inject_assigments_max = 5
+        self.army_queens = set()
 
     def destroy_destructables(self):
         return self.strategy.destroy_destructables(self)
@@ -186,7 +185,7 @@ class ZergAI(CommonAI):
             self.update_bases: 1,
             self.update_composition: 1,
             self.update_gas: 16,
-            self.micro_queens: 1,
+            self.manage_queens: 1,
             self.spread_creep: 1,
             self.scout: 1,
             self.morph_overlords: 1,
@@ -221,9 +220,10 @@ class ZergAI(CommonAI):
     def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
         if unit == UnitTypeId.ZERGLING:
             return chain(
-                (UpgradeId.ZERGLINGMOVEMENTSPEED, UpgradeId.ZERGLINGATTACKSPEED),
-                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
-                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+                (UpgradeId.ZERGLINGMOVEMENTSPEED,),
+                # (UpgradeId.ZERGLINGMOVEMENTSPEED, UpgradeId.ZERGLINGATTACKSPEED),
+                # self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                # self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
             )
         elif unit == UnitTypeId.ULTRALISK:
             return chain(
@@ -390,73 +390,45 @@ class ZergAI(CommonAI):
     def enumerate_army(self):
         for unit in super().enumerate_army():
             if unit.type_id == UnitTypeId.QUEEN:
-                if unit.tag in self.inject_assigments.keys():
+                if unit.tag not in self.army_queens:
                     continue
-                elif any(o.ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN for o in unit.orders):
-                    continue
-                elif unit in self.observation.pending_by_type[UnitTypeId.CREEPTUMORQUEEN]:
+                elif any(o.ability.exact_id == AbilityId.TRANSFUSION_TRANSFUSION for o in unit.orders):
                     continue
             yield unit
 
-    async def micro_queens(self):
+    async def manage_queens(self):
 
-        queens_delete = set()
-        for queen_tag, townhall_tag in self.inject_assigments.items():
-            
-            queen = self.observation.unit_by_tag.get(queen_tag)
-            townhall = self.observation.unit_by_tag.get(townhall_tag)
+        queens = sorted(
+            (self.observation.unit_by_tag[t] for t in self.observation.actual_by_type[UnitTypeId.QUEEN]),
+            key=lambda q:q.tag)
 
-            if not (queen and townhall):
-                queens_delete.add(queen_tag)
-            # elif not queen.is_idle:
-            #     pass
-            elif 7 < queen.position.distance_to(townhall.position):
+        def proportion(a, b):
+            return a / (a + b)
+
+        threat_level = max(
+            (proportion(self.sample_map(self.enemy_map_blur, base.position), max(1, self.sample_map(self.friend_map, base.position)))
+            for base in self.bases
+            if base.townhall),
+            default=1)
+
+        macro_queen_count = max(0, round((1 - 2 * threat_level) * len(queens)))
+        macro_queen_count = min(5, 1 + self.townhalls.amount, macro_queen_count)
+        creep_queen_count = 1 if 2 < macro_queen_count else 0
+        creep_queens = queens[0:creep_queen_count]
+        inject_queens = queens[creep_queen_count:macro_queen_count]
+        army_queens = queens[macro_queen_count:]
+        self.army_queens = { q.tag for q in army_queens }
+
+        for queen, base in zip(inject_queens, (b for b in self.bases if b.townhall)):
+            townhall = self.observation.unit_by_tag.get(base.townhall)
+            if 7 < queen.position.distance_to(townhall.position):
                 queen.attack(townhall.position)
             elif 25 <= queen.energy:
                 queen(AbilityId.EFFECT_INJECTLARVA, townhall)
 
-        for queen_tag in queens_delete:
-            del self.inject_assigments[queen_tag]
-
-        queens = sorted((self.observation.unit_by_tag[t] for t in self.observation.actual_by_type[UnitTypeId.QUEEN]), key=lambda u:u.tag)
-        townhalls = sorted(self.townhalls, key=lambda u:u.tag)
-
-        queens_unassigned = [
-            queen
-            for queen in queens
-            if not queen.tag in self.inject_assigments.keys()
-        ]
-
-        if len(self.inject_assigments) < self.inject_assigments_max:
-
-            townhalls_unassigned = (
-                townhall
-                for townhall in townhalls
-                if not townhall.tag in self.inject_assigments.values()
-            )
-
-            self.inject_assigments.update({
-                queen.tag: townhall.tag
-                for queen, townhall in zip(queens_unassigned, townhalls_unassigned)
-            })
-
-        if not CREEP_ENABLED:
-            return
-
-        queens_unassigned = [
-            queen
-            for queen in queens
-            if not queen.tag in self.inject_assigments.keys()
-        ]
-
-        for queen in queens_unassigned:
-
+        for queen in creep_queens:
             if any(o.ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN for o in queen.orders):
                 pass
-            # if queen in self.observation.pending_by_type[UnitTypeId.CREEPTUMORQUEEN]:
-            #     pass
-            # elif queen.is_attacking:
-            #     pass
             elif 25 <= queen.energy:
                 await self.spread_creep(queen)
 
@@ -472,7 +444,7 @@ class ZergAI(CommonAI):
         )
         if 200 <= self.supply_cap + supply_pending:
             return
-        supply_buffer = 3 * (self.townhalls.amount + len(self.inject_assigments))
+        supply_buffer = 3 * (self.townhalls.amount + self.observation.count(UnitTypeId.QUEEN, include_planned=False))
         if self.supply_left + supply_pending < supply_buffer:
             self.add_macro_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
 

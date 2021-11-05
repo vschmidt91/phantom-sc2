@@ -676,6 +676,10 @@ class CommonAI(BotAI):
 
         return None, None
 
+    def sample_map(self, map: np.ndarray, position: Point2):
+        p = np.array(position) / self.game_info.map_size * map.shape
+        return bilinear_sample(map, p)
+
     async def micro(self):
 
         friends = list(self.enumerate_army())
@@ -702,8 +706,6 @@ class CommonAI(BotAI):
 
         self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, 3)
         self.friend_map = ndimage.gaussian_filter(friend_map, 3)
-
-        # enemy_gradient = np.gradient(self.enemy_map_blur)
             
         for unit in friends:
 
@@ -745,22 +747,22 @@ class CommonAI(BotAI):
                 # friends_rating = sum(unitValue(f) / max(1, target.distance_to(f)) for f in friends)
                 # enemies_rating = sum(unitValue(e) / max(1, unit.distance_to(e)) for e in enemies)
 
-                q = np.array(enemy_map.shape) / self.game_info.map_size * target.position
-                friends_rating = bilinear_sample(self.friend_map, p)
-                enemies_rating = bilinear_sample(self.enemy_map_blur, p)
-
-                distance_ref = .5 * self.game_info.map_size.length
-                distance_to_base = min((unit.distance_to(t) for t in self.townhalls), default=0)
-
-                advantage = 1
+                friends_rating = self.sample_map(self.friend_map, unit.position)
+                enemies_rating = self.sample_map(self.enemy_map_blur, unit.position)
                 advantage_army = friends_rating / max(1, enemies_rating)
-                advantage_defender = distance_ref / (distance_ref + distance_to_base)
-                
+
+                distance_point = .5 * (unit.position + target.position)
+                distance_ref = .5 * self.game_info.map_size.length
+                distance_self = distance_point.distance_to(self.start_location)
+                distance_enemy = min(distance_point.distance_to(e) for e in self.enemy_start_locations)
+                advantage_defender = (distance_ref + distance_enemy) / (distance_ref + distance_self)
+
                 advantage_creep = 1
                 creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id)
                 if creep_bonus and self.state.creep.is_empty(unit.position.rounded):
                     advantage_creep = 1 / creep_bonus
 
+                advantage = 1
                 advantage *= advantage_army
                 advantage *= advantage_defender
                 advantage *= advantage_creep

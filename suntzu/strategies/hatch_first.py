@@ -31,9 +31,9 @@ class HatchFirst(ZergMacro):
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.OVERLORD,
-            UnitTypeId.ZERGLING,
-            UnitTypeId.ZERGLING,
-            UpgradeId.ZERGLINGMOVEMENTSPEED,
+            # UnitTypeId.ZERGLING,
+            # UnitTypeId.ZERGLING,
+            # UpgradeId.ZERGLINGMOVEMENTSPEED,
         ]
 
     def destroy_destructables(self, bot) -> bool:
