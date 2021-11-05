@@ -98,7 +98,7 @@ class CommonAI(BotAI):
                 pass
 
     async def on_start(self):
-        self.map_size = [int(n / 4) for n in self.game_info.map_size]
+        self.map_size = [int(n / 7) for n in self.game_info.map_size]
         self.enemy_map = np.zeros(self.map_size)
         self.enemy_map_blur = np.zeros(self.map_size)
         self.friend_map = np.zeros(self.map_size)
@@ -703,7 +703,7 @@ class CommonAI(BotAI):
         self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, 3)
         self.friend_map = ndimage.gaussian_filter(friend_map, 3)
 
-        enemy_gradient = np.gradient(self.enemy_map_blur)
+        # enemy_gradient = np.gradient(self.enemy_map_blur)
             
         for unit in friends:
 
@@ -729,9 +729,10 @@ class CommonAI(BotAI):
                 return priority
 
             p = np.array(enemy_map.shape) / self.game_info.map_size * unit.position
-            gx = bilinear_sample(enemy_gradient[0], p)
-            gy = bilinear_sample(enemy_gradient[1], p)
-            gradient = Point2((gx, gy))
+            # gx = bilinear_sample(enemy_gradient[0], p)
+            # gy = bilinear_sample(enemy_gradient[1], p)
+            # gradient = Point2((gx, gy))
+            gradient = Point2((0, 0))
 
             target = max(enemies, key=target_priority, default=None)
             if target and 0 < target_priority(target):

@@ -345,7 +345,11 @@ class ZergAI(CommonAI):
             *(r.top_center for r in self.game_info.map_ramps),
         )
 
-        targets = [t for t in targets if not self.has_creep(t)]
+        targets = [
+            t
+            for t in targets
+            if self.in_placement_grid(t) and not self.has_creep(t) 
+        ]
         if not targets:
             return
 
