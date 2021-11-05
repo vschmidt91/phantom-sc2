@@ -20,6 +20,7 @@ from sc2.position import Point2
 from .strategies.gasless import GasLess
 from .strategies.roach_rush import RoachRush
 from .strategies.hatch_first import HatchFirst
+from .strategies.pool12 import Pool12
 from .strategies.zerg_strategy import ZergStrategy
 from .timer import run_timed
 from .constants import CHANGELINGS, SUPPLY_PROVIDED
@@ -45,15 +46,9 @@ class ZergAI(CommonAI):
     def __init__(self, strategy: ZergStrategy = None, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
 
-        strategy = HatchFirst()
-
-        if not strategy:
-            strategy_types = [RoachRush, HatchFirst]
-            strategy_type = sample(strategy_types)
-            strategy = strategy_type()
+        # strategy = Pool12()
 
         self.strategy: ZergStrategy = strategy
-        self.tags.append(self.strategy.name())
         self.composition: Dict[UnitTypeId, int] = dict()
         self.timings_acc = dict()
         self.army_queens = set()
@@ -62,6 +57,14 @@ class ZergAI(CommonAI):
         return self.strategy.destroy_destructables(self)
 
     async def on_start(self):
+
+        if not self.strategy:
+            strategy_types = [RoachRush, HatchFirst]
+            if self.enemy_race == Race.Protoss:
+                strategy_types.append(Pool12)
+            strategy_type = sample(strategy_types)
+            self.strategy = strategy_type()
+        self.tags.append(self.strategy.name())
         for step in self.strategy.build_order():
             self.add_macro_plan(MacroPlan(step, priority=BUILD_ORDER_PRIORITY))
         return await super().on_start()
@@ -157,11 +160,12 @@ class ZergAI(CommonAI):
             if not target:
                 continue
             previous_position = self.enemy_positions.get(target.tag)
-            # if previous_position:
-            #     velocity = 22.4 * (target.position - previous_position) / (self.game_step)
-            #     predicted_position = target.position + 2.5 * velocity
-            # else:
-            predicted_position = target.position
+            if previous_position:
+                velocity = 22.4 * (target.position - previous_position) / (self.game_step)
+                if velocity.length < 2:
+                    predicted_position = target.position + 2.5 * velocity
+            if not previous_position:
+                predicted_position = target.position
             ravager(ability, target=predicted_position)
 
     def update_strategy(self):
@@ -181,6 +185,7 @@ class ZergAI(CommonAI):
             return
 
         steps = {
+            self.assess_threat_level: 1,
             self.update_observation: 1,
             self.update_bases: 1,
             self.update_composition: 1,
@@ -354,16 +359,17 @@ class ZergAI(CommonAI):
             return
 
         def weight(p):
-            d = sum(t.distance_to(p) for t in self.townhalls)
-            d = len(self.townhalls) * spreader.distance_to(p)
-            return pow(10 + d, -2)
+            s = 1
+            s /= min(t.distance_to(p) for t in self.townhalls)
+            s *= spreader.distance_to(p)
+            return s
         
         target = sample(targets, key=weight)
         target = spreader.position.towards(target, CREEP_RANGE)
 
         tumorPlacement = None
         for _ in range(numAttempts):
-            position = await self.find_placement(AbilityId.ZERGBUILD_CREEPTUMOR, target, max_distance=12, placement_step=3)
+            position = await self.find_placement(AbilityId.ZERGBUILD_CREEPTUMOR, target)
             if position is None:
                 continue
             if self.blocked_base(position):
@@ -396,22 +402,25 @@ class ZergAI(CommonAI):
                     continue
             yield unit
 
+    def assess_threat_level(self):
+
+        def proportion(a, b):
+            return a / (a + b)
+
+        self.threat_level = max(
+            (proportion(self.sample_map(self.enemy_map_blur, base.position), max(1, self.sample_map(self.friend_map, base.position)))
+            for base in self.bases
+            if base.townhall),
+            default=1)
+
+
     async def manage_queens(self):
 
         queens = sorted(
             (self.observation.unit_by_tag[t] for t in self.observation.actual_by_type[UnitTypeId.QUEEN]),
             key=lambda q:q.tag)
 
-        def proportion(a, b):
-            return a / (a + b)
-
-        threat_level = max(
-            (proportion(self.sample_map(self.enemy_map_blur, base.position), max(1, self.sample_map(self.friend_map, base.position)))
-            for base in self.bases
-            if base.townhall),
-            default=1)
-
-        macro_queen_count = max(0, round((1 - 2 * threat_level) * len(queens)))
+        macro_queen_count = max(0, round((1 - 2 * self.threat_level) * len(queens)))
         macro_queen_count = min(5, 1 + self.townhalls.amount, macro_queen_count)
         creep_queen_count = 1 if 2 < macro_queen_count else 0
         creep_queens = queens[0:creep_queen_count]
