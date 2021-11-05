@@ -361,7 +361,7 @@ class ZergAI(CommonAI):
         def weight(p):
             s = 1
             s /= min(t.distance_to(p) for t in self.townhalls)
-            s *= spreader.distance_to(p)
+            # s /= spreader.distance_to(p)
             return s
         
         target = sample(targets, key=weight)
@@ -453,7 +453,10 @@ class ZergAI(CommonAI):
         )
         if 200 <= self.supply_cap + supply_pending:
             return
-        supply_buffer = 3 * (self.townhalls.amount + self.observation.count(UnitTypeId.QUEEN, include_planned=False))
+        supply_buffer = 0
+        supply_buffer += 3 * self.townhalls.amount + self.observation.count(UnitTypeId.QUEEN, include_planned=False)
+        supply_buffer += 3 * self.observation.count(UnitTypeId.QUEEN, include_planned=False)
+        supply_buffer += self.larva_count
         if self.supply_left + supply_pending < supply_buffer:
             self.add_macro_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
 

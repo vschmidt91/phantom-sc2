@@ -21,10 +21,11 @@ class ZergMacro(ZergStrategy):
             composition[UnitTypeId.QUEEN] += 1
         worker_count = bot.observation.count(UnitTypeId.DRONE, include_planned=False)
         
-        ratio = max(bot.threat_level, worker_count / worker_limit)
+        ratio = max(2 * bot.threat_level, worker_count / worker_limit)
+        # ratio = 2 * bot.threat_level
     
         if bot.time < self.tech_time:
-            composition[UnitTypeId.ZERGLING] = 6
+            composition[UnitTypeId.ZERGLING] = 2 + int(ratio * worker_count)
         elif not bot.observation.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False):
             composition[UnitTypeId.OVERSEER] = 1
             composition[UnitTypeId.ROACH] = int(ratio * 50)

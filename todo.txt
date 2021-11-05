@@ -1,2 +1,2 @@
 maybe don't reserve trainer (doesnt mix well with priority)
-more flexible queen micro
+seperate ground/air maps
