@@ -45,3 +45,8 @@ class ZergMacro(ZergStrategy):
 
     def destroy_destructables(self, bot) -> bool:
         return self.tech_time < bot.time
+
+    def filter_upgrade(self, bot, upgrade) -> bool:
+        if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
+            return False
+        return True

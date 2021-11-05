@@ -283,6 +283,7 @@ class ZergAI(CommonAI):
     def upgrade(self):
         upgrades = chain(*(self.upgrades_by_unit(unit) for unit in self.composition))
         upgrades = list(dict.fromkeys(upgrades))
+        upgrades = [u for u in upgrades if self.strategy.filter_upgrade(self, u)]
         targets = (
             *chain(*(REQUIREMENTS[unit] for unit in self.composition)),
             *chain(*(REQUIREMENTS[upgrade] for upgrade in upgrades)),
@@ -360,7 +361,7 @@ class ZergAI(CommonAI):
 
         def weight(p):
             s = 1
-            s /= min(t.distance_to(p) for t in self.townhalls)
+            s /= pow(min((t.distance_to(p) for t in self.townhalls), default=1), 2)
             # s /= spreader.distance_to(p)
             return s
         

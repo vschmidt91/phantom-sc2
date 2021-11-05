@@ -23,6 +23,9 @@ class ZergStrategy(object):
     def destroy_destructables(self, bot) -> bool:
         return False
 
+    def filter_upgrade(self, upgrade) -> bool:
+        return True
+
     def update(self, bot):
         pass
 

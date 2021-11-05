@@ -33,5 +33,5 @@ class HatchFirst(ZergMacro):
             UnitTypeId.OVERLORD,
             # UnitTypeId.ZERGLING,
             # UnitTypeId.ZERGLING,
-            # UpgradeId.ZERGLINGMOVEMENTSPEED,
+            UpgradeId.ZERGLINGMOVEMENTSPEED,
         ]
