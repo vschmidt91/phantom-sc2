@@ -6,9 +6,10 @@ import math
 import random
 from typing import Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
 import numpy as np
+from scipy import ndimage
 from s2clientprotocol.common_pb2 import Point
 from s2clientprotocol.error_pb2 import Error
-from sc2 import game_state
+from sc2 import game_info, game_state
 
 from sc2.game_state import ActionRawUnitCommand
 
@@ -82,7 +83,7 @@ class CommonAI(BotAI):
     async def on_before_start(self):
         self.client.game_step = self.game_step
         self.cost = dict()
-        for unit in  UnitTypeId:
+        for unit in UnitTypeId:
             try:
                 cost = self.calculate_cost(unit)
                 food = int(self.calculate_supply_cost(unit))
@@ -97,6 +98,10 @@ class CommonAI(BotAI):
                 pass
 
     async def on_start(self):
+        self.map_size = [int(n / 4) for n in self.game_info.map_size]
+        self.enemy_map = np.zeros(self.map_size)
+        self.enemy_map_blur = np.zeros(self.map_size)
+        self.friend_map = np.zeros(self.map_size)
         await self.initialize_bases()
 
     async def on_step(self, iteration: int):
@@ -367,6 +372,23 @@ class CommonAI(BotAI):
                     color=font_color,
                     size=font_size)
 
+        map_scale = 1 / 100
+        self.debug_draw_map(self.friend_map, color=(0, 255, 0), scale=map_scale)
+        self.debug_draw_map(self.enemy_map_blur, color=(255, 0, 0), scale=map_scale)
+
+    def debug_draw_map(self, map: np.ndarray, color: tuple = (255, 255, 255), scale: float = 1):
+
+        for (i, j), v in np.ndenumerate(map):
+
+            if scale * v < .1:
+                continue
+
+            px = (i + .5) / map.shape[0] * self.game_info.map_size[0]
+            py = (j + .5) / map.shape[1] * self.game_info.map_size[1]
+            pz = self.get_terrain_z_height(Point2((px, py)))
+            p = Point3((px, py, pz))
+            self.client.debug_sphere_out(p, scale * v, color)
+
     @property
     def income(self):
         income_minerals = sum(base.mineral_patches.income for base in self.bases)
@@ -446,6 +468,7 @@ class CommonAI(BotAI):
 
         reserve = Cost(0, 0, 0)
         exclude = { o.unit for o in self.macro_plans }
+        exclude.update(unit.tag for units in self.observation.pending_by_type.values() for unit in units)
         took_action = False
         income_minerals, income_vespene = self.income
         self.macro_plans.sort(key = lambda t : t.priority, reverse=True)
@@ -653,95 +676,6 @@ class CommonAI(BotAI):
 
         return None, None
 
-    async def micro2(self):
-
-        if self.time < 8 * 60:
-            return
-
-        friends = list(self.enumerate_army())
-
-        enemies = self.all_enemy_units
-        if self.destroy_destructables():
-            enemies += self.observation.destructables
-        enemies = list(enemies)
-
-        map_size = (32, 32)
-
-        enemy_map = np.zeros(map_size)
-        for enemy in enemies:
-            p = enemy.position / self.game_info.map_size * Point2(map_size)
-            enemy_map[p.rounded] += unitValue(enemy)
-
-        friend_map = np.zeros(map_size)
-        for friend in friends:
-            p = friend.position / self.game_info.map_size * Point2(map_size)
-            friend_map[p.rounded] += unitValue(friend)
-
-        enemies_exists = any(enemies)
-            
-        for unit in friends:
-
-            if enemies_exists:
-
-                p = unit.position / self.game_info.map_size * Point2(map_size)
-                friends_rating = bilinear_sample(friend_map, p)
-                enemies_rating = bilinear_sample(enemy_map, p)
-                # friends_rating = friend_map[p.rounded]
-                # enemies_rating = enemy_map[p.rounded]
-
-                distance_ref = self.game_info.map_size.length
-                distance_to_base = min((unit.distance_to(t) for t in self.townhalls), default=0)
-
-                advantage = 1
-                advantage_value = friends_rating / max(1, enemies_rating)
-                advantage_defender = distance_ref / (distance_ref + distance_to_base)
-                
-                advantage_creep = 1
-                creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id)
-                if creep_bonus and self.state.creep.is_empty(unit.position.rounded):
-                    advantage_creep = 1 / creep_bonus
-
-                advantage *= advantage_value
-                advantage *= advantage_defender
-                advantage *= advantage_creep
-                advantage_threshold = 1
-
-                if advantage < advantage_threshold / 3:
-
-                    # FLEE
-                    if not unit.is_moving:
-                        unit.move(self.start_location)
-
-                elif advantage < advantage_threshold:
-
-                    # RETREAT
-                    if unit.weapon_cooldown:
-                        unit.move(self.start_location)
-                    else:
-                        unit.attack(self.enemy_start_locations[0])
-                    
-                elif advantage < advantage_threshold * 3:
-
-                    # FIGHT
-                    unit.attack(self.enemy_start_locations[0])
-
-                else:
-
-                    # PURSUE
-                    if unit.weapon_cooldown:
-                        unit.move(self.enemy_start_locations[0])
-                    else:
-                        unit.attack(self.enemy_start_locations[0])
-
-            elif not unit.is_attacking:
-
-                if self.time < 8 * 60:
-                    target = random.choice(self.enemy_start_locations)
-                else:
-                    target = random.choice(self.expansion_locations_list)
-
-                unit.attack(target)
-
     async def micro(self):
 
         friends = list(self.enumerate_army())
@@ -750,6 +684,26 @@ class CommonAI(BotAI):
         if self.destroy_destructables():
             enemies += self.observation.destructables
         enemies = list(enemies)
+
+        enemy_map = np.zeros(self.map_size)
+        for enemy in enemies:
+            p = enemy.position / self.game_info.map_size * Point2(enemy_map.shape)
+            enemy_map[p.rounded] += unitValue(enemy)
+
+        for i, v in np.ndenumerate(enemy_map):
+            p = Point2(np.array(i) * self.game_info.map_size / self.enemy_map.shape)
+            if self.is_visible(p):
+                self.enemy_map[i] = v
+
+        friend_map = np.zeros(self.map_size)
+        for friend in friends:
+            p = friend.position / self.game_info.map_size * Point2(friend_map.shape)
+            friend_map[p.rounded] += unitValue(friend)
+
+        self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, 3)
+        self.friend_map = ndimage.gaussian_filter(friend_map, 3)
+
+        enemy_gradient = np.gradient(self.enemy_map_blur)
             
         for unit in friends:
 
@@ -774,6 +728,11 @@ class CommonAI(BotAI):
                     priority *= 10 if not target.is_revealed else 1
                 return priority
 
+            p = np.array(enemy_map.shape) / self.game_info.map_size * unit.position
+            gx = bilinear_sample(enemy_gradient[0], p)
+            gy = bilinear_sample(enemy_gradient[1], p)
+            gradient = Point2((gx, gy))
+
             target = max(enemies, key=target_priority, default=None)
             if target and 0 < target_priority(target):
 
@@ -782,14 +741,18 @@ class CommonAI(BotAI):
                 else:
                     attack_target = target
 
-                friends_rating = sum(unitValue(f) / max(8, target.distance_to(f)) for f in friends)
-                enemies_rating = sum(unitValue(e) / max(8, unit.distance_to(e)) for e in enemies)
+                # friends_rating = sum(unitValue(f) / max(1, target.distance_to(f)) for f in friends)
+                # enemies_rating = sum(unitValue(e) / max(1, unit.distance_to(e)) for e in enemies)
 
-                distance_ref = self.game_info.map_size.length
+                q = np.array(enemy_map.shape) / self.game_info.map_size * target.position
+                friends_rating = bilinear_sample(self.friend_map, p)
+                enemies_rating = bilinear_sample(self.enemy_map_blur, p)
+
+                distance_ref = .5 * self.game_info.map_size.length
                 distance_to_base = min((unit.distance_to(t) for t in self.townhalls), default=0)
 
                 advantage = 1
-                advantage_value = friends_rating / max(1, enemies_rating)
+                advantage_army = friends_rating / max(1, enemies_rating)
                 advantage_defender = distance_ref / (distance_ref + distance_to_base)
                 
                 advantage_creep = 1
@@ -797,22 +760,27 @@ class CommonAI(BotAI):
                 if creep_bonus and self.state.creep.is_empty(unit.position.rounded):
                     advantage_creep = 1 / creep_bonus
 
-                advantage *= advantage_value
+                advantage *= advantage_army
                 advantage *= advantage_defender
                 advantage *= advantage_creep
                 advantage_threshold = 1
+
+                if 0 < gradient.length:
+                    retreat_target = unit.position - 12 * gradient.normalized
+                else:
+                    retreat_target = unit.position.towards(target, -12)
 
                 if advantage < advantage_threshold / 3:
 
                     # FLEE
                     if not unit.is_moving:
-                        unit.move(unit.position.towards(target, -12))
+                        unit.move(retreat_target)
 
                 elif advantage < advantage_threshold:
 
                     # RETREAT
                     if unit.weapon_cooldown and unit.target_in_range(target, unit.distance_to_weapon_ready):
-                        unit.move(unit.position.towards(target, -12))
+                        unit.move(retreat_target)
                     elif unit.target_in_range(target):
                         unit.attack(target)
                     else:

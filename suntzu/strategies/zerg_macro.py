@@ -15,7 +15,7 @@ class ZergMacro(ZergStrategy):
         worker_target = min(worker_limit, bot.get_max_harvester())
         composition = {
             UnitTypeId.DRONE: worker_target,
-            UnitTypeId.QUEEN: min(bot.inject_assigments_max, bot.townhalls.amount),
+            UnitTypeId.QUEEN: min(1 + bot.inject_assigments_max, 2 * bot.townhalls.amount),
         }
         if 4 <= bot.townhalls.amount:
             composition[UnitTypeId.QUEEN] += 1

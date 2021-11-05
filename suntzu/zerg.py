@@ -30,7 +30,7 @@ from .cost import Cost
 from .macro_plan import MacroPlan
 
 CREEP_RANGE = 10
-CREEP_ENABLED = False
+CREEP_ENABLED = True
 
 SPORE_TIMING = {
     Race.Zerg: 7 * 60,
@@ -45,7 +45,7 @@ class ZergAI(CommonAI):
     def __init__(self, strategy: ZergStrategy = None, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
 
-        # strategy = GasLess()
+        # strategy = HatchFirst()
 
         if not strategy:
             strategy_types = [RoachRush, HatchFirst]
@@ -158,11 +158,11 @@ class ZergAI(CommonAI):
             if not target:
                 continue
             previous_position = self.enemy_positions.get(target.tag)
-            if previous_position:
-                velocity = 22.4 * (target.position - previous_position) / (self.game_step)
-                predicted_position = target.position + 2.5 * velocity
-            else:
-                predicted_position = target.position
+            # if previous_position:
+            #     velocity = 22.4 * (target.position - previous_position) / (self.game_step)
+            #     predicted_position = target.position + 2.5 * velocity
+            # else:
+            predicted_position = target.position
             ravager(ability, target=predicted_position)
 
     def update_strategy(self):

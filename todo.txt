@@ -1,3 +1,2 @@
 maybe don't reserve trainer (doesnt mix well with priority)
-derive enemy direction and bile predictively
 more flexible queen micro
