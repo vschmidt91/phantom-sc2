@@ -3,6 +3,7 @@ __pycache__/
 .vscode/
 api_key.txt
 replays/
+bots/
 *.png
 todo.txt
 version.txt

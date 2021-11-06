@@ -17,12 +17,10 @@ class RoachRush(ZergMacro):
     def build_order(self) -> Iterable[Union[UnitTypeId, UpgradeId]]:
         return [
             UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
             UnitTypeId.OVERLORD,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
             UnitTypeId.SPAWNINGPOOL,
+            UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
@@ -33,7 +31,8 @@ class RoachRush(ZergMacro):
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.ROACHWARREN,
-            UnitTypeId.ZERGLING,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
             UnitTypeId.OVERLORD,
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
@@ -42,5 +41,12 @@ class RoachRush(ZergMacro):
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
-            UnitTypeId.RAVAGER,
+            UnitTypeId.ROACH,
+            UnitTypeId.EXTRACTOR,
+            # UnitTypeId.RAVAGER,
         ]
+
+    def update(self, bot):
+        if bot.supply_used == 35:
+            bot.extractor_trick_enabled = True
+        return super().update(bot)

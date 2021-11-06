@@ -47,6 +47,8 @@ def center(points: Iterable[Point2]) -> Point2:
     return Point2((xs, ys))
 
 def unitValue(unit: Unit, target = None):
+    if unit.is_hallucination:
+        return 0
     if target is None:
         dps = max(unit.air_dps, unit.ground_dps)
     else:

@@ -113,6 +113,12 @@ class CommonAI(BotAI):
         for error in self.state.action_errors:
             print(error)
 
+        for worker in self.workers.idle:
+            if any(plan.unit == worker.tag for plan in self.macro_plans):
+                continue
+            base = min(self.bases, key = lambda b : worker.distance_to(b.position))
+            base.try_add(worker.tag)
+
     async def on_end(self, game_result: Result):
         pass
 
@@ -335,6 +341,11 @@ class CommonAI(BotAI):
             bases.append(base)
         self.bases = ResourceGroup(bases)
         self.bases.items[0].mineral_patches.do_worker_split(set(self.workers))
+
+        if self.performance == PerformanceMode.DEFAULT:
+            for base in self.bases:
+                for minerals in base.mineral_patches:
+                    minerals.speed_mining_enabled = True
 
     def draw_debug(self):
 
@@ -701,13 +712,13 @@ class CommonAI(BotAI):
             enemy_map[enemy.position.rounded] += unitValue(enemy)
 
         visibility = np.transpose(self.state.visibility.data_numpy)
-        self.enemy_map = np.select([visibility < 2, visibility == 2], [self.enemy_map, enemy_map])
+        self.enemy_map = np.where(visibility < 2, self.enemy_map, enemy_map)
 
         friend_map = np.zeros(self.game_info.map_size)
         for friend in friends:
             friend_map[friend.position.rounded] += unitValue(friend)
 
-        blur_sigma = 7
+        blur_sigma = 8.5
         self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
         self.friend_map = ndimage.gaussian_filter(friend_map, blur_sigma)
         # self.enemy_map_blur = self.enemy_map

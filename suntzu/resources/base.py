@@ -42,4 +42,6 @@ class Base(ResourceGroup[Resource]):
     def update(self, observation: Observation):
         if self.townhall == None:
             return
+        for mineral in self.mineral_patches:
+            mineral.townhall = self.townhall
         super().update(observation)

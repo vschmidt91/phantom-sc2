@@ -16,11 +16,13 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.position import Point2
+from suntzu.strategies.pool12_allin import Pool12AllIn
 
 from .strategies.gasless import GasLess
 from .strategies.roach_rush import RoachRush
 from .strategies.hatch_first import HatchFirst
 from .strategies.pool12 import Pool12
+from .strategies.pool12_allin import Pool12AllIn
 from .strategies.zerg_strategy import ZergStrategy
 from .timer import run_timed
 from .constants import CHANGELINGS, SUPPLY_PROVIDED
@@ -46,8 +48,9 @@ class ZergAI(CommonAI):
     def __init__(self, strategy: ZergStrategy = None, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
 
-        # strategy = Pool12()
+        # strategy = Pool12AllIn()
 
+        self.extractor_trick_enabled = False
         self.strategy: ZergStrategy = strategy
         self.composition: Dict[UnitTypeId, int] = dict()
         self.timings_acc = dict()
@@ -55,6 +58,22 @@ class ZergAI(CommonAI):
 
     def destroy_destructables(self):
         return self.strategy.destroy_destructables(self)
+
+    def extractor_trick(self):
+        if not self.extractor_trick_enabled:
+            return
+        if self.supply_used < self.supply_cap:
+            return
+        extractor = next((
+            e
+            for e in self.observation.pending_by_type[UnitTypeId.EXTRACTOR]
+            if e.type_id == UnitTypeId.EXTRACTOR
+        ), None)
+        if not extractor:
+            return
+        extractor(AbilityId.CANCEL)
+        self.extractor_trick_enabled = False
+        
 
     async def on_start(self):
 
@@ -189,10 +208,11 @@ class ZergAI(CommonAI):
             self.update_observation: 1,
             self.update_bases: 1,
             self.update_composition: 1,
-            self.update_gas: 16,
+            self.update_gas: 1,
             self.manage_queens: 1,
             self.spread_creep: 1,
             self.scout: 1,
+            self.extractor_trick: 1,
             self.morph_overlords: 1,
             self.make_composition: 1,
             self.upgrade: 1,
@@ -362,7 +382,7 @@ class ZergAI(CommonAI):
         def weight(p):
             s = 1
             s /= pow(min((t.distance_to(p) for t in self.townhalls), default=1), 2)
-            # s /= spreader.distance_to(p)
+            s /= max(1, spreader.distance_to(p))
             return s
         
         target = sample(targets, key=weight)
@@ -455,8 +475,8 @@ class ZergAI(CommonAI):
         if 200 <= self.supply_cap + supply_pending:
             return
         supply_buffer = 0
-        supply_buffer += 3 * self.townhalls.amount + self.observation.count(UnitTypeId.QUEEN, include_planned=False)
-        supply_buffer += 3 * self.observation.count(UnitTypeId.QUEEN, include_planned=False)
+        supply_buffer += 2 * self.townhalls.amount + self.observation.count(UnitTypeId.QUEEN, include_planned=False)
+        supply_buffer += 2 * self.observation.count(UnitTypeId.QUEEN, include_planned=False)
         supply_buffer += self.larva_count
         if self.supply_left + supply_pending < supply_buffer:
             self.add_macro_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
