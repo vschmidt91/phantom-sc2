@@ -18,6 +18,7 @@ from sc2.ids.effect_id import EffectId
 from sc2.position import Point2, Point3
 from sc2.bot_ai import BotAI
 from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT, IS_STRUCTURE
+from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
@@ -51,9 +52,12 @@ DODGE_EFFECTS = {
     EffectId.PSISTORMPERSISTENT,
 }
 
-DODGE_Units = {
-    UnitTypeId.DISRUPTORPHASED
+DODGE_UNITS = {
+    UnitTypeId.DISRUPTORPHASED,
+    UnitTypeId.WIDOWMINEWEAPON,
+    UnitTypeId.WIDOWMINEAIRWEAPON,
 }
+
 
 class PlacementNotFound(Exception):
     pass
@@ -747,7 +751,7 @@ class CommonAI(BotAI):
         ))
         dodge_elements.extend((
             (e.position, e.radius)
-            for e in self.enemy_units(DODGE_Units)
+            for e in self.enemy_units(DODGE_UNITS)
         ))
             
         for unit in friends:
