@@ -28,7 +28,7 @@ if __name__ == "__main__":
         time = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
         replayPath = os.path.join("replays", time + ".SC2Replay")
         bot = Bot(Race.Zerg, ZergAI(game_step = 8, debug = True, performance = PerformanceMode.DEFAULT), 'Sun Tzu')   
-        opponent = Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
+        opponent = Computer(Race.Zerg, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
         run_game(
             sc2.maps.get('2000AtmospheresAIE'),
             [bot, opponent],

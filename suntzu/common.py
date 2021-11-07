@@ -6,12 +6,14 @@ import math
 import random
 from typing import Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
 import numpy as np
+from s2clientprotocol.raw_pb2 import Effect
 from scipy import ndimage
 from s2clientprotocol.common_pb2 import Point
 from s2clientprotocol.error_pb2 import Error
 from sc2 import game_info, game_state
 
 from sc2.game_state import ActionRawUnitCommand
+from sc2.ids.effect_id import EffectId
 
 from sc2.position import Point2, Point3
 from sc2.bot_ai import BotAI
@@ -40,6 +42,18 @@ from .cost import Cost
 from .utils import bilinear_sample, can_attack, get_requirements, armyValue, unitPriority, canAttack, center, dot, unitValue
 
 RESOURCE_DISTANCE_THRESHOLD = 10
+
+DODGE_EFFECTS = {
+    EffectId.THERMALLANCESFORWARD,
+    EffectId.LURKERMP,
+    EffectId.NUKEPERSISTENT,
+    EffectId.RAVAGERCORROSIVEBILECP,
+    EffectId.PSISTORMPERSISTENT,
+}
+
+DODGE_Units = {
+    UnitTypeId.DISRUPTORPHASED
+}
 
 class PlacementNotFound(Exception):
     pass
@@ -507,6 +521,10 @@ class CommonAI(BotAI):
             if not unit:
                 continue
 
+            if not plan.ability:
+                plan.unit = None
+                continue
+
             if unit.type_id != UnitTypeId.LARVA:
                 plan.unit = unit.tag
             exclude.add(plan.unit)
@@ -685,7 +703,7 @@ class CommonAI(BotAI):
             elif type(item) is UpgradeId:
                 ability = RESEARCH_INFO[trainer.type_id].get(item)
 
-            if not ability:
+            if ability == None:
                 continue
 
             if "requires_techlab" in ability and not trainer.has_techlab:
@@ -720,8 +738,27 @@ class CommonAI(BotAI):
         self.friend_map = ndimage.gaussian_filter(friend_map, blur_sigma)
         # self.enemy_map_blur = self.enemy_map
         # self.friend_map = self.friend_map
+
+        dodge_elements = list()
+        dodge_elements.extend((
+            (p, e.radius)
+            for e in self.state.effects
+            if e.id in DODGE_EFFECTS for p in e.positions
+        ))
+        dodge_elements.extend((
+            (e.position, e.radius)
+            for e in self.enemy_units(DODGE_Units)
+        ))
             
         for unit in friends:
+
+            dodge_closest = min(dodge_elements, key = lambda p : unit.distance_to(p[0]) - p[1], default = None)
+            if dodge_closest:
+                dodge_position, dodge_radius = dodge_closest
+                dodge_distance = unit.distance_to(dodge_position) - unit.radius - dodge_radius - 1
+                if dodge_distance < 0:
+                    unit.move(unit.position.towards(dodge_position, dodge_distance))
+                    continue
 
             def target_priority(target: Unit) -> float:
                 if target.is_hallucination:
@@ -738,7 +775,7 @@ class CommonAI(BotAI):
                 priority /= 3 if target.is_structure else 1
                 priority *= 3 if target.type_id in WORKERS else 1
                 priority /= 3 if target.type_id in CIVILIANS else 1
-                priority /= 3 if not target.is_enemy else 1
+                priority /= 10 if not target.is_enemy else 1
                 if unit.is_detector:
                     priority *= 10 if target.is_cloaked else 1
                     priority *= 10 if not target.is_revealed else 1
