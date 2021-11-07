@@ -119,14 +119,13 @@ class WorkerStackBot(BotAI):
                     worker(AbilityId.SMART, mineral)
                 elif len(worker.orders) == 1:
                     if worker.is_returning:
-                        target = townhall.position.towards(worker, townhall.radius + worker.radius)
-                        target2 = townhall
+                        target = townhall
                     else:
-                        target = mineral.position.towards(worker, mineral.radius + worker.radius)
-                        target2 = mineral
-                    if 0.75 < worker.distance_to(target) < 2:
-                        worker.move(target)
-                        worker(AbilityId.SMART, target2, True)
+                        target = mineral
+                    move_target = target.position.towards(worker, target.radius + worker.radius)
+                    if 0.75 < worker.distance_to(move_target) < 2:
+                        worker.move(move_target)
+                        worker(AbilityId.SMART, target, True)
 
         # Print info every 30 game-seconds
         if self.state.game_loop % (22.4 * 30) == 0:

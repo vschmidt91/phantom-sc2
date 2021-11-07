@@ -36,7 +36,7 @@ if __name__ == "__main__":
         # opponent = Bot(Race.Terran, Chaosbot())
         opponent = Computer(Race.Protoss, Difficulty.VeryEasy, ai_build=AIBuild.Macro)
         run_game(
-            sc2.maps.get('OxideAIE'),
+            sc2.maps.get('2000AtmospheresAIE'),
             [bot, opponent],
             realtime=False,
             save_replay_as=replayPath,

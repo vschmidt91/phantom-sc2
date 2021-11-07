@@ -18,9 +18,10 @@ class RoachRush(ZergMacro):
         return [
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
+            UnitTypeId.EXTRACTOR,
             UnitTypeId.OVERLORD,
             UnitTypeId.SPAWNINGPOOL,
-            UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
@@ -47,6 +48,8 @@ class RoachRush(ZergMacro):
         ]
 
     def update(self, bot):
+        if bot.supply_used == 14:
+            bot.extractor_trick_enabled = True
         if bot.supply_used == 35:
             bot.extractor_trick_enabled = True
         return super().update(bot)
