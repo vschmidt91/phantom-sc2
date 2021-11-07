@@ -36,7 +36,7 @@ class VespeneGeyser(ResourceSingle):
         if not building:
             self.building = None
             gas_buildings = {
-                observation.unit_by_tag[g]
+                g
                 for t in ALL_GAS
                 for g in observation.actual_by_type[t]
             }

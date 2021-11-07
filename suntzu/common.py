@@ -126,7 +126,6 @@ class CommonAI(BotAI):
         pass
 
     async def on_building_construction_complete(self, unit: Unit):
-        self.observation.actual_by_type[unit.type_id].add(unit.tag)
         if unit.type_id in race_townhalls[self.race]:
             base = next((b for b in self.bases if b.position == unit.position), None)
             if base:
@@ -143,7 +142,6 @@ class CommonAI(BotAI):
         pass
 
     async def on_unit_created(self, unit: Unit):
-        self.observation.actual_by_type[unit.type_id].add(unit.tag)
         if unit.type_id == race_worker[self.race]:
             if self.time == 0:
                 return
@@ -152,9 +150,6 @@ class CommonAI(BotAI):
         pass
 
     async def on_unit_destroyed(self, unit_tag: int):
-        unit = self.observation.unit_by_tag.get(unit_tag)
-        if unit:
-            self.observation.actual_by_type[unit.type_id].difference_update((unit.tag,))
         base = next((b for b in self.bases if b.townhall == unit_tag), None)
         if base:
             base.townhall = None
@@ -176,22 +171,21 @@ class CommonAI(BotAI):
         pass
         
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
-        self.observation.actual_by_type[previous_type].difference_update((unit.tag,))
-        self.observation.actual_by_type[unit.type_id].add(unit.tag)
         pass
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
-        self.observation.add_upgrade(upgrade)
         pass
 
     def update_observation(self):
         self.observation.clear()
-        for unit in self.all_own_units:
+        for unit in self.all_units:
             self.observation.add_unit(unit)
-        for resource in self.resources:
-            self.observation.add_resource(resource)
-        for destructable in self.destructables:
-            self.observation.add_destructable(destructable)
+        for upgrade in self.state.upgrades:
+            self.observation.add_upgrade(upgrade)
+        # for resource in self.resources:
+        #     self.observation.add_resource(resource)
+        # for destructable in self.destructables:
+        #     self.observation.add_destructable(destructable)
         worker_type = race_worker[self.race]
         worker_pending = self.observation.count(worker_type, include_actual=False, include_pending=False, include_planned=False)
         self.observation.worker_supply_fixed = self.supply_used - self.supply_army - worker_pending
@@ -658,9 +652,9 @@ class CommonAI(BotAI):
             trainer_types = WITH_TECH_EQUIVALENTS[UPGRADE_RESEARCHED_FROM[item]]
 
         trainers = (
-            self.observation.unit_by_tag.get(trainer_tag)
+            trainer
             for trainer_type in trainer_types
-            for trainer_tag in self.observation.actual_by_type[trainer_type]
+            for trainer in self.observation.actual_by_type[trainer_type]
         )
             
         for trainer in trainers:

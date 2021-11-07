@@ -59,4 +59,5 @@ class Resource(object):
             return harvester
         if self.try_add(harvester):
             return None
-        raise Exception()
+        return None
+        # raise Exception()

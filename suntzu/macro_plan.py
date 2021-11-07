@@ -21,4 +21,7 @@ class MacroPlan(object):
         self.__dict__.update(**kwargs)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.item}, {self.ability}, {self.cost}, {self.unit}, {self.target}, {self.priority})"
+        return f"{self.__class__.__name__}({self.item}, {self.ability}, {self.unit}, {self.target}, {self.priority})"
+
+    def __hash__(self) -> int:
+        return id(self)

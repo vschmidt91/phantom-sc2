@@ -91,10 +91,7 @@ class ZergAI(CommonAI):
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         if unit.type_id == UnitTypeId.LAIR:
             ability = AbilityId.BEHAVIOR_GENERATECREEPON
-            overlords = [
-                self.observation.unit_by_tag.get(t)
-                for t in self.observation.actual_by_type[UnitTypeId.OVERLORD]
-            ]
+            overlords = self.observation.actual_by_type[UnitTypeId.OVERLORD]
             for overlord in overlords:
                 if not overlord:
                     continue
@@ -121,7 +118,7 @@ class ZergAI(CommonAI):
     async def transfuse(self):
 
         ability = AbilityId.TRANSFUSION_TRANSFUSION
-        queens = list(self.observation.unit_by_tag[t] for t in self.observation.actual_by_type[UnitTypeId.QUEEN])
+        queens = list(self.observation.actual_by_type[UnitTypeId.QUEEN])
         if not any(queens):
             return
         queens_abilities = await self.get_available_abilities(queens)
@@ -160,10 +157,7 @@ class ZergAI(CommonAI):
 
         ability = AbilityId.EFFECT_CORROSIVEBILE
         ability_data = self.game_data.abilities[ability.value]._proto
-        ravagers = [
-            self.observation.unit_by_tag[t]
-            for t in self.observation.actual_by_type[UnitTypeId.RAVAGER]
-        ]
+        ravagers = list(self.observation.actual_by_type[UnitTypeId.RAVAGER])
         if not ravagers:
             return
         ravager_abilities = await self.get_available_abilities(ravagers)
@@ -328,9 +322,9 @@ class ZergAI(CommonAI):
             if ability in await self.get_available_abilities(overseer):
                 overseer(ability)
         changelings = [
-            self.observation.unit_by_tag[t]
-            for tt in CHANGELINGS
-            for t in self.observation.actual_by_type[tt]
+            c
+            for t in CHANGELINGS
+            for c in self.observation.actual_by_type[t]
         ]
         for changeling in changelings:
             if not changeling:
@@ -438,7 +432,7 @@ class ZergAI(CommonAI):
     async def manage_queens(self):
 
         queens = sorted(
-            (self.observation.unit_by_tag[t] for t in self.observation.actual_by_type[UnitTypeId.QUEEN]),
+            self.observation.actual_by_type[UnitTypeId.QUEEN],
             key=lambda q:q.tag)
 
         macro_queen_count = max(0, round((1 - 2 * self.threat_level) * len(queens)))
@@ -477,7 +471,7 @@ class ZergAI(CommonAI):
         supply_buffer = 0
         supply_buffer += 2 * self.townhalls.amount + self.observation.count(UnitTypeId.QUEEN, include_planned=False)
         supply_buffer += 2 * self.observation.count(UnitTypeId.QUEEN, include_planned=False)
-        supply_buffer += self.larva_count
+        supply_buffer += self.larva.amount
         if self.supply_left + supply_pending < supply_buffer:
             self.add_macro_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
 
