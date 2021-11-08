@@ -26,7 +26,7 @@ class ZergMacro(ZergStrategy):
     
         if bot.time < self.tech_time:
             if bot.observation.count(UpgradeId.ZERGLINGMOVEMENTSPEED):
-                composition[UnitTypeId.ZERGLING] = 2 + int(ratio * worker_count)
+                composition[UnitTypeId.ZERGLING] = 2 + int(ratio * 12)
         elif not bot.observation.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False):
             composition[UnitTypeId.OVERSEER] = 1
             composition[UnitTypeId.ROACH] = int(ratio * 50)

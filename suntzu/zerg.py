@@ -383,6 +383,11 @@ class ZergAI(CommonAI):
         queens = (self.observation.unit_by_tag[t] for t in self.creep_queens)
         queens = (q for q in queens if not any(o.ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN for o in q.orders))
         
+        for queen in queens:
+            if not self.has_creep(queen.position):
+                target = min(self.observation.actual_by_type[UnitTypeId.CREEPTUMORBURROWED], key=lambda c:queen.distance_to(c.position))
+                queen.move(target)
+
         spreaders = [
             *queens,
             *self.observation.actual_by_type[UnitTypeId.CREEPTUMORBURROWED]
@@ -404,7 +409,7 @@ class ZergAI(CommonAI):
 
         def priority(p):
             s = 1
-            s /= 1 + min(t.distance_to(p) for t in self.townhalls) + 2 * spreader.distance_to(p)
+            s /= 1 + min((t.distance_to(p) for t in self.townhalls), default=0) + 2 * spreader.distance_to(p)
             return s
         
         target = max(targets, key=priority)
@@ -443,6 +448,9 @@ class ZergAI(CommonAI):
                 if unit.tag not in self.army_queens:
                     continue
                 elif any(o.ability.exact_id == AbilityId.TRANSFUSION_TRANSFUSION for o in unit.orders):
+                    continue
+            elif unit.type_id == UnitTypeId.RAVAGER:
+                if any(o.ability.exact_id == AbilityId.EFFECT_CORROSIVEBILE for o in unit.orders):
                     continue
             yield unit
 

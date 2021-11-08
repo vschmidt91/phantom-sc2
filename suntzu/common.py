@@ -10,11 +10,11 @@ from s2clientprotocol.raw_pb2 import Effect
 from scipy import ndimage
 from s2clientprotocol.common_pb2 import Point
 from s2clientprotocol.error_pb2 import Error
-from sc2 import game_info, game_state
+from queue import Queue
 
 from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.effect_id import EffectId
-
+from sc2 import game_info, game_state
 from sc2.position import Point2, Point3
 from sc2.bot_ai import BotAI
 from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT, IS_STRUCTURE
@@ -37,13 +37,12 @@ from .resources.mineral_patch import MineralPatch
 from .observation import Observation
 from .resources.resource import Resource
 from .resources.resource_group import ResourceGroup
-from .constants import BUILD_ORDER_PRIORITY, WORKERS, CHANGELINGS, REQUIREMENTS_KEYS, WITH_TECH_EQUIVALENTS, CIVILIANS, GAS_BY_RACE, REQUIREMENTS, REQUIREMENTS_EXCLUDE, STATIC_DEFENSE, SUPPLY, SUPPLY_PROVIDED, TOWNHALL, TRAIN_ABILITIES, UNIT_BY_TRAIN_ABILITY, UPGRADE_BY_RESEARCH_ABILITY
+from .constants import *
 from .macro_plan import MacroPlan
 from .cost import Cost
-from .utils import bilinear_sample, can_attack, get_requirements, armyValue, unitPriority, canAttack, center, dot, unitValue
-
-RESOURCE_DISTANCE_THRESHOLD = 10
-
+from .utils import *
+from .corrosive_bile import CorrosiveBile
+ 
 DODGE_EFFECTS = {
     EffectId.THERMALLANCESFORWARD,
     EffectId.LURKERMP,
@@ -95,6 +94,7 @@ class CommonAI(BotAI):
         self.bases: ResourceGroup[Base] = None
         self.base_distance_matrix: Dict[Point2, Dict[Point2, float]] = dict()
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
+        self.corrosive_biles: List[CorrosiveBile] = list()
 
     def destroy_destructables(self):
         return True
@@ -131,6 +131,19 @@ class CommonAI(BotAI):
 
         for error in self.state.action_errors:
             print(error)
+
+        for effect in self.state.effects:
+            position = next(iter(effect.positions))
+            if any(c.position == effect.positions for c in self.corrosive_biles):
+                continue
+            bile = CorrosiveBile(self.state.game_loop, position)
+            self.corrosive_biles.append(bile)
+
+        while (
+            0 < len(self.corrosive_biles)
+            and self.corrosive_biles[0].frame_expires < self.state.game_loop
+        ):
+            self.corrosive_biles.pop(0)
 
         for worker in self.workers.idle:
             if any(plan.unit == worker.tag for plan in self.macro_plans):
@@ -210,10 +223,6 @@ class CommonAI(BotAI):
             self.observation.add_unit(unit)
         for upgrade in self.state.upgrades:
             self.observation.add_upgrade(upgrade)
-        # for resource in self.resources:
-        #     self.observation.add_resource(resource)
-        # for destructable in self.destructables:
-        #     self.observation.add_destructable(destructable)
         worker_type = race_worker[self.race]
         worker_pending = self.observation.count(worker_type, include_actual=False, include_pending=False, include_planned=False)
         self.observation.worker_supply_fixed = self.supply_used - self.supply_army - worker_pending
@@ -322,9 +331,6 @@ class CommonAI(BotAI):
     def update_bases(self):
 
         self.bases.update(self.observation)
-
-        # if we are oversaturated, enable long distance mining
-        # self.bases.balance_aggressively = 0 < self.bases.harvester_balance
 
     async def initialize_bases(self):
 
@@ -783,6 +789,11 @@ class CommonAI(BotAI):
         dodge_elements.extend((
             (e.position, e.radius)
             for e in self.enemy_units(DODGE_UNITS)
+        ))
+        dodge_elements.extend((
+            (c.position, 1)
+            for c in self.corrosive_biles
+            if c.frame_expires < self.state.game_loop + 10
         ))
             
         for unit in friends:
