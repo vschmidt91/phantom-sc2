@@ -1,2 +1,7 @@
 maybe don't reserve trainer (doesnt mix well with priority)
 seperate ground/air maps
+
+handle blocked expansion (at least reassign the drone)
+less queen pulls
+have to dodge bile projectile, not effect
+wrong upgrade order ?!

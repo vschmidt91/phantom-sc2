@@ -7,6 +7,7 @@ from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 from sc2.data import Race
 from sc2.helpers.devtools import time_this
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
@@ -28,6 +29,11 @@ SUPPLY = {
     Race.Protoss: UnitTypeId.PYLON,
     Race.Terran: UnitTypeId.SUPPLYDEPOT,
     Race.Zerg: UnitTypeId.OVERLORD,
+}
+
+CREEP_ABILITIES = {
+    UnitTypeId.QUEEN: AbilityId.BUILD_CREEPTUMOR_QUEEN,
+    UnitTypeId.CREEPTUMORBURROWED: AbilityId.BUILD_CREEPTUMOR_TUMOR,
 }
 
 TOWNHALL = {

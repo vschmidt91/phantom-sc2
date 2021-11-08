@@ -25,9 +25,9 @@ from .strategies.pool12 import Pool12
 from .strategies.pool12_allin import Pool12AllIn
 from .strategies.zerg_strategy import ZergStrategy
 from .timer import run_timed
-from .constants import CHANGELINGS, SUPPLY_PROVIDED
+from .constants import CHANGELINGS, CREEP_ABILITIES, SUPPLY_PROVIDED
 from .common import CommonAI, PerformanceMode
-from .utils import sample
+from .utils import center, sample
 from .constants import BUILD_ORDER_PRIORITY, WITH_TECH_EQUIVALENTS, REQUIREMENTS, ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
 from .cost import Cost
 from .macro_plan import MacroPlan
@@ -55,6 +55,7 @@ class ZergAI(CommonAI):
         self.composition: Dict[UnitTypeId, int] = dict()
         self.timings_acc = dict()
         self.army_queens = set()
+        self.creep_queens = set()
 
     def destroy_destructables(self):
         return self.strategy.destroy_destructables(self)
@@ -77,7 +78,6 @@ class ZergAI(CommonAI):
 
     async def on_start(self):
 
-        print(self.enemy_race)
         if not self.strategy:
             strategy_types = [RoachRush, HatchFirst]
             if self.enemy_race == Race.Protoss:
@@ -87,7 +87,13 @@ class ZergAI(CommonAI):
         self.tags.append(self.strategy.name())
         for step in self.strategy.build_order():
             self.add_macro_plan(MacroPlan(step, priority=BUILD_ORDER_PRIORITY))
-        return await super().on_start()
+
+        await super().on_start()
+
+        # p = self.main_base_ramp.top_center
+        # await self.client.debug_create_unit([
+        #     [UnitTypeId.RAVAGER, 1, p, 1]
+        # ])
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         if unit.type_id == UnitTypeId.LAIR:
@@ -192,12 +198,14 @@ class ZergAI(CommonAI):
 
     async def on_step(self, iteration):
 
+
         await super(self.__class__, self).on_step(iteration)
 
         if iteration == 0:
             return
 
         steps = {
+            # self.kill_random_unit: 100,
             self.draw_debug: 1,
             self.assess_threat_level: 1,
             self.update_observation: 1,
@@ -343,59 +351,79 @@ class ZergAI(CommonAI):
         #         if 1 < overlord.distance_to(target):
         #             overlord.move(target.position)
 
-    async def spread_creep(self, spreader: Unit = None, numAttempts: int = 5):
-        
-        # find spreader
-        if not spreader:
-            tumors = self.structures(UnitTypeId.CREEPTUMORBURROWED)
-            if not tumors.exists:
-                return
-            tumor_abilities = await self.get_available_abilities(self.structures(UnitTypeId.CREEPTUMORBURROWED))
-            for tumor, abilities in zip(tumors, tumor_abilities):
-                if not AbilityId.BUILD_CREEPTUMOR_TUMOR in abilities:
-                    continue
-                spreader = tumor
-                break
+    async def spread_creep(self, spreader: Unit = None, numAttempts: int = 8):
 
-        if spreader is None:
-            return
+        random_position_count = 0
+        random_positions = [
+            Point2(np.random.uniform((0, 0), self.game_info.map_size))
+            for i in range(random_position_count)
+        ]
 
         # find target
-        targets = (
-            *self.expansion_locations_list,
-            *(r.top_center for r in self.game_info.map_ramps),
-        )
+        targets = []
+        targets.append(self.game_info.map_center)
+        # targets.extend(self.expansion_locations)
+        targets.extend((
+            0.5 * (a + b)
+            for a in self.expansion_locations
+            for b in self.expansion_locations))
+        targets.extend(r.top_center for r in self.game_info.map_ramps)
+        targets.extend(r.bottom_center for r in self.game_info.map_ramps)
+        targets.extend(random_positions)
 
-        targets = [
+        targets = {
             t
             for t in targets
-            if self.in_placement_grid(t) and not self.has_creep(t) 
-        ]
+            if (not self.has_creep(t) and self.in_placement_grid(t))
+        }
+
         if not targets:
             return
 
-        def weight(p):
-            s = 1
-            s /= pow(min((t.distance_to(p) for t in self.townhalls), default=1), 2)
-            s /= max(1, spreader.distance_to(p))
-            return s
+        queens = (self.observation.unit_by_tag[t] for t in self.creep_queens)
+        queens = (q for q in queens if not any(o.ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN for o in q.orders))
         
-        target = sample(targets, key=weight)
-        target = spreader.position.towards(target, CREEP_RANGE)
+        spreaders = [
+            *queens,
+            *self.observation.actual_by_type[UnitTypeId.CREEPTUMORBURROWED]
+        ]
 
-        tumorPlacement = None
-        for _ in range(numAttempts):
-            position = await self.find_placement(AbilityId.ZERGBUILD_CREEPTUMOR, target)
-            if position is None:
-                continue
-            if self.blocked_base(position):
-                continue 
-            tumorPlacement = position
-            break
-        if tumorPlacement is None:
+        if not spreaders:
             return
 
-        spreader.build(UnitTypeId.CREEPTUMOR, tumorPlacement)
+        spreader_abilities = await self.get_available_abilities(spreaders)
+
+        for spreader, abilities in zip(spreaders, spreader_abilities):
+            ability = CREEP_ABILITIES[spreader.type_id]
+            if not ability in abilities:
+                continue
+            self.spread_creep_single(spreader, targets, numAttempts)
+
+
+    def spread_creep_single(self, spreader: Unit, targets: Iterable[Point2], num_attempts: int):
+
+        def priority(p):
+            s = 1
+            s /= 1 + min(t.distance_to(p) for t in self.townhalls) + 2 * spreader.distance_to(p)
+            return s
+        
+        target = max(targets, key=priority)
+        towards_target = spreader.position.towards(target, CREEP_RANGE)
+
+        position_sigma = 4
+        for i in range(num_attempts):
+            position = np.random.normal(towards_target, position_sigma * i / num_attempts)
+            position = Point2(position).rounded
+            if CREEP_RANGE  < spreader.distance_to(position):
+                continue
+            if self.blocked_base(position):
+                continue
+            if not self.has_creep(position):
+                continue
+            if not self.in_pathing_grid(position):
+                continue
+            spreader.build(UnitTypeId.CREEPTUMOR, position)
+            break
 
     def build_spores(self):
         sporeTime = {
@@ -439,9 +467,12 @@ class ZergAI(CommonAI):
         macro_queen_count = max(0, round((1 - 2 * self.threat_level) * len(queens)))
         macro_queen_count = min(5, 1 + self.townhalls.amount, macro_queen_count)
         creep_queen_count = 1 if 2 < macro_queen_count else 0
+
         creep_queens = queens[0:creep_queen_count]
         inject_queens = queens[creep_queen_count:macro_queen_count]
         army_queens = queens[macro_queen_count:]
+
+        self.creep_queens = { q.tag for q in creep_queens }
         self.army_queens = { q.tag for q in army_queens }
 
         for queen, base in zip(inject_queens, (b for b in self.bases if b.townhall)):
@@ -450,12 +481,6 @@ class ZergAI(CommonAI):
                 queen.attack(townhall.position)
             elif 25 <= queen.energy:
                 queen(AbilityId.EFFECT_INJECTLARVA, townhall)
-
-        for queen in creep_queens:
-            if any(o.ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN for o in queen.orders):
-                pass
-            elif 25 <= queen.energy:
-                await self.spread_creep(queen)
 
     def update_composition(self):
         self.composition = self.strategy.composition(self)

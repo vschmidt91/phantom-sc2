@@ -47,8 +47,8 @@ RESOURCE_DISTANCE_THRESHOLD = 10
 DODGE_EFFECTS = {
     EffectId.THERMALLANCESFORWARD,
     EffectId.LURKERMP,
-    EffectId.NUKEPERSISTENT,
-    EffectId.RAVAGERCORROSIVEBILECP,
+    # EffectId.NUKEPERSISTENT,
+    # EffectId.RAVAGERCORROSIVEBILECP,
     EffectId.PSISTORMPERSISTENT,
 }
 
@@ -56,6 +56,7 @@ DODGE_UNITS = {
     UnitTypeId.DISRUPTORPHASED,
     UnitTypeId.WIDOWMINEWEAPON,
     UnitTypeId.WIDOWMINEAIRWEAPON,
+    UnitTypeId.NUKE,
 }
 
 
@@ -193,6 +194,15 @@ class CommonAI(BotAI):
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         pass
+
+    async def kill_random_unit(self):
+        chance = self.supply_used / 200
+        chance = pow(chance, 3)
+        if chance < random.random():
+            unit = self.all_own_units.random
+            if len(self.townhalls) == 1 and unit.tag == self.townhalls[0].tag:
+                return
+            await self.client.debug_kill_unit(unit)
 
     def update_observation(self):
         self.observation.clear()
@@ -394,6 +404,21 @@ class CommonAI(BotAI):
                     position,
                     color=font_color,
                     size=font_size)
+
+        points = [
+            *self.expansion_locations_list,
+            *(r.top_center for r in self.game_info.map_ramps),
+        ]
+
+        points = [
+            t
+            for t in points
+            if not self.has_creep(t) 
+        ]
+
+        for i, p in enumerate(points):
+            z = self.get_terrain_z_height(p)
+            self.client.debug_text_world(f'{i}', Point3((*p, z)))
 
         # map_scale = 1 / 10
         # self.debug_draw_map(self.friend_map, color=(0, 255, 0), scale=map_scale)
@@ -737,7 +762,7 @@ class CommonAI(BotAI):
             enemy_map[enemy.position.rounded] += unitValue(enemy)
 
         visibility = np.transpose(self.state.visibility.data_numpy)
-        self.enemy_map = np.where(visibility < 2, self.enemy_map, enemy_map)
+        self.enemy_map = np.where(visibility == 2, enemy_map, self.enemy_map)
 
         friend_map = np.zeros(self.game_info.map_size)
         for friend in friends:

@@ -23,6 +23,9 @@ class ResourceGroup(Resource, Generic[T], Iterable[T]):
     def __iter__(self):
         return iter(self.items)
 
+    def __getitem__(self, index):
+        return self.items[index]
+
     def try_add(self, harvester: int) -> bool:
         resource = min(
             (r for r in self.items if 0 < r.remaining),
