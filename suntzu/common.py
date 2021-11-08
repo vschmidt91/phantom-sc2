@@ -703,11 +703,17 @@ class CommonAI(BotAI):
                 continue
 
             if type(item) is UnitTypeId:
-                ability = TRAIN_INFO[trainer.type_id].get(item)
+                table = TRAIN_INFO
             elif type(item) is UpgradeId:
-                ability = RESEARCH_INFO[trainer.type_id].get(item)
+                table = RESEARCH_INFO
 
-            if ability == None:
+            element = table.get(trainer.type_id)
+            if not element:
+                continue
+
+            ability = element.get(item)
+
+            if not ability:
                 continue
 
             if "requires_techlab" in ability and not trainer.has_techlab:
