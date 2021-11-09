@@ -22,6 +22,7 @@ class MineralPatch(ResourceSingle):
         self.is_rich = False
         self.townhall: Optional[int] = None
         self.speed_mining_enabled = False
+        self.speed_mining_position: Option[Point2] = None
 
     @property
     def harvester_target(self):
@@ -65,9 +66,12 @@ class MineralPatch(ResourceSingle):
                 elif len(harvester.orders) == 1:
                     if harvester.is_returning:
                         target = townhall
+                        move_target = None
                     else:
                         target = patch
-                    move_target = target.position.towards(harvester, target.radius + harvester.radius)
+                        move_target = self.speed_mining_position
+                    move_target = move_target or target.position.towards(harvester, target.radius + harvester.radius)
+                        
                     if 0.75 < harvester.distance_to(move_target) < 2:
                         harvester.move(move_target)
                         harvester(AbilityId.SMART, target, True)

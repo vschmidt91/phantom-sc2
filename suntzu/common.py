@@ -784,7 +784,7 @@ class CommonAI(BotAI):
             for p in self.positions_in_range(friend):
                 friend_map[p] += unitValue(friend)
 
-        blur_sigma = 4
+        blur_sigma = 10
         self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
         self.friend_map = ndimage.gaussian_filter(friend_map, blur_sigma)
         # self.enemy_map_blur = self.enemy_map

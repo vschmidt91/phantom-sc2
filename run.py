@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
         time = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
         replayPath = os.path.join("replays", time + ".SC2Replay")
-        bot = Bot(Race.Zerg, ZergAI(game_step = 7, debug = True, performance = PerformanceMode.DEFAULT), 'Sun Tzu')   
+        bot = Bot(Race.Zerg, ZergAI(game_step = 10, debug = True, performance = PerformanceMode.DEFAULT), 'Sun Tzu')   
         # opponent = Bot(Race.Random, DummyAI())
         opponent = Computer(Race.Terran, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
         run_game(
