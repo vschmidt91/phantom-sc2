@@ -380,15 +380,15 @@ class ZergAI(CommonAI):
         if not targets:
             return
 
-        queens = (self.observation.unit_by_tag[t] for t in self.creep_queens)
-        queens = (q for q in queens if not any(o.ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN for o in q.orders))
+        queens = [self.observation.unit_by_tag[t] for t in self.creep_queens]
+        queens = [q for q in queens if not any(o.ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN for o in q.orders)]
         
-        for queen in queens:
-            if not self.has_creep(queen.position):
-                target = min(self.observation.actual_by_type[UnitTypeId.CREEPTUMORBURROWED], key=lambda c:queen.distance_to(c.position), default=None)
-                if not target:
-                    continue
-                queen.move(target)
+        # for queen in queens:
+        #     if not self.has_creep(queen.position):
+        #         target = min(self.observation.actual_by_type[UnitTypeId.CREEPTUMORBURROWED], key=lambda c:queen.distance_to(c.position), default=None)
+        #         if not target:
+        #             continue
+        #         queen.move(target)
 
         spreaders = [
             *queens,
@@ -479,8 +479,8 @@ class ZergAI(CommonAI):
         creep_queen_count = 1 if 2 < macro_queen_count else 0
 
         creep_queens = queens[0:creep_queen_count]
-        inject_queens = queens[creep_queen_count:macro_queen_count]
-        army_queens = queens[macro_queen_count:]
+        inject_queens = queens[creep_queen_count:macro_queen_count+creep_queen_count]
+        army_queens = queens[macro_queen_count+creep_queen_count:]
 
         self.creep_queens = { q.tag for q in creep_queens }
         self.army_queens = { q.tag for q in army_queens }
