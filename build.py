@@ -8,12 +8,13 @@ import subprocess
 
 OUTPUT_PATH = './publish/SunTzuBot.zip'
 VERSION_PATH = './version.txt'
+EXTENSIONS = { '.py', '.txt', '.json', '.npy' }
 
 def zipBot(zipFile):
     root = os.getcwd()
     botFiles = (
         f for f in os.listdir(root)
-        if ".py" in f or ".txt" in f or ".json" in f
+        if any(ext in f for ext in EXTENSIONS)
     )
     for file in botFiles:
         zipFile.write(os.path.join(root, file), file)

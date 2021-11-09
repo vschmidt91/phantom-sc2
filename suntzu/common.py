@@ -11,6 +11,7 @@ from scipy import ndimage
 from s2clientprotocol.common_pb2 import Point
 from s2clientprotocol.error_pb2 import Error
 from queue import Queue
+import os
 
 from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.effect_id import EffectId
@@ -31,6 +32,7 @@ from sc2.data import Result, race_townhalls, race_worker
 from sc2.unit import Unit
 from sc2.units import Units
 
+from .analysis.poisson_solver import solve_poisson, solve_poisson_full
 from .resources.vespene_geyser import VespeneGeyser
 from .resources.base import Base
 from .resources.mineral_patch import MineralPatch
@@ -92,9 +94,10 @@ class CommonAI(BotAI):
         self.worker_split: Dict[int, int] = None
         self.cost: Dict[Union[UnitTypeId, UpgradeId], Cost] = dict()
         self.bases: ResourceGroup[Base] = None
-        self.base_distance_matrix: Dict[Point2, Dict[Point2, float]] = dict()
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
         self.corrosive_biles: List[CorrosiveBile] = list()
+        self.heat_map = None
+        self.heat_map_gradient = None
 
     def destroy_destructables(self):
         return True
@@ -120,6 +123,7 @@ class CommonAI(BotAI):
         self.enemy_map = np.zeros(self.game_info.map_size)
         self.enemy_map_blur = np.zeros(self.game_info.map_size)
         self.friend_map = np.zeros(self.game_info.map_size)
+        self.load_heat_map()
         await self.initialize_bases()
 
     async def on_step(self, iteration: int):
@@ -334,39 +338,11 @@ class CommonAI(BotAI):
 
     async def initialize_bases(self):
 
-        num_attempts = 32
-        max_sigma = 5
-        self.base_distance_matrix = dict()
-        for a in self.expansion_locations_list:
-            self.base_distance_matrix[a] = dict()
-            for b in self.expansion_locations_list:
-                path = None
-                for i in range(num_attempts):
-                    sigma = max_sigma * i / num_attempts
-                    sa = Point2(np.random.normal(a, sigma))
-                    sb = Point2(np.random.normal(b, sigma))
-                    path = await self.client.query_pathing(sa, sb)
-                    if path:
-                        break
-                if not path:
-                    path = a.distance_to(b)
-                self.base_distance_matrix[a][b] = path
+        bases = sorted((
+            Base(position, (m.position for m in resources.mineral_field), (g.position for g in resources.vespene_geyser))
+            for position, resources in self.expansion_locations_dict.items()
+        ), key = lambda b : self.heat_map[b.position.rounded])
 
-        expansions = [self.start_location]
-        while len(expansions) < len(self.expansion_locations_list):
-            expansion = min(
-                (e for e in self.expansion_locations_list if e not in expansions),
-                key=lambda e: max(self.base_distance_matrix[e][f] for f in expansions) - min(self.base_distance_matrix[e][f] for f in self.enemy_start_locations)
-            )
-            expansions.append(expansion)
-
-        bases = []
-        for townhall_position in expansions:
-            resources = self.expansion_locations_dict[townhall_position]
-            minerals = (m.position for m in resources.mineral_field)
-            gasses = (g.position for g in resources.vespene_geyser)
-            base = Base(townhall_position, minerals, gasses)
-            bases.append(base)
         self.bases = ResourceGroup(bases)
         self.bases.items[0].mineral_patches.do_worker_split(set(self.workers))
 
@@ -374,6 +350,30 @@ class CommonAI(BotAI):
             for base in self.bases:
                 for minerals in base.mineral_patches:
                     minerals.speed_mining_enabled = True
+
+    def load_heat_map(self):
+        path = os.path.join('data', self.game_info.map_name + '.npy')
+        try:
+            with open(path, 'rb') as file:
+                heat_map = np.load(file, allow_pickle=True)
+        except FileNotFoundError:
+            print('creating heat map ...')
+            boundary = self.game_info.pathing_grid.data_numpy | self.game_info.placement_grid.data_numpy
+            boundary = np.transpose(boundary) == 0
+            sources = {
+                loc.rounded: 1.0
+                for loc in self.enemy_start_locations 
+            }
+            sources[self.start_location.rounded] = 0.0
+            heat_map = solve_poisson_full(boundary, sources, 1.95)
+            with open(path, 'wb') as file:
+                np.save(file, heat_map)
+
+        if 0.5 < heat_map[self.start_location.rounded]:
+            heat_map = 1 - heat_map
+
+        self.heat_map = heat_map
+        self.heat_map_gradient = np.gradient(heat_map)
 
     def draw_debug(self):
 
@@ -411,46 +411,13 @@ class CommonAI(BotAI):
                     color=font_color,
                     size=font_size)
 
-        points = [
-            *self.expansion_locations_list,
-            *(r.top_center for r in self.game_info.map_ramps),
-        ]
-
-        points = [
-            t
-            for t in points
-            if not self.has_creep(t) 
-        ]
-
-        for i, p in enumerate(points):
-            z = self.get_terrain_z_height(p)
-            self.client.debug_text_world(f'{i}', Point3((*p, z)))
-
-        # map_scale = 1 / 1000
-        # self.debug_draw_map(self.friend_map, color=(0, 255, 0), scale=map_scale)
-        # self.debug_draw_map(self.enemy_map_blur, color=(255, 0, 0), scale=map_scale)
-
-        # for p, v in np.ndenumerate(self.friend_map):
-
-        #     e = self.enemy_map_blur[p]
-        #     f = self.friend_map[p]
-        #     pz = self.get_terrain_z_height(Point2(p))
-        #     p = Point3([p[0], p[1], pz])
-        #     v = int(255 * f / (1 + e + f))
-        #     self.client.debug_text_world(f'{round(f)} {round(e)}', p,
-        #         color = (255 - v, v, 0),
-        #         size=font_size)
-
-    def debug_draw_map(self, map: np.ndarray, color: tuple = (255, 255, 255), scale: float = 1):
-
-        for (x, y), v in np.ndenumerate(map):
-
-            if scale * v < .1:
-                continue
-
-            z = self.get_terrain_z_height(Point2((x, y)))
-            p = Point3((x, y, z))
-            self.client.debug_sphere_out(p, scale * v, color)
+        # for p, v in np.ndenumerate(self.heat_map):
+        #     if not self.in_pathing_grid(Point2(p)):
+        #         continue
+        #     z = self.get_terrain_z_height(Point2(p))
+        #     c = int(255 * v)
+        #     c = (c, 255 - c, 0)
+        #     self.client.debug_text_world(f'{round(100 * v)}', Point3((*p, z)), c)
 
     @property
     def income(self):
@@ -542,6 +509,9 @@ class CommonAI(BotAI):
             plan = self.macro_plans[i]
             i += 1
 
+            if any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
+                continue
+
             cost = self.cost[plan.item]
             can_afford = self.can_afford_with_reserve(cost, reserve)
             reserve += cost
@@ -560,16 +530,13 @@ class CommonAI(BotAI):
 
             if unit.type_id != UnitTypeId.LARVA:
                 plan.unit = unit.tag
-            exclude.add(plan.unit)
+                exclude.add(plan.unit)
 
             if plan.target is None:
                 try:
                     plan.target = await self.get_target(unit, plan)
                 except PlacementNotFound as p: 
                     continue
-
-            if any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
-                continue
 
             if (
                 plan.target
@@ -612,8 +579,8 @@ class CommonAI(BotAI):
                     plan.target = None
                     continue
 
-            if took_action:
-                continue
+            # if took_action:
+            #     continue
 
             queue = False
             if unit.is_carrying_resource:
@@ -786,7 +753,7 @@ class CommonAI(BotAI):
             # for p in self.positions_in_range(friend):
             #     friend_map[p] += unitValue(friend)
 
-        blur_sigma = 8
+        blur_sigma = 10
         self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
         self.friend_map = ndimage.gaussian_filter(friend_map, blur_sigma)
         # self.enemy_map_blur = self.enemy_map
@@ -807,6 +774,8 @@ class CommonAI(BotAI):
             for c in self.corrosive_biles
             if c.frame_expires < self.state.game_loop + 10
         ))
+
+        enemy_map_gradient = np.gradient(self.enemy_map_blur)
             
         for unit in friends:
 
@@ -839,12 +808,28 @@ class CommonAI(BotAI):
                     priority *= 10 if not target.is_revealed else 1
                 return priority
 
-            # gx = bilinear_sample(enemy_gradient[0], p)
-            # gy = bilinear_sample(enemy_gradient[1], p)
-            # gradient = Point2((gx, gy))
-            gradient = Point2((0, 0))
-
             target = max(enemies, key=target_priority, default=None)
+
+            heat_gradient = Point2((
+                self.heat_map_gradient[0][unit.position.rounded],
+                self.heat_map_gradient[1][unit.position.rounded],
+            ))
+            if 0 < heat_gradient.length:
+                heat_gradient = heat_gradient.normalized
+
+            enemy_gradient = Point2((
+                enemy_map_gradient[0][unit.position.rounded],
+                enemy_map_gradient[1][unit.position.rounded],
+            ))
+            if 0 < enemy_gradient.length:
+                enemy_gradient = enemy_gradient.normalized
+
+            gradient = heat_gradient + enemy_gradient
+            if 0 < gradient.length:
+                gradient = gradient.normalized
+            else:
+                gradient = (unit.position - target.position).normalized
+
             if target and 0 < target_priority(target):
 
                 if target.is_enemy:
@@ -859,11 +844,7 @@ class CommonAI(BotAI):
                 enemies_rating = self.enemy_map_blur[unit.position.rounded]
                 advantage_army = friends_rating / max(1, enemies_rating)
 
-                distance_point = .5 * (unit.position + target.position)
-                distance_ref = .5 * self.game_info.map_size.length
-                distance_self = distance_point.distance_to(self.start_location)
-                distance_enemy = min(distance_point.distance_to(e) for e in self.enemy_start_locations)
-                advantage_defender = (distance_ref + distance_enemy) / (distance_ref + distance_self)
+                advantage_defender = 2 * (1 - self.heat_map[unit.position.rounded])
 
                 advantage_creep = 1
                 creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id)
@@ -876,10 +857,7 @@ class CommonAI(BotAI):
                 advantage *= advantage_creep
                 advantage_threshold = 1
 
-                if 0 < gradient.length:
-                    retreat_target = unit.position - 12 * gradient.normalized
-                else:
-                    retreat_target = unit.position.towards(target, -12)
+                retreat_target = unit.position - 3 * gradient
 
                 if advantage < advantage_threshold / 3:
 

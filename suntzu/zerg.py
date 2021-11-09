@@ -48,7 +48,7 @@ class ZergAI(CommonAI):
     def __init__(self, strategy: ZergStrategy = None, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
 
-        # strategy = HatchFirst()
+        strategy = HatchFirst()
 
         self.extractor_trick_enabled = False
         self.strategy: ZergStrategy = strategy
@@ -319,7 +319,7 @@ class ZergAI(CommonAI):
 
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
-            if upgrade not in self.state.upgrades:
+            if not self.observation.count(upgrade, include_planned=False):
                 return (upgrade,)
         return tuple()
 
@@ -474,13 +474,13 @@ class ZergAI(CommonAI):
             self.observation.actual_by_type[UnitTypeId.QUEEN],
             key=lambda q:q.tag)
 
-        macro_queen_count = max(0, round((1 - 2 * self.threat_level) * len(queens)))
+        macro_queen_count = max(0, round((1 - self.threat_level) * len(queens)))
         macro_queen_count = min(5, 1 + self.townhalls.amount, macro_queen_count)
         creep_queen_count = 1 if 2 < macro_queen_count else 0
 
         creep_queens = queens[0:creep_queen_count]
-        inject_queens = queens[creep_queen_count:macro_queen_count+creep_queen_count]
-        army_queens = queens[macro_queen_count+creep_queen_count:]
+        inject_queens = queens[creep_queen_count:macro_queen_count]
+        army_queens = queens[macro_queen_count:]
 
         self.creep_queens = { q.tag for q in creep_queens }
         self.army_queens = { q.tag for q in army_queens }
@@ -511,7 +511,7 @@ class ZergAI(CommonAI):
         if self.supply_left + supply_pending < supply_buffer:
             self.add_macro_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
 
-    def expand(self, saturation_target: float = .9):
+    def expand(self, saturation_target: float = 0.8):
         
         worker_max = self.get_max_harvester()
         if (
