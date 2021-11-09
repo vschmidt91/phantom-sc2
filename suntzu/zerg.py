@@ -385,7 +385,9 @@ class ZergAI(CommonAI):
         
         for queen in queens:
             if not self.has_creep(queen.position):
-                target = min(self.observation.actual_by_type[UnitTypeId.CREEPTUMORBURROWED], key=lambda c:queen.distance_to(c.position))
+                target = min(self.observation.actual_by_type[UnitTypeId.CREEPTUMORBURROWED], key=lambda c:queen.distance_to(c.position), default=None)
+                if not target:
+                    continue
                 queen.move(target)
 
         spreaders = [

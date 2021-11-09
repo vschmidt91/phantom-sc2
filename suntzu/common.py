@@ -773,18 +773,20 @@ class CommonAI(BotAI):
 
         enemy_map = np.zeros(self.game_info.map_size)
         for enemy in enemies:
-            for p in self.positions_in_range(enemy):
-                enemy_map[p] += unitValue(enemy)
+            enemy_map[enemy.position.rounded] += unitValue(enemy)
+            # for p in self.positions_in_range(enemy):
+            #     enemy_map[p] += unitValue(enemy)
 
         visibility = np.transpose(self.state.visibility.data_numpy)
         self.enemy_map = np.where(visibility == 2, enemy_map, self.enemy_map)
 
         friend_map = np.zeros(self.game_info.map_size)
         for friend in friends:
-            for p in self.positions_in_range(friend):
-                friend_map[p] += unitValue(friend)
+            friend_map[friend.position.rounded] += unitValue(friend)
+            # for p in self.positions_in_range(friend):
+            #     friend_map[p] += unitValue(friend)
 
-        blur_sigma = 10
+        blur_sigma = 8
         self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
         self.friend_map = ndimage.gaussian_filter(friend_map, blur_sigma)
         # self.enemy_map_blur = self.enemy_map
