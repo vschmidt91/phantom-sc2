@@ -622,9 +622,6 @@ class CommonAI(BotAI):
                 unit.return_resource()
                 queue = True
 
-            if plan.item == UnitTypeId.RAVAGER:
-                queue = queue
-
             if not unit(plan.ability["ability"], target=plan.target, queue=queue):
                 if self.debug:
                     print("objective failed:" + str(plan))
@@ -774,7 +771,7 @@ class CommonAI(BotAI):
         for friend in friends:
             friend_map[friend.position.rounded] += unitValue(friend)
 
-        blur_sigma = 8.5
+        blur_sigma = 12
         self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
         self.friend_map = ndimage.gaussian_filter(friend_map, blur_sigma)
         # self.enemy_map_blur = self.enemy_map
