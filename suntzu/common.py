@@ -426,7 +426,7 @@ class CommonAI(BotAI):
             z = self.get_terrain_z_height(p)
             self.client.debug_text_world(f'{i}', Point3((*p, z)))
 
-        # map_scale = 1 / 10
+        # map_scale = 1 / 1000
         # self.debug_draw_map(self.friend_map, color=(0, 255, 0), scale=map_scale)
         # self.debug_draw_map(self.enemy_map_blur, color=(255, 0, 0), scale=map_scale)
 
@@ -443,15 +443,13 @@ class CommonAI(BotAI):
 
     def debug_draw_map(self, map: np.ndarray, color: tuple = (255, 255, 255), scale: float = 1):
 
-        for (i, j), v in np.ndenumerate(map):
+        for (x, y), v in np.ndenumerate(map):
 
             if scale * v < .1:
                 continue
 
-            px = (i + .5) / map.shape[0] * self.game_info.map_size[0]
-            py = (j + .5) / map.shape[1] * self.game_info.map_size[1]
-            pz = self.get_terrain_z_height(Point2((px, py)))
-            p = Point3((px, py, pz))
+            z = self.get_terrain_z_height(Point2((x, y)))
+            p = Point3((x, y, z))
             self.client.debug_sphere_out(p, scale * v, color)
 
     @property
@@ -751,6 +749,19 @@ class CommonAI(BotAI):
 
         return None, None
 
+    def positions_in_range(self, unit: Unit) -> Iterable[Point2]:
+        unit_range = math.ceil(max(unit.ground_range, unit.air_range))
+        xm, ym = unit.position.rounded
+        x0 = max(0, xm - unit_range)
+        y0 = max(0, ym - unit_range)
+        x1 = min(self.game_info.map_size[0], xm + unit_range + 1)
+        y1 = min(self.game_info.map_size[1], ym + unit_range + 1)
+        for x in range(x0, x1):
+            for y in range(y0, y1):
+                p = Point2((x, y))
+                if unit.distance_to(p) <= unit_range:
+                    yield p
+
     async def micro(self):
 
         friends = list(self.enumerate_army())
@@ -762,16 +773,18 @@ class CommonAI(BotAI):
 
         enemy_map = np.zeros(self.game_info.map_size)
         for enemy in enemies:
-            enemy_map[enemy.position.rounded] += unitValue(enemy)
+            for p in self.positions_in_range(enemy):
+                enemy_map[p] += unitValue(enemy)
 
         visibility = np.transpose(self.state.visibility.data_numpy)
         self.enemy_map = np.where(visibility == 2, enemy_map, self.enemy_map)
 
         friend_map = np.zeros(self.game_info.map_size)
         for friend in friends:
-            friend_map[friend.position.rounded] += unitValue(friend)
+            for p in self.positions_in_range(friend):
+                friend_map[p] += unitValue(friend)
 
-        blur_sigma = 12
+        blur_sigma = 4
         self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
         self.friend_map = ndimage.gaussian_filter(friend_map, blur_sigma)
         # self.enemy_map_blur = self.enemy_map
