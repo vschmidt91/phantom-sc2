@@ -12,7 +12,7 @@ class RoachRush(ZergMacro):
 
     def __init__(self):
         super().__init__()
-        self.tech_time = 4.5 * 60
+        self.tech_time = 4.25 * 60
 
     def build_order(self) -> Iterable[Union[UnitTypeId, UpgradeId]]:
         return [
