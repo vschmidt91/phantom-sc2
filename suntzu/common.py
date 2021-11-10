@@ -136,6 +136,8 @@ class CommonAI(BotAI):
             print(error)
 
         for effect in self.state.effects:
+            if effect.id != EffectId.RAVAGERCORROSIVEBILECP:
+                continue
             position = next(iter(effect.positions))
             if any(c.position == effect.positions for c in self.corrosive_biles):
                 continue
@@ -144,7 +146,7 @@ class CommonAI(BotAI):
 
         while (
             0 < len(self.corrosive_biles)
-            and self.corrosive_biles[0].frame_expires < self.state.game_loop
+            and self.corrosive_biles[0].frame_expires <= self.state.game_loop
         ):
             self.corrosive_biles.pop(0)
 
@@ -775,7 +777,7 @@ class CommonAI(BotAI):
             for e in self.enemy_units(DODGE_UNITS)
         ))
         dodge_elements.extend((
-            (c.position, 1)
+            (c.position, 0.5)
             for c in self.corrosive_biles
             if c.frame_expires < self.state.game_loop + 10
         ))
@@ -858,7 +860,7 @@ class CommonAI(BotAI):
 
                 advantage = 1
                 advantage *= advantage_army
-                advantage *= advantage_defender
+                # advantage *= advantage_defender
                 advantage *= advantage_creep
                 advantage_threshold = 1
 
