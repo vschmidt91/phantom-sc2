@@ -54,6 +54,8 @@ def solve_poisson(boundary: np.ndarray, sources: Dict[Point2, float], x0: np.nda
         if r < 3e-5:
             break
 
+    x = np.where(boundary, 0, x)
+
     return x
 
 def solve_poisson_full(boundary: np.ndarray, sources: Dict[Point2, float], omega: float):

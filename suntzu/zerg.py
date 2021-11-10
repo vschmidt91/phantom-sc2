@@ -27,7 +27,7 @@ from .strategies.zerg_strategy import ZergStrategy
 from .timer import run_timed
 from .constants import CHANGELINGS, CREEP_ABILITIES, SUPPLY_PROVIDED
 from .common import CommonAI, PerformanceMode
-from .utils import center, sample
+from .utils import armyValue, center, sample
 from .constants import BUILD_ORDER_PRIORITY, WITH_TECH_EQUIVALENTS, REQUIREMENTS, ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
 from .cost import Cost
 from .macro_plan import MacroPlan
@@ -95,7 +95,10 @@ class ZergAI(CommonAI):
 
         creep_targets = []
         creep_targets.append(self.game_info.map_center)
-        creep_targets.extend(self.expansion_locations_list)
+        creep_targets.extend((
+            0.5 * (a + b)
+            for a in self.expansion_locations_list
+            for b in self.expansion_locations_list))
         creep_targets.extend(r.top_center for r in self.game_info.map_ramps)
         self.creep_targets = {
             t for t in creep_targets
@@ -446,11 +449,17 @@ class ZergAI(CommonAI):
         def proportion(a, b):
             return a / (a + b)
 
-        self.threat_level = max(
-            (proportion(self.enemy_map_blur[base.position.rounded], max(1, self.friend_map[base.position.rounded]))
-            for base in self.bases
-            if base.townhall),
-            default=1)
+        # self.threat_level = max(
+        #     (proportion(self.enemy_map_blur[base.position.rounded], max(1, self.friend_map[base.position.rounded]))
+        #     for base in self.bases
+        #     if base.townhall),
+        #     default=1)
+
+        value_self = armyValue(self.enumerate_army())
+        value_enemy = np.sum(self.enemy_map * (1 - self.heat_map))
+
+        self.threat_level = value_enemy / (1 + value_self + value_enemy)
+        self.threat_level = max(0, min(1, self.threat_level))
 
 
     async def manage_queens(self):

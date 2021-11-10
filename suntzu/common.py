@@ -96,6 +96,7 @@ class CommonAI(BotAI):
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
         self.corrosive_biles: List[CorrosiveBile] = list()
         self.heat_map = None
+        self.heat_map_sum = 0
         self.heat_map_gradient = None
 
     def destroy_destructables(self):
@@ -379,7 +380,7 @@ class CommonAI(BotAI):
             heat_map = 1 - heat_map
 
         self.heat_map = heat_map
-        self.heat_map_gradient = np.gradient(heat_map)
+        self.heat_map_gradient = np.stack(np.gradient(heat_map), axis=-1)
 
     def draw_debug(self):
 
@@ -765,7 +766,7 @@ class CommonAI(BotAI):
             # for p in self.positions_in_range(friend):
             #     friend_map[p] += unitValue(friend)
 
-        blur_sigma = 10
+        blur_sigma = 7
         self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
         self.friend_map = ndimage.gaussian_filter(friend_map, blur_sigma)
         # self.enemy_map_blur = self.enemy_map
@@ -822,10 +823,7 @@ class CommonAI(BotAI):
 
             target = max(enemies, key=target_priority, default=None)
 
-            heat_gradient = Point2((
-                self.heat_map_gradient[0][unit.position.rounded],
-                self.heat_map_gradient[1][unit.position.rounded],
-            ))
+            heat_gradient = Point2(self.heat_map_gradient[unit.position.rounded[0], unit.position.rounded[1],:])
             if 0 < heat_gradient.length:
                 heat_gradient = heat_gradient.normalized
 
