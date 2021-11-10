@@ -48,7 +48,7 @@ class ZergAI(CommonAI):
     def __init__(self, strategy: ZergStrategy = None, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
 
-        strategy = HatchFirst()
+        strategy = RoachRush()
 
         self.extractor_trick_enabled = False
         self.strategy: ZergStrategy = strategy

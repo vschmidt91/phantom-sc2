@@ -509,7 +509,10 @@ class CommonAI(BotAI):
             plan = self.macro_plans[i]
             i += 1
 
-            if any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
+            if (
+                any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False))
+                and plan.priority < BUILD_ORDER_PRIORITY
+            ):
                 continue
 
             cost = self.cost[plan.item]
@@ -530,13 +533,16 @@ class CommonAI(BotAI):
 
             if unit.type_id != UnitTypeId.LARVA:
                 plan.unit = unit.tag
-                exclude.add(plan.unit)
+            exclude.add(plan.unit)
 
             if plan.target is None:
                 try:
                     plan.target = await self.get_target(unit, plan)
                 except PlacementNotFound as p: 
                     continue
+
+            if any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
+                continue
 
             if (
                 plan.target
@@ -579,8 +585,8 @@ class CommonAI(BotAI):
                     plan.target = None
                     continue
 
-            # if took_action:
-            #     continue
+            if took_action and plan.priority == BUILD_ORDER_PRIORITY:
+                continue
 
             queue = False
             if unit.is_carrying_resource:
@@ -666,11 +672,11 @@ class CommonAI(BotAI):
         elif type(item) is UpgradeId:
             trainer_types = WITH_TECH_EQUIVALENTS[UPGRADE_RESEARCHED_FROM[item]]
 
-        trainers = (
+        trainers = sorted((
             trainer
             for trainer_type in trainer_types
             for trainer in self.observation.actual_by_type[trainer_type]
-        )
+        ), key=lambda t:t.tag)
             
         for trainer in trainers:
 
