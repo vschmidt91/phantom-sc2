@@ -218,7 +218,7 @@ class ZergAI(CommonAI):
             self.extractor_trick: 1,
             self.morph_overlords: 1,
             self.make_composition: 1,
-            self.upgrade: 1,
+            self.make_tech: 1,
             self.expand: 1,
             self.micro: 1,
             self.macro: 1,
@@ -303,7 +303,7 @@ class ZergAI(CommonAI):
         else:
             return []
 
-    def upgrade(self):
+    def make_tech(self):
         upgrades = chain(*(self.upgrades_by_unit(unit) for unit in self.composition))
         upgrades = list(dict.fromkeys(upgrades))
         upgrades = [u for u in upgrades if self.strategy.filter_upgrade(self, u)]
@@ -314,7 +314,8 @@ class ZergAI(CommonAI):
         )
         targets = list(dict.fromkeys(targets))
         for target in targets:
-            if not sum(self.observation.count(t) for t in WITH_TECH_EQUIVALENTS.get(target, { target })):
+            equivalents =  WITH_TECH_EQUIVALENTS.get(target, { target })
+            if sum(self.observation.count(t) for t in equivalents) == 0:
                 self.add_macro_plan(MacroPlan(target))
 
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
@@ -374,7 +375,7 @@ class ZergAI(CommonAI):
         targets = {
             t
             for t in targets
-            if (not self.has_creep(t) and self.in_placement_grid(t))
+            if (not self.has_creep(t) and self.in_pathing_grid(t))
         }
 
         if not targets:
