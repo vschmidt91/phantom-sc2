@@ -130,6 +130,7 @@ class CommonAI(BotAI):
         if 1 < self.time and self.greet_enabled:
             for tag in self.tags:
                 await self.client.chat_send('Tag:' + tag, True)
+            await self.client.chat_send('Rushes disabled ... for now :)', False)
             self.greet_enabled = False
 
         for error in self.state.action_errors:
@@ -860,11 +861,11 @@ class CommonAI(BotAI):
 
                 advantage = 1
                 advantage *= advantage_army
-                # advantage *= advantage_defender
+                advantage *= advantage_defender
                 advantage *= advantage_creep
                 advantage_threshold = 1
 
-                retreat_target = unit.position - 3 * gradient
+                retreat_target = unit.position - 12 * gradient
 
                 if advantage < advantage_threshold / 3:
 
@@ -923,6 +924,8 @@ class CommonAI(BotAI):
                 for b in self.bases:
                     if b.townhall:
                         continue
+                    # if not b.remaining:
+                    #     continue
                     if not await self.can_place_single(target, b.position):
                         continue
                     return b.position

@@ -26,8 +26,7 @@ class ZergMacro(ZergStrategy):
         # ratio = 2 * bot.threat_level
     
         if bot.time < self.tech_time:
-            if bot.observation.count(UpgradeId.ZERGLINGMOVEMENTSPEED):
-                composition[UnitTypeId.ZERGLING] = 2 + int(ratio * 12)
+            composition[UnitTypeId.ZERGLING] = 2 + int(ratio * 12)
         elif not bot.observation.count(UpgradeId.ZERGGROUNDARMORSLEVEL1, include_planned=False) or bot.enemy_race == Race.Zerg:
             composition[UnitTypeId.OVERSEER] = 1
             composition[UnitTypeId.ROACH] = int(ratio * 50)
@@ -51,6 +50,4 @@ class ZergMacro(ZergStrategy):
         return self.tech_time < bot.time
 
     def filter_upgrade(self, bot, upgrade) -> bool:
-        if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
-            return False
         return True
