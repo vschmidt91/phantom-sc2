@@ -4,10 +4,9 @@ import itertools
 from scipy.signal import convolve2d, resample
 from scipy.ndimage import zoom
 from typing import Mapping, Dict, Tuple
-import cv2
+# import cv2
 
 from sc2.position import Point2
-
 
 def solve_poisson(boundary: np.ndarray, sources: Dict[Point2, float], x0: np.ndarray, omega: float) -> np.ndarray:
 
@@ -60,7 +59,8 @@ def solve_poisson(boundary: np.ndarray, sources: Dict[Point2, float], x0: np.nda
     return x
 
 def resize(array: np.ndarray, shape: Tuple[int, int]) -> np.ndarray:
-    resized = cv2.resize(array, (shape[1], shape[0]), interpolation=cv2.INTER_LINEAR)
+    # resized = cv2.resize(array, (shape[1], shape[0]), interpolation=cv2.INTER_LINEAR)
+    resized = array
     return resized
 
 def solve_poisson_full(boundary: np.ndarray, sources: Dict[Point2, float], omega: float):
@@ -83,8 +83,5 @@ def solve_poisson_full(boundary: np.ndarray, sources: Dict[Point2, float], omega
     x0 = xh
     x0 = resize(x0, boundary.shape)
     x = solve_poisson(boundary, sources, x0, omega)
-
-    # x = (1 - boundary) * x + boundary
-    # matplotlib.pyplot.imshow(x)
 
     return x

@@ -60,7 +60,6 @@ DODGE_UNITS = {
     UnitTypeId.NUKE,
 }
 
-
 class PlacementNotFound(Exception):
     pass
 

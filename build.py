@@ -46,4 +46,5 @@ if __name__ == '__main__':
     zipBot(zipFile)
     zipLibrary(zipFile, 'sc2')
     zipLibrary(zipFile, 'suntzu')
+    zipLibrary(zipFile, 'data')
     zipFile.close()

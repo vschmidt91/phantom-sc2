@@ -3,6 +3,7 @@ from typing import Union, Iterable, Dict
 
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.data import Race
 
 from .zerg_strategy import ZergStrategy
 from ..observation import Observation
@@ -27,8 +28,7 @@ class ZergMacro(ZergStrategy):
         if bot.time < self.tech_time:
             if bot.observation.count(UpgradeId.ZERGLINGMOVEMENTSPEED):
                 composition[UnitTypeId.ZERGLING] = 2 + int(ratio * 12)
-        elif not bot.observation.count(UpgradeId.ZERGGROUNDARMORSLEVEL1, include_planned=False):
-            # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
+        elif not bot.observation.count(UpgradeId.ZERGGROUNDARMORSLEVEL1, include_planned=False) or bot.enemy_race == Race.Zerg:
             composition[UnitTypeId.OVERSEER] = 1
             composition[UnitTypeId.ROACH] = int(ratio * 50)
             composition[UnitTypeId.RAVAGER] = int(ratio * 10)
