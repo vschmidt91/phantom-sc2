@@ -12,6 +12,7 @@ from sc2.player import Bot, Computer
 from suntzu.zerg import ZergAI
 from suntzu.common import PerformanceMode
 from suntzu.dummy import DummyAI
+from suntzu.strategies.pool12_allin import Pool12AllIn
 
 # Start game
 if __name__ == "__main__":
@@ -27,9 +28,13 @@ if __name__ == "__main__":
 
         time = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
         replayPath = os.path.join("replays", time + ".SC2Replay")
+        kwargs = {
+
+        }
         bot = Bot(Race.Zerg, ZergAI(game_step = 8, debug = True, performance = PerformanceMode.DEFAULT), 'Sun Tzu')   
         # opponent = Bot(Race.Random, DummyAI())
         opponent = Computer(Race.Terran, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
+        # opponent = Bot(Race.Zerg, ZergAI(performance = PerformanceMode.HIGH_PERFORMANCE, strategy = Pool12AllIn()), 'Pool12AllIn')   
         run_game(
             sc2.maps.get('2000AtmospheresAIE'),
             [bot, opponent],

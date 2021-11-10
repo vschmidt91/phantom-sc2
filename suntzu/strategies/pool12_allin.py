@@ -1,5 +1,5 @@
 
-from typing import Union, Iterable, Dict
+from typing import Union, Iterable, Dict, Set
 
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -14,6 +14,7 @@ class Pool12AllIn(ZergStrategy):
 
     def __init__(self):
         super().__init__()
+        self.pack: Set[int] = set()
 
     def build_order(self) -> Iterable[Union[UnitTypeId, UpgradeId]]:
         return [
@@ -33,20 +34,36 @@ class Pool12AllIn(ZergStrategy):
         ]
 
     def update(self, bot):
+
         worker_target = 11 * bot.townhalls.ready.amount
-        food_planned = sum(bot.cost[plan.item].food for plan in bot.macro_plans)
-        supply_planned = sum(n * bot.observation.count(t, include_actual=False) for t, n in SUPPLY_PROVIDED.items())
-        if bot.observation.count(UnitTypeId.DRONE) < worker_target:
-            bot.add_macro_plan(MacroPlan(UnitTypeId.DRONE))
-        if not bot.observation.count(UnitTypeId.ZERGLING, include_actual=False, include_pending=False):
-            bot.add_macro_plan(MacroPlan(UnitTypeId.ZERGLING))
-        if bot.observation.count(UnitTypeId.QUEEN) < bot.townhalls.amount:
+
+        # spend larva
+        if bot.supply_cap <= bot.supply_used:
+            if not bot.observation.planned_by_type[UnitTypeId.OVERLORD]:
+                bot.add_macro_plan(MacroPlan(UnitTypeId.OVERLORD))
+        elif bot.observation.count(UnitTypeId.DRONE) < worker_target:
+            if not bot.observation.planned_by_type[UnitTypeId.DRONE]:
+                bot.add_macro_plan(MacroPlan(UnitTypeId.DRONE))
+        elif not bot.observation.planned_by_type[UnitTypeId.ZERGLING]:
+            if not bot.observation.planned_by_type[UnitTypeId.ZERGLING]:
+                bot.add_macro_plan(MacroPlan(UnitTypeId.ZERGLING))
+
+        # spend bank
+        elif bot.observation.count(UnitTypeId.QUEEN) < bot.observation.count(UnitTypeId.HATCHERY, include_planned=False):
             bot.add_macro_plan(MacroPlan(UnitTypeId.QUEEN))
-        if bot.supply_cap + supply_planned < bot.supply_used + food_planned:
-            bot.add_macro_plan(MacroPlan(UnitTypeId.OVERLORD))
-        if 300 <= bot.minerals:
-            if not bot.observation.count(UnitTypeId.HATCHERY, include_actual=False):
-                bot.add_macro_plan(MacroPlan(UnitTypeId.HATCHERY))
+        elif not bot.observation.planned_by_type[UnitTypeId.HATCHERY]:
+            bot.add_macro_plan(MacroPlan(UnitTypeId.HATCHERY, priority=-1))
+
+        for ling in bot.observation.actual_by_type[UnitTypeId.ZERGLING]:
+            if ling.is_idle:
+                self.pack.add(ling.tag)
+
+        if 6 <= len(self.pack):
+            for tag in self.pack:
+                ling = bot.observation.unit_by_tag.get(tag)
+                if ling:
+                    ling.attack(bot.enemy_start_locations[0])
+            self.pack.clear()
 
     def gas_target(self, bot) -> int:
         if bot.observation.count(UpgradeId.ZERGLINGMOVEMENTSPEED, include_planned=False):
@@ -55,3 +72,13 @@ class Pool12AllIn(ZergStrategy):
             return 0
         else:
             return 3
+
+    def steps(self, bot):
+        return {
+            bot.update_observation: 1,
+            bot.update_bases: 1,
+            bot.update_gas: 1,
+            bot.manage_queens: 1,
+            bot.macro: 1,
+            bot.update_strategy: 1,
+        }

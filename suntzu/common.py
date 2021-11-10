@@ -46,7 +46,7 @@ from .utils import *
 from .corrosive_bile import CorrosiveBile
  
 DODGE_EFFECTS = {
-    EffectId.THERMALLANCESFORWARD,
+    # EffectId.THERMALLANCESFORWARD,
     EffectId.LURKERMP,
     # EffectId.NUKEPERSISTENT,
     # EffectId.RAVAGERCORROSIVEBILECP,
@@ -70,7 +70,7 @@ class PerformanceMode(Enum):
 class CommonAI(BotAI):
 
     def __init__(self,
-        game_step: int = 1,
+        game_step: Optional[int] = None,
         debug: bool = False,
         performance: PerformanceMode = PerformanceMode.DEFAULT,
         version_path: str = './version.txt',
@@ -102,7 +102,8 @@ class CommonAI(BotAI):
         return True
 
     async def on_before_start(self):
-        self.client.game_step = self.game_step
+        if self.game_step is not None:
+            self.client.game_step = self.game_step
         self.cost = dict()
         for unit in UnitTypeId:
             try:
@@ -119,6 +120,7 @@ class CommonAI(BotAI):
                 pass
 
     async def on_start(self):
+        self.townhalls[0](AbilityId.RALLY_WORKERS, target=self.townhalls[0])
         self.enemy_map = np.zeros(self.game_info.map_size)
         self.enemy_map_blur = np.zeros(self.game_info.map_size)
         self.friend_map = np.zeros(self.game_info.map_size)
@@ -154,6 +156,8 @@ class CommonAI(BotAI):
         for worker in self.workers.idle:
             if any(plan.unit == worker.tag for plan in self.macro_plans):
                 continue
+            if worker.tag in self.bases.harvesters:
+                continue
             base = min(self.bases, key = lambda b : worker.distance_to(b.position))
             base.try_add(worker.tag)
 
@@ -168,9 +172,9 @@ class CommonAI(BotAI):
             base = next((b for b in self.bases if b.position == unit.position), None)
             if base:
                 base.townhall = unit.tag
-        if unit.type_id in race_townhalls[self.race]:
-            if self.mineral_field.exists:
-                unit.smart(self.mineral_field.closest_to(unit))
+        # if unit.type_id in race_townhalls[self.race]:
+        #     if self.mineral_field.exists:
+        #         unit.smart(self.mineral_field.closest_to(unit))
         pass
 
     async def on_enemy_unit_entered_vision(self, unit: Unit):
@@ -180,11 +184,11 @@ class CommonAI(BotAI):
         pass
 
     async def on_unit_created(self, unit: Unit):
-        if unit.type_id == race_worker[self.race]:
-            if self.time == 0:
-                return
-            base = min(self.bases, key = lambda b : unit.distance_to(b.position))
-            base.try_add(unit.tag)
+        # if unit.type_id == race_worker[self.race]:
+        #     if self.time == 0:
+        #         return
+        #     base = min(self.bases, key = lambda b : unit.distance_to(b.position))
+        #     base.try_add(unit.tag)
         pass
 
     async def on_unit_destroyed(self, unit_tag: int):
@@ -326,7 +330,7 @@ class CommonAI(BotAI):
                 default = None
             )
             minerals_to = min(
-                (b.mineral_patches for b in self.bases if 0 < b.mineral_patches.remaining),
+                (b.mineral_patches for b in self.bases if b.mineral_patches.harvester_balance < 0),
                 key = lambda m : m.harvester_balance,
                 default = None
             )
@@ -852,7 +856,7 @@ class CommonAI(BotAI):
                 enemies_rating = self.enemy_map_blur[unit.position.rounded]
                 advantage_army = friends_rating / max(1, enemies_rating)
 
-                advantage_defender = 2 * (1 - self.heat_map[unit.position.rounded])
+                advantage_defender = 1.5 - self.heat_map[unit.position.rounded]
 
                 advantage_creep = 1
                 creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id)
@@ -861,7 +865,7 @@ class CommonAI(BotAI):
 
                 advantage = 1
                 advantage *= advantage_army
-                advantage *= advantage_defender
+                # advantage *= advantage_defender
                 advantage *= advantage_creep
                 advantage_threshold = 1
 

@@ -63,8 +63,8 @@ class Base(ResourceGroup[Resource]):
             (VespeneGeyser(g) for g in gasses),
             key = lambda g : g.position.distance_to(townhall_position)
         ), townhall_position)
-        self.mineral_patches.balance_aggressively = True
-        self.vespene_geysers.balance_aggressively = True
+        # self.mineral_patches.balance_aggressively = True
+        # self.vespene_geysers.balance_aggressively = True
         self.fix_speedmining_positions()
         self.townhall: Optional[int] = None
         super().__init__([self.mineral_patches, self.vespene_geysers], townhall_position)

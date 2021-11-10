@@ -48,7 +48,7 @@ class ZergAI(CommonAI):
     def __init__(self, strategy: ZergStrategy = None, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
 
-        strategy = HatchFirst()
+        strategy = strategy or HatchFirst()
 
         self.extractor_trick_enabled = False
         self.strategy: ZergStrategy = strategy
@@ -57,6 +57,7 @@ class ZergAI(CommonAI):
         self.army_queens: Set[int] = set()
         self.creep_queens: Set[int] = set()
         self.creep_targets: Set[Point2] = set()
+        self.threat_level = 0
 
     def destroy_destructables(self):
         return self.strategy.destroy_destructables(self)
@@ -210,29 +211,30 @@ class ZergAI(CommonAI):
         if iteration == 0:
             return
 
-        steps = {
-            # self.kill_random_unit: 100,
-            self.draw_debug: 1,
-            self.assess_threat_level: 1,
-            self.update_observation: 1,
-            self.update_bases: 1,
-            self.update_composition: 1,
-            self.update_gas: 1,
-            self.manage_queens: 1,
-            self.spread_creep: 1,
-            self.scout: 1,
-            self.extractor_trick: 1,
-            self.morph_overlords: 1,
-            self.make_composition: 1,
-            self.make_tech: 1,
-            self.expand: 1,
-            self.micro: 1,
-            self.macro: 1,
-            self.transfuse: 1,
-            self.corrosive_bile: 1,
-            self.update_strategy: 1,
-            self.save_enemy_positions: 1,
-        }
+        steps = self.strategy.steps(self)
+        # {
+        #     # self.kill_random_unit: 100,
+        #     self.draw_debug: 1,
+        #     self.assess_threat_level: 1,
+        #     self.update_observation: 1,
+        #     self.update_bases: 1,
+        #     self.update_composition: 1,
+        #     self.update_gas: 1,
+        #     self.manage_queens: 1,
+        #     self.spread_creep: 1,
+        #     self.scout: 1,
+        #     self.extractor_trick: 1,
+        #     self.morph_overlords: 1,
+        #     self.make_composition: 1,
+        #     self.make_tech: 1,
+        #     # self.expand: 1,
+        #     # self.micro: 1,
+        #     self.macro: 1,
+        #     self.transfuse: 1,
+        #     self.corrosive_bile: 1,
+        #     self.update_strategy: 1,
+        #     self.save_enemy_positions: 1,
+        # }
 
         steps_filtered = [s for s, m in steps.items() if iteration % m == 0]
             
@@ -393,15 +395,16 @@ class ZergAI(CommonAI):
 
         def priority(p):
             s = 1
-            s /= 1 + max((t.distance_to(p) for t in self.townhalls), default=0) + spreader.distance_to(p)
+            s /= 1 + max((t.distance_to(p) for t in self.townhalls), default=0) + 2 * spreader.distance_to(p)
             return s
         
         target = max(targets, key=priority)
         towards_target = spreader.position.towards(target, CREEP_RANGE)
 
-        position_sigma = 3
-        for i in range(num_attempts):
-            position = np.random.normal(towards_target, position_sigma * i / num_attempts)
+        sigma_max = 2
+        for i in range(1 + num_attempts):
+            sigma = sigma_max * i / num_attempts
+            position = np.random.normal(towards_target, sigma * sigma)
             position = Point2(position).rounded
             if CREEP_RANGE  < spreader.distance_to(position):
                 continue

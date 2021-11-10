@@ -51,3 +51,28 @@ class ZergMacro(ZergStrategy):
 
     def filter_upgrade(self, bot, upgrade) -> bool:
         return True
+
+    def steps(self, bot):
+        return {
+            # self.kill_random_unit: 100,
+            bot.draw_debug: 1,
+            bot.assess_threat_level: 1,
+            bot.update_observation: 1,
+            bot.update_bases: 1,
+            bot.update_composition: 1,
+            bot.update_gas: 1,
+            bot.manage_queens: 1,
+            bot.spread_creep: 1,
+            bot.scout: 1,
+            bot.extractor_trick: 1,
+            bot.morph_overlords: 1,
+            bot.make_composition: 1,
+            bot.make_tech: 1,
+            bot.expand: 1,
+            bot.micro: 1,
+            bot.macro: 1,
+            bot.transfuse: 1,
+            bot.corrosive_bile: 1,
+            bot.update_strategy: 1,
+            bot.save_enemy_positions: 1,
+        }

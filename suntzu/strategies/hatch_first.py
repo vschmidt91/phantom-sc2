@@ -15,6 +15,24 @@ class HatchFirst(ZergMacro):
         self.tech_time = 3.75 * 60
 
     def build_order(self) -> Iterable[Union[UnitTypeId, UpgradeId]]:
+        # return [
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.OVERLORD,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.HATCHERY,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.EXTRACTOR,
+        #     UnitTypeId.SPAWNINGPOOL,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.OVERLORD,
+        #     UpgradeId.ZERGLINGMOVEMENTSPEED,
+        # ]
         return [
             UnitTypeId.DRONE,
             UnitTypeId.OVERLORD,
@@ -25,13 +43,18 @@ class HatchFirst(ZergMacro):
             UnitTypeId.HATCHERY,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
             UnitTypeId.EXTRACTOR,
             UnitTypeId.SPAWNINGPOOL,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
             UnitTypeId.OVERLORD,
-            # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
+            UnitTypeId.QUEEN,
+            UnitTypeId.QUEEN,
             UpgradeId.ZERGLINGMOVEMENTSPEED,
         ]
+
+    def update(self, bot):
+        if bot.supply_used == 14:
+            bot.extractor_trick_enabled = True
+        return super().update(bot)

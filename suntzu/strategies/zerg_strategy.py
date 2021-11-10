@@ -31,3 +31,6 @@ class ZergStrategy(object):
 
     def name(self) -> str:
         return type(self).__name__
+
+    def steps(self, bot):
+        return {}
