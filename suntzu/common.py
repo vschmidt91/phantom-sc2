@@ -58,6 +58,7 @@ DODGE_UNITS = {
     UnitTypeId.WIDOWMINEWEAPON,
     UnitTypeId.WIDOWMINEAIRWEAPON,
     UnitTypeId.NUKE,
+    UnitTypeId.BANELING,
 }
 
 class PlacementNotFound(Exception):
@@ -837,8 +838,10 @@ class CommonAI(BotAI):
             gradient = heat_gradient + enemy_gradient
             if 0 < gradient.length:
                 gradient = gradient.normalized
-            else:
+            elif target and 0 < unit.distance_to(target):
                 gradient = (unit.position - target.position).normalized
+            elif 0 < unit.distance_to(self.start_location):
+                gradient = (unit.position - self.start_location).normalized
 
             if target and 0 < target_priority(target):
 
@@ -984,7 +987,7 @@ class CommonAI(BotAI):
 
     def blocked_base(self, position: Point2) -> Optional[Point]:
         px, py = position
-        radius = self.game_data.units[UnitTypeId.HATCHERY.value].footprint_radius
+        radius = 3
         for base in self.expansion_locations_list:
             bx, by = base
             if abs(px - bx) < radius:

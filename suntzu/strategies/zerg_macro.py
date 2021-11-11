@@ -20,7 +20,7 @@ class ZergMacro(ZergStrategy):
         # ratio = bot.threat_level
 
         composition = {
-            UnitTypeId.DRONE: int((1 - bot.threat_level) * worker_target),
+            UnitTypeId.DRONE: int(min(1, 1.5 - bot.threat_level) * worker_target),
             UnitTypeId.QUEEN: min(8, 2 * bot.townhalls.amount),
         }
         if 4 <= bot.townhalls.amount:
