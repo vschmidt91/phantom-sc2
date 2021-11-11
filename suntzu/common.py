@@ -445,7 +445,7 @@ class CommonAI(BotAI):
                     color=font_color,
                     size=font_size)
 
-        self.client.debug_text_screen(f'Threat: {self.threat_level}', (0.01, 0.01))
+        self.client.debug_text_screen(f'Threat Level: {round(100 * self.threat_level)}%', (0.01, 0.01))
         for i, plan in enumerate(self.macro_plans):
             self.client.debug_text_screen(f'{1+i} {plan.item.name}', (0.01, 0.1 + 0.01 * i))
 

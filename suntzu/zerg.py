@@ -60,6 +60,8 @@ class ZergAI(CommonAI):
         self.creep_area_min: np.ndarray = None
         self.creep_area_max: np.ndarray = None
         self.inactive_tumors: Set[int] = set()
+        self.creep_coverage: float = 0
+        self.creep_tile_count: int = 1
 
     def destroy_destructables(self):
         return self.strategy.destroy_destructables(self)
@@ -103,6 +105,8 @@ class ZergAI(CommonAI):
             max(p[i] for p in self.expansion_locations_list)
             for i in range(2)
         ])
+
+        self.creep_tile_count = np.sum(self.game_info.pathing_grid.data_numpy)
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         if unit.type_id == UnitTypeId.LAIR:
@@ -236,6 +240,10 @@ class ZergAI(CommonAI):
                 if inspect.isawaitable(result):
                     result = await result
 
+    def draw_debug(self):
+        self.client.debug_text_screen(f'Creep Coverage: {round(100 * self.creep_coverage)}%', (0.01, 0.02))
+        return super().draw_debug()
+
     def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
         if unit == UnitTypeId.ZERGLING:
             return chain(
@@ -366,12 +374,16 @@ class ZergAI(CommonAI):
                 and not any(o.ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN for o in queen.orders)
             ):
                 spreaders.append(queen)
-
-        if not spreaders:
-            return
         
         valid_map = np.logical_and(self.state.creep.data_numpy == 0, self.game_info.pathing_grid.data_numpy == 1)
         valid_map = np.transpose(valid_map)
+
+        self.creep_coverage = np.sum(self.state.creep.data_numpy) / self.creep_tile_count
+        if .9 < self.creep_coverage:
+            return 
+
+        if not spreaders:
+            return
 
         spreader_abilities = await self.get_available_abilities(spreaders)
         for spreader, abilities in zip(spreaders, spreader_abilities):
