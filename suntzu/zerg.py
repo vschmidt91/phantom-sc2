@@ -345,24 +345,27 @@ class ZergAI(CommonAI):
 
     async def spread_creep(self):
 
-        queens = [self.observation.unit_by_tag[t] for t in self.creep_queens]
-        queens = [
-            q
-            for q in queens
-            if (
-                25 <= q.energy
-                and not any(o.ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN for o in q.orders)
-            )
+        spreaders = [
+            tumor 
+            for tumor in self.observation.actual_by_type[UnitTypeId.CREEPTUMORBURROWED]
+            if tumor.tag not in self.inactive_tumors
         ]
 
-        spreaders = [
-            *queens,
-            *(
-                tumor 
-                for tumor in self.observation.actual_by_type[UnitTypeId.CREEPTUMORBURROWED]
-                if tumor.tag not in self.inactive_tumors
-            )
-        ]
+        queens = [self.observation.unit_by_tag[t] for t in self.creep_queens]
+
+        for queen in queens:
+            if (
+                not self.has_creep(queen.position)
+                and not queen.is_moving
+                and self.townhalls.ready
+            ):
+                townhall = self.townhalls.ready.closest_to(queen)
+                queen.move(townhall)
+            elif (
+                25 <= queen.energy
+                and not any(o.ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN for o in queen.orders)
+            ):
+                spreaders.append(queen)
 
         if not spreaders:
             return
@@ -397,8 +400,8 @@ class ZergAI(CommonAI):
         if not target:
             return
 
-        for distance in range(CREEP_RANGE, CREEP_RANGE / 2, -1):
-            position = spreader.position.towards(target, distance)
+        for i in range(CREEP_RANGE, 0, -1):
+            position = spreader.position.towards(target, i)
             if not self.has_creep(position):
                 continue
             if not self.is_visible(position):

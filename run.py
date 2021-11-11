@@ -33,8 +33,8 @@ if __name__ == "__main__":
         }
         bot = Bot(Race.Zerg, ZergAI(game_step = 8, debug = True, performance = PerformanceMode.DEFAULT), 'Sun Tzu')   
         # opponent = Bot(Race.Random, DummyAI())
-        # opponent = Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
-        opponent = Bot(Race.Zerg, ZergAI(performance = PerformanceMode.HIGH_PERFORMANCE, strategy = Pool12AllIn()), 'Pool12AllIn')   
+        opponent = Computer(Race.Terran, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
+        # opponent = Bot(Race.Zerg, ZergAI(performance = PerformanceMode.HIGH_PERFORMANCE, strategy = Pool12AllIn()), 'Pool12AllIn')   
         run_game(
             sc2.maps.get('LightshadeAIE'),
             [bot, opponent],

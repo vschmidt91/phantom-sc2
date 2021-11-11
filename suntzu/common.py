@@ -798,7 +798,7 @@ class CommonAI(BotAI):
             # for p in self.positions_in_range(friend):
             #     friend_map[p] += unitValue(friend)
 
-        blur_sigma = 8.5
+        blur_sigma = 7
         self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
         self.friend_map = ndimage.gaussian_filter(friend_map, blur_sigma)
         # self.enemy_map_blur = self.enemy_map
@@ -1021,8 +1021,6 @@ class CommonAI(BotAI):
         radius = 3
         for base in self.expansion_locations_list:
             bx, by = base
-            if abs(px - bx) < radius:
-                return base
-            elif abs(py - by) < radius:
+            if abs(px - bx) < radius and abs(py - by) < radius:
                 return base
         return None
