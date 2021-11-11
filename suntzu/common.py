@@ -97,8 +97,8 @@ class CommonAI(BotAI):
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
         self.corrosive_biles: List[CorrosiveBile] = list()
         self.heat_map = None
-        self.heat_map_sum = 0
         self.heat_map_gradient = None
+        self.threat_level = 0
 
     def destroy_destructables(self):
         return True
@@ -126,7 +126,7 @@ class CommonAI(BotAI):
         self.enemy_map = np.zeros(self.game_info.map_size)
         self.enemy_map_blur = np.zeros(self.game_info.map_size)
         self.friend_map = np.zeros(self.game_info.map_size)
-        self.load_heat_map()
+        await self.load_heat_map()
         await self.initialize_bases()
 
     async def on_step(self, iteration: int):
@@ -304,7 +304,7 @@ class CommonAI(BotAI):
         else:
             gas_ratio = vespene / max(1, vespene + minerals)
         worker_type = race_worker[self.race]
-        gas_target = gas_ratio * self.observation.count(worker_type, include_planned=False)
+        gas_target = gas_ratio * self.observation.count(worker_type, include_planned=False, include_pending=False)
         gas_target = 3 * math.ceil(gas_target / 3)
         return gas_target
 
@@ -359,21 +359,41 @@ class CommonAI(BotAI):
                 for minerals in base.mineral_patches:
                     minerals.speed_mining_enabled = True
 
-    def load_heat_map(self):
+    async def load_heat_map(self):
         path = os.path.join('data', self.game_info.map_name + '.npy')
         try:
             with open(path, 'rb') as file:
                 heat_map = np.load(file, allow_pickle=True)
         except FileNotFoundError:
             print('creating heat map ...')
-            boundary = self.game_info.pathing_grid.data_numpy | self.game_info.placement_grid.data_numpy
-            boundary = np.transpose(boundary) == 0
-            sources = {
-                loc.rounded: 1.0
-                for loc in self.enemy_start_locations 
-            }
-            sources[self.start_location.rounded] = 0.0
-            heat_map = solve_poisson_full(boundary, sources, 1.95)
+
+            # boundary = self.game_info.pathing_grid.data_numpy | self.game_info.placement_grid.data_numpy
+            # boundary = np.transpose(boundary) == 0
+            # sources = {
+            #     loc.rounded: 1.0
+            #     for loc in self.enemy_start_locations 
+            # }
+            # sources[self.start_location.rounded] = 0.0
+            # heat_map = solve_poisson_full(boundary, sources, 1.95)
+
+            heat_map = np.zeros(self.game_info.map_size)
+            paths_self = await self.client.query_pathings([
+                [self.start_location, Point2(p)]
+                for p, _ in np.ndenumerate(heat_map)
+            ])
+            paths_enemy = await self.client.query_pathings([
+                [self.enemy_start_locations[0], Point2(p)]
+                for p, _ in np.ndenumerate(heat_map)
+            ])
+            for (p, _), p1, p2 in zip(np.ndenumerate(heat_map), paths_self, paths_enemy):
+                if not self.in_pathing_grid(Point2(p)):
+                    continue
+                if p1 == p2 == 0:
+                    continue
+                heat_map[p] = p1 / (p1 + p2)
+            heat_map[self.start_location.rounded] = 0.0
+            heat_map[self.enemy_start_locations[0].rounded] = 1.0
+
             with open(path, 'wb') as file:
                 np.save(file, heat_map)
 
@@ -418,6 +438,10 @@ class CommonAI(BotAI):
                     position,
                     color=font_color,
                     size=font_size)
+
+        self.client.debug_text_screen(f'Threat: {self.threat_level}', (0.01, 0.01))
+        for i, plan in enumerate(self.macro_plans):
+            self.client.debug_text_screen(f'{1+i} {plan.item.name}', (0.01, 0.1 + 0.01 * i))
 
         # for p, v in np.ndenumerate(self.heat_map):
         #     if not self.in_pathing_grid(Point2(p)):
@@ -481,6 +505,7 @@ class CommonAI(BotAI):
 
         requirements.append(info.get('required_building'))
         requirements.append(info.get('required_upgrade'))
+        requirements = [r for r in requirements if r is not UnitTypeId.LARVA]
         
         missing = set()
         i = 0
@@ -841,7 +866,7 @@ class CommonAI(BotAI):
             elif target and 0 < unit.distance_to(target):
                 gradient = (unit.position - target.position).normalized
             elif 0 < unit.distance_to(self.start_location):
-                gradient = (unit.position - self.start_location).normalized
+                gradient = (self.start_location - unit.position).normalized
 
             if target and 0 < target_priority(target):
 

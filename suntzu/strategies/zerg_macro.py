@@ -20,7 +20,7 @@ class ZergMacro(ZergStrategy):
         # ratio = bot.threat_level
 
         composition = {
-            UnitTypeId.DRONE: int(min(1, 1.5 - bot.threat_level) * worker_target),
+            UnitTypeId.DRONE: worker_target,
             UnitTypeId.QUEEN: min(8, 2 * bot.townhalls.amount),
         }
         if 4 <= bot.townhalls.amount:
@@ -28,7 +28,7 @@ class ZergMacro(ZergStrategy):
 
     
         if worker_count < 44:
-            composition[UnitTypeId.ZERGLING] = 2 + int(ratio * worker_count)
+            composition[UnitTypeId.ZERGLING] = 2 + int(2 * ratio * worker_count)
         elif not bot.observation.count(UpgradeId.ZERGGROUNDARMORSLEVEL1, include_planned=False) or bot.enemy_race == Race.Zerg:
             composition[UnitTypeId.OVERSEER] = 1
             composition[UnitTypeId.ROACH] = int(ratio * 50)

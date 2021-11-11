@@ -3,5 +3,7 @@ seperate ground/air maps
 
 handle blocked expansion (at least reassign the drone)
 expanding to mined out base
-creep spread bunching up
 chasing single units
+
+ling engages (generally vs longer ranger)
+remove dead harvesters

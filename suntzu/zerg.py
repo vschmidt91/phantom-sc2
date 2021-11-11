@@ -57,7 +57,6 @@ class ZergAI(CommonAI):
         self.army_queens: Set[int] = set()
         self.creep_queens: Set[int] = set()
         self.creep_targets: Set[Point2] = set()
-        self.threat_level = 0
 
     def destroy_destructables(self):
         return self.strategy.destroy_destructables(self)
@@ -469,7 +468,7 @@ class ZergAI(CommonAI):
             key=lambda q:q.tag)
 
         macro_queen_count = max(0, round((1 - self.threat_level) * len(queens)))
-        macro_queen_count = min(5, 1 + self.townhalls.amount, macro_queen_count)
+        macro_queen_count = min(6, 1 + self.townhalls.amount, macro_queen_count)
         creep_queen_count = 1 if 2 < macro_queen_count else 0
 
         creep_queens = queens[0:creep_queen_count]

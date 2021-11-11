@@ -39,7 +39,7 @@ class Observation(object):
     def add_unit(self, unit: Unit):
         self.unit_by_tag[unit.tag] = unit
         if unit.is_enemy:
-            pass
+            return
         elif not unit.is_mine:
             if unit.is_mineral_field:
                 self.resource_by_position[unit.position] = unit
