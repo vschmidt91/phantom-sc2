@@ -360,48 +360,54 @@ class CommonAI(BotAI):
                     minerals.speed_mining_enabled = True
 
     async def load_heat_map(self):
-        path = os.path.join('data', self.game_info.map_name + '.npy')
-        try:
-            with open(path, 'rb') as file:
-                heat_map = np.load(file, allow_pickle=True)
-        except FileNotFoundError:
-            print('creating heat map ...')
 
-            # boundary = self.game_info.pathing_grid.data_numpy | self.game_info.placement_grid.data_numpy
-            # boundary = np.transpose(boundary) == 0
-            # sources = {
-            #     loc.rounded: 1.0
-            #     for loc in self.enemy_start_locations 
-            # }
-            # sources[self.start_location.rounded] = 0.0
-            # heat_map = solve_poisson_full(boundary, sources, 1.95)
+        # path = os.path.join('data', self.game_info.map_name + '.npy')
+        # try:
+        #     with open(path, 'rb') as file:
+        #         heat_map = np.load(file, allow_pickle=True)
+        # except FileNotFoundError:
 
-            heat_map = np.zeros(self.game_info.map_size)
-            paths_self = await self.client.query_pathings([
-                [self.start_location, Point2(p)]
-                for p, _ in np.ndenumerate(heat_map)
-            ])
-            paths_enemy = await self.client.query_pathings([
-                [self.enemy_start_locations[0], Point2(p)]
-                for p, _ in np.ndenumerate(heat_map)
-            ])
-            for (p, _), p1, p2 in zip(np.ndenumerate(heat_map), paths_self, paths_enemy):
-                if not self.in_pathing_grid(Point2(p)):
-                    continue
-                if p1 == p2 == 0:
-                    continue
-                heat_map[p] = p1 / (p1 + p2)
-            heat_map[self.start_location.rounded] = 0.0
-            heat_map[self.enemy_start_locations[0].rounded] = 1.0
+        print('creating heat map ...')
 
-            with open(path, 'wb') as file:
-                np.save(file, heat_map)
+        # boundary = self.game_info.pathing_grid.data_numpy | self.game_info.placement_grid.data_numpy
+        # boundary = np.transpose(boundary) == 0
+        # sources = {
+        #     loc.rounded: 1.0
+        #     for loc in self.enemy_start_locations 
+        # }
+        # sources[self.start_location.rounded] = 0.0
+        # heat_map = solve_poisson_full(boundary, sources, 1.95)
+
+        heat_map = 0.5 * np.ones(self.game_info.map_size)
+        paths_self = await self.client.query_pathings([
+            [self.start_location, Point2(p)]
+            for p, _ in np.ndenumerate(heat_map)
+        ])
+        paths_enemy = await self.client.query_pathings([
+            [self.enemy_start_locations[0], Point2(p)]
+            for p, _ in np.ndenumerate(heat_map)
+        ])
+        for (p, _), p1, p2 in zip(np.ndenumerate(heat_map), paths_self, paths_enemy):
+            if not self.in_pathing_grid(Point2(p)):
+                continue
+            if p1 == p2 == 0:
+                continue
+            heat_map[p] = p1 / (p1 + p2)
+        heat_map[self.start_location.rounded] = 0.0
+        heat_map[self.enemy_start_locations[0].rounded] = 1.0
+
+            # with open(path, 'wb') as file:
+            #     np.save(file, heat_map)
 
         if 0.5 < heat_map[self.start_location.rounded]:
             heat_map = 1 - heat_map
 
         self.heat_map = heat_map
-        self.heat_map_gradient = np.stack(np.gradient(heat_map), axis=-1)
+        self.heat_map_gradient = np.stack(np.gradient(heat_map), axis=2)
+        gradient_norm = np.linalg.norm(self.heat_map_gradient, axis=2)
+        gradient_norm = np.maximum(gradient_norm, 1e-5)
+        gradient_norm = np.dstack((gradient_norm, gradient_norm))
+        self.heat_map_gradient = self.heat_map_gradient / gradient_norm
 
     def draw_debug(self):
 
@@ -792,7 +798,7 @@ class CommonAI(BotAI):
             # for p in self.positions_in_range(friend):
             #     friend_map[p] += unitValue(friend)
 
-        blur_sigma = 7
+        blur_sigma = 8.5
         self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
         self.friend_map = ndimage.gaussian_filter(friend_map, blur_sigma)
         # self.enemy_map_blur = self.enemy_map

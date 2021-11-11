@@ -16,6 +16,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.position import Point2
+from suntzu.resources.resource_group import T
 from suntzu.strategies.pool12_allin import Pool12AllIn
 
 from .strategies.gasless import GasLess
@@ -56,7 +57,9 @@ class ZergAI(CommonAI):
         self.timings_acc = dict()
         self.army_queens: Set[int] = set()
         self.creep_queens: Set[int] = set()
-        self.creep_targets: Set[Point2] = set()
+        self.creep_area_min: np.ndarray = None
+        self.creep_area_max: np.ndarray = None
+        self.inactive_tumors: Set[int] = set()
 
     def destroy_destructables(self):
         return self.strategy.destroy_destructables(self)
@@ -92,17 +95,14 @@ class ZergAI(CommonAI):
 
         await super().on_start()
 
-        creep_targets = []
-        creep_targets.append(self.game_info.map_center)
-        creep_targets.extend((
-            0.5 * (a + b)
-            for a in self.expansion_locations_list
-            for b in self.expansion_locations_list))
-        creep_targets.extend(r.top_center for r in self.game_info.map_ramps)
-        self.creep_targets = {
-            t for t in creep_targets
-            if self.in_pathing_grid(t)
-        }
+        self.creep_area_min = np.array([
+            min(p[i] for p in self.expansion_locations_list)
+            for i in range(2)
+        ])
+        self.creep_area_max = np.array([
+            max(p[i] for p in self.expansion_locations_list)
+            for i in range(2)
+        ])
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         if unit.type_id == UnitTypeId.LAIR:
@@ -133,12 +133,6 @@ class ZergAI(CommonAI):
 
     async def transfuse(self):
 
-        ability = AbilityId.TRANSFUSION_TRANSFUSION
-        queens = list(self.observation.actual_by_type[UnitTypeId.QUEEN])
-        if not any(queens):
-            return
-        queens_abilities = await self.get_available_abilities(queens)
-
         def priority(queen: Unit, target: Unit) -> float:
             if queen.tag == target.tag:
                 return 0
@@ -151,6 +145,16 @@ class ZergAI(CommonAI):
             priority = 1
             priority *= 10 + target.health_max - target.health
             return priority
+
+        ability = AbilityId.TRANSFUSION_TRANSFUSION
+        queens = [
+            self.observation.unit_by_tag[t]
+            for t in self.army_queens
+            if t in self.observation.unit_by_tag
+        ]
+        if not queens:
+            return
+        queens_abilities = await self.get_available_abilities(queens)
 
         for queen, abilities in zip(queens, queens_abilities):
 
@@ -214,29 +218,6 @@ class ZergAI(CommonAI):
             return
 
         steps = self.strategy.steps(self)
-        # {
-        #     # self.kill_random_unit: 100,
-        #     self.draw_debug: 1,
-        #     self.assess_threat_level: 1,
-        #     self.update_observation: 1,
-        #     self.update_bases: 1,
-        #     self.update_composition: 1,
-        #     self.update_gas: 1,
-        #     self.manage_queens: 1,
-        #     self.spread_creep: 1,
-        #     self.scout: 1,
-        #     self.extractor_trick: 1,
-        #     self.morph_overlords: 1,
-        #     self.make_composition: 1,
-        #     self.make_tech: 1,
-        #     # self.expand: 1,
-        #     # self.micro: 1,
-        #     self.macro: 1,
-        #     self.transfuse: 1,
-        #     self.corrosive_bile: 1,
-        #     self.update_strategy: 1,
-        #     self.save_enemy_positions: 1,
-        # }
 
         steps_filtered = [s for s, m in steps.items() if iteration % m == 0]
             
@@ -362,62 +343,73 @@ class ZergAI(CommonAI):
         #         if 1 < overlord.distance_to(target):
         #             overlord.move(target.position)
 
-    async def spread_creep(self, spreader: Unit = None, numAttempts: int = 3):
-
-        targets = {
-            t
-            for t in self.creep_targets
-            if not self.has_creep(t)
-        }
-
-        if not targets:
-            return
+    async def spread_creep(self):
 
         queens = [self.observation.unit_by_tag[t] for t in self.creep_queens]
-        queens = [q for q in queens if not any(o.ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN for o in q.orders)]
+        queens = [
+            q
+            for q in queens
+            if (
+                25 <= q.energy
+                and not any(o.ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN for o in q.orders)
+            )
+        ]
 
         spreaders = [
             *queens,
-            *self.observation.actual_by_type[UnitTypeId.CREEPTUMORBURROWED]
+            *(
+                tumor 
+                for tumor in self.observation.actual_by_type[UnitTypeId.CREEPTUMORBURROWED]
+                if tumor.tag not in self.inactive_tumors
+            )
         ]
 
         if not spreaders:
             return
+        
+        valid_map = np.logical_and(self.state.creep.data_numpy == 0, self.game_info.pathing_grid.data_numpy == 1)
+        valid_map = np.transpose(valid_map)
 
         spreader_abilities = await self.get_available_abilities(spreaders)
-
         for spreader, abilities in zip(spreaders, spreader_abilities):
             ability = CREEP_ABILITIES[spreader.type_id]
             if not ability in abilities:
                 continue
-            self.spread_creep_single(spreader, targets, numAttempts)
+            self.spread_creep_single(spreader, valid_map)
 
 
-    def spread_creep_single(self, spreader: Unit, targets: Iterable[Point2], num_attempts: int):
+    def spread_creep_single(self, spreader: Unit, valid_map: np.ndarray):
 
-        def priority(p):
-            s = 1
-            s /= 1 + max((t.distance_to(p) for t in self.townhalls), default=0) + 2 * spreader.distance_to(p)
-            return s
-        
-        target = max(targets, key=priority)
-        towards_target = spreader.position.towards(target, CREEP_RANGE)
+        target = None
 
-        sigma_max = 2
-        for i in range(1 + num_attempts):
-            sigma = sigma_max * i / num_attempts
-            position = np.random.normal(towards_target, sigma * sigma)
-            position = Point2(position).rounded
-            if CREEP_RANGE  < spreader.distance_to(position):
+        num_attempts = 1
+        for _ in range(num_attempts):
+            angle = np.random.uniform(0, 2 * math.pi)
+            distance = CREEP_RANGE + np.random.exponential(CREEP_RANGE)
+            target_test = spreader.position + distance * Point2((math.cos(angle), math.sin(angle)))
+            target_test = np.clip(target_test, self.creep_area_min, self.creep_area_max)
+            target_test = Point2(target_test).rounded
+            if not valid_map[target_test]:
+                continue
+            target = target_test
+            break
+
+        if not target:
+            return
+
+        for distance in range(CREEP_RANGE, CREEP_RANGE / 2, -1):
+            position = spreader.position.towards(target, distance)
+            if not self.has_creep(position):
+                continue
+            if not self.is_visible(position):
                 continue
             if self.blocked_base(position):
                 continue
-            if not self.has_creep(position):
-                continue
-            if not self.in_pathing_grid(position):
-                continue
             spreader.build(UnitTypeId.CREEPTUMOR, position)
             break
+
+        # if spreader.type_id == UnitTypeId.CREEPTUMORBURROWED:
+        #     self.inactive_tumors.add(spreader.tag)
 
     def build_spores(self):
         sporeTime = {
@@ -455,7 +447,7 @@ class ZergAI(CommonAI):
         #     default=1)
 
         value_self = armyValue(self.enumerate_army())
-        value_enemy = np.sum(self.enemy_map * (1 - self.heat_map))
+        value_enemy = np.sum(self.enemy_map * (1 - self.heat_map) * np.transpose(self.game_info.pathing_grid.data_numpy))
 
         self.threat_level = value_enemy / (1 + value_self + value_enemy)
         self.threat_level = max(0, min(1, self.threat_level))
