@@ -12,6 +12,7 @@ from s2clientprotocol.common_pb2 import Point
 from s2clientprotocol.error_pb2 import Error
 from queue import Queue
 import os
+from sc2 import position
 
 from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.effect_id import EffectId
@@ -99,6 +100,7 @@ class CommonAI(BotAI):
         self.heat_map = None
         self.heat_map_gradient = None
         self.threat_level = 0
+        self.enemies: Dict[int, Unit] = dict()
 
     def destroy_destructables(self):
         return True
@@ -131,10 +133,23 @@ class CommonAI(BotAI):
 
     async def on_step(self, iteration: int):
 
+        enemies_remembered = self.enemies
+        self.enemies = {
+            enemy.tag: enemy
+            for enemy in self.all_enemy_units
+        }
+        for tag, enemy in enemies_remembered.items():
+            if tag in self.enemies:
+                continue
+            elif not self.is_visible(enemy.position):
+                self.enemies[tag] = enemy
+        # for enemy in self.all_enemy_units:
+        #     self.enemies[enemy.tag] = enemy
+
         if 1 < self.time and self.greet_enabled:
             for tag in self.tags:
                 await self.client.chat_send('Tag:' + tag, True)
-            await self.client.chat_send('Rushes disabled ... for now :)', False)
+            await self.client.chat_send('Rushes disabled', False)
             self.greet_enabled = False
 
         for error in self.state.action_errors:
@@ -197,6 +212,7 @@ class CommonAI(BotAI):
         base = next((b for b in self.bases if b.townhall == unit_tag), None)
         if base:
             base.townhall = None
+        self.enemies.pop(unit_tag, None)
         pass
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
@@ -456,6 +472,15 @@ class CommonAI(BotAI):
         #     c = int(255 * v)
         #     c = (c, 255 - c, 0)
         #     self.client.debug_text_world(f'{round(100 * v)}', Point3((*p, z)), c)
+
+        # for p, v in np.ndenumerate(self.enemy_map_blur):
+        #     if v == 0:
+        #         continue
+        #     if not self.in_pathing_grid(Point2(p)):
+        #         continue
+        #     z = self.get_terrain_z_height(Point2(p))
+        #     c = (255, 255, 255)
+        #     self.client.debug_text_world(f'{round(v)}', Point3((*p, z)), c)
 
     @property
     def income(self):
@@ -762,7 +787,7 @@ class CommonAI(BotAI):
         return None, None
 
     def positions_in_range(self, unit: Unit) -> Iterable[Point2]:
-        unit_range = math.ceil(max(unit.ground_range, unit.air_range))
+        unit_range = math.ceil(unit.radius + max(unit.ground_range, unit.air_range))
         xm, ym = unit.position.rounded
         x0 = max(0, xm - unit_range)
         y0 = max(0, ym - unit_range)
@@ -778,29 +803,35 @@ class CommonAI(BotAI):
 
         friends = list(self.enumerate_army())
 
-        enemies = self.all_enemy_units
+        enemies = list(self.all_enemy_units)
         if self.destroy_destructables():
-            enemies += self.observation.destructables
-        enemies = list(enemies)
+            enemies.extend(self.observation.destructables)
 
         enemy_map = np.zeros(self.game_info.map_size)
-        for enemy in enemies:
+        self.enemy_map_blur = np.zeros(self.game_info.map_size)
+        for enemy in self.enemies.values():
             enemy_map[enemy.position.rounded] += unitValue(enemy)
-            # for p in self.positions_in_range(enemy):
-            #     enemy_map[p] += unitValue(enemy)
+            for p in self.positions_in_range(enemy):
+                self.enemy_map_blur[p] += unitValue(enemy)
 
-        visibility = np.transpose(self.state.visibility.data_numpy)
-        self.enemy_map = np.where(visibility == 2, enemy_map, self.enemy_map)
+        # visibility = np.transpose(self.state.visibility.data_numpy)
+        # self.enemy_map = np.where(visibility == 2, enemy_map, self.enemy_map)
+        self.enemy_map = enemy_map
 
         friend_map = np.zeros(self.game_info.map_size)
+        self.friend_map = np.zeros(self.game_info.map_size)
         for friend in friends:
             friend_map[friend.position.rounded] += unitValue(friend)
-            # for p in self.positions_in_range(friend):
-            #     friend_map[p] += unitValue(friend)
+            for p in self.positions_in_range(friend):
+                self.friend_map[p] += unitValue(friend)
 
-        blur_sigma = 7
-        self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
-        self.friend_map = ndimage.gaussian_filter(friend_map, blur_sigma)
+        # blur_sigma = 7
+        # self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
+        # self.friend_map = ndimage.gaussian_filter(friend_map, blur_sigma)
+
+        self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map_blur, 5)
+        self.friend_map = ndimage.gaussian_filter(self.friend_map, 5)
+
         # self.enemy_map_blur = self.enemy_map
         # self.friend_map = self.friend_map
 
@@ -842,8 +873,8 @@ class CommonAI(BotAI):
                 priority = 1
                 priority *= 10 + target.calculate_dps_vs_target(unit)
                 priority /= 100 + target.shield + target.health
-                priority /= 10 + unit.distance_to(target)
-                priority /= 30 + unit.distance_to(self.start_location)
+                priority /= 10 + unit.position.distance_to(target)
+                priority /= 30 + unit.position.distance_to(self.start_location)
                 priority /= 3 if target.is_structure else 1
                 priority *= 3 if target.type_id in WORKERS else 1
                 priority /= 3 if target.type_id in CIVILIANS else 1
@@ -903,7 +934,7 @@ class CommonAI(BotAI):
 
                 retreat_target = unit.position - 12 * gradient
 
-                if advantage < advantage_threshold / 3:
+                if advantage < advantage_threshold / 2:
 
                     # FLEE
                     if not unit.is_moving:
@@ -919,7 +950,7 @@ class CommonAI(BotAI):
                     else:
                         unit.attack(attack_target)
                     
-                elif advantage < advantage_threshold * 3:
+                elif advantage < advantage_threshold * 2:
 
                     # FIGHT
                     if unit.target_in_range(target):
