@@ -126,7 +126,7 @@ class CommonAI(BotAI):
     async def on_start(self):
         self.townhalls[0](AbilityId.RALLY_WORKERS, target=self.townhalls[0])
         self.enemy_map = np.zeros(self.game_info.map_size)
-        self.enemy_map_blur = np.zeros(self.game_info.map_size)
+        self.enemy_map = np.zeros(self.game_info.map_size)
         self.friend_map = np.zeros(self.game_info.map_size)
         await self.load_heat_map()
         await self.initialize_bases()
@@ -823,29 +823,29 @@ class CommonAI(BotAI):
             enemies.extend(self.observation.destructables)
 
         enemy_map = np.zeros(self.game_info.map_size)
-        self.enemy_map_blur = np.zeros(self.game_info.map_size)
+        # self.enemy_map_blur = np.zeros(self.game_info.map_size)
         for enemy in self.enemies.values():
             enemy_map[enemy.position.rounded] += unitValue(enemy)
-            for p in self.positions_in_range(enemy):
-                self.enemy_map_blur[p] += unitValue(enemy)
+            # for p in self.positions_in_range(enemy):
+            #     self.enemy_map_blur[p] += unitValue(enemy)
 
         # visibility = np.transpose(self.state.visibility.data_numpy)
         # self.enemy_map = np.where(visibility == 2, enemy_map, self.enemy_map)
-        self.enemy_map = enemy_map
+        # self.enemy_map = enemy_map
 
         friend_map = np.zeros(self.game_info.map_size)
-        self.friend_map = np.zeros(self.game_info.map_size)
+        # self.friend_map = np.zeros(self.game_info.map_size)
         for friend in friends:
             friend_map[friend.position.rounded] += unitValue(friend)
-            for p in self.positions_in_range(friend):
-                self.friend_map[p] += unitValue(friend)
+            # for p in self.positions_in_range(friend):
+            #     self.friend_map[p] += unitValue(friend)
 
-        # blur_sigma = 7
-        # self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
-        # self.friend_map = ndimage.gaussian_filter(friend_map, blur_sigma)
+        blur_sigma = 7
+        self.enemy_map = ndimage.gaussian_filter(enemy_map, blur_sigma)
+        self.friend_map = ndimage.gaussian_filter(friend_map, blur_sigma)
 
-        self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map_blur, 5)
-        self.friend_map = ndimage.gaussian_filter(self.friend_map, 5)
+        # self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map_blur, 5)
+        # self.friend_map = ndimage.gaussian_filter(self.friend_map, 5)
 
         # self.enemy_map_blur = self.enemy_map
         # self.friend_map = self.friend_map
@@ -866,7 +866,7 @@ class CommonAI(BotAI):
             if c.frame_expires < self.state.game_loop + 10
         ))
 
-        enemy_map_gradient = np.gradient(self.enemy_map_blur)
+        enemy_map_gradient = np.gradient(self.enemy_map)
             
         for unit in friends:
 
@@ -931,7 +931,7 @@ class CommonAI(BotAI):
                 # enemies_rating = sum(unitValue(e) / max(1, unit.distance_to(e)) for e in enemies)
 
                 friends_rating = self.friend_map[unit.position.rounded]
-                enemies_rating = self.enemy_map_blur[unit.position.rounded]
+                enemies_rating = self.enemy_map[unit.position.rounded]
                 advantage_army = friends_rating / max(1, enemies_rating)
 
                 advantage_defender = 1.5 - self.heat_map[unit.position.rounded]
