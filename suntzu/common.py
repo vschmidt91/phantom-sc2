@@ -133,6 +133,11 @@ class CommonAI(BotAI):
 
     async def on_step(self, iteration: int):
 
+        # data = self.game_data.units[UnitTypeId.ZERGLING.value]
+        # dummy = Unit(data, self)
+        # for unit in self.units:
+        #     dps = unit.calculate_damage_vs_target(dummy)
+
         enemies_remembered = self.enemies
         self.enemies = {
             enemy.tag: enemy
@@ -787,7 +792,17 @@ class CommonAI(BotAI):
         return None, None
 
     def positions_in_range(self, unit: Unit) -> Iterable[Point2]:
+
         unit_range = math.ceil(unit.radius + max(unit.ground_range, unit.air_range))
+
+        range_upgrades = RANGE_UPGRADES.get(unit.type_id)
+        if range_upgrades:
+            if unit.is_mine:
+                range_boni = (v for u, v in range_upgrades.items() if u in self.state.upgrades)
+            elif unit.is_enemy:
+                range_boni = range_upgrades.values()
+            unit_range += sum(range_boni)
+
         xm, ym = unit.position.rounded
         x0 = max(0, xm - unit_range)
         y0 = max(0, ym - unit_range)

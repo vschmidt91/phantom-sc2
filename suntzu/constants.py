@@ -2,6 +2,7 @@
 from collections import defaultdict
 import math
 from itertools import chain
+from typing import Dict
 
 from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 from sc2.data import Race
@@ -29,6 +30,15 @@ SUPPLY = {
     Race.Protoss: UnitTypeId.PYLON,
     Race.Terran: UnitTypeId.SUPPLYDEPOT,
     Race.Zerg: UnitTypeId.OVERLORD,
+}
+
+RANGE_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, int]] = {
+    UnitTypeId.COLOSSUS: { UpgradeId.EXTENDEDTHERMALLANCE: 2 },
+    UnitTypeId.HYDRALISK: { UpgradeId.EVOLVEGROOVEDSPINES: 1 },
+    UnitTypeId.PHOENIX: { UpgradeId.PHOENIXRANGEUPGRADE: 2 },
+    UnitTypeId.PLANETARYFORTRESS: { UpgradeId.HISECAUTOTRACKING: 1 },
+    UnitTypeId.MISSILETURRET: { UpgradeId.HISECAUTOTRACKING: 1 },
+    UnitTypeId.AUTOTURRET: { UpgradeId.HISECAUTOTRACKING: 1 },
 }
 
 CREEP_ABILITIES = {
