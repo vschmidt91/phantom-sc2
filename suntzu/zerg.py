@@ -379,7 +379,7 @@ class ZergAI(CommonAI):
         valid_map = np.transpose(valid_map)
 
         self.creep_coverage = np.sum(self.state.creep.data_numpy) / self.creep_tile_count
-        if .9 < self.creep_coverage:
+        if .99 < self.creep_coverage:
             return 
 
         if not spreaders:

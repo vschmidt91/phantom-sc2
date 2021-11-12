@@ -951,7 +951,7 @@ class CommonAI(BotAI):
 
                 retreat_target = unit.position - 12 * gradient
 
-                if advantage < advantage_threshold / 2:
+                if advantage < advantage_threshold / 3:
 
                     # FLEE
                     if not unit.is_moving:
@@ -967,7 +967,7 @@ class CommonAI(BotAI):
                     else:
                         unit.attack(attack_target)
                     
-                elif advantage < advantage_threshold * 2:
+                elif advantage < advantage_threshold * 3:
 
                     # FIGHT
                     if unit.target_in_range(target):
