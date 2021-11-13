@@ -5,8 +5,6 @@ from s2clientprotocol.error_pb2 import Error
 from sc2.position import Point2
 from abc import ABC, abstractmethod
 
-from ..observation import Observation
-
 class Resource(object):
 
     def __init__(self, position: Point2):
@@ -48,7 +46,7 @@ class Resource(object):
     def harvester_balance(self):
         return self.harvester_count - self.harvester_target
 
-    def update(self, observation: Observation):
+    def update(self, bot):
         pass
 
     def try_transfer_to(self, other) -> Optional[int]:

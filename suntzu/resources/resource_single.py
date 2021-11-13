@@ -4,7 +4,6 @@ from sc2.position import Point2
 from abc import ABC, abstractmethod
 
 from .resource import Resource
-from ..observation import Observation
 
 class ResourceSingle(Resource):
 

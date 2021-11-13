@@ -31,12 +31,13 @@ if __name__ == "__main__":
         kwargs = {
 
         }
+        # bot = Bot(Race.Zerg, WorkerStackBot())
         bot = Bot(Race.Zerg, ZergAI(game_step = 8, debug = True, performance = PerformanceMode.DEFAULT), 'Sun Tzu')   
-        # opponent = Bot(Race.Random, DummyAI())
-        opponent = Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
+        opponent = Bot(Race.Protoss, DummyAI())
+        # opponent = Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
         # opponent = Bot(Race.Zerg, ZergAI(performance = PerformanceMode.HIGH_PERFORMANCE, strategy = Pool12AllIn()), 'Pool12AllIn')   
         run_game(
-            sc2.maps.get('LightshadeAIE'),
+            sc2.maps.get('JagannathaAIE'),
             [bot, opponent],
             realtime=False,
             save_replay_as=replayPath,

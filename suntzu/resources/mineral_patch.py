@@ -5,7 +5,6 @@ from sc2.position import Point2
 from sc2.ids.ability_id import AbilityId
 from suntzu.constants import RICH_MINERALS
 
-from ..observation import Observation
 from .resource import Resource
 from .resource_single import ResourceSingle
 
@@ -22,7 +21,7 @@ class MineralPatch(ResourceSingle):
         self.is_rich = False
         self.townhall: Optional[int] = None
         self.speed_mining_enabled = False
-        self.speed_mining_position: Option[Point2] = None
+        self.speed_mining_position: Optional[Point2] = None
 
     @property
     def harvester_target(self):
@@ -31,13 +30,11 @@ class MineralPatch(ResourceSingle):
         else:
             return 0
 
-    def update(self, observation: Observation):
+    def update(self, bot):
 
-        super().update(observation)
-
-        # self.harvesters = { h for h in self.harvesters if h in observation.unit_by_tag }
+        super().update(bot)
         
-        patch = observation.resource_by_position.get(self.position)
+        patch = bot.resource_by_position.get(self.position)
 
         if not patch:
             self.remaining = 0
@@ -50,10 +47,10 @@ class MineralPatch(ResourceSingle):
 
         self.is_rich = patch.type_id in RICH_MINERALS
 
-        townhall = observation.unit_by_tag.get(self.townhall)
+        townhall = bot.unit_by_tag.get(self.townhall)
 
         for harvester_tag in self.harvester_set:
-            harvester = observation.unit_by_tag.get(harvester_tag)
+            harvester = bot.unit_by_tag.get(harvester_tag)
             if not harvester:
                 continue
             

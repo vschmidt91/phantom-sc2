@@ -7,7 +7,6 @@ from suntzu.constants import SUPPLY_PROVIDED
 
 from .zerg_macro import ZergMacro
 from .zerg_strategy import ZergStrategy
-from ..observation import Observation
 from ..macro_plan import MacroPlan
 
 class Pool12AllIn(ZergStrategy):
@@ -39,34 +38,34 @@ class Pool12AllIn(ZergStrategy):
 
         # spend larva
         if bot.supply_cap <= bot.supply_used:
-            if not bot.observation.planned_by_type[UnitTypeId.OVERLORD]:
+            if not bot.planned_by_type[UnitTypeId.OVERLORD]:
                 bot.add_macro_plan(MacroPlan(UnitTypeId.OVERLORD))
-        elif bot.observation.count(UnitTypeId.DRONE) < worker_target:
-            if not bot.observation.planned_by_type[UnitTypeId.DRONE]:
+        elif bot.count(UnitTypeId.DRONE) < worker_target:
+            if not bot.planned_by_type[UnitTypeId.DRONE]:
                 bot.add_macro_plan(MacroPlan(UnitTypeId.DRONE))
-        elif not bot.observation.planned_by_type[UnitTypeId.ZERGLING]:
-            if not bot.observation.planned_by_type[UnitTypeId.ZERGLING]:
+        elif not bot.planned_by_type[UnitTypeId.ZERGLING]:
+            if not bot.planned_by_type[UnitTypeId.ZERGLING]:
                 bot.add_macro_plan(MacroPlan(UnitTypeId.ZERGLING))
 
         # spend bank
-        elif bot.observation.count(UnitTypeId.QUEEN) < bot.observation.count(UnitTypeId.HATCHERY, include_planned=False):
+        elif bot.count(UnitTypeId.QUEEN) < bot.count(UnitTypeId.HATCHERY, include_planned=False):
             bot.add_macro_plan(MacroPlan(UnitTypeId.QUEEN))
-        elif not bot.observation.planned_by_type[UnitTypeId.HATCHERY]:
+        elif not bot.planned_by_type[UnitTypeId.HATCHERY]:
             bot.add_macro_plan(MacroPlan(UnitTypeId.HATCHERY, priority=-1))
 
-        for ling in bot.observation.actual_by_type[UnitTypeId.ZERGLING]:
+        for ling in bot.actual_by_type[UnitTypeId.ZERGLING]:
             if ling.is_idle:
                 self.pack.add(ling.tag)
 
         if 6 <= len(self.pack):
             for tag in self.pack:
-                ling = bot.observation.unit_by_tag.get(tag)
+                ling = bot.unit_by_tag.get(tag)
                 if ling:
                     ling.attack(bot.enemy_start_locations[0])
             self.pack.clear()
 
     def gas_target(self, bot) -> int:
-        if bot.observation.count(UpgradeId.ZERGLINGMOVEMENTSPEED, include_planned=False):
+        if bot.count(UpgradeId.ZERGLINGMOVEMENTSPEED, include_planned=False):
             return 0
         elif 96 <= bot.vespene:
             return 0

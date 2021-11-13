@@ -4,6 +4,7 @@ from itertools import chain
 import math
 
 from s2clientprotocol.sc2api_pb2 import Observation
+from sc2.ids.ability_id import AbilityId
 
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -58,20 +59,21 @@ class Base(ResourceGroup[Resource]):
         self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(sorted(
             (MineralPatch(m) for m in minerals),
             key = lambda m : m.position.distance_to(townhall_position)
-        ), townhall_position)
+        ))
         self.vespene_geysers: ResourceGroup[VespeneGeyser] = ResourceGroup(sorted(
             (VespeneGeyser(g) for g in gasses),
             key = lambda g : g.position.distance_to(townhall_position)
-        ), townhall_position)
+        ))
         # self.mineral_patches.balance_aggressively = True
         # self.vespene_geysers.balance_aggressively = True
-        self.fix_speedmining_positions()
-        self.townhall: Optional[int] = None
         super().__init__([self.mineral_patches, self.vespene_geysers], townhall_position)
+        self.townhall: Optional[int] = None
+        self.blocked_since: Optional[float] = None
+        self.fix_speedmining_positions()
 
     def fix_speedmining_positions(self):
         for patch in self.mineral_patches:
-            target = patch.position.towards(self.mineral_patches.position, MINING_RADIUS)
+            target = patch.position.towards(self.position, MINING_RADIUS)
             other_patches = (
                 m
                 for m in self.mineral_patches
@@ -82,8 +84,9 @@ class Base(ResourceGroup[Resource]):
                     continue
                 points = get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS)
                 if len(points) == 2:
-                    patch.speed_mining_position = min(points, key=lambda p:p.distance_to(self.mineral_patches.position))
+                    target = min(points, key=lambda p:p.distance_to(self.mineral_patches.position))
                     break
+            patch.speed_mining_position = target
 
     @property
     def harvester_target(self) -> int:
@@ -91,9 +94,9 @@ class Base(ResourceGroup[Resource]):
             return 0
         return super().harvester_target
 
-    def update(self, observation: Observation):
+    def update(self, bot):
         if self.townhall == None:
             return
         for mineral in self.mineral_patches:
             mineral.townhall = self.townhall
-        super().update(observation)
+        super().update(bot)

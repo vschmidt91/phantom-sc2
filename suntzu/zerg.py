@@ -57,6 +57,7 @@ class ZergAI(CommonAI):
         self.timings_acc = dict()
         self.army_queens: Set[int] = set()
         self.creep_queens: Set[int] = set()
+        self.inject_queens: Set[int] = set()
         self.creep_area_min: np.ndarray = None
         self.creep_area_max: np.ndarray = None
         self.inactive_tumors: Set[int] = set()
@@ -73,7 +74,7 @@ class ZergAI(CommonAI):
             return
         extractor = next((
             e
-            for e in self.observation.pending_by_type[UnitTypeId.EXTRACTOR]
+            for e in self.pending_by_type[UnitTypeId.EXTRACTOR]
             if e.type_id == UnitTypeId.EXTRACTOR
         ), None)
         if not extractor:
@@ -111,7 +112,7 @@ class ZergAI(CommonAI):
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         if unit.type_id == UnitTypeId.LAIR:
             ability = AbilityId.BEHAVIOR_GENERATECREEPON
-            overlords = self.observation.actual_by_type[UnitTypeId.OVERLORD]
+            overlords = self.actual_by_type[UnitTypeId.OVERLORD]
             for overlord in overlords:
                 if not overlord:
                     continue
@@ -152,9 +153,9 @@ class ZergAI(CommonAI):
 
         ability = AbilityId.TRANSFUSION_TRANSFUSION
         queens = [
-            self.observation.unit_by_tag[t]
+            self.unit_by_tag[t]
             for t in self.army_queens
-            if t in self.observation.unit_by_tag
+            if t in self.unit_by_tag
         ]
         if not queens:
             return
@@ -181,7 +182,7 @@ class ZergAI(CommonAI):
 
         ability = AbilityId.EFFECT_CORROSIVEBILE
         ability_data = self.game_data.abilities[ability.value]._proto
-        ravagers = list(self.observation.actual_by_type[UnitTypeId.RAVAGER])
+        ravagers = list(self.actual_by_type[UnitTypeId.RAVAGER])
         if not ravagers:
             return
         ravager_abilities = await self.get_available_abilities(ravagers)
@@ -190,7 +191,7 @@ class ZergAI(CommonAI):
                 continue
             targets = (
                 target
-                for target in chain(self.all_enemy_units, self.observation.destructables)
+                for target in chain(self.all_enemy_units, self.destructables_fixed)
                 if ravager.distance_to(target) <= ravager.radius + ability_data.cast_range
             )
             target: Unit = max(targets, key=target_priority, default=None)
@@ -314,12 +315,12 @@ class ZergAI(CommonAI):
         targets = list(dict.fromkeys(targets))
         for target in targets:
             equivalents =  WITH_TECH_EQUIVALENTS.get(target, { target })
-            if sum(self.observation.count(t) for t in equivalents) == 0:
+            if sum(self.count(t) for t in equivalents) == 0:
                 self.add_macro_plan(MacroPlan(target))
 
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
-            if not self.observation.count(upgrade, include_planned=False):
+            if not self.count(upgrade, include_planned=False):
                 return (upgrade,)
         return tuple()
 
@@ -333,7 +334,7 @@ class ZergAI(CommonAI):
         changelings = [
             c
             for t in CHANGELINGS
-            for c in self.observation.actual_by_type[t]
+            for c in self.actual_by_type[t]
         ]
         for changeling in changelings:
             if not changeling:
@@ -342,8 +343,8 @@ class ZergAI(CommonAI):
                 target = random.choice(self.expansion_locations_list)
                 changeling.move(target)
         # overlords = [
-        #     self.observation.unit_by_tag[t]
-        #     for t in self.observation.actual_by_type[UnitTypeId.OVERLORD]
+        #     self.unit_by_tag[t]
+        #     for t in self.actual_by_type[UnitTypeId.OVERLORD]
         # ]
         # for overlord in overlords:
         #     if not overlord.is_moving:
@@ -355,11 +356,11 @@ class ZergAI(CommonAI):
 
         spreaders = [
             tumor 
-            for tumor in self.observation.actual_by_type[UnitTypeId.CREEPTUMORBURROWED]
+            for tumor in self.actual_by_type[UnitTypeId.CREEPTUMORBURROWED]
             if tumor.tag not in self.inactive_tumors
         ]
 
-        queens = [self.observation.unit_by_tag[t] for t in self.creep_queens]
+        queens = [self.unit_by_tag[t] for t in self.creep_queens]
 
         for queen in queens:
             if (
@@ -379,7 +380,7 @@ class ZergAI(CommonAI):
         valid_map = np.transpose(valid_map)
 
         self.creep_coverage = np.sum(self.state.creep.data_numpy) / self.creep_tile_count
-        if .99 < self.creep_coverage:
+        if .95 < self.creep_coverage:
             return 
 
         if not spreaders:
@@ -434,7 +435,7 @@ class ZergAI(CommonAI):
         }
         if (
             sporeTime[self.enemy_race] < self.time
-            and self.observation.count(UnitTypeId.SPORECRAWLER) < self.townhalls.amount
+            and self.count(UnitTypeId.SPORECRAWLER) < self.townhalls.amount
         ):
             self.add_macro_plan(MacroPlan(UnitTypeId.SPORECRAWLER))
 
@@ -462,16 +463,15 @@ class ZergAI(CommonAI):
         #     default=1)
 
         value_self = armyValue(self.enumerate_army())
-        value_enemy = np.sum(self.enemy_map * (1 - self.heat_map) * np.transpose(self.game_info.pathing_grid.data_numpy))
+        value_enemy = np.sum(self.enemy_map * (1 - self.distance_map))
 
         self.threat_level = value_enemy / (1 + value_self + value_enemy)
-        self.threat_level = max(0, min(1, self.threat_level))
 
 
     async def manage_queens(self):
 
         queens = sorted(
-            self.observation.actual_by_type[UnitTypeId.QUEEN],
+            self.actual_by_type[UnitTypeId.QUEEN],
             key=lambda q:q.tag)
 
         macro_queen_count = max(0, round((1 - self.threat_level) * len(queens)))
@@ -484,9 +484,12 @@ class ZergAI(CommonAI):
 
         self.creep_queens = { q.tag for q in creep_queens }
         self.army_queens = { q.tag for q in army_queens }
+        self.inject_queens = { q.tag for q in inject_queens }
 
         for queen, base in zip(inject_queens, (b for b in self.bases if b.townhall)):
-            townhall = self.observation.unit_by_tag.get(base.townhall)
+            townhall = self.unit_by_tag.get(base.townhall)
+            if not townhall:
+                continue
             if 7 < queen.position.distance_to(townhall.position):
                 queen.attack(townhall.position)
             elif 25 <= queen.energy:
@@ -499,15 +502,15 @@ class ZergAI(CommonAI):
         if 200 <= self.supply_cap:
             return
         supply_pending = sum(
-            provided * self.observation.count(unit, include_actual=False)
+            provided * self.count(unit, include_actual=False)
             for unit, provided in SUPPLY_PROVIDED.items()
         )
         if 200 <= self.supply_cap + supply_pending:
             return
-        supply_buffer = 0
-        supply_buffer += 2 * self.townhalls.amount + self.observation.count(UnitTypeId.QUEEN, include_planned=False)
-        supply_buffer += 2 * self.observation.count(UnitTypeId.QUEEN, include_planned=False)
-        supply_buffer += self.larva.amount
+        supply_buffer = 3
+        supply_buffer += 3 * self.townhalls.amount
+        supply_buffer += 3 * len(self.inject_queens)
+        # supply_buffer += self.larva.amount
         if self.supply_left + supply_pending < supply_buffer:
             self.add_macro_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
 
@@ -515,8 +518,8 @@ class ZergAI(CommonAI):
         
         worker_max = self.get_max_harvester()
         if (
-            not self.observation.count(UnitTypeId.HATCHERY, include_actual=False)
+            not self.count(UnitTypeId.HATCHERY, include_actual=False)
             and not self.townhalls.not_ready.exists
-            and saturation_target * worker_max <= self.observation.count(UnitTypeId.DRONE, include_planned=False)
+            and saturation_target * worker_max <= self.count(UnitTypeId.DRONE, include_planned=False)
         ):
             self.add_macro_plan(MacroPlan(UnitTypeId.HATCHERY, priority=1))

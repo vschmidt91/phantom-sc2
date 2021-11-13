@@ -4,7 +4,6 @@ from typing import Union, Iterable, Dict
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
 
-from ..observation import Observation
 
 class ZergStrategy(object):
 

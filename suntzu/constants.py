@@ -32,6 +32,12 @@ SUPPLY = {
     Race.Zerg: UnitTypeId.OVERLORD,
 }
 
+TOWNHALL_ABILITY_BY_RACE: Dict[Race, AbilityId] = {
+    Race.Protoss: AbilityId.PROTOSSBUILD_NEXUS,
+    Race.Terran: AbilityId.TERRANBUILD_COMMANDCENTER,
+    Race.Zerg: AbilityId.ZERGBUILD_HATCHERY,
+}
+
 RANGE_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, int]] = {
     UnitTypeId.COLOSSUS: { UpgradeId.EXTENDEDTHERMALLANCE: 2 },
     UnitTypeId.HYDRALISK: { UpgradeId.EVOLVEGROOVEDSPINES: 1 },

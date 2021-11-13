@@ -7,7 +7,6 @@ from sc2.position import Point2
 
 from .resource import Resource
 from ..utils import center
-from ..observation import Observation
 
 T = TypeVar('T', bound=Resource)
 
@@ -82,12 +81,12 @@ class ResourceGroup(Resource, Generic[T], Iterable[T]):
     def income(self):
         return sum(r.income for r in self.items)
 
-    def update(self, observation: Observation):
+    def update(self, bot):
 
         for resource in self.items:
-            resource.update(observation)
+            resource.update(bot)
 
-        super().update(observation)
+        super().update(bot)
 
         self.remaining = sum(r.remaining for r in self.items)
 

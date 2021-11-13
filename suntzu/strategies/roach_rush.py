@@ -6,7 +6,6 @@ from sc2.ids.unit_typeid import UnitTypeId
 
 from .zerg_macro import ZergMacro
 from .zerg_strategy import ZergStrategy
-from ..observation import Observation
 
 class RoachRush(ZergMacro):
 

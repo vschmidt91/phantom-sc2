@@ -5,7 +5,6 @@ from sc2.position import Point2
 from sc2.constants import ALL_GAS
 from suntzu.constants import RICH_GAS
 
-from ..observation import Observation
 from .resource_single import ResourceSingle
 from .resource import Resource
 
@@ -23,22 +22,22 @@ class VespeneGeyser(ResourceSingle):
         else:
             return 0
 
-    def update(self, observation: Observation):
-        super().update(observation)
-        geyser = observation.resource_by_position.get(self.position)
+    def update(self, bot):
+        super().update(bot)
+        geyser = bot.resource_by_position.get(self.position)
         if not geyser:
             self.remaining = 0
             return
 
         self.is_rich = geyser.type_id in RICH_GAS
 
-        building = observation.unit_by_tag.get(self.building)
+        building = bot.unit_by_tag.get(self.building)
         if not building:
             self.building = None
             gas_buildings = {
                 g
                 for t in ALL_GAS
-                for g in observation.actual_by_type[t]
+                for g in bot.actual_by_type[t]
             }
             building = next(filter(lambda g : g.position == self.position, gas_buildings), None)
 
@@ -49,22 +48,10 @@ class VespeneGeyser(ResourceSingle):
 
         self.building = building.tag
 
-        # if building.assigned_harvesters < len(self.harvesters) - 1:
-        #     return
-
-        # if building.assigned_harvesters == len(self.harvesters) - 1:
-        #     removed = 0
-        #     for harvester in frozenset(self.harvesters):
-        #         if harvester not in observation.unit_by_tag:
-        #             self.harvesters.remove(harvester)
-        #             removed += 1
-        #     if removed == 0:
-        #         raise Error()
-
         self.remaining = building.vespene_contents
 
         if self.building and self.remaining:
-            for harvester in (observation.unit_by_tag.get(h) for h in self.harvester_set):
+            for harvester in (bot.unit_by_tag.get(h) for h in self.harvester_set):
                 if not harvester:
                     continue
                 elif harvester.is_carrying_resource:
@@ -72,9 +59,6 @@ class VespeneGeyser(ResourceSingle):
                         harvester.return_resource()
                 elif harvester.is_returning:
                     pass
-                # elif harvester.is_gathering:
-                #     if harvester.order_target != building.tag:
-                #         harvester.gather(building)
                 else:
                     harvester.gather(building)
 
