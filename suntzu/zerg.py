@@ -85,6 +85,7 @@ class ZergAI(CommonAI):
 
     async def on_start(self):
 
+        self.update_tables()
         # if not self.strategy:
         #     strategy_types = [HatchFirst]
         #     if self.enemy_race == Race.Protoss:
@@ -108,6 +109,13 @@ class ZergAI(CommonAI):
         ])
 
         self.creep_tile_count = np.sum(self.game_info.pathing_grid.data_numpy)
+
+        first_overlord = next(iter(self.actual_by_type[UnitTypeId.OVERLORD]))
+        enemy_natural = self.bases[-2].position
+        enemy_third = self.bases[-3].position
+        first_overlord.move(enemy_natural.towards(first_overlord.position, first_overlord.sight_range))
+        first_overlord.move(enemy_third, queue=True)
+
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         if unit.type_id == UnitTypeId.LAIR:
