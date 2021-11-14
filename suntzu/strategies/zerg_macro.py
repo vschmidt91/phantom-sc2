@@ -1,5 +1,6 @@
 
 from typing import Union, Iterable, Dict
+from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -27,6 +28,7 @@ class ZergMacro(ZergStrategy):
     
         if worker_count < 44:
             composition[UnitTypeId.ZERGLING] = 2 + int(ratio * worker_count)
+
         elif not bot.count(UpgradeId.ZERGGROUNDARMORSLEVEL1, include_planned=False) or bot.enemy_race == Race.Zerg:
             composition[UnitTypeId.OVERSEER] = 2
             composition[UnitTypeId.ROACH] = int(ratio * 50)
@@ -43,6 +45,17 @@ class ZergMacro(ZergStrategy):
             composition[UnitTypeId.HYDRALISK] = 40
             composition[UnitTypeId.CORRUPTOR] = 10
             composition[UnitTypeId.BROODLORD] = 10
+
+        # else:
+        #     composition[UnitTypeId.LAIR] = 1
+        #     composition[UnitTypeId.OVERSEER] = 3
+        #     composition.update(bot.counter_composition(bot.enemies.values()))
+
+        # for morph_to in [UnitTypeId.BANELING, UnitTypeId.RAVAGER, UnitTypeId.LURKERMP, UnitTypeId.BROODLORD]:
+        #     morph_from = UNIT_TRAINED_FROM[morph_to]
+        #     if morph_to in composition:
+        #         for morph_from in UNIT_TRAINED_FROM[morph_to]:
+        #             composition[morph_from] = 10
 
         return composition
 
@@ -72,7 +85,7 @@ class ZergMacro(ZergStrategy):
             bot.make_composition: 1,
             bot.make_tech: 1,
             bot.expand: 1,
-            bot.micro: 1,
+            # bot.micro: 1,
             bot.macro: 1,
             bot.transfuse: 1,
             bot.corrosive_bile: 1,

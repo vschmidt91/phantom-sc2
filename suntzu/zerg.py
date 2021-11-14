@@ -7,6 +7,7 @@ import build
 import numpy as np
 from typing import Counter, Iterable, List, Coroutine, Dict, Set, Union, Tuple
 from itertools import chain
+from sc2 import unit
 
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
@@ -18,6 +19,7 @@ from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.position import Point2
 from suntzu.resources.resource_group import T
 from suntzu.strategies.pool12_allin import Pool12AllIn
+from suntzu.unit_counters import UNIT_COUNTERS
 
 from .strategies.gasless import GasLess
 from .strategies.roach_rush import RoachRush
@@ -28,7 +30,7 @@ from .strategies.zerg_strategy import ZergStrategy
 from .timer import run_timed
 from .constants import CHANGELINGS, CREEP_ABILITIES, SUPPLY_PROVIDED
 from .common import CommonAI, PerformanceMode
-from .utils import armyValue, center, sample
+from .utils import armyValue, center, sample, unitValue
 from .constants import BUILD_ORDER_PRIORITY, WITH_TECH_EQUIVALENTS, REQUIREMENTS, ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
 from .cost import Cost
 from .macro_plan import MacroPlan
@@ -63,6 +65,42 @@ class ZergAI(CommonAI):
         self.inactive_tumors: Set[int] = set()
         self.creep_coverage: float = 0
         self.creep_tile_count: int = 1
+        self.blocked_base_detectors: Dict[Point2, int] = dict()
+
+    def counter_composition(self, enemies: Iterable[Unit]) -> Dict[UnitTypeId, int]:
+
+        if not any(enemies):
+            return {
+                UnitTypeId.ZERGLING: 1,
+                UnitTypeId.OVERSEER: 1
+            }
+
+        enemies_by_type = defaultdict(lambda: set())
+        for enemy in enemies:
+            enemies_by_type[enemy.type_id].add(enemy)
+
+        enemy_cost = sum(
+            (self.cost[enemy_type] * len(n)
+            for enemy_type, n in enemies_by_type.items()
+            if enemy_type in self.cost)
+        , Cost(0, 0, 0))
+        enemy_value = enemy_cost.minerals + enemy_cost.vespene
+
+        weights = {
+            unit: sum(
+                w * len(enemies_by_type[e])
+                for e, w in UNIT_COUNTERS[unit].items()
+            )
+            for unit in UNIT_COUNTERS.keys()
+        }
+
+        weights = sorted(weights.items(), key = lambda p : p[1])
+        unit, weight = weights[-1]
+        unit_cost = self.cost[unit]
+        unit_value = unit_cost.minerals + unit_cost.vespene
+        return {
+            unit: math.ceil(enemy_value / unit_value)
+        }
 
     def destroy_destructables(self):
         return self.strategy.destroy_destructables(self)
@@ -333,12 +371,38 @@ class ZergAI(CommonAI):
         return tuple()
 
     async def scout(self):
+
         overseers = self.units(WITH_TECH_EQUIVALENTS[UnitTypeId.OVERSEER])
         if overseers.exists:
-            overseer = overseers.random
             ability = AbilityId.SPAWNCHANGELING_SPAWNCHANGELING
-            if ability in await self.get_available_abilities(overseer):
-                overseer(ability)
+            overseers_abilities = await self.get_available_abilities(overseers)
+            for overseer, abilities in zip(overseers, overseers_abilities):
+                if ability in abilities:
+                    overseer(ability)
+
+        # free overseers once base is no longer blocked
+        for base in self.bases:
+            if base.blocked_since:
+                detector_tag = self.blocked_base_detectors.get(base.position)
+                detector = self.unit_by_tag.get(detector_tag)
+                if not detector:
+                    # assign overseer
+                    detector = min(
+                        (unit for unit in self.enumerate_army() if unit.is_detector),
+                        key = lambda u : u.distance_to(base.position),
+                        default = None)
+                    if not detector:
+                        continue
+                    self.blocked_base_detectors[base.position] = detector
+                # move towards base
+                target_distance = detector.detect_range - 3
+                if target_distance < detector.distance_to(base.position):
+                    detector.move(base.position.towards(detector, target_distance))
+            else:
+                # reset once no longer blocked
+                if base.position in self.blocked_base_detectors:
+                    del self.blocked_base_detectors[base.position]
+
         changelings = [
             c
             for t in CHANGELINGS
@@ -451,13 +515,23 @@ class ZergAI(CommonAI):
         for unit in super().enumerate_army():
             if unit.type_id == UnitTypeId.QUEEN:
                 if unit.tag not in self.army_queens:
-                    continue
+                    pass
                 elif any(o.ability.exact_id == AbilityId.TRANSFUSION_TRANSFUSION for o in unit.orders):
-                    continue
+                    pass
+                else:
+                    yield unit
             elif unit.type_id == UnitTypeId.RAVAGER:
                 if any(o.ability.exact_id == AbilityId.EFFECT_CORROSIVEBILE for o in unit.orders):
-                    continue
-            yield unit
+                    pass
+                else:
+                    yield unit
+            elif unit.type_id == UnitTypeId.OVERSEER:
+                if unit.tag in self.blocked_base_detectors.values():
+                    pass
+                else:
+                    yield unit
+            else:
+                yield unit
 
     def assess_threat_level(self):
 

@@ -142,11 +142,11 @@ class CommonAI(BotAI):
         await self.create_distance_map()
         await self.initialize_bases()
 
-        # spawns = [
-        #     [UnitTypeId.ZERGLINGBURROWED, 1, b.position, 2]
-        #     for b in self.bases[1:-1]
-        # ]
-        # await self.client.debug_create_unit(spawns)
+        spawns = [
+            [UnitTypeId.ZERGLINGBURROWED, 1, b.position, 2]
+            for b in self.bases[3:-1]
+        ]
+        await self.client.debug_create_unit(spawns)
 
     def handle_errors(self):
         for error in self.state.action_errors:
@@ -782,7 +782,7 @@ class CommonAI(BotAI):
                 unit.return_resource()
                 queue = True
 
-            if not unit(plan.ability["ability"], target=plan.target, queue=queue):
+            if not unit(plan.ability["ability"], target=plan.target, queue=queue, subtract_cost=True):
                 if self.debug:
                     print("objective failed:" + str(plan))
                     raise Exception()
