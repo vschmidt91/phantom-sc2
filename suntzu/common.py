@@ -100,8 +100,12 @@ class CommonAI(BotAI):
         self.bases: ResourceGroup[Base] = None
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
         self.corrosive_biles: List[CorrosiveBile] = list()
-        self.distance_map = None
-        self.distance_gradient_map = None
+        self.enemy_map: np.ndarray = None
+        self.enemy_gradient_map: np.ndarray = None
+        self.friend_map: np.ndarray = None
+        self.threat_map: np.ndarray = None
+        self.distance_map: np.ndarray = None
+        self.distance_gradient_map: np.ndarray = None
         self.threat_level = 0
         self.enemies: Dict[int, Unit] = dict()
         self.potentially_dead_harvesters: Dict[int, int] = dict()
@@ -112,6 +116,7 @@ class CommonAI(BotAI):
         self.planned_by_type: DefaultDict[MacroId, Set[MacroPlan]] = defaultdict(lambda:set())
         self.worker_supply_fixed: int = 0
         self.destructables_fixed: Set[Unit] = set()
+        self.drafted_civilians: Set[int] = set()
 
     def destroy_destructables(self):
         return True
@@ -137,16 +142,18 @@ class CommonAI(BotAI):
     async def on_start(self):
         self.townhalls[0](AbilityId.RALLY_WORKERS, target=self.townhalls[0])
         self.enemy_map = np.zeros(self.game_info.map_size)
-        self.enemy_map = np.zeros(self.game_info.map_size)
+        self.enemy_gradient_map = np.zeros([*self.game_info.map_size, 2])
         self.friend_map = np.zeros(self.game_info.map_size)
         await self.create_distance_map()
         await self.initialize_bases()
 
-        spawns = [
-            [UnitTypeId.ZERGLINGBURROWED, 1, b.position, 2]
-            for b in self.bases[3:-1]
-        ]
-        await self.client.debug_create_unit(spawns)
+        # await self.client.debug_show_map()
+
+        # spawns = [
+        #     [UnitTypeId.ZERGLINGBURROWED, 1, b.position, 2]
+        #     for b in self.bases[3:-1]
+        # ]
+        # await self.client.debug_create_unit(spawns)
 
     def handle_errors(self):
         for error in self.state.action_errors:
@@ -215,11 +222,11 @@ class CommonAI(BotAI):
             self.corrosive_biles.pop(0)
 
     def assign_idle_workers(self):
-        for worker in self.workers.idle:
-            if any(plan.unit == worker.tag for plan in self.macro_plans):
-                continue
-            if worker.tag in self.bases.harvesters:
-                continue
+        exclude = set()
+        exclude.update(self.bases.harvesters)
+        exclude.update(p.unit for p in self.macro_plans)
+        exclude.update(self.drafted_civilians)
+        for worker in self.workers.tags_not_in(exclude):
             base = min(self.bases, key = lambda b : worker.distance_to(b.position))
             base.try_add(worker.tag)
 
@@ -227,7 +234,6 @@ class CommonAI(BotAI):
         if 1 < self.time and self.greet_enabled:
             for tag in self.tags:
                 await self.client.chat_send('Tag:' + tag, True)
-            await self.client.chat_send('Rushes disabled', False)
             self.greet_enabled = False
 
     async def on_step(self, iteration: int):
@@ -303,10 +309,9 @@ class CommonAI(BotAI):
     async def kill_random_unit(self):
         chance = self.supply_used / 200
         chance = pow(chance, 3)
+        exclude = { self.townhalls[0].tag } if self.townhalls else set()
         if chance < random.random():
-            unit = self.all_own_units.random
-            if len(self.townhalls) == 1 and unit.tag == self.townhalls[0].tag:
-                return
+            unit = self.all_own_units.tags_not_in(exclude).random
             await self.client.debug_kill_unit(unit)
 
     def count(self,
@@ -950,10 +955,10 @@ class CommonAI(BotAI):
         if self.destroy_destructables():
             enemies.extend(self.destructables_fixed)
 
-        enemy_map = np.zeros(self.game_info.map_size)
+        self.enemy_map = np.zeros(self.game_info.map_size)
         # self.enemy_map_blur = np.zeros(self.game_info.map_size)
         for enemy in self.enemies.values():
-            enemy_map[enemy.position.rounded] += unitValue(enemy)
+            self.enemy_map[enemy.position.rounded] += unitValue(enemy)
             # for p in self.positions_in_range(enemy):
             #     self.enemy_map_blur[p] += unitValue(enemy)
 
@@ -961,16 +966,16 @@ class CommonAI(BotAI):
         # self.enemy_map = np.where(visibility == 2, enemy_map, self.enemy_map)
         # self.enemy_map = enemy_map
 
-        friend_map = np.zeros(self.game_info.map_size)
+        self.friend_map = np.zeros(self.game_info.map_size)
         # self.friend_map = np.zeros(self.game_info.map_size)
         for friend in friends:
-            friend_map[friend.position.rounded] += unitValue(friend)
+            self.friend_map[friend.position.rounded] += unitValue(friend)
             # for p in self.positions_in_range(friend):
             #     self.friend_map[p] += unitValue(friend)
 
         blur_sigma = 8.5
-        self.enemy_map = ndimage.gaussian_filter(enemy_map, blur_sigma)
-        self.friend_map = ndimage.gaussian_filter(friend_map, blur_sigma)
+        enemy_map = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
+        friend_map = ndimage.gaussian_filter(self.friend_map, blur_sigma)
 
         # self.enemy_map_blur = ndimage.gaussian_filter(self.enemy_map_blur, 5)
         # self.friend_map = ndimage.gaussian_filter(self.friend_map, 5)
@@ -994,7 +999,7 @@ class CommonAI(BotAI):
             if c.frame_expires < self.state.game_loop + 10
         ))
 
-        enemy_map_gradient = np.gradient(self.enemy_map)
+        self.enemy_gradient_map = np.stack(np.gradient(enemy_map), axis=2)
             
         for unit in friends:
 
@@ -1033,10 +1038,7 @@ class CommonAI(BotAI):
             if 0 < heat_gradient.length:
                 heat_gradient = heat_gradient.normalized
 
-            enemy_gradient = Point2((
-                enemy_map_gradient[0][unit.position.rounded],
-                enemy_map_gradient[1][unit.position.rounded],
-            ))
+            enemy_gradient = Point2(self.enemy_gradient_map[unit.position.rounded[0], unit.position.rounded[1],:])
             if 0 < enemy_gradient.length:
                 enemy_gradient = enemy_gradient.normalized
 
@@ -1058,8 +1060,8 @@ class CommonAI(BotAI):
                 # friends_rating = sum(unitValue(f) / max(1, target.distance_to(f)) for f in friends)
                 # enemies_rating = sum(unitValue(e) / max(1, unit.distance_to(e)) for e in enemies)
 
-                friends_rating = self.friend_map[unit.position.rounded]
-                enemies_rating = self.enemy_map[unit.position.rounded]
+                friends_rating = friend_map[unit.position.rounded]
+                enemies_rating = enemy_map[unit.position.rounded]
                 advantage_army = friends_rating / max(1, enemies_rating)
 
                 advantage_defender = 1.5 - self.distance_map[unit.position.rounded]
@@ -1173,10 +1175,43 @@ class CommonAI(BotAI):
         buffer += 3 * self.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
         return buffer
 
+    def assess_threat_level(self):
+
+        # value_self = armyValue(self.enumerate_army())
+ 
+        value_self = np.sum(self.friend_map * (1 - self.distance_map))
+        value_enemy = np.sum(self.enemy_map * (1 - self.distance_map))
+        self.threat_level = value_enemy / (1 + value_self + value_enemy)
+
+
+    def pull_workers(self):
+
+        self.drafted_civilians = {
+            u for u in self.drafted_civilians
+            if u in self.unit_by_tag
+        }
+        
+        if 0.5 < self.threat_level and self.time < 3 * 60:
+            # if not self.count(UnitTypeId.SPINECRAWLER):
+            #     plan = MacroPlan(UnitTypeId.SPINECRAWLER)
+            #     plan.target = self.bases[0].mineral_patches.position
+            #     self.add_macro_plan(plan)
+            worker = self.bases.try_remove_any()
+            if worker:
+                self.drafted_civilians.add(worker)
+        else:
+            if any(self.drafted_civilians):
+                worker = self.drafted_civilians.pop()
+                self.bases.try_add(worker)
+
     def enumerate_army(self):
         for unit in self.units:
             if not unit.type_id in CIVILIANS:
                 yield unit
+            elif unit.tag in self.drafted_civilians:
+                yield unit
+            else:
+                pass
 
     def can_afford_with_reserve(self, cost: Cost, reserve: Cost) -> bool:
         if 0 < cost.minerals and self.minerals < reserve.minerals + cost.minerals:

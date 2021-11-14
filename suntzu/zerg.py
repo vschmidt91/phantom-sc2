@@ -69,6 +69,10 @@ class ZergAI(CommonAI):
 
     def counter_composition(self, enemies: Iterable[Unit]) -> Dict[UnitTypeId, int]:
 
+        def value(unit: UnitTypeId):
+            cost = self.cost[unit]
+            return cost.minerals + cost.vespene
+
         if not any(enemies):
             return {
                 UnitTypeId.ZERGLING: 1,
@@ -94,13 +98,24 @@ class ZergAI(CommonAI):
             for unit in UNIT_COUNTERS.keys()
         }
 
-        weights = sorted(weights.items(), key = lambda p : p[1])
-        unit, weight = weights[-1]
-        unit_cost = self.cost[unit]
-        unit_value = unit_cost.minerals + unit_cost.vespene
-        return {
-            unit: math.ceil(enemy_value / unit_value)
-        }
+        weights = sorted(weights.items(),
+            key = lambda p : p[1],
+            reverse = True)
+
+        best_unit, _ = weights[0]
+        best_can_build = next(
+            (u for u, _ in weights if not any(self.get_missing_requirements(u, include_pending=False, include_planned=False))),
+            None)
+
+        if best_unit == best_can_build:
+            return {
+                best_unit: math.ceil(enemy_value / value(best_unit))
+            }
+        else:
+            return {
+                best_unit: 0,
+                best_can_build: math.ceil(enemy_value / value(best_can_build))
+            }
 
     def destroy_destructables(self):
         return self.strategy.destroy_destructables(self)
@@ -485,6 +500,10 @@ class ZergAI(CommonAI):
         if not target:
             return
 
+        max_range = CREEP_RANGE
+        if spreader.type_id == UnitTypeId.QUEEN:
+            max_range = 3 * CREEP_RANGE
+
         for i in range(CREEP_RANGE, 0, -1):
             position = spreader.position.towards(target, i)
             if not self.has_creep(position):
@@ -532,22 +551,6 @@ class ZergAI(CommonAI):
                     yield unit
             else:
                 yield unit
-
-    def assess_threat_level(self):
-
-        def proportion(a, b):
-            return a / (a + b)
-
-        # self.threat_level = max(
-        #     (proportion(self.enemy_map_blur[base.position.rounded], max(1, self.friend_map[base.position.rounded]))
-        #     for base in self.bases
-        #     if base.townhall),
-        #     default=1)
-
-        value_self = armyValue(self.enumerate_army())
-        value_enemy = np.sum(self.enemy_map * (1 - self.distance_map))
-
-        self.threat_level = value_enemy / (1 + value_self + value_enemy)
 
 
     async def manage_queens(self):

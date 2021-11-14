@@ -1,4 +1,5 @@
 
+import math
 from typing import Union, Iterable, Dict
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 
@@ -17,6 +18,7 @@ class ZergMacro(ZergStrategy):
         worker_count = bot.count(UnitTypeId.DRONE, include_planned=False)
 
         ratio = max(bot.threat_level, worker_count / worker_limit)
+        ratio = pow(ratio, 2)
         # ratio = bot.threat_level
 
         composition = {
@@ -26,7 +28,7 @@ class ZergMacro(ZergStrategy):
         if 4 <= bot.townhalls.amount:
             composition[UnitTypeId.QUEEN] += 1
     
-        if worker_count < 2 * 19:
+        if worker_count < 40:
             composition[UnitTypeId.ZERGLING] = 2 + int(ratio * worker_count)
 
         elif not bot.count(UpgradeId.ZERGGROUNDARMORSLEVEL1, include_planned=False) or bot.enemy_race == Race.Zerg:
@@ -49,13 +51,16 @@ class ZergMacro(ZergStrategy):
         # else:
         #     composition[UnitTypeId.LAIR] = 1
         #     composition[UnitTypeId.OVERSEER] = 3
-        #     composition.update(bot.counter_composition(bot.enemies.values()))
+        #     composition.update({
+        #         u: int(ratio * v)
+        #         for u, v in bot.counter_composition(bot.enemies.values()).items()
+        #     })
 
         # for morph_to in [UnitTypeId.BANELING, UnitTypeId.RAVAGER, UnitTypeId.LURKERMP, UnitTypeId.BROODLORD]:
         #     morph_from = UNIT_TRAINED_FROM[morph_to]
         #     if morph_to in composition:
         #         for morph_from in UNIT_TRAINED_FROM[morph_to]:
-        #             composition[morph_from] = 10
+        #             composition[morph_from] = math.ceil(composition[morph_to] / 5)
 
         return composition
 
@@ -84,6 +89,7 @@ class ZergMacro(ZergStrategy):
             bot.morph_overlords: 1,
             bot.make_composition: 1,
             bot.make_tech: 1,
+            bot.pull_workers: 1,
             bot.expand: 1,
             bot.micro: 1,
             bot.macro: 1,
