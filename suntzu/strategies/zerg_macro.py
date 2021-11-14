@@ -26,7 +26,7 @@ class ZergMacro(ZergStrategy):
         if 4 <= bot.townhalls.amount:
             composition[UnitTypeId.QUEEN] += 1
     
-        if worker_count < 44:
+        if worker_count < 2 * 19:
             composition[UnitTypeId.ZERGLING] = 2 + int(ratio * worker_count)
 
         elif not bot.count(UpgradeId.ZERGGROUNDARMORSLEVEL1, include_planned=False) or bot.enemy_race == Race.Zerg:
@@ -85,7 +85,7 @@ class ZergMacro(ZergStrategy):
             bot.make_composition: 1,
             bot.make_tech: 1,
             bot.expand: 1,
-            # bot.micro: 1,
+            bot.micro: 1,
             bot.macro: 1,
             bot.transfuse: 1,
             bot.corrosive_bile: 1,

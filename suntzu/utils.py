@@ -49,7 +49,10 @@ def center(points: Iterable[Point2]) -> Point2:
 def unitValue(unit: Unit, target = None):
     if unit.is_hallucination:
         return 0
-    if target is None:
+    # assume bunkers have 4 marines in them
+    if unit.type_id == UnitTypeId.BUNKER:
+        dps = 4 * 10
+    elif target is None:
         dps = max(unit.air_dps, unit.ground_dps)
     else:
         dps = unit.calculate_dps_vs_target(target)
