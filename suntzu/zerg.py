@@ -67,6 +67,12 @@ class ZergAI(CommonAI):
         self.creep_tile_count: int = 1
         self.blocked_base_detectors: Dict[Point2, int] = dict()
 
+    def pull_workers(self):
+        if not self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False):
+            return super().pull_workers(5)
+        else:
+            return super().pull_workers()
+
     def counter_composition(self, enemies: Iterable[Unit]) -> Dict[UnitTypeId, int]:
 
         def value(unit: UnitTypeId):

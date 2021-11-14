@@ -1184,14 +1184,18 @@ class CommonAI(BotAI):
         self.threat_level = value_enemy / (1 + value_self + value_enemy)
 
 
-    def pull_workers(self):
+    def pull_workers(self, max_count: Optional[int] = None):
 
         self.drafted_civilians = {
             u for u in self.drafted_civilians
             if u in self.unit_by_tag
         }
         
-        if 0.5 < self.threat_level and self.time < 3 * 60:
+        if (
+            0.5 < self.threat_level
+            and self.time < 3 * 60
+            and (not max_count or len(self.drafted_civilians) < max_count)
+        ):
             # if not self.count(UnitTypeId.SPINECRAWLER):
             #     plan = MacroPlan(UnitTypeId.SPINECRAWLER)
             #     plan.target = self.bases[0].mineral_patches.position
