@@ -6,7 +6,7 @@ from sc2.constants import ALL_GAS
 from suntzu.constants import RICH_GAS
 
 from .resource_single import ResourceSingle
-from .resource import Resource
+from .resource_base import ResourceBase
 
 class VespeneGeyser(ResourceSingle):
 

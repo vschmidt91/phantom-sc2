@@ -14,7 +14,8 @@ from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 import numpy as np
 
 def canAttack(a, b):
-    return a.distance_to(b) < 6 + (a.air_range if b.is_flying else a.ground_range)
+    return a.can_attack_air if b.is_flying else a.can_attack_ground
+    # return a.distance_to(b) < 6 + (a.air_range if b.is_flying else a.ground_range)
 
 def makeUnique(a):
     b = []
@@ -25,7 +26,7 @@ def makeUnique(a):
     return b
 
 def armyValue(group):
-    return sum((unitValue(unit) for unit in group))
+    return sum(unitValue(unit) for unit in group)
 
 def unitPriority(unit, target = None):
     if target is None:

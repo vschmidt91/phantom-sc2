@@ -3,9 +3,9 @@ from typing import Optional, Set, Union, Iterable
 from sc2.position import Point2
 from abc import ABC, abstractmethod
 
-from .resource import Resource
+from .resource_base import ResourceBase
 
-class ResourceSingle(Resource):
+class ResourceSingle(ResourceBase):
 
     def __init__(self, position: Point2):
         super().__init__(position)

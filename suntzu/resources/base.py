@@ -12,7 +12,7 @@ from sc2.units import Units
 
 from .mineral_patch import MineralPatch
 from .vespene_geyser import VespeneGeyser
-from .resource import Resource
+from .resource_base import ResourceBase
 from .resource_group import ResourceGroup
 
 MINING_RADIUS = 1.325
@@ -49,7 +49,7 @@ def _get_intersections(x0: float, y0: float, r0: float, x1: float, y1: float, r1
 
         return [Point2((x3, y3)), Point2((x4, y4))]
 
-class Base(ResourceGroup[Resource]):
+class Base(ResourceGroup[ResourceBase]):
 
     def __init__(self,
         townhall_position: Point2,

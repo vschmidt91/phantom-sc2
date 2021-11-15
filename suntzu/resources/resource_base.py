@@ -5,7 +5,7 @@ from s2clientprotocol.error_pb2 import Error
 from sc2.position import Point2
 from abc import ABC, abstractmethod
 
-class Resource(object):
+class ResourceBase(ABC):
 
     def __init__(self, position: Point2):
         self.position: Point2 = position

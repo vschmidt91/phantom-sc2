@@ -5,7 +5,7 @@ from sc2.position import Point2
 from sc2.ids.ability_id import AbilityId
 from suntzu.constants import RICH_MINERALS
 
-from .resource import Resource
+from .resource_base import ResourceBase
 from .resource_single import ResourceSingle
 
 def speed_mine(harvester, target):

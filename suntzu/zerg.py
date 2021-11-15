@@ -67,12 +67,6 @@ class ZergAI(CommonAI):
         self.creep_tile_count: int = 1
         self.blocked_base_detectors: Dict[Point2, int] = dict()
 
-    def pull_workers(self):
-        if not self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False):
-            return super().pull_workers(5)
-        else:
-            return super().pull_workers()
-
     def counter_composition(self, enemies: Iterable[Unit]) -> Dict[UnitTypeId, int]:
 
         def value(unit: UnitTypeId):
@@ -169,11 +163,11 @@ class ZergAI(CommonAI):
 
         self.creep_tile_count = np.sum(self.game_info.pathing_grid.data_numpy)
 
-        first_overlord = next(iter(self.actual_by_type[UnitTypeId.OVERLORD]))
-        enemy_natural = self.bases[-2].position
-        enemy_third = self.bases[-3].position
-        first_overlord.move(enemy_natural.towards(first_overlord.position, first_overlord.sight_range))
-        first_overlord.move(enemy_third, queue=True)
+        # first_overlord = next(iter(self.actual_by_type[UnitTypeId.OVERLORD]))
+        # enemy_natural = self.bases[-2].position
+        # enemy_third = self.bases[-3].position
+        # first_overlord.move(enemy_natural.towards(first_overlord.position, first_overlord.sight_range))
+        # first_overlord.move(enemy_third, queue=True)
 
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
@@ -215,7 +209,7 @@ class ZergAI(CommonAI):
             if target.health_max <= target.health + 75:
                 return 0
             priority = 1
-            priority *= 10 + target.health_max - target.health
+            priority *= 10 + unitValue(target)
             return priority
 
         ability = AbilityId.TRANSFUSION_TRANSFUSION
@@ -565,8 +559,8 @@ class ZergAI(CommonAI):
             self.actual_by_type[UnitTypeId.QUEEN],
             key=lambda q:q.tag)
 
-        macro_queen_count = max(0, round((1 - self.threat_level) * len(queens)))
-        macro_queen_count = min(6, 1 + self.townhalls.amount, macro_queen_count)
+        macro_queen_count = math.floor((1 - self.threat_level) * len(queens))
+        macro_queen_count = min(6, self.townhalls.amount, macro_queen_count)
         creep_queen_count = 1 if 2 < macro_queen_count else 0
 
         creep_queens = queens[0:creep_queen_count]

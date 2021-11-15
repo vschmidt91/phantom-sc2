@@ -5,12 +5,12 @@ from itertools import chain
 from sc2.unit import Unit
 from sc2.position import Point2
 
-from .resource import Resource
+from .resource_base import ResourceBase
 from ..utils import center
 
-T = TypeVar('T', bound=Resource)
+T = TypeVar('T', bound=ResourceBase)
 
-class ResourceGroup(Resource, Generic[T], Iterable[T]):
+class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
 
     def __init__(self, items: List[T], position: Optional[Point2] = None):
         if position == None:
