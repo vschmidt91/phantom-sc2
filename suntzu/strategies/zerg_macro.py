@@ -6,6 +6,7 @@ from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.data import Race
+from suntzu.constants import ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_MELEE_UPGRADES
 
 from .zerg_strategy import ZergStrategy
 
@@ -67,6 +68,12 @@ class ZergMacro(ZergStrategy):
         return self.tech_time < bot.time
 
     def filter_upgrade(self, bot, upgrade) -> bool:
+        if upgrade in ZERG_FLYER_UPGRADES:
+            return False
+        if upgrade in ZERG_FLYER_ARMOR_UPGRADES:
+            return False
+        if upgrade in ZERG_MELEE_UPGRADES:
+            return False
         return True
 
     def steps(self, bot):
