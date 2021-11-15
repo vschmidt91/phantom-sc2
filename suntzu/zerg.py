@@ -40,7 +40,7 @@ CREEP_ENABLED = True
 
 SPORE_TIMING = {
     Race.Zerg: 7 * 60,
-    Race.Protoss: 4.5 * 60,
+    Race.Protoss: 4 * 60,
     Race.Terran: 4.5 * 60,
 }
 
@@ -552,7 +552,6 @@ class ZergAI(CommonAI):
             else:
                 yield unit
 
-
     async def manage_queens(self):
 
         queens = sorted(
@@ -583,6 +582,18 @@ class ZergAI(CommonAI):
     def update_composition(self):
         self.composition = self.strategy.composition(self)
 
+    def update_bases(self):
+
+        build_spores = SPORE_TIMING[self.enemy_race] < self.time and 30 < self.bases.harvester_count
+        if build_spores:
+            for base in self.bases:
+        
+                base.defensive_targets = {
+                    UnitTypeId.SPORECRAWLER: 1,
+                }
+
+        return super().update_bases()
+
     def morph_overlords(self):
         if 200 <= self.supply_cap:
             return
@@ -607,4 +618,7 @@ class ZergAI(CommonAI):
             and not self.townhalls.not_ready.exists
             and saturation_target * worker_max <= self.count(UnitTypeId.DRONE, include_planned=False)
         ):
-            self.add_macro_plan(MacroPlan(UnitTypeId.HATCHERY, priority=1))
+            plan = MacroPlan(UnitTypeId.HATCHERY)
+            plan.priority = 1
+            plan.max_distance = 0
+            self.add_macro_plan(plan)

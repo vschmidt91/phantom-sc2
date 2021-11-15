@@ -18,6 +18,7 @@ class MacroPlan(object):
         self.unit: Optional[int] = None
         self.target = None
         self.priority: float = 0
+        self.max_distance: Optional[float] = None
         self.__dict__.update(**kwargs)
 
     def __repr__(self) -> str:

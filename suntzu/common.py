@@ -6,6 +6,7 @@ import math
 import random
 from typing import DefaultDict, Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
 import numpy as np
+from s2clientprotocol.data_pb2 import Weapon
 from s2clientprotocol.raw_pb2 import Effect
 from s2clientprotocol.sc2api_pb2 import Macro
 from scipy import ndimage
@@ -109,6 +110,8 @@ class CommonAI(BotAI):
         self.distance_gradient_map: np.ndarray = None
         self.threat_level = 0
         self.enemies: Dict[int, Unit] = dict()
+        self.weapons: Dict[UnitTypeId, List] = dict()
+        self.dps: Dict[UnitTypeId, float] = dict()
         self.potentially_dead_harvesters: Dict[int, int] = dict()
         self.resource_by_position: Dict[Point2, Unit] = dict()
         self.unit_by_tag: Dict[int, Unit] = dict()
@@ -123,6 +126,20 @@ class CommonAI(BotAI):
         return True
 
     async def on_before_start(self):
+
+        for unit in UnitTypeId:
+            data = self.game_data.units.get(unit.value)
+            if not data:
+                continue
+            weapons = list(data._proto.weapons)
+            self.weapons[unit] = weapons
+            dps = 0
+            for weapon in weapons:
+                damage = weapon.damage
+                speed = weapon.speed
+                dps = max(dps, damage / speed)
+            self.dps[unit] = dps
+
         if self.game_step is not None:
             self.client.game_step = self.game_step
         self.cost = dict()
@@ -495,6 +512,20 @@ class CommonAI(BotAI):
 
     def update_bases(self):
 
+        for base in self.bases:
+            base.defensive_units.clear()
+            base.defensive_units_planned.clear()
+
+        for unit_type in STATIC_DEFENSE[self.race]:
+            for unit in chain(self.actual_by_type[unit_type], self.pending_by_type[unit_type]):
+                base = min(self.bases, key=lambda b:b.position.distance_to(unit))
+                base.defensive_units.add(unit)
+            for plan in self.planned_by_type[unit_type]:
+                if not isinstance(plan.target, Point2):
+                    continue
+                base = min(self.bases, key=lambda b:b.position.distance_to(plan.target))
+                base.defensive_units_planned.add(plan)
+
         self.bases.update(self)
 
     async def initialize_bases(self):
@@ -609,12 +640,6 @@ class CommonAI(BotAI):
         income_minerals = sum(base.mineral_patches.income for base in self.bases)
         income_vespene = sum(base.vespene_geysers.income for base in self.bases)
         return income_minerals, income_vespene
-
-    def time_to_harvest(self, minerals, vespene):
-        income_minerals, income_vespene = self.estimate_income()
-        time_minerals = minerals / max(1, income_minerals)
-        time_vespene = vespene / max(1, income_vespene)
-        return max(0, time_minerals, time_vespene)
 
     async def time_to_reach(self, unit, target):
         if isinstance(target, Unit):
@@ -782,8 +807,10 @@ class CommonAI(BotAI):
 
             if self.is_structure(plan.item) and isinstance(plan.target, Point2):
                 if not await self.can_place_single(plan.item, plan.target):
-                    plan.target = None
-                    continue
+                    target2 = await self.find_placement(plan.item, plan.target, max_distance=plan.max_distance or 20)
+                    if not target2:
+                        continue
+                    plan.target = target2
 
             # if took_action and plan.priority == BUILD_ORDER_PRIORITY:
             #     continue
@@ -857,11 +884,8 @@ class CommonAI(BotAI):
         elif "requires_placement_position" in objective.ability:
             position = await self.get_target_position(objective.item, unit)
             withAddon = objective in { UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT }
-            if objective.item == TOWNHALL[self.race]:
-                max_distance = 0
-            else:
-                max_distance = 8
-            position = await self.find_placement(objective.ability["ability"], position, max_distance=max_distance, placement_step=1, addon_place=withAddon)
+            
+            position = await self.find_placement(objective.ability["ability"], position, max_distance=objective.max_distance or 20, placement_step=1, addon_place=withAddon)
             if position is None:
                 raise PlacementNotFound()
             else:
@@ -1180,8 +1204,8 @@ class CommonAI(BotAI):
 
         # value_self = armyValue(self.enumerate_army())
  
-        value_self = 200 + np.sum(self.friend_map * (1 - self.distance_map))
-        value_enemy = 200 + np.sum(self.enemy_map * (1 - self.distance_map))
+        value_self = 50 + np.sum(self.friend_map * (1 - self.distance_map))
+        value_enemy = 50 + np.sum(self.enemy_map * (1 - self.distance_map))
         self.threat_level = value_enemy / (1 + value_self + value_enemy)
 
 

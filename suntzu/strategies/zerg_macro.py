@@ -23,7 +23,7 @@ class ZergMacro(ZergStrategy):
 
         composition = {
             UnitTypeId.DRONE: worker_target,
-            UnitTypeId.QUEEN: min(12, 3 * bot.townhalls.amount),
+            UnitTypeId.QUEEN: min(8, 2 * bot.townhalls.amount),
         }
         if 4 <= bot.townhalls.amount:
             composition[UnitTypeId.QUEEN] += 1

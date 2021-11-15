@@ -1,5 +1,5 @@
 
-from typing import Dict, Iterable, Set, List, Optional
+from typing import DefaultDict, Dict, Iterable, Set, List, Optional
 from itertools import chain
 import math
 
@@ -8,7 +8,9 @@ from sc2.ids.ability_id import AbilityId
 
 from sc2.position import Point2
 from sc2.unit import Unit
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
+from suntzu.macro_plan import MacroPlan
 
 from .mineral_patch import MineralPatch
 from .vespene_geyser import VespeneGeyser
@@ -69,6 +71,9 @@ class Base(ResourceGroup[ResourceBase]):
         super().__init__([self.mineral_patches, self.vespene_geysers], townhall_position)
         self.townhall: Optional[int] = None
         self.blocked_since: Optional[float] = None
+        self.defensive_units: Set[Unit] = set()
+        self.defensive_units_planned: Set[MacroPlan] = set()
+        self.defensive_targets: DefaultDict[UnitTypeId, int] = DefaultDict(lambda:0)
         self.fix_speedmining_positions()
 
     def fix_speedmining_positions(self):
@@ -99,4 +104,20 @@ class Base(ResourceGroup[ResourceBase]):
             return
         for mineral in self.mineral_patches:
             mineral.townhall = self.townhall
+
+        for unit_type, want in self.defensive_targets.items():
+            have = [
+                u for u in self.defensive_units
+                if u.type_id == unit_type
+            ]
+            planned = [
+                p for p in self.defensive_units_planned
+                if p.item == unit_type
+            ]
+            if len(have) + len(planned) < want:
+                plan = MacroPlan(unit_type)
+                plan.target = self.mineral_patches.position.towards(self.position, 2)
+                plan.max_distance = 1
+                bot.add_macro_plan(plan)
+
         super().update(bot)
