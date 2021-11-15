@@ -993,7 +993,7 @@ class CommonAI(BotAI):
         for friend in friends:
             self.friend_map[friend.position.rounded] += unitValue(friend)
 
-        blur_sigma = 8
+        blur_sigma = 9
         enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
         friend_map_blur = ndimage.gaussian_filter(self.friend_map, blur_sigma)
 

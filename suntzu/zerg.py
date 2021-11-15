@@ -44,6 +44,8 @@ SPORE_TIMING = {
     Race.Terran: 4.5 * 60,
 }
 
+SPORE_TIMING[Race.Random] = min(SPORE_TIMING.values())
+
 TIMING_INTERVAL = 64
 
 class ZergAI(CommonAI):
@@ -481,15 +483,26 @@ class ZergAI(CommonAI):
             self.spread_creep_single(spreader, valid_map)
 
 
-    def spread_creep_single(self, spreader: Unit, valid_map: np.ndarray):
+    def spread_creep_single(self, spreader: Unit, valid_map: np.ndarray, num_attempts: int = 1):
+
+        start_position = spreader.position
+
+        if (
+            spreader.type_id == UnitTypeId.QUEEN
+            # and self.count(UnitTypeId.CREEPTUMORBURROWED) == 0
+        ):
+            forward_base = max(
+                self.townhalls.ready,
+                key = lambda th : self.distance_map[th.position.rounded],
+                default = None)
+            if forward_base:
+                start_position = forward_base.position 
 
         target = None
-
-        num_attempts = 1
         for _ in range(num_attempts):
             angle = np.random.uniform(0, 2 * math.pi)
-            distance = CREEP_RANGE + np.random.exponential(CREEP_RANGE)
-            target_test = spreader.position + distance * Point2((math.cos(angle), math.sin(angle)))
+            distance = np.random.exponential(CREEP_RANGE)
+            target_test = start_position + distance * Point2((math.cos(angle), math.sin(angle)))
             target_test = np.clip(target_test, self.creep_area_min, self.creep_area_max)
             target_test = Point2(target_test).rounded
             if not valid_map[target_test]:
@@ -504,7 +517,7 @@ class ZergAI(CommonAI):
         if spreader.type_id == UnitTypeId.QUEEN:
             max_range = 3 * CREEP_RANGE
 
-        for i in range(CREEP_RANGE, 0, -1):
+        for i in range(max_range, 0, -1):
             position = spreader.position.towards(target, i)
             if not self.has_creep(position):
                 continue
@@ -560,7 +573,8 @@ class ZergAI(CommonAI):
 
         macro_queen_count = math.floor((1 - self.threat_level) * len(queens))
         macro_queen_count = min(6, self.townhalls.amount, macro_queen_count)
-        creep_queen_count = 1 if 2 < macro_queen_count else 0
+        # creep_queen_count = 1 if 2 < macro_queen_count else 0
+        creep_queen_count = min(1, macro_queen_count)
 
         creep_queens = queens[0:creep_queen_count]
         inject_queens = queens[creep_queen_count:macro_queen_count]

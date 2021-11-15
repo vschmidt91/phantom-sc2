@@ -27,22 +27,25 @@ class ZergMacro(ZergStrategy):
         }
         if 4 <= bot.townhalls.amount:
             composition[UnitTypeId.QUEEN] += 1
+
+        if 3 <= bot.townhalls.amount:
+            composition[UnitTypeId.ROACHWARREN] = 1
     
-        if worker_count < 40:
+        if not bot.count(UnitTypeId.ROACHWARREN, include_planned=False, include_pending=False):
             composition[UnitTypeId.ZERGLING] = 2 + int(ratio * worker_count)
 
         elif not bot.count(UpgradeId.ZERGGROUNDARMORSLEVEL1, include_planned=False):
-            composition[UnitTypeId.OVERSEER] = 2
+            composition[UnitTypeId.OVERSEER] = 1
             composition[UnitTypeId.ROACH] = int(ratio * 50)
             composition[UnitTypeId.RAVAGER] = int(ratio * 10)
         elif not bot.count(UpgradeId.ZERGGROUNDARMORSLEVEL2, include_planned=False):
-            composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
-            composition[UnitTypeId.OVERSEER] = 3
+            # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
+            composition[UnitTypeId.OVERSEER] = 2
             composition[UnitTypeId.ROACH] = 40
             composition[UnitTypeId.HYDRALISK] = 40
         else:
-            composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
-            composition[UnitTypeId.OVERSEER] = 4
+            # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
+            composition[UnitTypeId.OVERSEER] = 3
             composition[UnitTypeId.ROACH] = 40
             composition[UnitTypeId.HYDRALISK] = 40
             composition[UnitTypeId.CORRUPTOR] = 10
@@ -77,7 +80,8 @@ class ZergMacro(ZergStrategy):
         return True
 
     def steps(self, bot):
-        return {
+
+        steps = {
             # self.kill_random_unit: 100,
             bot.draw_debug: 1,
             bot.assess_threat_level: 1,
@@ -96,7 +100,7 @@ class ZergMacro(ZergStrategy):
             bot.make_composition: 1,
             bot.make_tech: 1,
             bot.pull_workers: 1,
-            bot.expand: 1,
+            # bot.expand: 1,
             bot.micro: 1,
             bot.macro: 1,
             bot.transfuse: 1,
@@ -108,3 +112,8 @@ class ZergMacro(ZergStrategy):
             bot.reset_blocked_bases: 1,
             bot.greet_opponent: 1,
         }
+
+        if UpgradeId.ZERGLINGMOVEMENTSPEED in bot.state.upgrades:
+            steps[bot.expand] = 1
+
+        return steps
