@@ -1,6 +1,6 @@
 
 from math import floor
-from typing import Iterable, Set, Tuple, Union
+from typing import Iterable, Optional, Set, Tuple, Union
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM

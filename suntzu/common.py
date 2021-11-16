@@ -714,6 +714,7 @@ class CommonAI(BotAI):
         reserve = Cost(0, 0, 0)
         exclude = { o.unit for o in self.macro_plans }
         exclude.update(unit.tag for units in self.pending_by_type.values() for unit in units)
+        exclude.update(self.drafted_civilians)
         took_action = False
         income_minerals, income_vespene = self.income
         self.macro_plans.sort(key = lambda t : t.priority, reverse=True)
@@ -956,15 +957,7 @@ class CommonAI(BotAI):
 
     def positions_in_range(self, unit: Unit) -> Iterable[Point2]:
 
-        unit_range = math.ceil(unit.radius + max(unit.ground_range, unit.air_range))
-
-        range_upgrades = RANGE_UPGRADES.get(unit.type_id)
-        if range_upgrades:
-            if unit.is_mine:
-                range_boni = (v for u, v in range_upgrades.items() if u in self.state.upgrades)
-            elif unit.is_enemy:
-                range_boni = range_upgrades.values()
-            unit_range += sum(range_boni)
+        unit_range = unit.radius + self.get_unit_range(unit)
 
         xm, ym = unit.position.rounded
         x0 = max(0, xm - unit_range)
@@ -977,6 +970,24 @@ class CommonAI(BotAI):
                 if unit.distance_to(p) <= unit_range:
                     yield p
 
+    def get_unit_range(self, unit: Unit, ground: bool = True, air: bool = True) -> float:
+
+        unit_range = 0
+        if ground:
+            unit_range = max(unit_range, unit.ground_range)
+        if air:
+            unit_range = max(unit_range, unit.air_range)
+
+        range_upgrades = RANGE_UPGRADES.get(unit.type_id)
+        if range_upgrades:
+            if unit.is_mine:
+                range_boni = (v for u, v in range_upgrades.items() if u in self.state.upgrades)
+            elif unit.is_enemy:
+                range_boni = range_upgrades.values()
+            unit_range += sum(range_boni)
+
+        return unit_range
+
     async def micro(self):
 
         friends = list(self.enumerate_army())
@@ -986,8 +997,14 @@ class CommonAI(BotAI):
             enemies.extend(self.destructables_fixed)
 
         self.enemy_map = np.zeros(self.game_info.map_size)
+        test_map = np.zeros(self.game_info.map_size)
         for enemy in self.enemies.values():
             self.enemy_map[enemy.position.rounded] += unitValue(enemy)
+            r = self.get_unit_range(enemy)
+            p0 = np.maximum(np.floor(np.array(enemy.position.rounded) - r), 0).astype(np.int)
+            p1 = np.minimum(np.ceil(np.array(enemy.position.rounded) + r + 1), self.game_info.map_size).astype(np.int)
+            v = unitValue(enemy)
+            test_map[p0[0]:p1[0],p1[0]:p1[1]] += v
 
         self.friend_map = np.zeros(self.game_info.map_size)
         for friend in friends:
@@ -1204,8 +1221,8 @@ class CommonAI(BotAI):
 
         # value_self = armyValue(self.enumerate_army())
  
-        value_self = 50 + np.sum(self.friend_map * (1 - self.distance_map))
-        value_enemy = 50 + np.sum(self.enemy_map * (1 - self.distance_map))
+        value_self = 10 + np.sum(self.friend_map * (1 - self.distance_map))
+        value_enemy = 10 + np.sum(self.enemy_map * (1 - self.distance_map))
         self.threat_level = value_enemy / (1 + value_self + value_enemy)
 
 

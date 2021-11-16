@@ -34,11 +34,11 @@ class ZergMacro(ZergStrategy):
         if not bot.count(UnitTypeId.ROACHWARREN, include_planned=False, include_pending=False):
             composition[UnitTypeId.ZERGLING] = 2 + int(ratio * worker_count)
 
-        elif not bot.count(UpgradeId.ZERGGROUNDARMORSLEVEL1, include_planned=False):
+        elif not bot.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False):
             composition[UnitTypeId.OVERSEER] = 1
             composition[UnitTypeId.ROACH] = int(ratio * 50)
             composition[UnitTypeId.RAVAGER] = int(ratio * 10)
-        elif not bot.count(UpgradeId.ZERGGROUNDARMORSLEVEL2, include_planned=False):
+        elif not bot.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False):
             # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
             composition[UnitTypeId.OVERSEER] = 2
             composition[UnitTypeId.ROACH] = 40
@@ -100,7 +100,7 @@ class ZergMacro(ZergStrategy):
             bot.make_composition: 1,
             bot.make_tech: 1,
             bot.pull_workers: 1,
-            # bot.expand: 1,
+            bot.expand: 1,
             bot.micro: 1,
             bot.macro: 1,
             bot.transfuse: 1,
@@ -113,7 +113,7 @@ class ZergMacro(ZergStrategy):
             bot.greet_opponent: 1,
         }
 
-        if UpgradeId.ZERGLINGMOVEMENTSPEED in bot.state.upgrades:
-            steps[bot.expand] = 1
+        # if UpgradeId.ZERGLINGMOVEMENTSPEED in bot.state.upgrades:
+        #     steps[bot.expand] = 1
 
         return steps

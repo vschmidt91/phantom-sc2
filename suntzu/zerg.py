@@ -596,17 +596,17 @@ class ZergAI(CommonAI):
     def update_composition(self):
         self.composition = self.strategy.composition(self)
 
-    def update_bases(self):
+    # def update_bases(self):
 
-        build_spores = SPORE_TIMING[self.enemy_race] < self.time and 30 < self.bases.harvester_count
-        if build_spores:
-            for base in self.bases:
+    #     build_spores = SPORE_TIMING[self.enemy_race] < self.time and 30 < self.bases.harvester_count
+    #     if build_spores:
+    #         for base in self.bases:
         
-                base.defensive_targets = {
-                    UnitTypeId.SPORECRAWLER: 1,
-                }
+    #             base.defensive_targets = {
+    #                 UnitTypeId.SPORECRAWLER: 1,
+    #             }
 
-        return super().update_bases()
+    #     return super().update_bases()
 
     def morph_overlords(self):
         if 200 <= self.supply_cap:
