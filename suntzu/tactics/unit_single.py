@@ -87,11 +87,15 @@ class UnitSingle(ABC):
             else:
                 attack_target = target
 
+            range_difference = bot.get_unit_range(target) - bot.get_unit_range(unit)
+            range_difference = max(0, range_difference)
+            sample_position = unit.position.towards(target.position, range_difference, limit=True)
+
             # friends_rating = sum(unitValue(f) / max(1, target.distance_to(f)) for f in friends)
             # enemies_rating = sum(unitValue(e) / max(1, unit.distance_to(e)) for e in enemies)
 
             friends_rating = 1 + friend_map[unit.position.rounded]
-            enemies_rating = 1 + enemy_map[unit.position.rounded]
+            enemies_rating = 1 + enemy_map[sample_position.rounded]
             advantage_army = friends_rating / max(1, enemies_rating)
 
             advantage_defender = 1.5 - bot.distance_map[unit.position.rounded]
