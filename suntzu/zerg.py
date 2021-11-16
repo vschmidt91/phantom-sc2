@@ -40,7 +40,7 @@ CREEP_ENABLED = True
 
 SPORE_TIMING = {
     Race.Zerg: 7 * 60,
-    Race.Protoss: 4 * 60,
+    Race.Protoss: 4.5 * 60,
     Race.Terran: 4.5 * 60,
 }
 
@@ -68,6 +68,12 @@ class ZergAI(CommonAI):
         self.creep_coverage: float = 0
         self.creep_tile_count: int = 1
         self.blocked_base_detectors: Dict[Point2, int] = dict()
+
+    async def on_enemy_unit_left_vision(self, unit_tag: int):
+        enemy = self.enemies.get(unit_tag)
+        if enemy.type_id == UnitTypeId.ROACHBURROWED:
+            print('Roach burrowed')
+        return await super().on_enemy_unit_left_vision(unit_tag)
 
     def counter_composition(self, enemies: Iterable[Unit]) -> Dict[UnitTypeId, int]:
 
@@ -596,17 +602,17 @@ class ZergAI(CommonAI):
     def update_composition(self):
         self.composition = self.strategy.composition(self)
 
-    # def update_bases(self):
+    def update_bases(self):
 
-    #     build_spores = SPORE_TIMING[self.enemy_race] < self.time and 30 < self.bases.harvester_count
-    #     if build_spores:
-    #         for base in self.bases:
+        build_spores = SPORE_TIMING[self.enemy_race] < self.time and 30 < self.bases.harvester_count
+        if build_spores:
+            for base in self.bases:
         
-    #             base.defensive_targets = {
-    #                 UnitTypeId.SPORECRAWLER: 1,
-    #             }
+                base.defensive_targets = {
+                    UnitTypeId.SPORECRAWLER: 1,
+                }
 
-    #     return super().update_bases()
+        return super().update_bases()
 
     def morph_overlords(self):
         if 200 <= self.supply_cap:
