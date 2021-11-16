@@ -38,13 +38,41 @@ from .macro_plan import MacroPlan
 CREEP_RANGE = 10
 CREEP_ENABLED = True
 
-SPORE_TIMING = {
-    Race.Zerg: 7 * 60,
-    Race.Protoss: 4.5 * 60,
-    Race.Terran: 4.5 * 60,
+SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
+    Race.Zerg: {
+        UnitTypeId.DRONEBURROWED,
+        UnitTypeId.QUEENBURROWED,
+        UnitTypeId.ZERGLINGBURROWED,
+        UnitTypeId.BANELINGBURROWED,
+        UnitTypeId.ROACHBURROWED,
+        UnitTypeId.RAVAGERBURROWED,
+        UnitTypeId.HYDRALISKBURROWED,
+        UnitTypeId.LURKERMP,
+        UnitTypeId.LURKERMPBURROWED,
+        UnitTypeId.INFESTORBURROWED,
+        UnitTypeId.SWARMHOSTBURROWEDMP,
+        UnitTypeId.ULTRALISKBURROWED,
+    },
+    Race.Protoss: {
+        UnitTypeId.STARGATE,
+        UnitTypeId.ORACLE,
+        UnitTypeId.VOIDRAY,
+        UnitTypeId.CARRIER,
+        UnitTypeId.TEMPEST,
+        UnitTypeId.PHOENIX,
+    },
+    Race.Terran: {
+        UnitTypeId.STARPORT,
+        UnitTypeId.STARPORTFLYING,
+        UnitTypeId.VIKING,
+        UnitTypeId.MEDIVAC,
+        UnitTypeId.LIBERATOR,
+        UnitTypeId.RAVEN,
+        UnitTypeId.BANSHEE,
+        UnitTypeId.BATTLECRUISER,
+    },
 }
-
-SPORE_TIMING[Race.Random] = min(SPORE_TIMING.values())
+SPORE_TRIGGERS[Race.Random] = set((v for vs in SPORE_TRIGGERS.values() for v in vs))
 
 TIMING_INTERVAL = 64
 
@@ -67,13 +95,8 @@ class ZergAI(CommonAI):
         self.inactive_tumors: Set[int] = set()
         self.creep_coverage: float = 0
         self.creep_tile_count: int = 1
+        self.build_spores: bool = False
         self.blocked_base_detectors: Dict[Point2, int] = dict()
-
-    async def on_enemy_unit_left_vision(self, unit_tag: int):
-        enemy = self.enemies.get(unit_tag)
-        if enemy.type_id == UnitTypeId.ROACHBURROWED:
-            print('Roach burrowed')
-        return await super().on_enemy_unit_left_vision(unit_tag)
 
     def counter_composition(self, enemies: Iterable[Unit]) -> Dict[UnitTypeId, int]:
 
@@ -537,18 +560,6 @@ class ZergAI(CommonAI):
         # if spreader.type_id == UnitTypeId.CREEPTUMORBURROWED:
         #     self.inactive_tumors.add(spreader.tag)
 
-    def build_spores(self):
-        sporeTime = {
-            Race.Zerg: 8 * 60,
-            Race.Protoss: 5 * 60,
-            Race.Terran: 5 * 60,
-        }
-        if (
-            sporeTime[self.enemy_race] < self.time
-            and self.count(UnitTypeId.SPORECRAWLER) < self.townhalls.amount
-        ):
-            self.add_macro_plan(MacroPlan(UnitTypeId.SPORECRAWLER))
-
     def enumerate_army(self):
         for unit in super().enumerate_army():
             if unit.type_id == UnitTypeId.QUEEN:
@@ -602,17 +613,17 @@ class ZergAI(CommonAI):
     def update_composition(self):
         self.composition = self.strategy.composition(self)
 
-    def update_bases(self):
+    def make_defenses(self):
 
-        build_spores = SPORE_TIMING[self.enemy_race] < self.time and 30 < self.bases.harvester_count
-        if build_spores:
+        for unit_type in SPORE_TRIGGERS[self.enemy_race]:
+            if any(self.enemies_by_type[unit_type]):
+                self.build_spores = True
+
+        if self.build_spores:
             for base in self.bases:
-        
                 base.defensive_targets = {
                     UnitTypeId.SPORECRAWLER: 1,
                 }
-
-        return super().update_bases()
 
     def morph_overlords(self):
         if 200 <= self.supply_cap:

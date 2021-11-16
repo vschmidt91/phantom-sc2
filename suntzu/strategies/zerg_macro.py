@@ -111,6 +111,7 @@ class ZergMacro(ZergStrategy):
             bot.assign_idle_workers: 1,
             bot.reset_blocked_bases: 1,
             bot.greet_opponent: 1,
+            bot.make_defenses: 1,
         }
 
         # if UpgradeId.ZERGLINGMOVEMENTSPEED in bot.state.upgrades:

@@ -110,6 +110,7 @@ class CommonAI(BotAI):
         self.distance_gradient_map: np.ndarray = None
         self.threat_level = 0
         self.enemies: Dict[int, Unit] = dict()
+        self.enemies_by_type: DefaultDict[UnitTypeId, Set[Unit]] = defaultdict(lambda:set())
         self.weapons: Dict[UnitTypeId, List] = dict()
         self.dps: Dict[UnitTypeId, float] = dict()
         self.potentially_dead_harvesters: Dict[int, int] = dict()
@@ -166,12 +167,6 @@ class CommonAI(BotAI):
         await self.initialize_bases()
 
         # await self.client.debug_show_map()
-
-        # spawns = [
-        #     [UnitTypeId.ZERGLINGBURROWED, 1, b.position, 2]
-        #     for b in self.bases[3:-1]
-        # ]
-        # await self.client.debug_create_unit(spawns)
 
     def handle_errors(self):
         for error in self.state.action_errors:
@@ -368,6 +363,10 @@ class CommonAI(BotAI):
                 continue
             elif not self.is_visible(enemy.position):
                 self.enemies[tag] = enemy
+
+        self.enemies_by_type.clear()
+        for enemy in self.enemies.values():
+            self.enemies_by_type[enemy.type_id].add(enemy)
         
         self.resource_by_position.clear()
         self.unit_by_tag.clear()
