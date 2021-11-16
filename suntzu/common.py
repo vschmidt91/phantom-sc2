@@ -41,7 +41,7 @@ from .resources.vespene_geyser import VespeneGeyser
 from .resources.base import Base
 from .resources.mineral_patch import MineralPatch
 from .resources.resource_base import ResourceBase
-from .resources.resource_group import ResourceGroup
+from .resources.resource_group import T, ResourceGroup
 from .constants import *
 from .macro_plan import MacroPlan
 from .cost import Cost
@@ -508,7 +508,7 @@ class CommonAI(BotAI):
             if gas_from and minerals_to and gas_from.try_transfer_to(minerals_to):
                 continue
             break
-
+        
     def update_bases(self):
 
         for base in self.bases:
@@ -529,10 +529,19 @@ class CommonAI(BotAI):
 
     async def initialize_bases(self):
 
+        terrain = self.game_info.terrain_height.data_numpy
+        terrain_min = np.min(terrain)
+        terrain_max = np.max(terrain)
+
+        height = {
+            b: (self.get_terrain_height(b) - terrain_min) / (terrain_max - terrain_min)
+            for b in self.expansion_locations_list
+        }
+
         bases = sorted((
             Base(position, (m.position for m in resources.mineral_field), (g.position for g in resources.vespene_geyser))
             for position, resources in self.expansion_locations_dict.items()
-        ), key = lambda b : self.distance_map[b.position.rounded])
+        ), key = lambda b : self.distance_map[b.position.rounded] - 0.1 * height[b.position])
 
         self.bases = ResourceGroup(bases)
         self.bases.items[0].mineral_patches.do_worker_split(set(self.workers))
@@ -1042,128 +1051,6 @@ class CommonAI(BotAI):
                 dodge_elements
             )
 
-            # dodge_closest = min(dodge_elements, key = lambda p : unit.distance_to(p[0]) - p[1], default = None)
-            # if dodge_closest:
-            #     dodge_position, dodge_radius = dodge_closest
-            #     dodge_distance = unit.distance_to(dodge_position) - unit.radius - dodge_radius - 1
-            #     if dodge_distance < 0:
-            #         unit.move(unit.position.towards(dodge_position, dodge_distance))
-            #         continue
-
-            # def target_priority(target: Unit) -> float:
-            #     if target.is_hallucination:
-            #         return 0
-            #     if target.type_id in CHANGELINGS:
-            #         return 0
-            #     if not can_attack(unit, target) and not unit.is_detector:
-            #         return 0
-            #     priority = 1
-            #     priority *= 10 + target.calculate_dps_vs_target(unit)
-            #     priority /= 100 + target.shield + target.health
-            #     priority /= 10 + unit.position.distance_to(target)
-            #     priority /= 30 + unit.position.distance_to(self.start_location)
-            #     priority /= 3 if target.is_structure else 1
-            #     priority *= 3 if target.type_id in WORKERS else 1
-            #     priority /= 3 if target.type_id in CIVILIANS else 1
-            #     priority /= 10 if not target.is_enemy else 1
-            #     if unit.is_detector:
-            #         priority *= 10 if target.is_cloaked else 1
-            #         priority *= 10 if not target.is_revealed else 1
-            #     return priority
-
-            # target = max(enemies, key=target_priority, default=None)
-
-            # heat_gradient = Point2(self.distance_gradient_map[unit.position.rounded[0], unit.position.rounded[1],:])
-            # if 0 < heat_gradient.length:
-            #     heat_gradient = heat_gradient.normalized
-
-            # enemy_gradient = Point2(self.enemy_gradient_map[unit.position.rounded[0], unit.position.rounded[1],:])
-            # if 0 < enemy_gradient.length:
-            #     enemy_gradient = enemy_gradient.normalized
-
-            # gradient = heat_gradient + enemy_gradient
-            # if 0 < gradient.length:
-            #     gradient = gradient.normalized
-            # elif target and 0 < unit.distance_to(target):
-            #     gradient = (unit.position - target.position).normalized
-            # elif 0 < unit.distance_to(self.start_location):
-            #     gradient = (self.start_location - unit.position).normalized
-
-            # if target and 0 < target_priority(target):
-
-            #     if target.is_enemy:
-            #         attack_target = target.position
-            #     else:
-            #         attack_target = target
-
-            #     # friends_rating = sum(unitValue(f) / max(1, target.distance_to(f)) for f in friends)
-            #     # enemies_rating = sum(unitValue(e) / max(1, unit.distance_to(e)) for e in enemies)
-
-            #     friends_rating = 1 + friend_map_blur[unit.position.rounded]
-            #     enemies_rating = 1 + enemy_map_blur[unit.position.rounded]
-            #     advantage_army = friends_rating / max(1, enemies_rating)
-
-            #     advantage_defender = 1.5 - self.distance_map[unit.position.rounded]
-
-            #     creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id, 1)
-            #     if unit.type_id == UnitTypeId.QUEEN:
-            #         creep_bonus = 100
-            #     advantage_creep = 1
-            #     if self.state.creep.is_empty(unit.position.rounded):
-            #         advantage_creep = 1 / creep_bonus
-
-            #     advantage = 1
-            #     advantage *= advantage_army
-            #     # advantage *= advantage_defender
-            #     advantage *= advantage_creep
-            #     advantage_threshold = 1
-
-            #     retreat_target = unit.position - 12 * gradient
-
-            #     if advantage < advantage_threshold / 2:
-
-            #         # FLEE
-            #         if not unit.is_moving:
-            #             unit.move(retreat_target)
-
-            #     elif advantage < advantage_threshold:
-
-            #         # RETREAT
-            #         if unit.weapon_cooldown and unit.target_in_range(target, unit.distance_to_weapon_ready):
-            #             unit.move(retreat_target)
-            #         elif unit.target_in_range(target):
-            #             unit.attack(target)
-            #         else:
-            #             unit.attack(attack_target)
-                    
-            #     elif advantage < advantage_threshold * 2:
-
-            #         # FIGHT
-            #         if unit.target_in_range(target):
-            #             unit.attack(target)
-            #         else:
-            #             unit.attack(attack_target)
-
-            #     else:
-
-            #         # PURSUE
-            #         distance = unit.position.distance_to(target.position) - unit.radius - target.radius
-            #         if unit.weapon_cooldown and 1 < distance:
-            #             unit.move(target.position)
-            #         elif unit.target_in_range(target):
-            #             unit.attack(target)
-            #         else:
-            #             unit.attack(attack_target)
-
-            # elif not unit.is_attacking:
-
-            #     if self.time < 8 * 60:
-            #         target = random.choice(self.enemy_start_locations)
-            #     else:
-            #         target = random.choice(self.expansion_locations_list)
-
-            #     unit.attack(target)
-
     async def get_target_position(self, target: UnitTypeId, trainer: Unit) -> Point2:
         if target in STATIC_DEFENSE[self.race]:
             townhalls = self.townhalls.ready.sorted_by_distance_to(self.start_location)
@@ -1220,7 +1107,7 @@ class CommonAI(BotAI):
 
         # value_self = armyValue(self.enumerate_army())
  
-        value_self = 10 + np.sum(self.friend_map * (1 - self.distance_map))
+        value_self = 10 + np.sum(self.friend_map)
         value_enemy = 10 + np.sum(self.enemy_map * (1 - self.distance_map))
         self.threat_level = value_enemy / (1 + value_self + value_enemy)
 

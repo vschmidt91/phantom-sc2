@@ -118,7 +118,7 @@ class Base(ResourceGroup[ResourceBase]):
                 plan = MacroPlan(unit_type)
                 plan.target = self.mineral_patches.position.towards(self.position, -3)
                 plan.max_distance = 1
-                plan.priority = -0.5
+                plan.priority = -0.25
                 bot.add_macro_plan(plan)
 
         super().update(bot)
