@@ -460,6 +460,26 @@ class ZergAI(CommonAI):
             if not changeling.is_moving:
                 target = random.choice(self.expansion_locations_list)
                 changeling.move(target)
+
+        playable_min = Point2((
+            self.game_info.playable_area.x,
+            self.game_info.playable_area.y,
+        ))
+        playable_max = Point2((
+            self.game_info.playable_area.right,
+            self.game_info.playable_area.top,
+        ))
+        for overlord in self.actual_by_type[UnitTypeId.OVERLORD]:
+            if not overlord.is_idle:
+                continue
+            angle = np.random.uniform(0, 2 * math.pi)
+            distance = np.random.exponential(overlord.sight_range)
+            target_test = overlord.position + distance * Point2((math.cos(angle), math.sin(angle)))
+            target_test = np.clip(target_test, playable_min, playable_max)
+            target_test = Point2(target_test)
+            if self.is_visible(target_test):
+                continue
+            overlord.move(overlord.position.towards(target_test, 1))
         # overlords = [
         #     self.unit_by_tag[t]
         #     for t in self.actual_by_type[UnitTypeId.OVERLORD]
