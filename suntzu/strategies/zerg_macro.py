@@ -7,6 +7,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.data import Race
 from suntzu.constants import ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_MELEE_UPGRADES
+from suntzu.utils import unitValue
 
 from .zerg_strategy import ZergStrategy
 
@@ -21,6 +22,14 @@ class ZergMacro(ZergStrategy):
         ratio = max(bot.threat_level, pow(worker_count / worker_limit, 2))
         # ratio = bot.threat_level
 
+        enemy_value = {
+            tag: unitValue(enemy)
+            for tag, enemy in bot.enemies.items()
+        }
+        enemy_flyer_value = sum(enemy_value[e.tag] for e in bot.enemies.values() if e.is_flying)
+        enemy_ground_value = sum(enemy_value[e.tag] for e in bot.enemies.values() if not e.is_flying)
+        enemy_flyer_ratio = enemy_flyer_value / max(1, enemy_flyer_value + enemy_ground_value)
+
         composition = {
             UnitTypeId.DRONE: worker_target,
             UnitTypeId.QUEEN: min(8, 2 * bot.townhalls.amount),
@@ -29,7 +38,7 @@ class ZergMacro(ZergStrategy):
             composition[UnitTypeId.QUEEN] += 1
 
         if 3 <= bot.townhalls.amount:
-            composition[UnitTypeId.ROACHWARREN] = 1
+            composition[UnitTypeId.ROACH] = 0
     
         if not bot.count(UnitTypeId.ROACHWARREN, include_planned=False, include_pending=False):
             composition[UnitTypeId.ZERGLING] = 2 + int(ratio * worker_count)
@@ -39,17 +48,15 @@ class ZergMacro(ZergStrategy):
             composition[UnitTypeId.ROACH] = int(ratio * 50)
             composition[UnitTypeId.RAVAGER] = int(ratio * 10)
         elif not bot.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False):
-            # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
             composition[UnitTypeId.OVERSEER] = 2
-            composition[UnitTypeId.ROACH] = 40
-            composition[UnitTypeId.HYDRALISK] = 40
+            composition[UnitTypeId.ROACH] = int((1 - enemy_flyer_ratio) * 80)
+            composition[UnitTypeId.HYDRALISK] = int(enemy_flyer_ratio * 80)
         else:
-            # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
             composition[UnitTypeId.OVERSEER] = 3
-            composition[UnitTypeId.ROACH] = 40
-            composition[UnitTypeId.HYDRALISK] = 40
-            composition[UnitTypeId.CORRUPTOR] = 10
-            composition[UnitTypeId.BROODLORD] = 10
+            composition[UnitTypeId.ROACH] = int((1 - enemy_flyer_ratio) * 80)
+            composition[UnitTypeId.HYDRALISK] = int(enemy_flyer_ratio * 80)
+            composition[UnitTypeId.CORRUPTOR] = 3 + int(enemy_flyer_ratio * 10)
+            composition[UnitTypeId.BROODLORD] = 3 + int((1 - enemy_flyer_ratio) * 10)
 
         # else:
         #     composition[UnitTypeId.LAIR] = 1

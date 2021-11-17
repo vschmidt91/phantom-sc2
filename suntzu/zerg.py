@@ -439,7 +439,7 @@ class ZergAI(CommonAI):
                         default = None)
                     if not detector:
                         continue
-                    self.blocked_base_detectors[base.position] = detector
+                    self.blocked_base_detectors[base.position] = detector.tag
                 # move towards base
                 target_distance = detector.detect_range - 3
                 if target_distance < detector.distance_to(base.position):

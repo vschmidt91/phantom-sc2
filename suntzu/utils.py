@@ -51,7 +51,7 @@ def unitValue(unit: Unit, target = None):
     if unit.is_hallucination:
         return 0
     # assume bunkers have 4 marines in them
-    if unit.type_id == UnitTypeId.BUNKER:
+    if unit.type_id == UnitTypeId.BUNKER and unit.is_ready:
         dps = 4 * 10
     elif target is None:
         dps = max(unit.air_dps, unit.ground_dps)
