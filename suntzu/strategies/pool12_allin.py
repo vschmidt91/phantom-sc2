@@ -13,7 +13,7 @@ class Pool12AllIn(ZergStrategy):
 
     def __init__(self):
         super().__init__()
-        self.pull_workers: bool = False
+        self.pull_workers: bool = True
 
     def build_order(self) -> Iterable[Union[UnitTypeId, UpgradeId]]:
         if self.pull_workers:

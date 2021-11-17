@@ -5,7 +5,7 @@ import math
 import itertools, random
 import build
 import numpy as np
-from typing import Counter, Iterable, List, Coroutine, Dict, Set, Union, Tuple
+from typing import Counter, Iterable, List, Coroutine, Dict, Set, Union, Tuple, Optional
 from itertools import chain
 from sc2 import unit
 
@@ -97,6 +97,8 @@ class ZergAI(CommonAI):
         self.creep_tile_count: int = 1
         self.build_spores: bool = False
         self.blocked_base_detectors: Dict[Point2, int] = dict()
+        self.scout_overlord: Optional[int] = None
+        self.enemy_base_count: int = 1
 
     def counter_composition(self, enemies: Iterable[Unit]) -> Dict[UnitTypeId, int]:
 
@@ -461,34 +463,23 @@ class ZergAI(CommonAI):
                 target = random.choice(self.expansion_locations_list)
                 changeling.move(target)
 
-        playable_min = Point2((
-            self.game_info.playable_area.x,
-            self.game_info.playable_area.y,
-        ))
-        playable_max = Point2((
-            self.game_info.playable_area.right,
-            self.game_info.playable_area.top,
-        ))
-        for overlord in self.actual_by_type[UnitTypeId.OVERLORD]:
-            if not overlord.is_idle:
-                continue
-            angle = np.random.uniform(0, 2 * math.pi)
-            distance = np.random.exponential(overlord.sight_range)
-            target_test = overlord.position + distance * Point2((math.cos(angle), math.sin(angle)))
-            target_test = np.clip(target_test, playable_min, playable_max)
-            target_test = Point2(target_test)
-            if self.is_visible(target_test):
-                continue
-            overlord.move(overlord.position.towards(target_test, 1))
-        # overlords = [
-        #     self.unit_by_tag[t]
-        #     for t in self.actual_by_type[UnitTypeId.OVERLORD]
-        # ]
-        # for overlord in overlords:
-        #     if not overlord.is_moving:
-        #         target = self.structures.random
-        #         if 1 < overlord.distance_to(target):
-        #             overlord.move(target.position)
+
+        if self.enemy_base_count + 1 < len(self.bases):
+            base = self.bases[-self.enemy_base_count - 1]
+            enemy_townhalls = [th
+                for t in race_townhalls[self.enemy_race]
+                for th in self.enemies_by_type[t]]
+            if any(th.position == base.position for th in enemy_townhalls):
+                self.enemy_base_count += 1
+            else:
+                overlord = self.unit_by_tag.get(self.scout_overlord)
+                if not overlord:
+                    overlord = next(iter(self.actual_by_type[UnitTypeId.OVERLORD]), None)
+                if overlord and overlord.is_idle:
+                    self.scout_overlord = overlord.tag
+                    if overlord.sight_range < overlord.distance_to(base.position):
+                        overlord.move(base.position.towards(overlord, overlord.sight_range))
+                        overlord.move(base.position.towards(self.enemy_start_locations[0], -overlord.sight_range), queue=True)
 
     async def spread_creep(self):
 
@@ -661,15 +652,21 @@ class ZergAI(CommonAI):
         if self.supply_left + supply_pending < supply_buffer:
             self.add_macro_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
 
-    def expand(self, saturation_target: float = 0.8):
-        
+    def expand(self):
+
         worker_max = self.get_max_harvester()
-        if (
-            not self.count(UnitTypeId.HATCHERY, include_actual=False)
-            and not self.townhalls.not_ready.exists
-            and saturation_target * worker_max <= self.count(UnitTypeId.DRONE, include_planned=False)
-        ):
-            plan = MacroPlan(UnitTypeId.HATCHERY)
-            plan.priority = 1
-            plan.max_distance = 0
-            self.add_macro_plan(plan)
+        saturation = self.count(UnitTypeId.DRONE, include_planned=False) / worker_max
+        priority = -1.5 + saturation
+        
+        if not self.count(UnitTypeId.HATCHERY, include_actual=False):
+            if any(self.planned_by_type[UnitTypeId.HATCHERY]):
+                for plan in self.planned_by_type[UnitTypeId.HATCHERY]:
+                    if plan.priority == BUILD_ORDER_PRIORITY:
+                        pass
+                    else:
+                        plan.priority = priority
+            else:
+                plan = MacroPlan(UnitTypeId.HATCHERY)
+                plan.priority = priority
+                plan.max_distance = 0
+                self.add_macro_plan(plan)

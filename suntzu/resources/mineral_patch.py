@@ -58,7 +58,7 @@ class MineralPatch(ResourceSingle):
                 
                 if harvester.is_gathering and harvester.order_target != patch.tag:
                     harvester(AbilityId.SMART, patch)
-                elif harvester.is_idle:
+                elif harvester.is_idle or harvester.is_attacking:
                     harvester(AbilityId.SMART, patch)
                 elif len(harvester.orders) == 1:
                     if harvester.is_returning:

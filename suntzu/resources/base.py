@@ -116,9 +116,13 @@ class Base(ResourceGroup[ResourceBase]):
             ]
             if len(have) + len(planned) < want:
                 plan = MacroPlan(unit_type)
-                plan.target = self.mineral_patches.position.towards(self.position, -3)
+                plan.target = self.position.towards(self.mineral_patches.position, 4.5)
                 plan.max_distance = 1
                 plan.priority = 0
                 bot.add_macro_plan(plan)
+
+        if any(self.defensive_targets.values()):
+            for mineral in self.mineral_patches:
+                mineral.speed_mining_enabled = False
 
         super().update(bot)

@@ -529,19 +529,10 @@ class CommonAI(BotAI):
 
     async def initialize_bases(self):
 
-        terrain = self.game_info.terrain_height.data_numpy
-        terrain_min = np.min(terrain)
-        terrain_max = np.max(terrain)
-
-        height = {
-            b: (self.get_terrain_height(b) - terrain_min) / (terrain_max - terrain_min)
-            for b in self.expansion_locations_list
-        }
-
         bases = sorted((
             Base(position, (m.position for m in resources.mineral_field), (g.position for g in resources.vespene_geyser))
             for position, resources in self.expansion_locations_dict.items()
-        ), key = lambda b : self.distance_map[b.position.rounded] - 0.1 * height[b.position])
+        ), key = lambda b : self.distance_map[b.position.rounded] - .3 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
         self.bases = ResourceGroup(bases)
         self.bases.items[0].mineral_patches.do_worker_split(set(self.workers))
@@ -1004,20 +995,6 @@ class CommonAI(BotAI):
         if self.destroy_destructables():
             enemies.extend(self.destructables_fixed)
 
-        self.enemy_map = np.zeros(self.game_info.map_size)
-        test_map = np.zeros(self.game_info.map_size)
-        for enemy in self.enemies.values():
-            self.enemy_map[enemy.position.rounded] += unitValue(enemy)
-            r = self.get_unit_range(enemy)
-            p0 = np.maximum(np.floor(np.array(enemy.position.rounded) - r), 0).astype(np.int)
-            p1 = np.minimum(np.ceil(np.array(enemy.position.rounded) + r + 1), self.game_info.map_size).astype(np.int)
-            v = unitValue(enemy)
-            test_map[p0[0]:p1[0],p1[0]:p1[1]] += v
-
-        self.friend_map = np.zeros(self.game_info.map_size)
-        for friend in friends:
-            self.friend_map[friend.position.rounded] += unitValue(friend)
-
         blur_sigma = 9
         enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
         friend_map_blur = ndimage.gaussian_filter(self.friend_map, blur_sigma)
@@ -1074,7 +1051,7 @@ class CommonAI(BotAI):
                 raise PlacementNotFound()
             elif self.townhalls.exists:
                 position = self.townhalls.closest_to(self.start_location).position
-                return position.towards(self.game_info.map_center, 7)
+                return position.towards(self.game_info.map_center, 5)
             else:
                 raise PlacementNotFound()
         else:
@@ -1105,11 +1082,25 @@ class CommonAI(BotAI):
 
     def assess_threat_level(self):
 
+        self.enemy_map = np.zeros(self.game_info.map_size)
+        test_map = np.zeros(self.game_info.map_size)
+        for enemy in self.enemies.values():
+            self.enemy_map[enemy.position.rounded] += unitValue(enemy)
+            r = self.get_unit_range(enemy)
+            p0 = np.maximum(np.floor(np.array(enemy.position.rounded) - r), 0).astype(np.int)
+            p1 = np.minimum(np.ceil(np.array(enemy.position.rounded) + r + 1), self.game_info.map_size).astype(np.int)
+            v = unitValue(enemy)
+            test_map[p0[0]:p1[0],p1[0]:p1[1]] += v
+
+        self.friend_map = np.zeros(self.game_info.map_size)
+        for friend in self.enumerate_army():
+            self.friend_map[friend.position.rounded] += unitValue(friend)
+
         # value_self = armyValue(self.enumerate_army())
  
-        value_self = 10 + np.sum(self.friend_map)
-        value_enemy = 10 + np.sum(self.enemy_map * (1 - self.distance_map))
-        self.threat_level = value_enemy / (1 + value_self + value_enemy)
+        value_self = 100 + np.sum(self.friend_map)
+        value_enemy = 100 + np.sum(self.enemy_map * (1 - self.distance_map))
+        self.threat_level = value_enemy / max(1, value_self + value_enemy)
 
 
     def pull_workers(self):
@@ -1119,10 +1110,7 @@ class CommonAI(BotAI):
             if u in self.unit_by_tag
         }
         
-        if (
-            0.6 < self.threat_level
-            and self.time < 3 * 60
-        ):
+        if 0.6 < self.threat_level and 4 * 60 < self.time:
             # if not self.count(UnitTypeId.SPINECRAWLER):
             #     plan = MacroPlan(UnitTypeId.SPINECRAWLER)
             #     plan.target = self.bases[0].mineral_patches.position
@@ -1130,10 +1118,11 @@ class CommonAI(BotAI):
             worker = self.bases.try_remove_any()
             if worker:
                 self.drafted_civilians.add(worker)
-        elif self.threat_level < 0.25:
+        elif self.threat_level < 0.5:
             if any(self.drafted_civilians):
                 worker = self.drafted_civilians.pop()
-                self.bases.try_add(worker)
+                if not self.bases.try_add(worker):
+                    raise Exception
 
     def enumerate_army(self):
         for unit in self.units:

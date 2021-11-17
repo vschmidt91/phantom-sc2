@@ -24,6 +24,9 @@ class UnitGroup(UnitBase, Generic[T], Iterable[T]):
     def __getitem__(self, index):
         return self.units[index]
 
+    def __len__(self):
+        return len(self.units)
+
     def micro(self, **kwargs):
     
         for unit in self.units:

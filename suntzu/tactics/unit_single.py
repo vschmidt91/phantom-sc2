@@ -47,8 +47,8 @@ class UnitSingle(ABC):
             priority = 1
             priority *= 10 + target.calculate_dps_vs_target(unit)
             priority /= 100 + target.shield + target.health
-            priority /= 10 + unit.position.distance_to(target)
-            priority /= 30 + unit.position.distance_to(bot.start_location)
+            priority /= 3 + unit.position.distance_to(target)
+            priority /= 10 + unit.position.distance_to(bot.start_location)
             priority /= 10 if target.is_structure else 1
             if target.type_id in WORKERS:
                 priority *= 10

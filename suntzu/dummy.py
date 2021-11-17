@@ -10,11 +10,11 @@ class DummyAI(BotAI):
         bases = set(self.expansion_locations_list)
         bases.remove(self.start_location)
         bases.difference_update(self.enemy_start_locations)
-        spawns = [
-            [UnitTypeId.ZERGLINGBURROWED, 1, b, 2]
-            for b in bases
-        ]
-        await self.client.debug_create_unit(spawns)
+        # spawns = [
+        #     [UnitTypeId.ZERGLINGBURROWED, 1, b, 2]
+        #     for b in bases
+        # ]
+        # await self.client.debug_create_unit(spawns)
     
     async def on_step(self, iteration: int):
         for ling in self.units(UnitTypeId.ZERGLING):
