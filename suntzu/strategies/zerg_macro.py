@@ -22,7 +22,7 @@ class ZergMacro(ZergStrategy):
         worker_limit = 88
         worker_target = min(worker_limit, bot.get_max_harvester())
         worker_count = bot.count(UnitTypeId.DRONE, include_planned=False)
-        ratio = max(bot.threat_level, worker_count / worker_limit)
+        ratio = max(bot.threat_level, pow(worker_count / worker_limit, 2))
 
         enemy_value = {
             tag: unitValue(enemy)
@@ -46,7 +46,7 @@ class ZergMacro(ZergStrategy):
             composition[UnitTypeId.ROACH] = 0
         
         if not bot.count(UnitTypeId.ROACHWARREN, include_planned=False):
-            composition[UnitTypeId.ZERGLING] = int(ratio * enemy_ground_value / 100)
+            composition[UnitTypeId.ZERGLING] = int(ratio * enemy_ground_value / 200)
         else:
             composition[UnitTypeId.OVERSEER] = 2
             if 0.2 < enemy_flyer_ratio or bot.count(UnitTypeId.HIVE, include_planned=False):

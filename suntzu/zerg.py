@@ -52,6 +52,7 @@ SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
         UnitTypeId.INFESTORBURROWED,
         UnitTypeId.SWARMHOSTBURROWEDMP,
         UnitTypeId.ULTRALISKBURROWED,
+        UnitTypeId.MUTALISK,
     },
     Race.Protoss: {
         UnitTypeId.STARGATE,
@@ -655,7 +656,7 @@ class ZergAI(CommonAI):
     def expand(self):
 
         worker_max = self.get_max_harvester()
-        saturation = self.count(UnitTypeId.DRONE, include_planned=False) / worker_max
+        saturation = self.count(UnitTypeId.DRONE, include_planned=False) / max(1, worker_max)
         priority = -1.5 + saturation
         
         if not self.count(UnitTypeId.HATCHERY, include_actual=False):
