@@ -600,7 +600,7 @@ class ZergAI(CommonAI):
             self.actual_by_type[UnitTypeId.QUEEN],
             key=lambda q:q.tag)
 
-        macro_queen_count = math.floor((1 - self.threat_level) * len(queens))
+        macro_queen_count = math.ceil((1 - self.threat_level) * len(queens))
         macro_queen_count = min(6, self.townhalls.amount, macro_queen_count)
         creep_queen_count = 1 if 2 < macro_queen_count else 0
         # creep_queen_count = min(1, macro_queen_count)
