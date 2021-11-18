@@ -22,7 +22,7 @@ class ZergMacro(ZergStrategy):
         worker_limit = 88
         worker_target = min(worker_limit, bot.get_max_harvester())
         worker_count = bot.count(UnitTypeId.DRONE, include_planned=False)
-        ratio = max(bot.threat_level, pow(worker_count / worker_limit, 2))
+        ratio = max(bot.threat_level, worker_count / worker_limit)
 
         enemy_value = {
             tag: unitValue(enemy)
@@ -66,7 +66,7 @@ class ZergMacro(ZergStrategy):
         return composition
 
     def destroy_destructables(self, bot) -> bool:
-        return self.tech_time < bot.time
+        return 4 * 60 < bot.time
 
     def filter_upgrade(self, bot, upgrade) -> bool:
         if upgrade in ZERG_FLYER_UPGRADES:

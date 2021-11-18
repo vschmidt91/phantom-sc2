@@ -270,6 +270,8 @@ class ZergAI(CommonAI):
     async def corrosive_bile(self):
 
         def target_priority(target):
+            if not self.is_visible(target.position):
+                return 0
             priority = 10 + max(target.ground_dps, target.air_dps)
             priority /= 100 + target.health + target.shield
             priority /= 2 + target.movement_speed
@@ -282,6 +284,8 @@ class ZergAI(CommonAI):
             return
         ravager_abilities = await self.get_available_abilities(ravagers)
         for ravager, abilities in zip(ravagers, ravager_abilities):
+            if any(o.ability.exact_id == ability for o in ravager.orders):
+                continue
             if ability not in abilities:
                 continue
             targets = (
@@ -291,6 +295,8 @@ class ZergAI(CommonAI):
             )
             target: Unit = max(targets, key=target_priority, default=None)
             if not target:
+                continue
+            if target_priority(target) <= 0:
                 continue
             predicted_position = target.position
             previous_position = self.enemy_positions.get(target.tag)
@@ -602,8 +608,8 @@ class ZergAI(CommonAI):
 
         macro_queen_count = math.ceil((1 - self.threat_level) * len(queens))
         macro_queen_count = min(6, self.townhalls.amount, macro_queen_count)
-        # creep_queen_count = 1 if 2 < macro_queen_count else 0
-        creep_queen_count = min(1, macro_queen_count)
+        creep_queen_count = 1 if 2 < macro_queen_count else 0
+        # creep_queen_count = min(1, macro_queen_count)
 
         creep_queens = queens[0:creep_queen_count]
         inject_queens = queens[creep_queen_count:macro_queen_count]

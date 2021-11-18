@@ -13,10 +13,6 @@ from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 
 import numpy as np
 
-def canAttack(a, b):
-    return a.can_attack_air if b.is_flying else a.can_attack_ground
-    # return a.distance_to(b) < 6 + (a.air_range if b.is_flying else a.ground_range)
-
 def makeUnique(a):
     b = []
     for x in a:
@@ -74,9 +70,8 @@ def sample(choices, key=None):
         return np.random.choice(choices)
 
 def can_attack(unit: Unit, target: Unit) -> bool:
-    if not target.can_be_attacked:
-        return False
-    elif target.is_flying:
+    # return unit.distance_to(target) < 6 + (unit.air_range if target.is_flying else unit.ground_range)
+    if target.is_flying:
         return unit.can_attack_air
     else:
         return unit.can_attack_ground

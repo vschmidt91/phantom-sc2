@@ -42,21 +42,31 @@ class UnitSingle(ABC):
                 return 0
             if target.type_id in CHANGELINGS:
                 return 0
-            if not canAttack(unit, target) and not unit.is_detector:
+            if not can_attack(unit, target) and not unit.is_detector:
                 return 0
             priority = 1
-            priority *= 10 + target.calculate_dps_vs_target(unit)
-            priority /= 100 + target.shield + target.health
-            priority /= 3 + unit.position.distance_to(target)
-            priority /= 10 + unit.position.distance_to(bot.start_location)
-            priority /= 10 if target.is_structure else 1
-            if target.type_id in WORKERS:
-                priority *= 10
-            elif target.type_id in CIVILIANS:
-                priority /= 10
+            # priority *= 10 + target.calculate_dps_vs_target(unit)
+            priority /= 1 + unit.position.distance_to(target)
+            priority /= 10 + target.position.distance_to(bot.start_location)
+            priority /= 3 if target.is_structure else 1
+
+            if target.is_enemy:
+                priority /= 100 + target.shield + target.health
             else:
-                pass
-            priority /= 10 if not target.is_enemy else 1
+                priority /= 1000
+            priority *= 3 if target.type_id in WORKERS else 1
+            priority /= 3 if target.type_id in CIVILIANS else 1
+            # priority /= 10 if not target.is_enemy else 1
+
+            # priority /= 30 + target.shield + target.health
+            # if target.type_id in WORKERS:
+            #     priority *= 3
+            # elif target.type_id in CIVILIANS:
+            #     priority /= 3
+            # else:
+            #     pass
+            # priority /= 3 if not target.is_enemy else 1
+
             if unit.is_detector:
                 priority *= 10 if target.is_cloaked else 1
                 priority *= 10 if not target.is_revealed else 1
