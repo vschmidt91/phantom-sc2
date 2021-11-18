@@ -368,7 +368,7 @@ class ZergAI(CommonAI):
             )
         elif unit == UnitTypeId.ROACH:
             return chain(
-                (UpgradeId.GLIALRECONSTITUTION,),
+                (UpgradeId.GLIALRECONSTITUTION, UpgradeId.BURROW),
                 self.upgrade_sequence(ZERG_RANGED_UPGRADES),
                 self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
             )
@@ -660,10 +660,10 @@ class ZergAI(CommonAI):
             self.add_macro_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
 
     def expand(self):
-
+        
         worker_max = self.get_max_harvester()
         saturation = self.count(UnitTypeId.DRONE, include_planned=False) / max(1, worker_max)
-        priority = -1.75 + saturation
+        priority = 3 * (saturation - 1)
         
         if not self.count(UnitTypeId.HATCHERY, include_actual=False):
             if any(self.planned_by_type[UnitTypeId.HATCHERY]):

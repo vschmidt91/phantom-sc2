@@ -122,6 +122,8 @@ class CommonAI(BotAI):
         self.worker_supply_fixed: int = 0
         self.destructables_fixed: Set[Unit] = set()
         self.drafted_civilians: Set[int] = set()
+        self.damage_taken: Dict[int] = dict()
+        self.gg_sent: bool = False
 
     def destroy_destructables(self):
         return True
@@ -219,17 +221,21 @@ class CommonAI(BotAI):
                 base.blocked_since = None
 
     def handle_corrosive_biles(self):
+        bile_positions = { c.position for c in self.corrosive_biles }
         for effect in self.state.effects:
             if effect.id != EffectId.RAVAGERCORROSIVEBILECP:
                 continue
             position = next(iter(effect.positions))
-            if any(c.position == effect.positions for c in self.corrosive_biles):
+            if position in bile_positions:
                 continue
             bile = CorrosiveBile(self.state.game_loop, position)
             self.corrosive_biles.append(bile)
 
+        # biles_sorted = sorted(self.corrosive_biles, key = lambda c : c.frame_expires)
+        # assert(self.corrosive_biles == biles_sorted)
+
         while (
-            0 < len(self.corrosive_biles)
+            self.corrosive_biles
             and self.corrosive_biles[0].frame_expires <= self.state.game_loop
         ):
             self.corrosive_biles.pop(0)
@@ -299,7 +305,7 @@ class CommonAI(BotAI):
         pass
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
-        if (unit.is_structure and not unit.is_ready):
+        if unit.is_structure:
             if self.performance == PerformanceMode.DEFAULT:
                 potential_damage = 0
                 for enemy in self.all_enemy_units:
@@ -307,10 +313,16 @@ class CommonAI(BotAI):
                     if  unit.distance_to(enemy) < unit.radius + range + enemy.radius:
                         potential_damage += damage
                 if unit.health + unit.shield <= potential_damage:
-                    unit(AbilityId.CANCEL)
+                    if self.structures.amount == 1:
+                        if not self.gg_sent:
+                            await self.client.chat_send('gg', False)
+                            self.gg_sent = True
+                    if not unit.is_ready:
+                        unit(AbilityId.CANCEL)
             else:
                 if unit.shield_health_percentage < 0.1:
                     unit(AbilityId.CANCEL)
+        self.damage_taken[unit.tag] = self.time
         pass
         
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
@@ -604,9 +616,9 @@ class CommonAI(BotAI):
                     color=font_color,
                     size=font_size)
 
-        for d in self.destructables:
-            z = self.get_terrain_z_height(d)
-            self.client.debug_text_world(f'{d.tag} {d.health}', Point3((*d.position, z)))
+        # for d in self.destructables:
+        #     z = self.get_terrain_z_height(d)
+        #     self.client.debug_text_world(f'{d.tag} {d.health}', Point3((*d.position, z)))
 
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.threat_level)}%', (0.01, 0.01))
         for i, plan in enumerate(self.macro_plans):

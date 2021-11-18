@@ -45,7 +45,7 @@ class ZergMacro(ZergStrategy):
         if 44 <= worker_count:
             composition[UnitTypeId.ROACH] = 0
         
-        if not bot.count(UnitTypeId.ROACHWARREN, include_planned=False):
+        if not bot.count(UnitTypeId.ROACHWARREN, include_pending=False, include_planned=False):
             composition[UnitTypeId.ZERGLING] = int(ratio * enemy_ground_value / 200)
         else:
             composition[UnitTypeId.OVERSEER] = 2
@@ -80,16 +80,16 @@ class ZergMacro(ZergStrategy):
     def update(self, bot):
         if 2 <= bot.enemy_base_count:
             self.enable_expansion = True
-        elif 32 <= bot.count(UnitTypeId.DRONE):
+        elif 44 <= bot.count(UnitTypeId.DRONE):
             self.enable_expansion = True
-        elif 6 * 60 < bot.time:
+        elif 8 * 60 < bot.time:
             self.enable_expansion = True
         return super().update(bot)
 
     def steps(self, bot):
 
         steps = {
-            # self.kill_random_unit: 100,
+            # bot.kill_random_unit: 100,
             bot.draw_debug: 1,
             bot.update_tables: 1,
             bot.handle_errors: 1,

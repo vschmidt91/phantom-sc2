@@ -6,6 +6,7 @@ from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT
 
 from sc2.position import Point2
 from sc2.unit import Unit
+from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
 from ..utils import *
@@ -29,6 +30,11 @@ class UnitSingle(ABC):
         if not unit:
             return
 
+        elif unit.type_id == UnitTypeId.ROACH:
+            if unit.health_percentage < 0.3 and UpgradeId.BURROW in bot.state.upgrades:
+                unit(AbilityId.BURROWDOWN)
+                return
+
         dodge_closest = min(dodge, key = lambda p : unit.distance_to(p[0]) - p[1], default = None)
         if dodge_closest:
             dodge_position, dodge_radius = dodge_closest
@@ -42,7 +48,7 @@ class UnitSingle(ABC):
                 return 0
             if target.type_id in CHANGELINGS:
                 return 0
-            if not can_attack(unit, target) and not unit.is_detector:
+            if not can_attack(unit, target) and not unit.is_detector and not unit.is_burrowed:
                 return 0
             priority = 1
             # priority *= 10 + target.calculate_dps_vs_target(unit)
@@ -51,9 +57,9 @@ class UnitSingle(ABC):
             priority /= 3 if target.is_structure else 1
 
             if target.is_enemy:
-                priority /= 100 + target.shield + target.health
+                priority /= 10 + target.shield + target.health
             else:
-                priority /= 1000
+                priority /= 100
             priority *= 3 if target.type_id in WORKERS else 1
             priority /= 3 if target.type_id in CIVILIANS else 1
             # priority /= 10 if not target.is_enemy else 1
@@ -82,13 +88,31 @@ class UnitSingle(ABC):
         if 0 < enemy_gradient.length:
             enemy_gradient = enemy_gradient.normalized
 
-        gradient = heat_gradient + enemy_gradient
+        gradient = enemy_gradient
         if 0 < gradient.length:
             gradient = gradient.normalized
         elif target and 0 < unit.distance_to(target):
             gradient = (unit.position - target.position).normalized
         elif 0 < unit.distance_to(bot.start_location):
             gradient = (bot.start_location - unit.position).normalized
+        retreat_target = unit.position - 12 * gradient
+
+        friends_rating = 1 + friend_map[unit.position.rounded]
+        enemies_rating = 1 + enemy_map[unit.position.rounded]
+        advantage_army = friends_rating / max(1, enemies_rating)
+
+        creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id, 1)
+        if unit.type_id == UnitTypeId.QUEEN:
+            creep_bonus = 10
+        advantage_creep = 1
+        if bot.state.creep.is_empty(unit.position.rounded):
+            advantage_creep = 1 / creep_bonus
+
+        advantage = 1
+        advantage *= advantage_army
+        advantage *= advantage_creep
+        advantage_threshold = 1 - len(bot.drafted_civilians) / max(1, bot.count(race_worker[bot.race]))
+
 
         if target and 0 < target_priority(target):
 
@@ -97,51 +121,29 @@ class UnitSingle(ABC):
             else:
                 attack_target = target
 
-            range_difference = bot.get_unit_range(target) - bot.get_unit_range(unit)
-            range_difference = max(0, range_difference)
-            sample_position = unit.position.towards(target.position, range_difference, limit=True)
-
-            # friends_rating = sum(unitValue(f) / max(1, target.distance_to(f)) for f in friends)
-            # enemies_rating = sum(unitValue(e) / max(1, unit.distance_to(e)) for e in enemies)
-
-            friends_rating = 1 + friend_map[unit.position.rounded]
-            enemies_rating = 1 + enemy_map[sample_position.rounded]
-            advantage_army = friends_rating / max(1, enemies_rating)
-
-            advantage_defender = 1.5 - bot.distance_map[unit.position.rounded]
-
-            creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id, 1)
-            if unit.type_id == UnitTypeId.QUEEN:
-                creep_bonus = 10
-            advantage_creep = 1
-            if bot.state.creep.is_empty(unit.position.rounded):
-                advantage_creep = 1 / creep_bonus
-
-            advantage = 1
-            advantage *= advantage_army
-            # advantage *= advantage_defender
-            advantage *= advantage_creep
-            advantage_threshold = 1
-
-            retreat_target = unit.position - 12 * gradient
-
-            if advantage < advantage_threshold / 2:
+            if advantage < advantage_threshold / 3:
 
                 # FLEE
-                if not unit.is_moving:
-                    unit.move(retreat_target)
+
+                unit.move(retreat_target)
+
+            elif unit.is_burrowed:
+                if unit.health_percentage == 1:
+                    unit(AbilityId.BURROWUP)
 
             elif advantage < advantage_threshold:
 
                 # RETREAT
                 if unit.weapon_cooldown and unit.target_in_range(target, unit.distance_to_weapon_ready):
                     unit.move(retreat_target)
-                elif unit.target_in_range(target):
-                    unit.attack(target)
                 else:
-                    unit.attack(attack_target)
+                    unit.stop()
+                # elif unit.target_in_range(target):
+                #     unit.attack(target)
+                # else:
+                #     unit.attack(attack_target)
                 
-            elif advantage < advantage_threshold * 2:
+            elif advantage < advantage_threshold * 3:
 
                 # FIGHT
                 if unit.target_in_range(target):
