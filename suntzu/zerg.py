@@ -602,8 +602,8 @@ class ZergAI(CommonAI):
 
         macro_queen_count = math.ceil((1 - self.threat_level) * len(queens))
         macro_queen_count = min(6, self.townhalls.amount, macro_queen_count)
-        creep_queen_count = 1 if 2 < macro_queen_count else 0
-        # creep_queen_count = min(1, macro_queen_count)
+        # creep_queen_count = 1 if 2 < macro_queen_count else 0
+        creep_queen_count = min(1, macro_queen_count)
 
         creep_queens = queens[0:creep_queen_count]
         inject_queens = queens[creep_queen_count:macro_queen_count]

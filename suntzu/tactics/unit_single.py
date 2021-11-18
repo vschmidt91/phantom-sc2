@@ -102,7 +102,7 @@ class UnitSingle(ABC):
 
             creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id, 1)
             if unit.type_id == UnitTypeId.QUEEN:
-                creep_bonus = 30
+                creep_bonus = 10
             advantage_creep = 1
             if bot.state.creep.is_empty(unit.position.rounded):
                 advantage_creep = 1 / creep_bonus
