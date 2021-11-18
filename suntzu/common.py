@@ -1110,7 +1110,7 @@ class CommonAI(BotAI):
             if u in self.unit_by_tag
         }
         
-        if 0.6 < self.threat_level and 4 * 60 < self.time:
+        if 0.6 < self.threat_level and self.time < 4 * 60:
             # if not self.count(UnitTypeId.SPINECRAWLER):
             #     plan = MacroPlan(UnitTypeId.SPINECRAWLER)
             #     plan.target = self.bases[0].mineral_patches.position

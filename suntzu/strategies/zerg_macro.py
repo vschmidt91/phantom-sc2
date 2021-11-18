@@ -22,7 +22,7 @@ class ZergMacro(ZergStrategy):
         worker_limit = 88
         worker_target = min(worker_limit, bot.get_max_harvester())
         worker_count = bot.count(UnitTypeId.DRONE, include_planned=False)
-        ratio = max(bot.threat_level, pow(worker_count / worker_limit, 2))
+        ratio = max(bot.threat_level, worker_count / worker_limit, 2)
 
         enemy_value = {
             tag: unitValue(enemy)
@@ -80,7 +80,9 @@ class ZergMacro(ZergStrategy):
     def update(self, bot):
         if 2 <= bot.enemy_base_count:
             self.enable_expansion = True
-        elif 44 <= bot.count(UnitTypeId.DRONE):
+        elif 32 <= bot.count(UnitTypeId.DRONE):
+            self.enable_expansion = True
+        elif 6 * 60 < bot.time:
             self.enable_expansion = True
         return super().update(bot)
 
