@@ -56,26 +56,16 @@ class UnitSingle(ABC):
                 return 0
             priority = 1
             # priority *= 10 + target.calculate_dps_vs_target(unit)
-            priority /= 10 + unit.position.distance_to(target)
+            priority /= 10 + target.position.distance_to(unit.position)
             priority /= 30 + target.position.distance_to(bot.start_location)
             priority /= 3 if target.is_structure else 1
 
             if target.is_enemy:
                 priority /= 10 + target.shield + target.health
             else:
-                priority /= 10
+                priority /= 30
             priority *= 3 if target.type_id in WORKERS else 1
-            priority /= 3 if target.type_id in CIVILIANS else 1
-            # priority /= 10 if not target.is_enemy else 1
-
-            # priority /= 30 + target.shield + target.health
-            # if target.type_id in WORKERS:
-            #     priority *= 3
-            # elif target.type_id in CIVILIANS:
-            #     priority /= 3
-            # else:
-            #     pass
-            # priority /= 3 if not target.is_enemy else 1
+            priority /= 10 if target.type_id in CIVILIANS else 1
 
             if unit.is_detector:
                 priority *= 10 if target.is_cloaked else 1
@@ -95,9 +85,9 @@ class UnitSingle(ABC):
         gradient = enemy_gradient
         if 0 < gradient.length:
             gradient = gradient.normalized
-        elif target and 0 < unit.distance_to(target):
+        elif target and 0 < unit.position.distance_to(target.position):
             gradient = (unit.position - target.position).normalized
-        elif 0 < unit.distance_to(bot.start_location):
+        elif 0 < unit.position.distance_to(bot.start_location):
             gradient = (bot.start_location - unit.position).normalized
         retreat_target = unit.position - 12 * gradient
 
@@ -107,7 +97,7 @@ class UnitSingle(ABC):
 
         creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id, 1)
         if unit.type_id == UnitTypeId.QUEEN:
-            creep_bonus = 10
+            creep_bonus = 30
         advantage_creep = 1
         if bot.state.creep.is_empty(unit.position.rounded):
             advantage_creep = 1 / creep_bonus
@@ -167,7 +157,7 @@ class UnitSingle(ABC):
                 else:
                     unit.attack(attack_target)
 
-        elif not unit.is_attacking:
+        elif unit.is_idle:
 
             if bot.time < 8 * 60:
                 target = random.choice(bot.enemy_start_locations)

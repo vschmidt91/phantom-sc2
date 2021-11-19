@@ -42,7 +42,11 @@ class ZergMacro(ZergStrategy):
             UnitTypeId.QUEEN: queen_target,
         }
 
-        if 44 <= worker_count:
+        if (
+            UpgradeId.ZERGLINGMOVEMENTSPEED in bot.state.upgrades
+            and 38 <= bot.bases.harvester_count
+            and 3 <= bot.townhalls.amount
+        ):
             composition[UnitTypeId.ROACH] = 0
         
         if not bot.count(UnitTypeId.ROACHWARREN, include_pending=False, include_planned=False):
@@ -80,9 +84,9 @@ class ZergMacro(ZergStrategy):
     def update(self, bot):
         if 2 <= bot.enemy_base_count:
             self.enable_expansion = True
-        elif 44 <= bot.count(UnitTypeId.DRONE):
+        elif 36 <= bot.bases.harvester_count:
             self.enable_expansion = True
-        elif 8 * 60 < bot.time:
+        elif 4 * 60 < bot.time:
             self.enable_expansion = True
         return super().update(bot)
 

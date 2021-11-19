@@ -604,15 +604,15 @@ class ZergAI(CommonAI):
 
         queens = sorted(
             self.actual_by_type[UnitTypeId.QUEEN],
-            key=lambda q:q.tag)
+            key=lambda q:self.distance_map[q.position.rounded])
 
-        macro_queen_count = math.ceil((1 - self.threat_level) * len(queens))
+        macro_queen_count = round((1 - self.threat_level) * len(queens))
         macro_queen_count = min(6, self.townhalls.amount, macro_queen_count)
-        creep_queen_count = 1 if 2 <= macro_queen_count else 0
+        creep_queen_count = 1 if 2 < macro_queen_count else 0
         # creep_queen_count = min(1, macro_queen_count)
 
-        creep_queens = queens[0:creep_queen_count]
-        inject_queens = queens[creep_queen_count:macro_queen_count]
+        inject_queens = queens[0:macro_queen_count-creep_queen_count]
+        creep_queens = queens[macro_queen_count-creep_queen_count:macro_queen_count]
         army_queens = queens[macro_queen_count:]
 
         self.creep_queens = { q.tag for q in creep_queens }
@@ -663,10 +663,11 @@ class ZergAI(CommonAI):
         
         worker_max = self.get_max_harvester()
         saturation = self.count(UnitTypeId.DRONE, include_planned=False) / max(1, worker_max)
+        saturation = self.bases.harvester_count / max(1, self.bases.harvester_target)
         priority = 5 * (saturation - 1)
 
-        # if saturation < 0.7:
-        #     return
+        if saturation < 0.666:
+            return
         
         if not self.count(UnitTypeId.HATCHERY, include_actual=False):
             if any(self.planned_by_type[UnitTypeId.HATCHERY]):

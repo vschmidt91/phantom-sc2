@@ -124,6 +124,7 @@ class CommonAI(BotAI):
         self.drafted_civilians: Set[int] = set()
         self.damage_taken: Dict[int] = dict()
         self.gg_sent: bool = False
+        self.unit_ref: Optional[int] = None
 
     def destroy_destructables(self):
         return True
@@ -308,7 +309,7 @@ class CommonAI(BotAI):
         if unit.is_structure:
             if self.performance == PerformanceMode.DEFAULT:
                 potential_damage = 0
-                for enemy in self.all_enemy_units:
+                for enemy in self.enemies.values():
                     damage, speed, range = enemy.calculate_damage_vs_target(unit)
                     if  unit.distance_to(enemy) < unit.radius + range + enemy.radius:
                         potential_damage += damage
@@ -365,16 +366,20 @@ class CommonAI(BotAI):
 
     def update_tables(self):
 
-        enemies_remembered = self.enemies
+        enemies_remembered = self.enemies.copy()
         self.enemies = {
             enemy.tag: enemy
             for enemy in self.all_enemy_units
         }
         for tag, enemy in enemies_remembered.items():
             if tag in self.enemies:
+                # can see
                 continue
-            elif not self.is_visible(enemy.position):
-                self.enemies[tag] = enemy
+            elif self.is_visible(enemy.position):
+                # could see, but not there
+                continue
+            # cannot see, maybe still there
+            self.enemies[tag] = enemy
 
         self.enemies_by_type.clear()
         for enemy in self.enemies.values():
@@ -433,7 +438,7 @@ class CommonAI(BotAI):
 
     def save_enemy_positions(self):
         self.enemy_positions.clear()
-        for enemy in self.all_enemy_units:
+        for enemy in self.enemies.values():
             self.enemy_positions[enemy.tag] = enemy.position
 
     def make_composition(self):
@@ -616,9 +621,9 @@ class CommonAI(BotAI):
                     color=font_color,
                     size=font_size)
 
-        for d in self.enemies.values():
-            z = self.get_terrain_z_height(d)
-            self.client.debug_text_world(f'{d.health} {d.is_structure}', Point3((*d.position, z)))
+        # for d in self.enemies.values():
+        #     z = self.get_terrain_z_height(d)
+        #     self.client.debug_text_world(f'{d.is_flying} {d.is_structure}', Point3((*d.position, z)))
 
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.threat_level)}%', (0.01, 0.01))
         for i, plan in enumerate(self.macro_plans):
@@ -1010,6 +1015,9 @@ class CommonAI(BotAI):
         enemies = list(self.all_enemy_units)
         if self.destroy_destructables():
             enemies.extend(self.destructables_fixed)
+
+        friends.sort(key=lambda u:u.tag)
+        enemies.sort(key=lambda u:u.tag)
 
         blur_sigma = 9
         enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
