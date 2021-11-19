@@ -44,7 +44,7 @@ class ZergMacro(ZergStrategy):
 
         if (
             UpgradeId.ZERGLINGMOVEMENTSPEED in bot.state.upgrades
-            and 38 <= bot.bases.harvester_count
+            and 44 <= bot.bases.harvester_count
             and 3 <= bot.townhalls.amount
         ):
             composition[UnitTypeId.ROACH] = 0

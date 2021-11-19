@@ -606,14 +606,20 @@ class ZergAI(CommonAI):
             self.actual_by_type[UnitTypeId.QUEEN],
             key=lambda q:self.distance_map[q.position.rounded])
 
-        macro_queen_count = round((1 - self.threat_level) * len(queens))
-        macro_queen_count = min(6, self.townhalls.amount, macro_queen_count)
-        creep_queen_count = 1 if 2 < macro_queen_count else 0
-        # creep_queen_count = min(1, macro_queen_count)
+        inject_queen_count = min(3, len(queens), self.townhalls.amount)
+        creep_queen_count = 1 if max(inject_queen_count, 2) < len(queens) else 0
 
-        inject_queens = queens[0:macro_queen_count-creep_queen_count]
-        creep_queens = queens[macro_queen_count-creep_queen_count:macro_queen_count]
-        army_queens = queens[macro_queen_count:]
+        inject_queens = queens[0:inject_queen_count]
+        creep_queens = queens[inject_queen_count:inject_queen_count+creep_queen_count]
+        army_queens = queens[inject_queen_count+creep_queen_count:]
+
+        # macro_queen_count = round((1 - self.threat_level) * len(queens))
+        # macro_queen_count = min(6, self.townhalls.amount, macro_queen_count)
+        # creep_queen_count = 1 if 2 < macro_queen_count else 0
+
+        # inject_queens = queens[0:macro_queen_count-creep_queen_count]
+        # creep_queens = queens[macro_queen_count-creep_queen_count:macro_queen_count]
+        # army_queens = queens[macro_queen_count:]
 
         self.creep_queens = { q.tag for q in creep_queens }
         self.army_queens = { q.tag for q in army_queens }

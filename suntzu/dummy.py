@@ -10,7 +10,7 @@ class DummyAI(BotAI):
         bases = sorted(self.expansion_locations_list, key=lambda b:b.distance_to(self.start_location))
         spawns = [
             [UnitTypeId.HATCHERY, 1, b, 2]
-            for b in bases[2:-1]
+            for b in bases[1:-4]
         ]
         await self.client.debug_create_unit(spawns)
     
