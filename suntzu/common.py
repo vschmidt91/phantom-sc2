@@ -1015,9 +1015,9 @@ class CommonAI(BotAI):
         enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
         friend_map_blur = ndimage.gaussian_filter(self.friend_map, blur_sigma)
 
-        unblurred = np.sum(self.enemy_map * (1 - self.distance_map) * np.transpose(self.game_info.pathing_grid.data_numpy))
-        blurred = np.sum(enemy_map_blur * (1 - self.distance_map) * np.transpose(self.game_info.pathing_grid.data_numpy))
-        print(unblurred / max(1, blurred))
+        # unblurred = np.sum(self.enemy_map * (1 - self.distance_map) * np.transpose(self.game_info.pathing_grid.data_numpy))
+        # blurred = np.sum(enemy_map_blur * (1 - self.distance_map) * np.transpose(self.game_info.pathing_grid.data_numpy))
+        # print(unblurred / max(1, blurred))
 
         dodge_elements = list()
         dodge_elements.extend((
