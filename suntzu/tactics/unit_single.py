@@ -52,8 +52,8 @@ class UnitSingle(ABC):
                 return 0
             priority = 1
             # priority *= 10 + target.calculate_dps_vs_target(unit)
-            priority /= 1 + unit.position.distance_to(target)
-            priority /= 10 + target.position.distance_to(bot.start_location)
+            priority /= 10 + unit.position.distance_to(target)
+            priority /= 30 + target.position.distance_to(bot.start_location)
             priority /= 3 if target.is_structure else 1
 
             if target.is_enemy:
@@ -136,12 +136,12 @@ class UnitSingle(ABC):
                 # RETREAT
                 if unit.weapon_cooldown and unit.target_in_range(target, unit.distance_to_weapon_ready):
                     unit.move(retreat_target)
-                else:
+                elif 1 < bot.get_unit_range(unit):
                     unit.stop()
-                # elif unit.target_in_range(target):
-                #     unit.attack(target)
-                # else:
-                #     unit.attack(attack_target)
+                elif unit.target_in_range(target):
+                    unit.attack(target)
+                else:
+                    unit.attack(attack_target)
                 
             elif advantage < advantage_threshold * 3:
 

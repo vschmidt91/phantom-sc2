@@ -53,6 +53,7 @@ SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
         UnitTypeId.SWARMHOSTBURROWEDMP,
         UnitTypeId.ULTRALISKBURROWED,
         UnitTypeId.MUTALISK,
+        UnitTypeId.SPIRE,
     },
     Race.Protoss: {
         UnitTypeId.STARGATE,
@@ -65,7 +66,6 @@ SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
     Race.Terran: {
         UnitTypeId.STARPORT,
         UnitTypeId.STARPORTFLYING,
-        UnitTypeId.VIKING,
         UnitTypeId.MEDIVAC,
         UnitTypeId.LIBERATOR,
         UnitTypeId.RAVEN,
@@ -675,5 +675,5 @@ class ZergAI(CommonAI):
             else:
                 plan = MacroPlan(UnitTypeId.HATCHERY)
                 plan.priority = priority
-                plan.max_distance = 0
+                plan.max_distance = 0.1
                 self.add_macro_plan(plan)

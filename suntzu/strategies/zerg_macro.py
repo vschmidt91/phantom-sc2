@@ -46,7 +46,7 @@ class ZergMacro(ZergStrategy):
             composition[UnitTypeId.ROACH] = 0
         
         if not bot.count(UnitTypeId.ROACHWARREN, include_pending=False, include_planned=False):
-            composition[UnitTypeId.ZERGLING] = int(ratio * enemy_ground_value / 200)
+            composition[UnitTypeId.ZERGLING] = 2 + int(ratio * enemy_ground_value / 200)
         else:
             composition[UnitTypeId.OVERSEER] = 2
             if 0.2 < enemy_flyer_ratio or bot.count(UnitTypeId.HIVE, include_planned=False):

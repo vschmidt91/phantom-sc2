@@ -616,9 +616,9 @@ class CommonAI(BotAI):
                     color=font_color,
                     size=font_size)
 
-        # for d in self.destructables:
-        #     z = self.get_terrain_z_height(d)
-        #     self.client.debug_text_world(f'{d.tag} {d.health}', Point3((*d.position, z)))
+        for d in self.destructables:
+            z = self.get_terrain_z_height(d)
+            self.client.debug_text_world(f'{d.tag} {d.health} {d.is_structure}', Point3((*d.position, z)))
 
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.threat_level)}%', (0.01, 0.01))
         for i, plan in enumerate(self.macro_plans):
@@ -1115,7 +1115,7 @@ class CommonAI(BotAI):
         # value_self = armyValue(self.enumerate_army())
  
         value_self = 100 + np.sum(self.friend_map)
-        value_enemy = 100 + np.sum(self.enemy_map * (1 - self.distance_map))
+        value_enemy = 100 + np.sum(self.enemy_map * (1 - self.distance_map) * np.transpose(self.game_info.pathing_grid.data_numpy))
         self.threat_level = value_enemy / max(1, value_self + value_enemy)
 
 
