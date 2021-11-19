@@ -31,7 +31,11 @@ class UnitSingle(ABC):
             return
 
         elif unit.type_id == UnitTypeId.ROACH:
-            if unit.health_percentage < 0.3 and UpgradeId.BURROW in bot.state.upgrades:
+            if (
+                unit.health_percentage < 0.3
+                and UpgradeId.BURROW in bot.state.upgrades
+                and unit.weapon_cooldown
+            ):
                 unit(AbilityId.BURROWDOWN)
                 return
 
@@ -116,10 +120,11 @@ class UnitSingle(ABC):
 
         if target and 0 < target_priority(target):
 
-            if target.is_enemy:
-                attack_target = target.position
-            else:
-                attack_target = target
+            # if target.is_enemy:
+            #     attack_target = target.position
+            # else:
+            #     attack_target = target
+            attack_target = target.position
 
             if advantage < advantage_threshold / 3:
 

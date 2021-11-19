@@ -616,9 +616,9 @@ class CommonAI(BotAI):
                     color=font_color,
                     size=font_size)
 
-        for d in self.destructables:
+        for d in self.enemies.values():
             z = self.get_terrain_z_height(d)
-            self.client.debug_text_world(f'{d.tag} {d.health} {d.is_structure}', Point3((*d.position, z)))
+            self.client.debug_text_world(f'{d.health} {d.is_structure}', Point3((*d.position, z)))
 
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.threat_level)}%', (0.01, 0.01))
         for i, plan in enumerate(self.macro_plans):
@@ -1015,9 +1015,9 @@ class CommonAI(BotAI):
         enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
         friend_map_blur = ndimage.gaussian_filter(self.friend_map, blur_sigma)
 
-        # unblurred = np.sum(self.enemy_map * (1 - self.distance_map))
-        # blurred = np.sum(enemy_map_blur * (1 - self.distance_map))
-        # print(unblurred / max(1, blurred))
+        unblurred = np.sum(self.enemy_map * (1 - self.distance_map) * np.transpose(self.game_info.pathing_grid.data_numpy))
+        blurred = np.sum(enemy_map_blur * (1 - self.distance_map) * np.transpose(self.game_info.pathing_grid.data_numpy))
+        print(unblurred / max(1, blurred))
 
         dodge_elements = list()
         dodge_elements.extend((
@@ -1103,23 +1103,15 @@ class CommonAI(BotAI):
     def assess_threat_level(self):
 
         self.enemy_map = np.zeros(self.game_info.map_size)
-        test_map = np.zeros(self.game_info.map_size)
         for enemy in self.enemies.values():
             self.enemy_map[enemy.position.rounded] += unitValue(enemy)
-            r = self.get_unit_range(enemy)
-            p0 = np.maximum(np.floor(np.array(enemy.position.rounded) - r), 0).astype(np.int)
-            p1 = np.minimum(np.ceil(np.array(enemy.position.rounded) + r + 1), self.game_info.map_size).astype(np.int)
-            v = unitValue(enemy)
-            test_map[p0[0]:p1[0],p1[0]:p1[1]] += v
 
         self.friend_map = np.zeros(self.game_info.map_size)
         for friend in self.enumerate_army():
             self.friend_map[friend.position.rounded] += unitValue(friend)
-
-        # value_self = armyValue(self.enumerate_army())
  
-        value_self = 100 + np.sum(self.friend_map)
-        value_enemy = 100 + np.sum(self.enemy_map * (1 - self.distance_map) * np.transpose(self.game_info.pathing_grid.data_numpy))
+        value_self = np.sum(self.friend_map)
+        value_enemy = np.sum(self.enemy_map * (1 - self.distance_map) * np.transpose(self.game_info.pathing_grid.data_numpy))
         self.threat_level = value_enemy / max(1, value_self + value_enemy)
 
 

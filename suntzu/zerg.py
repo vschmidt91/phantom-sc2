@@ -608,7 +608,7 @@ class ZergAI(CommonAI):
 
         macro_queen_count = math.ceil((1 - self.threat_level) * len(queens))
         macro_queen_count = min(6, self.townhalls.amount, macro_queen_count)
-        creep_queen_count = 1 if 2 < macro_queen_count else 0
+        creep_queen_count = 1 if 2 <= macro_queen_count else 0
         # creep_queen_count = min(1, macro_queen_count)
 
         creep_queens = queens[0:creep_queen_count]
@@ -663,7 +663,10 @@ class ZergAI(CommonAI):
         
         worker_max = self.get_max_harvester()
         saturation = self.count(UnitTypeId.DRONE, include_planned=False) / max(1, worker_max)
-        priority = 3 * (saturation - 1)
+        priority = 5 * (saturation - 1)
+
+        # if saturation < 0.7:
+        #     return
         
         if not self.count(UnitTypeId.HATCHERY, include_actual=False):
             if any(self.planned_by_type[UnitTypeId.HATCHERY]):
@@ -675,5 +678,5 @@ class ZergAI(CommonAI):
             else:
                 plan = MacroPlan(UnitTypeId.HATCHERY)
                 plan.priority = priority
-                plan.max_distance = 0.1
+                plan.max_distance = 1
                 self.add_macro_plan(plan)
