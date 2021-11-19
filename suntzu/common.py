@@ -309,7 +309,7 @@ class CommonAI(BotAI):
         if unit.is_structure:
             if self.performance == PerformanceMode.DEFAULT:
                 potential_damage = 0
-                for enemy in self.enemies.values():
+                for enemy in self.all_enemy_units:
                     damage, speed, range = enemy.calculate_damage_vs_target(unit)
                     if  unit.distance_to(enemy) < unit.radius + range + enemy.radius:
                         potential_damage += damage
