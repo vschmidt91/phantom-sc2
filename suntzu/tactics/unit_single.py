@@ -54,16 +54,16 @@ class UnitSingle(ABC):
                 return 0
             if not can_attack(unit, target) and not unit.is_detector and not unit.is_burrowed:
                 return 0
-            priority = 1
+            priority = 1e5
             # priority *= 10 + target.calculate_dps_vs_target(unit)
-            priority /= 10 + target.position.distance_to(unit.position)
-            priority /= 30 + target.position.distance_to(bot.start_location)
+            priority /= 30 + target.position.distance_to(unit.position)
+            priority /= 100 + target.position.distance_to(bot.start_location)
             priority /= 3 if target.is_structure else 1
 
             if target.is_enemy:
-                priority /= 10 + target.shield + target.health
+                priority /= 100 + target.shield + target.health
             else:
-                priority /= 100
+                priority /= 1000
             priority *= 3 if target.type_id in WORKERS else 1
             priority /= 10 if target.type_id in CIVILIANS else 1
 
