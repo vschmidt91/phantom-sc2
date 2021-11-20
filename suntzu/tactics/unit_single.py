@@ -131,8 +131,8 @@ class UnitSingle(ABC):
                 # RETREAT
                 if unit.weapon_cooldown and unit.target_in_range(target, unit.distance_to_weapon_ready):
                     unit.move(retreat_target)
-                elif 1 < bot.get_unit_range(unit):
-                    unit.stop()
+                # elif 1 < bot.get_unit_range(unit):
+                #     unit.stop()
                 elif unit.target_in_range(target):
                     unit.attack(target)
                 else:
