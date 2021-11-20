@@ -63,7 +63,7 @@ class UnitSingle(ABC):
             if target.is_enemy:
                 priority /= 10 + target.shield + target.health
             else:
-                priority /= 30
+                priority /= 100
             priority *= 3 if target.type_id in WORKERS else 1
             priority /= 10 if target.type_id in CIVILIANS else 1
 
