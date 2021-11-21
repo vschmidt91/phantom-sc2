@@ -32,7 +32,7 @@ class UnitSingle(ABC):
 
         elif unit.type_id == UnitTypeId.ROACH:
             if (
-                unit.health_percentage < 0.3
+                unit.health_percentage < 0.25
                 and UpgradeId.BURROW in bot.state.upgrades
                 and unit.weapon_cooldown
             ):
@@ -52,7 +52,7 @@ class UnitSingle(ABC):
                 return 0
             if target.type_id in CHANGELINGS:
                 return 0
-            if not can_attack(unit, target) and not unit.is_detector and not unit.is_burrowed:
+            if not can_attack(unit, target) and not unit.is_detector:
                 return 0
             priority = 1e5
             # priority *= 10 + target.calculate_dps_vs_target(unit)
