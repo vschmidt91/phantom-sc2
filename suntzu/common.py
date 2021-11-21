@@ -261,8 +261,6 @@ class CommonAI(BotAI):
             for tag in self.tags:
                 await self.client.chat_send('Tag:' + tag, True)
             self.greet_enabled = False
-            await self.client.chat_send("... aaand it's gone.", False)
-            await self.client.quit()
 
     async def on_step(self, iteration: int):
         pass

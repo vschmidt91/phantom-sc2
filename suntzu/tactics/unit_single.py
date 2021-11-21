@@ -30,14 +30,18 @@ class UnitSingle(ABC):
         if not unit:
             return
 
-        elif unit.type_id == UnitTypeId.ROACH:
-            if (
-                unit.health_percentage < 0.25
-                and UpgradeId.BURROW in bot.state.upgrades
-                and unit.weapon_cooldown
-            ):
-                unit(AbilityId.BURROWDOWN)
-                return
+        if unit.is_burrowed and if unit.health_percentage == 1:
+            unit(AbilityId.BURROWUP)
+            return
+
+        if (
+            unit.type_id == UnitTypeId.ROACH
+            and unit.health_percentage < 0.25
+            and UpgradeId.BURROW in bot.state.upgrades
+            and unit.weapon_cooldown
+        ):
+            unit(AbilityId.BURROWDOWN)
+            return
 
         dodge_closest = min(dodge, key = lambda p : unit.distance_to(p[0]) - p[1], default = None)
         if dodge_closest:
@@ -107,7 +111,6 @@ class UnitSingle(ABC):
         advantage *= advantage_creep
         advantage_threshold = 1 - len(bot.drafted_civilians) / max(1, bot.count(race_worker[bot.race]))
 
-
         if target and 0 < target_priority(target):
 
             # if target.is_enemy:
@@ -121,10 +124,6 @@ class UnitSingle(ABC):
                 # FLEE
 
                 unit.move(retreat_target)
-
-            elif unit.is_burrowed:
-                if unit.health_percentage == 1:
-                    unit(AbilityId.BURROWUP)
 
             elif advantage < advantage_threshold:
 
