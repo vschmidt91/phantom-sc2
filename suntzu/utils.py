@@ -71,6 +71,8 @@ def sample(choices, key=None):
         return np.random.choice(choices)
 
 def can_attack(unit: Unit, target: Unit) -> bool:
+    if (target.is_burrowed or target.is_cloaked) and not target.is_revealed:
+        return False
     # return unit.distance_to(target) < 6 + (unit.air_range if target.is_flying else unit.ground_range)
     if target.is_flying:
         return unit.can_attack_air

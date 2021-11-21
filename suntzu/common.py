@@ -68,6 +68,12 @@ DODGE_UNITS = {
     UnitTypeId.BANELING,
 }
 
+DODGE_RADIUS = {
+    UnitTypeId.DISRUPTORPHASED: 1.5,
+    UnitTypeId.BANELING: 2.2,
+    EffectId.NUKEPERSISTENT: 8,
+}
+
 class PlacementNotFound(Exception):
     pass
 
@@ -255,6 +261,8 @@ class CommonAI(BotAI):
             for tag in self.tags:
                 await self.client.chat_send('Tag:' + tag, True)
             self.greet_enabled = False
+            await self.client.chat_send("... aaand it's gone.", False)
+            await self.client.quit()
 
     async def on_step(self, iteration: int):
         pass
@@ -314,7 +322,11 @@ class CommonAI(BotAI):
                     if  unit.distance_to(enemy) < unit.radius + range + enemy.radius:
                         potential_damage += damage
                 if unit.health + unit.shield <= potential_damage:
-                    if self.structures.amount == 1:
+                    creep_tumor_count = 0
+                    creep_tumor_count += self.count(UnitTypeId.CREEPTUMOR)
+                    creep_tumor_count += self.count(UnitTypeId.CREEPTUMORBURROWED)
+                    creep_tumor_count += self.count(UnitTypeId.CREEPTUMORQUEEN)
+                    if self.structures.amount == creep_tumor_count + 1:
                         if not self.gg_sent:
                             await self.client.chat_send('gg', False)
                             self.gg_sent = True
@@ -1029,13 +1041,15 @@ class CommonAI(BotAI):
 
         dodge_elements = list()
         dodge_elements.extend((
-            (p, e.radius)
+            (p, DODGE_RADIUS.get(e.id, e.radius))
             for e in self.state.effects
-            if e.id in DODGE_EFFECTS for p in e.positions
+            if e.id in DODGE_EFFECTS
+            for p in e.positions
         ))
         dodge_elements.extend((
-            (e.position, e.radius)
-            for e in self.enemy_units(DODGE_UNITS)
+            (e.position, DODGE_RADIUS.get(t, e.radius))
+            for t in DODGE_UNITS
+            for e in self.enemies_by_type[t]
         ))
         dodge_elements.extend((
             (c.position, 0.5)

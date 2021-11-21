@@ -272,6 +272,10 @@ class ZergAI(CommonAI):
         def target_priority(target):
             if not self.is_visible(target.position):
                 return 0
+            if target.is_hallucination:
+                return 0
+            if target.type_id in CHANGELINGS:
+                return 0
             priority = 10 + max(target.ground_dps, target.air_dps)
             priority /= 100 + target.health + target.shield
             priority /= 2 + target.movement_speed
