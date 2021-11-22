@@ -51,6 +51,9 @@ def unitValue(unit: Unit, target = None):
     # if unit.type_id == UnitTypeId.BUNKER and unit.is_ready:
     #     dps = 4 * 10
     # el
+    # HACK: ignore Planetary Fortresses for now
+    if target.type_id == UnitTypeId.PLANETARYFORTRESS:
+        return 100
     if target is None:
         dps = max(unit.air_dps, unit.ground_dps)
     else:
