@@ -12,6 +12,7 @@ from sc2.unit import Unit
 from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 
 import numpy as np
+import math
 
 def makeUnique(a):
     b = []
@@ -128,3 +129,36 @@ def bilinear_sample(im, p):
     wd = (x-x0) * (y-y0)
 
     return wa*Ia + wb*Ib + wc*Ic + wd*Id
+
+def flood_fill(boundary: np.ndarray, origins: Iterable[np.ndarray]):
+
+    front = set(origins)
+    offsets = [(dx, dy) for dx in range(-1, 2) for dy in range(-1, 2)]
+    offsets.remove((0, 0))
+    offsets.sort(key=np.linalg.norm)
+
+    distance = np.full(boundary.shape, math.inf)
+    for origin in origins:
+        distance[origin] = 0
+
+    while front:
+        next_front = set()
+        for point in front:
+            point_distance = distance[point]
+            for offset in offsets:
+                offset_norm = np.linalg.norm(offset)
+                if not offset_norm:
+                    continue
+                neighbour = point + offset
+                neighbour_distance = point_distance + offset_norm
+                if neighbour in origins:
+                    continue
+                if boundary[neighbour]:
+                    continue
+                if distance[neighbour] <= neighbour_distance:
+                    continue
+                distance[neighbour] = neighbour_distance
+                next_front.add(neighbour)
+        front = next_front
+
+    return distance

@@ -30,8 +30,9 @@ class UnitSingle(ABC):
         if not unit:
             return
 
-        if unit.is_burrowed and if unit.health_percentage == 1:
-            unit(AbilityId.BURROWUP)
+        if unit.is_burrowed:
+            if unit.health_percentage == 1:
+                unit(AbilityId.BURROWUP)
             return
 
         if (

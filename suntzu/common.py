@@ -48,6 +48,8 @@ from .cost import Cost
 from .utils import *
 from .corrosive_bile import CorrosiveBile
 
+import matplotlib.pyplot as plt
+
 MacroId = Union[UnitTypeId, UpgradeId]
  
 DODGE_EFFECTS = {
@@ -168,13 +170,14 @@ class CommonAI(BotAI):
                 pass
 
     async def on_start(self):
+
         self.townhalls[0](AbilityId.RALLY_WORKERS, target=self.townhalls[0])
         self.enemy_map = np.zeros(self.game_info.map_size)
         self.enemy_gradient_map = np.zeros([*self.game_info.map_size, 2])
         self.friend_map = np.zeros(self.game_info.map_size)
         await self.create_distance_map()
         await self.initialize_bases()
-
+        
         # await self.client.debug_show_map()
 
     def handle_errors(self):
@@ -570,23 +573,41 @@ class CommonAI(BotAI):
                     minerals.speed_mining_enabled = True
 
     async def create_distance_map(self):
-        distance_map = 0.5 * np.ones(self.game_info.map_size)
-        paths_self = await self.client.query_pathings([
-            [self.start_location, Point2(p)]
-            for p, _ in np.ndenumerate(distance_map)
-        ])
-        paths_enemy = await self.client.query_pathings([
-            [self.enemy_start_locations[0], Point2(p)]
-            for p, _ in np.ndenumerate(distance_map)
-        ])
-        for (p, _), p1, p2 in zip(np.ndenumerate(distance_map), paths_self, paths_enemy):
-            if not self.in_pathing_grid(Point2(p)):
-                continue
-            if p1 == p2 == 0:
-                continue
-            distance_map[p] = p1 / (p1 + p2)
-        distance_map[self.start_location.rounded] = 0.0
-        distance_map[self.enemy_start_locations[0].rounded] = 1.0
+
+        boundary = np.transpose(self.game_info.pathing_grid.data_numpy == 0)
+        for dx in range(-2, 3):
+            for dy in range(-2, 3):
+                p = self.start_location + Point2((dx, dy))
+                boundary[p.rounded] = False
+
+        distance_ground_self = flood_fill(boundary, [self.start_location.rounded])
+        distance_ground_enemy = flood_fill(boundary, [p.rounded for p in self.enemy_start_locations])
+        distance_ground = distance_ground_self / (distance_ground_self + distance_ground_enemy)
+        distance_air = np.zeros_like(distance_ground)
+        for p, _ in np.ndenumerate(distance_ground):
+            position = Point2(p)
+            distance_self = position.distance_to(self.start_location)
+            distance_enemy = min(position.distance_to(p) for p in self.enemy_start_locations)
+            distance_air[p] = distance_self / (distance_self + distance_enemy)
+        distance_map = np.where(np.isnan(distance_ground), distance_air, distance_ground)
+
+        # distance_map = 0.5 * np.ones(self.game_info.map_size)
+        # paths_self = await self.client.query_pathings([
+        #     [self.start_location, Point2(p)]
+        #     for p, _ in np.ndenumerate(distance_map)
+        # ])
+        # paths_enemy = await self.client.query_pathings([
+        #     [self.enemy_start_locations[0], Point2(p)]
+        #     for p, _ in np.ndenumerate(distance_map)
+        # ])
+        # for (p, _), p1, p2 in zip(np.ndenumerate(distance_map), paths_self, paths_enemy):
+        #     if not self.in_pathing_grid(Point2(p)):
+        #         continue
+        #     if p1 == p2 == 0:
+        #         continue
+        #     distance_map[p] = p1 / (p1 + p2)
+        # distance_map[self.start_location.rounded] = 0.0
+        # distance_map[self.enemy_start_locations[0].rounded] = 1.0
 
         self.distance_map = distance_map
         self.distance_gradient_map = np.stack(np.gradient(distance_map), axis=2)

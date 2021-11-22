@@ -47,7 +47,9 @@ class ZergMacro(ZergStrategy):
             and 44 <= bot.bases.harvester_count
             and 3 <= bot.townhalls.amount
         ):
-            composition[UnitTypeId.ROACH] = 0
+            composition[UnitTypeId.ROACHWARREN] = 1
+        else:
+            composition[UnitTypeId.BANELINGNEST] = 1
         
         if not bot.count(UnitTypeId.ROACHWARREN, include_pending=False, include_planned=False):
             composition[UnitTypeId.ZERGLING] = 2 + int(ratio * enemy_ground_value / 200)
