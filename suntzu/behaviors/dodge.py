@@ -31,13 +31,8 @@ class DodgeUnit(DodgeBase):
 
 class DodgeEffect(DodgeBase):
 
-    RADIUS = {
-        EffectId.NUKEPERSISTENT: 8,
-    }   
-
     def __init__(self, effect: EffectData):
-        radius = self.RADIUS.get(effect.id, effect.radius)
-        super().__init__(effect.positions, radius)
+        super().__init__(effect.positions, effect.radius)
 
 class DodgeCorrosiveBile(DodgeBase):
 
@@ -49,6 +44,17 @@ class DodgeCorrosiveBile(DodgeBase):
     @property
     def time_of_impact(self):
         return self.time + 49 / 22.4
+
+class DodgeNuke(DodgeBase):
+
+    def __init__(self, position: Point2, time: float):
+        self.time: float = time
+        self.position: Point2 = position
+        super().__init__([position], 8)
+
+    @property
+    def time_of_impact(self):
+        return self.time + 14
 
 class DodgeBehavior(BehaviorBase):
 

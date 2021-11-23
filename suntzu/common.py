@@ -48,7 +48,7 @@ from .constants import *
 from .macro_plan import MacroPlan
 from .cost import Cost
 from .utils import *
-from .behaviors.dodge import DodgeBase, DodgeBehavior, DodgeCorrosiveBile, DodgeEffect, DodgeUnit
+from .behaviors.dodge import DodgeBase, DodgeBehavior, DodgeCorrosiveBile, DodgeEffect, DodgeNuke, DodgeUnit
 from .behaviors.fight import FightBehavior
 
 import matplotlib.pyplot as plt
@@ -111,6 +111,7 @@ class CommonAI(BotAI):
         self.bases: ResourceGroup[Base] = None
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
         self.corrosive_biles: List[DodgeCorrosiveBile] = list()
+        self.nukes: List[DodgeNuke] = list()
         self.enemy_map: np.ndarray = None
         self.enemy_gradient_map: np.ndarray = None
         self.friend_map: np.ndarray = None
@@ -242,9 +243,15 @@ class CommonAI(BotAI):
 
         while (
             self.corrosive_biles
-            and self.corrosive_biles[0].time_of_impact <= self.time
+            and self.corrosive_biles[0].time_of_impact < self.time
         ):
             self.corrosive_biles.pop(0)
+
+        while (
+            self.nukes
+            and self.nukes[0].time_of_impact < self.time
+        ):
+            self.nukes.pop(0)
 
     def assign_idle_workers(self):
         exclude = set()
@@ -1012,11 +1019,16 @@ class CommonAI(BotAI):
         enemies = list(self.all_enemy_units)
         if self.destroy_destructables():
             enemies.extend(self.destructables_fixed)
+        enemies = [
+            e for e in enemies
+            if e.type_id not in { UnitTypeId.LARVA, UnitTypeId.EGG }
+        ]
         return enemies
 
     async def micro(self):
 
         bile_positions = { c.position for c in self.corrosive_biles }
+        nuke_positions = { n.position for n in self.nukes }
         self.dodge.clear()
         for effect in self.state.effects:
             if effect.id == EffectId.RAVAGERCORROSIVEBILECP:
@@ -1025,11 +1037,20 @@ class CommonAI(BotAI):
                     continue
                 bile = DodgeCorrosiveBile(position, self.time)
                 self.corrosive_biles.append(bile)
+            elif effect.id == EffectId.NUKEPERSISTENT:
+                position = next(iter(effect.positions))
+                if position in nuke_positions:
+                    continue
+                nuke = DodgeNuke(position, self.time)
+                self.nukes.append(nuke)
             else:
                 self.dodge.append(DodgeEffect(effect))
         for bile in self.corrosive_biles:
             if bile.time_of_impact < self.time + 0.5:
                 self.dodge.append(bile)
+        for nuke in self.nukes:
+            if nuke.time_of_impact < self.time + 5:
+                self.dodge.append(nuke)
         for type in DODGE_UNITS:
             for enemy in self.enemies_by_type[type]:
                 self.dodge.append(DodgeUnit(enemy))
