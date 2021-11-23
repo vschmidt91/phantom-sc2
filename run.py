@@ -36,7 +36,7 @@ if __name__ == "__main__":
         # opponent = Bot(Race.Zerg, ZergAI(game_step = 8, debug = True, performance = PerformanceMode.DEFAULT), 'Sun Tzu 2') 
         # opponent = Bot(Race.Zerg, DummyAI())
         opponent = Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
-        # opponent = Bot(Race.Zerg, ZergAI(performance = PerformanceMode.HIGH_PERFORMANCE, strategy = Pool12AllIn(True)), 'Pool12AllIn')   
+        # opponent = Bot(Race.Zerg, ZergAI(performance = PerformanceMode.HIGH_PERFORMANCE, strategy = Pool12AllIn(False)), 'Pool12AllIn')   
         run_game(
             sc2.maps.get('OxideAIE'),
             [bot, opponent],

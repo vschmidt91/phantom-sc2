@@ -43,7 +43,7 @@ class DodgeCorrosiveBile(DodgeBase):
 
     @property
     def time_of_impact(self):
-        return self.time + 49 / 22.4
+        return self.time + 50 / 22.4
 
 class DodgeNuke(DodgeBase):
 
@@ -54,7 +54,7 @@ class DodgeNuke(DodgeBase):
 
     @property
     def time_of_impact(self):
-        return self.time + 14
+        return self.time + 320 / 22.4
 
 class DodgeBehavior(BehaviorBase):
 

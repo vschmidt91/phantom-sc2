@@ -22,7 +22,8 @@ class ZergMacro(ZergStrategy):
         worker_limit = 88
         worker_target = min(worker_limit, bot.get_max_harvester())
         worker_count = bot.count(UnitTypeId.DRONE, include_planned=False)
-        ratio = min(1, max(0.7 * bot.threat_level, worker_count / worker_limit))
+        ratio = min(1, max(bot.threat_level, worker_count / worker_limit))
+        # ratio = 1 if 0.5 < ratio else 0
 
         enemy_value = {
             tag: unitValue(enemy)
@@ -47,12 +48,12 @@ class ZergMacro(ZergStrategy):
             and 44 <= bot.bases.harvester_count
             and 3 <= bot.townhalls.amount
         ):
-            composition[UnitTypeId.ROACHWARREN] = 1
+            composition[UnitTypeId.ROACH] = 0
         # else:
         #     composition[UnitTypeId.BANELINGNEST] = 1
         
         if not bot.count(UnitTypeId.ROACHWARREN, include_pending=False, include_planned=False):
-            composition[UnitTypeId.ZERGLING] = 2 + int(ratio * enemy_ground_value / 200)
+            composition[UnitTypeId.ZERGLING] = 2 + int(ratio * enemy_ground_value / 350)
         else:
             composition[UnitTypeId.OVERSEER] = 2
             if 0.2 < enemy_flyer_ratio or bot.count(UnitTypeId.HIVE, include_planned=False):
@@ -86,10 +87,10 @@ class ZergMacro(ZergStrategy):
     def update(self, bot):
         if 2 <= bot.enemy_base_count:
             self.enable_expansion = True
-        elif 36 <= bot.bases.harvester_count:
+        elif 32 <= bot.bases.harvester_count:
             self.enable_expansion = True
-        elif 4 * 60 < bot.time:
-            self.enable_expansion = True
+        # elif 4 * 60 < bot.time:
+        #     self.enable_expansion = True
         return super().update(bot)
 
     def steps(self, bot):
