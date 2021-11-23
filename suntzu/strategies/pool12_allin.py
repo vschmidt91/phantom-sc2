@@ -11,9 +11,9 @@ from ..macro_plan import MacroPlan
 
 class Pool12AllIn(ZergStrategy):
 
-    def __init__(self):
+    def __init__(self, pull_workers: bool = False):
         super().__init__()
-        self.pull_workers: bool = True
+        self.pull_workers: bool = pull_workers
 
     def build_order(self) -> Iterable[Union[UnitTypeId, UpgradeId]]:
         if self.pull_workers:

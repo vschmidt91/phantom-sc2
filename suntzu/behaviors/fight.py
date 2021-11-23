@@ -6,51 +6,34 @@ from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT
 
 from sc2.position import Point2
 from sc2.unit import Unit
+from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
 from ..utils import *
 from ..constants import *
+from .behavior_base import BehaviorBase
 
-class UnitSingle(ABC):
+class FightBehavior(BehaviorBase):
 
-    def __init__(self, tag: int):
-        self.tag: int = tag
+    def __init__(self, bot):
+        self.bot = bot
 
-    def micro(self,
-        bot,
-        enemies: Iterable[Unit],
-        friend_map: np.ndarray,
-        enemy_map: np.ndarray,
-        enemy_gradient_map: np.ndarray,
-        dodge: Iterable[Tuple[Point2, float]] = []
-    ):
-
-        unit: Unit = bot.unit_by_tag.get(self.tag)
-        if not unit:
-            return
+    def execute(self, unit: Unit) -> bool:
 
         if unit.is_burrowed:
             if unit.health_percentage == 1:
                 unit(AbilityId.BURROWUP)
-            return
+            return True
 
         if (
             unit.type_id == UnitTypeId.ROACH
             and unit.health_percentage < 0.25
-            and UpgradeId.BURROW in bot.state.upgrades
+            and UpgradeId.BURROW in self.bot.state.upgrades
             and unit.weapon_cooldown
         ):
             unit(AbilityId.BURROWDOWN)
-            return
-
-        dodge_closest = min(dodge, key = lambda p : unit.distance_to(p[0]) - p[1], default = None)
-        if dodge_closest:
-            dodge_position, dodge_radius = dodge_closest
-            dodge_distance = unit.distance_to(dodge_position) - unit.radius - dodge_radius - 1
-            if dodge_distance < 0:
-                unit.move(unit.position.towards(dodge_position, dodge_distance))
-                return
+            return True
 
         def target_priority(target: Unit) -> float:
             if target.is_hallucination:
@@ -62,7 +45,7 @@ class UnitSingle(ABC):
             priority = 1e5
             # priority *= 10 + target.calculate_dps_vs_target(unit)
             priority /= 30 + target.position.distance_to(unit.position)
-            priority /= 100 + target.position.distance_to(bot.start_location)
+            priority /= 100 + target.position.distance_to(self.bot.start_location)
             priority /= 3 if target.is_structure else 1
 
             if target.is_enemy:
@@ -77,13 +60,13 @@ class UnitSingle(ABC):
                 priority *= 10 if not target.is_revealed else 1
             return priority
 
-        target = max(enemies, key=target_priority, default=None)
+        target = max(self.bot.enumerate_enemies(), key=target_priority, default=None)
 
-        heat_gradient = Point2(bot.distance_gradient_map[unit.position.rounded[0], unit.position.rounded[1],:])
+        heat_gradient = Point2(self.bot.distance_gradient_map[unit.position.rounded[0], unit.position.rounded[1],:])
         if 0 < heat_gradient.length:
             heat_gradient = heat_gradient.normalized
 
-        enemy_gradient = Point2(enemy_gradient_map[unit.position.rounded[0], unit.position.rounded[1],:])
+        enemy_gradient = Point2(self.bot.enemy_gradient_map[unit.position.rounded[0], unit.position.rounded[1],:])
         if 0 < enemy_gradient.length:
             enemy_gradient = enemy_gradient.normalized
 
@@ -92,25 +75,26 @@ class UnitSingle(ABC):
             gradient = gradient.normalized
         elif target and 0 < unit.position.distance_to(target.position):
             gradient = (unit.position - target.position).normalized
-        elif 0 < unit.position.distance_to(bot.start_location):
-            gradient = (bot.start_location - unit.position).normalized
+        elif 0 < unit.position.distance_to(self.bot.start_location):
+            gradient = (self.bot.start_location - unit.position).normalized
         retreat_target = unit.position - 12 * gradient
 
-        friends_rating = 1 + friend_map[unit.position.rounded]
-        enemies_rating = 1 + enemy_map[unit.position.rounded]
+        friends_rating = 1 + self.bot.friend_blur_map[unit.position.rounded]
+        enemies_rating = 1 + self.bot.enemy_blur_map[unit.position.rounded]
         advantage_army = friends_rating / max(1, enemies_rating)
 
         creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id, 1)
         if unit.type_id == UnitTypeId.QUEEN:
             creep_bonus = 30
         advantage_creep = 1
-        if bot.state.creep.is_empty(unit.position.rounded):
+        if self.bot.state.creep.is_empty(unit.position.rounded):
             advantage_creep = 1 / creep_bonus
 
         advantage = 1
         advantage *= advantage_army
         advantage *= advantage_creep
-        advantage_threshold = 1 - len(bot.drafted_civilians) / max(1, bot.count(race_worker[bot.race]))
+        advantage_threshold = 1 - self.bot.threat_level * (1 - self.bot.distance_map[unit.position.rounded])
+        # advantage_threshold = 1
 
         if target and 0 < target_priority(target):
 
@@ -125,6 +109,7 @@ class UnitSingle(ABC):
                 # FLEE
 
                 unit.move(retreat_target)
+                return True
 
             elif advantage < advantage_threshold:
 
@@ -137,6 +122,7 @@ class UnitSingle(ABC):
                     unit.attack(target)
                 else:
                     unit.attack(attack_target)
+                return True
                 
             elif advantage < advantage_threshold * 3:
 
@@ -145,6 +131,7 @@ class UnitSingle(ABC):
                     unit.attack(target)
                 else:
                     unit.attack(attack_target)
+                return True
 
             else:
 
@@ -156,12 +143,14 @@ class UnitSingle(ABC):
                     unit.attack(target)
                 else:
                     unit.attack(attack_target)
+                return True
 
         elif unit.is_idle:
 
-            if bot.time < 8 * 60:
-                target = random.choice(bot.enemy_start_locations)
+            if self.bot.time < 8 * 60:
+                target = random.choice(self.bot.enemy_start_locations)
             else:
-                target = random.choice(bot.expansion_locations_list)
+                target = random.choice(self.bot.expansion_locations_list)
 
             unit.attack(target)
+            return True

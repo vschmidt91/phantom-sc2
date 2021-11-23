@@ -22,7 +22,7 @@ class ZergMacro(ZergStrategy):
         worker_limit = 88
         worker_target = min(worker_limit, bot.get_max_harvester())
         worker_count = bot.count(UnitTypeId.DRONE, include_planned=False)
-        ratio = max(0.7 * bot.threat_level, worker_count / worker_limit)
+        ratio = min(1, max(0.7 * bot.threat_level, worker_count / worker_limit))
 
         enemy_value = {
             tag: unitValue(enemy)
@@ -48,8 +48,8 @@ class ZergMacro(ZergStrategy):
             and 3 <= bot.townhalls.amount
         ):
             composition[UnitTypeId.ROACHWARREN] = 1
-        else:
-            composition[UnitTypeId.BANELINGNEST] = 1
+        # else:
+        #     composition[UnitTypeId.BANELINGNEST] = 1
         
         if not bot.count(UnitTypeId.ROACHWARREN, include_pending=False, include_planned=False):
             composition[UnitTypeId.ZERGLING] = 2 + int(ratio * enemy_ground_value / 200)
@@ -99,6 +99,7 @@ class ZergMacro(ZergStrategy):
             bot.update_tables: 1,
             bot.handle_errors: 1,
             bot.handle_actions: 1,
+            bot.update_maps: 1,
             bot.handle_corrosive_biles: 1,
             bot.update_bases: 1,
             bot.update_composition: 1,
@@ -110,7 +111,7 @@ class ZergMacro(ZergStrategy):
             bot.morph_overlords: 1,
             bot.make_composition: 1,
             bot.make_tech: 1,
-            bot.pull_workers: 1,
+            bot.draft_civilians: 1,
             # bot.expand: 1,
             bot.micro: 1,
             bot.assess_threat_level: 1,

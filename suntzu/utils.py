@@ -14,6 +14,8 @@ from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 import numpy as np
 import math
 
+MacroId = Union[UnitTypeId, UpgradeId]
+
 def makeUnique(a):
     b = []
     for x in a:
@@ -52,7 +54,7 @@ def unitValue(unit: Unit, target = None):
     #     dps = 4 * 10
     # el
     # HACK: ignore Planetary Fortresses for now
-    if target.type_id == UnitTypeId.PLANETARYFORTRESS:
+    if unit.type_id == UnitTypeId.PLANETARYFORTRESS:
         return 100
     if target is None:
         dps = max(unit.air_dps, unit.ground_dps)

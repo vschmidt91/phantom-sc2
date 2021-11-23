@@ -27,6 +27,7 @@ from .strategies.hatch_first import HatchFirst
 from .strategies.pool12 import Pool12
 from .strategies.pool12_allin import Pool12AllIn
 from .strategies.zerg_strategy import ZergStrategy
+from .tactics.tactic_army import TacticArmy
 from .timer import run_timed
 from .constants import CHANGELINGS, CREEP_ABILITIES, SUPPLY_PROVIDED
 from .common import CommonAI, PerformanceMode
@@ -100,6 +101,13 @@ class ZergAI(CommonAI):
         self.blocked_base_detectors: Dict[Point2, int] = dict()
         self.scout_overlord: Optional[int] = None
         self.enemy_base_count: int = 1
+        self.army_tactic: TacticArmy = TacticArmy(self)
+
+    async def micro(self):
+        await super().micro()
+        self.army_tactic.unit_tags.clear()
+        self.army_tactic.unit_tags.update((u.tag for u in self.enumerate_army()))
+        self.army_tactic.execute()
 
     def counter_composition(self, enemies: Iterable[Unit]) -> Dict[UnitTypeId, int]:
 

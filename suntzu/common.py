@@ -24,6 +24,7 @@ from sc2.bot_ai import BotAI
 from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT, IS_STRUCTURE
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.effect_id import EffectId
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
@@ -33,8 +34,9 @@ from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_tech_alias import UNIT_TECH_ALIAS
 from sc2.data import Result, race_townhalls, race_worker, ActionResult
 from sc2.unit import Unit
+from sc2.unit_command import UnitCommand
 from sc2.units import Units
-from suntzu.tactics.unit_single import UnitSingle
+import suntzu
 
 from .analysis.poisson_solver import solve_poisson, solve_poisson_full
 from .resources.vespene_geyser import VespeneGeyser
@@ -46,11 +48,10 @@ from .constants import *
 from .macro_plan import MacroPlan
 from .cost import Cost
 from .utils import *
-from .corrosive_bile import CorrosiveBile
+from .behaviors.dodge import DodgeBase, DodgeBehavior, DodgeCorrosiveBile, DodgeEffect, DodgeUnit
+from .behaviors.fight import FightBehavior
 
 import matplotlib.pyplot as plt
-
-MacroId = Union[UnitTypeId, UpgradeId]
  
 DODGE_EFFECTS = {
     # EffectId.THERMALLANCESFORWARD,
@@ -109,10 +110,12 @@ class CommonAI(BotAI):
         self.cost: Dict[MacroId, Cost] = dict()
         self.bases: ResourceGroup[Base] = None
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
-        self.corrosive_biles: List[CorrosiveBile] = list()
+        self.corrosive_biles: List[DodgeCorrosiveBile] = list()
         self.enemy_map: np.ndarray = None
         self.enemy_gradient_map: np.ndarray = None
         self.friend_map: np.ndarray = None
+        self.enemy_blur_map: np.ndarray = None
+        self.friend_blur_map: np.ndarray = None
         self.threat_map: np.ndarray = None
         self.distance_map: np.ndarray = None
         self.distance_gradient_map: np.ndarray = None
@@ -133,6 +136,8 @@ class CommonAI(BotAI):
         self.damage_taken: Dict[int] = dict()
         self.gg_sent: bool = False
         self.unit_ref: Optional[int] = None
+        self.dodge: List[DodgeBase] = list()
+
 
     def destroy_destructables(self):
         return True
@@ -193,7 +198,7 @@ class CommonAI(BotAI):
                 ), None)
                 if not plan:
                     continue
-                if item in race_townhalls[self.race]:
+                if item in race_townhalls[self.race] and plan.target:
                     base = min(self.bases, key = lambda b : b.position.distance_to(plan.target))
                     if not base.blocked_since:
                         base.blocked_since = self.time
@@ -231,22 +236,13 @@ class CommonAI(BotAI):
                 base.blocked_since = None
 
     def handle_corrosive_biles(self):
-        bile_positions = { c.position for c in self.corrosive_biles }
-        for effect in self.state.effects:
-            if effect.id != EffectId.RAVAGERCORROSIVEBILECP:
-                continue
-            position = next(iter(effect.positions))
-            if position in bile_positions:
-                continue
-            bile = CorrosiveBile(self.state.game_loop, position)
-            self.corrosive_biles.append(bile)
 
         # biles_sorted = sorted(self.corrosive_biles, key = lambda c : c.frame_expires)
         # assert(self.corrosive_biles == biles_sorted)
 
         while (
             self.corrosive_biles
-            and self.corrosive_biles[0].frame_expires <= self.state.game_loop
+            and self.corrosive_biles[0].time_of_impact <= self.time
         ):
             self.corrosive_biles.pop(0)
 
@@ -686,12 +682,6 @@ class CommonAI(BotAI):
         #     c = (255, 255, 255)
         #     self.client.debug_text_world(f'{round(v)}', Point3((*p, z)), c)
 
-    @property
-    def income(self):
-        income_minerals = sum(base.mineral_patches.income for base in self.bases)
-        income_vespene = sum(base.vespene_geysers.income for base in self.bases)
-        return income_minerals, income_vespene
-
     async def time_to_reach(self, unit, target):
         if isinstance(target, Unit):
             position = target.position
@@ -766,15 +756,11 @@ class CommonAI(BotAI):
         exclude = { o.unit for o in self.macro_plans }
         exclude.update(unit.tag for units in self.pending_by_type.values() for unit in units)
         exclude.update(self.drafted_civilians)
-        took_action = False
-        income_minerals, income_vespene = self.income
+        income_minerals = sum(base.mineral_patches.income for base in self.bases)
+        income_vespene = sum(base.vespene_geysers.income for base in self.bases)
         self.macro_plans.sort(key = lambda t : t.priority, reverse=True)
 
-        i = 0
-        while i < len(self.macro_plans):
-
-            plan = self.macro_plans[i]
-            i += 1
+        for plan in self.macro_plans:
 
             if (
                 any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False))
@@ -864,9 +850,6 @@ class CommonAI(BotAI):
                         continue
                     plan.target = target2
 
-            # if took_action and plan.priority == BUILD_ORDER_PRIORITY:
-            #     continue
-
             queue = False
             if unit.is_carrying_resource:
                 unit.return_resource()
@@ -876,20 +859,6 @@ class CommonAI(BotAI):
                 if self.debug:
                     print("objective failed:" + str(plan))
                     raise Exception()
-
-            if plan.item == UnitTypeId.LAIR:
-                took_action = True
-
-            took_action = True
-
-            # if self.is_structure(plan.item):
-            #     pass
-            # else:
-            #     self.observation.remove_plan(plan)
-            #     self.observation.add_pending(plan.item, unit)
-
-            #     i -= 1
-            #     self.macro_plans.pop(i)
 
 
     def get_owned_geysers(self):
@@ -1039,55 +1008,31 @@ class CommonAI(BotAI):
 
         return unit_range
 
-    async def micro(self):
-
-        friends = list(self.enumerate_army())
-
+    def enumerate_enemies(self) -> Iterable[Unit]:
         enemies = list(self.all_enemy_units)
         if self.destroy_destructables():
             enemies.extend(self.destructables_fixed)
+        return enemies
 
-        friends.sort(key=lambda u:u.tag)
-        enemies.sort(key=lambda u:u.tag)
+    async def micro(self):
 
-        blur_sigma = 9
-        enemy_map_blur = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
-        friend_map_blur = ndimage.gaussian_filter(self.friend_map, blur_sigma)
-
-        # unblurred = np.sum(self.enemy_map * (1 - self.distance_map) * np.transpose(self.game_info.pathing_grid.data_numpy))
-        # blurred = np.sum(enemy_map_blur * (1 - self.distance_map) * np.transpose(self.game_info.pathing_grid.data_numpy))
-        # print(unblurred / max(1, blurred))
-
-        dodge_elements = list()
-        dodge_elements.extend((
-            (p, DODGE_RADIUS.get(e.id, e.radius))
-            for e in self.state.effects
-            if e.id in DODGE_EFFECTS
-            for p in e.positions
-        ))
-        dodge_elements.extend((
-            (e.position, DODGE_RADIUS.get(t, e.radius))
-            for t in DODGE_UNITS
-            for e in self.enemies_by_type[t]
-        ))
-        dodge_elements.extend((
-            (c.position, 0.5)
-            for c in self.corrosive_biles
-            if c.frame_expires < self.state.game_loop + 10
-        ))
-
-        self.enemy_gradient_map = np.stack(np.gradient(enemy_map_blur), axis=2)
-            
-        for unit in friends:
-
-            UnitSingle(unit.tag).micro(
-                self,
-                enemies,
-                friend_map_blur,
-                enemy_map_blur,
-                self.enemy_gradient_map,
-                dodge_elements
-            )
+        bile_positions = { c.position for c in self.corrosive_biles }
+        self.dodge.clear()
+        for effect in self.state.effects:
+            if effect.id == EffectId.RAVAGERCORROSIVEBILECP:
+                position = next(iter(effect.positions))
+                if position in bile_positions:
+                    continue
+                bile = DodgeCorrosiveBile(position, self.time)
+                self.corrosive_biles.append(bile)
+            else:
+                self.dodge.append(DodgeEffect(effect))
+        for bile in self.corrosive_biles:
+            if bile.time_of_impact < self.time + 0.5:
+                self.dodge.append(bile)
+        for type in DODGE_UNITS:
+            for enemy in self.enemies_by_type[type]:
+                self.dodge.append(DodgeUnit(enemy))
 
     async def get_target_position(self, target: UnitTypeId, trainer: Unit) -> Point2:
         if target in STATIC_DEFENSE[self.race]:
@@ -1141,7 +1086,7 @@ class CommonAI(BotAI):
         buffer += 3 * self.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
         return buffer
 
-    def assess_threat_level(self):
+    def update_maps(self):
 
         self.enemy_map = np.zeros(self.game_info.map_size)
         for enemy in self.enemies.values():
@@ -1150,20 +1095,27 @@ class CommonAI(BotAI):
         self.friend_map = np.zeros(self.game_info.map_size)
         for friend in self.enumerate_army():
             self.friend_map[friend.position.rounded] += unitValue(friend)
+
+        blur_sigma = 9
+        self.enemy_blur_map = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
+        self.friend_blur_map = ndimage.gaussian_filter(self.friend_map, blur_sigma)
+        self.enemy_gradient_map = np.stack(np.gradient(self.enemy_blur_map), axis=2)
+
+    def assess_threat_level(self):
  
         value_self = np.sum(self.friend_map)
         value_enemy = np.sum(self.enemy_map * (1 - self.distance_map) * np.transpose(self.game_info.pathing_grid.data_numpy))
         self.threat_level = value_enemy / max(1, value_self + value_enemy)
 
 
-    def pull_workers(self):
+    def draft_civilians(self):
 
         self.drafted_civilians = {
             u for u in self.drafted_civilians
             if u in self.unit_by_tag
         }
         
-        if 0.6 < self.threat_level and self.time < 4 * 60:
+        if 0.5 < self.threat_level and self.time < 4 * 60:
             # if not self.count(UnitTypeId.SPINECRAWLER):
             #     plan = MacroPlan(UnitTypeId.SPINECRAWLER)
             #     plan.target = self.bases[0].mineral_patches.position
@@ -1171,7 +1123,7 @@ class CommonAI(BotAI):
             worker = self.bases.try_remove_any()
             if worker:
                 self.drafted_civilians.add(worker)
-        elif self.threat_level < 0.5:
+        elif self.threat_level < 0.4:
             if any(self.drafted_civilians):
                 worker = self.drafted_civilians.pop()
                 if not self.bases.try_add(worker):
