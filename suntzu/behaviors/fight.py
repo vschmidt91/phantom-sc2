@@ -94,7 +94,7 @@ class FightBehavior(BehaviorBase):
         advantage *= advantage_army
         advantage *= advantage_creep
         advantage_threshold = 1 - self.bot.threat_level * (1 - self.bot.distance_map[unit.position.rounded])
-        # advantage_threshold = 1
+        advantage_threshold = 1
 
         if target and 0 < target_priority(target):
 

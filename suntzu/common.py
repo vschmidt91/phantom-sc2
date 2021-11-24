@@ -405,12 +405,10 @@ class CommonAI(BotAI):
         self.enemies = {
             enemy.tag: enemy
             for enemy in self.all_enemy_units
+            if not enemy.is_snapshot
         }
         for tag, enemy in enemies_remembered.items():
-            if enemy.is_structure:
-                # can see shadow
-                continue
-            elif tag in self.enemies:
+            if tag in self.enemies:
                 # can see
                 continue
             elif self.is_visible(enemy.position):
@@ -683,9 +681,9 @@ class CommonAI(BotAI):
                     color=font_color,
                     size=font_size)
 
-        # for d in self.enemies.values():
-        #     z = self.get_terrain_z_height(d)
-        #     self.client.debug_text_world(f'{d.health}', Point3((*d.position, z)))
+        for d in self.enemies.values():
+            z = self.get_terrain_z_height(d)
+            self.client.debug_text_world(f'{d.health}', Point3((*d.position, z)))
 
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.threat_level)}%', (0.01, 0.01))
         for i, plan in enumerate(self.macro_plans):
