@@ -2,6 +2,7 @@
 from collections import defaultdict
 from enum import Enum
 from functools import reduce
+from json import detect_encoding
 import math
 import random
 from typing import DefaultDict, Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
@@ -21,7 +22,7 @@ from sc2.ids.effect_id import EffectId
 from sc2 import game_info, game_state
 from sc2.position import Point2, Point3
 from sc2.bot_ai import BotAI
-from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT, IS_STRUCTURE
+from sc2.constants import IS_DETECTOR, SPEED_INCREASE_ON_CREEP_DICT, IS_STRUCTURE
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.effect_id import EffectId
@@ -204,6 +205,24 @@ class CommonAI(BotAI):
                     if not base.blocked_since:
                         base.blocked_since = self.time
                 plan.target = None
+
+    def units_detecting(self, unit) -> Iterable[Unit]:
+        for detector_type in IS_DETECTOR:
+            for detector in self.actual_by_type[detector_type]:
+                distance = detector.distance_to(unit)
+                if distance <= detector.radius + detector.detect_range + unit.radius:
+                    yield detector
+        pass
+
+    def can_attack(self, unit: Unit, target: Unit) -> bool:
+        if target.is_cloaked and not target.is_revealed:
+            return False
+        elif target.is_burrowed and not any(self.units_detecting(target)):
+            return False
+        elif target.is_flying:
+            return unit.can_attack_air
+        else:
+            return unit.can_attack_ground
 
     def handle_actions(self):
         for action in self.state.actions_unit_commands:

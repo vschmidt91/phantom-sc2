@@ -9,14 +9,14 @@ class DummyAI(BotAI):
         await self.client.debug_upgrade()
         bases = sorted(self.expansion_locations_list, key=lambda b:b.distance_to(self.start_location))
         spawns = [
-            [UnitTypeId.HATCHERY, 1, b, 2]
-            for b in bases[1:-4]
+            [UnitTypeId.ZERGLINGBURROWED, 1, bases[-2].position, 2],
+            [UnitTypeId.OVERSEER, 1, bases[-2].position, 1],
         ]
         await self.client.debug_create_unit(spawns)
     
     async def on_step(self, iteration: int):
-        for ling in self.units(UnitTypeId.ZERGLING):
-            ling(AbilityId.BURROWDOWN_ZERGLING)
-        for ling in self.units(UnitTypeId.ZERGLINGBURROWED):
-            ling(AbilityId.BURROWUP_ZERGLING)
+        # for ling in self.units(UnitTypeId.ZERGLING):
+        #     ling(AbilityId.BURROWDOWN_ZERGLING)
+        # for ling in self.units(UnitTypeId.ZERGLINGBURROWED):
+        #     ling(AbilityId.BURROWUP_ZERGLING)
         pass 

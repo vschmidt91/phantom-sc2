@@ -40,7 +40,7 @@ class FightBehavior(BehaviorBase):
                 return 0
             if target.type_id in CHANGELINGS:
                 return 0
-            if not can_attack(unit, target) and not unit.is_detector:
+            if not self.bot.can_attack(unit, target) and not unit.is_detector:
                 return 0
             priority = 1e5
             # priority *= 10 + target.calculate_dps_vs_target(unit)
