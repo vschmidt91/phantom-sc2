@@ -133,7 +133,7 @@ class FightBehavior(BehaviorBase):
             elif advantage < advantage_threshold * 3:
 
                 # FIGHT
-                if unit.target_in_range(target):
+                if unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
                     unit.attack(target)
                 else:
                     unit.attack(attack_target)
