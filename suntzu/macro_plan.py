@@ -14,6 +14,7 @@ class MacroPlan(object):
 
     def __init__(self, item: Union[UnitTypeId, UpgradeId], **kwargs):
         self.item = item
+        self.cost = None
         self.ability = None
         self.unit: Optional[int] = None
         self.target = None

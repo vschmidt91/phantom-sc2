@@ -6,8 +6,9 @@ from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.data import Race
-from suntzu.constants import ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_MELEE_UPGRADES
+from suntzu.constants import BUILD_ORDER_PRIORITY, ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_MELEE_UPGRADES
 from suntzu.cost import Cost
+from suntzu.macro_plan import MacroPlan
 from suntzu.utils import unitValue
 
 from .zerg_strategy import ZergStrategy
@@ -34,8 +35,8 @@ class ZergMacro(ZergStrategy):
         enemy_flyer_ratio = enemy_flyer_value / max(1, enemy_flyer_value + enemy_ground_value)
 
         queen_target = 2 * bot.townhalls.amount
-        if not self.enable_expansion:
-            queen_target = 8
+        # if not self.enable_expansion:
+        #     queen_target = 8
         queen_target = min(8, queen_target)
 
         composition = {
@@ -44,7 +45,7 @@ class ZergMacro(ZergStrategy):
         }
 
         if (
-            UpgradeId.ZERGLINGMOVEMENTSPEED in bot.state.upgrades
+            bot.count(UpgradeId.ZERGLINGMOVEMENTSPEED, include_pending=False, include_planned=False)
             and 44 <= bot.bases.harvester_count
             and 3 <= bot.townhalls.amount
         ):
@@ -85,12 +86,35 @@ class ZergMacro(ZergStrategy):
         return True
 
     def update(self, bot):
+
+        if bot.actual_by_type[UnitTypeId.SPAWNINGPOOL]:
+            if bot.planned_by_type[UnitTypeId.NOTAUNIT]:
+                for plan in list(bot.planned_by_type[UnitTypeId.NOTAUNIT]):
+                    bot.remove_macro_plan(plan) 
+        else:
+            if not bot.planned_by_type[UnitTypeId.NOTAUNIT]:
+                plan = MacroPlan(UnitTypeId.NOTAUNIT)
+                plan.cost = Cost(1000, 0, 200)
+                plan.priority = BUILD_ORDER_PRIORITY
+                bot.add_macro_plan(plan)
+
         if 2 <= bot.enemy_base_count:
             self.enable_expansion = True
         elif 32 <= bot.bases.harvester_count:
             self.enable_expansion = True
         # elif 4 * 60 < bot.time:
         #     self.enable_expansion = True
+
+        # if (
+        #     2 <= bot.townhalls.ready.amount
+        #     and bot.count(UnitTypeId.SPINECRAWLER) == 0
+        # ):
+        #     plan = MacroPlan(UnitTypeId.SPINECRAWLER)
+        #     plan.target = bot.bases[1].position.towards(bot.game_info.map_center, 6)
+        #     plan.max_distance = 2
+        #     plan.priority = -0.2
+        #     bot.add_macro_plan(plan)
+
         return super().update(bot)
 
     def steps(self, bot):

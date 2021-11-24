@@ -121,13 +121,12 @@ class CommonAI(BotAI):
         self.distance_map: np.ndarray = None
         self.distance_gradient_map: np.ndarray = None
         self.threat_level = 0
-        self.enemies: Dict[int, Unit] = dict()
-        self.enemies_by_type: DefaultDict[UnitTypeId, Set[Unit]] = defaultdict(lambda:set())
         self.weapons: Dict[UnitTypeId, List] = dict()
         self.dps: Dict[UnitTypeId, float] = dict()
-        self.potentially_dead_harvesters: Dict[int, int] = dict()
         self.resource_by_position: Dict[Point2, Unit] = dict()
         self.unit_by_tag: Dict[int, Unit] = dict()
+        self.enemies: Dict[int, Unit] = dict()
+        self.enemies_by_type: DefaultDict[UnitTypeId, Set[Unit]] = defaultdict(lambda:set())
         self.actual_by_type: DefaultDict[MacroId, Set[Unit]] = defaultdict(lambda:set())
         self.pending_by_type: DefaultDict[MacroId, Set[Unit]] = defaultdict(lambda:set())
         self.planned_by_type: DefaultDict[MacroId, Set[MacroPlan]] = defaultdict(lambda:set())
@@ -138,6 +137,7 @@ class CommonAI(BotAI):
         self.gg_sent: bool = False
         self.unit_ref: Optional[int] = None
         self.dodge: List[DodgeBase] = list()
+        self.abilities: Dict[int, Set[AbilityId]] = dict()
 
 
     def destroy_destructables(self):
@@ -380,7 +380,7 @@ class CommonAI(BotAI):
 
         return sum
 
-    def update_tables(self):
+    async def update_tables(self):
 
         enemies_remembered = self.enemies.copy()
         self.enemies = {
@@ -388,7 +388,10 @@ class CommonAI(BotAI):
             for enemy in self.all_enemy_units
         }
         for tag, enemy in enemies_remembered.items():
-            if tag in self.enemies:
+            if enemy.is_structure:
+                # can see shadow
+                continue
+            elif tag in self.enemies:
                 # can see
                 continue
             elif self.is_visible(enemy.position):
@@ -441,6 +444,12 @@ class CommonAI(BotAI):
         worker_pending = self.count(worker_type, include_actual=False, include_pending=False, include_planned=False)
         self.worker_supply_fixed = self.supply_used - self.supply_army - worker_pending
 
+        unit_abilities = await self.get_available_abilities(self.all_own_units)
+        self.abilities = {
+            unit.tag: set(abilities)
+            for unit, abilities in zip(self.all_own_units, unit_abilities)
+        }
+
     @property
     def gas_harvesters(self) -> Iterable[int]:
         for base in self.bases:
@@ -471,7 +480,7 @@ class CommonAI(BotAI):
                 continue
             if any(self.get_missing_requirements(unit, include_pending=False, include_planned=False)):
                 continue
-            priority = -composition_have[unit] /  count
+            priority = -self.count(unit, include_planned=False) /  count
             plans = self.planned_by_type[unit]
             if not plans:
                 self.add_macro_plan(MacroPlan(unit, priority=priority))
@@ -496,7 +505,7 @@ class CommonAI(BotAI):
 
     def get_gas_target(self):
         cost_zero = Cost(0, 0, 0)
-        cost_sum = sum((self.cost[plan.item] or cost_zero for plan in self.macro_plans), cost_zero)
+        cost_sum = sum((plan.cost or self.cost[plan.item] for plan in self.macro_plans), cost_zero)
         cs = [self.cost[unit] * max(0, count - self.count(unit, include_planned=False)) for unit, count in self.composition.items()]
         cost_sum += sum(cs, cost_zero)
         minerals = max(0, cost_sum.minerals - self.minerals)
@@ -657,7 +666,7 @@ class CommonAI(BotAI):
 
         # for d in self.enemies.values():
         #     z = self.get_terrain_z_height(d)
-        #     self.client.debug_text_world(f'{d.is_flying} {d.is_structure}', Point3((*d.position, z)))
+        #     self.client.debug_text_world(f'{d.health}', Point3((*d.position, z)))
 
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.threat_level)}%', (0.01, 0.01))
         for i, plan in enumerate(self.macro_plans):
@@ -775,8 +784,12 @@ class CommonAI(BotAI):
             ):
                 continue
 
-            cost = self.cost[plan.item]
+            cost = plan.cost or self.cost[plan.item]
             can_afford = self.can_afford_with_reserve(cost, reserve)
+
+            if plan.item == UnitTypeId.NOTAUNIT:
+                reserve += cost
+                continue
 
             unit = None
             if plan.unit:
@@ -785,11 +798,9 @@ class CommonAI(BotAI):
                 unit, plan.ability = self.search_trainer(plan.item, exclude=exclude)
             if not unit:
                 continue
-
             if not plan.ability:
                 plan.unit = None
                 continue
-
             if any(o.ability.exact_id == plan.ability['ability'] for o in unit.orders):
                 continue
             
@@ -1123,9 +1134,13 @@ class CommonAI(BotAI):
         self.enemy_gradient_map = np.stack(np.gradient(self.enemy_blur_map), axis=2)
 
     def assess_threat_level(self):
+
+        value_self = np.sum(self.friend_map)
+        value_enemy = np.sum(self.enemy_map)
+        self.power_level = value_enemy / max(1, value_self + value_enemy)
  
         value_self = np.sum(self.friend_map)
-        value_enemy = np.sum(self.enemy_map * (1 - self.distance_map) * np.transpose(self.game_info.pathing_grid.data_numpy))
+        value_enemy = np.sum(self.enemy_map * (1 - self.distance_map))
         self.threat_level = value_enemy / max(1, value_self + value_enemy)
 
 
@@ -1136,15 +1151,19 @@ class CommonAI(BotAI):
             if u in self.unit_by_tag
         }
         
-        if 0.5 < self.threat_level and self.time < 4 * 60:
+        if (
+            2/3 < self.threat_level
+            and self.time < 4 * 60
+        ):
             # if not self.count(UnitTypeId.SPINECRAWLER):
             #     plan = MacroPlan(UnitTypeId.SPINECRAWLER)
             #     plan.target = self.bases[0].mineral_patches.position
+            #     plan.max_distance = 2
             #     self.add_macro_plan(plan)
             worker = self.bases.try_remove_any()
             if worker:
                 self.drafted_civilians.add(worker)
-        elif self.threat_level < 0.4:
+        elif self.threat_level < 1/3:
             if any(self.drafted_civilians):
                 worker = self.drafted_civilians.pop()
                 if not self.bases.try_add(worker):

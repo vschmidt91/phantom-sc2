@@ -180,7 +180,7 @@ class ZergAI(CommonAI):
 
     async def on_start(self):
 
-        self.update_tables()
+        await self.update_tables()
         # if not self.strategy:
         #     strategy_types = [HatchFirst]
         #     if self.enemy_race == Race.Protoss:
@@ -219,7 +219,7 @@ class ZergAI(CommonAI):
             for overlord in overlords:
                 if not overlord:
                     continue
-                if ability in await self.get_available_abilities(overlord):
+                if ability in self.abilities[overlord.tag]:
                     overlord(ability)
         return await super().on_unit_type_changed(unit, previous_type)
 
@@ -227,6 +227,8 @@ class ZergAI(CommonAI):
         if unit.type_id is UnitTypeId.OVERLORD:
             if self.structures(WITH_TECH_EQUIVALENTS[UnitTypeId.LAIR]).exists:
                 unit(AbilityId.BEHAVIOR_GENERATECREEPON)
+        elif unit.type_id is UnitTypeId.QUEEN:
+            unit(AbilityId.EFFECT_INJECTLARVA, self.townhalls.ready.closest_to(unit))
         return await super(self.__class__, self).on_unit_created(unit)
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
@@ -262,11 +264,10 @@ class ZergAI(CommonAI):
         ]
         if not queens:
             return
-        queens_abilities = await self.get_available_abilities(queens)
 
-        for queen, abilities in zip(queens, queens_abilities):
+        for queen in queens:
 
-            if ability not in abilities:
+            if ability not in self.abilities[queen.tag]:
                 continue
 
             target = max(self.all_own_units, key = lambda t : priority(queen, t))
@@ -292,13 +293,10 @@ class ZergAI(CommonAI):
         ability = AbilityId.EFFECT_CORROSIVEBILE
         ability_data = self.game_data.abilities[ability.value]._proto
         ravagers = list(self.actual_by_type[UnitTypeId.RAVAGER])
-        if not ravagers:
-            return
-        ravager_abilities = await self.get_available_abilities(ravagers)
-        for ravager, abilities in zip(ravagers, ravager_abilities):
+        for ravager in ravagers:
             if any(o.ability.exact_id == ability for o in ravager.orders):
                 continue
-            if ability not in abilities:
+            if ability not in self.abilities[ravager.tag]:
                 continue
             targets = (
                 target
@@ -429,7 +427,7 @@ class ZergAI(CommonAI):
         for target in targets:
             equivalents =  WITH_TECH_EQUIVALENTS.get(target, { target })
             if sum(self.count(t) for t in equivalents) == 0:
-                self.add_macro_plan(MacroPlan(target))
+                self.add_macro_plan(MacroPlan(target, priority=-1/3))
 
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
@@ -442,9 +440,8 @@ class ZergAI(CommonAI):
         overseers = self.units(WITH_TECH_EQUIVALENTS[UnitTypeId.OVERSEER])
         if overseers.exists:
             ability = AbilityId.SPAWNCHANGELING_SPAWNCHANGELING
-            overseers_abilities = await self.get_available_abilities(overseers)
-            for overseer, abilities in zip(overseers, overseers_abilities):
-                if ability in abilities:
+            for overseer in overseers:
+                if ability in self.abilities[overseer.tag]:
                     overseer(ability)
 
         # free overseers once base is no longer blocked
@@ -482,6 +479,15 @@ class ZergAI(CommonAI):
                 target = random.choice(self.expansion_locations_list)
                 changeling.move(target)
 
+        if self.count(UnitTypeId.OVERLORD, include_pending=False, include_planned=False) == 1:
+            for egg in self.pending_by_type[UnitTypeId.OVERLORD]:
+                target = self.bases[1].position.towards(self.game_info.map_center, 16)
+                egg(AbilityId.RALLY_MORPHING_UNIT, target)
+
+        if self.count(UnitTypeId.OVERLORD, include_pending=False, include_planned=False) == 2:
+            for egg in self.pending_by_type[UnitTypeId.OVERLORD]:
+                target = self.bases[2].position
+                egg(AbilityId.RALLY_MORPHING_UNIT, target)
 
         if self.enemy_base_count + 1 < len(self.bases):
             base = self.bases[-self.enemy_base_count - 1]
@@ -534,10 +540,9 @@ class ZergAI(CommonAI):
         if not spreaders:
             return
 
-        spreader_abilities = await self.get_available_abilities(spreaders)
-        for spreader, abilities in zip(spreaders, spreader_abilities):
+        for spreader in spreaders:
             ability = CREEP_ABILITIES[spreader.type_id]
-            if not ability in abilities:
+            if not ability in self.abilities[spreader.tag]:
                 continue
             self.spread_creep_single(spreader, valid_map)
 
@@ -593,9 +598,20 @@ class ZergAI(CommonAI):
     def enumerate_army(self):
         for unit in super().enumerate_army():
             if unit.type_id == UnitTypeId.QUEEN:
-                if unit.tag not in self.army_queens:
+                exclude_abilities = {
+                    AbilityId.BUILD_CREEPTUMOR_QUEEN,
+                    AbilityId.EFFECT_INJECTLARVA,
+                    AbilityId.TRANSFUSION_TRANSFUSION,
+                }
+                order_abilities = {
+                    o.ability.exact_id
+                    for o in unit.orders
+                }
+                if unit.tag in self.creep_queens:
                     pass
-                elif any(o.ability.exact_id == AbilityId.TRANSFUSION_TRANSFUSION for o in unit.orders):
+                elif unit.tag in self.inject_queens:
+                    pass
+                elif order_abilities.intersection(exclude_abilities):
                     pass
                 else:
                     yield unit
@@ -626,7 +642,7 @@ class ZergAI(CommonAI):
         army_queens = queens[inject_queen_count+creep_queen_count:]
 
         # macro_queen_count = round((1 - self.threat_level) * len(queens))
-        # macro_queen_count = min(6, self.townhalls.amount, macro_queen_count)
+        # macro_queen_count = min(4, self.townhalls.amount, macro_queen_count)
         # creep_queen_count = 1 if 2 < macro_queen_count else 0
 
         # inject_queens = queens[0:macro_queen_count-creep_queen_count]

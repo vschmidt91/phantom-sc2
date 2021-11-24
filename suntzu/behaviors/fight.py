@@ -62,15 +62,15 @@ class FightBehavior(BehaviorBase):
 
         target = max(self.bot.enumerate_enemies(), key=target_priority, default=None)
 
-        heat_gradient = Point2(self.bot.distance_gradient_map[unit.position.rounded[0], unit.position.rounded[1],:])
-        if 0 < heat_gradient.length:
-            heat_gradient = heat_gradient.normalized
+        distance_gradient = Point2(self.bot.distance_gradient_map[unit.position.rounded[0], unit.position.rounded[1],:])
+        if 0 < distance_gradient.length:
+            distance_gradient = distance_gradient.normalized
 
         enemy_gradient = Point2(self.bot.enemy_gradient_map[unit.position.rounded[0], unit.position.rounded[1],:])
         if 0 < enemy_gradient.length:
             enemy_gradient = enemy_gradient.normalized
 
-        gradient = enemy_gradient
+        gradient = distance_gradient + enemy_gradient
         if 0 < gradient.length:
             gradient = gradient.normalized
         elif target and 0 < unit.position.distance_to(target.position):
