@@ -209,7 +209,7 @@ class CommonAI(BotAI):
     def units_detecting(self, unit) -> Iterable[Unit]:
         for detector_type in IS_DETECTOR:
             for detector in self.actual_by_type[detector_type]:
-                distance = detector.distance_to(unit)
+                distance = detector.position.distance_to(unit.position)
                 if distance <= detector.radius + detector.detect_range + unit.radius:
                     yield detector
         pass
@@ -278,7 +278,7 @@ class CommonAI(BotAI):
         exclude.update(p.unit for p in self.macro_plans)
         exclude.update(self.drafted_civilians)
         for worker in self.workers.tags_not_in(exclude):
-            base = min(self.bases, key = lambda b : worker.distance_to(b.position))
+            base = min(self.bases, key = lambda b : worker.position.distance_to(b.position))
             base.try_add(worker.tag)
 
     async def greet_opponent(self):
@@ -342,7 +342,7 @@ class CommonAI(BotAI):
                 potential_damage = 0
                 for enemy in self.all_enemy_units:
                     damage, speed, range = enemy.calculate_damage_vs_target(unit)
-                    if  unit.distance_to(enemy) < unit.radius + range + enemy.radius:
+                    if  unit.position.distance_to(enemy.position) <= unit.radius + range + enemy.radius:
                         potential_damage += damage
                 if unit.health + unit.shield <= potential_damage:
                     creep_tumor_count = 0
@@ -576,7 +576,7 @@ class CommonAI(BotAI):
 
         for unit_type in STATIC_DEFENSE[self.race]:
             for unit in chain(self.actual_by_type[unit_type], self.pending_by_type[unit_type]):
-                base = min(self.bases, key=lambda b:b.position.distance_to(unit))
+                base = min(self.bases, key=lambda b:b.position.distance_to(unit.position))
                 base.defensive_units.add(unit)
             for plan in self.planned_by_type[unit_type]:
                 if not isinstance(plan.target, Point2):
@@ -845,7 +845,7 @@ class CommonAI(BotAI):
                 plan.target
                 and not unit.is_moving
                 and unit.movement_speed
-                and 1 < unit.distance_to(plan.target)
+                and 1 < unit.position.distance_to(plan.target)
             ):
             
                 time = await self.time_to_reach(unit, plan.target)
@@ -1022,7 +1022,7 @@ class CommonAI(BotAI):
         for x in range(x0, x1):
             for y in range(y0, y1):
                 p = Point2((x, y))
-                if unit.distance_to(p) <= unit_range:
+                if unit.position.distance_to(p) <= unit_range:
                     yield p
 
     def get_unit_range(self, unit: Unit, ground: bool = True, air: bool = True) -> float:
@@ -1044,7 +1044,7 @@ class CommonAI(BotAI):
         return unit_range
 
     def enumerate_enemies(self) -> Iterable[Unit]:
-        enemies = list(self.all_enemy_units)
+        enemies = list(self.enemies.values())
         if self.destroy_destructables():
             enemies.extend(self.destructables_fixed)
         enemies = [

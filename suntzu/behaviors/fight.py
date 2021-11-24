@@ -114,11 +114,14 @@ class FightBehavior(BehaviorBase):
             elif advantage < advantage_threshold:
 
                 # RETREAT
-                if unit.weapon_cooldown and unit.target_in_range(target, unit.distance_to_weapon_ready):
+                if (
+                    unit.weapon_cooldown
+                    and unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius + unit.distance_to_weapon_ready
+                ):
                     unit.move(retreat_target)
                 # elif 1 < bot.get_unit_range(unit):
                 #     unit.stop()
-                elif unit.target_in_range(target):
+                elif unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
                     unit.attack(target)
                 else:
                     unit.attack(attack_target)
@@ -139,7 +142,7 @@ class FightBehavior(BehaviorBase):
                 distance = unit.position.distance_to(target.position) - unit.radius - target.radius
                 if unit.weapon_cooldown and 1 < distance:
                     unit.move(target.position)
-                elif unit.target_in_range(target):
+                elif unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
                     unit.attack(target)
                 else:
                     unit.attack(attack_target)

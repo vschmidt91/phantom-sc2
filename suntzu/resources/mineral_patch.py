@@ -10,7 +10,7 @@ from .resource_single import ResourceSingle
 
 def speed_mine(harvester, target):
     move_target = target.position.towards(harvester, target.radius + harvester.radius)
-    if 0.75 < harvester.distance_to(move_target) < 2:
+    if 0.75 < harvester.position.distance_to(move_target) < 2:
         harvester.move(move_target)
         harvester(AbilityId.SMART, target, True)
 
@@ -69,7 +69,7 @@ class MineralPatch(ResourceSingle):
                         move_target = self.speed_mining_position
                     move_target = move_target or target.position.towards(harvester, target.radius + harvester.radius)
                         
-                    if 0.75 < harvester.distance_to(move_target) < 2:
+                    if 0.75 < harvester.position.distance_to(move_target) < 2:
                         harvester.move(move_target)
                         harvester(AbilityId.SMART, target, True)
 

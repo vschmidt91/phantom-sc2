@@ -300,8 +300,8 @@ class ZergAI(CommonAI):
                 continue
             targets = (
                 target
-                for target in chain(self.all_enemy_units, self.destructables_fixed)
-                if ravager.distance_to(target) <= ravager.radius + ability_data.cast_range
+                for target in self.enumerate_enemies()
+                if ravager.position.distance_to(target.position) <= ravager.radius + ability_data.cast_range
             )
             target: Unit = max(targets, key=target_priority, default=None)
             if not target:
@@ -453,14 +453,14 @@ class ZergAI(CommonAI):
                     # assign overseer
                     detector = min(
                         (unit for unit in self.enumerate_army() if unit.is_detector),
-                        key = lambda u : u.distance_to(base.position),
+                        key = lambda u : u.position.distance_to(base.position),
                         default = None)
                     if not detector:
                         continue
                     self.blocked_base_detectors[base.position] = detector.tag
                 # move towards base
                 target_distance = detector.detect_range - 3
-                if target_distance < detector.distance_to(base.position):
+                if target_distance < detector.position.distance_to(base.position):
                     detector.move(base.position.towards(detector, target_distance))
             else:
                 # reset once no longer blocked
@@ -502,7 +502,7 @@ class ZergAI(CommonAI):
                     overlord = next(iter(self.actual_by_type[UnitTypeId.OVERLORD]), None)
                 if overlord and overlord.is_idle:
                     self.scout_overlord = overlord.tag
-                    if overlord.sight_range < overlord.distance_to(base.position):
+                    if overlord.sight_range < overlord.position.distance_to(base.position):
                         overlord.move(base.position.towards(overlord, overlord.sight_range))
                         overlord.move(base.position.towards(self.enemy_start_locations[0], -overlord.sight_range), queue=True)
 

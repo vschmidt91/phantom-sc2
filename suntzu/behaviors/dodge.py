@@ -65,7 +65,7 @@ class DodgeBehavior(BehaviorBase):
     def execute(self, unit: Unit) -> bool:
         for dodge in self.dodge:
             for position in dodge.positions:
-                dodge_distance = unit.distance_to(position) - unit.radius - dodge.radius - self.safety_distance
+                dodge_distance = unit.position.distance_to(position) - unit.radius - dodge.radius - self.safety_distance
                 if dodge_distance < 0:
                     target = unit.position.towards(position, dodge_distance)
                     unit.move(target)

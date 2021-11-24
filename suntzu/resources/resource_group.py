@@ -64,7 +64,7 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
             for resource in self.items:
                 harvester = min(
                     harvesters,
-                    key=lambda h:h.distance_to(resource.position),
+                    key=lambda h:h.position.distance_to(resource.position),
                     default=None
                 )
                 if not harvester:
