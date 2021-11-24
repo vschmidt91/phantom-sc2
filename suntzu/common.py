@@ -681,13 +681,18 @@ class CommonAI(BotAI):
                     color=font_color,
                     size=font_size)
 
-        for d in self.enemies.values():
-            z = self.get_terrain_z_height(d)
-            self.client.debug_text_world(f'{d.health}', Point3((*d.position, z)))
+        # for d in self.enemies.values():
+        #     z = self.get_terrain_z_height(d)
+        #     self.client.debug_text_world(f'{d.health}', Point3((*d.position, z)))
 
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.threat_level)}%', (0.01, 0.01))
         for i, plan in enumerate(self.macro_plans):
             self.client.debug_text_screen(f'{1+i} {plan.item.name}', (0.01, 0.1 + 0.01 * i))
+
+        # for p, d in np.ndenumerate(self.distance_map):
+        #     z = self.get_terrain_z_height(Point2(p))
+        #     advantage_defender = (1 - self.distance_map[p]) / max(1e-3, self.power_level)
+        #     self.client.debug_text_world(f'{round(100 * advantage_defender)}', Point3((*p, z)))
 
         # for base in self.bases:
         #     for patch in base.mineral_patches:
