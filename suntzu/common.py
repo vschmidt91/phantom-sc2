@@ -57,7 +57,6 @@ import matplotlib.pyplot as plt
 DODGE_EFFECTS = {
     # EffectId.THERMALLANCESFORWARD,
     EffectId.LURKERMP,
-    EffectId.NUKEPERSISTENT,
     # EffectId.RAVAGERCORROSIVEBILECP,
     EffectId.PSISTORMPERSISTENT,
     # EffectId.LIBERATORTARGETMORPHPERSISTENT,
@@ -1076,7 +1075,7 @@ class CommonAI(BotAI):
                     continue
                 nuke = DodgeNuke(position, self.time)
                 self.nukes.append(nuke)
-            else:
+            elif effect.id in DODGE_EFFECTS:
                 self.dodge.append(DodgeEffect(effect))
         for bile in self.corrosive_biles:
             if bile.time_of_impact < self.time + 0.5:
