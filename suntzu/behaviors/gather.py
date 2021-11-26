@@ -39,7 +39,7 @@ class GatherBehavior(Behavior):
         if not self.bot.townhalls.ready.exists:
             return BehaviorResult.FAILURE
             
-        if self.speed_mining_enabled and resource.harvester_balance < 0:
+        if self.speed_mining_enabled and resource.harvester_count < 3:
             
             if unit.is_gathering and unit.order_target != resource_unit.tag:
                 unit(AbilityId.SMART, resource_unit)
