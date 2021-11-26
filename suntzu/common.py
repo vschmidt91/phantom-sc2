@@ -38,8 +38,6 @@ from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.units import Units
 
-from .MapAnalyzer.MapData import MapData
-
 from .analysis.poisson_solver import solve_poisson, solve_poisson_full
 from .resources.vespene_geyser import VespeneGeyser
 from .resources.base import Base
@@ -178,8 +176,6 @@ class CommonAI(BotAI):
                 pass
 
     async def on_start(self):
-
-        self.map_analyzer = MapData(self)
 
         self.townhalls[0](AbilityId.RALLY_WORKERS, target=self.townhalls[0])
         self.enemy_map = np.zeros(self.game_info.map_size)
