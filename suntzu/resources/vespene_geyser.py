@@ -12,8 +12,8 @@ class VespeneGeyser(ResourceSingle):
 
     def __init__(self, position: Point2):
         super().__init__(position)
-        self.building: Optional[int] = None
         self.is_rich = False
+        self.speed_mining_position: Point2 = position
 
     @property
     def harvester_target(self):
@@ -23,44 +23,18 @@ class VespeneGeyser(ResourceSingle):
             return 0
 
     def update(self, bot):
+
         super().update(bot)
+
         geyser = bot.resource_by_position.get(self.position)
-        if not geyser:
-            self.remaining = 0
-            return
-
         self.is_rich = geyser.type_id in RICH_GAS
+        building = bot.gas_building_by_position.get(self.position)
 
-        building = bot.unit_by_tag.get(self.building)
-        if not building:
-            self.building = None
-            gas_buildings = {
-                g
-                for t in ALL_GAS
-                for g in bot.actual_by_type[t]
-            }
-            building = next(filter(lambda g : g.position == self.position, gas_buildings), None)
-
-
-        if not (building and building.is_ready):
+        if building and building.is_ready:
+            self.remaining = building.vespene_contents
+        else:
             self.remaining = 0
-            return
 
-        self.building = building.tag
-
-        self.remaining = building.vespene_contents
-
-        if self.building and self.remaining:
-            for harvester in (bot.unit_by_tag.get(h) for h in self.harvester_set):
-                if not harvester:
-                    continue
-                elif harvester.is_carrying_resource:
-                    if not harvester.is_returning:
-                        harvester.return_resource()
-                elif harvester.is_returning:
-                    pass
-                else:
-                    harvester.gather(building)
 
     @property
     def income(self):

@@ -79,6 +79,9 @@ class Pool12AllIn(ZergStrategy):
                 else:
                     break
 
+        for worker in bot.workers:
+            bot.worker_behavior.execute(worker)
+
     def gas_target(self, bot) -> int:
         if self.pull_workers:
             return 0

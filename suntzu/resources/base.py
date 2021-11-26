@@ -69,12 +69,12 @@ class Base(ResourceGroup[ResourceBase]):
         # self.mineral_patches.balance_aggressively = True
         # self.vespene_geysers.balance_aggressively = True
         super().__init__([self.mineral_patches, self.vespene_geysers], townhall_position)
-        self.townhall: Optional[int] = None
         self.blocked_since: Optional[float] = None
         self.defensive_units: Set[Unit] = set()
         self.defensive_units_planned: Set[MacroPlan] = set()
         self.defensive_targets: DefaultDict[UnitTypeId, int] = DefaultDict(lambda:0)
         self.fix_speedmining_positions()
+        self.townhall: Optional[Unit] = None
 
     def fix_speedmining_positions(self):
         for patch in self.mineral_patches:
@@ -95,15 +95,13 @@ class Base(ResourceGroup[ResourceBase]):
 
     @property
     def harvester_target(self) -> int:
-        if self.townhall == None:
+        if not self.townhall:
             return 0
         return super().harvester_target
 
     def update(self, bot):
-        if self.townhall == None:
-            return
-        for mineral in self.mineral_patches:
-            mineral.townhall = self.townhall
+
+        self.townhall = next((th for th in bot.townhalls.ready if th.position == self.position), None)
 
         for unit_type, want in self.defensive_targets.items():
             have = [

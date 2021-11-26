@@ -12,55 +12,39 @@ from abc import ABC, abstractmethod
 
 from ..utils import *
 from ..constants import *
-from .behavior_base import BehaviorBase
+from .behavior import Behavior, BehaviorResult
 
-class FightBehavior(BehaviorBase):
+class FightBehavior(Behavior):
 
     def __init__(self, bot):
         self.bot = bot
 
-    def execute(self, unit: Unit) -> bool:
+    def target_priority(self, unit: Unit, target: Unit) -> float:
+        if target.is_hallucination:
+            return 0
+        if target.type_id in CHANGELINGS:
+            return 0
+        if not self.bot.can_attack(unit, target) and not unit.is_detector:
+            return 0
+        priority = 1e5
+        # priority *= 10 + target.calculate_dps_vs_target(unit)
+        priority /= 30 + target.position.distance_to(unit.position)
+        priority /= 100 + target.position.distance_to(self.bot.start_location)
+        priority /= 3 if target.is_structure else 1
 
-        if unit.is_burrowed:
-            if unit.health_percentage == 1:
-                unit(AbilityId.BURROWUP)
-            return True
+        if target.is_enemy:
+            priority /= 100 + target.shield + target.health
+        else:
+            priority /= 300
+        priority *= 3 if target.type_id in WORKERS else 1
+        priority /= 10 if target.type_id in CIVILIANS else 1
 
-        if (
-            unit.type_id == UnitTypeId.ROACH
-            and unit.health_percentage < 0.25
-            and UpgradeId.BURROW in self.bot.state.upgrades
-            and unit.weapon_cooldown
-        ):
-            unit(AbilityId.BURROWDOWN)
-            return True
+        if unit.is_detector:
+            priority *= 10 if target.is_cloaked else 1
+            priority *= 10 if not target.is_revealed else 1
+        return priority
 
-        def target_priority(target: Unit) -> float:
-            if target.is_hallucination:
-                return 0
-            if target.type_id in CHANGELINGS:
-                return 0
-            if not self.bot.can_attack(unit, target) and not unit.is_detector:
-                return 0
-            priority = 1e5
-            # priority *= 10 + target.calculate_dps_vs_target(unit)
-            priority /= 30 + target.position.distance_to(unit.position)
-            priority /= 100 + target.position.distance_to(self.bot.start_location)
-            priority /= 3 if target.is_structure else 1
-
-            if target.is_enemy:
-                priority /= 100 + target.shield + target.health
-            else:
-                priority /= 300
-            priority *= 3 if target.type_id in WORKERS else 1
-            priority /= 10 if target.type_id in CIVILIANS else 1
-
-            if unit.is_detector:
-                priority *= 10 if target.is_cloaked else 1
-                priority *= 10 if not target.is_revealed else 1
-            return priority
-
-        target = max(self.bot.enumerate_enemies(), key=target_priority, default=None)
+    def get_gradient(self, unit: Unit, target: Unit) -> Point2:
 
         distance_gradient = Point2(self.bot.distance_gradient_map[unit.position.rounded[0], unit.position.rounded[1],:])
         if 0 < distance_gradient.length:
@@ -77,7 +61,10 @@ class FightBehavior(BehaviorBase):
             gradient = (unit.position - target.position).normalized
         elif 0 < unit.position.distance_to(self.bot.start_location):
             gradient = (self.bot.start_location - unit.position).normalized
-        retreat_target = unit.position - 12 * gradient
+
+        return gradient
+
+    def get_advantage(self, unit: Unit) -> float:
 
         friends_rating = 1 + self.bot.friend_blur_map[unit.position.rounded]
         enemies_rating = 1 + self.bot.enemy_blur_map[unit.position.rounded]
@@ -96,67 +83,64 @@ class FightBehavior(BehaviorBase):
         advantage *= advantage_army
         advantage *= advantage_creep
         advantage *= advantage_defender
-        # advantage_threshold = 1 - self.bot.threat_level * (1 - self.bot.distance_map[unit.position.rounded])
+
+        return advantage
+
+    def execute(self, unit: Unit) -> BehaviorResult:
+
+        target, priority = max(
+            ((t, self.target_priority(unit, t))
+            for t in self.bot.enumerate_enemies()),
+            key = lambda p : p[1],
+            default = (None, 0)
+        )
+        
+        gradient = self.get_gradient(unit, target)
+        retreat_target = unit.position - 12 * gradient
+        advantage = self.get_advantage(unit)
         advantage_threshold = 1
 
-        if target and 0 < target_priority(target):
+        if not target or priority <= 0:
+            return BehaviorResult.FAILURE
 
-            # if target.is_enemy:
-            #     attack_target = target.position
-            # else:
-            #     attack_target = target
-            attack_target = target.position
+        if advantage < advantage_threshold / 3:
 
-            if advantage < advantage_threshold / 3:
+            # FLEE
 
-                # FLEE
+            unit.move(retreat_target)
+            return BehaviorResult.ONGOING
 
+        elif advantage < advantage_threshold:
+
+            # RETREAT
+            if (
+                unit.weapon_cooldown
+                and unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius + unit.distance_to_weapon_ready
+            ):
                 unit.move(retreat_target)
-                return True
-
-            elif advantage < advantage_threshold:
-
-                # RETREAT
-                if (
-                    unit.weapon_cooldown
-                    and unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius + unit.distance_to_weapon_ready
-                ):
-                    unit.move(retreat_target)
-                # elif 1 < bot.get_unit_range(unit):
-                #     unit.stop()
-                elif unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
-                    unit.attack(target)
-                else:
-                    unit.attack(attack_target)
-                return True
-                
-            elif advantage < advantage_threshold * 3:
-
-                # FIGHT
-                if unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
-                    unit.attack(target)
-                else:
-                    unit.attack(attack_target)
-                return True
-
+            elif unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
+                unit.attack(target)
             else:
+                unit.attack(target.position)
+            return BehaviorResult.ONGOING
+            
+        elif advantage < advantage_threshold * 3:
 
-                # PURSUE
-                distance = unit.position.distance_to(target.position) - unit.radius - target.radius
-                if unit.weapon_cooldown and 1 < distance:
-                    unit.move(target.position)
-                elif unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
-                    unit.attack(target)
-                else:
-                    unit.attack(attack_target)
-                return True
-
-        elif unit.is_idle:
-
-            if self.bot.time < 8 * 60:
-                target = random.choice(self.bot.enemy_start_locations)
+            # FIGHT
+            if unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
+                unit.attack(target)
             else:
-                target = random.choice(self.bot.expansion_locations_list)
+                unit.attack(target.position)
+            return BehaviorResult.ONGOING
 
-            unit.attack(target)
-            return True
+        else:
+
+            # PURSUE
+            distance = unit.position.distance_to(target.position) - unit.radius - target.radius
+            if unit.weapon_cooldown and 1 < distance:
+                unit.move(target.position)
+            elif unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
+                unit.attack(target)
+            else:
+                unit.attack(target.position)
+            return BehaviorResult.ONGOING

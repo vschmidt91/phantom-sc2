@@ -8,18 +8,11 @@ from suntzu.constants import RICH_MINERALS
 from .resource_base import ResourceBase
 from .resource_single import ResourceSingle
 
-def speed_mine(harvester, target):
-    move_target = target.position.towards(harvester, target.radius + harvester.radius)
-    if 0.75 < harvester.position.distance_to(move_target) < 2:
-        harvester.move(move_target)
-        harvester(AbilityId.SMART, target, True)
-
 class MineralPatch(ResourceSingle):
 
     def __init__(self, position: Point2):
         super().__init__(position)
         self.is_rich = False
-        self.townhall: Optional[int] = None
         self.speed_mining_enabled = False
         self.speed_mining_position: Optional[Point2] = None
 
@@ -38,62 +31,12 @@ class MineralPatch(ResourceSingle):
 
         if not patch:
             self.remaining = 0
-            return
-
-        if patch.is_visible:
-            self.remaining = patch.mineral_contents
         else:
-            self.remaining = 1000
-
-        self.is_rich = patch.type_id in RICH_MINERALS
-
-        townhall = bot.unit_by_tag.get(self.townhall)
-
-        for harvester_tag in self.harvester_set:
-            harvester = bot.unit_by_tag.get(harvester_tag)
-            if not harvester:
-                continue
-            
-            if self.speed_mining_enabled and townhall and self.harvester_count <= 2:
-                
-                if harvester.is_gathering and harvester.order_target != patch.tag:
-                    harvester(AbilityId.SMART, patch)
-                elif harvester.is_idle or harvester.is_attacking:
-                    harvester(AbilityId.SMART, patch)
-                elif len(harvester.orders) == 1:
-                    if harvester.is_returning:
-                        target = townhall
-                        move_target = None
-                    else:
-                        target = patch
-                        move_target = self.speed_mining_position
-                    move_target = move_target or target.position.towards(harvester, target.radius + harvester.radius)
-                        
-                    if 0.75 < harvester.position.distance_to(move_target) < 2:
-                        harvester.move(move_target)
-                        harvester(AbilityId.SMART, target, True)
-
-
-                # elif len(harvester.orders) == 1:
-                #     if harvester.is_returning:
-                #         move_target = townhall.position.towards(harvester, townhall.radius + harvester.radius)
-                #         target = townhall
-                #     else:
-                #         move_target = patch.position.towards(harvester, patch.radius + harvester.radius)
-                #         target = patch
-                #     if 0.75 < harvester.distance_to(move_target) < 2:
-                #         harvester.move(move_target)
-                #         harvester(AbilityId.SMART, target, True)
-
+            if patch.is_visible:
+                self.remaining = patch.mineral_contents
             else:
-                    
-                if harvester.is_carrying_resource:
-                    if not harvester.is_returning:
-                        harvester.return_resource()
-                elif harvester.is_returning:
-                    pass
-                else:
-                    harvester.gather(patch)
+                self.remaining = 1000
+            self.is_rich = patch.type_id in RICH_MINERALS
 
     @property
     def income(self):

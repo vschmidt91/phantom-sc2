@@ -1,9 +1,4 @@
 maybe don't reserve trainer (doesnt mix well with priority)
 seperate ground/air maps
-
-handle blocked expansion (at least reassign the drone)
 expanding to mined out base
-chasing single units
-
-ling engages (generally vs longer ranger)
-remove dead harvesters
+idle workers if hatch finishes afterwards 896064

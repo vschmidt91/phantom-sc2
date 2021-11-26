@@ -37,7 +37,8 @@ from sc2.data import Result, race_townhalls, race_worker, ActionResult
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.units import Units
-import suntzu
+
+from .MapAnalyzer.MapData import MapData
 
 from .analysis.poisson_solver import solve_poisson, solve_poisson_full
 from .resources.vespene_geyser import VespeneGeyser
@@ -49,7 +50,7 @@ from .constants import *
 from .macro_plan import MacroPlan
 from .cost import Cost
 from .utils import *
-from .behaviors.dodge import DodgeBase, DodgeBehavior, DodgeCorrosiveBile, DodgeEffect, DodgeNuke, DodgeUnit
+from .behaviors.dodge import DodgeElement, DodgeBehavior, DodgeCorrosiveBile, DodgeEffect, DodgeNuke, DodgeUnit
 from .behaviors.fight import FightBehavior
 
 import matplotlib.pyplot as plt
@@ -124,6 +125,7 @@ class CommonAI(BotAI):
         self.weapons: Dict[UnitTypeId, List] = dict()
         self.dps: Dict[UnitTypeId, float] = dict()
         self.resource_by_position: Dict[Point2, Unit] = dict()
+        self.gas_building_by_position: Dict[Point2, Unit] = dict()
         self.unit_by_tag: Dict[int, Unit] = dict()
         self.enemies: Dict[int, Unit] = dict()
         self.enemies_by_type: DefaultDict[UnitTypeId, Set[Unit]] = defaultdict(lambda:set())
@@ -136,9 +138,9 @@ class CommonAI(BotAI):
         self.damage_taken: Dict[int] = dict()
         self.gg_sent: bool = False
         self.unit_ref: Optional[int] = None
-        self.dodge: List[DodgeBase] = list()
+        self.dodge: List[DodgeElement] = list()
         self.abilities: Dict[int, Set[AbilityId]] = dict()
-
+        self.range_map: np.ndarray = None
 
     def destroy_destructables(self):
         return True
@@ -177,10 +179,13 @@ class CommonAI(BotAI):
 
     async def on_start(self):
 
+        self.map_analyzer = MapData(self)
+
         self.townhalls[0](AbilityId.RALLY_WORKERS, target=self.townhalls[0])
         self.enemy_map = np.zeros(self.game_info.map_size)
         self.enemy_gradient_map = np.zeros([*self.game_info.map_size, 2])
         self.friend_map = np.zeros(self.game_info.map_size)
+        self.range_map = np.zeros(self.game_info.map_size)
         await self.create_distance_map()
         await self.initialize_bases()
         
@@ -320,17 +325,9 @@ class CommonAI(BotAI):
         pass
 
     async def on_unit_created(self, unit: Unit):
-        # if unit.type_id == race_worker[self.race]:
-        #     if self.time == 0:
-        #         return
-        #     base = min(self.bases, key = lambda b : unit.distance_to(b.position))
-        #     base.try_add(unit.tag)
         pass
 
     async def on_unit_destroyed(self, unit_tag: int):
-        base = next((b for b in self.bases if b.townhall == unit_tag), None)
-        if base:
-            base.townhall = None
         self.enemies.pop(unit_tag, None)
         self.bases.try_remove(unit_tag)
         pass
@@ -421,6 +418,7 @@ class CommonAI(BotAI):
             self.enemies_by_type[enemy.type_id].add(enemy)
         
         self.resource_by_position.clear()
+        self.gas_building_by_position.clear()
         self.unit_by_tag.clear()
         self.actual_by_type.clear()
         self.pending_by_type.clear()
@@ -440,15 +438,11 @@ class CommonAI(BotAI):
                     self.pending_by_type[training].add(unit)
 
         for unit in self.resources:
-            self.unit_by_tag[unit.tag] = unit
-            if unit.is_mineral_field:
-                self.resource_by_position[unit.position] = unit
-            elif unit.is_vespene_geyser:
-                if unit.type_id is not GAS_BY_RACE[self.race]:
-                    self.resource_by_position[unit.position] = unit
+            self.resource_by_position[unit.position] = unit
+        for gas in self.gas_buildings:
+            self.gas_building_by_position[gas.position] = gas
 
         for unit in self.destructables:
-            self.unit_by_tag[unit.tag] = unit
             if 0 < unit.armor:
                 self.destructables_fixed.add(unit)
 
@@ -837,10 +831,10 @@ class CommonAI(BotAI):
                 except PlacementNotFound as p: 
                     continue
 
-            if isinstance(plan.target, Unit):
-                plan.target = self.unit_by_tag.get(plan.target.tag)
-                if not plan.target:
-                    continue
+            # if isinstance(plan.target, Unit):
+            #     plan.target = self.unit_by_tag.get(plan.target.tag)
+            #     if not plan.target:
+            #         continue
 
             if any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
                 continue
@@ -901,8 +895,9 @@ class CommonAI(BotAI):
 
 
     def get_owned_geysers(self):
+        townhall_positions = { th.position for th in self.townhalls.ready }
         for base in self.bases:
-            if not base.townhall:
+            if base.position not in townhall_positions:
                 continue
             for gas in base.vespene_geysers:
                 geyser = self.resource_by_position.get(gas.position)
@@ -1097,8 +1092,9 @@ class CommonAI(BotAI):
                 return self.start_location
         elif self.is_structure(target):
             if target in race_townhalls[self.race]:
+                townhall_positions = { th.position for th in self.townhalls }
                 for b in self.bases:
-                    if b.townhall:
+                    if b.position in townhall_positions:
                         continue
                     if b.blocked_since:
                         continue
@@ -1139,13 +1135,29 @@ class CommonAI(BotAI):
         buffer += 3 * self.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
         return buffer
 
+    def get_enemy_value_in_range(self, position: Point2) -> float:
+        max_range = 20
+        p0 = np.maximum(position - max_range, 0)
+        p1 = np.minimum(position + max_range, self.game_info.map_size)
+        slice = self.range_map[p0[0]:p1[0],p0[1]:p1[1]]
+        s = 0
+        for d, v in np.ndenumerate(slice):
+            dn = np.linalg.norm(position - d)
+            if dn <= v:
+                s += self.enemy_map[d + position]
+        return s
+
     def update_maps(self):
 
-        self.enemy_map = np.zeros(self.game_info.map_size)
-        for enemy in self.enemies.values():
-            self.enemy_map[enemy.position.rounded] += unitValue(enemy)
+        self.enemy_map[:,:] = 0
+        self.friend_map[:,:] = 0
+        self.range_map[:,:] = 0
 
-        self.friend_map = np.zeros(self.game_info.map_size)
+        for enemy in self.enemies.values():
+            p = enemy.position.rounded
+            self.enemy_map[p] += unitValue(enemy)
+            self.range_map[p] = max(self.range_map[p], self.get_unit_range(enemy))
+
         for friend in self.enumerate_army():
             self.friend_map[friend.position.rounded] += unitValue(friend)
 
@@ -1153,6 +1165,7 @@ class CommonAI(BotAI):
         self.enemy_blur_map = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
         self.friend_blur_map = ndimage.gaussian_filter(self.friend_map, blur_sigma)
         self.enemy_gradient_map = np.stack(np.gradient(self.enemy_blur_map), axis=2)
+
 
     def assess_threat_level(self):
 
@@ -1174,13 +1187,8 @@ class CommonAI(BotAI):
         
         if (
             2/3 < self.threat_level
-            and self.time < 4 * 60
+            and self.time < 3 * 60
         ):
-            # if not self.count(UnitTypeId.SPINECRAWLER):
-            #     plan = MacroPlan(UnitTypeId.SPINECRAWLER)
-            #     plan.target = self.bases[0].mineral_patches.position
-            #     plan.max_distance = 2
-            #     self.add_macro_plan(plan)
             worker = self.bases.try_remove_any()
             if worker:
                 self.drafted_civilians.add(worker)

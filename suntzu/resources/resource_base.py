@@ -1,5 +1,5 @@
 
-from typing import Optional, Set, Union, Iterable
+from typing import Any, Optional, Set, Union, Iterable
 
 from s2clientprotocol.error_pb2 import Error
 from sc2.position import Point2
@@ -37,6 +37,12 @@ class ResourceBase(ABC):
     @abstractmethod
     def income(self):
         raise NotImplementedError()
+
+    def get_resource(self, harvester: int) -> Optional[Any]:
+        if harvester in self.harvesters:
+            return self
+        else:
+            return None
 
     @property
     def harvester_count(self):

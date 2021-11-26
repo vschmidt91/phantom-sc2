@@ -17,17 +17,22 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.position import Point2
-from suntzu.resources.resource_group import T
-from suntzu.strategies.pool12_allin import Pool12AllIn
-from suntzu.unit_counters import UNIT_COUNTERS
 
+from .strategies.pool12_allin import Pool12AllIn
+from .unit_counters import UNIT_COUNTERS
+from .behaviors.behavior import Behavior, BehaviorSelector, BehaviorSequence
+from .behaviors.burrow import BurrowBehavior
+from .behaviors.fight import FightBehavior
+from .behaviors.dodge import DodgeBehavior
+from .behaviors.search import SearchBehavior
+from .behaviors.gather import GatherBehavior
+from .behaviors.survive import SurviveBehavior
 from .strategies.gasless import GasLess
 from .strategies.roach_rush import RoachRush
 from .strategies.hatch_first import HatchFirst
 from .strategies.pool12 import Pool12
 from .strategies.pool12_allin import Pool12AllIn
 from .strategies.zerg_strategy import ZergStrategy
-from .tactics.tactic_army import TacticArmy
 from .timer import run_timed
 from .constants import CHANGELINGS, CREEP_ABILITIES, SUPPLY_PROVIDED
 from .common import CommonAI, PerformanceMode
@@ -101,13 +106,26 @@ class ZergAI(CommonAI):
         self.blocked_base_detectors: Dict[Point2, int] = dict()
         self.scout_overlord: Optional[int] = None
         self.enemy_base_count: int = 1
-        self.army_tactic: TacticArmy = TacticArmy(self)
+        self.behavior: Behavior = BehaviorSelector([
+            DodgeBehavior(self.dodge),
+            BurrowBehavior(),
+            FightBehavior(self),
+            SearchBehavior(self),
+        ])
+        self.worker_behavior: Behavior = BehaviorSelector([
+            DodgeBehavior(self.dodge),
+            BehaviorSequence([
+                SurviveBehavior(self),
+                GatherBehavior(self),
+            ])
+        ])
 
     async def micro(self):
         await super().micro()
-        self.army_tactic.unit_tags.clear()
-        self.army_tactic.unit_tags.update((u.tag for u in self.enumerate_army()))
-        self.army_tactic.execute()
+        for unit in self.enumerate_army():
+            self.behavior.execute(unit)
+        for unit in self.workers:
+            self.worker_behavior.execute(unit)
 
     def counter_composition(self, enemies: Iterable[Unit]) -> Dict[UnitTypeId, int]:
 
