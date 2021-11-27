@@ -24,6 +24,9 @@ class BurrowBehavior(Behavior):
         if unit.is_burrowed:
             if unit.health_percentage == 1:
                 unit(AbilityId.BURROWUP)
+                return BehaviorResult.SUCCESS
+            elif UpgradeId.TUNNELINGCLAWS in unit._bot_object.state.upgrades:
+                return BehaviorResult.FAILURE
             return BehaviorResult.ONGOING
         elif (
             unit.health_percentage < 1/3

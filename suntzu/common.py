@@ -123,6 +123,7 @@ class CommonAI(BotAI):
         self.weapons: Dict[UnitTypeId, List] = dict()
         self.dps: Dict[UnitTypeId, float] = dict()
         self.resource_by_position: Dict[Point2, Unit] = dict()
+        self.townhall_by_position: Dict[Point2, Unit] = dict()
         self.gas_building_by_position: Dict[Point2, Unit] = dict()
         self.unit_by_tag: Dict[int, Unit] = dict()
         self.enemies: Dict[int, Unit] = dict()
@@ -416,10 +417,14 @@ class CommonAI(BotAI):
         self.resource_by_position.clear()
         self.gas_building_by_position.clear()
         self.unit_by_tag.clear()
+        self.townhall_by_position.clear()
         self.actual_by_type.clear()
         self.pending_by_type.clear()
         self.destructables_fixed.clear()
         self.worker_supply_fixed = None
+
+        for townhall in self.townhalls.ready:
+            self.townhall_by_position[townhall.position] = townhall
         
         for unit in self.all_own_units:
             self.unit_by_tag[unit.tag] = unit
@@ -891,9 +896,8 @@ class CommonAI(BotAI):
 
 
     def get_owned_geysers(self):
-        townhall_positions = { th.position for th in self.townhalls.ready }
         for base in self.bases:
-            if base.position not in townhall_positions:
+            if base.position not in self.townhall_by_position.keys():
                 continue
             for gas in base.vespene_geysers:
                 geyser = self.resource_by_position.get(gas.position)
@@ -1088,9 +1092,8 @@ class CommonAI(BotAI):
                 return self.start_location
         elif self.is_structure(target):
             if target in race_townhalls[self.race]:
-                townhall_positions = { th.position for th in self.townhalls }
                 for b in self.bases:
-                    if b.position in townhall_positions:
+                    if b.position in self.townhall_by_position.keys():
                         continue
                     if b.blocked_since:
                         continue

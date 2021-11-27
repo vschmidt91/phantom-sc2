@@ -396,7 +396,7 @@ class ZergAI(CommonAI):
             )
         elif unit == UnitTypeId.ROACH:
             return chain(
-                (UpgradeId.GLIALRECONSTITUTION, UpgradeId.BURROW),
+                (UpgradeId.GLIALRECONSTITUTION, UpgradeId.BURROW, UpgradeId.TUNNELINGCLAWS),
                 self.upgrade_sequence(ZERG_RANGED_UPGRADES),
                 self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
             )
@@ -671,8 +671,13 @@ class ZergAI(CommonAI):
         self.army_queens = { q.tag for q in army_queens }
         self.inject_queens = { q.tag for q in inject_queens }
 
-        for queen, base in zip(inject_queens, (b for b in self.bases if b.townhall)):
-            townhall = self.unit_by_tag.get(base.townhall)
+        bases = [
+            b
+            for b in self.bases
+            if b.position in self.townhall_by_position
+        ]
+        for queen, base in zip(inject_queens, bases):
+            townhall = self.townhall_by_position[base.position]
             if not townhall:
                 continue
             if 7 < queen.position.distance_to(townhall.position):
@@ -716,7 +721,7 @@ class ZergAI(CommonAI):
         worker_max = self.get_max_harvester()
         saturation = self.count(UnitTypeId.DRONE, include_planned=False) / max(1, worker_max)
         saturation = self.bases.harvester_count / max(1, self.bases.harvester_target)
-        priority = 5 * (saturation - 1)
+        priority = 3 * (saturation - 0.8)
 
         if saturation < 0.666:
             return

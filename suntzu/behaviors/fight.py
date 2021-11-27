@@ -35,7 +35,7 @@ class FightBehavior(Behavior):
         if target.is_enemy:
             priority /= 100 + target.shield + target.health
         else:
-            priority /= 300
+            priority /= 100
         priority *= 3 if target.type_id in WORKERS else 1
         priority /= 10 if target.type_id in CIVILIANS else 1
 
@@ -114,7 +114,7 @@ class FightBehavior(Behavior):
 
             # RETREAT
             if (
-                unit.weapon_cooldown
+                (unit.weapon_cooldown or unit.is_burrowed)
                 and unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius + unit.distance_to_weapon_ready
             ):
                 unit.move(retreat_target)
