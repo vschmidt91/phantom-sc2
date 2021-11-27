@@ -103,24 +103,25 @@ class Base(ResourceGroup[ResourceBase]):
 
         self.townhall = next((th for th in bot.townhalls.ready if th.position == self.position), None)
 
-        for unit_type, want in self.defensive_targets.items():
-            have = [
-                u for u in self.defensive_units
-                if u.type_id == unit_type
-            ]
-            planned = [
-                p for p in self.defensive_units_planned
-                if p.item == unit_type
-            ]
-            if len(have) + len(planned) < want:
-                plan = MacroPlan(unit_type)
-                plan.target = self.position.towards(self.mineral_patches.position, 4.5)
-                plan.max_distance = 2
-                plan.priority = 0
-                bot.add_macro_plan(plan)
+        if self.townhall:
+            for unit_type, want in self.defensive_targets.items():
+                have = [
+                    u for u in self.defensive_units
+                    if u.type_id == unit_type
+                ]
+                planned = [
+                    p for p in self.defensive_units_planned
+                    if p.item == unit_type
+                ]
+                if len(have) + len(planned) < want:
+                    plan = MacroPlan(unit_type)
+                    plan.target = self.position.towards(self.mineral_patches.position, 4.5)
+                    plan.max_distance = 2
+                    plan.priority = 0
+                    bot.add_macro_plan(plan)
 
-        if any(self.defensive_targets.values()):
-            for mineral in self.mineral_patches:
-                mineral.speed_mining_enabled = False
+            if any(self.defensive_targets.values()):
+                for mineral in self.mineral_patches:
+                    mineral.speed_mining_enabled = False
 
         super().update(bot)
