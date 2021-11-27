@@ -44,6 +44,7 @@ if __name__ == '__main__':
 
     zipFile = zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED)
     zipBot(zipFile)
+    zipLibrary(zipFile, 'MapAnalyzer')
     zipLibrary(zipFile, 'sc2')
     zipLibrary(zipFile, 'suntzu')
     zipLibrary(zipFile, 'data')

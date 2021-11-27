@@ -12,16 +12,16 @@ from sc2.position import Point2
 from scipy.ndimage import binary_fill_holes, center_of_mass, generate_binary_structure, label as ndlabel
 from scipy.spatial import distance
 
-from .Debugger import MapAnalyzerDebugger
-from .Pather import MapAnalyzerPather
-from .Region import Region
-from .utils import get_sets_with_mutual_elements, fix_map_ramps
+from MapAnalyzer.Debugger import MapAnalyzerDebugger
+from MapAnalyzer.Pather import MapAnalyzerPather
+from MapAnalyzer.Region import Region
+from MapAnalyzer.utils import get_sets_with_mutual_elements, fix_map_ramps
 
 from .constants import BINARY_STRUCTURE, CORNER_MIN_DISTANCE, MAX_REGION_AREA, MIN_REGION_AREA
 
 from .decorators import progress_wrapped
 from .exceptions import CustomDeprecationWarning
-from .constructs import ChokeArea, MDRamp, VisionBlockerArea, RawChoke
+from MapAnalyzer.constructs import ChokeArea, MDRamp, VisionBlockerArea, RawChoke
 from .cext import CMapInfo, CMapChoke
 
 try:

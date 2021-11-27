@@ -68,7 +68,10 @@ class DodgeBehavior(Behavior):
             for position in dodge.positions:
                 dodge_distance = unit.position.distance_to(position) - unit.radius - dodge.radius - self.safety_distance
                 if dodge_distance < 0:
-                    target = unit.position.towards(position, dodge_distance)
-                    unit.move(target)
+                    if unit.is_burrowed:
+                        unit(AbilityId.BURROWUP)
+                    else:
+                        target = unit.position.towards(position, dodge_distance)
+                        unit.move(target)
                     return BehaviorResult.ONGOING
         return BehaviorResult.FAILURE

@@ -17,6 +17,8 @@ from queue import Queue
 import os
 from sc2 import position
 
+from MapAnalyzer.MapData import MapData
+
 from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.effect_id import EffectId
 from sc2 import game_info, game_state
@@ -178,6 +180,8 @@ class CommonAI(BotAI):
 
     async def on_start(self):
 
+        self.map_analyzer = MapData(self)
+
         self.townhalls[0](AbilityId.RALLY_WORKERS, target=self.townhalls[0])
         self.enemy_map = np.zeros(self.game_info.map_size)
         self.enemy_gradient_map = np.zeros([*self.game_info.map_size, 2])
@@ -253,7 +257,7 @@ class CommonAI(BotAI):
         for base in self.bases:
             if not base.blocked_since:
                 continue
-            if base.blocked_since + 60 < self.time:
+            if base.blocked_since + 30 < self.time:
                 base.blocked_since = None
 
     def handle_corrosive_biles(self):

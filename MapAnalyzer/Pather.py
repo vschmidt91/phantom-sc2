@@ -7,14 +7,14 @@ from numpy import ndarray
 from sc2.ids.unit_typeid import UnitTypeId as UnitID
 from sc2.position import Point2
 
-from .exceptions import OutOfBoundsException, PatherNoPointsException
-from .Region import Region
-from .utils import change_destructable_status_in_grid
+from MapAnalyzer.exceptions import OutOfBoundsException, PatherNoPointsException
+from MapAnalyzer.Region import Region
+from MapAnalyzer.utils import change_destructable_status_in_grid
 from .cext import astar_path, astar_path_with_nyduses
 from .destructibles import *
 
 if TYPE_CHECKING:
-    from .MapData import MapData
+    from MapAnalyzer.MapData import MapData
     
     
 def _bounded_circle(center, radius, shape):

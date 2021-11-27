@@ -5,11 +5,11 @@ from typing import List, TYPE_CHECKING
 import numpy as np
 from sc2.position import Point2
 
-from .Polygon import Polygon
-from .constructs import MDRamp, ChokeArea
+from MapAnalyzer.Polygon import Polygon
+from MapAnalyzer.constructs import MDRamp, ChokeArea
 
 if TYPE_CHECKING:
-    from .MapData import MapData
+    from MapAnalyzer import MapData
 
 
 class Region(Polygon):

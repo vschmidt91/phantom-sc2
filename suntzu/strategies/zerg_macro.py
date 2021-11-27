@@ -46,7 +46,7 @@ class ZergMacro(ZergStrategy):
 
         if (
             bot.count(UpgradeId.ZERGLINGMOVEMENTSPEED, include_pending=False, include_planned=False)
-            and 44 <= bot.bases.harvester_count
+            and 38 <= bot.bases.harvester_count
             and 3 <= bot.townhalls.amount
         ):
             composition[UnitTypeId.ROACH] = 0
@@ -57,6 +57,7 @@ class ZergMacro(ZergStrategy):
             composition[UnitTypeId.ZERGLING] = 2 + int(ratio * enemy_ground_value / 350)
         else:
             composition[UnitTypeId.OVERSEER] = 2
+            composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
             if 0.2 < enemy_flyer_ratio or bot.count(UnitTypeId.HIVE, include_planned=False):
                 composition[UnitTypeId.ROACH] = int(ratio * (1 - enemy_flyer_ratio) * 40)
                 composition[UnitTypeId.HYDRALISK] = int(ratio * enemy_flyer_ratio * 40)

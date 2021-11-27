@@ -139,7 +139,7 @@ class Polygon:
         Filters out every Polygon that is not a region, and is inside / bordering with ``self``
 
         """
-        from .Region import Region
+        from MapAnalyzer.Region import Region
         if len(self.areas) > 0:
             return [r for r in self.areas if isinstance(r, Region)]
         return []
