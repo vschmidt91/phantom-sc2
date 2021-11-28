@@ -113,12 +113,6 @@ class CommonAI(BotAI):
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
         self.corrosive_biles: List[DodgeCorrosiveBile] = list()
         self.nukes: List[DodgeNuke] = list()
-        self.enemy_map: np.ndarray = None
-        self.enemy_gradient_map: np.ndarray = None
-        self.friend_map: np.ndarray = None
-        self.enemy_blur_map: np.ndarray = None
-        self.friend_blur_map: np.ndarray = None
-        self.threat_map: np.ndarray = None
         self.distance_map: np.ndarray = None
         self.distance_gradient_map: np.ndarray = None
         self.threat_level = 0
@@ -833,6 +827,22 @@ class CommonAI(BotAI):
             if any(o.ability.exact_id == plan.ability['ability'] for o in unit.orders):
                 continue
             
+            # if not can_afford:
+            #     minerals_surplus = max(0, self.minerals - reserve.minerals)
+            #     vespene_surplus = max(0, self.vespene - reserve.vespene)
+            #     minerals_needed = max(0, cost.minerals - minerals_surplus)
+            #     vespene_needed = max(0, cost.vespene - vespene_surplus)
+            #     time_minerals = minerals_needed / max(1, income_minerals)
+            #     time_vespene = vespene_needed / max(1, income_vespene)
+            #     time_to_harvest =  max(time_minerals, time_vespene)
+
+            #     if time_minerals < time_vespene:
+            #         minerals_reserve = minerals_needed * time_minerals / time_vespene
+
+            #     minerals_needed = min(cost.minerals, minerals_surplus + round(time_to_harvest * income_minerals))
+            #     vespene_needed = min(cost.vespene, vespene_surplus + round(time_to_harvest * income_vespene))
+                
+            #     cost = Cost(minerals_needed, vespene_needed, cost.food)
             reserve += cost
 
             if unit.type_id != UnitTypeId.LARVA:
@@ -1147,23 +1157,7 @@ class CommonAI(BotAI):
         buffer += 3 * self.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
         return buffer
 
-    def get_enemy_value_in_range(self, position: Point2) -> float:
-        max_range = 20
-        p0 = np.maximum(position - max_range, 0)
-        p1 = np.minimum(position + max_range, self.game_info.map_size)
-        slice = self.range_map[p0[0]:p1[0],p0[1]:p1[1]]
-        s = 0
-        for d, v in np.ndenumerate(slice):
-            dn = np.linalg.norm(position - d)
-            if dn <= v:
-                s += self.enemy_map[d + position]
-        return s
-
     def update_maps(self):
-
-        self.enemy_map[:,:] = 0
-        self.friend_map[:,:] = 0
-        self.range_map[:,:] = 0
 
         self.army_influence_map = self.map_analyzer.get_pyastar_grid()
         self.enemy_influence_map = self.map_analyzer.get_pyastar_grid()
@@ -1171,9 +1165,6 @@ class CommonAI(BotAI):
         for enemy in self.enemies.values():
             enemy_range = self.get_unit_range(enemy)
             enemy_value = unitValue(enemy)
-            p = enemy.position.rounded
-            self.enemy_map[p] += enemy_value
-            self.range_map[p] = max(self.range_map[p], self.get_unit_range(enemy))
             self.enemy_influence_map = self.map_analyzer.add_cost(
                 position = enemy.position,
                 radius = enemy.radius + enemy_range,
@@ -1185,7 +1176,6 @@ class CommonAI(BotAI):
         for unit in self.enumerate_army():
             unit_range = self.get_unit_range(unit)
             unit_value = unitValue(unit)
-            self.friend_map[unit.position.rounded] += unit_value
             self.army_influence_map = self.map_analyzer.add_cost(
                 position = unit.position,
                 radius = unit.radius + unit_range,
@@ -1193,21 +1183,14 @@ class CommonAI(BotAI):
                 weight = unit_value,
             )
 
-        blur_sigma = 9
-        self.enemy_blur_map = ndimage.gaussian_filter(self.enemy_map, blur_sigma)
-        self.friend_blur_map = ndimage.gaussian_filter(self.friend_map, blur_sigma)
-        self.enemy_gradient_map = np.stack(np.gradient(self.enemy_blur_map), axis=2)
-
-
     def assess_threat_level(self):
 
-        value_self = np.sum(self.friend_map)
-        value_enemy = np.sum(self.enemy_map)
+        value_self = sum(unitValue(u) for u in self.enumerate_army())
+        value_enemy = sum(unitValue(e) for e in self.enumerate_enemies())
+        value_enemy_threats = sum(unitValue(e) * (1 - self.distance_map[e.position.rounded]) for e in self.enumerate_enemies())
+
         self.power_level = value_enemy / max(1, value_self + value_enemy)
- 
-        value_self = np.sum(self.friend_map)
-        value_enemy = np.sum(self.enemy_map * (1 - self.distance_map))
-        self.threat_level = value_enemy / max(1, value_self + value_enemy)
+        self.threat_level = value_enemy_threats / max(1, value_self + value_enemy_threats)
 
 
     def draft_civilians(self):

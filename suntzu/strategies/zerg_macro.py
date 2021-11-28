@@ -89,33 +89,21 @@ class ZergMacro(ZergStrategy):
 
     def update(self, bot):
 
-        if bot.actual_by_type[UnitTypeId.SPAWNINGPOOL]:
-            if bot.planned_by_type[UnitTypeId.NOTAUNIT]:
-                for plan in list(bot.planned_by_type[UnitTypeId.NOTAUNIT]):
-                    bot.remove_macro_plan(plan) 
-        else:
-            if not bot.planned_by_type[UnitTypeId.NOTAUNIT]:
-                plan = MacroPlan(UnitTypeId.NOTAUNIT)
-                plan.cost = Cost(1000, 0, 200)
-                plan.priority = BUILD_ORDER_PRIORITY
-                bot.add_macro_plan(plan)
+        # if bot.actual_by_type[UnitTypeId.SPAWNINGPOOL]:
+        #     if bot.planned_by_type[UnitTypeId.NOTAUNIT]:
+        #         for plan in list(bot.planned_by_type[UnitTypeId.NOTAUNIT]):
+        #             bot.remove_macro_plan(plan) 
+        # else:
+        #     if not bot.planned_by_type[UnitTypeId.NOTAUNIT]:
+        #         plan = MacroPlan(UnitTypeId.NOTAUNIT)
+        #         plan.cost = Cost(1000, 0, 200)
+        #         plan.priority = BUILD_ORDER_PRIORITY
+        #         bot.add_macro_plan(plan)
 
         if 2 <= bot.enemy_base_count:
             self.enable_expansion = True
         elif 32 <= bot.bases.harvester_count:
             self.enable_expansion = True
-        # elif 4 * 60 < bot.time:
-        #     self.enable_expansion = True
-
-        # if (
-        #     2 <= bot.townhalls.ready.amount
-        #     and bot.count(UnitTypeId.SPINECRAWLER) == 0
-        # ):
-        #     plan = MacroPlan(UnitTypeId.SPINECRAWLER)
-        #     plan.target = bot.bases[1].position.towards(bot.game_info.map_center, 6)
-        #     plan.max_distance = 2
-        #     plan.priority = -0.2
-        #     bot.add_macro_plan(plan)
 
         return super().update(bot)
 

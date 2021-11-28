@@ -50,7 +50,7 @@ class GatherBehavior(Behavior):
                     target = self.bot.townhalls.ready.closest_to(unit)
                     move_target = None
                 else:
-                    target = unit
+                    target = resource_unit
                     move_target = resource.speed_mining_position
                 move_target = move_target or target.position.towards(unit, target.radius + unit.radius)
                     

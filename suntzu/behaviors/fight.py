@@ -69,10 +69,6 @@ class FightBehavior(Behavior):
         if not target:
             return 1
 
-        # friends_rating = 1 + self.bot.friend_blur_map[unit.position.rounded]
-        # enemies_rating = 1 + self.bot.enemy_blur_map[unit.position.rounded]
-
-
         sample_position = (unit.position + target.position) / 2
         friends_rating = self.bot.army_influence_map[sample_position.rounded]
         enemies_rating = self.bot.enemy_influence_map[sample_position.rounded]
@@ -104,9 +100,10 @@ class FightBehavior(Behavior):
             default = (None, 0)
         )
 
+        retreat_goal = self.bot.townhalls.closest_to(unit.position).position
         retreat_path = self.bot.map_analyzer.pathfind(
             start = unit.position,
-            goal = self.bot.start_location,
+            goal = retreat_goal,
             grid = self.bot.enemy_influence_map,
             large = False,
             smoothing = False,

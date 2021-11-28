@@ -1,6 +1,7 @@
 
 from typing import Dict, Iterable, Set, List, Optional, TypeVar, Generic
 from itertools import chain
+import math
 
 from sc2.unit import Unit
 from sc2.position import Point2
@@ -103,12 +104,18 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         while True:
             resource_from = max(
                 (r for r in self.items if 0 < r.harvester_count),
-                key=lambda r:r.harvester_balance,
-                default=None
+                key = lambda r : r.harvester_balance,
+                default = None
             )
             if not resource_from:
                 break
-            resource_to = min(self.items, key=lambda r:r.harvester_balance)
+            resource_to = min(
+                self.items,
+                key = lambda r : r.harvester_balance - math.exp(-r.position.distance_to(resource_from.position)),
+                default = None
+            )
+            if not resource_from:
+                break
             if self.balance_aggressively:
                 if resource_from.harvester_count == 0:
                     break

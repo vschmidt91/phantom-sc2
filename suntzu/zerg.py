@@ -426,8 +426,8 @@ class ZergAI(CommonAI):
                 self.upgrade_sequence(ZERG_MELEE_UPGRADES),
                 self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
             )
-        # elif unit == UnitTypeId.OVERSEER:
-        #     return (UpgradeId.OVERLORDSPEED,)
+        elif unit == UnitTypeId.OVERSEER:
+            return (UpgradeId.OVERLORDSPEED,)
         else:
             return []
 

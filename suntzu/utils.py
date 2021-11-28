@@ -24,7 +24,7 @@ def makeUnique(a):
             b.append(x)
     return b
 
-def armyValue(group):
+def armyValue(group: Iterable[Unit]) -> float:
     return sum(unitValue(unit) for unit in group)
 
 def unitPriority(unit, target = None):
@@ -60,7 +60,7 @@ def unitValue(unit: Unit, target = None):
         dps = max(unit.air_dps, unit.ground_dps)
     else:
         dps = unit.calculate_dps_vs_target(target)
-    return math.sqrt(dps * (unit.health + unit.shield))
+    return dps * (unit.health + unit.shield)
 
 def dot(x, y):
     return sum((xi * yi for xi, yi in zip(x, y)))
