@@ -142,6 +142,11 @@ class CommonAI(BotAI):
         self.dodge: List[DodgeElement] = list()
         self.abilities: Dict[int, Set[AbilityId]] = dict()
         self.range_map: np.ndarray = None
+        self.map_analyzer: MapData = None
+        self.army_center: Point2 = Point2((0, 0))
+        self.enemy_base_count: int = 1
+        self.army_influence_map: np.ndarray = None
+        self.enemy_influence_map: np.ndarray = None
 
     def destroy_destructables(self):
         return True
@@ -417,6 +422,9 @@ class CommonAI(BotAI):
         self.enemies_by_type.clear()
         for enemy in self.enemies.values():
             self.enemies_by_type[enemy.type_id].add(enemy)
+
+        if any(self.enumerate_army()):
+            self.army_center = center(u.position for u in self.enumerate_army())
         
         self.resource_by_position.clear()
         self.gas_building_by_position.clear()
@@ -592,7 +600,8 @@ class CommonAI(BotAI):
         ), key = lambda b : self.distance_map[b.position.rounded] - .3 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
         self.bases = ResourceGroup(bases)
-        self.bases.items[0].mineral_patches.do_worker_split(set(self.workers))
+        self.bases[0].mineral_patches.do_worker_split(set(self.workers))
+        self.bases[-1].taken_since = 1
 
         if self.performance == PerformanceMode.DEFAULT:
             for base in self.bases:
@@ -1156,13 +1165,33 @@ class CommonAI(BotAI):
         self.friend_map[:,:] = 0
         self.range_map[:,:] = 0
 
-        for enemy in self.enemies.values():
-            p = enemy.position.rounded
-            self.enemy_map[p] += unitValue(enemy)
-            self.range_map[p] = max(self.range_map[p], self.get_unit_range(enemy))
+        self.army_influence_map = self.map_analyzer.get_pyastar_grid()
+        self.enemy_influence_map = self.map_analyzer.get_pyastar_grid()
 
-        for friend in self.enumerate_army():
-            self.friend_map[friend.position.rounded] += unitValue(friend)
+        for enemy in self.enemies.values():
+            enemy_range = self.get_unit_range(enemy)
+            enemy_value = unitValue(enemy)
+            p = enemy.position.rounded
+            self.enemy_map[p] += enemy_value
+            self.range_map[p] = max(self.range_map[p], self.get_unit_range(enemy))
+            self.enemy_influence_map = self.map_analyzer.add_cost(
+                position = enemy.position,
+                radius = enemy.radius + enemy_range,
+                grid = self.enemy_influence_map,
+                weight = enemy_value,
+            )
+        self.map_analyzer.draw_influence_in_game(self.enemy_influence_map)
+
+        for unit in self.enumerate_army():
+            unit_range = self.get_unit_range(unit)
+            unit_value = unitValue(unit)
+            self.friend_map[unit.position.rounded] += unit_value
+            self.army_influence_map = self.map_analyzer.add_cost(
+                position = unit.position,
+                radius = unit.radius + unit_range,
+                grid = self.army_influence_map,
+                weight = unit_value,
+            )
 
         blur_sigma = 9
         self.enemy_blur_map = ndimage.gaussian_filter(self.enemy_map, blur_sigma)

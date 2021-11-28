@@ -104,8 +104,7 @@ class ZergAI(CommonAI):
         self.creep_tile_count: int = 1
         self.build_spores: bool = False
         self.blocked_base_detectors: Dict[Point2, int] = dict()
-        self.scout_overlord: Optional[int] = None
-        self.enemy_base_count: int = 1
+        self.scout_overlords: List[int] = list()
         self.behavior: Behavior = BehaviorSelector([
             DodgeBehavior(self.dodge),
             BurrowBehavior(),
@@ -497,32 +496,46 @@ class ZergAI(CommonAI):
                 target = random.choice(self.expansion_locations_list)
                 changeling.move(target)
 
-        if self.count(UnitTypeId.OVERLORD, include_pending=False, include_planned=False) == 1:
-            for egg in self.pending_by_type[UnitTypeId.OVERLORD]:
-                target = self.bases[1].position.towards(self.game_info.map_center, 16)
-                egg(AbilityId.RALLY_MORPHING_UNIT, target)
+        overlord_targets = list()
+        if not self.bases[-2].taken_since:
+            target = self.bases[-2].position.towards(self.game_info.map_center, 9)
+        else:
+            enemy_location = self.enemy_start_locations[0]
+            enemy_main_ramp = min(
+                (r.top_center for r in self.game_info.map_ramps),
+                key = lambda r : r.distance_to(enemy_location)
+            )
+            target = min(self.map_analyzer.overlord_spots, key = lambda s : s.distance_to(enemy_main_ramp))
+        overlord_targets.append(target)
+        # overlord_targets.append(self.bases[1].position.towards(self.game_info.map_center, 16))
+        overlord_targets.append(self.bases[2].position.towards(self.game_info.map_center, 6))
+        overlord_targets.append(self.bases[3].position.towards(self.game_info.map_center, 6))
 
-        if self.count(UnitTypeId.OVERLORD, include_pending=False, include_planned=False) == 2:
-            for egg in self.pending_by_type[UnitTypeId.OVERLORD]:
-                target = self.bases[2].position
-                egg(AbilityId.RALLY_MORPHING_UNIT, target)
+        while len(self.scout_overlords) < len(overlord_targets):
+            overlord = next((o for o in self.actual_by_type[UnitTypeId.OVERLORD] if o.tag not in self.scout_overlords), None)
+            if not overlord:
+                break
+            self.scout_overlords.append(overlord.tag)
 
-        if self.enemy_base_count + 1 < len(self.bases):
-            base = self.bases[-self.enemy_base_count - 1]
-            enemy_townhalls = [th
-                for t in race_townhalls[self.enemy_race]
-                for th in self.enemies_by_type[t]]
-            if any(th.position == base.position for th in enemy_townhalls):
-                self.enemy_base_count += 1
+        for tag, target in zip(list(self.scout_overlords), overlord_targets):
+            overlord = self.unit_by_tag.get(tag)
+            if overlord:
+                if not overlord.is_moving and 1 < overlord.position.distance_to(target):
+                    overlord.move(target)
             else:
-                overlord = self.unit_by_tag.get(self.scout_overlord)
-                if not overlord:
-                    overlord = next(iter(self.actual_by_type[UnitTypeId.OVERLORD]), None)
-                if overlord and overlord.is_idle:
-                    self.scout_overlord = overlord.tag
-                    if overlord.sight_range < overlord.position.distance_to(base.position):
-                        overlord.move(base.position.towards(overlord, overlord.sight_range))
-                        overlord.move(base.position.towards(self.enemy_start_locations[0], -overlord.sight_range), queue=True)
+                self.scout_overlords.remove(tag)
+
+        enemy_townhall_positions = {
+            th.position
+            for t in race_townhalls[self.enemy_race]
+            for th in self.enemies_by_type[t]
+        }
+
+        for base in self.bases:
+            if base.position in enemy_townhall_positions:
+                if not base.taken_since:
+                    base.taken_since = self.time
+        self.enemy_base_count = sum(1 for b in self.bases if b.taken_since and not b.townhall)
 
     async def spread_creep(self):
 

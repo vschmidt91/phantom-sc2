@@ -60,7 +60,7 @@ def unitValue(unit: Unit, target = None):
         dps = max(unit.air_dps, unit.ground_dps)
     else:
         dps = unit.calculate_dps_vs_target(target)
-    return dps * (unit.health + unit.shield)
+    return math.sqrt(dps * (unit.health + unit.shield))
 
 def dot(x, y):
     return sum((xi * yi for xi, yi in zip(x, y)))

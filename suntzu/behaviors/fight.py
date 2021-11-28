@@ -64,10 +64,16 @@ class FightBehavior(Behavior):
 
         return gradient
 
-    def get_advantage(self, unit: Unit) -> float:
+    def get_advantage(self, unit: Unit, target: Unit) -> float:
 
-        friends_rating = 1 + self.bot.friend_blur_map[unit.position.rounded]
-        enemies_rating = 1 + self.bot.enemy_blur_map[unit.position.rounded]
+        # friends_rating = 1 + self.bot.friend_blur_map[unit.position.rounded]
+        # enemies_rating = 1 + self.bot.enemy_blur_map[unit.position.rounded]
+
+
+        sample_position = (unit.position + target.position) / 2
+        friends_rating = self.bot.army_influence_map[sample_position.rounded]
+        enemies_rating = self.bot.enemy_influence_map[sample_position.rounded]
+
         advantage_army = friends_rating / max(1, enemies_rating)
 
         creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id, 1)
@@ -94,10 +100,22 @@ class FightBehavior(Behavior):
             key = lambda p : p[1],
             default = (None, 0)
         )
+
+        retreat_path = self.bot.map_analyzer.pathfind(
+            start = unit.position,
+            goal = self.bot.start_location,
+            grid = self.bot.enemy_influence_map,
+            large = False,
+            smoothing = False,
+            sensitivity = 1)
+
         
         gradient = self.get_gradient(unit, target)
         retreat_target = unit.position - 12 * gradient
-        advantage = self.get_advantage(unit)
+        # retreat_target = self.bot.army_center - 12 * gradient
+        if retreat_path and 2 <= len(retreat_path):
+            retreat_target = retreat_path[1]
+        advantage = self.get_advantage(unit, target)
         advantage_threshold = 1
 
         if not target or priority <= 0:

@@ -70,6 +70,7 @@ class Base(ResourceGroup[ResourceBase]):
         # self.vespene_geysers.balance_aggressively = True
         super().__init__([self.mineral_patches, self.vespene_geysers], townhall_position)
         self.blocked_since: Optional[float] = None
+        self.taken_since: Optional[float] = None
         self.defensive_units: Set[Unit] = set()
         self.defensive_units_planned: Set[MacroPlan] = set()
         self.defensive_targets: DefaultDict[UnitTypeId, int] = DefaultDict(lambda:0)
