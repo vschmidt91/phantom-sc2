@@ -66,6 +66,9 @@ class FightBehavior(Behavior):
 
     def get_advantage(self, unit: Unit, target: Unit) -> float:
 
+        if not target:
+            return 1
+
         # friends_rating = 1 + self.bot.friend_blur_map[unit.position.rounded]
         # enemies_rating = 1 + self.bot.enemy_blur_map[unit.position.rounded]
 

@@ -1180,7 +1180,7 @@ class CommonAI(BotAI):
                 grid = self.enemy_influence_map,
                 weight = enemy_value,
             )
-        self.map_analyzer.draw_influence_in_game(self.enemy_influence_map)
+        # self.map_analyzer.draw_influence_in_game(self.enemy_influence_map)
 
         for unit in self.enumerate_army():
             unit_range = self.get_unit_range(unit)
