@@ -71,15 +71,7 @@ class FightBehavior(Behavior):
 
         return advantage
 
-    def execute(self, unit: Unit) -> BehaviorResult:
-
-        target, priority = max(
-            ((t, self.target_priority(unit, t))
-            for t in self.bot.enumerate_enemies()),
-            key = lambda p : p[1],
-            default = (None, 0)
-        )
-
+    def get_retreat_target(self, unit: Unit) -> Point2:
         if self.bot.townhalls:
             retreat_goal = self.bot.townhalls.closest_to(unit.position).position
         else:
@@ -96,6 +88,17 @@ class FightBehavior(Behavior):
             retreat_target = retreat_path[1]
         else:
             retreat_target = unit.position
+        return retreat_target
+
+    def execute(self, unit: Unit) -> BehaviorResult:
+
+        target, priority = max(
+            ((t, self.target_priority(unit, t))
+            for t in self.bot.enumerate_enemies()),
+            key = lambda p : p[1],
+            default = (None, 0)
+        )
+
         advantage = self.get_advantage(unit, target)
         advantage_threshold = 1
 
@@ -105,7 +108,7 @@ class FightBehavior(Behavior):
         if advantage < advantage_threshold / 3:
 
             # FLEE
-
+            retreat_target = self.get_retreat_target(unit)
             unit.move(retreat_target)
             return BehaviorResult.ONGOING
 
@@ -116,6 +119,7 @@ class FightBehavior(Behavior):
                 (unit.weapon_cooldown or unit.is_burrowed)
                 and unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius + unit.distance_to_weapon_ready
             ):
+                retreat_target = self.get_retreat_target(unit)
                 unit.move(retreat_target)
             elif unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
                 unit.attack(target)

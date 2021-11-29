@@ -1135,7 +1135,7 @@ class CommonAI(BotAI):
         self.enemy_influence_map = self.map_analyzer.get_pyastar_grid()
 
         for enemy in self.enemies.values():
-            enemy_range = self.get_unit_range(enemy)
+            enemy_range = max(3, self.get_unit_range(enemy))
             enemy_value = unitValue(enemy)
             self.enemy_influence_map = self.map_analyzer.add_cost(
                 position = enemy.position,
@@ -1143,10 +1143,9 @@ class CommonAI(BotAI):
                 grid = self.enemy_influence_map,
                 weight = enemy_value,
             )
-        # self.map_analyzer.draw_influence_in_game(self.enemy_influence_map)
 
         for unit in self.enumerate_army():
-            unit_range = self.get_unit_range(unit)
+            unit_range = max(3, self.get_unit_range(unit))
             unit_value = unitValue(unit)
             self.army_influence_map = self.map_analyzer.add_cost(
                 position = unit.position,
@@ -1154,6 +1153,15 @@ class CommonAI(BotAI):
                 grid = self.army_influence_map,
                 weight = unit_value,
             )
+
+        # self.enemy_influence_map = np.where(np.isposinf(self.enemy_influence_map), 0, self.enemy_influence_map)
+        # self.army_influence_map = np.where(np.isposinf(self.army_influence_map), 0, self.army_influence_map)
+        
+        # blur_sigma = 4
+        # self.enemy_influence_map = ndimage.gaussian_filter(self.enemy_influence_map, blur_sigma)
+        # self.army_influence_map = ndimage.gaussian_filter(self.army_influence_map, blur_sigma)
+
+        # self.map_analyzer.draw_influence_in_game(self.enemy_influence_map, upper_threshold=10000)
 
     def assess_threat_level(self):
 
