@@ -87,7 +87,7 @@ class FightBehavior(Behavior):
         advantage = 1
         advantage *= advantage_army
         advantage *= advantage_creep
-        advantage *= advantage_defender
+        advantage *= max(1, advantage_defender)
 
         return advantage
 
@@ -112,12 +112,10 @@ class FightBehavior(Behavior):
             smoothing = False,
             sensitivity = 1)
 
-        
-        gradient = self.get_gradient(unit, target)
-        retreat_target = unit.position - 12 * gradient
-        # retreat_target = self.bot.army_center - 12 * gradient
         if retreat_path and 2 <= len(retreat_path):
             retreat_target = retreat_path[1]
+        else:
+            retreat_target = unit.position
         advantage = self.get_advantage(unit, target)
         advantage_threshold = 1
 
