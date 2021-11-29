@@ -105,7 +105,10 @@ class FightBehavior(Behavior):
         if not target or priority <= 0:
             return BehaviorResult.FAILURE
 
-        if advantage < advantage_threshold / 3:
+        if (
+            advantage < advantage_threshold / 3
+            or (advantage < advantage_threshold and self.bot.get_unit_range(unit) < 1)
+        ):
 
             # FLEE
             retreat_target = self.get_retreat_target(unit)
