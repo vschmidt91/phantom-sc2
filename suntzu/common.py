@@ -1135,7 +1135,7 @@ class CommonAI(BotAI):
         self.enemy_influence_map = self.map_analyzer.get_pyastar_grid()
 
         for enemy in self.enemies.values():
-            enemy_range = max(3, self.get_unit_range(enemy))
+            enemy_range = max(0.5 * enemy.movement_speed, self.get_unit_range(enemy))
             enemy_value = unitValue(enemy)
             self.enemy_influence_map = self.map_analyzer.add_cost(
                 position = enemy.position,
@@ -1145,7 +1145,7 @@ class CommonAI(BotAI):
             )
 
         for unit in self.enumerate_army():
-            unit_range = max(3, self.get_unit_range(unit))
+            unit_range = max(0.5 * unit.movement_speed, self.get_unit_range(unit))
             unit_value = unitValue(unit)
             self.army_influence_map = self.map_analyzer.add_cost(
                 position = unit.position,
