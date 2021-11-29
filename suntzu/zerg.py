@@ -27,6 +27,8 @@ from .behaviors.dodge import DodgeBehavior
 from .behaviors.search import SearchBehavior
 from .behaviors.gather import GatherBehavior
 from .behaviors.survive import SurviveBehavior
+from .behaviors.launch_corrosive_biles import LaunchCorrosiveBilesBehavior
+from .behaviors.transfuse import TransfuseBehavior
 from .strategies.gasless import GasLess
 from .strategies.roach_rush import RoachRush
 from .strategies.hatch_first import HatchFirst
@@ -105,9 +107,11 @@ class ZergAI(CommonAI):
         self.build_spores: bool = False
         self.blocked_base_detectors: Dict[Point2, int] = dict()
         self.scout_overlords: List[int] = list()
-        self.behavior: Behavior = BehaviorSelector([
+        self.army_behavior: Behavior = BehaviorSelector([
             DodgeBehavior(self.dodge),
             BurrowBehavior(),
+            LaunchCorrosiveBilesBehavior(self),
+            TransfuseBehavior(self),
             FightBehavior(self),
             SearchBehavior(self),
         ])
@@ -122,7 +126,7 @@ class ZergAI(CommonAI):
     async def micro(self):
         await super().micro()
         for unit in self.enumerate_army():
-            self.behavior.execute(unit)
+            self.army_behavior.execute(unit)
         for unit in self.workers:
             self.worker_behavior.execute(unit)
 
@@ -257,81 +261,6 @@ class ZergAI(CommonAI):
             else:
                 unit.move(unit.position.towards(self.start_location, 20))
         return await super(self.__class__, self).on_unit_took_damage(unit, amount_damage_taken)
-
-    async def transfuse(self):
-
-        def priority(queen: Unit, target: Unit) -> float:
-            if queen.tag == target.tag:
-                return 0
-            if not queen.in_ability_cast_range(ability, target):
-                return 0
-            if BuffId.TRANSFUSION in target.buffs:
-                return 0
-            if target.health_max <= target.health + 75:
-                return 0
-            priority = 1
-            priority *= 10 + unitValue(target)
-            return priority
-
-        ability = AbilityId.TRANSFUSION_TRANSFUSION
-        queens = [
-            self.unit_by_tag[t]
-            for t in self.army_queens
-            if t in self.unit_by_tag
-        ]
-        if not queens:
-            return
-
-        for queen in queens:
-
-            if ability not in self.abilities[queen.tag]:
-                continue
-
-            target = max(self.all_own_units, key = lambda t : priority(queen, t))
-            if priority(queen, target) <= 0:
-                continue
-
-            queen(ability, target=target)
-
-    async def corrosive_bile(self):
-
-        def target_priority(target):
-            if not self.is_visible(target.position):
-                return 0
-            if target.is_hallucination:
-                return 0
-            if target.type_id in CHANGELINGS:
-                return 0
-            priority = 10 + max(target.ground_dps, target.air_dps)
-            priority /= 100 + target.health + target.shield
-            priority /= 2 + target.movement_speed
-            return priority
-
-        ability = AbilityId.EFFECT_CORROSIVEBILE
-        ability_data = self.game_data.abilities[ability.value]._proto
-        ravagers = list(self.actual_by_type[UnitTypeId.RAVAGER])
-        for ravager in ravagers:
-            if any(o.ability.exact_id == ability for o in ravager.orders):
-                continue
-            if ability not in self.abilities[ravager.tag]:
-                continue
-            targets = (
-                target
-                for target in self.enumerate_enemies()
-                if ravager.position.distance_to(target.position) <= ravager.radius + ability_data.cast_range
-            )
-            target: Unit = max(targets, key=target_priority, default=None)
-            if not target:
-                continue
-            if target_priority(target) <= 0:
-                continue
-            predicted_position = target.position
-            previous_position = self.enemy_positions.get(target.tag)
-            if previous_position:
-                velocity = 22.4 * (target.position - previous_position) / (self.game_step)
-                if velocity.length < 2:
-                    predicted_position = target.position + 2.5 * velocity
-            ravager(ability, target=predicted_position)
 
     def update_strategy(self):
         self.strategy.update(self)

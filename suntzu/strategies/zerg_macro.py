@@ -131,8 +131,6 @@ class ZergMacro(ZergStrategy):
             bot.micro: 1,
             bot.assess_threat_level: 1,
             bot.macro: 1,
-            bot.transfuse: 1,
-            bot.corrosive_bile: 1,
             bot.update_strategy: 1,
             bot.save_enemy_positions: 1,
             bot.reset_blocked_bases: 1,

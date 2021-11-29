@@ -134,13 +134,18 @@ class CommonAI(BotAI):
         self.gg_sent: bool = False
         self.unit_ref: Optional[int] = None
         self.dodge: List[DodgeElement] = list()
-        self.abilities: Dict[int, Set[AbilityId]] = dict()
+        self.abilities: DefaultDict[int, Set[AbilityId]] = defaultdict(lambda:set())
         self.range_map: np.ndarray = None
         self.map_analyzer: MapData = None
         self.army_center: Point2 = Point2((0, 0))
         self.enemy_base_count: int = 1
         self.army_influence_map: np.ndarray = None
         self.enemy_influence_map: np.ndarray = None
+
+    def estimate_enemy_velocity(self, unit: Unit) -> Point2:
+        previous_position = self.enemy_positions.get(unit.tag, unit.position)
+        velocity = 22.4 * (unit.position - previous_position) / (self.game_step)
+        return velocity
 
     def destroy_destructables(self):
         return True
