@@ -100,7 +100,10 @@ class FightBehavior(Behavior):
             default = (None, 0)
         )
 
-        retreat_goal = self.bot.townhalls.closest_to(unit.position).position
+        if self.bot.townhalls:
+            retreat_goal = self.bot.townhalls.closest_to(unit.position).position
+        else:
+            retreat_goal = self.bot.start_location
         retreat_path = self.bot.map_analyzer.pathfind(
             start = unit.position,
             goal = retreat_goal,
