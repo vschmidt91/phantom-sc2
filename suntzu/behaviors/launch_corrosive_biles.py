@@ -26,7 +26,7 @@ class LaunchCorrosiveBilesBehavior(Behavior):
     def target_priority(self, unit: Unit, target: Unit):
         if not self.bot.is_visible(target.position):
             return 0
-        if not unit.in_ability_cast_range(self.ability, target):
+        if not unit.in_ability_cast_range(self.ability, target.position):
             return 0
         if target.is_hallucination:
             return 0

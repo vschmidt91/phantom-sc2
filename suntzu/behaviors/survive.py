@@ -19,24 +19,6 @@ class SurviveBehavior(Behavior):
     def __init__(self, bot):
         self.bot = bot
 
-    def get_gradient(self, unit: Unit) -> Point2:
-
-        distance_gradient = Point2(self.bot.distance_gradient_map[unit.position.rounded[0], unit.position.rounded[1],:])
-        if 0 < distance_gradient.length:
-            distance_gradient = distance_gradient.normalized
-
-        enemy_gradient = Point2(self.bot.enemy_gradient_map[unit.position.rounded[0], unit.position.rounded[1],:])
-        if 0 < enemy_gradient.length:
-            enemy_gradient = enemy_gradient.normalized
-
-        gradient = distance_gradient + enemy_gradient
-        if 0 < gradient.length:
-            gradient = gradient.normalized
-        elif 0 < unit.position.distance_to(self.bot.start_location):
-            gradient = (self.bot.start_location - unit.position).normalized
-
-        return gradient
-
     def execute(self, unit: Unit) -> BehaviorResult:
 
         last_attacked = self.bot.damage_taken.get(unit.tag)
@@ -45,7 +27,20 @@ class SurviveBehavior(Behavior):
         if last_attacked + 3 < self.bot.time:
             return BehaviorResult.SUCCESS
         
-        gradient = self.get_gradient(unit)
-        retreat_target = unit.position - 12 * gradient
-        unit.move(retreat_target)
-        return BehaviorResult.ONGOING
+        if self.bot.townhalls:
+            retreat_goal = self.bot.townhalls.closest_to(unit.position).position
+        else:
+            retreat_goal = self.bot.start_location
+        retreat_path = self.bot.map_analyzer.pathfind(
+            start = unit.position,
+            goal = retreat_goal,
+            grid = self.bot.enemy_influence_map,
+            large = False,
+            smoothing = False,
+            sensitivity = 1)
+
+        if retreat_path and 2 <= len(retreat_path):
+            unit.move(retreat_path[1])
+            return BehaviorResult.ONGOING
+
+        return BehaviorResult.FAILURE

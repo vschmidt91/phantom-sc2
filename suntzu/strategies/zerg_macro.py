@@ -115,7 +115,7 @@ class ZergMacro(ZergStrategy):
             bot.handle_errors: 1,
             bot.handle_actions: 1,
             bot.update_maps: 1,
-            bot.handle_corrosive_biles: 1,
+            bot.handle_delayed_effects: 1,
             bot.update_bases: 1,
             bot.update_composition: 1,
             bot.update_gas: 1,

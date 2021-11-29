@@ -1,7 +1,11 @@
 
+from datetime import time
 from typing import Optional, Union, List, Iterable
+from abc import ABC, abstractproperty
+from numpy.lib.arraysetops import isin
 
 from s2clientprotocol.data_pb2 import AbilityData
+from s2clientprotocol.raw_pb2 import Effect
 
 from sc2.position import Point2
 from sc2.ids.unit_typeid import UnitTypeId
@@ -13,7 +17,7 @@ from sc2.unit_command import UnitCommand
 
 from .behavior import Behavior, BehaviorResult
 
-class DodgeElement(object):
+class DodgeElement(ABC):
 
     def __init__(self, positions: Iterable[Point2], radius: float):
         self.positions: List[Point2] = list(positions)
@@ -35,27 +39,22 @@ class DodgeEffect(DodgeElement):
     def __init__(self, effect: EffectData):
         super().__init__(effect.positions, effect.radius)
 
-class DodgeCorrosiveBile(DodgeElement):
+class DodgeEffectDelayed(DodgeElement):
 
-    def __init__(self, position: Point2, time: float):
-        self.time: float = time
-        self.position: Point2 = position
-        super().__init__([position], 0.5)
+    RADIUS = {
+        EffectId.RAVAGERCORROSIVEBILECP: 0.5,
+        EffectId.NUKEPERSISTENT: 8,
+    }
 
-    @property
-    def time_of_impact(self):
-        return self.time + 50 / 22.4
+    DELAY = {
+        EffectId.RAVAGERCORROSIVEBILECP: 50 / 22.4,
+        EffectId.NUKEPERSISTENT: 320 / 22.4,
+    }
 
-class DodgeNuke(DodgeElement):
-
-    def __init__(self, position: Point2, time: float):
-        self.time: float = time
-        self.position: Point2 = position
-        super().__init__([position], 8)
-
-    @property
-    def time_of_impact(self):
-        return self.time + 320 / 22.4
+    def __init__(self, effect: Effect, time: float):
+        self.time = time
+        self.time_of_impact = time + self.DELAY[effect.id]
+        super().__init__(effect.positions, self.RADIUS[effect.id])
 
 class DodgeBehavior(Behavior):
 
@@ -65,8 +64,15 @@ class DodgeBehavior(Behavior):
 
     def execute(self, unit: Unit) -> BehaviorResult:
         for dodge in self.dodge:
+            if isinstance(dodge, DodgeEffectDelayed):
+                time_to_impact = max(0, dodge.time_of_impact - unit._bot_object.time)
+            else:
+                time_to_impact = 0
+            dodge_radius = unit.radius + self.safety_distance + dodge.radius - time_to_impact * unit.movement_speed
+            if dodge_radius <= 0:
+                continue
             for position in dodge.positions:
-                dodge_distance = unit.position.distance_to(position) - unit.radius - dodge.radius - self.safety_distance
+                dodge_distance = unit.position.distance_to(position) - dodge_radius
                 if dodge_distance < 0:
                     if unit.is_burrowed:
                         unit(AbilityId.BURROWUP)

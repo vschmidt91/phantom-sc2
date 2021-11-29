@@ -34,6 +34,6 @@ class BurrowBehavior(Behavior):
             and unit.weapon_cooldown
         ):
             unit(AbilityId.BURROWDOWN)
-            return BehaviorResult.ONGOING
+            return BehaviorResult.SUCCESS
 
         return BehaviorResult.FAILURE

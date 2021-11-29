@@ -50,7 +50,7 @@ from .constants import *
 from .macro_plan import MacroPlan
 from .cost import Cost
 from .utils import *
-from .behaviors.dodge import DodgeElement, DodgeBehavior, DodgeCorrosiveBile, DodgeEffect, DodgeNuke, DodgeUnit
+from .behaviors.dodge import DodgeEffectDelayed, DodgeElement, DodgeBehavior, DodgeEffect, DodgeUnit
 from .behaviors.fight import FightBehavior
 
 import matplotlib.pyplot as plt
@@ -111,10 +111,8 @@ class CommonAI(BotAI):
         self.cost: Dict[MacroId, Cost] = dict()
         self.bases: ResourceGroup[Base] = None
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
-        self.corrosive_biles: List[DodgeCorrosiveBile] = list()
-        self.nukes: List[DodgeNuke] = list()
+        self.delayed_effects: List[DodgeEffectDelayed] = list()
         self.distance_map: np.ndarray = None
-        self.distance_gradient_map: np.ndarray = None
         self.threat_level = 0
         self.weapons: Dict[UnitTypeId, List] = dict()
         self.dps: Dict[UnitTypeId, float] = dict()
@@ -135,7 +133,6 @@ class CommonAI(BotAI):
         self.unit_ref: Optional[int] = None
         self.dodge: List[DodgeElement] = list()
         self.abilities: DefaultDict[int, Set[AbilityId]] = defaultdict(lambda:set())
-        self.range_map: np.ndarray = None
         self.map_analyzer: MapData = None
         self.army_center: Point2 = Point2((0, 0))
         self.enemy_base_count: int = 1
@@ -188,9 +185,7 @@ class CommonAI(BotAI):
 
         self.townhalls[0](AbilityId.RALLY_WORKERS, target=self.townhalls[0])
         self.enemy_map = np.zeros(self.game_info.map_size)
-        self.enemy_gradient_map = np.zeros([*self.game_info.map_size, 2])
         self.friend_map = np.zeros(self.game_info.map_size)
-        self.range_map = np.zeros(self.game_info.map_size)
         await self.create_distance_map()
         await self.initialize_bases()
         
@@ -264,22 +259,13 @@ class CommonAI(BotAI):
             if base.blocked_since + 30 < self.time:
                 base.blocked_since = None
 
-    def handle_corrosive_biles(self):
-
-        # biles_sorted = sorted(self.corrosive_biles, key = lambda c : c.frame_expires)
-        # assert(self.corrosive_biles == biles_sorted)
+    def handle_delayed_effects(self):
 
         while (
-            self.corrosive_biles
-            and self.corrosive_biles[0].time_of_impact < self.time
+            self.delayed_effects
+            and self.delayed_effects[0].time_of_impact < self.time
         ):
-            self.corrosive_biles.pop(0)
-
-        while (
-            self.nukes
-            and self.nukes[0].time_of_impact < self.time
-        ):
-            self.nukes.pop(0)
+            self.delayed_effects.pop(0)
 
     def assign_idle_workers(self):
         exclude = set()
@@ -645,11 +631,6 @@ class CommonAI(BotAI):
         # distance_map[self.enemy_start_locations[0].rounded] = 1.0
 
         self.distance_map = distance_map
-        self.distance_gradient_map = np.stack(np.gradient(distance_map), axis=2)
-        gradient_norm = np.linalg.norm(self.distance_gradient_map, axis=2)
-        gradient_norm = np.maximum(gradient_norm, 1e-5)
-        gradient_norm = np.dstack((gradient_norm, gradient_norm))
-        self.distance_gradient_map = self.distance_gradient_map / gradient_norm
 
     def draw_debug(self):
 
@@ -1082,33 +1063,19 @@ class CommonAI(BotAI):
 
     async def micro(self):
 
-        bile_positions = { c.position for c in self.corrosive_biles }
-        nuke_positions = { n.position for n in self.nukes }
+        delayed_positions = { p for e in self.delayed_effects for p in e.positions }
+
         self.dodge.clear()
         for effect in self.state.effects:
-            if effect.id == EffectId.RAVAGERCORROSIVEBILECP:
-                position = next(iter(effect.positions))
-                if position in bile_positions:
-                    continue
-                bile = DodgeCorrosiveBile(position, self.time)
-                self.corrosive_biles.append(bile)
-            elif effect.id == EffectId.NUKEPERSISTENT:
-                position = next(iter(effect.positions))
-                if position in nuke_positions:
-                    continue
-                nuke = DodgeNuke(position, self.time)
-                self.nukes.append(nuke)
+            if effect.id in { EffectId.RAVAGERCORROSIVEBILECP, EffectId.NUKEPERSISTENT }:
+                if not effect.positions.intersection(delayed_positions):
+                    self.delayed_effects.append(DodgeEffectDelayed(effect, self.time))
             elif effect.id in DODGE_EFFECTS:
                 self.dodge.append(DodgeEffect(effect))
-        for bile in self.corrosive_biles:
-            if bile.time_of_impact < self.time + 0.5:
-                self.dodge.append(bile)
-        for nuke in self.nukes:
-            if nuke.time_of_impact < self.time + 5:
-                self.dodge.append(nuke)
         for type in DODGE_UNITS:
             for enemy in self.enemies_by_type[type]:
                 self.dodge.append(DodgeUnit(enemy))
+        self.dodge.extend(self.delayed_effects)
 
     async def get_target_position(self, target: UnitTypeId, trainer: Unit) -> Point2:
         if target in STATIC_DEFENSE[self.race]:

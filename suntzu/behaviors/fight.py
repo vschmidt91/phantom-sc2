@@ -44,26 +44,6 @@ class FightBehavior(Behavior):
             priority *= 10 if not target.is_revealed else 1
         return priority
 
-    def get_gradient(self, unit: Unit, target: Unit) -> Point2:
-
-        distance_gradient = Point2(self.bot.distance_gradient_map[unit.position.rounded[0], unit.position.rounded[1],:])
-        if 0 < distance_gradient.length:
-            distance_gradient = distance_gradient.normalized
-
-        enemy_gradient = Point2(self.bot.enemy_gradient_map[unit.position.rounded[0], unit.position.rounded[1],:])
-        if 0 < enemy_gradient.length:
-            enemy_gradient = enemy_gradient.normalized
-
-        gradient = distance_gradient + enemy_gradient
-        if 0 < gradient.length:
-            gradient = gradient.normalized
-        elif target and 0 < unit.position.distance_to(target.position):
-            gradient = (unit.position - target.position).normalized
-        elif 0 < unit.position.distance_to(self.bot.start_location):
-            gradient = (self.bot.start_location - unit.position).normalized
-
-        return gradient
-
     def get_advantage(self, unit: Unit, target: Unit) -> float:
 
         if not target:
