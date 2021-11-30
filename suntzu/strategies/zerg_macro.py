@@ -22,8 +22,14 @@ class ZergMacro(ZergStrategy):
 
         worker_limit = 88
         worker_target = min(worker_limit, bot.get_max_harvester())
-        worker_count = bot.count(UnitTypeId.DRONE, include_planned=False)
-        ratio = min(1, max(bot.threat_level, worker_count / worker_limit))
+        worker_count = bot.bases.harvester_count
+        enemy_max_workers = 22 * bot.enemy_base_count
+        ratio = max(
+            bot.threat_level,
+            worker_count / worker_limit,
+            worker_count / enemy_max_workers,
+        )
+        ratio = min(1, ratio)
         # ratio = pow(ratio, 8)
         # ratio = 1 if 0.5 < ratio else 0
 
