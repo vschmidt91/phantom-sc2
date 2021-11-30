@@ -427,7 +427,7 @@ class ZergAI(CommonAI):
 
         overlord_targets = list()
         if not self.bases[-2].taken_since:
-            target = self.bases[-2].position.towards(self.game_info.map_center, 9)
+            target = self.bases[-2].position.towards(self.game_info.map_center, 12)
         else:
             enemy_location = self.enemy_start_locations[0]
             enemy_main_ramp = min(
