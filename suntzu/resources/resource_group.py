@@ -67,19 +67,6 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
     def harvester_target(self):
         return sum(r.harvester_target for r in self.items)
 
-    def do_worker_split(self, harvesters: Set[Unit]):
-        for _ in range(len(harvesters)):
-            for resource in self.items:
-                harvester = min(
-                    harvesters,
-                    key=lambda h:h.position.distance_to(resource.position),
-                    default=None
-                )
-                if not harvester:
-                    return
-                harvesters.remove(harvester)
-                resource.harvesters.add(harvester.tag)
-
     @property
     def harvesters(self) -> Iterable[int]:
         return (h for r in self.items for h in r.harvesters)

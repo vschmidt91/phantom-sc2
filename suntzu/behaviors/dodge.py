@@ -63,21 +63,23 @@ class DodgeBehavior(Behavior):
         self.safety_distance: float = 1
 
     def execute(self, unit: Unit) -> BehaviorResult:
+        movement_speed = 1.4 * unit.movement_speed
         for dodge in self.dodge:
             if isinstance(dodge, DodgeEffectDelayed):
                 time_to_impact = max(0, dodge.time_of_impact - unit._bot_object.time)
             else:
                 time_to_impact = 0
-            dodge_radius = unit.radius + self.safety_distance + dodge.radius - time_to_impact * unit.movement_speed
+            dodge_radius = unit.radius + self.safety_distance + dodge.radius - time_to_impact * movement_speed
             if dodge_radius <= 0:
                 continue
             for position in dodge.positions:
                 dodge_distance = unit.position.distance_to(position) - dodge_radius
                 if dodge_distance < 0:
+                    target = unit.position.towards(position, dodge_distance)
                     if unit.is_burrowed:
                         unit(AbilityId.BURROWUP)
+                        unit.move(target, queue=True)
                     else:
-                        target = unit.position.towards(position, dodge_distance)
                         unit.move(target)
                     return BehaviorResult.ONGOING
         return BehaviorResult.FAILURE

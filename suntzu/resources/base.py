@@ -11,6 +11,7 @@ from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
 from suntzu.macro_plan import MacroPlan
+from suntzu.utils import dot
 
 from .mineral_patch import MineralPatch
 from .vespene_geyser import VespeneGeyser
@@ -18,6 +19,14 @@ from .resource_base import ResourceBase
 from .resource_group import ResourceGroup
 
 MINING_RADIUS = 1.325
+# MINING_RADIUS = 1.4
+
+MINERAL_RADIUS = 1.125
+HARVESTER_RADIUS = 0.375
+
+def project_point_onto_line(p: Point2, d: Point2, x: Point2) -> float:
+    n = Point2((d[1], -d[0]))
+    return x - dot(x - p, n) / dot(n, n) * n
 
 def get_intersections(p0: Point2, r0: float, p1: Point2, r1: float) -> List[Point2]:
     return _get_intersections(p0.x, p0.y, r0, p1.x, p1.y, r1)
@@ -77,20 +86,33 @@ class Base(ResourceGroup[ResourceBase]):
         self.fix_speedmining_positions()
         self.townhall: Optional[Unit] = None
 
+    def split_initial_workers(self, harvesters: Set[Unit]):
+        for _ in range(len(harvesters)):
+            for patch in self.mineral_patches:
+                harvester = min(
+                    harvesters,
+                    key = lambda h : h.position.distance_to(patch.position),
+                    default = None
+                )
+                if not harvester:
+                    return
+                harvesters.remove(harvester)
+                patch.try_add(harvester.tag)
+
     def fix_speedmining_positions(self):
         for patch in self.mineral_patches:
             target = patch.position.towards(self.position, MINING_RADIUS)
-            other_patches = (
-                m
-                for m in self.mineral_patches
-                if m.position.distance_to(target) < MINING_RADIUS
-            )
-            for patch2 in other_patches:
+            for patch2 in self.mineral_patches:
                 if patch.position == patch2.position:
+                    continue
+                p = project_point_onto_line(target, target - self.position, patch2.position)
+                if patch.position.distance_to(self.position) < p.distance_to(self.position):
+                    continue
+                if MINING_RADIUS <= patch2.position.distance_to(p):
                     continue
                 points = get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS)
                 if len(points) == 2:
-                    target = min(points, key=lambda p:p.distance_to(self.mineral_patches.position))
+                    target = min(points, key=lambda p:p.distance_to(self.position))
                     break
             patch.speed_mining_position = target
 

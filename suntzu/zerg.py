@@ -273,7 +273,6 @@ class ZergAI(CommonAI):
 
     async def on_step(self, iteration):
 
-
         await super(self.__class__, self).on_step(iteration)
 
         if iteration == 0:
@@ -283,23 +282,25 @@ class ZergAI(CommonAI):
 
         steps_filtered = [s for s, m in steps.items() if iteration % m == 0]
             
-        if self.debug:
-            timings = await run_timed(steps_filtered)
-            for key, value in timings.items():
-                self.timings_acc[key] = self.timings_acc.get(key, 0) + value
-            if iteration % TIMING_INTERVAL == 0:
-                timings_items = ((k, round(1e3 * n / TIMING_INTERVAL, 1)) for k, n in self.timings_acc.items())
-                timings_sorted = dict(sorted(timings_items, key=lambda p : p[1], reverse=True))
-                print(timings_sorted)
-                self.timings_acc = {}
-        else:
-            for step in steps_filtered:
-                result = step()
-                if inspect.isawaitable(result):
-                    result = await result
+        # if self.debug:
+        #     timings = await run_timed(steps_filtered)
+        #     for key, value in timings.items():
+        #         self.timings_acc[key] = self.timings_acc.get(key, 0) + value
+        #     if iteration % TIMING_INTERVAL == 0:
+        #         timings_items = ((k, round(1e3 * n / TIMING_INTERVAL, 1)) for k, n in self.timings_acc.items())
+        #         timings_sorted = dict(sorted(timings_items, key=lambda p : p[1], reverse=True))
+        #         print(timings_sorted)
+        #         self.timings_acc = {}
+        # else:
+        for step in steps_filtered:
+            result = step()
+            if inspect.isawaitable(result):
+                result = await result
 
     def draw_debug(self):
-        self.client.debug_text_screen(f'Creep Coverage: {round(100 * self.creep_coverage)}%', (0.01, 0.02))
+        if not self.debug:
+            return
+        self.client.debug_text_screen(f'Creep Coverage: {round(100 * self.creep_coverage)}%', (0.01, 0.05))
         return super().draw_debug()
 
     def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
@@ -413,21 +414,29 @@ class ZergAI(CommonAI):
                 if base.position in self.blocked_base_detectors:
                     del self.blocked_base_detectors[base.position]
 
-        changelings = [
+        def scout_priority(base):
+            if base.townhall:
+                return 1e-5
+            elif base.taken_since:
+                return 1e-5
+            d = self.distance_map[base.position.rounded]
+            if math.isnan(d) or math.isinf(d):
+                return 1e-5
+            return d
+
+        changelings = (
             c
             for t in CHANGELINGS
             for c in self.actual_by_type[t]
-        ]
+        )
         for changeling in changelings:
-            if not changeling:
-                continue
             if not changeling.is_moving:
-                target = random.choice(self.expansion_locations_list)
-                changeling.move(target)
+                target = sample(self.bases, key=scout_priority)
+                changeling.move(target.position)
 
         overlord_targets = list()
         if not self.bases[-2].taken_since:
-            target = self.bases[-2].position.towards(self.game_info.map_center, 12)
+            target = self.bases[-2].position.towards(self.game_info.map_center, 12.75)
         else:
             enemy_location = self.enemy_start_locations[0]
             enemy_main_ramp = min(
@@ -465,6 +474,7 @@ class ZergAI(CommonAI):
                 if not base.taken_since:
                     base.taken_since = self.time
         self.enemy_base_count = sum(1 for b in self.bases if b.taken_since and not b.townhall)
+        self.enemy_base_count = max(math.ceil(self.time / (4 * 60)), self.enemy_base_count)
 
     async def spread_creep(self):
 

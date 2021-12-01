@@ -5,13 +5,14 @@ from datetime import datetime
 from sc2.main import run_game, run_match
 from worker_stack_bot import WorkerStackBot
 
-from sc2.data import Race, Difficulty, AIBuild
+from sc2.data import Race, Difficulty, AIBuild, Result
 from sc2.player import Bot, Computer
 
 # Load bot
 from suntzu.zerg import ZergAI
 from suntzu.common import PerformanceMode
 from suntzu.dummy import DummyAI
+from suntzu.strategies.dummy import DummyStrategy
 from suntzu.strategies.pool12_allin import Pool12AllIn
 
 # Start game
@@ -37,10 +38,11 @@ if __name__ == "__main__":
         # opponent = Bot(Race.Zerg, DummyAI())
         opponent = Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
         # opponent = Bot(Race.Zerg, ZergAI(performance = PerformanceMode.HIGH_PERFORMANCE, strategy = Pool12AllIn(False)), 'Pool12AllIn')   
-        run_game(
+        result = run_game(
             sc2.maps.get('RomanticideAIE'),
             [bot, opponent],
             realtime=False,
             save_replay_as=replayPath,
             random_seed=123,
         )
+        print(result)

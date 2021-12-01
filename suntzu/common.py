@@ -141,7 +141,7 @@ class CommonAI(BotAI):
 
     def estimate_enemy_velocity(self, unit: Unit) -> Point2:
         previous_position = self.enemy_positions.get(unit.tag, unit.position)
-        velocity = 22.4 * (unit.position - previous_position) / (self.game_step)
+        velocity = 22.4 * (unit.position - previous_position) / (self.client.game_step)
         return velocity
 
     def destroy_destructables(self):
@@ -283,6 +283,9 @@ class CommonAI(BotAI):
             self.greet_enabled = False
 
     async def on_step(self, iteration: int):
+        if self.debug:
+            if self.state.game_loop % 100 == 0:
+                print(f'{self.time_formatted} Threat Level: {round(self.threat_level, 3)}')
         pass
 
     async def on_end(self, game_result: Result):
@@ -582,10 +585,10 @@ class CommonAI(BotAI):
         bases = sorted((
             Base(position, (m.position for m in resources.mineral_field), (g.position for g in resources.vespene_geyser))
             for position, resources in self.expansion_locations_dict.items()
-        ), key = lambda b : self.distance_map[b.position.rounded] - .3 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
+        ), key = lambda b : self.distance_map[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
         self.bases = ResourceGroup(bases)
-        self.bases[0].mineral_patches.do_worker_split(set(self.workers))
+        self.bases[0].split_initial_workers(set(self.workers))
         self.bases[-1].taken_since = 1
 
         if self.performance == PerformanceMode.DEFAULT:
@@ -673,6 +676,7 @@ class CommonAI(BotAI):
         #     self.client.debug_text_world(f'{d.health}', Point3((*d.position, z)))
 
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.threat_level)}%', (0.01, 0.01))
+        self.client.debug_text_screen(f'Enemy Bases: {self.enemy_base_count}', (0.01, 0.02))
         for i, plan in enumerate(self.macro_plans):
             self.client.debug_text_screen(f'{1+i} {plan.item.name}', (0.01, 0.1 + 0.01 * i))
 
@@ -714,15 +718,16 @@ class CommonAI(BotAI):
             position = target
         else:
             raise TypeError()
-        path = await self.client.query_pathing(unit, position)
+        path = await self.client.query_pathing(unit.position, target.position)
         if not path:
             path = unit.position.distance_to(position)
-        if not unit.movement_speed:
+        movement_speed = 1.4 * unit.movement_speed
+        if movement_speed == 0:
             if self.debug:
                 raise Exception()
             else:
                 return 0
-        return path / unit.movement_speed
+        return path / movement_speed
 
     def add_macro_plan(self, plan: MacroPlan):
         self.macro_plans.append(plan)
@@ -852,7 +857,7 @@ class CommonAI(BotAI):
             if (
                 plan.target
                 and not unit.is_moving
-                and unit.movement_speed
+                and 0 < unit.movement_speed
                 and 1 < unit.position.distance_to(plan.target)
             ):
             
@@ -1078,14 +1083,7 @@ class CommonAI(BotAI):
         self.dodge.extend(self.delayed_effects)
 
     async def get_target_position(self, target: UnitTypeId, trainer: Unit) -> Point2:
-        if target in STATIC_DEFENSE[self.race]:
-            townhalls = self.townhalls.ready.sorted_by_distance_to(self.start_location)
-            if townhalls.exists:
-                i = (self.count(target) - 1) % townhalls.amount
-                return townhalls[i].position.towards(self.game_info.map_center, -5)
-            else:
-                return self.start_location
-        elif self.is_structure(target):
+        if self.is_structure(target):
             if target in race_townhalls[self.race]:
                 for b in self.bases:
                     if b.position in self.townhall_by_position.keys():
@@ -1100,7 +1098,7 @@ class CommonAI(BotAI):
                 raise PlacementNotFound()
             elif self.townhalls.exists:
                 position = self.townhalls.closest_to(self.start_location).position
-                return position.towards(self.game_info.map_center, 5)
+                return position.towards(self.game_info.map_center, 6)
             else:
                 raise PlacementNotFound()
         else:
@@ -1161,7 +1159,7 @@ class CommonAI(BotAI):
         # self.enemy_influence_map = ndimage.gaussian_filter(self.enemy_influence_map, blur_sigma)
         # self.army_influence_map = ndimage.gaussian_filter(self.army_influence_map, blur_sigma)
 
-        # self.map_analyzer.draw_influence_in_game(self.enemy_influence_map, upper_threshold=10000)
+        self.map_analyzer.draw_influence_in_game(self.army_influence_map, upper_threshold=100000)
 
     def assess_threat_level(self):
 

@@ -15,12 +15,14 @@ Task for the user who wants to enhance this bot:
 from collections import defaultdict
 import os
 import sys
+import math
 
 from sc2.ids.ability_id import AbilityId
+from suntzu.utils import dot
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from typing import Dict, Set
+from typing import Dict, List, Set
 
 from loguru import logger
 
@@ -32,6 +34,48 @@ from sc2.player import Bot, Computer
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
+
+MINING_RADIUS = 1.325
+# MINING_RADIUS = 1.4
+
+MINERAL_RADIUS = 1.125
+HARVESTER_RADIUS = 0.375
+
+def project_point_onto_line(p: Point2, d: Point2, x: Point2) -> float:
+    n = Point2((d[1], -d[0]))
+    return x - dot(x - p, n) / dot(n, n) * n
+
+def get_intersections(p0: Point2, r0: float, p1: Point2, r1: float) -> List[Point2]:
+    return _get_intersections(p0.x, p0.y, r0, p1.x, p1.y, r1)
+
+
+def _get_intersections(x0: float, y0: float, r0: float, x1: float, y1: float, r1: float) -> List[Point2]:
+    # circle 1: (x0, y0), radius r0
+    # circle 2: (x1, y1), radius r1
+
+    d = math.sqrt((x1 - x0) ** 2 + (y1 - y0) ** 2)
+
+    # non intersecting
+    if d > r0 + r1:
+        return []
+    # One circle within other
+    if d < abs(r0 - r1):
+        return []
+    # coincident circles
+    if d == 0 and r0 == r1:
+        return []
+    else:
+        a = (r0 ** 2 - r1 ** 2 + d ** 2) / (2 * d)
+        h = math.sqrt(r0 ** 2 - a ** 2)
+        x2 = x0 + a * (x1 - x0) / d
+        y2 = y0 + a * (y1 - y0) / d
+        x3 = x2 + h * (y1 - y0) / d
+        y3 = y2 - h * (x1 - x0) / d
+
+        x4 = x2 - h * (y1 - y0) / d
+        y4 = y2 + h * (x1 - x0) / d
+
+        return [Point2((x3, y3)), Point2((x4, y4))]
 
 
 class WorkerStackBot(BotAI):
@@ -48,7 +92,27 @@ class WorkerStackBot(BotAI):
 
     async def on_start(self):
         self.client.game_step = 1
+        self.fix_speedmining_positions()
         await self.assign_workers()
+
+    def fix_speedmining_positions(self):
+        self.speedmining_positions = dict()
+        minerals = self.expansion_locations_dict[self.start_location].mineral_field
+        for patch in minerals:
+            target = patch.position.towards(self.start_location, MINING_RADIUS)
+            for patch2 in minerals:
+                if patch.position == patch2.position:
+                    continue
+                p = project_point_onto_line(target, target - self.start_location, patch2.position)
+                if patch.position.distance_to(self.start_location) < p.distance_to(self.start_location):
+                    continue
+                if MINING_RADIUS <= patch2.position.distance_to(p):
+                    continue
+                points = get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS)
+                if len(points) == 2:
+                    target = min(points, key=lambda p:p.distance_to(self.start_location))
+                    break
+            self.speedmining_positions[patch.position] = target
 
     async def assign_workers(self):
         self.minerals_sorted_by_distance = self.mineral_field.closer_than(10,
@@ -57,13 +121,14 @@ class WorkerStackBot(BotAI):
                                                                           )
 
         # Assign workers to mineral patch, start with the mineral patch closest to base
-        for mineral in self.minerals_sorted_by_distance:
+        for i, mineral in enumerate(self.minerals_sorted_by_distance):
+            target = 2 if i < 4 else 1
             # Assign workers closest to the mineral patch
             workers = self.workers.tags_not_in(self.worker_to_mineral_patch_dict).sorted_by_distance_to(mineral)
             for worker in workers:
                 # Assign at most 2 workers per patch
                 # This dict is not really used further down the code, but useful to keep track of how many workers are assigned to this mineral patch - important for when the mineral patch mines out or a worker dies
-                if len(self.mineral_patch_to_list_of_workers.get(mineral.tag, [])) < 2:
+                if len(self.mineral_patch_to_list_of_workers.get(mineral.tag, [])) < target:
                     if len(self.mineral_patch_to_list_of_workers.get(mineral.tag, [])) == 0:
                         self.mineral_patch_to_list_of_workers[mineral.tag] = {worker.tag}
                     else:
@@ -90,27 +155,6 @@ class WorkerStackBot(BotAI):
                     logger.error(f"Mined out mineral with tag {mineral_tag} for worker {worker.tag}")
                     continue
 
-                # state = self.worker_state[worker.tag]
-                # if state == 0:
-                #     if worker.distance_to(mineral) - mineral.radius < half_distance - e:
-                #         worker.move(mineral.position.towards(worker, mineral.radius))
-                #         worker.gather(mineral, queue=True)
-                #         self.worker_state[worker.tag] = 1
-                #         self.commands += 1
-                #     elif not worker.is_gathering or worker.order_target != mineral_tag:
-                #         worker.gather(mineral)
-                #         self.commands += 1
-                # elif state == 1:
-                #     if worker.distance_to(th) - th.radius < half_distance - e:
-                #         worker.move(th.position.towards(worker, th.radius))
-                #         worker.return_resource(queue=True)
-                #         self.worker_state[worker.tag] = 0
-                #         self.commands += 1
-                #     elif worker.is_carrying_minerals and not worker.is_returning:
-                #         worker.return_resource()
-                #         self.commands += 1
-                    
-
                 townhall = self.townhalls.closest_to(worker)
 
                 if worker.is_gathering and worker.order_target != mineral.tag:
@@ -120,23 +164,31 @@ class WorkerStackBot(BotAI):
                 elif len(worker.orders) == 1:
                     if worker.is_returning:
                         target = townhall
+                        move_target = townhall.position.towards(worker.position, townhall.radius + worker.radius)
                     else:
                         target = mineral
-                    move_target = target.position.towards(worker, target.radius + worker.radius)
-                    if 0.75 < worker.distance_to(move_target) < 2:
+                        move_target = self.speedmining_positions[mineral.position]
+                    if (
+                        0.75 < worker.distance_to(move_target) < 2
+                        or (0.75 < worker.distance_to(move_target) and worker.is_returning)
+                    ):
                         worker.move(move_target)
                         worker(AbilityId.SMART, target, True)
 
         # Print info every 30 game-seconds
-        if self.state.game_loop % (22.4 * 30) == 0:
-            logger.info(f"{self.time_formatted} Mined a total of {int(self.state.score.collected_minerals)} minerals, {self.commands} commands")
+        # if self.state.game_loop % (22.4 * 30) == 0:
+        #     logger.info(f"{self.time_formatted} Mined a total of {int(self.state.score.collected_minerals)} minerals, {self.commands} commands")
+
+        if 6720 <= self.state.game_loop:
+            print(self.minerals)
+            await self.client.debug_leave()
 
 
 def main():
     run_game(
-        maps.get("AcropolisLE"),
+        maps.get("RomanticideAIE"),
         [Bot(Race.Protoss, WorkerStackBot()),
-         Computer(Race.Terran, Difficulty.Medium)],
+         Computer(Race.Terran, Difficulty.VeryEasy)],
         realtime=False,
         random_seed=0,
     )

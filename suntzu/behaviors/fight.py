@@ -1,5 +1,6 @@
 
-from typing import Optional, Set, Union, Iterable, Tuple
+from typing import DefaultDict, Optional, Set, Union, Iterable, Tuple
+from enum import Enum
 import numpy as np
 import random
 from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT
@@ -13,6 +14,12 @@ from abc import ABC, abstractmethod
 from ..utils import *
 from ..constants import *
 from .behavior import Behavior, BehaviorResult
+
+class FightStance(Enum):
+    FLEE = 1
+    RETREAT = 2
+    FIGHT = 3
+    ADVANCE = 4
 
 class FightBehavior(Behavior):
 
@@ -28,8 +35,8 @@ class FightBehavior(Behavior):
             return 0
         priority = 1e5
         # priority *= 10 + target.calculate_dps_vs_target(unit)
-        priority /= 30 + target.position.distance_to(unit.position)
-        priority /= 100 + target.position.distance_to(self.bot.start_location)
+        priority /= 20 + target.position.distance_to(unit.position)
+        priority /= 60 + target.position.distance_to(self.bot.start_location)
         priority /= 3 if target.is_structure else 1
 
         if target.is_enemy:
@@ -49,7 +56,13 @@ class FightBehavior(Behavior):
         if not target:
             return 1
 
-        sample_position = (unit.position + target.position) / 2
+        unit_range = 1.0 * unit.movement_speed + self.bot.get_unit_range(unit)
+        target_range = 1.0 * target.movement_speed + self.bot.get_unit_range(target)
+        range_ratio = target_range / max(1, unit_range + target_range)
+        sample_offset = range_ratio * (target.position - unit.position)
+        if unit.sight_range < sample_offset.length:
+            sample_offset = unit.sight_range * sample_offset.normalized
+        sample_position = unit.position + sample_offset
         friends_rating = self.bot.army_influence_map[sample_position.rounded]
         enemies_rating = self.bot.enemy_influence_map[sample_position.rounded]
 
@@ -72,10 +85,7 @@ class FightBehavior(Behavior):
         return advantage
 
     def get_retreat_target(self, unit: Unit) -> Point2:
-        if self.bot.townhalls:
-            retreat_goal = self.bot.townhalls.closest_to(unit.position).position
-        else:
-            retreat_goal = self.bot.start_location
+        retreat_goal = self.bot.start_location
         retreat_path = self.bot.map_analyzer.pathfind(
             start = unit.position,
             goal = retreat_goal,
@@ -90,6 +100,22 @@ class FightBehavior(Behavior):
             retreat_target = unit.position
         return retreat_target
 
+    def get_stance(self, unit: Unit, advantage: float) -> FightStance:
+        if self.bot.get_unit_range(unit) < 2:
+            if advantage < 1:
+                return FightStance.FLEE
+            else:
+                return FightStance.FIGHT
+        else:
+            if advantage < 1/3:
+                return FightStance.FLEE
+            elif advantage < 1:
+                return FightStance.RETREAT
+            elif advantage < 3:
+                return FightStance.FIGHT
+            else:
+                return FightStance.ADVANCE
+
     def execute(self, unit: Unit) -> BehaviorResult:
 
         target, priority = max(
@@ -99,25 +125,20 @@ class FightBehavior(Behavior):
             default = (None, 0)
         )
 
-        advantage = self.get_advantage(unit, target)
-        advantage_threshold = 1
-
-        if not target or priority <= 0:
+        if priority <= 0:
             return BehaviorResult.FAILURE
 
-        if (
-            advantage < advantage_threshold / 3
-            or (advantage < advantage_threshold and self.bot.get_unit_range(unit) < 1)
-        ):
+        advantage = self.get_advantage(unit, target)
+        stance = self.get_stance(unit, advantage)
 
-            # FLEE
+        if stance == FightStance.FLEE:
+
             retreat_target = self.get_retreat_target(unit)
             unit.move(retreat_target)
             return BehaviorResult.ONGOING
 
-        elif advantage < advantage_threshold:
+        elif stance == FightStance.RETREAT:
 
-            # RETREAT
             if (
                 (unit.weapon_cooldown or unit.is_burrowed)
                 and unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius + unit.distance_to_weapon_ready
@@ -130,18 +151,16 @@ class FightBehavior(Behavior):
                 unit.attack(target.position)
             return BehaviorResult.ONGOING
             
-        elif advantage < advantage_threshold * 3:
+        elif stance == FightStance.FIGHT:
 
-            # FIGHT
             if unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
                 unit.attack(target)
             else:
                 unit.attack(target.position)
             return BehaviorResult.ONGOING
 
-        else:
+        elif stance == FightStance.ADVANCE:
 
-            # PURSUE
             distance = unit.position.distance_to(target.position) - unit.radius - target.radius
             if unit.weapon_cooldown and 1 < distance:
                 unit.move(target.position)
@@ -150,3 +169,5 @@ class FightBehavior(Behavior):
             else:
                 unit.attack(target.position)
             return BehaviorResult.ONGOING
+
+        return BehaviorResult.FAILURE
