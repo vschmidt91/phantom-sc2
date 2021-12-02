@@ -86,11 +86,10 @@ class FightBehavior(Behavior):
 
         return advantage
 
-    def get_retreat_target(self, unit: Unit) -> Point2:
-        retreat_goal = self.bot.start_location
+    def get_path_towards(self, start: Point2, target: Point2) -> Point2:
         retreat_path = self.bot.map_analyzer.pathfind(
-            start = unit.position,
-            goal = retreat_goal,
+            start = start,
+            goal = target,
             grid = self.bot.enemy_influence_map,
             large = False,
             smoothing = False,
@@ -99,7 +98,7 @@ class FightBehavior(Behavior):
         if retreat_path and 2 <= len(retreat_path):
             retreat_target = retreat_path[1]
         else:
-            retreat_target = unit.position
+            retreat_target = start
         return retreat_target
 
     def get_stance(self, unit: Unit, advantage: float) -> FightStance:
@@ -135,8 +134,7 @@ class FightBehavior(Behavior):
 
         if stance == FightStance.FLEE:
 
-            retreat_target = self.get_retreat_target(unit)
-            unit.move(retreat_target)
+            unit.move(self.get_path_towards(unit.position, self.bot.start_location))
             return BehaviorResult.ONGOING
 
         elif stance == FightStance.RETREAT:
@@ -145,8 +143,7 @@ class FightBehavior(Behavior):
                 (unit.weapon_cooldown or unit.is_burrowed)
                 and unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius + unit.distance_to_weapon_ready
             ):
-                retreat_target = self.get_retreat_target(unit)
-                unit.move(retreat_target)
+                unit.move(self.get_path_towards(unit.position, self.bot.start_location))
             elif unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
                 unit.attack(target)
             else:
@@ -158,18 +155,18 @@ class FightBehavior(Behavior):
             if unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
                 unit.attack(target)
             else:
-                unit.attack(target.position)
+                unit.attack(self.get_path_towards(unit.position, target.position))
             return BehaviorResult.ONGOING
 
         elif stance == FightStance.ADVANCE:
 
             distance = unit.position.distance_to(target.position) - unit.radius - target.radius
             if unit.weapon_cooldown and 1 < distance:
-                unit.move(target.position)
+                unit.move(self.get_path_towards(unit.position, target.position))
             elif unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
                 unit.attack(target)
             else:
-                unit.attack(target.position)
+                unit.attack(self.get_path_towards(unit.position, target.position))
             return BehaviorResult.ONGOING
 
         return BehaviorResult.FAILURE

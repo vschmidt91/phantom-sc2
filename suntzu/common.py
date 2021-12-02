@@ -1160,7 +1160,7 @@ class CommonAI(BotAI):
         # self.enemy_influence_map = ndimage.gaussian_filter(self.enemy_influence_map, blur_sigma)
         # self.army_influence_map = ndimage.gaussian_filter(self.army_influence_map, blur_sigma)
 
-        self.map_analyzer.draw_influence_in_game(self.army_influence_map, upper_threshold=100000)
+        # self.map_analyzer.draw_influence_in_game(self.army_influence_map, upper_threshold=100000)
 
     def assess_threat_level(self):
 
