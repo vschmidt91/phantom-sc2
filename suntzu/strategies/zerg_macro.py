@@ -30,7 +30,7 @@ class ZergMacro(ZergStrategy):
         worker_count = bot.bases.harvester_count
         ratio = max(
             bot.threat_level,
-            worker_count / worker_limit,
+            pow(worker_count / worker_limit, 2),
         )
         ratio = min(1, ratio)
         # ratio = pow(ratio, 8)
