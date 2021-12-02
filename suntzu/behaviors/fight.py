@@ -87,7 +87,7 @@ class FightBehavior(Behavior):
         return advantage
 
     def get_path_towards(self, start: Point2, target: Point2) -> Point2:
-        retreat_path = self.bot.map_analyzer.pathfind(
+        path = self.bot.map_analyzer.pathfind(
             start = start,
             goal = target,
             grid = self.bot.enemy_influence_map,
@@ -95,11 +95,9 @@ class FightBehavior(Behavior):
             smoothing = False,
             sensitivity = 1)
 
-        if retreat_path and 2 <= len(retreat_path):
-            retreat_target = retreat_path[1]
-        else:
-            retreat_target = start
-        return retreat_target
+        if not path:
+            return target.position
+        return path[min(3, len(path) - 1)]
 
     def get_stance(self, unit: Unit, advantage: float) -> FightStance:
         if self.bot.get_unit_range(unit) < 2:
