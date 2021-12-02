@@ -77,7 +77,7 @@ class FightBehavior(Behavior):
             advantage_creep = 1 / creep_bonus
 
         # advantage_defender = (1 - self.bot.distance_map[unit.position.rounded]) / max(1e-3, self.bot.power_level)
-        advantage_defender = 1 + .5 / self.bot.distance_map[unit.position.rounded]
+        advantage_defender = .5 + 1 / self.bot.distance_map[unit.position.rounded]
 
         advantage = 1
         advantage *= advantage_army
