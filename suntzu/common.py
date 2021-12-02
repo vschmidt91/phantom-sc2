@@ -1163,8 +1163,8 @@ class CommonAI(BotAI):
     def assess_threat_level(self):
 
         value_self = sum(unitValue(u) for u in self.enumerate_army())
-        value_enemy = sum(unitValue(e) for e in self.enumerate_enemies())
-        value_enemy_threats = sum(unitValue(e) * (1 - self.distance_map[e.position.rounded]) for e in self.enumerate_enemies())
+        value_enemy = sum(unitValue(e) for e in self.enemies.values())
+        value_enemy_threats = sum(unitValue(e) * (1 - self.distance_map[e.position.rounded]) for e in self.enemies.values())
 
         self.power_level = value_enemy / max(1, value_self + value_enemy)
         self.threat_level = value_enemy_threats / max(1, value_self + value_enemy_threats)
