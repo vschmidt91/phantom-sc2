@@ -35,8 +35,8 @@ class FightBehavior(Behavior):
             return 0
         priority = 1e5
         # priority *= 10 + target.calculate_dps_vs_target(unit)
-        priority /= 20 + target.position.distance_to(unit.position)
-        priority /= 60 + target.position.distance_to(self.bot.start_location)
+        priority /= 30 + target.position.distance_to(unit.position)
+        priority /= 150 + target.position.distance_to(self.bot.start_location)
         priority /= 3 if target.is_structure else 1
 
         if target.is_enemy:

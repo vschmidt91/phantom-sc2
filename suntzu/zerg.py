@@ -417,8 +417,6 @@ class ZergAI(CommonAI):
         def scout_priority(base):
             if base.townhall:
                 return 1e-5
-            elif base.taken_since:
-                return 1e-5
             d = self.distance_map[base.position.rounded]
             if math.isnan(d) or math.isinf(d):
                 return 1e-5
