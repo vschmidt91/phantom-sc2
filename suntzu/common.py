@@ -785,8 +785,6 @@ class CommonAI(BotAI):
         exclude = { o.unit for o in self.macro_plans }
         exclude.update(unit.tag for units in self.pending_by_type.values() for unit in units)
         exclude.update(self.drafted_civilians)
-        income_minerals = sum(base.mineral_patches.income for base in self.bases)
-        income_vespene = sum(base.vespene_geysers.income for base in self.bases)
         self.macro_plans.sort(key = lambda t : t.priority, reverse=True)
 
         for plan in self.macro_plans:
@@ -864,8 +862,8 @@ class CommonAI(BotAI):
                 
                 minerals_needed = reserve.minerals - self.minerals
                 vespene_needed = reserve.vespene - self.vespene
-                time_minerals = minerals_needed / max(1, income_minerals)
-                time_vespene = vespene_needed / max(1, income_vespene)
+                time_minerals = 60 * minerals_needed / max(1, self.state.score.collection_rate_minerals)
+                time_vespene = 60 * vespene_needed / max(1, self.state.score.collection_rate_vespene)
                 time_to_harvest =  max(0, time_minerals, time_vespene)
 
                 if time_to_harvest < time:
@@ -1126,6 +1124,12 @@ class CommonAI(BotAI):
         buffer += 3 * self.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
         return buffer
 
+    def get_unit_value(self, unit: Unit) -> float:
+        cost = self.cost.get(unit.type_id)
+        if not cost:
+            return 1
+        return cost.minerals + 2 * cost.vespene
+
     def update_maps(self):
 
         self.army_influence_map = self.map_analyzer.get_pyastar_grid()
@@ -1133,22 +1137,20 @@ class CommonAI(BotAI):
 
         for enemy in self.enemies.values():
             enemy_range = max(0.5 * enemy.movement_speed, self.get_unit_range(enemy))
-            enemy_value = unitValue(enemy)
             self.enemy_influence_map = self.map_analyzer.add_cost(
                 position = enemy.position,
                 radius = enemy.radius + enemy_range,
                 grid = self.enemy_influence_map,
-                weight = enemy_value,
+                weight = self.get_unit_value(enemy),
             )
 
         for unit in self.enumerate_army():
             unit_range = max(0.5 * unit.movement_speed, self.get_unit_range(unit))
-            unit_value = unitValue(unit)
             self.army_influence_map = self.map_analyzer.add_cost(
                 position = unit.position,
                 radius = unit.radius + unit_range,
                 grid = self.army_influence_map,
-                weight = unit_value,
+                weight = self.get_unit_value(unit),
             )
 
         # self.enemy_influence_map = np.where(np.isposinf(self.enemy_influence_map), 0, self.enemy_influence_map)
@@ -1162,9 +1164,9 @@ class CommonAI(BotAI):
 
     def assess_threat_level(self):
 
-        value_self = sum(unitValue(u) for u in self.enumerate_army())
-        value_enemy = sum(unitValue(e) for e in self.enemies.values())
-        value_enemy_threats = sum(unitValue(e) * (1 - self.distance_map[e.position.rounded]) for e in self.enemies.values())
+        value_self = sum(self.get_unit_value(u) for u in self.enumerate_army())
+        value_enemy = sum(self.get_unit_value(e) for e in self.enemies.values())
+        value_enemy_threats = sum(self.get_unit_value(e) * (1 - self.distance_map[e.position.rounded]) for e in self.enemies.values())
 
         self.power_level = value_enemy / max(1, value_self + value_enemy)
         self.threat_level = value_enemy_threats / max(1, value_self + value_enemy_threats)

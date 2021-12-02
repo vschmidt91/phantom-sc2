@@ -56,12 +56,13 @@ class FightBehavior(Behavior):
         if not target:
             return 1
 
-        unit_range = 1.0 * unit.movement_speed + self.bot.get_unit_range(unit)
-        target_range = 1.0 * target.movement_speed + self.bot.get_unit_range(target)
-        range_ratio = target_range / max(1, unit_range + target_range)
+        # unit_range = self.bot.get_unit_range(unit)
+        # target_range = self.bot.get_unit_range(target)
+        # range_ratio = target_range / max(1, unit_range + target_range)
+        range_ratio = 0.5
         sample_offset = range_ratio * (target.position - unit.position)
-        if unit.sight_range < sample_offset.length:
-            sample_offset = unit.sight_range * sample_offset.normalized
+        # if unit_range < sample_offset.length:
+        #     sample_offset = unit_range * sample_offset.normalized
         sample_position = unit.position + sample_offset
         friends_rating = self.bot.army_influence_map[sample_position.rounded]
         enemies_rating = self.bot.enemy_influence_map[sample_position.rounded]

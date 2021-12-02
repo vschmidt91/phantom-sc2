@@ -20,7 +20,7 @@ if __name__ == "__main__":
     if "--LadderServer" in sys.argv:
         # Ladder game started by LadderManager
         print("Starting ladder game ...")        
-        bot = Bot(Race.Zerg, ZergAI(game_step = 3), 'Sun Tzu')
+        bot = Bot(Race.Zerg, ZergAI(game_step = 4), 'Sun Tzu')
         result, opponentid = run_ladder_game(bot)
         print(result, " against opponent ", opponentid)
     else:

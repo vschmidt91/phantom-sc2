@@ -37,7 +37,7 @@ class ZergMacro(ZergStrategy):
         # ratio = 1 if 0.5 < ratio else 0
 
         enemy_value = {
-            tag: unitValue(enemy)
+            tag: bot.get_unit_value(enemy)
             for tag, enemy in bot.enemies.items()
         }
         enemy_flyer_value = sum(enemy_value[e.tag] for e in bot.enemies.values() if e.is_flying)
@@ -64,7 +64,7 @@ class ZergMacro(ZergStrategy):
         #     composition[UnitTypeId.BANELINGNEST] = 1
         
         if not bot.count(UnitTypeId.ROACHWARREN, include_pending=False, include_planned=False):
-            composition[UnitTypeId.ZERGLING] = 2 + int(ratio * enemy_ground_value / 350)
+            composition[UnitTypeId.ZERGLING] = 2 + int(ratio * enemy_ground_value / 25)
         else:
             composition[UnitTypeId.OVERSEER] = 2
             # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
