@@ -63,7 +63,7 @@ class DodgeBehavior(Behavior):
         self.safety_distance: float = 1
 
     def execute(self, unit: Unit) -> BehaviorResult:
-        movement_speed = 1.4 * unit.movement_speed
+        movement_speed = unit.movement_speed
         for dodge in self.dodge:
             if isinstance(dodge, DodgeEffectDelayed):
                 time_to_impact = max(0, dodge.time_of_impact - unit._bot_object.time)

@@ -34,7 +34,7 @@ class LaunchCorrosiveBilesBehavior(Behavior):
             return 0
         priority = 10 + max(target.ground_dps, target.air_dps)
         priority /= 100 + target.health + target.shield
-        priority /= 2 + 1.4 * target.movement_speed
+        priority /= 2 + target.movement_speed
         return priority
 
     def execute(self, unit: Unit) -> BehaviorResult:
