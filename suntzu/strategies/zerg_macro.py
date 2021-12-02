@@ -16,7 +16,7 @@ from .zerg_strategy import ZergStrategy
 class ZergMacro(ZergStrategy):
 
     def __init__(self):
-        self.enable_expansion = True
+        self.enable_expansion = False
 
     def composition(self, bot) -> Dict[UnitTypeId, int]:
 

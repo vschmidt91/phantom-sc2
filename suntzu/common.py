@@ -283,9 +283,8 @@ class CommonAI(BotAI):
             self.greet_enabled = False
 
     async def on_step(self, iteration: int):
-        if self.debug:
-            if self.state.game_loop % 100 == 0:
-                print(f'{self.time_formatted} Threat Level: {round(self.threat_level, 3)}')
+        if self.state.game_loop % 100 == 0:
+            print(f'{self.time_formatted} Threat Level: {round(self.threat_level, 3)}')
         pass
 
     async def on_end(self, game_result: Result):
