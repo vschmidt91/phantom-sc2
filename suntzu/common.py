@@ -1160,7 +1160,7 @@ class CommonAI(BotAI):
         dodge_map = np.zeros(self.game_info.map_size)
         for dodge in dodge:
 
-            movement_speed = 0 # assume speed of Queens on creep
+            movement_speed = 1 # assume speed of Queens on creep
             if isinstance(dodge, DodgeEffectDelayed):
                 time_to_impact = max(0, dodge.time_of_impact - self.time)
             else:

@@ -34,7 +34,7 @@ class TransfuseBehavior(Behavior):
         if target.health_max <= target.health + 75:
             return 0
         priority = 1
-        priority *= 10 + unitValue(target)
+        priority *= 10 + self.bot.get_unit_value(target)
         return priority
 
     def execute(self, unit: Unit) -> BehaviorResult:
