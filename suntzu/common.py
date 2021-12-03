@@ -111,7 +111,7 @@ class CommonAI(BotAI):
         self.cost: Dict[MacroId, Cost] = dict()
         self.bases: ResourceGroup[Base] = None
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
-        self.delayed_effects: List[DodgeEffectDelayed] = list()
+        self.dodge_delayed: List[DodgeEffectDelayed] = list()
         self.distance_map: np.ndarray = None
         self.threat_level = 0
         self.weapons: Dict[UnitTypeId, List] = dict()
@@ -131,7 +131,10 @@ class CommonAI(BotAI):
         self.damage_taken: Dict[int] = dict()
         self.gg_sent: bool = False
         self.unit_ref: Optional[int] = None
-        self.dodge: List[DodgeElement] = list()
+
+        self.dodge_map: np.ndarray = None
+        self.dodge_gradient_map: np.ndarray = None
+
         self.abilities: DefaultDict[int, Set[AbilityId]] = defaultdict(lambda:set())
         self.map_analyzer: MapData = None
         self.army_center: Point2 = Point2((0, 0))
@@ -262,10 +265,10 @@ class CommonAI(BotAI):
     def handle_delayed_effects(self):
 
         while (
-            self.delayed_effects
-            and self.delayed_effects[0].time_of_impact < self.time
+            self.dodge_delayed
+            and self.dodge_delayed[0].time_of_impact < self.time
         ):
-            self.delayed_effects.pop(0)
+            self.dodge_delayed.pop(0)
 
     def assign_idle_workers(self):
         exclude = set()
@@ -1064,20 +1067,7 @@ class CommonAI(BotAI):
         return enemies
 
     async def micro(self):
-
-        delayed_positions = { p for e in self.delayed_effects for p in e.positions }
-
-        self.dodge.clear()
-        for effect in self.state.effects:
-            if effect.id in { EffectId.RAVAGERCORROSIVEBILECP, EffectId.NUKEPERSISTENT }:
-                if not effect.positions.intersection(delayed_positions):
-                    self.delayed_effects.append(DodgeEffectDelayed(effect, self.time))
-            elif effect.id in DODGE_EFFECTS:
-                self.dodge.append(DodgeEffect(effect))
-        for type in DODGE_UNITS:
-            for enemy in self.enemies_by_type[type]:
-                self.dodge.append(DodgeUnit(enemy))
-        self.dodge.extend(self.delayed_effects)
+        pass
 
     async def get_target_position(self, target: UnitTypeId, trainer: Unit) -> Point2:
         if self.is_structure(target):
@@ -1132,26 +1122,65 @@ class CommonAI(BotAI):
 
     def update_maps(self):
 
-        self.army_influence_map = self.map_analyzer.get_pyastar_grid()
-        self.enemy_influence_map = self.map_analyzer.get_pyastar_grid()
-
+        enemy_influence_map = self.map_analyzer.get_pyastar_grid()
         for enemy in self.enemies.values():
             enemy_range = max(0.5 * enemy.movement_speed, self.get_unit_range(enemy))
             self.enemy_influence_map = self.map_analyzer.add_cost(
                 position = enemy.position,
                 radius = enemy.radius + enemy_range,
-                grid = self.enemy_influence_map,
+                grid = enemy_influence_map,
                 weight = self.get_unit_value(enemy),
             )
+        self.enemy_influence_map = enemy_influence_map
 
+        army_influence_map = self.map_analyzer.get_pyastar_grid()
         for unit in self.enumerate_army():
             unit_range = max(0.5 * unit.movement_speed, self.get_unit_range(unit))
             self.army_influence_map = self.map_analyzer.add_cost(
                 position = unit.position,
                 radius = unit.radius + unit_range,
-                grid = self.army_influence_map,
+                grid = army_influence_map,
                 weight = self.get_unit_value(unit),
             )
+        self.army_influence_map = army_influence_map
+
+        dodge = list()
+        delayed_positions = { p for e in self.dodge_delayed for p in e.positions }
+        for effect in self.state.effects:
+            if effect.id in { EffectId.RAVAGERCORROSIVEBILECP, EffectId.NUKEPERSISTENT }:
+                if not effect.positions.intersection(delayed_positions):
+                    self.dodge_delayed.append(DodgeEffectDelayed(effect, self.time))
+            elif effect.id in DODGE_EFFECTS:
+                dodge.append(DodgeEffect(effect))
+        for type in DODGE_UNITS:
+            for enemy in self.enemies_by_type[type]:
+                dodge.append(DodgeUnit(enemy))
+        dodge.extend(self.dodge_delayed)
+
+        dodge_map = np.zeros(self.game_info.map_size)
+        for dodge in dodge:
+
+            movement_speed = 0 # assume speed of Queens on creep
+            if isinstance(dodge, DodgeEffectDelayed):
+                time_to_impact = max(0, dodge.time_of_impact - self.time)
+            else:
+                time_to_impact = 0
+            dodge_radius = dodge.radius + 2 - time_to_impact * movement_speed
+            if dodge_radius <= 0:
+                continue
+
+            for position in dodge.positions:
+                dodge_map = self.map_analyzer.add_cost(
+                    position = position,
+                    radius = dodge_radius,
+                    grid = dodge_map,
+                    weight = 1000
+                )
+
+        self.dodge_map = dodge_map
+        dodge_blur_map = ndimage.gaussian_filter(dodge_map, 5)
+        dodge_gradient_map = np.dstack(np.gradient(dodge_blur_map))
+        self.dodge_gradient_map = dodge_gradient_map
 
         # self.enemy_influence_map = np.where(np.isposinf(self.enemy_influence_map), 0, self.enemy_influence_map)
         # self.army_influence_map = np.where(np.isposinf(self.army_influence_map), 0, self.army_influence_map)
@@ -1160,7 +1189,7 @@ class CommonAI(BotAI):
         # self.enemy_influence_map = ndimage.gaussian_filter(self.enemy_influence_map, blur_sigma)
         # self.army_influence_map = ndimage.gaussian_filter(self.army_influence_map, blur_sigma)
 
-        # self.map_analyzer.draw_influence_in_game(self.army_influence_map, upper_threshold=100000)
+        # self.map_analyzer.draw_influence_in_game(dodge_blur_map)
 
     def assess_threat_level(self):
 

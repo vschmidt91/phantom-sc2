@@ -108,7 +108,7 @@ class ZergAI(CommonAI):
         self.blocked_base_detectors: Dict[Point2, int] = dict()
         self.scout_overlords: List[int] = list()
         self.army_behavior: Behavior = BehaviorSelector([
-            DodgeBehavior(self.dodge),
+            DodgeBehavior(self),
             BurrowBehavior(),
             LaunchCorrosiveBilesBehavior(self),
             TransfuseBehavior(self),
@@ -116,7 +116,7 @@ class ZergAI(CommonAI):
             SearchBehavior(self),
         ])
         self.worker_behavior: Behavior = BehaviorSelector([
-            DodgeBehavior(self.dodge),
+            DodgeBehavior(self),
             BehaviorSequence([
                 SurviveBehavior(self),
                 GatherBehavior(self),

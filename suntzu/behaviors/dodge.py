@@ -16,6 +16,7 @@ from sc2.game_state import EffectData
 from sc2.unit_command import UnitCommand
 
 from .behavior import Behavior, BehaviorResult
+from ..utils import *
 
 class DodgeElement(ABC):
 
@@ -58,28 +59,28 @@ class DodgeEffectDelayed(DodgeElement):
 
 class DodgeBehavior(Behavior):
 
-    def __init__(self, dodge: List[DodgeElement]):
-        self.dodge: List[DodgeElement] = dodge
-        self.safety_distance: float = 1
+    def __init__(self, bot):
+        self.bot = bot
 
     def execute(self, unit: Unit) -> BehaviorResult:
-        movement_speed = .5 * unit.movement_speed
-        for dodge in self.dodge:
-            if isinstance(dodge, DodgeEffectDelayed):
-                time_to_impact = max(0, dodge.time_of_impact - unit._bot_object.time)
-            else:
-                time_to_impact = 0
-            dodge_radius = unit.radius + self.safety_distance + dodge.radius - time_to_impact * movement_speed
-            if dodge_radius <= 0:
-                continue
-            for position in dodge.positions:
-                dodge_distance = unit.position.distance_to(position) - dodge_radius
-                if dodge_distance < 0:
-                    target = unit.position.towards(position, dodge_distance)
-                    if unit.is_burrowed:
-                        unit(AbilityId.BURROWUP)
-                        unit.move(target, queue=True)
-                    else:
-                        unit.move(target)
-                    return BehaviorResult.ONGOING
-        return BehaviorResult.FAILURE
+
+        p = unit.position.rounded
+        dodge_threat = self.bot.dodge_map[p]
+        if dodge_threat <= 0:
+            return BehaviorResult.FAILURE
+
+        dodge_gradient = self.bot.dodge_gradient_map[p[0],p[1],:]
+        dodge_gradient = Point2(dodge_gradient)
+        if dodge_gradient.length == 0:
+            return BehaviorResult.FAILURE
+
+        dodge_gradient = dodge_gradient.normalized
+
+        target = unit.position - 2 * dodge_gradient
+        if unit.is_burrowed and not can_move(unit):
+            unit(AbilityId.BURROWUP)
+            unit.move(target, queue=True)
+        else:
+            unit.move(target)
+
+        return BehaviorResult.ONGOING

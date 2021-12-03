@@ -16,6 +16,15 @@ import math
 
 MacroId = Union[UnitTypeId, UpgradeId]
 
+def can_move(unit: Unit) -> bool:
+    if unit.is_burrowed:
+        if unit.type_id == UnitTypeId.INFESTORBURROWED:
+            return True
+        elif unit.type_id == UnitTypeId.ROACHBURROWED:
+            return UpgradeId.TUNNELINGCLAWS in unit._bot_object.state.upgrades
+        return False
+    return 0 < unit.movement_speed
+
 def makeUnique(a):
     b = []
     for x in a:
