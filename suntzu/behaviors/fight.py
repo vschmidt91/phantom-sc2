@@ -86,12 +86,12 @@ class FightBehavior(Behavior):
 
         return advantage
 
-    def get_path_towards(self, start: Point2, target: Point2) -> Point2:
+    def get_path_towards(self, unit: Unit, target: Point2) -> Point2:
         path = self.bot.map_analyzer.pathfind(
-            start = start,
+            start = unit.position,
             goal = target,
             grid = self.bot.enemy_influence_map,
-            large = False,
+            large = is_large(unit),
             smoothing = False,
             sensitivity = 1)
 
@@ -132,7 +132,7 @@ class FightBehavior(Behavior):
 
         if stance == FightStance.FLEE:
 
-            unit.move(self.get_path_towards(unit.position, self.bot.start_location))
+            unit.move(self.get_path_towards(unit, self.bot.start_location))
             return BehaviorResult.ONGOING
 
         elif stance == FightStance.RETREAT:
@@ -141,7 +141,7 @@ class FightBehavior(Behavior):
                 (unit.weapon_cooldown or unit.is_burrowed)
                 and unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius + unit.distance_to_weapon_ready
             ):
-                unit.move(self.get_path_towards(unit.position, self.bot.start_location))
+                unit.move(self.get_path_towards(unit, self.bot.start_location))
             elif unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
                 unit.attack(target)
             else:
@@ -153,18 +153,18 @@ class FightBehavior(Behavior):
             if unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
                 unit.attack(target)
             else:
-                unit.attack(self.get_path_towards(unit.position, target.position))
+                unit.attack(self.get_path_towards(unit, target.position))
             return BehaviorResult.ONGOING
 
         elif stance == FightStance.ADVANCE:
 
             distance = unit.position.distance_to(target.position) - unit.radius - target.radius
             if unit.weapon_cooldown and 1 < distance:
-                unit.move(self.get_path_towards(unit.position, target.position))
+                unit.move(self.get_path_towards(unit, target.position))
             elif unit.position.distance_to(target.position) <= unit.radius + self.bot.get_unit_range(unit) + target.radius:
                 unit.attack(target)
             else:
-                unit.attack(self.get_path_towards(unit.position, target.position))
+                unit.attack(self.get_path_towards(unit, target.position))
             return BehaviorResult.ONGOING
 
         return BehaviorResult.FAILURE

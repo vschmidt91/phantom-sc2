@@ -55,6 +55,9 @@ def center(points: Iterable[Point2]) -> Point2:
     ys /= n
     return Point2((xs, ys))
 
+def is_large(unit: Unit) -> bool:
+    return 2 <= unit.radius
+
 def unitValue(unit: Unit, target = None):
     if unit.is_hallucination:
         return 0

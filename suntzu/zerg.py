@@ -128,6 +128,8 @@ class ZergAI(CommonAI):
         for unit in self.enumerate_army():
             self.army_behavior.execute(unit)
         for unit in self.workers:
+            if unit.tag in self.drafted_civilians:
+                continue
             self.worker_behavior.execute(unit)
 
     def counter_composition(self, enemies: Iterable[Unit]) -> Dict[UnitTypeId, int]:
@@ -282,20 +284,20 @@ class ZergAI(CommonAI):
 
         steps_filtered = [s for s, m in steps.items() if iteration % m == 0]
             
-        # if self.debug:
-        #     timings = await run_timed(steps_filtered)
-        #     for key, value in timings.items():
-        #         self.timings_acc[key] = self.timings_acc.get(key, 0) + value
-        #     if iteration % TIMING_INTERVAL == 0:
-        #         timings_items = ((k, round(1e3 * n / TIMING_INTERVAL, 1)) for k, n in self.timings_acc.items())
-        #         timings_sorted = dict(sorted(timings_items, key=lambda p : p[1], reverse=True))
-        #         print(timings_sorted)
-        #         self.timings_acc = {}
-        # else:
-        for step in steps_filtered:
-            result = step()
-            if inspect.isawaitable(result):
-                result = await result
+        if self.debug:
+            timings = await run_timed(steps_filtered)
+            for key, value in timings.items():
+                self.timings_acc[key] = self.timings_acc.get(key, 0) + value
+            if iteration % TIMING_INTERVAL == 0:
+                timings_items = ((k, round(1e3 * n / TIMING_INTERVAL, 1)) for k, n in self.timings_acc.items())
+                timings_sorted = dict(sorted(timings_items, key=lambda p : p[1], reverse=True))
+                print(timings_sorted)
+                self.timings_acc = {}
+        else:
+            for step in steps_filtered:
+                result = step()
+                if inspect.isawaitable(result):
+                    result = await result
 
     def draw_debug(self):
         if not self.debug:
@@ -673,7 +675,7 @@ class ZergAI(CommonAI):
         saturation = self.bases.harvester_count / max(1, self.bases.harvester_target)
         priority = 3 * (saturation - 0.8)
 
-        if saturation < 0.666:
+        if saturation < 0.5:
             return
         
         if not self.count(UnitTypeId.HATCHERY, include_actual=False):
