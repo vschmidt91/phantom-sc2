@@ -82,7 +82,7 @@ class FightBehavior(Behavior):
         advantage = 1
         advantage *= advantage_army
         advantage *= advantage_creep
-        advantage *= max(1, advantage_defender)
+        # advantage *= max(1, advantage_defender)
 
         return advantage
 
