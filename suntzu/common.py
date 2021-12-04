@@ -1092,24 +1092,14 @@ class CommonAI(BotAI):
         return buffer
 
     def get_unit_value(self, unit: Unit) -> float:
-        if unit.is_hallucination:
+        if unit.is_burrowed:
             return 0
-        # assume bunkers have 4 marines in them
-        # if unit.type_id == UnitTypeId.BUNKER and unit.is_ready:
-        #     dps = 4 * 10
-        # el
-        # HACK: ignore Planetary Fortresses for now
-        if unit.type_id == UnitTypeId.PLANETARYFORTRESS:
-            return 100
-        if target is None:
-            dps = max(unit.air_dps, unit.ground_dps)
-        else:
-            dps = unit.calculate_dps_vs_target(target)
-        return dps * (unit.health + unit.shield)
-        # cost = self.cost.get(unit.type_id)
-        # if not cost:
-        #     return 1
-        # return cost.minerals + 2 * cost.vespene
+        if not unit.is_ready:
+            return 0
+        cost = self.cost.get(unit.type_id)
+        if not cost:
+            return 1
+        return cost.minerals + 2 * cost.vespene
 
     def update_maps(self):
 
