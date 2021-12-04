@@ -43,7 +43,7 @@ class DamageCircle(object):
 
 class DodgeElement(ABC):
 
-    SAFETY_DISTANCE = 2.0
+    SAFETY_DISTANCE = 3.0
     
     @abstractmethod
     def add_damage(self, analyzer, grid: np.ndarray, time: float) -> np.ndarray:
