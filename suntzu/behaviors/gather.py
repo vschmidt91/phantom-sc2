@@ -1,5 +1,5 @@
-
-from typing import Optional, Set, Union, Iterable, Tuple
+from __future__ import annotations
+from typing import Optional, Set, Union, Iterable, Tuple, TYPE_CHECKING
 import numpy as np
 import random
 from sc2.constants import ALL_GAS, SPEED_INCREASE_ON_CREEP_DICT
@@ -12,31 +12,34 @@ from abc import ABC, abstractmethod
 
 from ..utils import *
 from ..constants import *
-from .behavior import Behavior, BehaviorResult
+from .behavior import Behavior, BehaviorResult, UnitBehavior
+from ..ai_component import AIComponent
+if TYPE_CHECKING:
+    from ..ai_base import AIBase
 
-class GatherBehavior(Behavior):
+class GatherBehavior(UnitBehavior):
 
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self, ai: AIBase, unit_tag: int):
+        super().__init__(ai, unit_tag)
         self.speed_mining_enabled: bool = True
 
-    def execute(self, unit: Unit) -> BehaviorResult:
+    def execute_single(self, unit: Unit) -> BehaviorResult:
 
-        if unit.type_id != race_worker[self.bot.race]:
+        if unit.type_id != race_worker[self.ai.race]:
             return BehaviorResult.FAILURE
         
-        resource = self.bot.bases.get_resource(unit.tag)
+        resource = self.ai.bases.get_resource(unit.tag)
         if not resource:
             return BehaviorResult.FAILURE
 
         if not resource.remaining:
             return BehaviorResult.FAILURE
 
-        resource_unit = self.bot.gas_building_by_position.get(resource.position) or self.bot.resource_by_position.get(resource.position)
+        resource_unit = self.ai.gas_building_by_position.get(resource.position) or self.ai.resource_by_position.get(resource.position)
         if not resource_unit:
             return BehaviorResult.FAILURE
 
-        if not self.bot.townhalls.ready.exists:
+        if not self.ai.townhalls.ready.exists:
             return BehaviorResult.FAILURE
             
         if self.speed_mining_enabled and resource.harvester_count < 3:
@@ -47,7 +50,7 @@ class GatherBehavior(Behavior):
                 unit(AbilityId.SMART, resource_unit)
             elif len(unit.orders) == 1:
                 if unit.is_returning:
-                    target = self.bot.townhalls.ready.closest_to(unit)
+                    target = self.ai.townhalls.ready.closest_to(unit)
                     move_target = None
                 else:
                     target = resource_unit

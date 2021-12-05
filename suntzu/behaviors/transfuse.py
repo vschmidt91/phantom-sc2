@@ -1,5 +1,6 @@
 
-from typing import Optional, Set, Union, Iterable, Tuple
+from __future__ import annotations
+from typing import Optional, Set, Union, Iterable, Tuple, TYPE_CHECKING
 import numpy as np
 import random
 
@@ -15,14 +16,17 @@ from abc import ABC, abstractmethod
 
 from ..utils import *
 from ..constants import *
-from .behavior import Behavior, BehaviorResult
+from .behavior import Behavior, BehaviorResult, UnitBehavior
+from ..ai_component import AIComponent
+if TYPE_CHECKING:
+    from ..ai_base import AIBase
 
-class TransfuseBehavior(Behavior):
+class TransfuseBehavior(UnitBehavior):
 
     ABILITY = AbilityId.TRANSFUSION_TRANSFUSION
 
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self, ai: AIBase, unit_tag: int):
+        super().__init__(ai, unit_tag)
 
     def priority(self, queen: Unit, target: Unit) -> float:
         if queen.tag == target.tag:
@@ -34,18 +38,18 @@ class TransfuseBehavior(Behavior):
         if target.health_max <= target.health + 75:
             return 0
         priority = 1
-        priority *= 10 + self.bot.get_unit_value(target)
+        priority *= 10 + self.ai.get_unit_value(target)
         return priority
 
-    def execute(self, unit: Unit) -> BehaviorResult:
+    def execute_single(self, unit: Unit) -> BehaviorResult:
 
         if unit.type_id is not UnitTypeId.QUEEN:
             return BehaviorResult.FAILURE
 
-        if self.ABILITY not in self.bot.abilities[unit.tag]:
+        if self.ABILITY not in self.ai.abilities[unit.tag]:
             return BehaviorResult.FAILURE
 
-        target = max(self.bot.all_own_units,
+        target = max(self.ai.all_own_units,
             key = lambda t : self.priority(unit, t),
             default = None
         )

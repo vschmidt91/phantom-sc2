@@ -1,5 +1,5 @@
-
-from typing import Optional, Set, Union, Iterable, Tuple
+from __future__ import annotations
+from typing import Optional, Set, Union, Iterable, Tuple, TYPE_CHECKING
 import numpy as np
 import random
 from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT
@@ -12,29 +12,32 @@ from abc import ABC, abstractmethod
 
 from ..utils import *
 from ..constants import *
-from .behavior import Behavior, BehaviorResult
+from .behavior import Behavior, BehaviorResult, UnitBehavior
+from ..ai_component import AIComponent
+if TYPE_CHECKING:
+    from ..ai_base import AIBase
 
-class SurviveBehavior(Behavior):
+class SurviveBehavior(UnitBehavior):
 
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self, ai: AIBase, unit_tag: int):
+        super().__init__(ai, unit_tag)
 
-    def execute(self, unit: Unit) -> BehaviorResult:
+    def execute_single(self, unit: Unit) -> BehaviorResult:
 
-        last_attacked = self.bot.damage_taken.get(unit.tag)
+        last_attacked = self.ai.damage_taken.get(unit.tag)
         if not last_attacked:
             return BehaviorResult.SUCCESS
-        if last_attacked + 3 < self.bot.time:
+        if last_attacked + 3 < self.ai.time:
             return BehaviorResult.SUCCESS
         
-        if self.bot.townhalls:
-            retreat_goal = self.bot.townhalls.closest_to(unit.position).position
+        if self.ai.townhalls:
+            retreat_goal = self.ai.townhalls.closest_to(unit.position).position
         else:
-            retreat_goal = self.bot.start_location
-        retreat_path = self.bot.map_analyzer.pathfind(
+            retreat_goal = self.ai.start_location
+        retreat_path = self.ai.map_analyzer.pathfind(
             start = unit.position,
             goal = retreat_goal,
-            grid = self.bot.enemy_influence_map,
+            grid = self.ai.enemy_influence_map,
             large = False,
             smoothing = False,
             sensitivity = 1)

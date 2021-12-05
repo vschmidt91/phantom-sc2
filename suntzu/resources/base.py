@@ -1,5 +1,5 @@
 
-from typing import DefaultDict, Dict, Iterable, Set, List, Optional
+from typing import DefaultDict, Dict, Iterable, Set, List, Optional, TYPE_CHECKING
 from itertools import chain
 import math
 

@@ -17,6 +17,8 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.position import Point2
+from sc2.unit_command import UnitCommand
+from suntzu.behaviors.army_manager import ArmyManager
 
 from .strategies.pool12_allin import Pool12AllIn
 from .unit_counters import UNIT_COUNTERS
@@ -29,6 +31,7 @@ from .behaviors.gather import GatherBehavior
 from .behaviors.survive import SurviveBehavior
 from .behaviors.launch_corrosive_biles import LaunchCorrosiveBilesBehavior
 from .behaviors.transfuse import TransfuseBehavior
+from .behaviors.unit_manager import UnitManager
 from .strategies.gasless import GasLess
 from .strategies.roach_rush import RoachRush
 from .strategies.hatch_first import HatchFirst
@@ -37,14 +40,11 @@ from .strategies.pool12_allin import Pool12AllIn
 from .strategies.zerg_strategy import ZergStrategy
 from .timer import run_timed
 from .constants import CHANGELINGS, CREEP_ABILITIES, SUPPLY_PROVIDED
-from .common import CommonAI, PerformanceMode
+from .ai_base import AIBase, PerformanceMode
 from .utils import armyValue, center, sample, unitValue
 from .constants import BUILD_ORDER_PRIORITY, WITH_TECH_EQUIVALENTS, REQUIREMENTS, ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
 from .cost import Cost
 from .macro_plan import MacroPlan
-
-CREEP_RANGE = 10
-CREEP_ENABLED = True
 
 SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
     Race.Zerg: {
@@ -85,7 +85,7 @@ SPORE_TRIGGERS[Race.Random] = set((v for vs in SPORE_TRIGGERS.values() for v in 
 
 TIMING_INTERVAL = 64
 
-class ZergAI(CommonAI):
+class ZergAI(AIBase):
 
     def __init__(self, strategy: ZergStrategy = None, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
@@ -101,36 +101,26 @@ class ZergAI(CommonAI):
         self.inject_queens: Set[int] = set()
         self.creep_area_min: np.ndarray = None
         self.creep_area_max: np.ndarray = None
-        self.inactive_tumors: Set[int] = set()
         self.creep_coverage: float = 0
         self.creep_tile_count: int = 1
         self.build_spores: bool = False
         self.blocked_base_detectors: Dict[Point2, int] = dict()
         self.scout_overlords: List[int] = list()
-        self.army_behavior: Behavior = BehaviorSelector([
-            DodgeBehavior(self),
-            BurrowBehavior(),
-            LaunchCorrosiveBilesBehavior(self),
-            TransfuseBehavior(self),
-            FightBehavior(self),
-            SearchBehavior(self),
-        ])
-        self.worker_behavior: Behavior = BehaviorSelector([
-            DodgeBehavior(self),
-            BehaviorSequence([
-                SurviveBehavior(self),
-                GatherBehavior(self),
-            ])
-        ])
 
     async def micro(self):
         await super().micro()
-        for unit in self.enumerate_army():
-            self.army_behavior.execute(unit)
+        self.unit_manager.execute()
         for unit in self.workers:
-            if unit.tag in self.drafted_civilians:
+            behavior: Behavior = BehaviorSelector([
+                DodgeBehavior(self, unit.tag),
+                BehaviorSequence([
+                    SurviveBehavior(self, unit.tag),
+                    GatherBehavior(self, unit.tag),
+                ])
+            ])
+            if unit.tag in self.unit_manager.drafted_civilians:
                 continue
-            self.worker_behavior.execute(unit)
+            behavior.execute()
 
     def counter_composition(self, enemies: Iterable[Unit]) -> Dict[UnitTypeId, int]:
 
@@ -245,6 +235,9 @@ class ZergAI(CommonAI):
                 if ability in self.abilities[overlord.tag]:
                     overlord(ability)
         return await super().on_unit_type_changed(unit, previous_type)
+
+    async def on_building_construction_complete(self, unit: Unit):
+        return await super().on_building_construction_complete(unit)
 
     async def on_unit_created(self, unit: Unit):
         if unit.type_id is UnitTypeId.OVERLORD:
@@ -476,167 +469,6 @@ class ZergAI(CommonAI):
         self.enemy_base_count = sum(1 for b in self.bases if b.taken_since and not b.townhall)
         self.enemy_base_count = max(math.ceil(self.time / (4 * 60)), self.enemy_base_count)
 
-    async def spread_creep(self):
-
-        spreaders = [
-            tumor 
-            for tumor in self.actual_by_type[UnitTypeId.CREEPTUMORBURROWED]
-            if tumor.tag not in self.inactive_tumors
-        ]
-
-        queens = [self.unit_by_tag[t] for t in self.creep_queens]
-
-        for queen in queens:
-            if (
-                not self.has_creep(queen.position)
-                and not queen.is_moving
-                and self.townhalls.ready
-            ):
-                townhall = self.townhalls.ready.closest_to(queen)
-                queen.move(townhall)
-            elif (
-                25 <= queen.energy
-                and not any(o.ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN for o in queen.orders)
-            ):
-                spreaders.append(queen)
-        
-        valid_map = np.logical_and(self.state.creep.data_numpy == 0, self.game_info.pathing_grid.data_numpy == 1)
-        valid_map = np.transpose(valid_map)
-
-        self.creep_coverage = np.sum(self.state.creep.data_numpy) / self.creep_tile_count
-        if .95 < self.creep_coverage:
-            return 
-
-        if not spreaders:
-            return
-
-        for spreader in spreaders:
-            ability = CREEP_ABILITIES[spreader.type_id]
-            if not ability in self.abilities[spreader.tag]:
-                continue
-            self.spread_creep_single(spreader, valid_map)
-
-
-    def spread_creep_single(self, spreader: Unit, valid_map: np.ndarray, num_attempts: int = 1):
-
-        start_position = spreader.position
-
-        if (
-            spreader.type_id == UnitTypeId.QUEEN
-            # and self.count(UnitTypeId.CREEPTUMORBURROWED) == 0
-        ):
-            forward_base = max(
-                self.townhalls.ready,
-                key = lambda th : self.distance_map[th.position.rounded],
-                default = None)
-            if forward_base:
-                start_position = forward_base.position 
-
-        target = None
-        for _ in range(num_attempts):
-            angle = np.random.uniform(0, 2 * math.pi)
-            distance = np.random.exponential(CREEP_RANGE)
-            target_test = start_position + distance * Point2((math.cos(angle), math.sin(angle)))
-            target_test = np.clip(target_test, self.creep_area_min, self.creep_area_max)
-            target_test = Point2(target_test).rounded
-            if not valid_map[target_test]:
-                continue
-            target = target_test
-            break
-
-        if not target:
-            return
-
-        max_range = CREEP_RANGE
-        if spreader.type_id == UnitTypeId.QUEEN:
-            max_range = 3 * CREEP_RANGE
-
-        for i in range(max_range, 0, -1):
-            position = spreader.position.towards(target, i)
-            if not self.has_creep(position):
-                continue
-            if not self.is_visible(position):
-                continue
-            if self.blocked_base(position):
-                continue
-            spreader.build(UnitTypeId.CREEPTUMOR, position)
-            break
-
-        # if spreader.type_id == UnitTypeId.CREEPTUMORBURROWED:
-        #     self.inactive_tumors.add(spreader.tag)
-
-    def enumerate_army(self):
-        for unit in super().enumerate_army():
-            if unit.type_id == UnitTypeId.QUEEN:
-                exclude_abilities = {
-                    AbilityId.BUILD_CREEPTUMOR_QUEEN,
-                    AbilityId.EFFECT_INJECTLARVA,
-                    AbilityId.TRANSFUSION_TRANSFUSION,
-                }
-                order_abilities = {
-                    o.ability.exact_id
-                    for o in unit.orders
-                }
-                if unit.tag in self.creep_queens:
-                    pass
-                elif unit.tag in self.inject_queens:
-                    pass
-                elif order_abilities.intersection(exclude_abilities):
-                    pass
-                else:
-                    yield unit
-            elif unit.type_id == UnitTypeId.RAVAGER:
-                if any(o.ability.exact_id == AbilityId.EFFECT_CORROSIVEBILE for o in unit.orders):
-                    pass
-                else:
-                    yield unit
-            elif unit.type_id == UnitTypeId.OVERSEER:
-                if unit.tag in self.blocked_base_detectors.values():
-                    pass
-                else:
-                    yield unit
-            else:
-                yield unit
-
-    async def manage_queens(self):
-
-        queens = sorted(
-            self.actual_by_type[UnitTypeId.QUEEN],
-            key=lambda q:self.distance_map[q.position.rounded])
-
-        inject_queen_count = min(3, len(queens), self.townhalls.amount)
-        creep_queen_count = 1 if max(inject_queen_count, 2) < len(queens) else 0
-
-        inject_queens = queens[0:inject_queen_count]
-        creep_queens = queens[inject_queen_count:inject_queen_count+creep_queen_count]
-        army_queens = queens[inject_queen_count+creep_queen_count:]
-
-        # macro_queen_count = round((1 - self.threat_level) * len(queens))
-        # macro_queen_count = min(4, self.townhalls.amount, macro_queen_count)
-        # creep_queen_count = 1 if 2 < macro_queen_count else 0
-
-        # inject_queens = queens[0:macro_queen_count-creep_queen_count]
-        # creep_queens = queens[macro_queen_count-creep_queen_count:macro_queen_count]
-        # army_queens = queens[macro_queen_count:]
-
-        self.creep_queens = { q.tag for q in creep_queens }
-        self.army_queens = { q.tag for q in army_queens }
-        self.inject_queens = { q.tag for q in inject_queens }
-
-        bases = [
-            b
-            for b in self.bases
-            if b.position in self.townhall_by_position
-        ]
-        for queen, base in zip(inject_queens, bases):
-            townhall = self.townhall_by_position[base.position]
-            if not townhall:
-                continue
-            if 7 < queen.position.distance_to(townhall.position):
-                queen.attack(townhall.position)
-            elif 25 <= queen.energy:
-                queen(AbilityId.EFFECT_INJECTLARVA, townhall)
-
     def update_composition(self):
         self.composition = self.strategy.composition(self)
 
@@ -675,7 +507,7 @@ class ZergAI(CommonAI):
         saturation = self.bases.harvester_count / max(1, self.bases.harvester_target)
         priority = 3 * (saturation - 0.8)
 
-        if saturation < 0.5:
+        if saturation < 2/3:
             return
         
         if not self.count(UnitTypeId.HATCHERY, include_actual=False):

@@ -1,5 +1,5 @@
-
-from typing import Optional, Set, Union, Iterable, Tuple
+from __future__ import annotations
+from typing import Optional, Set, Union, Iterable, Tuple, TYPE_CHECKING
 import numpy as np
 import random
 from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT
@@ -12,11 +12,17 @@ from abc import ABC, abstractmethod
 
 from ..utils import *
 from ..constants import *
-from .behavior import Behavior, BehaviorResult
+from .behavior import BehaviorResult, UnitBehavior
+from ..ai_component import AIComponent
+if TYPE_CHECKING:
+    from ..ai_base import AIBase
 
-class BurrowBehavior(Behavior):
+class BurrowBehavior(UnitBehavior):
 
-    def execute(self, unit: Unit) -> BehaviorResult:
+    def __init__(self, ai: AIBase, unit_tag: int):
+        super().__init__(ai, unit_tag)
+
+    def execute_single(self, unit: Unit) -> BehaviorResult:
 
         if unit.type_id not in { UnitTypeId.ROACH, UnitTypeId.ROACHBURROWED }:
             return BehaviorResult.FAILURE
@@ -25,12 +31,12 @@ class BurrowBehavior(Behavior):
             if unit.health_percentage == 1:
                 unit(AbilityId.BURROWUP)
                 return BehaviorResult.SUCCESS
-            elif UpgradeId.TUNNELINGCLAWS in unit._bot_object.state.upgrades:
+            elif UpgradeId.TUNNELINGCLAWS in self.ai.state.upgrades:
                 return BehaviorResult.FAILURE
             return BehaviorResult.ONGOING
         elif (
             unit.health_percentage < 1/3
-            and UpgradeId.BURROW in unit._bot_object.state.upgrades
+            and UpgradeId.BURROW in self.ai.state.upgrades
             and unit.weapon_cooldown
         ):
             unit(AbilityId.BURROWDOWN)

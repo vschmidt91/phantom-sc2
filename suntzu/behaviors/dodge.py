@@ -1,6 +1,6 @@
-
+from __future__ import annotations
 from datetime import time
-from typing import Optional, Union, List, Iterable, Dict
+from typing import Optional, Union, List, Iterable, Dict, TYPE_CHECKING
 from abc import ABC, abstractmethod, abstractproperty
 from numpy.lib.arraysetops import isin
 from s2clientprotocol.common_pb2 import Point
@@ -16,8 +16,11 @@ from sc2.unit import Unit
 from sc2.game_state import EffectData
 from sc2.unit_command import UnitCommand
 
-from .behavior import Behavior, BehaviorResult
 from ..utils import *
+from suntzu.behaviors.behavior import Behavior, BehaviorResult, UnitBehavior
+from ..ai_component import AIComponent
+if TYPE_CHECKING:
+    from ..ai_base import AIBase
  
 DODGE_DELAYED_EFFECTS = {
     EffectId.RAVAGERCORROSIVEBILECP,
@@ -136,15 +139,15 @@ class DodgeEffectDelayed(DodgeEffect):
             radius_adjusted = radius - movement_speed * time_remaining
             yield DamageCircle(self.position, radius_adjusted, damage)
 
-class DodgeBehavior(Behavior):
+class DodgeBehavior(UnitBehavior):
 
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self, ai: AIBase, unit_tag: int):
+        super().__init__(ai, unit_tag)
 
-    def execute(self, unit: Unit) -> BehaviorResult:
+    def execute_single(self, unit: Unit) -> BehaviorResult:
 
         p = unit.position.rounded
-        dodge_threat = self.bot.dodge_map[p]
+        dodge_threat = self.ai.dodge_map[p]
         if dodge_threat == np.inf:
             return BehaviorResult.FAILURE
         if dodge_threat <= 1:
@@ -153,10 +156,10 @@ class DodgeBehavior(Behavior):
         # if dodge_threat < unit.health + unit.shield:
         #     return BehaviorResult.FAILURE
 
-        path = self.bot.map_analyzer.pathfind(
+        path = self.ai.map_analyzer.pathfind(
             start = unit.position,
-            goal = self.bot.start_location,
-            grid = self.bot.dodge_map,
+            goal = self.ai.start_location,
+            grid = self.ai.dodge_map,
             large = is_large(unit),
             smoothing = False,
             sensitivity = 1)

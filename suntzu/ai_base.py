@@ -1,4 +1,5 @@
 
+from abc import ABC
 from collections import defaultdict
 from enum import Enum
 from functools import reduce
@@ -40,29 +41,24 @@ from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.units import Units
 
-from .analysis.poisson_solver import solve_poisson, solve_poisson_full
-from .resources.vespene_geyser import VespeneGeyser
 from .resources.base import Base
-from .resources.mineral_patch import MineralPatch
-from .resources.resource_base import ResourceBase
-from .resources.resource_group import T, ResourceGroup
+from .resources.resource_group import ResourceGroup
+from .behaviors.dodge import *
+from .behaviors.unit_manager import UnitManager
 from .constants import *
 from .macro_plan import MacroPlan
 from .cost import Cost
 from .utils import *
-from .behaviors.dodge import *
-from .behaviors.fight import FightBehavior
+import suntzu.behaviors.dodge as dodge
 
 import matplotlib.pyplot as plt
+
+from .enums import PerformanceMode
 
 class PlacementNotFound(Exception):
     pass
 
-class PerformanceMode(Enum):
-    DEFAULT = 1
-    HIGH_PERFORMANCE = 2
-
-class CommonAI(BotAI):
+class AIBase(ABC, BotAI):
 
     def __init__(self,
         game_step: Optional[int] = None,
@@ -88,7 +84,7 @@ class CommonAI(BotAI):
         self.cost: Dict[MacroId, Cost] = dict()
         self.bases: ResourceGroup[Base] = None
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
-        self.dodge_delayed: List[DodgeEffectDelayed] = list()
+        self.dodge_delayed: List[dodge.DodgeEffectDelayed] = list()
         self.distance_map: np.ndarray = None
         self.threat_level = 0
         self.weapons: Dict[UnitTypeId, List] = dict()
@@ -104,7 +100,6 @@ class CommonAI(BotAI):
         self.planned_by_type: DefaultDict[MacroId, Set[MacroPlan]] = defaultdict(lambda:set())
         self.worker_supply_fixed: int = 0
         self.destructables_fixed: Set[Unit] = set()
-        self.drafted_civilians: Set[int] = set()
         self.damage_taken: Dict[int] = dict()
         self.gg_sent: bool = False
         self.unit_ref: Optional[int] = None
@@ -118,6 +113,7 @@ class CommonAI(BotAI):
         self.enemy_base_count: int = 1
         self.army_influence_map: np.ndarray = None
         self.enemy_influence_map: np.ndarray = None
+        self.unit_manager: UnitManager = UnitManager(self)
 
     def estimate_enemy_velocity(self, unit: Unit) -> Point2:
         previous_position = self.enemy_positions.get(unit.tag, unit.position)
@@ -251,7 +247,7 @@ class CommonAI(BotAI):
         exclude = set()
         exclude.update(self.bases.harvesters)
         exclude.update(p.unit for p in self.macro_plans)
-        exclude.update(self.drafted_civilians)
+        exclude.update(self.unit_manager.drafted_civilians)
         for worker in self.workers.tags_not_in(exclude):
             base = min(self.bases, key = lambda b : worker.position.distance_to(b.position))
             base.try_add(worker.tag)
@@ -279,7 +275,6 @@ class CommonAI(BotAI):
         if plan:
             self.remove_macro_plan(plan)
         self.pending_by_type[unit.type_id].add(unit)
-        pass
 
     async def on_building_construction_complete(self, unit: Unit):
         if unit.type_id in race_townhalls[self.race]:
@@ -389,9 +384,6 @@ class CommonAI(BotAI):
         self.enemies_by_type.clear()
         for enemy in self.enemies.values():
             self.enemies_by_type[enemy.type_id].add(enemy)
-
-        if any(self.enumerate_army()):
-            self.army_center = center(u.position for u in self.enumerate_army())
         
         self.resource_by_position.clear()
         self.gas_building_by_position.clear()
@@ -764,7 +756,7 @@ class CommonAI(BotAI):
         reserve = Cost(0, 0, 0)
         exclude = { o.unit for o in self.macro_plans }
         exclude.update(unit.tag for units in self.pending_by_type.values() for unit in units)
-        exclude.update(self.drafted_civilians)
+        exclude.update(self.unit_manager.drafted_civilians)
         self.macro_plans.sort(key = lambda t : t.priority, reverse=True)
 
         for plan in self.macro_plans:
@@ -1115,7 +1107,10 @@ class CommonAI(BotAI):
         self.enemy_influence_map = enemy_influence_map
 
         army_influence_map = self.map_analyzer.get_pyastar_grid()
-        for unit in self.enumerate_army():
+        for tag in self.unit_manager.army_manager.unit_tags:
+            unit = self.unit_by_tag.get(tag)
+            if not unit:
+                continue
             unit_range = max(0.5 * unit.movement_speed, self.get_unit_range(unit))
             self.army_influence_map = self.map_analyzer.add_cost(
                 position = unit.position,
@@ -1177,42 +1172,14 @@ class CommonAI(BotAI):
 
     def assess_threat_level(self):
 
-        value_self = sum(self.get_unit_value(u) for u in self.enumerate_army())
+        army = [self.unit_by_tag[t] for t in self.unit_manager.army_manager.unit_tags]
+        value_self = sum(self.get_unit_value(u) for u in army)
         value_enemy = sum(self.get_unit_value(e) for e in self.enemies.values())
         value_enemy_threats = sum(self.get_unit_value(e) * (1 - self.distance_map[e.position.rounded]) for e in self.enemies.values())
 
         self.power_level = value_enemy / max(1, value_self + value_enemy)
         self.threat_level = value_enemy_threats / max(1, value_self + value_enemy_threats)
 
-
-    def draft_civilians(self):
-
-        self.drafted_civilians = {
-            u for u in self.drafted_civilians
-            if u in self.unit_by_tag
-        }
-        
-        if (
-            2/3 < self.threat_level
-            and self.time < 3 * 60
-        ):
-            worker = self.bases.try_remove_any()
-            if worker:
-                self.drafted_civilians.add(worker)
-        elif self.threat_level < 1/3:
-            if any(self.drafted_civilians):
-                worker = self.drafted_civilians.pop()
-                if not self.bases.try_add(worker):
-                    raise Exception
-
-    def enumerate_army(self):
-        for unit in self.units:
-            if not unit.type_id in CIVILIANS:
-                yield unit
-            elif unit.tag in self.drafted_civilians:
-                yield unit
-            else:
-                pass
 
     def can_afford_with_reserve(self, cost: Cost, reserve: Cost) -> bool:
         if 0 < cost.minerals and self.minerals < reserve.minerals + cost.minerals:
