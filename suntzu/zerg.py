@@ -393,8 +393,9 @@ class ZergAI(AIBase):
                 detector = self.unit_by_tag.get(detector_tag)
                 if not detector:
                     # assign overseer
+                    army = (self.unit_by_tag[t] for t in self.unit_manager.army_manager.unit_tags)
                     detector = min(
-                        (unit for unit in self.enumerate_army() if unit.is_detector),
+                        (unit for unit in army if unit.is_detector),
                         key = lambda u : u.position.distance_to(base.position),
                         default = None)
                     if not detector:
