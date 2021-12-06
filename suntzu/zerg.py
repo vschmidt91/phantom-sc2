@@ -179,7 +179,7 @@ class ZergAI(AIBase):
         self.creep_area_max = np.array(self.game_info.map_center)
         for base in self.expansion_locations_list:
             self.creep_area_min = np.minimum(self.creep_area_min, base)
-            self.creep_area_max = np.maximum(self.creep_area_min, base)
+            self.creep_area_max = np.maximum(self.creep_area_max, base)
 
         self.creep_tile_count = np.sum(self.game_info.pathing_grid.data_numpy)
 
