@@ -38,7 +38,7 @@ class UnitBehavior(Behavior):
     def execute_single(self, unit: Unit) -> BehaviorResult:
         raise NotImplementedError
 
-class BehaviorLambda(Behavior):
+class LambdaBehavior(Behavior):
 
     def __init__(self, func: Callable[[], BehaviorResult]):
         super().__init__()

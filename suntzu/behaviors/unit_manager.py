@@ -12,19 +12,21 @@ from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
-from suntzu.behaviors.army_manager import ArmyManager
-from suntzu.behaviors.burrow import BurrowBehavior
-from suntzu.behaviors.creep_manager import CreepManager
 
-from suntzu.behaviors.dodge import DodgeBehavior
-from suntzu.behaviors.fight import FightBehavior
-from suntzu.behaviors.launch_corrosive_biles import LaunchCorrosiveBilesBehavior
-from suntzu.behaviors.search import SearchBehavior
-from suntzu.behaviors.transfuse import TransfuseBehavior
+from .burrow import BurrowBehavior
+from .dodge import DodgeBehavior
+from .fight import FightBehavior
+from .launch_corrosive_biles import LaunchCorrosiveBilesBehavior
+from .search import SearchBehavior
+from .transfuse import TransfuseBehavior
+from .survive import SurviveBehavior
+from .inject import InjectBehavior
+from .gather import GatherBehavior
+from .spread_creep import SpreadCreepBehavior
 
 from ..utils import *
 from ..constants import *
-from .behavior import Behavior, BehaviorResult, BehaviorSelector, BehaviorSequence, UnitBehavior
+from .behavior import Behavior, BehaviorResult, LambdaBehavior, BehaviorSequence, BehaviorSelector, UnitBehavior, LambdaBehavior
 from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -34,9 +36,46 @@ class UnitManager(Behavior):
     def __init__(self, ai: AIBase):
         super().__init__()
         self.ai: AIBase = ai
-        self.army_manager = ArmyManager(ai)
-        self.creep_manager = CreepManager(ai)
+        self.creep_queens: Set[int] = set()
+        self.inject_queens: Dict[int, int] = dict()
         self.drafted_civilians: Set[int] = set()
+        self.creep_coverage: float = 0.0
+        self.behaviors: Dict[int, UnitBehavior] = dict()
+
+    def is_civilian(self, unit: Unit) -> bool:
+        if unit.tag in self.drafted_civilians:
+            return False
+        elif unit.type_id in CIVILIANS:
+            return True
+        elif unit.is_structure:
+            return True
+        else:
+            return False
+
+    def create_behavior(self, unit: Unit) -> Behavior:
+        return BehaviorSequence([
+            DodgeBehavior(self.ai, unit.tag),
+            BehaviorSelector([
+                LambdaBehavior(lambda : BehaviorResult.SUCCESS if self.is_civilian(unit) else BehaviorResult.FAILURE),
+                BehaviorSequence([
+                    BurrowBehavior(self.ai, unit.tag),
+                    LaunchCorrosiveBilesBehavior(self.ai, unit.tag),
+                    InjectBehavior(self.ai, unit.tag),
+                    SpreadCreepBehavior(self.ai, unit.tag),
+                    TransfuseBehavior(self.ai, unit.tag),
+                    FightBehavior(self.ai, unit.tag),
+                    SearchBehavior(self.ai, unit.tag),
+                ])
+            ]),
+            BehaviorSelector([
+                LambdaBehavior(lambda : BehaviorResult.FAILURE if self.is_civilian(unit) else BehaviorResult.SUCCESS),
+                BehaviorSequence([
+                    SpreadCreepBehavior(self.ai, unit.tag),
+                    SurviveBehavior(self.ai, unit.tag),
+                    GatherBehavior(self.ai, unit.tag),
+                ])
+            ])
+        ])
 
     def draft_civilians(self):
 
@@ -60,11 +99,14 @@ class UnitManager(Behavior):
 
     def execute(self) -> BehaviorResult:
 
+        self.creep_coverage = np.sum(self.ai.state.creep.data_numpy) / self.ai.creep_tile_count
+
         self.draft_civilians()
 
         queens = sorted(
             self.ai.actual_by_type[UnitTypeId.QUEEN],
-            key = lambda q : self.ai.distance_map[q.position.rounded]
+            key = lambda q : q.tag
+            # key = lambda q : self.ai.distance_map[q.position.rounded]
         )
 
         inject_queen_count = min(3, len(queens), self.ai.townhalls.amount)
@@ -73,56 +115,72 @@ class UnitManager(Behavior):
         inject_queens = queens[0:inject_queen_count]
         creep_queens = queens[inject_queen_count:inject_queen_count+creep_queen_count]
 
-        self.creep_manager.queens = { q.tag for q in creep_queens }
+        self.creep_queens = { q.tag for q in creep_queens }
 
         bases = [
             b
             for b in self.ai.bases
             if b.position in self.ai.townhall_by_position
         ]
+        self.inject_queens.clear()
         for queen, base in zip(inject_queens, bases):
             townhall = self.ai.townhall_by_position[base.position]
-            if not townhall:
-                continue
-            if 7 < queen.position.distance_to(townhall.position):
-                queen.attack(townhall.position)
-            elif 25 <= queen.energy:
-                queen(AbilityId.EFFECT_INJECTLARVA, townhall)
+            self.inject_queens[queen.tag] = townhall.tag
 
-        self.army_manager.unit_tags.clear()
-        for unit in self.ai.units:
+        # self.army_manager.unit_tags.clear()
+        # for unit in self.ai.units:
             
-            if unit.type_id == UnitTypeId.QUEEN:
-                exclude_abilities = {
-                    AbilityId.BUILD_CREEPTUMOR_QUEEN,
-                    AbilityId.EFFECT_INJECTLARVA,
-                    AbilityId.TRANSFUSION_TRANSFUSION,
-                }
-                order_abilities = {
-                    o.ability.exact_id
-                    for o in unit.orders
-                }
-                if unit in creep_queens:
-                    pass
-                elif unit in inject_queens:
-                    pass
-                elif order_abilities.intersection(exclude_abilities):
-                    pass
-                else:
-                    self.army_manager.unit_tags.add(unit.tag)
-            elif unit.type_id == UnitTypeId.OVERSEER:
-                if unit.tag in self.ai.blocked_base_detectors.values():
-                    pass
-                else:
-                    self.army_manager.unit_tags.add(unit.tag)
-            elif unit.type_id not in CIVILIANS:
-                self.army_manager.unit_tags.add(unit.tag)
-            elif unit.tag in self.drafted_civilians:
-                self.army_manager.unit_tags.add(unit.tag)
-            else:
-                pass
+        #     if unit.type_id == UnitTypeId.QUEEN:
+        #         exclude_abilities = {
+        #             AbilityId.BUILD_CREEPTUMOR_QUEEN,
+        #             AbilityId.EFFECT_INJECTLARVA,
+        #             AbilityId.TRANSFUSION_TRANSFUSION,
+        #         }
+        #         order_abilities = {
+        #             o.ability.exact_id
+        #             for o in unit.orders
+        #         }
+        #         if unit in creep_queens:
+        #             pass
+        #         elif unit in inject_queens:
+        #             pass
+        #         elif order_abilities.intersection(exclude_abilities):
+        #             pass
+        #         else:
+        #             self.army_manager.unit_tags.add(unit.tag)
+        #     elif unit.type_id == UnitTypeId.OVERSEER:
+        #         if unit.tag in self.ai.blocked_base_detectors.values():
+        #             pass
+        #         else:
+        #             self.army_manager.unit_tags.add(unit.tag)
+        #     elif unit.type_id not in CIVILIANS:
+        #         self.army_manager.unit_tags.add(unit.tag)
+        #     elif unit.tag in self.drafted_civilians:
+        #         self.army_manager.unit_tags.add(unit.tag)
+        #     else:
+        #         pass
 
-        self.army_manager.execute()
-        self.creep_manager.execute()
+        units = list()
+        units.extend(self.ai.units)
+        units.extend(self.ai.tumor_front)
+
+
+        for unit in units:
+            behavior = self.behaviors.get(unit.tag)
+            if not behavior:
+                behavior = self.create_behavior(unit)
+                self.behaviors[unit.tag] = behavior
+            result = behavior.execute()
+            # if result is not BehaviorResult.ONGOING:
+            #     print('error')
+            #     behavior.execute()
+
+        tags = { u.tag for u in units }
+        removed_tags = {
+            tag for tag in self.behaviors.keys()
+            if tag not in tags
+        }
+        for tag in removed_tags:
+            del self.behaviors[tag]
 
         return BehaviorResult.ONGOING

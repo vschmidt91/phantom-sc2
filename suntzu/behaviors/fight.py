@@ -124,7 +124,7 @@ class FightBehavior(UnitBehavior):
         )
 
         if priority <= 0:
-            return BehaviorResult.FAILURE
+            return BehaviorResult.SUCCESS
 
         advantage = self.get_advantage(unit, target)
         stance = self.get_stance(unit, advantage)
@@ -166,4 +166,4 @@ class FightBehavior(UnitBehavior):
                 unit.attack(self.get_path_towards(unit, target.position))
             return BehaviorResult.ONGOING
 
-        return BehaviorResult.FAILURE
+        return BehaviorResult.SUCCESS

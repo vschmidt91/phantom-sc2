@@ -53,7 +53,7 @@ class ZergMacro(ZergStrategy):
 
         if (
             bot.count(UpgradeId.ZERGLINGMOVEMENTSPEED, include_pending=False, include_planned=False)
-            and 32 <= bot.bases.harvester_count
+            and 40 <= bot.bases.harvester_count
             and 3 <= bot.townhalls.amount
         ):
             composition[UnitTypeId.ROACH] = 0
@@ -128,7 +128,6 @@ class ZergMacro(ZergStrategy):
             # bot.manage_queens: 1,
             # bot.spread_creep: 1,
             bot.scout: 1,
-            bot.extractor_trick: 1,
             bot.morph_overlords: 1,
             bot.make_composition: 1,
             bot.make_tech: 1,
@@ -140,7 +139,7 @@ class ZergMacro(ZergStrategy):
             bot.update_strategy: 1,
             bot.save_enemy_positions: 1,
             bot.reset_blocked_bases: 1,
-            bot.assign_idle_workers: 1,
+            # bot.assign_idle_workers: 1,
             bot.reset_blocked_bases: 1,
             bot.greet_opponent: 1,
             bot.make_defenses: 1,

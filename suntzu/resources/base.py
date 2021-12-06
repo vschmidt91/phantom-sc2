@@ -1,4 +1,5 @@
 
+from __future__ import annotations
 from typing import DefaultDict, Dict, Iterable, Set, List, Optional, TYPE_CHECKING
 from itertools import chain
 import math
@@ -17,6 +18,9 @@ from .mineral_patch import MineralPatch
 from .vespene_geyser import VespeneGeyser
 from .resource_base import ResourceBase
 from .resource_group import ResourceGroup
+
+if TYPE_CHECKING:
+    from ..ai_base import AIBase, AIComponent
 
 MINING_RADIUS = 1.325
 # MINING_RADIUS = 1.4
@@ -84,7 +88,7 @@ class Base(ResourceGroup[ResourceBase]):
         self.defensive_units_planned: Set[MacroPlan] = set()
         self.defensive_targets: DefaultDict[UnitTypeId, int] = DefaultDict(lambda:0)
         self.fix_speedmining_positions()
-        self.townhall: Optional[Unit] = None
+        self.townhall: Optional[int] = None
 
     def split_initial_workers(self, harvesters: Set[Unit]):
         for _ in range(len(harvesters)):
@@ -114,7 +118,7 @@ class Base(ResourceGroup[ResourceBase]):
                 if len(points) == 2:
                     target = min(points, key=lambda p:p.distance_to(self.position))
                     break
-            patch.speed_mining_position = target
+            patch.speedmining_target = target
 
     @property
     def harvester_target(self) -> int:
@@ -122,11 +126,10 @@ class Base(ResourceGroup[ResourceBase]):
             return 0
         return super().harvester_target
 
-    def update(self, bot):
+    def update(self, bot: AIBase):
 
-        self.townhall = next((th for th in bot.townhalls.ready if th.position == self.position), None)
-
-        if self.townhall:
+        townhall = bot.unit_by_tag.get(self.townhall)
+        if townhall:
             for unit_type, want in self.defensive_targets.items():
                 have = [
                     u for u in self.defensive_units
@@ -142,9 +145,8 @@ class Base(ResourceGroup[ResourceBase]):
                     plan.max_distance = 2
                     plan.priority = 0
                     bot.add_macro_plan(plan)
-
-            if any(self.defensive_targets.values()):
-                for mineral in self.mineral_patches:
-                    mineral.speed_mining_enabled = False
+                    
+        else:
+            self.townhall = None
 
         super().update(bot)

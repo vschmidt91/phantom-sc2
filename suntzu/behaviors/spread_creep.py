@@ -17,48 +17,7 @@ from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class CreepManager(Behavior):
-
-    def __init__(self, ai: AIBase):
-        super().__init__()
-        self.ai: AIBase = ai
-        self.behavior = SpreadCreapBehavior(ai, 0)
-        self.queens: Set[int] = set()
-
-    def execute(self) -> BehaviorResult:
-
-        creep_coverage = np.sum(self.ai.state.creep.data_numpy) / self.ai.creep_tile_count
-        if .95 < creep_coverage:
-            return 
-
-        spreaders = list()
-
-        for tumor in self.ai.actual_by_type[UnitTypeId.CREEPTUMORBURROWED]:
-            if AbilityId.BUILD_CREEPTUMOR_TUMOR in self.ai.abilities[tumor.tag]:
-                spreaders.append(tumor)
-
-        for tag in self.queens:
-            queen = self.ai.unit_by_tag[tag]
-            if (
-                not self.ai.has_creep(queen.position)
-                and not queen.is_moving
-                and self.ai.townhalls.ready
-            ):
-                townhall = self.ai.townhalls.ready.closest_to(queen)
-                queen.move(townhall)     
-            elif (
-                AbilityId.BUILD_CREEPTUMOR_QUEEN in self.ai.abilities[tag]
-                and AbilityId.BUILD_CREEPTUMOR_QUEEN not in { o.ability.exact_id for o in queen.orders }
-            ):
-                spreaders.append(queen)
-
-        for spreader in spreaders:
-            self.behavior.unit_tag = spreader.tag
-            self.behavior.execute()
-
-        return BehaviorResult.ONGOING
-
-class SpreadCreapBehavior(UnitBehavior):
+class SpreadCreepBehavior(UnitBehavior):
 
     CREEP_RANGE = 10
 
@@ -66,6 +25,26 @@ class SpreadCreapBehavior(UnitBehavior):
         super().__init__(ai, unit_tag)
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
+
+        if .95 < self.ai.creep_coverage:
+            return BehaviorResult.SUCCESS
+
+        if unit.type_id is UnitTypeId.CREEPTUMORBURROWED:
+            if AbilityId.BUILD_CREEPTUMOR_TUMOR not in self.ai.abilities[unit.tag]:
+                return BehaviorResult.SUCCESS
+        elif unit.type_id is UnitTypeId.QUEEN:
+            if AbilityId.BUILD_CREEPTUMOR_QUEEN not in self.ai.abilities[unit.tag]:
+                return BehaviorResult.SUCCESS
+            elif AbilityId.BUILD_CREEPTUMOR_QUEEN in { o.ability.exact_id for o in unit.orders }:
+                return BehaviorResult.ONGOING
+            elif unit.tag not in self.ai.unit_manager.creep_queens:
+                return BehaviorResult.SUCCESS
+            elif not self.ai.has_creep(unit.position) and self.ai.townhalls.ready:
+                if not unit.is_moving:
+                    unit.move(self.ai.townhalls.ready.closest_to(unit)) 
+                return BehaviorResult.ONGOING
+        else:
+            return BehaviorResult.SUCCESS
 
         start_position = unit.position
         if unit.type_id == UnitTypeId.QUEEN:
@@ -92,7 +71,7 @@ class SpreadCreapBehavior(UnitBehavior):
             break
 
         if not target:
-            return
+            return BehaviorResult.FAILURE
 
         if unit.type_id == UnitTypeId.QUEEN:
             max_range = 3 * self.CREEP_RANGE
@@ -108,5 +87,6 @@ class SpreadCreapBehavior(UnitBehavior):
             if self.ai.blocked_base(position):
                 continue
             unit.build(UnitTypeId.CREEPTUMOR, position)
-            # self.tumor_front.difference_update((unit.tag,))
-            break
+            return BehaviorResult.ONGOING
+
+        return BehaviorResult.FAILURE

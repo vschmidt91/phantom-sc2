@@ -13,8 +13,7 @@ class MineralPatch(ResourceSingle):
     def __init__(self, position: Point2):
         super().__init__(position)
         self.is_rich = False
-        self.speed_mining_enabled = False
-        self.speed_mining_position: Optional[Point2] = None
+        self.speedmining_target: Optional[Point2] = None
 
     @property
     def harvester_target(self):

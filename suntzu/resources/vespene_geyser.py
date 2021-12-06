@@ -13,7 +13,6 @@ class VespeneGeyser(ResourceSingle):
     def __init__(self, position: Point2):
         super().__init__(position)
         self.is_rich = False
-        self.speed_mining_position: Point2 = position
 
     @property
     def harvester_target(self):

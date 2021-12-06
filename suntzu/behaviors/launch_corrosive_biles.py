@@ -43,13 +43,13 @@ class LaunchCorrosiveBilesBehavior(UnitBehavior):
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
         if unit.type_id is not UnitTypeId.RAVAGER:
-            return BehaviorResult.FAILURE
+            return BehaviorResult.SUCCESS
 
-        if any(o.ability.exact_id == self.ABILITY for o in unit.orders):
+        if self.ABILITY in { o.ability.exact_id for o in unit.orders }:
             return BehaviorResult.ONGOING
             
         if self.ABILITY not in self.ai.abilities[unit.tag]:
-            return BehaviorResult.FAILURE
+            return BehaviorResult.SUCCESS
 
         targets = (
             target
@@ -60,12 +60,12 @@ class LaunchCorrosiveBilesBehavior(UnitBehavior):
             default = None
         )
         if not target:
-            return BehaviorResult.FAILURE
+            return BehaviorResult.SUCCESS
         if self.target_priority(unit, target) <= 0:
-            return BehaviorResult.FAILURE
+            return BehaviorResult.SUCCESS
         velocity = self.ai.estimate_enemy_velocity(target)
         if 2 < velocity.length:
             velocity = Point2((0, 0))
         predicted_position = target.position + velocity * 50 / 22.4
         unit(self.ABILITY, target=predicted_position)
-        return BehaviorResult.SUCCESS
+        return BehaviorResult.ONGOING

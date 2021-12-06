@@ -25,21 +25,23 @@ class BurrowBehavior(UnitBehavior):
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
         if unit.type_id not in { UnitTypeId.ROACH, UnitTypeId.ROACHBURROWED }:
-            return BehaviorResult.FAILURE
+            return BehaviorResult.SUCCESS
+
+        if UpgradeId.BURROW not in self.ai.state.upgrades:
+            return BehaviorResult.SUCCESS
+
+        if UpgradeId.TUNNELINGCLAWS in self.ai.state.upgrades:
+            return BehaviorResult.SUCCESS
 
         if unit.is_burrowed:
             if unit.health_percentage == 1:
                 unit(AbilityId.BURROWUP)
-                return BehaviorResult.SUCCESS
-            elif UpgradeId.TUNNELINGCLAWS in self.ai.state.upgrades:
-                return BehaviorResult.FAILURE
             return BehaviorResult.ONGOING
         elif (
             unit.health_percentage < 1/3
-            and UpgradeId.BURROW in self.ai.state.upgrades
             and unit.weapon_cooldown
         ):
             unit(AbilityId.BURROWDOWN)
-            return BehaviorResult.SUCCESS
+            return BehaviorResult.ONGOING
 
-        return BehaviorResult.FAILURE
+        return BehaviorResult.SUCCESS

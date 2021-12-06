@@ -44,19 +44,22 @@ class TransfuseBehavior(UnitBehavior):
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
         if unit.type_id is not UnitTypeId.QUEEN:
-            return BehaviorResult.FAILURE
+            return BehaviorResult.SUCCESS
 
         if self.ABILITY not in self.ai.abilities[unit.tag]:
-            return BehaviorResult.FAILURE
+            return BehaviorResult.SUCCESS
+
+        if unit.tag in self.ai.unit_manager.creep_queens:
+            return BehaviorResult.SUCCESS
 
         target = max(self.ai.all_own_units,
             key = lambda t : self.priority(unit, t),
             default = None
         )
         if not target:
-            return BehaviorResult.FAILURE 
+            return BehaviorResult.SUCCESS 
         if self.priority(unit, target) <= 0:
-            return BehaviorResult.FAILURE
+            return BehaviorResult.SUCCESS
 
         unit(self.ABILITY, target=target)
-        return BehaviorResult.SUCCESS
+        return BehaviorResult.ONGOING

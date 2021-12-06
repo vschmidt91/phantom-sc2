@@ -18,7 +18,6 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.position import Point2
 from sc2.unit_command import UnitCommand
-from suntzu.behaviors.army_manager import ArmyManager
 
 from .strategies.pool12_allin import Pool12AllIn
 from .unit_counters import UNIT_COUNTERS
@@ -92,7 +91,6 @@ class ZergAI(AIBase):
 
         strategy = strategy or HatchFirst()
 
-        self.extractor_trick_enabled = False
         self.strategy: ZergStrategy = strategy
         self.composition: Dict[UnitTypeId, int] = dict()
         self.timings_acc = dict()
@@ -110,17 +108,12 @@ class ZergAI(AIBase):
     async def micro(self):
         await super().micro()
         self.unit_manager.execute()
-        for unit in self.workers:
-            behavior: Behavior = BehaviorSelector([
-                DodgeBehavior(self, unit.tag),
-                BehaviorSequence([
-                    SurviveBehavior(self, unit.tag),
-                    GatherBehavior(self, unit.tag),
-                ])
-            ])
-            if unit.tag in self.unit_manager.drafted_civilians:
-                continue
-            behavior.execute()
+
+    def handle_actions(self):
+        for action in self.state.actions_unit_commands:
+            if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
+                self.tumor_front_tags.difference_update(action.unit_tags)
+        return super().handle_actions()
 
     def counter_composition(self, enemies: Iterable[Unit]) -> Dict[UnitTypeId, int]:
 
@@ -175,86 +168,43 @@ class ZergAI(AIBase):
     def destroy_destructables(self):
         return self.strategy.destroy_destructables(self)
 
-    def extractor_trick(self):
-        if not self.extractor_trick_enabled:
-            return
-        if self.supply_used < self.supply_cap:
-            return
-        extractor = next((
-            e
-            for e in self.pending_by_type[UnitTypeId.EXTRACTOR]
-            if e.type_id == UnitTypeId.EXTRACTOR
-        ), None)
-        if not extractor:
-            return
-        extractor(AbilityId.CANCEL)
-        self.extractor_trick_enabled = False
-        
-
     async def on_start(self):
-
-        await self.update_tables()
-        # if not self.strategy:
-        #     strategy_types = [HatchFirst]
-        #     if self.enemy_race == Race.Protoss:
-        #         strategy_types.append(Pool12)
-        #     strategy_type = sample(strategy_types)
-        #     self.strategy = strategy_type()
-        # self.tags.append(self.strategy.name())
 
         for step in self.strategy.build_order():
             self.add_macro_plan(MacroPlan(step, priority=BUILD_ORDER_PRIORITY))
 
         await super().on_start()
 
-        self.creep_area_min = np.array([
-            min(p[i] for p in self.expansion_locations_list)
-            for i in range(2)
-        ])
-        self.creep_area_max = np.array([
-            max(p[i] for p in self.expansion_locations_list)
-            for i in range(2)
-        ])
+        self.creep_area_min = np.array(self.game_info.map_center)
+        self.creep_area_max = np.array(self.game_info.map_center)
+        for base in self.expansion_locations_list:
+            self.creep_area_min = np.minimum(self.creep_area_min, base)
+            self.creep_area_max = np.maximum(self.creep_area_min, base)
 
         self.creep_tile_count = np.sum(self.game_info.pathing_grid.data_numpy)
 
-        # first_overlord = next(iter(self.actual_by_type[UnitTypeId.OVERLORD]))
-        # enemy_natural = self.bases[-2].position
-        # enemy_third = self.bases[-3].position
-        # first_overlord.move(enemy_natural.towards(first_overlord.position, first_overlord.sight_range))
-        # first_overlord.move(enemy_third, queue=True)
-
-
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
-        if unit.type_id == UnitTypeId.LAIR:
-            ability = AbilityId.BEHAVIOR_GENERATECREEPON
-            overlords = self.actual_by_type[UnitTypeId.OVERLORD]
-            for overlord in overlords:
-                if not overlord:
-                    continue
-                if ability in self.abilities[overlord.tag]:
-                    overlord(ability)
         return await super().on_unit_type_changed(unit, previous_type)
+
+    async def on_building_construction_started(self, unit: Unit):
+        if unit.type_id in {
+            UnitTypeId.CREEPTUMOR,
+            UnitTypeId.CREEPTUMORQUEEN,
+            UnitTypeId.CREEPTUMORBURROWED
+        }:
+            self.tumor_front_tags.add(unit.tag)
+        return await super().on_building_construction_started(unit)
 
     async def on_building_construction_complete(self, unit: Unit):
         return await super().on_building_construction_complete(unit)
 
+    async def on_unit_destroyed(self, unit_tag: int):
+        return await super().on_unit_destroyed(unit_tag)
+
     async def on_unit_created(self, unit: Unit):
-        if unit.type_id is UnitTypeId.OVERLORD:
-            if self.structures(WITH_TECH_EQUIVALENTS[UnitTypeId.LAIR]).exists:
-                unit(AbilityId.BEHAVIOR_GENERATECREEPON)
-        elif unit.type_id is UnitTypeId.QUEEN:
-            unit(AbilityId.EFFECT_INJECTLARVA, self.townhalls.ready.closest_to(unit))
         return await super(self.__class__, self).on_unit_created(unit)
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
-        if unit.type_id == UnitTypeId.OVERLORD:
-            enemies = self.enemy_units | self.enemy_structures
-            if enemies.exists:
-                enemy = enemies.closest_to(unit)
-                unit.move(unit.position.towards(enemy.position, -20))
-            else:
-                unit.move(unit.position.towards(self.start_location, 20))
         return await super(self.__class__, self).on_unit_took_damage(unit, amount_damage_taken)
 
     def update_strategy(self):
@@ -320,7 +270,10 @@ class ZergAI(AIBase):
             )
         elif unit == UnitTypeId.ROACH:
             return chain(
-                (UpgradeId.GLIALRECONSTITUTION, UpgradeId.BURROW, UpgradeId.TUNNELINGCLAWS),
+                # (UpgradeId.GLIALRECONSTITUTION,
+                # UpgradeId.BURROW,
+                # UpgradeId.TUNNELINGCLAWS),
+                (UpgradeId.GLIALRECONSTITUTION,),
                 self.upgrade_sequence(ZERG_RANGED_UPGRADES),
                 self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
             )
@@ -393,9 +346,8 @@ class ZergAI(AIBase):
                 detector = self.unit_by_tag.get(detector_tag)
                 if not detector:
                     # assign overseer
-                    army = (self.unit_by_tag[t] for t in self.unit_manager.army_manager.unit_tags)
                     detector = min(
-                        (unit for unit in army if unit.is_detector),
+                        (unit for unit in self.units if unit.is_detector),
                         key = lambda u : u.position.distance_to(base.position),
                         default = None)
                     if not detector:
@@ -464,9 +416,11 @@ class ZergAI(AIBase):
         }
 
         for base in self.bases:
-            if base.position in enemy_townhall_positions:
-                if not base.taken_since:
+            if self.is_visible(base.position):
+                if base.position in enemy_townhall_positions:
                     base.taken_since = self.time
+                else:
+                    base.taken_since = None
         self.enemy_base_count = sum(1 for b in self.bases if b.taken_since and not b.townhall)
         self.enemy_base_count = max(math.ceil(self.time / (4 * 60)), self.enemy_base_count)
 

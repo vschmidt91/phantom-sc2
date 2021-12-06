@@ -15,12 +15,19 @@ from suntzu.dummy import DummyAI
 from suntzu.strategies.dummy import DummyStrategy
 from suntzu.strategies.pool12_allin import Pool12AllIn
 
+VERSION_PATH = './version.txt'
+
+with open(VERSION_PATH, 'r') as file:
+    version = file.readline()
+
 # Start game
 if __name__ == "__main__":
     if "--LadderServer" in sys.argv:
         # Ladder game started by LadderManager
         print("Starting ladder game ...")        
-        bot = Bot(Race.Zerg, ZergAI(game_step = 4), 'Sun Tzu')
+        ai = ZergAI(game_step = 4)
+        ai.tags.append(version)
+        bot = Bot(Race.Zerg, ai, 'Sun Tzu')
         result, opponentid = run_ladder_game(bot)
         print(result, " against opponent ", opponentid)
     else:
@@ -33,13 +40,16 @@ if __name__ == "__main__":
 
         }
         # bot = Bot(Race.Zerg, WorkerStackBot())
-        bot = Bot(Race.Zerg, ZergAI(game_step = 8, debug = True, performance = PerformanceMode.DEFAULT), 'Sun Tzu')  
+        ai = ZergAI(game_step = 8, debug = True, performance = PerformanceMode.DEFAULT)
+        ai.tags.append(version)
+        bot = Bot(Race.Zerg, ai, 'Sun Tzu')  
         # opponent = Bot(Race.Zerg, ZergAI(game_step = 8, debug = True, performance = PerformanceMode.DEFAULT), 'Sun Tzu 2') 
         # opponent = Bot(Race.Zerg, DummyAI())
         opponent = Computer(Race.Zerg, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
         # opponent = Bot(Race.Zerg, ZergAI(performance = PerformanceMode.HIGH_PERFORMANCE, strategy = Pool12AllIn(False)), 'Pool12AllIn')   
+        
         result = run_game(
-            sc2.maps.get('RomanticideAIE'),
+            sc2.maps.get('OxideAIE'),
             [bot, opponent],
             realtime=False,
             save_replay_as=replayPath,

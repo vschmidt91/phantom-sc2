@@ -3,6 +3,7 @@ from typing import Optional, Set, Union, Iterable, Tuple, TYPE_CHECKING
 import numpy as np
 import random
 from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT
+from sc2.ids.buff_id import BuffId
 
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -23,6 +24,15 @@ class SurviveBehavior(UnitBehavior):
         super().__init__(ai, unit_tag)
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
+
+        if unit.type_id == UnitTypeId.OVERLORD:
+            unit(AbilityId.BEHAVIOR_GENERATECREEPON)
+
+        if unit.type_id != race_worker[self.ai.race]:
+            return BehaviorResult.SUCCESS
+
+        if unit.tag not in self.ai.unit_manager.drafted_civilians:
+            return BehaviorResult.SUCCESS
 
         last_attacked = self.ai.damage_taken.get(unit.tag)
         if not last_attacked:

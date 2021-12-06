@@ -149,12 +149,12 @@ class DodgeBehavior(UnitBehavior):
         p = unit.position.rounded
         dodge_threat = self.ai.dodge_map[p]
         if dodge_threat == np.inf:
-            return BehaviorResult.FAILURE
+            return BehaviorResult.SUCCESS
         if dodge_threat <= 1:
-            return BehaviorResult.FAILURE
+            return BehaviorResult.SUCCESS
 
         # if dodge_threat < unit.health + unit.shield:
-        #     return BehaviorResult.FAILURE
+        #     return BehaviorResult.SUCCESS
 
         path = self.ai.map_analyzer.pathfind(
             start = unit.position,

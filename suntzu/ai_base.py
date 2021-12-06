@@ -64,20 +64,13 @@ class AIBase(ABC, BotAI):
         game_step: Optional[int] = None,
         debug: bool = False,
         performance: PerformanceMode = PerformanceMode.DEFAULT,
-        version_path: str = './version.txt',
     ):
-
-        self.tags: List[str] = []
-
-        with open(version_path, 'r') as file:
-            version = file.readline()
-            self.tags.append(version)
-
-        self.game_step = game_step
-        self.performance = performance
-        self.debug = debug
+        self.tags: List[str] = list()
+        self.game_step: Optional[int] = game_step
+        self.performance: PerformanceMode = performance
+        self.debug: bool = debug
         self.raw_affects_selection = True
-        self.greet_enabled = True
+        self.greet_enabled: bool = True
         self.macro_plans = list()
         self.composition: Dict[UnitTypeId, int] = dict()
         self.worker_split: Dict[int, int] = None
@@ -86,7 +79,7 @@ class AIBase(ABC, BotAI):
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
         self.dodge_delayed: List[dodge.DodgeEffectDelayed] = list()
         self.distance_map: np.ndarray = None
-        self.threat_level = 0
+        self.threat_level: float = 0.0
         self.weapons: Dict[UnitTypeId, List] = dict()
         self.dps: Dict[UnitTypeId, float] = dict()
         self.resource_by_position: Dict[Point2, Unit] = dict()
@@ -103,10 +96,8 @@ class AIBase(ABC, BotAI):
         self.damage_taken: Dict[int] = dict()
         self.gg_sent: bool = False
         self.unit_ref: Optional[int] = None
-
         self.dodge_map: np.ndarray = None
         self.dodge_gradient_map: np.ndarray = None
-
         self.abilities: DefaultDict[int, Set[AbilityId]] = defaultdict(lambda:set())
         self.map_analyzer: MapData = None
         self.army_center: Point2 = Point2((0, 0))
@@ -114,10 +105,30 @@ class AIBase(ABC, BotAI):
         self.army_influence_map: np.ndarray = None
         self.enemy_influence_map: np.ndarray = None
         self.unit_manager: UnitManager = UnitManager(self)
+        self.tumor_front_tags: Set[int] = set()
+
+    @property
+    def plan_units(self) -> List[int]:
+        return [
+            plan.unit for plan in self.macro_plans
+            if plan.unit
+        ]
+
+    @property
+    def tumor_front(self) -> Iterable[Unit]:
+        return (self.unit_by_tag[t] for t in self.tumor_front_tags)
+
+    @property
+    def is_speedmining_enabled(self) -> bool:
+        if self.performance is PerformanceMode.DEFAULT:
+            return True
+        elif self.performance is PerformanceMode.HIGH_PERFORMANCE:
+            return False
+        raise Exception
 
     def estimate_enemy_velocity(self, unit: Unit) -> Point2:
         previous_position = self.enemy_positions.get(unit.tag, unit.position)
-        velocity = 22.4 * (unit.position - previous_position) / (self.client.game_step)
+        velocity = unit.position - previous_position * 22.4 / (self.client.game_step)
         return velocity
 
     def destroy_destructables(self):
@@ -158,14 +169,11 @@ class AIBase(ABC, BotAI):
     async def on_start(self):
 
         self.map_analyzer = MapData(self)
+        self.enemy_map = self.map_analyzer.get_pyastar_grid()
+        self.friend_map = self.map_analyzer.get_pyastar_grid()
 
-        self.townhalls[0](AbilityId.RALLY_WORKERS, target=self.townhalls[0])
-        self.enemy_map = np.zeros(self.game_info.map_size)
-        self.friend_map = np.zeros(self.game_info.map_size)
         await self.create_distance_map()
         await self.initialize_bases()
-        
-        # await self.client.debug_show_map()
 
     def handle_errors(self):
         for error in self.state.action_errors:
@@ -223,17 +231,12 @@ class AIBase(ABC, BotAI):
                 if not plan:
                     continue
                 self.remove_macro_plan(plan)
-                # unit = self.unit_by_tag.get(unit_tag)
-                # if not unit:
-                #     continue
-                # self.pending_by_type[item].add(unit)
 
     def reset_blocked_bases(self):
         for base in self.bases:
-            if not base.blocked_since:
-                continue
-            if base.blocked_since + 30 < self.time:
-                base.blocked_since = None
+            if base.blocked_since:
+                if base.blocked_since + 30 < self.time:
+                    base.blocked_since = None
 
     def handle_delayed_effects(self):
 
@@ -243,14 +246,12 @@ class AIBase(ABC, BotAI):
             if self.time < self.dodge_delayed[0].time + self.dodge_delayed[0].delay
         ]
 
-    def assign_idle_workers(self):
-        exclude = set()
-        exclude.update(self.bases.harvesters)
-        exclude.update(p.unit for p in self.macro_plans)
-        exclude.update(self.unit_manager.drafted_civilians)
-        for worker in self.workers.tags_not_in(exclude):
-            base = min(self.bases, key = lambda b : worker.position.distance_to(b.position))
-            base.try_add(worker.tag)
+    def enumerate_army(self) -> Iterable[Unit]:
+        for unit in self.units:
+            if unit.type_id not in CIVILIANS:
+                yield unit
+            elif unit.tag in self.unit_manager.drafted_civilians:
+                yield unit
 
     async def greet_opponent(self):
         if 1 < self.time and self.greet_enabled:
@@ -281,9 +282,6 @@ class AIBase(ABC, BotAI):
             base = next((b for b in self.bases if b.position == unit.position), None)
             if base:
                 base.townhall = unit.tag
-        # if unit.type_id in race_townhalls[self.race]:
-        #     if self.mineral_field.exists:
-        #         unit.smart(self.mineral_field.closest_to(unit))
         pass
 
     async def on_enemy_unit_entered_vision(self, unit: Unit):
@@ -298,30 +296,25 @@ class AIBase(ABC, BotAI):
     async def on_unit_destroyed(self, unit_tag: int):
         self.enemies.pop(unit_tag, None)
         self.bases.try_remove(unit_tag)
+        self.tumor_front_tags.difference_update((unit_tag,))
         pass
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
-        if unit.is_structure:
-            if self.performance == PerformanceMode.DEFAULT:
-                potential_damage = 0
-                for enemy in self.all_enemy_units:
-                    damage, speed, range = enemy.calculate_damage_vs_target(unit)
-                    if  unit.position.distance_to(enemy.position) <= unit.radius + range + enemy.radius:
-                        potential_damage += damage
-                if unit.health + unit.shield <= potential_damage:
-                    creep_tumor_count = 0
-                    creep_tumor_count += self.count(UnitTypeId.CREEPTUMOR)
-                    creep_tumor_count += self.count(UnitTypeId.CREEPTUMORBURROWED)
-                    creep_tumor_count += self.count(UnitTypeId.CREEPTUMORQUEEN)
-                    if self.structures.amount == creep_tumor_count + 1:
-                        if not self.gg_sent:
-                            await self.client.chat_send('gg', False)
-                            self.gg_sent = True
-                    if not unit.is_ready:
-                        unit(AbilityId.CANCEL)
-            else:
-                if unit.shield_health_percentage < 0.1:
-                    unit(AbilityId.CANCEL)
+        if unit.is_structure and not unit.is_ready:
+            should_cancel = False
+            # if self.performance is PerformanceMode.DEFAULT:
+            #     potential_damage = 0
+            #     for enemy in self.all_enemy_units:
+            #         damage, speed, range = enemy.calculate_damage_vs_target(unit)
+            #         if unit.position.distance_to(enemy.position) <= unit.radius + range + enemy.radius:
+            #             potential_damage += damage
+            #     if unit.health + unit.shield <= potential_damage:
+            #         should_cancel = True
+            # else:
+            if unit.shield_health_percentage < 0.1:
+                should_cancel = True
+            if should_cancel:
+                unit(AbilityId.CANCEL)
         self.damage_taken[unit.tag] = self.time
         pass
         
@@ -562,11 +555,6 @@ class AIBase(ABC, BotAI):
         self.bases[0].split_initial_workers(set(self.workers))
         self.bases[-1].taken_since = 1
 
-        if self.performance == PerformanceMode.DEFAULT:
-            for base in self.bases:
-                for minerals in base.mineral_patches:
-                    minerals.speed_mining_enabled = True
-
     async def create_distance_map(self):
 
         boundary = np.transpose(self.game_info.pathing_grid.data_numpy == 0)
@@ -585,24 +573,6 @@ class AIBase(ABC, BotAI):
             distance_enemy = min(position.distance_to(p) for p in self.enemy_start_locations)
             distance_air[p] = distance_self / (distance_self + distance_enemy)
         distance_map = np.where(np.isnan(distance_ground), distance_air, distance_ground)
-
-        # distance_map = 0.5 * np.ones(self.game_info.map_size)
-        # paths_self = await self.client.query_pathings([
-        #     [self.start_location, Point2(p)]
-        #     for p, _ in np.ndenumerate(distance_map)
-        # ])
-        # paths_enemy = await self.client.query_pathings([
-        #     [self.enemy_start_locations[0], Point2(p)]
-        #     for p, _ in np.ndenumerate(distance_map)
-        # ])
-        # for (p, _), p1, p2 in zip(np.ndenumerate(distance_map), paths_self, paths_enemy):
-        #     if not self.in_pathing_grid(Point2(p)):
-        #         continue
-        #     if p1 == p2 == 0:
-        #         continue
-        #     distance_map[p] = p1 / (p1 + p2)
-        # distance_map[self.start_location.rounded] = 0.0
-        # distance_map[self.enemy_start_locations[0].rounded] = 1.0
 
         self.distance_map = distance_map
 
@@ -992,21 +962,6 @@ class AIBase(ABC, BotAI):
 
         return None, None
 
-    def positions_in_range(self, unit: Unit) -> Iterable[Point2]:
-
-        unit_range = unit.radius + self.get_unit_range(unit)
-
-        xm, ym = unit.position.rounded
-        x0 = max(0, xm - unit_range)
-        y0 = max(0, ym - unit_range)
-        x1 = min(self.game_info.map_size[0], xm + unit_range + 1)
-        y1 = min(self.game_info.map_size[1], ym + unit_range + 1)
-        for x in range(x0, x1):
-            for y in range(y0, y1):
-                p = Point2((x, y))
-                if unit.position.distance_to(p) <= unit_range:
-                    yield p
-
     def get_unit_range(self, unit: Unit, ground: bool = True, air: bool = True) -> float:
 
         unit_range = 0
@@ -1088,10 +1043,8 @@ class AIBase(ABC, BotAI):
             return 0
         if not unit.is_ready:
             return 0
-        cost = self.cost.get(unit.type_id)
-        if not cost:
-            return 1
-        return cost.minerals + 2 * cost.vespene
+        cost = self.calculate_unit_value(unit.type_id)
+        return cost.minerals + cost.vespene
 
     def update_maps(self):
 
@@ -1107,10 +1060,7 @@ class AIBase(ABC, BotAI):
         self.enemy_influence_map = enemy_influence_map
 
         army_influence_map = self.map_analyzer.get_pyastar_grid()
-        for tag in self.unit_manager.army_manager.unit_tags:
-            unit = self.unit_by_tag.get(tag)
-            if not unit:
-                continue
+        for unit in self.enumerate_army():
             unit_range = max(0.5 * unit.movement_speed, self.get_unit_range(unit))
             self.army_influence_map = self.map_analyzer.add_cost(
                 position = unit.position,
@@ -1172,8 +1122,9 @@ class AIBase(ABC, BotAI):
 
     def assess_threat_level(self):
 
-        army = [self.unit_by_tag[t] for t in self.unit_manager.army_manager.unit_tags]
-        value_self = sum(self.get_unit_value(u) for u in army)
+        army = list(self.enumerate_army())
+
+        value_self = sum(self.get_unit_value(u) for u in self.enumerate_army())
         value_enemy = sum(self.get_unit_value(e) for e in self.enemies.values())
         value_enemy_threats = sum(self.get_unit_value(e) * (1 - self.distance_map[e.position.rounded]) for e in self.enemies.values())
 

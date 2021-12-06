@@ -46,10 +46,3 @@ class RoachRush(ZergMacro):
             # UnitTypeId.EXTRACTOR,
             UnitTypeId.RAVAGER,
         ]
-
-    def update(self, bot):
-        # if bot.supply_used == 14:
-        #     bot.extractor_trick_enabled = True
-        # if bot.supply_used == 35:
-        #     bot.extractor_trick_enabled = True
-        return super().update(bot)
