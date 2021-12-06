@@ -75,8 +75,8 @@ class FightBehavior(UnitBehavior):
         if self.ai.state.creep.is_empty(unit.position.rounded):
             advantage_creep = 1 / creep_bonus
 
-        # advantage_defender = (1 - self.ai.distance_map[unit.position.rounded]) / max(1e-3, self.ai.power_level)
-        advantage_defender = .5 / self.ai.distance_map[unit.position.rounded]
+        advantage_defender = (1 - self.ai.distance_map[unit.position.rounded]) / max(1e-3, self.ai.power_level)
+        # advantage_defender = .5 / self.ai.distance_map[unit.position.rounded]
 
         advantage = 1
         advantage *= advantage_army
