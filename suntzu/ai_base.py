@@ -343,10 +343,8 @@ class AIBase(ABC, BotAI):
         
         sum = 0
         if include_actual:
-            if item in WORKERS and self.worker_supply_fixed is not None:
-                sum += self.worker_supply_fixed
-                # fix worker count (so that it includes workers in gas buildings)
-                # sum += self.supply_used - self.supply_army - len(self.pending_by_type[item])
+            if item in WORKERS:
+                sum += self.supply_workers_fixed
             else:
                 sum += len(self.actual_by_type[item])
         if include_pending:
@@ -385,7 +383,6 @@ class AIBase(ABC, BotAI):
         self.actual_by_type.clear()
         self.pending_by_type.clear()
         self.destructables_fixed.clear()
-        self.worker_supply_fixed = None
 
         for townhall in self.townhalls.ready:
             self.townhall_by_position[townhall.position] = townhall
@@ -415,16 +412,16 @@ class AIBase(ABC, BotAI):
         for upgrade in self.state.upgrades:
             self.actual_by_type[upgrade].add(upgrade)
 
-        worker_type = race_worker[self.race]
-        worker_pending = self.count(worker_type, include_actual=False, include_pending=False, include_planned=False)
-        self.worker_supply_fixed = self.supply_used - self.supply_army - worker_pending
-
         unit_abilities = await self.get_available_abilities(self.all_own_units)
         self.abilities = {
             unit.tag: set(abilities)
             for unit, abilities in zip(self.all_own_units, unit_abilities)
         }
 
+    @property
+    def supply_workers_fixed(self) -> int:
+        return self.supply_used - self.supply_army
+        
     @property
     def gas_harvesters(self) -> Iterable[int]:
         for base in self.bases:
