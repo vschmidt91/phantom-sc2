@@ -18,7 +18,7 @@ from suntzu.strategies.pool12_allin import Pool12AllIn
 VERSION_PATH = './version.txt'
 
 with open(VERSION_PATH, 'r') as file:
-    version = file.readline()
+    version = file.readline().replace('\n', '')
 
 # Start game
 if __name__ == "__main__":
@@ -49,7 +49,7 @@ if __name__ == "__main__":
         # opponent = Bot(Race.Zerg, ZergAI(performance = PerformanceMode.HIGH_PERFORMANCE, strategy = Pool12AllIn(False)), 'Pool12AllIn')   
         
         result = run_game(
-            sc2.maps.get('OxideAIE'),
+            sc2.maps.get('RomanticideAIE'),
             [bot, opponent],
             realtime=False,
             save_replay_as=replayPath,

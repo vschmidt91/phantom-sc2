@@ -48,17 +48,14 @@ class SpreadCreepBehavior(UnitBehavior):
 
         start_position = unit.position
         if unit.type_id == UnitTypeId.QUEEN:
-            forward_base = max(
-                self.ai.townhalls.ready,
-                key = lambda th : self.ai.distance_map[th.position.rounded],
-                default = None)
+            forward_base = self.ai.townhalls.ready.random
             if forward_base:
-                start_position = forward_base.position 
+                start_position = forward_base.position
 
         target = None
-        for _ in range(3):
+        for _ in range(10):
             angle = np.random.uniform(0, 2 * math.pi)
-            distance = np.random.exponential(self.CREEP_RANGE)
+            distance = np.random.exponential(0.5 * self.CREEP_RANGE)
             target_test = start_position + distance * Point2((math.cos(angle), math.sin(angle)))
             target_test = np.clip(target_test, self.ai.creep_area_min, self.ai.creep_area_max)
             target_test = Point2(target_test).rounded
@@ -83,6 +80,8 @@ class SpreadCreepBehavior(UnitBehavior):
             if not self.ai.has_creep(position):
                 continue
             if not self.ai.is_visible(position):
+                continue
+            if not self.ai.in_pathing_grid(position):
                 continue
             if self.ai.blocked_base(position):
                 continue
