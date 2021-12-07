@@ -53,7 +53,7 @@ class ZergMacro(ZergStrategy):
 
         if (
             bot.count(UpgradeId.ZERGLINGMOVEMENTSPEED, include_pending=False, include_planned=False)
-            and 40 <= bot.bases.harvester_count
+            and 48 <= bot.bases.harvester_count
             and 3 <= bot.townhalls.amount
         ):
             composition[UnitTypeId.ROACH] = 0
@@ -83,7 +83,7 @@ class ZergMacro(ZergStrategy):
         return composition
 
     def destroy_destructables(self, bot) -> bool:
-        return 4 * 60 < bot.time
+        return 6 * 60 < bot.time
 
     def filter_upgrade(self, bot, upgrade) -> bool:
         if upgrade in ZERG_FLYER_UPGRADES:
@@ -133,7 +133,7 @@ class ZergMacro(ZergStrategy):
             bot.make_composition: 1,
             bot.make_tech: 1,
             # bot.draft_civilians: 1,
-            # bot.expand: 1,
+            bot.expand: 1,
             bot.micro: 1,
             bot.assess_threat_level: 1,
             bot.macro: 1,
@@ -147,7 +147,7 @@ class ZergMacro(ZergStrategy):
             bot.draw_debug: 1,
         }
 
-        if self.enable_expansion:
-            steps[bot.expand] = 1
+        # if self.enable_expansion:
+            # steps[bot.expand] = 1
 
         return steps

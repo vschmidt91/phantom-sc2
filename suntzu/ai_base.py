@@ -1047,7 +1047,7 @@ class AIBase(ABC, BotAI):
 
         enemy_influence_map = self.map_analyzer.get_pyastar_grid()
         for enemy in self.enemies.values():
-            enemy_range = max(0.5 * enemy.movement_speed, self.get_unit_range(enemy))
+            enemy_range = enemy.movement_speed + self.get_unit_range(enemy)
             self.enemy_influence_map = self.map_analyzer.add_cost(
                 position = enemy.position,
                 radius = enemy.radius + enemy_range,
@@ -1058,7 +1058,7 @@ class AIBase(ABC, BotAI):
 
         army_influence_map = self.map_analyzer.get_pyastar_grid()
         for unit in self.enumerate_army():
-            unit_range = max(0.5 * unit.movement_speed, self.get_unit_range(unit))
+            unit_range = unit.movement_speed + self.get_unit_range(unit)
             self.army_influence_map = self.map_analyzer.add_cost(
                 position = unit.position,
                 radius = unit.radius + unit_range,

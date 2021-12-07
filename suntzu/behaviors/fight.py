@@ -39,14 +39,14 @@ class FightBehavior(UnitBehavior):
             return 0
         priority = 1e5
         # priority *= 10 + target.calculate_dps_vs_target(unit)
-        priority /= 30 + target.position.distance_to(unit.position)
+        priority /= 50 + target.position.distance_to(unit.position)
         priority /= 150 + target.position.distance_to(self.ai.start_location)
         priority /= 3 if target.is_structure else 1
 
         if target.is_enemy:
             priority /= 100 + target.shield + target.health
         else:
-            priority /= 100
+            priority /= 200
         priority *= 3 if target.type_id in WORKERS else 1
         priority /= 10 if target.type_id in CIVILIANS else 1
 
@@ -64,6 +64,7 @@ class FightBehavior(UnitBehavior):
         sample_offset = range_ratio * (target.position - unit.position)
         
         sample_position = unit.position + sample_offset
+        sample_position = unit.position.towards(target.position, unit.radius + self.ai.get_unit_range(unit) + target.radius, limit=True)
         friends_rating = self.ai.army_influence_map[sample_position.rounded]
         enemies_rating = self.ai.enemy_influence_map[sample_position.rounded]
 
@@ -102,12 +103,12 @@ class FightBehavior(UnitBehavior):
     def get_stance(self, unit: Unit, advantage: float) -> FightStance:
         if self.ai.get_unit_range(unit) < 2:
             if self.stance is FightStance.FLEE:
-                if advantage < 2/3:
+                if advantage < 1:
                     return FightStance.FLEE
                 else:
                     return FightStance.FIGHT
-            else:
-                if advantage < 3/2:
+            elif self.stance is FightStance.FIGHT:
+                if advantage < 1/3:
                     return FightStance.FLEE
                 else:
                     return FightStance.FIGHT
