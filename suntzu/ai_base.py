@@ -104,7 +104,6 @@ class AIBase(ABC, BotAI):
         self.enemy_base_count: int = 1
         self.army_influence_map: np.ndarray = None
         self.enemy_influence_map: np.ndarray = None
-        self.advantage_map: np.ndarray = None
         self.unit_manager: UnitManager = UnitManager(self)
         self.tumor_front_tags: Set[int] = set()
 
