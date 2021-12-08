@@ -1088,12 +1088,6 @@ class AIBase(ABC, BotAI):
             dodge_map = element.add_damage(self.map_analyzer, dodge_map, self.time)
         self.dodge_map = dodge_map
 
-        advantage_army = self.army_influence_map / self.enemy_influence_map
-        # advantage_creep = np.where(np.transpose(self.state.creep.data_numpy) == 1, 1, 1/1.3)
-        advantage_defender = np.maximum(1, (1 - self.distance_map) / max(1e-3, self.power_level))
-
-        self.advantage_map = advantage_army * advantage_defender
-
             # movement_speed = 1 # assume speed of Queens on creep
             # if isinstance(dodge, DodgeEffectDelayed):
             #     time_to_impact = max(0, dodge.time_of_impact - self.time)
