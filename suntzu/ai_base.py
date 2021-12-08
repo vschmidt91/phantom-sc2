@@ -79,6 +79,7 @@ class AIBase(ABC, BotAI):
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
         self.dodge_delayed: List[dodge.DodgeEffectDelayed] = list()
         self.distance_map: np.ndarray = None
+        self.power_level: float = 0.0
         self.threat_level: float = 0.0
         self.weapons: Dict[UnitTypeId, List] = dict()
         self.dps: Dict[UnitTypeId, float] = dict()
@@ -1088,9 +1089,10 @@ class AIBase(ABC, BotAI):
         self.dodge_map = dodge_map
 
         advantage_army = self.army_influence_map / self.enemy_influence_map
-        advantage_creep = np.where(np.transpose(self.state.creep.data_numpy) == 1, 1, 1/1.3)
-        advantage_defender = np.maximum(1, .5 / self.distance_map)
-        self.advantage_map = advantage_army * advantage_creep * advantage_defender
+        # advantage_creep = np.where(np.transpose(self.state.creep.data_numpy) == 1, 1, 1/1.3)
+        advantage_defender = np.maximum(1, (1 - self.distance_map) / max(1e-3, self.power_level))
+
+        self.advantage_map = advantage_army * advantage_defender
 
             # movement_speed = 1 # assume speed of Queens on creep
             # if isinstance(dodge, DodgeEffectDelayed):
@@ -1123,8 +1125,6 @@ class AIBase(ABC, BotAI):
         # self.map_analyzer.draw_influence_in_game(dodge_map)
 
     def assess_threat_level(self):
-
-        army = list(self.enumerate_army())
 
         value_self = sum(self.get_unit_value(u) for u in self.enumerate_army())
         value_enemy = sum(self.get_unit_value(e) for e in self.enemies.values())

@@ -82,8 +82,10 @@ class FightBehavior(UnitBehavior):
 
         advantage = 1
         advantage *= advantage_army
-        advantage *= advantage_creep
         advantage *= max(1, advantage_defender)
+        
+        advantage = self.ai.advantage_map[unit.position.rounded]
+        advantage *= advantage_creep
 
         return advantage
 
@@ -103,21 +105,21 @@ class FightBehavior(UnitBehavior):
     def get_stance(self, unit: Unit, advantage: float) -> FightStance:
         if self.ai.get_unit_range(unit) < 2:
             if self.stance is FightStance.FLEE:
-                if advantage < 2:
+                if advantage < 1:
                     return FightStance.FLEE
                 else:
                     return FightStance.FIGHT
             elif self.stance is FightStance.FIGHT:
-                if advantage < 1/2:
+                if advantage < 1/3:
                     return FightStance.FLEE
                 else:
                     return FightStance.FIGHT
         else:
-            if advantage < 1/2:
+            if advantage < 1/3:
                 return FightStance.FLEE
-            elif advantage < 2:
+            elif advantage < 1:
                 return FightStance.RETREAT
-            elif advantage < 4:
+            elif advantage < 3:
                 return FightStance.FIGHT
             else:
                 return FightStance.ADVANCE
@@ -134,8 +136,8 @@ class FightBehavior(UnitBehavior):
         if priority <= 0:
             return BehaviorResult.SUCCESS
 
-        # advantage = self.get_advantage(unit, target)
-        advantage = self.ai.advantage_map[unit.position.rounded]
+        advantage = self.get_advantage(unit, target)
+        # advantage = self.ai.advantage_map[unit.position.rounded]
         self.stance = self.get_stance(unit, advantage)
 
         if self.stance == FightStance.FLEE:
