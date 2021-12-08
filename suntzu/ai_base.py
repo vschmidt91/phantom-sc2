@@ -1053,7 +1053,7 @@ class AIBase(ABC, BotAI):
                 position = enemy.position,
                 radius = enemy.radius + enemy_range,
                 grid = enemy_influence_map,
-                weight = self.get_unit_value(enemy),
+                weight = self.get_unit_value(enemy) / 100,
             )
         self.enemy_influence_map = enemy_influence_map
 
@@ -1064,7 +1064,7 @@ class AIBase(ABC, BotAI):
                 position = unit.position,
                 radius = unit.radius + unit_range,
                 grid = army_influence_map,
-                weight = self.get_unit_value(unit),
+                weight = self.get_unit_value(unit) / 100,
             )
         self.army_influence_map = army_influence_map
 
@@ -1092,7 +1092,6 @@ class AIBase(ABC, BotAI):
         advantage_creep = np.where(np.transpose(self.state.creep.data_numpy) == 1, 1, 1/1.3)
         advantage_defender = np.maximum(1, .5 / self.distance_map)
         self.advantage_map = advantage_army * advantage_creep * advantage_defender
-        self.advantage_map_rcp = np.reciprocal(np.maximum(1e-5, self.advantage_map)) * 10 + 1
 
             # movement_speed = 1 # assume speed of Queens on creep
             # if isinstance(dodge, DodgeEffectDelayed):
