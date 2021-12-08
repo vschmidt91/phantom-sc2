@@ -59,11 +59,7 @@ class FightBehavior(UnitBehavior):
 
         if not target:
             return 1
-
-        range_ratio = 0.5
-        sample_offset = range_ratio * (target.position - unit.position)
         
-        sample_position = unit.position + sample_offset
         sample_position = unit.position.towards(target.position, unit.radius + self.ai.get_unit_range(unit) + target.radius, limit=True)
         friends_rating = self.ai.army_influence_map[sample_position.rounded]
         enemies_rating = self.ai.enemy_influence_map[sample_position.rounded]
@@ -83,8 +79,6 @@ class FightBehavior(UnitBehavior):
         advantage = 1
         advantage *= advantage_army
         advantage *= max(1, advantage_defender)
-        
-        advantage = self.ai.advantage_map[unit.position.rounded]
         advantage *= advantage_creep
 
         return advantage
@@ -137,7 +131,6 @@ class FightBehavior(UnitBehavior):
             return BehaviorResult.SUCCESS
 
         advantage = self.get_advantage(unit, target)
-        # advantage = self.ai.advantage_map[unit.position.rounded]
         self.stance = self.get_stance(unit, advantage)
 
         if self.stance == FightStance.FLEE:
