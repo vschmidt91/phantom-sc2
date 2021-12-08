@@ -134,7 +134,8 @@ class FightBehavior(UnitBehavior):
         if priority <= 0:
             return BehaviorResult.SUCCESS
 
-        advantage = self.get_advantage(unit, target)
+        # advantage = self.get_advantage(unit, target)
+        advantage = self.ai.advantage_map[unit.position.rounded]
         self.stance = self.get_stance(unit, advantage)
 
         if self.stance == FightStance.FLEE:

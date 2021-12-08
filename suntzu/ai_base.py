@@ -104,6 +104,7 @@ class AIBase(ABC, BotAI):
         self.enemy_base_count: int = 1
         self.army_influence_map: np.ndarray = None
         self.enemy_influence_map: np.ndarray = None
+        self.advantage_map: np.ndarray = None
         self.unit_manager: UnitManager = UnitManager(self)
         self.tumor_front_tags: Set[int] = set()
 
@@ -1086,6 +1087,12 @@ class AIBase(ABC, BotAI):
         for element in dodge:
             dodge_map = element.add_damage(self.map_analyzer, dodge_map, self.time)
         self.dodge_map = dodge_map
+
+        advantage_army = self.army_influence_map / self.enemy_influence_map
+        advantage_creep = np.where(np.transpose(self.state.creep.data_numpy) == 1, 1, 1/1.3)
+        advantage_defender = np.maximum(1, .5 / self.distance_map)
+        self.advantage_map = advantage_army * advantage_creep * advantage_defender
+        self.advantage_map_rcp = np.reciprocal(np.maximum(1e-5, self.advantage_map)) * 10 + 1
 
             # movement_speed = 1 # assume speed of Queens on creep
             # if isinstance(dodge, DodgeEffectDelayed):
