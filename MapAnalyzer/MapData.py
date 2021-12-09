@@ -97,7 +97,7 @@ class MapData:
             self.base_locations: list = []
 
         logger.info(f"{__version__} Compiling {self.map_name} " + WHITE)
-        self._compile_map()
+        # self._compile_map()
 
     """Properties"""
 

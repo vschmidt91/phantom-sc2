@@ -18,7 +18,7 @@ from s2clientprotocol.error_pb2 import Error
 from queue import Queue
 import os
 import json
-from sc2 import position
+import MapAnalyzer
 
 from MapAnalyzer import MapData
 from sc2.game_data import GameData
@@ -186,6 +186,7 @@ class AIBase(ABC, BotAI):
                 pass
 
     async def on_start(self):
+
         self.map_analyzer = MapData(self)
         self.map_data = await self.load_map_data()
         await self.initialize_bases()
