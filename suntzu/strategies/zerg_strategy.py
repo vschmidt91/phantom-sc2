@@ -5,7 +5,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
 
 
-class ZergStrategy(object):
+class ZergStrategy:
 
     def __init__(self):
         self.tech_time = 3.5 * 60

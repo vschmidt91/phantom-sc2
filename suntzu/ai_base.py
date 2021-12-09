@@ -4,9 +4,10 @@ from collections import defaultdict
 from enum import Enum
 from functools import reduce
 from json import detect_encoding
+from dataclasses import dataclass
 import math
 import random
-from typing import DefaultDict, Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
+from typing import Any, DefaultDict, Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
 import numpy as np
 from s2clientprotocol.data_pb2 import Weapon
 from s2clientprotocol.raw_pb2 import Effect
@@ -18,7 +19,7 @@ from queue import Queue
 import os
 from sc2 import position
 
-from MapAnalyzer.MapData import MapData
+from MapAnalyzer import MapData
 
 from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.effect_id import EffectId
@@ -55,21 +56,33 @@ import matplotlib.pyplot as plt
 
 from .enums import PerformanceMode
 
-class PlacementNotFound(Exception):
+class PlacementNotFoundError(Exception):
     pass
+
+class VersionConflictError(Exception):
+    pass
+
+@dataclass
+class MapStaticData:
+    version: np.ndarray
+    distance: np.ndarray
 
 class AIBase(ABC, BotAI):
 
     def __init__(self,
+        version: str,
         game_step: Optional[int] = None,
         debug: bool = False,
         performance: PerformanceMode = PerformanceMode.DEFAULT,
     ):
+
+        self.raw_affects_selection = True
+
+        self.version: str = version
         self.tags: List[str] = list()
         self.game_step: Optional[int] = game_step
         self.performance: PerformanceMode = performance
         self.debug: bool = debug
-        self.raw_affects_selection = True
         self.greet_enabled: bool = True
         self.macro_plans = list()
         self.composition: Dict[UnitTypeId, int] = dict()
@@ -78,7 +91,6 @@ class AIBase(ABC, BotAI):
         self.bases: ResourceGroup[Base] = None
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
         self.dodge_delayed: List[dodge.DodgeEffectDelayed] = list()
-        self.distance_map: np.ndarray = None
         self.power_level: float = 0.0
         self.threat_level: float = 0.0
         self.weapons: Dict[UnitTypeId, List] = dict()
@@ -97,10 +109,12 @@ class AIBase(ABC, BotAI):
         self.damage_taken: Dict[int] = dict()
         self.gg_sent: bool = False
         self.unit_ref: Optional[int] = None
+        self.advantage_map: np.ndarray = None
         self.dodge_map: np.ndarray = None
         self.dodge_gradient_map: np.ndarray = None
         self.abilities: DefaultDict[int, Set[AbilityId]] = defaultdict(lambda:set())
-        self.map_analyzer: MapData = None
+        self.map_data: MapStaticData
+        self.map_analyzer: MapData
         self.army_center: Point2 = Point2((0, 0))
         self.enemy_base_count: int = 1
         self.army_influence_map: np.ndarray = None
@@ -173,7 +187,7 @@ class AIBase(ABC, BotAI):
         self.enemy_map = self.map_analyzer.get_pyastar_grid()
         self.friend_map = self.map_analyzer.get_pyastar_grid()
 
-        await self.create_distance_map()
+        self.map_data = await self.load_map_data()
         await self.initialize_bases()
 
     def handle_errors(self):
@@ -547,13 +561,31 @@ class AIBase(ABC, BotAI):
         bases = sorted((
             Base(position, (m.position for m in resources.mineral_field), (g.position for g in resources.vespene_geyser))
             for position, resources in self.expansion_locations_dict.items()
-        ), key = lambda b : self.distance_map[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
+        ), key = lambda b : self.map_data.distance[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
         self.bases = ResourceGroup(bases)
         self.bases[0].split_initial_workers(set(self.workers))
         self.bases[-1].taken_since = 1
 
-    async def create_distance_map(self):
+    async def load_map_data(self) -> Coroutine[Any, Any, MapStaticData]:
+
+        path = os.path.join('data', f'{self.game_info.map_name}.npz')
+        try:
+            map_data_files = np.load(path)
+            map_data = MapStaticData(**map_data_files)
+            map_data_version = str(map_data.version)
+            if map_data_version != self.version:
+                raise VersionConflictError()
+        except (FileNotFoundError, VersionConflictError, TypeError):
+            map_data = await self.create_map_data()
+            np.savez_compressed(path, **map_data.__dict__)
+        return map_data
+
+    async def create_map_data(self) -> Coroutine[Any, Any, MapStaticData]:
+        distance_map = await self.create_distance_map()
+        return MapStaticData(self.version, distance_map)
+
+    async def create_distance_map(self) -> Coroutine[Any, Any, np.ndarray]:
 
         boundary = np.transpose(self.game_info.pathing_grid.data_numpy == 0)
         for dx in range(-2, 3):
@@ -571,8 +603,8 @@ class AIBase(ABC, BotAI):
             distance_enemy = min(position.distance_to(p) for p in self.enemy_start_locations)
             distance_air[p] = distance_self / (distance_self + distance_enemy)
         distance_map = np.where(np.isnan(distance_ground), distance_air, distance_ground)
-
-        self.distance_map = distance_map
+        
+        return distance_map
 
     def draw_debug(self):
 
@@ -780,7 +812,7 @@ class AIBase(ABC, BotAI):
             if plan.target is None:
                 try:
                     plan.target = await self.get_target(unit, plan)
-                except PlacementNotFound as p: 
+                except PlacementNotFoundError as p: 
                     continue
 
             # if isinstance(plan.target, Unit):
@@ -883,7 +915,7 @@ class AIBase(ABC, BotAI):
                 )
             ]
             if not any(geysers):
-                raise PlacementNotFound()
+                raise PlacementNotFoundError()
             else:
                 return random.choice(geysers)
                 
@@ -893,7 +925,7 @@ class AIBase(ABC, BotAI):
             
             position = await self.find_placement(objective.ability["ability"], position, max_distance=objective.max_distance or 20, placement_step=1, addon_place=withAddon)
             if position is None:
-                raise PlacementNotFound()
+                raise PlacementNotFoundError()
             else:
                 return position
         else:
@@ -1004,12 +1036,12 @@ class AIBase(ABC, BotAI):
                     if not await self.can_place_single(target, b.position):
                         continue
                     return b.position
-                raise PlacementNotFound()
+                raise PlacementNotFoundError()
             elif self.townhalls.exists:
                 position = self.townhalls.closest_to(self.start_location).position
                 return position.towards(self.game_info.map_center, 6)
             else:
-                raise PlacementNotFound()
+                raise PlacementNotFoundError()
         else:
             return trainer.position
 
@@ -1088,52 +1120,25 @@ class AIBase(ABC, BotAI):
             dodge_map = element.add_damage(self.map_analyzer, dodge_map, self.time)
         self.dodge_map = dodge_map
 
-            # movement_speed = 1 # assume speed of Queens on creep
-            # if isinstance(dodge, DodgeEffectDelayed):
-            #     time_to_impact = max(0, dodge.time_of_impact - self.time)
-            # else:
-            #     time_to_impact = 0
-            # dodge_radius = dodge.radius + 2 - time_to_impact * movement_speed
-            # if dodge_radius <= 0:
-            #     continue
-
-            # for position in dodge.positions:
-            #     dodge_map = self.map_analyzer.add_cost(
-            #         position = position,
-            #         radius = dodge_radius,
-            #         grid = dodge_map,
-            #         weight = 1000
-            #     )
-
-        # dodge_blur_map = ndimage.gaussian_filter(dodge_map, 5)
-        # dodge_gradient_map = np.dstack(np.gradient(dodge_blur_map))
-        # self.dodge_gradient_map = dodge_gradient_map
-
-        # self.enemy_influence_map = np.where(np.isposinf(self.enemy_influence_map), 0, self.enemy_influence_map)
-        # self.army_influence_map = np.where(np.isposinf(self.army_influence_map), 0, self.army_influence_map)
-        
-        # blur_sigma = 4
-        # self.enemy_influence_map = ndimage.gaussian_filter(self.enemy_influence_map, blur_sigma)
-        # self.army_influence_map = ndimage.gaussian_filter(self.army_influence_map, blur_sigma)
-
-        # self.map_analyzer.draw_influence_in_game(dodge_map)
+        advantage_army = self.army_influence_map / self.enemy_influence_map
+        advantage_defender = np.maximum((1 - self.map_data.distance) / max(1e-3, self.power_level), 1)
+        self.advantage_map = advantage_army * advantage_defender
 
     def assess_threat_level(self):
 
         value_self = sum(self.get_unit_value(u) for u in self.enumerate_army())
         value_enemy = sum(self.get_unit_value(e) for e in self.enemies.values())
-        value_enemy_threats = sum(self.get_unit_value(e) * (1 - self.distance_map[e.position.rounded]) for e in self.enemies.values())
+        value_enemy_threats = sum(self.get_unit_value(e) * (1 - self.map_data.distance[e.position.rounded]) for e in self.enemies.values())
 
         self.power_level = value_enemy / max(1, value_self + value_enemy)
         self.threat_level = value_enemy_threats / max(1, value_self + value_enemy_threats)
 
-
     def can_afford_with_reserve(self, cost: Cost, reserve: Cost) -> bool:
-        if 0 < cost.minerals and self.minerals < reserve.minerals + cost.minerals:
+        if max(0, self.minerals - reserve.minerals) < cost.minerals:
             return False
-        elif 0 < cost.vespene and self.vespene < reserve.vespene + cost.vespene:
+        elif max(0, self.vespene - reserve.vespene) < cost.vespene:
             return False
-        elif 0 < cost.food and self.supply_left < reserve.food + cost.food:
+        elif max(0, self.supply_left - reserve.food) < cost.food:
             return False
         else:
             return True

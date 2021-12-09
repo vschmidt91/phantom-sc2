@@ -25,7 +25,7 @@ if __name__ == "__main__":
     if "--LadderServer" in sys.argv:
         # Ladder game started by LadderManager
         print("Starting ladder game ...")        
-        ai = ZergAI(game_step = 4)
+        ai = ZergAI(version=version, game_step = 4)
         ai.tags.append(version)
         bot = Bot(Race.Zerg, ai, 'Sun Tzu')
         result, opponentid = run_ladder_game(bot)
@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
         }
         # bot = Bot(Race.Zerg, WorkerStackBot())
-        ai = ZergAI(game_step = 8, debug = True, performance = PerformanceMode.DEFAULT)
+        ai = ZergAI(version=version, game_step = 8, debug = True, performance = PerformanceMode.DEFAULT)
         ai.tags.append(version)
         bot = Bot(Race.Zerg, ai, 'Sun Tzu')  
         # opponent = Bot(Race.Zerg, ZergAI(game_step = 8, debug = True, performance = PerformanceMode.DEFAULT), 'Sun Tzu 2') 

@@ -31,6 +31,14 @@ from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
+IGNORED_UNIT_TYPES = {
+    UnitTypeId.LARVA,
+    UnitTypeId.EGG,
+    UnitTypeId.BROODLING,
+    UnitTypeId.LOCUSTMP,
+    UnitTypeId.LOCUSTMPFLYING,
+}
+
 class UnitManager(Behavior):
 
     def __init__(self, ai: AIBase):
@@ -161,7 +169,7 @@ class UnitManager(Behavior):
         #         pass
 
         units = list()
-        units.extend(self.ai.units)
+        units.extend(u for u in self.ai.units if u.type_id not in IGNORED_UNIT_TYPES)
         units.extend(self.ai.tumor_front)
 
 

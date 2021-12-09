@@ -60,25 +60,31 @@ class FightBehavior(UnitBehavior):
         if not target:
             return 1
         
-        sample_position = unit.position.towards(target.position, unit.radius + self.ai.get_unit_range(unit) + target.radius, limit=True)
-        friends_rating = self.ai.army_influence_map[sample_position.rounded]
-        enemies_rating = self.ai.enemy_influence_map[sample_position.rounded]
+        unit_range = unit.radius + self.ai.get_unit_range(unit) + target.radius
+        sample_position = unit.position.towards(target.position, unit_range, limit=True)
+        
+        # friends_rating = self.ai.army_influence_map[sample_position.rounded]
+        # enemies_rating = self.ai.enemy_influence_map[sample_position.rounded]
+        
+        # advantage_army = friends_rating / max(1, enemies_rating)
+        # advantage_defender = (1 - self.ai.distance_map[unit.position.rounded]) / max(1e-3, self.ai.power_level)
 
-        advantage_army = friends_rating / max(1, enemies_rating)
-
-        creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id, 1)
         if unit.type_id == UnitTypeId.QUEEN:
             creep_bonus = 30
+        else:
+            creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id, 1)
+
         advantage_creep = 1
         if self.ai.state.creep.is_empty(unit.position.rounded):
             advantage_creep = 1 / creep_bonus
+        else:
+            advantage_creep = 1
 
-        advantage_defender = (1 - self.ai.distance_map[unit.position.rounded]) / max(1e-3, self.ai.power_level)
         # advantage_defender = .5 / self.ai.distance_map[unit.position.rounded]
 
-        advantage = 1
-        advantage *= advantage_army
-        advantage *= max(1, advantage_defender)
+        advantage = self.ai.advantage_map[sample_position.rounded]
+        # advantage *= advantage_army
+        # advantage *= max(1, advantage_defender)
         advantage *= advantage_creep
 
         return advantage
