@@ -13,17 +13,19 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
+from .changeling_scout import ChangelingScoutBehavior
 from .burrow import BurrowBehavior
 from .dodge import DodgeBehavior
 from .fight import FightBehavior
 from .launch_corrosive_biles import LaunchCorrosiveBilesBehavior
 from .search import SearchBehavior
+from .scout_manager import ScoutBehavior
 from .transfuse import TransfuseBehavior
 from .survive import SurviveBehavior
 from .inject import InjectBehavior
 from .gather import GatherBehavior
 from .spread_creep import SpreadCreepBehavior
-
+from .block_manager import DetectBehavior
 from ..utils import *
 from ..constants import *
 from .behavior import Behavior, BehaviorResult, LambdaBehavior, BehaviorSequence, BehaviorSelector, UnitBehavior, LambdaBehavior
@@ -64,14 +66,17 @@ class UnitManager(Behavior):
     def create_behavior(self, unit: Unit) -> Behavior:
         return BehaviorSequence([
             DodgeBehavior(self.ai, unit.tag),
+            SpreadCreepBehavior(self.ai, unit.tag),
+            ChangelingScoutBehavior(self.ai, unit.tag),
             BehaviorSelector([
                 LambdaBehavior(lambda : BehaviorResult.SUCCESS if self.is_civilian(unit) else BehaviorResult.FAILURE),
                 BehaviorSequence([
+                    ScoutBehavior(self.ai, unit.tag),
                     BurrowBehavior(self.ai, unit.tag),
                     LaunchCorrosiveBilesBehavior(self.ai, unit.tag),
                     InjectBehavior(self.ai, unit.tag),
-                    SpreadCreepBehavior(self.ai, unit.tag),
                     TransfuseBehavior(self.ai, unit.tag),
+                    DetectBehavior(self.ai, unit.tag),
                     FightBehavior(self.ai, unit.tag),
                     SearchBehavior(self.ai, unit.tag),
                 ])
@@ -79,7 +84,6 @@ class UnitManager(Behavior):
             BehaviorSelector([
                 LambdaBehavior(lambda : BehaviorResult.FAILURE if self.is_civilian(unit) else BehaviorResult.SUCCESS),
                 BehaviorSequence([
-                    SpreadCreepBehavior(self.ai, unit.tag),
                     SurviveBehavior(self.ai, unit.tag),
                     GatherBehavior(self.ai, unit.tag),
                 ])

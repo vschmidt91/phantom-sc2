@@ -43,6 +43,8 @@ from sc2.data import Result, race_townhalls, race_worker, ActionResult
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.units import Units
+from src.behaviors.block_manager import BlockManager
+from src.behaviors.scout_manager import ScoutManager
 
 from .resources.base import Base
 from .resources.resource_group import ResourceGroup
@@ -117,14 +119,15 @@ class AIBase(ABC, BotAI):
         self.dodge_map: np.ndarray = None
         self.dodge_gradient_map: np.ndarray = None
         self.abilities: DefaultDict[int, Set[AbilityId]] = defaultdict(lambda:set())
-        self.map_data: MapStaticData
-        self.map_analyzer: MapData
+        self.map_data: MapStaticData = None
+        self.map_analyzer: MapData = None
         self.army_center: Point2 = Point2((0, 0))
-        self.enemy_base_count: int = 1
         self.army_influence_map: np.ndarray = None
         self.enemy_influence_map: np.ndarray = None
         self.unit_manager: UnitManager = UnitManager(self)
         self.tumor_front_tags: Set[int] = set()
+        self.block_manager: BlockManager = BlockManager(self)
+        self.scout_manager: ScoutManager = ScoutManager(self)
 
     @property
     def plan_units(self) -> List[int]:
@@ -276,6 +279,8 @@ class AIBase(ABC, BotAI):
             self.greet_enabled = False
 
     async def on_step(self, iteration: int):
+        self.block_manager.execute()
+        self.scout_manager.execute()
         pass
 
     async def on_end(self, game_result: Result):
@@ -573,8 +578,8 @@ class AIBase(ABC, BotAI):
             map_data_files = np.load(path)
             map_data = MapStaticData(**map_data_files)
             map_data_version = str(map_data.version)
-            if map_data_version != self.version:
-                raise VersionConflictError()
+            # if map_data_version != self.version:
+            #     raise VersionConflictError()
             if 0.5 < map_data.distance[self.start_location.rounded]:
                 map_data.flip()
         except (FileNotFoundError, VersionConflictError, TypeError):
@@ -649,7 +654,7 @@ class AIBase(ABC, BotAI):
         #     self.client.debug_text_world(f'{d.health}', Point3((*d.position, z)))
 
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.threat_level)}%', (0.01, 0.01))
-        self.client.debug_text_screen(f'Enemy Bases: {self.enemy_base_count}', (0.01, 0.02))
+        self.client.debug_text_screen(f'Enemy Bases: {self.block_manager.enemy_base_count}', (0.01, 0.02))
         for i, plan in enumerate(self.macro_plans):
             self.client.debug_text_screen(f'{1+i} {plan.item.name}', (0.01, 0.1 + 0.01 * i))
 
@@ -1123,9 +1128,9 @@ class AIBase(ABC, BotAI):
         self.dodge_map = dodge_map
 
         advantage_army = self.army_influence_map / self.enemy_influence_map
-        advantage_defender = np.maximum(1/3 / self.map_data.distance, 1)
-        # advantage_defender = np.maximum((1 - self.map_data.distance) / max(1e-3, self.power_level), 1)
-        self.advantage_map = advantage_army
+        # advantage_defender = np.maximum(1/3 / self.map_data.distance, 1)
+        advantage_defender = np.maximum((1 - self.map_data.distance) / max(1e-3, self.power_level), 1)
+        self.advantage_map = advantage_army * advantage_defender
 
     def assess_threat_level(self):
 

@@ -21,7 +21,7 @@ class ZergMacro(ZergStrategy):
     def composition(self, bot) -> Dict[UnitTypeId, int]:
 
         worker_limit = 88
-        enemy_max_workers = 22 * bot.enemy_base_count
+        enemy_max_workers = 22 * bot.block_manager.enemy_base_count
         worker_target = min(
             worker_limit,
             bot.get_max_harvester(),
@@ -107,7 +107,7 @@ class ZergMacro(ZergStrategy):
         #         plan.priority = BUILD_ORDER_PRIORITY
         #         bot.add_macro_plan(plan)
 
-        if 2 <= bot.enemy_base_count:
+        if 2 <= bot.block_manager.enemy_base_count:
             self.enable_expansion = True
         elif 32 <= bot.bases.harvester_count:
             self.enable_expansion = True
@@ -128,7 +128,6 @@ class ZergMacro(ZergStrategy):
             bot.update_gas: 1,
             # bot.manage_queens: 1,
             # bot.spread_creep: 1,
-            bot.scout: 1,
             bot.morph_overlords: 1,
             bot.make_composition: 1,
             bot.make_tech: 1,

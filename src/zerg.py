@@ -96,17 +96,12 @@ class ZergAI(AIBase):
 
         self.strategy: ZergStrategy = strategy
         self.composition: Dict[UnitTypeId, int] = dict()
-        self.timings_acc = dict()
-        self.army_queens: Set[int] = set()
-        self.creep_queens: Set[int] = set()
-        self.inject_queens: Set[int] = set()
+
         self.creep_area_min: np.ndarray = None
         self.creep_area_max: np.ndarray = None
         self.creep_coverage: float = 0
         self.creep_tile_count: int = 1
         self.build_spores: bool = False
-        self.blocked_base_detectors: Dict[Point2, int] = dict()
-        self.scout_overlords: List[int] = list()
 
     async def micro(self):
         await super().micro()
@@ -335,99 +330,6 @@ class ZergAI(AIBase):
                 return (upgrade,)
         return tuple()
 
-    async def scout(self):
-
-        overseers = self.units(WITH_TECH_EQUIVALENTS[UnitTypeId.OVERSEER])
-        if overseers.exists:
-            ability = AbilityId.SPAWNCHANGELING_SPAWNCHANGELING
-            for overseer in overseers:
-                if ability in self.abilities[overseer.tag]:
-                    overseer(ability)
-
-        # free overseers once base is no longer blocked
-        for base in self.bases:
-            if base.blocked_since:
-                detector_tag = self.blocked_base_detectors.get(base.position)
-                detector = self.unit_by_tag.get(detector_tag)
-                if not detector:
-                    # assign overseer
-                    detector = min(
-                        (unit for unit in self.units if unit.is_detector),
-                        key = lambda u : u.position.distance_to(base.position),
-                        default = None)
-                    if not detector:
-                        continue
-                    self.blocked_base_detectors[base.position] = detector.tag
-                # move towards base
-                target_distance = detector.detect_range - 3
-                if target_distance < detector.position.distance_to(base.position):
-                    detector.move(base.position.towards(detector, target_distance))
-            else:
-                # reset once no longer blocked
-                if base.position in self.blocked_base_detectors:
-                    del self.blocked_base_detectors[base.position]
-
-        def scout_priority(base):
-            if base.townhall:
-                return 1e-5
-            d = self.map_data.distance[base.position.rounded]
-            if math.isnan(d) or math.isinf(d):
-                return 1e-5
-            return d
-
-        changelings = (
-            c
-            for t in CHANGELINGS
-            for c in self.actual_by_type[t]
-        )
-        for changeling in changelings:
-            if not changeling.is_moving:
-                target = sample(self.bases, key=scout_priority)
-                changeling.move(target.position)
-
-        overlord_targets = list()
-        if not self.bases[-2].taken_since:
-            target = self.bases[-2].position.towards(self.game_info.map_center, 11)
-        else:
-            enemy_location = self.enemy_start_locations[0]
-            enemy_main_ramp = min(
-                (r.top_center for r in self.game_info.map_ramps),
-                key = lambda r : r.distance_to(enemy_location)
-            )
-            target = min(self.map_analyzer.overlord_spots, key = lambda s : s.distance_to(enemy_main_ramp))
-        overlord_targets.append(target)
-        overlord_targets.append(self.bases[2].position.towards(self.game_info.map_center, 6))
-        overlord_targets.append(self.bases[3].position.towards(self.game_info.map_center, 6))
-
-        while len(self.scout_overlords) < len(overlord_targets):
-            overlord = next((o for o in self.actual_by_type[UnitTypeId.OVERLORD] if o.tag not in self.scout_overlords), None)
-            if not overlord:
-                break
-            self.scout_overlords.append(overlord.tag)
-
-        for tag, target in zip(list(self.scout_overlords), overlord_targets):
-            overlord = self.unit_by_tag.get(tag)
-            if overlord:
-                if not overlord.is_moving and 1 < overlord.position.distance_to(target):
-                    overlord.move(target)
-            else:
-                self.scout_overlords.remove(tag)
-
-        enemy_townhall_positions = {
-            th.position
-            for t in race_townhalls[self.enemy_race]
-            for th in self.enemies_by_type[t]
-        }
-
-        for base in self.bases:
-            if self.is_visible(base.position):
-                if base.position in enemy_townhall_positions:
-                    base.taken_since = self.time
-                else:
-                    base.taken_since = None
-        self.enemy_base_count = sum(1 for b in self.bases if b.taken_since and not b.townhall)
-        self.enemy_base_count = max(math.ceil(self.time / (4 * 60)), self.enemy_base_count)
-
     def update_composition(self):
         self.composition = self.strategy.composition(self)
 
@@ -454,7 +356,7 @@ class ZergAI(AIBase):
             return
         supply_buffer = 3
         supply_buffer += 3 * self.townhalls.amount
-        supply_buffer += 3 * len(self.inject_queens)
+        supply_buffer += 3 * len(self.unit_manager.inject_queens)
         # supply_buffer += self.larva.amount
         if self.supply_left + supply_pending < supply_buffer:
             self.add_macro_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
