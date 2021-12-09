@@ -64,8 +64,12 @@ class VersionConflictError(Exception):
 
 @dataclass
 class MapStaticData:
+
     version: np.ndarray
     distance: np.ndarray
+
+    def flip(self):
+        self.distance = 1 - self.distance
 
 class AIBase(ABC, BotAI):
 
@@ -570,12 +574,15 @@ class AIBase(ABC, BotAI):
             map_data_version = str(map_data.version)
             if map_data_version != self.version:
                 raise VersionConflictError()
+            if 0.5 < map_data.distance[self.start_location.rounded]:
+                map_data.flip()
         except (FileNotFoundError, VersionConflictError, TypeError):
             map_data = await self.create_map_data()
             np.savez_compressed(path, **map_data.__dict__)
         return map_data
 
     async def create_map_data(self) -> Coroutine[Any, Any, MapStaticData]:
+        print('creating map data ...')
         distance_map = await self.create_distance_map()
         return MapStaticData(self.version, distance_map)
 

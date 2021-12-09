@@ -50,6 +50,6 @@ if __name__ == "__main__":
             [bot, opponent],
             realtime=False,
             save_replay_as=replayPath,
-            random_seed=123,
+            random_seed=6,
         )
         print(result)
