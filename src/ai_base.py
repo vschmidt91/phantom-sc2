@@ -1115,8 +1115,8 @@ class AIBase(ABC, BotAI):
         self.dodge_map = dodge_map
 
         advantage_army = self.army_influence_map / self.enemy_influence_map
-        advantage_defender = np.maximum((1 - self.map_data.distance) / max(1e-3, self.power_level), 1)
-        self.advantage_map = advantage_army * advantage_defender
+        # advantage_defender = np.maximum((1 - self.map_data.distance) / max(1e-3, self.power_level), 1)
+        self.advantage_map = advantage_army
 
     def assess_threat_level(self):
 
