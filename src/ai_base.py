@@ -47,7 +47,7 @@ from sc2.units import Units
 from .resources.base import Base
 from .resources.resource_group import ResourceGroup
 from .behaviors.dodge import *
-from .behaviors.unit_manager import UnitManager
+from .behaviors.unit_manager import IGNORED_UNIT_TYPES, UnitManager
 from .constants import *
 from .macro_plan import MacroPlan
 from .cost import Cost
@@ -1005,13 +1005,13 @@ class AIBase(ABC, BotAI):
         return unit_range
 
     def enumerate_enemies(self) -> Iterable[Unit]:
-        enemies = list(self.enemies.values())
+        enemies = (
+            e
+            for e in self.enemies.values()
+            if e.type_id not in IGNORED_UNIT_TYPES
+        )
         if self.destroy_destructables():
-            enemies.extend(self.destructables_fixed)
-        enemies = [
-            e for e in enemies
-            if e.type_id not in { UnitTypeId.LARVA, UnitTypeId.EGG }
-        ]
+            enemies = chain(enemies, self.destructables_fixed)
         return enemies
 
     async def micro(self):

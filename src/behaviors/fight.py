@@ -31,25 +31,10 @@ class FightBehavior(UnitBehavior):
         self.stance: FightStance = FightStance.FIGHT
 
     def target_priority(self, unit: Unit, target: Unit) -> float:
-        if target.is_hallucination:
-            return 0
-        if target.type_id in CHANGELINGS:
-            return 0
         if not self.ai.can_attack(unit, target) and not unit.is_detector:
             return 0
-        priority = 1e5
-        # priority *= 10 + target.calculate_dps_vs_target(unit)
+        priority = self.ai.unit_manager.enemy_priorities[target.tag]
         priority /= 50 + target.position.distance_to(unit.position)
-        priority /= 150 + target.position.distance_to(self.ai.start_location)
-        priority /= 3 if target.is_structure else 1
-
-        if target.is_enemy:
-            priority /= 100 + target.shield + target.health
-        else:
-            priority /= 200
-        priority *= 3 if target.type_id in WORKERS else 1
-        priority /= 10 if target.type_id in CIVILIANS else 1
-
         if unit.is_detector:
             priority *= 10 if target.is_cloaked else 1
             priority *= 10 if not target.is_revealed else 1

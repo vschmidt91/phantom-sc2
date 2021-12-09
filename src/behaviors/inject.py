@@ -21,8 +21,19 @@ class InjectBehavior(UnitBehavior):
 
     def __init__(self, ai: AIBase, unit_tag: int):
         super().__init__(ai, unit_tag)
+        self.did_first_inject: bool = False
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
+
+        if unit.type_id not in { UnitTypeId.QUEEN, UnitTypeId.QUEENBURROWED }:
+            return BehaviorResult.SUCCESS
+
+        if not self.did_first_inject:
+            townhall = min(self.ai.townhalls.ready, key = lambda th : th.distance_to(unit), default = None)
+            if townhall:
+                unit(AbilityId.EFFECT_INJECTLARVA, target=townhall)
+                self.did_first_inject = True
+                return BehaviorResult.ONGOING
 
         townhall_tag = self.ai.unit_manager.inject_queens.get(unit.tag)
         if not townhall_tag:

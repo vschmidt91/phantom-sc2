@@ -48,6 +48,7 @@ class UnitManager(Behavior):
         self.inject_queens: Dict[int, int] = dict()
         self.drafted_civilians: Set[int] = set()
         self.creep_coverage: float = 0.0
+        self.enemy_priorities: Dict[int, float] = dict()
         self.behaviors: Dict[int, UnitBehavior] = dict()
 
     def is_civilian(self, unit: Unit) -> bool:
@@ -105,9 +106,30 @@ class UnitManager(Behavior):
                 if not self.ai.bases.try_add(worker):
                     self.drafted_civilians.add(worker)
 
+    def target_priority_apriori(self, target: Unit) -> float:
+        if target.is_hallucination:
+            return 0
+        if target.type_id in CHANGELINGS:
+            return 0
+        priority = 1e3
+        priority /= 150 + target.position.distance_to(self.ai.start_location)
+        priority /= 3 if target.is_structure else 1
+        if target.is_enemy:
+            priority /= 100 + target.shield + target.health
+        else:
+            priority /= 200
+        priority *= 3 if target.type_id in WORKERS else 1
+        priority /= 10 if target.type_id in CIVILIANS else 1
+        return priority
+
     def execute(self) -> BehaviorResult:
 
         self.creep_coverage = np.sum(self.ai.state.creep.data_numpy) / self.ai.creep_tile_count
+
+        self.enemy_priorities = {
+            e.tag: self.target_priority_apriori(e)
+            for e in self.ai.enumerate_enemies()
+        }
 
         self.draft_civilians()
 
