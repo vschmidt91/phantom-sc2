@@ -37,7 +37,7 @@ DODGE_UNITS = {
     UnitTypeId.BANELING,
 }
 
-class DamageCircle(object):
+class DamageCircle:
 
     def __init__(self, position: Point2, radius: float, damage: float):
         self.position: Point2 = position

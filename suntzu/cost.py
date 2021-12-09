@@ -1,5 +1,5 @@
 
-class Cost(object):
+class Cost:
 
     def __init__(self, minerals: float, vespene: float, food: float):
         self.minerals = minerals

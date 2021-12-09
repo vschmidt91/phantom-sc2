@@ -10,7 +10,7 @@ from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 
 from .cost import Cost
 
-class MacroPlan(object):
+class MacroPlan:
 
     def __init__(self, item: Union[UnitTypeId, UpgradeId], **kwargs):
         self.item = item
