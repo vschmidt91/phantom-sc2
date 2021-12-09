@@ -389,7 +389,12 @@ class ZergAI(AIBase):
         if not self.bases[-2].taken_since:
             target = self.bases[-2].position.towards(self.game_info.map_center, 11)
         else:
-            target = self.bases[-3].position
+            enemy_location = self.enemy_start_locations[0]
+            enemy_main_ramp = min(
+                (r.top_center for r in self.game_info.map_ramps),
+                key = lambda r : r.distance_to(enemy_location)
+            )
+            target = min(self.map_analyzer.overlord_spots, key = lambda s : s.distance_to(enemy_main_ramp))
         overlord_targets.append(target)
         overlord_targets.append(self.bases[2].position.towards(self.game_info.map_center, 6))
         overlord_targets.append(self.bases[3].position.towards(self.game_info.map_center, 6))
