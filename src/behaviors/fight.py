@@ -111,6 +111,9 @@ class FightBehavior(UnitBehavior):
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
+        if unit.type_id == UnitTypeId.OVERLORD:
+            return BehaviorResult.SUCCESS
+
         target, priority = max(
             ((t, self.target_priority(unit, t))
             for t in self.ai.enumerate_enemies()),

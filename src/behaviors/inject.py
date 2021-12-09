@@ -6,6 +6,7 @@ from sc2.constants import ALL_GAS, SPEED_INCREASE_ON_CREEP_DICT
 
 from sc2.position import Point2
 from sc2.unit import Unit
+from sc2.ids.buff_id import BuffId
 from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
@@ -30,7 +31,7 @@ class InjectBehavior(UnitBehavior):
 
         if not self.did_first_inject:
             townhall = min(self.ai.townhalls.ready, key = lambda th : th.distance_to(unit), default = None)
-            if townhall:
+            if townhall and BuffId.QUEENSPAWNLARVATIMER not in townhall.buffs:
                 unit(AbilityId.EFFECT_INJECTLARVA, target=townhall)
                 self.did_first_inject = True
                 return BehaviorResult.ONGOING

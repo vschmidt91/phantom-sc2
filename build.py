@@ -47,5 +47,4 @@ if __name__ == '__main__':
     zipLibrary(zipFile, 'MapAnalyzer')
     zipLibrary(zipFile, 'sc2')
     zipLibrary(zipFile, 'src')
-    zipLibrary(zipFile, 'data')
     zipFile.close()

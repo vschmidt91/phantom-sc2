@@ -24,6 +24,9 @@ class SearchBehavior(UnitBehavior):
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
+        if unit.type_id == UnitTypeId.OVERLORD:
+            return BehaviorResult.SUCCESS
+
         if not unit.is_idle:
             pass
         elif self.ai.time < 8 * 60:
