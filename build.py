@@ -46,6 +46,6 @@ if __name__ == '__main__':
     zipBot(zipFile)
     zipLibrary(zipFile, 'MapAnalyzer')
     zipLibrary(zipFile, 'sc2')
-    zipLibrary(zipFile, 'suntzu')
+    zipLibrary(zipFile, 'src')
     zipLibrary(zipFile, 'data')
     zipFile.close()

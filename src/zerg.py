@@ -45,6 +45,9 @@ from .constants import BUILD_ORDER_PRIORITY, WITH_TECH_EQUIVALENTS, REQUIREMENTS
 from .cost import Cost
 from .macro_plan import MacroPlan
 
+import cProfile
+import pstats
+
 SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
     Race.Zerg: {
         UnitTypeId.DRONEBURROWED,
@@ -107,7 +110,19 @@ class ZergAI(AIBase):
 
     async def micro(self):
         await super().micro()
-        self.unit_manager.execute()
+
+        if self.debug and self.state.game_loop % 1000 == 0:
+
+            with cProfile.Profile() as pr:
+                self.unit_manager.execute()
+
+            stats = pstats.Stats(pr)
+            stats.sort_stats(pstats.SortKey.TIME)
+            stats.dump_stats(filename='profiling.prof')
+
+        else:
+
+            self.unit_manager.execute()
 
     def handle_actions(self):
         for action in self.state.actions_unit_commands:

@@ -182,7 +182,6 @@ class AIBase(ABC, BotAI):
                 pass
 
     async def on_start(self):
-
         self.map_analyzer = MapData(self)
         self.map_data = await self.load_map_data()
         await self.initialize_bases()
@@ -272,8 +271,6 @@ class AIBase(ABC, BotAI):
             self.greet_enabled = False
 
     async def on_step(self, iteration: int):
-        if self.state.game_loop % 100 == 0:
-            print(f'{self.time_formatted} Threat Level: {round(self.threat_level, 3)}')
         pass
 
     async def on_end(self, game_result: Result):
