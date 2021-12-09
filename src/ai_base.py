@@ -54,9 +54,6 @@ from .cost import Cost
 from .utils import *
 from .behaviors.dodge import *
 
-import s2clientprotocol
-import matplotlib.pyplot as plt
-
 from .enums import PerformanceMode
 
 class PlacementNotFoundError(Exception):
