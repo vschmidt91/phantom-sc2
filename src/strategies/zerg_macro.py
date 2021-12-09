@@ -6,10 +6,10 @@ from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.data import Race
-from suntzu.constants import BUILD_ORDER_PRIORITY, ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_MELEE_UPGRADES
-from suntzu.cost import Cost
-from suntzu.macro_plan import MacroPlan
-from suntzu.utils import unitValue
+from ..constants import BUILD_ORDER_PRIORITY, ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_MELEE_UPGRADES
+from ..cost import Cost
+from ..macro_plan import MacroPlan
+from ..utils import unitValue
 
 from .zerg_strategy import ZergStrategy
 

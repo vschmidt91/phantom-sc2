@@ -3,7 +3,7 @@ from typing import Optional, Set
 
 from sc2.position import Point2
 from sc2.constants import ALL_GAS
-from suntzu.constants import RICH_GAS
+from ..constants import RICH_GAS
 
 from .resource_single import ResourceSingle
 from .resource_base import ResourceBase

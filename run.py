@@ -9,11 +9,11 @@ from sc2.data import Race, Difficulty, AIBuild, Result
 from sc2.player import Bot, Computer
 
 # Load bot
-from suntzu.zerg import ZergAI
-from suntzu.enums import PerformanceMode
-from suntzu.dummy import DummyAI
-from suntzu.strategies.dummy import DummyStrategy
-from suntzu.strategies.pool12_allin import Pool12AllIn
+from src.zerg import ZergAI
+from src.enums import PerformanceMode
+from src.dummy import DummyAI
+from src.strategies.dummy import DummyStrategy
+from src.strategies.pool12_allin import Pool12AllIn
 
 VERSION_PATH = './version.txt'
 

@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 import numpy as np
 
-from suntzu.behaviors.behavior import Behavior, UnitBehavior, BehaviorResult
+from .behavior import Behavior, UnitBehavior, BehaviorResult
 
 from ..ai_component import AIComponent
 

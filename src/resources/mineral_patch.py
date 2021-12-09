@@ -3,7 +3,7 @@ from typing import Set, Union, Iterable, Optional
 
 from sc2.position import Point2
 from sc2.ids.ability_id import AbilityId
-from suntzu.constants import RICH_MINERALS
+from ..constants import RICH_MINERALS
 
 from .resource_base import ResourceBase
 from .resource_single import ResourceSingle

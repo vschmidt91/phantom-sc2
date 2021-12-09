@@ -18,7 +18,7 @@ import sys
 import math
 
 from sc2.ids.ability_id import AbilityId
-from suntzu.utils import dot
+from src.utils import dot
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 

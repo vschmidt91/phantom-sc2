@@ -3,7 +3,7 @@ from typing import Union, Iterable, Dict, Set
 
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
-from suntzu.constants import SUPPLY_PROVIDED
+from ..constants import SUPPLY_PROVIDED
 
 from .zerg_macro import ZergMacro
 from .zerg_strategy import ZergStrategy

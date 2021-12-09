@@ -12,8 +12,7 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
-from suntzu.resources.mineral_patch import MineralPatch
-
+from ..resources.mineral_patch import MineralPatch
 from ..utils import *
 from ..constants import *
 from .behavior import Behavior, BehaviorResult, UnitBehavior

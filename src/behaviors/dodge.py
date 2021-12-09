@@ -17,7 +17,7 @@ from sc2.game_state import EffectData
 from sc2.unit_command import UnitCommand
 
 from ..utils import *
-from suntzu.behaviors.behavior import Behavior, BehaviorResult, UnitBehavior
+from .behavior import Behavior, BehaviorResult, UnitBehavior
 from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase

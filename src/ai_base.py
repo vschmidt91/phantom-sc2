@@ -9,7 +9,7 @@ import math
 import random
 from typing import Any, DefaultDict, Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
 import numpy as np
-from s2clientprotocol.data_pb2 import Weapon
+from s2clientprotocol.data_pb2 import UnitTypeData, Weapon
 from s2clientprotocol.raw_pb2 import Effect
 from s2clientprotocol.sc2api_pb2 import Macro
 from scipy import ndimage
@@ -17,9 +17,11 @@ from s2clientprotocol.common_pb2 import Point
 from s2clientprotocol.error_pb2 import Error
 from queue import Queue
 import os
+import json
 from sc2 import position
 
 from MapAnalyzer import MapData
+from sc2.game_data import GameData
 
 from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.effect_id import EffectId
@@ -50,8 +52,9 @@ from .constants import *
 from .macro_plan import MacroPlan
 from .cost import Cost
 from .utils import *
-import suntzu.behaviors.dodge as dodge
+from .behaviors.dodge import *
 
+import s2clientprotocol
 import matplotlib.pyplot as plt
 
 from .enums import PerformanceMode
@@ -90,7 +93,7 @@ class AIBase(ABC, BotAI):
         self.cost: Dict[MacroId, Cost] = dict()
         self.bases: ResourceGroup[Base] = None
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
-        self.dodge_delayed: List[dodge.DodgeEffectDelayed] = list()
+        self.dodge_delayed: List[DodgeEffectDelayed] = list()
         self.power_level: float = 0.0
         self.threat_level: float = 0.0
         self.weapons: Dict[UnitTypeId, List] = dict()
@@ -184,9 +187,6 @@ class AIBase(ABC, BotAI):
     async def on_start(self):
 
         self.map_analyzer = MapData(self)
-        self.enemy_map = self.map_analyzer.get_pyastar_grid()
-        self.friend_map = self.map_analyzer.get_pyastar_grid()
-
         self.map_data = await self.load_map_data()
         await self.initialize_bases()
 

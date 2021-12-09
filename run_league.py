@@ -7,8 +7,8 @@ from sc2.main import run_game
 
 from sc2.data import Race, Difficulty, AIBuild, Result
 from sc2.player import Bot, Computer
-from suntzu.zerg import ZergAI
-from suntzu.dummy import DummyAI
+from src.zerg import ZergAI
+from src.dummy import DummyAI
 
 maps = [
     'OxideAIE',
