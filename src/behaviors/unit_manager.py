@@ -88,7 +88,7 @@ class UnitManager(Behavior):
                 return 'overseer'
             elif unit.type_id in CHANGELINGS:
                 return 'changeling'
-            elif unit.type_id == race_worker[self.ai.race]:
+            elif unit.type_id == race_worker[self.ai.race] and unit.tag not in self.draft_civilians:
                 return 'worker'
             else:
                 return 'army'
@@ -120,6 +120,7 @@ class UnitManager(Behavior):
                     DodgeBehavior(self.ai, unit.tag),
                     SurviveBehavior(self.ai, unit.tag),
                     GatherBehavior(self.ai, unit.tag),
+                    FightBehavior(self.ai, unit.tag),
                 ]),
             'army': BehaviorSequence([
                     DodgeBehavior(self.ai, unit.tag),
