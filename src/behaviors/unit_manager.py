@@ -120,7 +120,6 @@ class UnitManager(Behavior):
                     DodgeBehavior(self.ai, unit.tag),
                     SurviveBehavior(self.ai, unit.tag),
                     GatherBehavior(self.ai, unit.tag),
-                    FightBehavior(self.ai, unit.tag),
                 ]),
             'army': BehaviorSequence([
                     DodgeBehavior(self.ai, unit.tag),
@@ -131,25 +130,12 @@ class UnitManager(Behavior):
                 ]),
         }
         return SwitchBehavior(select, behaviors)
-        
-        return BehaviorSequence([
-            DodgeBehavior(self.ai, unit.tag),
-            SpreadCreepBehavior(self.ai, unit.tag),
-            BehaviorSelector([
-                LambdaBehavior(lambda : BehaviorResult.SUCCESS if self.is_civilian(unit) else BehaviorResult.FAILURE),
-                
-            ]),
-            BehaviorSelector([
-                LambdaBehavior(lambda : BehaviorResult.FAILURE if self.is_civilian(unit) else BehaviorResult.SUCCESS),
-                
-            ])
-        ])
 
     def draft_civilians(self):
 
         self.drafted_civilians = {
             u for u in self.drafted_civilians
-            if u in self.ai.unit_by_tag
+            if u in self.ai.unit_by_tag and u not in self.ai.plan_units
         }
         
         if (
