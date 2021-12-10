@@ -88,7 +88,7 @@ class UnitManager(Behavior):
                 return 'overseer'
             elif unit.type_id in CHANGELINGS:
                 return 'changeling'
-            elif unit.type_id == race_worker[self.ai.race] and unit.tag not in self.draft_civilians:
+            elif unit.type_id == race_worker[self.ai.race] and unit.tag not in self.drafted_civilians:
                 return 'worker'
             else:
                 return 'army'
