@@ -20,7 +20,7 @@ class HatchFirst(ZergMacro):
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
+            # UnitTypeId.DRONE,
             UnitTypeId.HATCHERY,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,

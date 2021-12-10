@@ -44,10 +44,15 @@ class SurviveBehavior(UnitBehavior):
             retreat_goal = self.ai.townhalls.closest_to(unit.position).position
         else:
             retreat_goal = self.ai.start_location
+
+        if unit.is_flying:
+            enemy_map = self.ai.enemy_vs_air_map
+        else:
+            enemy_map = self.ai.enemy_vs_ground_map
         retreat_path = self.ai.map_analyzer.pathfind(
             start = unit.position,
             goal = retreat_goal,
-            grid = self.ai.enemy_influence_map,
+            grid = enemy_map,
             large = False,
             smoothing = False,
             sensitivity = 1)

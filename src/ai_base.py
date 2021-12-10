@@ -45,6 +45,7 @@ from sc2.unit_command import UnitCommand
 from sc2.units import Units
 from src.behaviors.block_manager import BlockManager
 from src.behaviors.scout_manager import ScoutManager
+from src.value_map import ValueMap
 
 from .resources.base import Base
 from .resources.resource_group import ResourceGroup
@@ -124,6 +125,8 @@ class AIBase(ABC, BotAI):
         self.army_center: Point2 = Point2((0, 0))
         self.army_influence_map: np.ndarray = None
         self.enemy_influence_map: np.ndarray = None
+        self.enemy_vs_ground_map: np.ndarray = None
+        self.enemy_vs_air_map: np.ndarray = None
         self.unit_manager: UnitManager = UnitManager(self)
         self.tumor_front_tags: Set[int] = set()
         self.block_manager: BlockManager = BlockManager(self)
@@ -1081,29 +1084,34 @@ class AIBase(ABC, BotAI):
         if not unit.is_ready:
             return 0
         cost = self.calculate_unit_value(unit.type_id)
-        return cost.minerals + cost.vespene
+        return max(1, cost.minerals + cost.vespene)
 
     def update_maps(self):
 
+        enemy_value_map = ValueMap(self)
+
         enemy_influence_map = self.map_analyzer.get_pyastar_grid()
         for enemy in self.enemies.values():
-            enemy_range = enemy.movement_speed + self.get_unit_range(enemy)
-            self.enemy_influence_map = self.map_analyzer.add_cost(
-                position = enemy.position,
-                radius = enemy.radius + enemy_range,
-                grid = enemy_influence_map,
-                weight = self.get_unit_value(enemy) / 100,
-            )
-        self.enemy_influence_map = enemy_influence_map
+            enemy_value_map.add(enemy)
+        #     enemy_range = enemy.movement_speed + self.get_unit_range(enemy)
+        #     enemy_influence_map = self.map_analyzer.add_cost(
+        #         position = enemy.position,
+        #         radius = enemy.radius + enemy_range,
+        #         grid = enemy_influence_map,
+        #         weight = self.get_unit_value(enemy) / 100,
+        #     )
+        # self.enemy_influence_map = enemy_influence_map
+        self.enemy_vs_ground_map = enemy_value_map.get_map_vs_ground()
+        self.enemy_vs_air_map = enemy_value_map.get_map_vs_air()
 
         army_influence_map = self.map_analyzer.get_pyastar_grid()
         for unit in self.enumerate_army():
             unit_range = unit.movement_speed + self.get_unit_range(unit)
-            self.army_influence_map = self.map_analyzer.add_cost(
+            army_influence_map = self.map_analyzer.add_cost(
                 position = unit.position,
                 radius = unit.radius + unit_range,
                 grid = army_influence_map,
-                weight = self.get_unit_value(unit) / 100,
+                weight = self.get_unit_value(unit),
             )
         self.army_influence_map = army_influence_map
 
@@ -1127,10 +1135,13 @@ class AIBase(ABC, BotAI):
             dodge_map = element.add_damage(self.map_analyzer, dodge_map, self.time)
         self.dodge_map = dodge_map
 
-        advantage_army = self.army_influence_map / self.enemy_influence_map
+        enemy_map = np.maximum(self.enemy_vs_air_map, self.enemy_vs_ground_map)
+        advantage_army = self.army_influence_map / enemy_map
         # advantage_defender = np.maximum(1/3 / self.map_data.distance, 1)
         advantage_defender = np.maximum((1 - self.map_data.distance) / max(1e-3, self.power_level), 1)
         self.advantage_map = advantage_army * advantage_defender
+
+        # self.map_analyzer.draw_influence_in_game(10 * advantage_army, upper_threshold=1e6)
 
     def assess_threat_level(self):
 

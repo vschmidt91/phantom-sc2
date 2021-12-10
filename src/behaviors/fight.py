@@ -75,10 +75,14 @@ class FightBehavior(UnitBehavior):
         return advantage
 
     def get_path_towards(self, unit: Unit, target: Point2) -> Point2:
+        if unit.is_flying:
+            enemy_map = self.ai.enemy_vs_air_map
+        else:
+            enemy_map = self.ai.enemy_vs_ground_map
         path = self.ai.map_analyzer.pathfind(
             start = unit.position,
             goal = target,
-            grid = self.ai.enemy_influence_map,
+            grid = enemy_map,
             large = is_large(unit),
             smoothing = False,
             sensitivity = 1)
