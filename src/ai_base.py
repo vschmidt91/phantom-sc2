@@ -254,12 +254,6 @@ class AIBase(ABC, BotAI):
                     continue
                 self.remove_macro_plan(plan)
 
-    def reset_blocked_bases(self):
-        for base in self.bases:
-            if base.blocked_since:
-                if base.blocked_since + 30 < self.time:
-                    base.blocked_since = None
-
     def handle_delayed_effects(self):
 
         self.dodge_delayed = [
@@ -933,7 +927,11 @@ class AIBase(ABC, BotAI):
             position = await self.get_target_position(objective.item, unit)
             withAddon = objective in { UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT }
             
-            position = await self.find_placement(objective.ability["ability"], position, max_distance=objective.max_distance or 20, placement_step=1, addon_place=withAddon)
+            if objective.max_distance is None:
+                max_distance = 20
+            else:
+                max_distance = objective.max_distance
+            position = await self.find_placement(objective.ability["ability"], position, max_distance=max_distance, placement_step=1, addon_place=withAddon)
             if position is None:
                 raise PlacementNotFoundError()
             else:
@@ -1090,21 +1088,12 @@ class AIBase(ABC, BotAI):
 
         enemy_value_map = ValueMap(self)
 
-        enemy_influence_map = self.map_analyzer.get_pyastar_grid()
         for enemy in self.enemies.values():
             enemy_value_map.add(enemy)
-        #     enemy_range = enemy.movement_speed + self.get_unit_range(enemy)
-        #     enemy_influence_map = self.map_analyzer.add_cost(
-        #         position = enemy.position,
-        #         radius = enemy.radius + enemy_range,
-        #         grid = enemy_influence_map,
-        #         weight = self.get_unit_value(enemy) / 100,
-        #     )
-        # self.enemy_influence_map = enemy_influence_map
-        self.enemy_vs_ground_map = enemy_value_map.get_map_vs_ground()
-        self.enemy_vs_air_map = enemy_value_map.get_map_vs_air()
+        self.enemy_vs_ground_map = np.maximum(100, enemy_value_map.get_map_vs_ground())
+        self.enemy_vs_air_map = np.maximum(100, enemy_value_map.get_map_vs_air())
 
-        army_influence_map = self.map_analyzer.get_pyastar_grid()
+        army_influence_map = self.map_analyzer.get_pyastar_grid(0)
         for unit in self.enumerate_army():
             unit_range = unit.movement_speed + self.get_unit_range(unit)
             army_influence_map = self.map_analyzer.add_cost(
@@ -1113,7 +1102,7 @@ class AIBase(ABC, BotAI):
                 grid = army_influence_map,
                 weight = self.get_unit_value(unit),
             )
-        self.army_influence_map = army_influence_map
+        self.army_influence_map = np.maximum(100, army_influence_map)
 
         dodge: List[DodgeElement] = list()
         delayed_positions = { e.position for e in self.dodge_delayed }
@@ -1137,8 +1126,8 @@ class AIBase(ABC, BotAI):
 
         enemy_map = np.maximum(self.enemy_vs_air_map, self.enemy_vs_ground_map)
         advantage_army = self.army_influence_map / enemy_map
-        # advantage_defender = np.maximum(1/3 / self.map_data.distance, 1)
-        advantage_defender = np.maximum((1 - self.map_data.distance) / max(1e-3, self.power_level), 1)
+        advantage_defender = np.maximum(1/2 / self.map_data.distance, 1)
+        # advantage_defender = np.maximum((1 - self.map_data.distance) / max(1e-3, self.power_level), 1)
         self.advantage_map = advantage_army * advantage_defender
 
         # self.map_analyzer.draw_influence_in_game(10 * advantage_army, upper_threshold=1e6)

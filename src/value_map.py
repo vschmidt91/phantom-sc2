@@ -39,7 +39,7 @@ class ValueMap(AIComponent):
                 self.ground_vs_air = self.ai.map_analyzer.add_cost(unit.position, range_vs_air, self.ground_vs_air, weight)
 
     def get_map_vs_ground(self) -> np.ndarray:
-        return np.maximum(1, self.ground_vs_ground + self.air_vs_ground)
+        return self.ground_vs_ground + self.air_vs_ground
 
     def get_map_vs_air(self) -> np.ndarray:
-        return np.maximum(1, self.ground_vs_air + self.air_vs_air)
+        return self.ground_vs_air + self.air_vs_air

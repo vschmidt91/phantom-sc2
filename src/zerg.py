@@ -376,6 +376,7 @@ class ZergAI(AIBase):
         if not self.count(UnitTypeId.HATCHERY, include_actual=False):
             if any(self.planned_by_type[UnitTypeId.HATCHERY]):
                 for plan in self.planned_by_type[UnitTypeId.HATCHERY]:
+                    plan.max_distance = 0
                     if plan.priority == BUILD_ORDER_PRIORITY:
                         pass
                     else:
@@ -383,5 +384,5 @@ class ZergAI(AIBase):
             else:
                 plan = MacroPlan(UnitTypeId.HATCHERY)
                 plan.priority = priority
-                plan.max_distance = 1
+                plan.max_distance = 0
                 self.add_macro_plan(plan)

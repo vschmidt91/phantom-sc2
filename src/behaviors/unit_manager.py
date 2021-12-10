@@ -63,8 +63,10 @@ class UnitManager(Behavior):
         else:
             return False
 
-    def create_behavior(self, unit: Unit) -> Behavior:
-        def select() -> str:
+    def create_behavior(self, unit_tag: int) -> Behavior:
+        def selector(unit: Unit) -> str:
+            if unit.type_id == UnitTypeId.OVERSEER:
+                print("a")
             if unit.type_id in {
                 UnitTypeId.CREEPTUMOR,
                 UnitTypeId.CREEPTUMORBURROWED,
@@ -93,43 +95,42 @@ class UnitManager(Behavior):
             else:
                 return 'army'
         behaviors = {
-            'creep': SpreadCreepBehavior(self.ai, unit.tag),
+            'creep': SpreadCreepBehavior(self.ai, unit_tag),
             'queen': BehaviorSequence([
-                    DodgeBehavior(self.ai, unit.tag),
-                    SpreadCreepBehavior(self.ai, unit.tag),
-                    InjectBehavior(self.ai, unit.tag),
-                    TransfuseBehavior(self.ai, unit.tag),
-                    FightBehavior(self.ai, unit.tag),
-                    SearchBehavior(self.ai, unit.tag),
+                    DodgeBehavior(self.ai, unit_tag),
+                    SpreadCreepBehavior(self.ai, unit_tag),
+                    InjectBehavior(self.ai, unit_tag),
+                    TransfuseBehavior(self.ai, unit_tag),
+                    FightBehavior(self.ai, unit_tag),
+                    SearchBehavior(self.ai, unit_tag),
                 ]),
             'overlord': BehaviorSequence([
-                    DodgeBehavior(self.ai, unit.tag),
-                    SurviveBehavior(self.ai, unit.tag),
-                    ScoutBehavior(self.ai, unit.tag),
+                    DodgeBehavior(self.ai, unit_tag),
+                    SurviveBehavior(self.ai, unit_tag),
+                    ScoutBehavior(self.ai, unit_tag),
                 ]),
-            'changeling': SearchBehavior(self.ai, unit.tag),
+            'changeling': SearchBehavior(self.ai, unit_tag),
             'overseer': BehaviorSequence([
-                    DodgeBehavior(self.ai, unit.tag),
-                    SurviveBehavior(self.ai, unit.tag),
-                    ChangelingSpawnBehavior(self.ai, unit.tag),
-                    DetectBehavior(self.ai, unit.tag),
-                    FightBehavior(self.ai, unit.tag),
-                    SearchBehavior(self.ai, unit.tag),
+                    DodgeBehavior(self.ai, unit_tag),
+                    ChangelingSpawnBehavior(self.ai, unit_tag),
+                    DetectBehavior(self.ai, unit_tag),
+                    FightBehavior(self.ai, unit_tag),
+                    SearchBehavior(self.ai, unit_tag),
                 ]),
             'worker': BehaviorSequence([
-                    DodgeBehavior(self.ai, unit.tag),
-                    SurviveBehavior(self.ai, unit.tag),
-                    GatherBehavior(self.ai, unit.tag),
+                    DodgeBehavior(self.ai, unit_tag),
+                    SurviveBehavior(self.ai, unit_tag),
+                    GatherBehavior(self.ai, unit_tag),
                 ]),
             'army': BehaviorSequence([
-                    DodgeBehavior(self.ai, unit.tag),
-                    BurrowBehavior(self.ai, unit.tag),
-                    LaunchCorrosiveBilesBehavior(self.ai, unit.tag),
-                    FightBehavior(self.ai, unit.tag),
-                    SearchBehavior(self.ai, unit.tag),
+                    DodgeBehavior(self.ai, unit_tag),
+                    BurrowBehavior(self.ai, unit_tag),
+                    LaunchCorrosiveBilesBehavior(self.ai, unit_tag),
+                    FightBehavior(self.ai, unit_tag),
+                    SearchBehavior(self.ai, unit_tag),
                 ]),
         }
-        return SwitchBehavior(select, behaviors)
+        return SwitchBehavior(self.ai, unit_tag, selector, behaviors)
 
     def draft_civilians(self):
 
@@ -243,7 +244,7 @@ class UnitManager(Behavior):
         for unit in units:
             behavior = self.behaviors.get(unit.tag)
             if not behavior:
-                behavior = self.create_behavior(unit)
+                behavior = self.create_behavior(unit.tag)
                 self.behaviors[unit.tag] = behavior
             result = behavior.execute()
             # if result is not BehaviorResult.ONGOING:

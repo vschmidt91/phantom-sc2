@@ -49,15 +49,15 @@ class LambdaBehavior(Behavior):
         
 T = TypeVar('T')
 
-class SwitchBehavior(Behavior, Generic[T]):
+class SwitchBehavior(UnitBehavior, Generic[T]):
 
-    def __init__(self, selector: Callable[[], T], cases: Dict[T, Behavior]):
-        super().__init__()
-        self.selector: Callable[[], T] = selector
+    def __init__(self, ai: AIBase, unit_tag: int, selector: Callable[[Unit], T], cases: Dict[T, Behavior]):
+        super().__init__(ai, unit_tag)
+        self.selector: Callable[[Unit], T] = selector
         self.cases: Dict[T, Behavior] = cases
 
-    def execute(self) -> BehaviorResult:
-        case = self.selector()
+    def execute_single(self, unit: Unit) -> BehaviorResult:
+        case = self.selector(unit)
         behavior = self.cases[case]
         return behavior.execute()
 

@@ -23,7 +23,15 @@ class BlockManager(Behavior):
         self.detectors: Dict[Point2, int] = dict()
         self.enemy_base_count: int = 1
 
+    def reset_blocked_bases(self):
+        for base in self.ai.bases:
+            if base.blocked_since:
+                if base.blocked_since + 30 < self.ai.time:
+                    base.blocked_since = None
+
     def execute(self) -> BehaviorResult:
+
+        self.reset_blocked_bases()
 
         detectors = [
             u
@@ -37,7 +45,7 @@ class BlockManager(Behavior):
                 detector = self.ai.unit_by_tag.get(detector_tag)
                 if not detector:
                     detector = min(
-                        detectors,
+                        (d for d in detectors if d.tag not in self.detectors.values()),
                         key = lambda u : u.position.distance_to(base.position),
                         default = None)
                     if not detector:
@@ -70,8 +78,6 @@ class BlockManager(Behavior):
         return BehaviorResult.SUCCESS
 
 class DetectBehavior(UnitBehavior):
-    
-    ABILITY = AbilityId.SPAWNCHANGELING_SPAWNCHANGELING
 
     def __init__(self, ai: AIBase, unit_tag: int):
         super().__init__(ai, unit_tag)
