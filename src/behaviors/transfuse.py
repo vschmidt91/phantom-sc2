@@ -43,9 +43,6 @@ class TransfuseBehavior(UnitBehavior):
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
-        if unit.type_id is not UnitTypeId.QUEEN:
-            return BehaviorResult.SUCCESS
-
         if self.ABILITY not in self.ai.abilities[unit.tag]:
             return BehaviorResult.SUCCESS
 

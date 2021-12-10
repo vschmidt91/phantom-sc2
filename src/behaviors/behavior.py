@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable, Optional, List, TYPE_CHECKING, Callable
+from typing import Iterable, Optional, List, TYPE_CHECKING, Callable, Generic, TypeVar, Dict
 from sc2.unit import Unit, UnitCommand
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -42,10 +42,24 @@ class LambdaBehavior(Behavior):
 
     def __init__(self, func: Callable[[], BehaviorResult]):
         super().__init__()
-        self.func = func
+        self.func: Callable[[], BehaviorResult] = func
 
     def execute(self) -> BehaviorResult:
         return self.func()
+        
+T = TypeVar('T')
+
+class SwitchBehavior(Behavior, Generic[T]):
+
+    def __init__(self, selector: Callable[[], T], cases: Dict[T, Behavior]):
+        super().__init__()
+        self.selector: Callable[[], T] = selector
+        self.cases: Dict[T, Behavior] = cases
+
+    def execute(self) -> BehaviorResult:
+        case = self.selector()
+        behavior = self.cases[case]
+        return behavior.execute()
 
 class BehaviorSequence(Behavior):
 

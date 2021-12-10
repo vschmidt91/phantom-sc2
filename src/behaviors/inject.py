@@ -26,9 +26,6 @@ class InjectBehavior(UnitBehavior):
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
-        if unit.type_id not in { UnitTypeId.QUEEN, UnitTypeId.QUEENBURROWED }:
-            return BehaviorResult.SUCCESS
-
         if not self.did_first_inject:
             townhall = min(self.ai.townhalls.ready, key = lambda th : th.distance_to(unit), default = None)
             if townhall and BuffId.QUEENSPAWNLARVATIMER not in townhall.buffs:

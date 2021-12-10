@@ -46,7 +46,7 @@ if __name__ == "__main__":
         opponent = Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
         
         result = run_game(
-            sc2.maps.get('OxideAIE'),
+            sc2.maps.get('RomanticideAIE'),
             [bot, opponent],
             realtime=False,
             save_replay_as=replayPath,

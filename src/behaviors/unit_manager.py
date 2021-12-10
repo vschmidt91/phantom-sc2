@@ -13,7 +13,7 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
-from .changeling_scout import ChangelingScoutBehavior
+from .changeling_scout import ChangelingSpawnBehavior
 from .burrow import BurrowBehavior
 from .dodge import DodgeBehavior
 from .fight import FightBehavior
@@ -28,7 +28,7 @@ from .spread_creep import SpreadCreepBehavior
 from .block_manager import DetectBehavior
 from ..utils import *
 from ..constants import *
-from .behavior import Behavior, BehaviorResult, LambdaBehavior, BehaviorSequence, BehaviorSelector, UnitBehavior, LambdaBehavior
+from .behavior import Behavior, BehaviorResult, LambdaBehavior, BehaviorSequence, BehaviorSelector, SwitchBehavior, UnitBehavior, LambdaBehavior
 from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -64,29 +64,83 @@ class UnitManager(Behavior):
             return False
 
     def create_behavior(self, unit: Unit) -> Behavior:
-        return BehaviorSequence([
-            DodgeBehavior(self.ai, unit.tag),
-            SpreadCreepBehavior(self.ai, unit.tag),
-            ChangelingScoutBehavior(self.ai, unit.tag),
-            BehaviorSelector([
-                LambdaBehavior(lambda : BehaviorResult.SUCCESS if self.is_civilian(unit) else BehaviorResult.FAILURE),
-                BehaviorSequence([
-                    ScoutBehavior(self.ai, unit.tag),
-                    BurrowBehavior(self.ai, unit.tag),
-                    LaunchCorrosiveBilesBehavior(self.ai, unit.tag),
+        def select() -> str:
+            if unit.type_id in {
+                UnitTypeId.CREEPTUMOR,
+                UnitTypeId.CREEPTUMORBURROWED,
+                UnitTypeId.CREEPTUMORQUEEN,
+            }:
+                return 'creep'
+            elif unit.type_id in {
+                UnitTypeId.QUEEN,
+                UnitTypeId.QUEENBURROWED
+            }:
+                return 'queen'
+            elif unit.type_id in {
+                UnitTypeId.OVERLORD,
+                UnitTypeId.OVERLORDTRANSPORT,
+            }:
+                return 'overlord'
+            elif unit.type_id in {
+                UnitTypeId.OVERSEER,
+                UnitTypeId.OVERSEERSIEGEMODE
+            }:
+                return 'overseer'
+            elif unit.type_id in CHANGELINGS:
+                return 'changeling'
+            elif unit.type_id == race_worker[self.ai.race]:
+                return 'worker'
+            else:
+                return 'army'
+        behaviors = {
+            'creep': SpreadCreepBehavior(self.ai, unit.tag),
+            'queen': BehaviorSequence([
+                    DodgeBehavior(self.ai, unit.tag),
+                    SpreadCreepBehavior(self.ai, unit.tag),
                     InjectBehavior(self.ai, unit.tag),
                     TransfuseBehavior(self.ai, unit.tag),
+                    FightBehavior(self.ai, unit.tag),
+                    SearchBehavior(self.ai, unit.tag),
+                ]),
+            'overlord': BehaviorSequence([
+                    DodgeBehavior(self.ai, unit.tag),
+                    SurviveBehavior(self.ai, unit.tag),
+                    ScoutBehavior(self.ai, unit.tag),
+                ]),
+            'changeling': SearchBehavior(self.ai, unit.tag),
+            'overseer': BehaviorSequence([
+                    DodgeBehavior(self.ai, unit.tag),
+                    SurviveBehavior(self.ai, unit.tag),
+                    ChangelingSpawnBehavior(self.ai, unit.tag),
                     DetectBehavior(self.ai, unit.tag),
                     FightBehavior(self.ai, unit.tag),
                     SearchBehavior(self.ai, unit.tag),
-                ])
+                ]),
+            'worker': BehaviorSequence([
+                    DodgeBehavior(self.ai, unit.tag),
+                    SurviveBehavior(self.ai, unit.tag),
+                    GatherBehavior(self.ai, unit.tag),
+                ]),
+            'army': BehaviorSequence([
+                    DodgeBehavior(self.ai, unit.tag),
+                    BurrowBehavior(self.ai, unit.tag),
+                    LaunchCorrosiveBilesBehavior(self.ai, unit.tag),
+                    FightBehavior(self.ai, unit.tag),
+                    SearchBehavior(self.ai, unit.tag),
+                ]),
+        }
+        return SwitchBehavior(select, behaviors)
+        
+        return BehaviorSequence([
+            DodgeBehavior(self.ai, unit.tag),
+            SpreadCreepBehavior(self.ai, unit.tag),
+            BehaviorSelector([
+                LambdaBehavior(lambda : BehaviorResult.SUCCESS if self.is_civilian(unit) else BehaviorResult.FAILURE),
+                
             ]),
             BehaviorSelector([
                 LambdaBehavior(lambda : BehaviorResult.FAILURE if self.is_civilian(unit) else BehaviorResult.SUCCESS),
-                BehaviorSequence([
-                    SurviveBehavior(self.ai, unit.tag),
-                    GatherBehavior(self.ai, unit.tag),
-                ])
+                
             ])
         ])
 

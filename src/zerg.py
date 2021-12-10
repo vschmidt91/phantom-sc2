@@ -48,6 +48,8 @@ from .macro_plan import MacroPlan
 import cProfile
 import pstats
 
+import matplotlib.pyplot as plt
+
 SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
     Race.Zerg: {
         UnitTypeId.DRONEBURROWED,
