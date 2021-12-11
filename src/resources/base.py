@@ -141,7 +141,7 @@ class Base(ResourceGroup[ResourceBase]):
                 ]
                 if len(have) + len(planned) < want:
                     plan = MacroPlan(unit_type)
-                    plan.target = self.position.towards(self.mineral_patches.position, 4)
+                    plan.target = self.position.towards(self.mineral_patches.position, 5)
                     plan.max_distance = 2
                     plan.priority = 0
                     bot.add_macro_plan(plan)

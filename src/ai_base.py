@@ -140,10 +140,6 @@ class AIBase(ABC, BotAI):
         ]
 
     @property
-    def tumor_front(self) -> Iterable[Unit]:
-        return (self.unit_by_tag[t] for t in self.tumor_front_tags)
-
-    @property
     def is_speedmining_enabled(self) -> bool:
         if self.performance is PerformanceMode.DEFAULT:
             return True
@@ -1047,7 +1043,7 @@ class AIBase(ABC, BotAI):
                 raise PlacementNotFoundError()
             elif self.townhalls.exists:
                 position = self.townhalls.closest_to(self.start_location).position
-                return position.towards(self.game_info.map_center, 6)
+                return position.towards(self.game_info.map_center, 5.65)
             else:
                 raise PlacementNotFoundError()
         else:

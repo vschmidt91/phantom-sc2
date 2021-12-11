@@ -113,6 +113,8 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
                     break
                 if 0 <= resource_to.harvester_balance:
                     break
+                if resource_from.harvester_balance - 1 < resource_to.harvester_balance + 1:
+                    break
             # print('transfer internal')
             if not resource_from.try_transfer_to(resource_to):
                 print('transfer internal failed')

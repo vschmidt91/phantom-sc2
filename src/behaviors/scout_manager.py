@@ -34,9 +34,8 @@ class ScoutManager(Behavior):
             )
             target = min(self.ai.map_analyzer.overlord_spots, key = lambda s : s.distance_to(enemy_main_ramp))
         targets.append(target)
-        targets.append(self.ai.bases[1].position)
-        targets.append(self.ai.bases[2].position)
-        targets.append(self.ai.bases[3].position)
+        for base in self.ai.bases[1:len(self.ai.bases)//2]:
+            targets.append(base.position)
 
         for target in targets:
 

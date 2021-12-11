@@ -1,7 +1,7 @@
 
 
 from __future__ import annotations
-from typing import DefaultDict, Optional, Set, Union, Iterable, Tuple, TYPE_CHECKING
+from typing import DefaultDict, Optional, Set, Union, Iterable, Tuple, List, TYPE_CHECKING
 from enum import Enum
 import numpy as np
 import random
@@ -46,7 +46,6 @@ class UnitManager(Behavior):
     def __init__(self, ai: AIBase):
         super().__init__()
         self.ai: AIBase = ai
-        self.creep_queens: Set[int] = set()
         self.inject_queens: Dict[int, int] = dict()
         self.drafted_civilians: Set[int] = set()
         self.creep_coverage: float = 0.0
@@ -65,8 +64,6 @@ class UnitManager(Behavior):
 
     def create_behavior(self, unit_tag: int) -> Behavior:
         def selector(unit: Unit) -> str:
-            if unit.type_id == UnitTypeId.OVERSEER:
-                print("a")
             if unit.type_id in {
                 UnitTypeId.CREEPTUMOR,
                 UnitTypeId.CREEPTUMORBURROWED,
@@ -98,8 +95,8 @@ class UnitManager(Behavior):
             'creep': SpreadCreepBehavior(self.ai, unit_tag),
             'queen': BehaviorSequence([
                     DodgeBehavior(self.ai, unit_tag),
-                    SpreadCreepBehavior(self.ai, unit_tag),
                     InjectBehavior(self.ai, unit_tag),
+                    SpreadCreepBehavior(self.ai, unit_tag),
                     TransfuseBehavior(self.ai, unit_tag),
                     FightBehavior(self.ai, unit_tag),
                     SearchBehavior(self.ai, unit_tag),
@@ -182,16 +179,10 @@ class UnitManager(Behavior):
         queens = sorted(
             self.ai.actual_by_type[UnitTypeId.QUEEN],
             key = lambda q : q.tag
-            # key = lambda q : self.ai.distance_map[q.position.rounded]
         )
 
         inject_queen_count = min(3, len(queens), self.ai.townhalls.amount)
-        creep_queen_count = 1 if max(inject_queen_count, 2) < len(queens) else 0
-
         inject_queens = queens[0:inject_queen_count]
-        creep_queens = queens[inject_queen_count:inject_queen_count+creep_queen_count]
-
-        self.creep_queens = { q.tag for q in creep_queens }
 
         bases = [
             b
@@ -203,55 +194,21 @@ class UnitManager(Behavior):
             townhall = self.ai.townhall_by_position[base.position]
             self.inject_queens[queen.tag] = townhall.tag
 
-        # self.army_manager.unit_tags.clear()
-        # for unit in self.ai.units:
-            
-        #     if unit.type_id == UnitTypeId.QUEEN:
-        #         exclude_abilities = {
-        #             AbilityId.BUILD_CREEPTUMOR_QUEEN,
-        #             AbilityId.EFFECT_INJECTLARVA,
-        #             AbilityId.TRANSFUSION_TRANSFUSION,
-        #         }
-        #         order_abilities = {
-        #             o.ability.exact_id
-        #             for o in unit.orders
-        #         }
-        #         if unit in creep_queens:
-        #             pass
-        #         elif unit in inject_queens:
-        #             pass
-        #         elif order_abilities.intersection(exclude_abilities):
-        #             pass
-        #         else:
-        #             self.army_manager.unit_tags.add(unit.tag)
-        #     elif unit.type_id == UnitTypeId.OVERSEER:
-        #         if unit.tag in self.ai.blocked_base_detectors.values():
-        #             pass
-        #         else:
-        #             self.army_manager.unit_tags.add(unit.tag)
-        #     elif unit.type_id not in CIVILIANS:
-        #         self.army_manager.unit_tags.add(unit.tag)
-        #     elif unit.tag in self.drafted_civilians:
-        #         self.army_manager.unit_tags.add(unit.tag)
-        #     else:
-        #         pass
-
-        units = list()
-        units.extend(u for u in self.ai.units if u.type_id not in IGNORED_UNIT_TYPES)
-        units.extend(self.ai.tumor_front)
+        tags: List[int] = list()
+        tags.extend(u.tag for u in self.ai.units if u.type_id not in IGNORED_UNIT_TYPES)
+        tags.extend(self.ai.tumor_front_tags)
 
 
-        for unit in units:
-            behavior = self.behaviors.get(unit.tag)
+        for tag in tags:
+            behavior = self.behaviors.get(tag)
             if not behavior:
-                behavior = self.create_behavior(unit.tag)
-                self.behaviors[unit.tag] = behavior
+                behavior = self.create_behavior(tag)
+                self.behaviors[tag] = behavior
             result = behavior.execute()
             # if result is not BehaviorResult.ONGOING:
             #     print('error')
             #     behavior.execute()
 
-        tags = { u.tag for u in units }
         removed_tags = {
             tag for tag in self.behaviors.keys()
             if tag not in tags

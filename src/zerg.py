@@ -104,6 +104,7 @@ class ZergAI(AIBase):
         self.creep_coverage: float = 0
         self.creep_tile_count: int = 1
         self.build_spores: bool = False
+        self.extractor_trick_enabled: bool = False
 
     async def micro(self):
         await super().micro()
@@ -228,6 +229,16 @@ class ZergAI(AIBase):
             gas_target = super().get_gas_target()
         return gas_target
 
+    def extractor_trick(self):
+        if not self.extractor_trick_enabled:
+            return
+        if 0 < self.supply_left:
+            return
+        extractor = next(iter(self.pending_by_type[UnitTypeId.EXTRACTOR]), None)
+        if not extractor:
+            return
+        extractor(AbilityId.CANCEL)
+
     async def on_step(self, iteration):
 
         await super(self.__class__, self).on_step(iteration)
@@ -236,6 +247,8 @@ class ZergAI(AIBase):
             return
 
         steps = self.strategy.steps(self)
+
+        self.extractor_trick()
             
         for step, m in steps.items():
             if iteration % m != 0:
@@ -368,7 +381,7 @@ class ZergAI(AIBase):
         worker_max = self.get_max_harvester()
         saturation = self.count(UnitTypeId.DRONE, include_planned=False) / max(1, worker_max)
         saturation = self.bases.harvester_count / max(1, self.bases.harvester_target)
-        priority = 3 * (saturation - 0.8)
+        priority = 2 * (saturation - 0.9)
 
         if saturation < 2/3:
             return

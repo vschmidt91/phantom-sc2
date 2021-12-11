@@ -33,12 +33,12 @@ class SpreadCreepBehavior(UnitBehavior):
             if AbilityId.BUILD_CREEPTUMOR_TUMOR not in self.ai.abilities[unit.tag]:
                 return BehaviorResult.SUCCESS
         elif unit.type_id is UnitTypeId.QUEEN:
-            if AbilityId.BUILD_CREEPTUMOR_QUEEN not in self.ai.abilities[unit.tag]:
+            if 10 <= len(self.ai.tumor_front_tags):
+                return BehaviorResult.SUCCESS
+            elif AbilityId.BUILD_CREEPTUMOR_QUEEN not in self.ai.abilities[unit.tag]:
                 return BehaviorResult.SUCCESS
             elif AbilityId.BUILD_CREEPTUMOR_QUEEN in { o.ability.exact_id for o in unit.orders }:
                 return BehaviorResult.ONGOING
-            elif unit.tag not in self.ai.unit_manager.creep_queens:
-                return BehaviorResult.SUCCESS
             elif not self.ai.has_creep(unit.position) and self.ai.townhalls.ready:
                 if not unit.is_moving:
                     unit.move(self.ai.townhalls.ready.closest_to(unit)) 

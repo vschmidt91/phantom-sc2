@@ -31,9 +31,6 @@ class SurviveBehavior(UnitBehavior):
         if unit.type_id != race_worker[self.ai.race]:
             return BehaviorResult.SUCCESS
 
-        if unit.tag not in self.ai.unit_manager.drafted_civilians:
-            return BehaviorResult.SUCCESS
-
         last_attacked = self.ai.damage_taken.get(unit.tag)
         if not last_attacked:
             return BehaviorResult.SUCCESS

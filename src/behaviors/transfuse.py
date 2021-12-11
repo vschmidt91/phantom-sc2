@@ -46,9 +46,6 @@ class TransfuseBehavior(UnitBehavior):
         if self.ABILITY not in self.ai.abilities[unit.tag]:
             return BehaviorResult.SUCCESS
 
-        if unit.tag in self.ai.unit_manager.creep_queens:
-            return BehaviorResult.SUCCESS
-
         target = max(self.ai.all_own_units,
             key = lambda t : self.priority(unit, t),
             default = None

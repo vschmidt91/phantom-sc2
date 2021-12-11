@@ -40,11 +40,11 @@ if __name__ == "__main__":
         kwargs = {
 
         }
-        ai = ZergAI(version=version, game_step = 8, debug = True, performance = PerformanceMode.DEFAULT)
+        ai = ZergAI(version=version, game_step = 10, debug = True, performance = PerformanceMode.DEFAULT)
         ai.tags.append(version)
         bot = Bot(Race.Zerg, ai, 'Sun Tzu')  
         # opponent = Bot(Race.Protoss, DummyAI())
-        opponent = Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Rush)
+        opponent = Computer(Race.Zerg, Difficulty.CheatInsane, ai_build=AIBuild.Rush)
         
         result = run_game(
             sc2.maps.get('RomanticideAIE'),
