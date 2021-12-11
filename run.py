@@ -25,7 +25,7 @@ if __name__ == "__main__":
 
         # Ladder game started by LadderManager
         print("Starting ladder game ...")        
-        ai = ZergAI(version=version, game_step = 4)
+        ai = ZergAI(version=version, game_step = 3)
         ai.tags.append(version)
         bot = Bot(Race.Zerg, ai, 'Sun Tzu')
         result, opponentid = run_ladder_game(bot)

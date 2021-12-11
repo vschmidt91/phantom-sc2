@@ -238,6 +238,7 @@ class ZergAI(AIBase):
         if not extractor:
             return
         extractor(AbilityId.CANCEL)
+        self.extractor_trick_enabled = False
 
     async def on_step(self, iteration):
 
