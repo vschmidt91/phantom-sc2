@@ -19,7 +19,6 @@ from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.position import Point2
 from sc2.unit_command import UnitCommand
 
-from .strategies.pool12_allin import Pool12AllIn
 from .unit_counters import UNIT_COUNTERS
 from .behaviors.behavior import Behavior, BehaviorSelector, BehaviorSequence
 from .behaviors.burrow import BurrowBehavior
@@ -35,7 +34,6 @@ from .strategies.gasless import GasLess
 from .strategies.roach_rush import RoachRush
 from .strategies.hatch_first import HatchFirst
 from .strategies.pool12 import Pool12
-from .strategies.pool12_allin import Pool12AllIn
 from .strategies.zerg_strategy import ZergStrategy
 from .timer import run_timed
 from .constants import CHANGELINGS, CREEP_ABILITIES, SUPPLY_PROVIDED

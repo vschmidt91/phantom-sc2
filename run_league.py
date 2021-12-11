@@ -7,6 +7,7 @@ from sc2.main import run_game
 
 from sc2.data import Race, Difficulty, AIBuild, Result
 from sc2.player import Bot, Computer
+from src.pool12_allin import Pool12AllIn
 from src.zerg import ZergAI
 from src.dummy import DummyAI
 
@@ -58,7 +59,8 @@ if __name__ == "__main__":
             for race in races:
                 for build in builds:
                     replay_path = os.path.join(league_dir, f'{map}-{race.name}-{build.name}.SC2Replay')
-                    bot = Bot(Race.Zerg, ZergAI(debug=True), 'Sun Tzu') 
+                    bot = Bot(Race.Zerg, Pool12AllIn()) 
+                    # bot = Bot(Race.Zerg, ZergAI(debug=True), 'Sun Tzu') 
                     opponent = Computer(race, Difficulty.CheatInsane, ai_build=build) 
                     result = run_game(
                         sc2.maps.get(map),

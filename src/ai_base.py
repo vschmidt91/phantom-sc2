@@ -862,10 +862,12 @@ class AIBase(ABC, BotAI):
 
             if self.is_structure(plan.item) and isinstance(plan.target, Point2):
                 if not await self.can_place_single(plan.item, plan.target):
-                    target2 = await self.find_placement(plan.item, plan.target, max_distance=plan.max_distance or 20)
-                    if not target2:
-                        continue
-                    plan.target = target2
+                    plan.target = None
+                    continue
+                    # target2 = await self.find_placement(plan.item, plan.target, max_distance=plan.max_distance or 20)
+                    # if not target2:
+                    #     continue
+                    # plan.target = target2
 
             queue = False
             if unit.is_carrying_resource:
