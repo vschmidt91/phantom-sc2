@@ -46,11 +46,11 @@ if __name__ == "__main__":
         kwargs = {
 
         }
-        ai.game_step = 10
+        ai.game_step = 4
         # ai.debug = True
         
         bot = Bot(Race.Zerg, ai, name)  
-        opponent = Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Macro)
+        opponent = Computer(Race.Protoss, Difficulty.VeryHard, ai_build=AIBuild.Rush)
         
         result = run_game(
             sc2.maps.get('RomanticideAIE'),

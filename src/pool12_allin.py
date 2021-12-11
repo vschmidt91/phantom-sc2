@@ -21,6 +21,19 @@ class Pool12AllIn(BotAI):
             self.client.game_step = self.game_step
         return await super().on_before_start()
 
+    async def on_start(self):
+        minerals = self.expansion_locations_dict[self.start_location].mineral_field.sorted_by_distance_to(self.start_location)
+        assigned = set()
+        for i in range(self.workers.amount):
+            patch = minerals[i % minerals.amount]
+            if i < minerals.amount:
+                worker = self.workers.tags_not_in(assigned).closest_to(patch)
+            else:
+                worker = self.workers.tags_not_in(assigned).furthest_to(patch)
+            worker.gather(patch)
+            assigned.add(worker.tag)
+        return await super().on_start()
+
     async def on_step(self, iteration: int):
 
         if not self.townhalls:
@@ -33,12 +46,12 @@ class Pool12AllIn(BotAI):
             if p.is_ready),
             None)
 
-        hatches = sorted(self.townhalls.ready, key=lambda h:h.tag)
-        queens = sorted(self.units.of_type(UnitTypeId.QUEEN), key=lambda h:h.tag)
+        hatches = self.townhalls.ready.sorted_by_distance_to(self.start_location)
+        queens = self.units.of_type(UnitTypeId.QUEEN).sorted_by_distance_to(self.start_location)
 
         if self.already_pending_upgrade(UpgradeId.ZERGLINGMOVEMENTSPEED):
             gas_target = 0
-        elif 92 <= self.vespene:
+        elif 96 <= self.vespene:
             gas_target = 0
         else:
             gas_target = 3
@@ -57,7 +70,8 @@ class Pool12AllIn(BotAI):
 
         for gas in self.gas_buildings.ready:
             if gas.assigned_harvesters < gas_target:
-                worker = next((w for w in self.workers if w.is_gathering and w.order_target != gas.tag), None)
+                workers = self.workers.sorted_by_distance_to(gas)
+                worker = next((w for w in workers if w.is_gathering and w.order_target != gas.tag), None)
                 if worker:
                     worker.gather(gas)
             elif gas_target < gas.assigned_harvesters:
@@ -70,39 +84,51 @@ class Pool12AllIn(BotAI):
                 continue
             queen(AbilityId.EFFECT_INJECTLARVA, hatch)
 
-        for ling in self.units.of_type(UnitTypeId.ZERGLING).idle:
+        for unit in self.units:
+            if unit.type_id is not UnitTypeId.ZERGLING:
+                continue
+            if not unit.is_idle:
+                continue
             if self.enemy_structures:
-                ling.attack(self.enemy_structures.random.position)
-            elif 10 < ling.distance_to(enemy_position):
-                ling.attack(enemy_position)
+                unit.attack(self.enemy_structures.random.position)
+            elif 10 < unit.distance_to(enemy_position):
+                unit.attack(enemy_position)
             else:
                 a = self.game_info.playable_area
                 target = np.random.uniform((a.x, a.y), (a.right, a.top))
                 target = Point2(target)
                 if self.in_pathing_grid(target):
-                    ling.attack(target)
+                    unit.attack(target)
 
         for worker in self.workers.idle:
-            patch = self.mineral_field.closest_to(self.start_location)
+            patch = self.mineral_field.closest_to(worker)
             worker.gather(patch)
 
-        if 100 <= self.minerals and not self.structures.of_type(UnitTypeId.EXTRACTOR) and not self.already_pending(UnitTypeId.EXTRACTOR):
-            if self.can_afford(UnitTypeId.EXTRACTOR):
-                geyser = self.vespene_geyser.closest_to(self.start_location)
-                drone = self.workers.first
-                drone.build_gas(geyser)
+        if (
+            125 <= self.minerals
+            and not self.structures.of_type(UnitTypeId.EXTRACTOR)
+            and not self.already_pending(UnitTypeId.EXTRACTOR)
+        ):
+            geyser = self.vespene_geyser.closest_to(self.start_location)
+            drone = self.workers.first
+            drone.build_gas(geyser)
             return
 
-        if not pool and not self.already_pending(UnitTypeId.SPAWNINGPOOL):
-            if self.can_afford(UnitTypeId.SPAWNINGPOOL):
-                await self.build(UnitTypeId.SPAWNINGPOOL, near=tech_position)
+        if (
+            not pool
+            and not self.already_pending(UnitTypeId.SPAWNINGPOOL)
+        ):
+            await self.build(UnitTypeId.SPAWNINGPOOL, near=tech_position)
             return
 
         if self.supply_used < 13:
             self.train(UnitTypeId.DRONE)
             return
 
-        if not self.already_pending(UnitTypeId.OVERLORD) and self.supply_left < 2:
+        if (
+            self.supply_cap == 14
+            and not self.already_pending(UnitTypeId.OVERLORD)
+        ):
             self.train(UnitTypeId.OVERLORD)
             return
 
@@ -117,11 +143,26 @@ class Pool12AllIn(BotAI):
             pool(AbilityId.RESEARCH_ZERGLINGMETABOLICBOOST)
             return
 
-        if not self.already_pending(UnitTypeId.DRONE) and self.units.of_type(UnitTypeId.DRONE).amount < 11 * self.townhalls.amount:
+        if self.supply_used < 17:
+            self.train(UnitTypeId.ZERGLING)
+            return
+
+        if (
+            self.supply_left <= 0
+            and 2 <= self.townhalls.amount
+            and not self.already_pending(UnitTypeId.OVERLORD)
+        ):
+            self.train(UnitTypeId.OVERLORD)
+            return
+
+        if (
+            not self.already_pending(UnitTypeId.DRONE)
+            and self.units.of_type(UnitTypeId.DRONE).amount < 11 * self.townhalls.amount
+        ):
             self.train(UnitTypeId.DRONE)
             return
 
-        if self.units.of_type(UnitTypeId.QUEEN).amount + self.already_pending(UnitTypeId.QUEEN) < self.townhalls.amount:
+        if self.units.of_type(UnitTypeId.QUEEN).amount + self.already_pending(UnitTypeId.QUEEN) < self.townhalls.ready.amount:
             self.train(UnitTypeId.QUEEN)
             return
 

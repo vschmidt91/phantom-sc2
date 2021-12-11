@@ -6,7 +6,7 @@ import os
 import zipfile
 import subprocess
 
-OUTPUT_PATH = './publish/SunTzuBot.zip'
+OUTPUT_PATH = './publish/12PoolBot.zip'
 VERSION_PATH = './version.txt'
 EXTENSIONS = { '.py', '.txt', '.json', '.npy' }
 
@@ -44,8 +44,8 @@ if __name__ == '__main__':
 
     zipFile = zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED)
     zipBot(zipFile)
-    zipLibrary(zipFile, 'MapAnalyzer')
+    # zipLibrary(zipFile, 'MapAnalyzer')
     zipLibrary(zipFile, 'sc2')
     zipLibrary(zipFile, 'src')
-    zipLibrary(zipFile, 'data')
+    # zipLibrary(zipFile, 'data')
     zipFile.close()
