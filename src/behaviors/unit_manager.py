@@ -181,7 +181,8 @@ class UnitManager(Behavior):
             key = lambda q : q.tag
         )
 
-        inject_queen_count = min(3, len(queens), self.ai.townhalls.amount)
+        inject_queen_max = min(5, len(queens))
+        inject_queen_count = min(int((1 - self.ai.threat_level) * inject_queen_max), self.ai.townhalls.amount)
         inject_queens = queens[0:inject_queen_count]
 
         bases = [
