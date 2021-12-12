@@ -12,7 +12,7 @@ from sc2.unit import Unit
 
 class Pool12AllIn(BotAI):
 
-    def __init__(self, game_step: int = 4):
+    def __init__(self, game_step: int = 1):
         self.game_step: int = game_step
         self.mine_gas: bool = True
         super().__init__()
@@ -45,6 +45,9 @@ class Pool12AllIn(BotAI):
             await self.client.quit()
             return
 
+        if 96 <= self.vespene:
+            self.mine_gas = False
+
         pool: Optional[Unit] = None
         transfer_from: Optional[Unit] = None
         transfer_drone: Optional[Unit] = None
@@ -55,7 +58,7 @@ class Pool12AllIn(BotAI):
         larva: Optional[Unit] = None
         drone: Optional[Unit] = None
         idle_hatch: Optional[Unit] = None
-        hatches: Set[Unit] = set()
+        inject_hatch: Optional[Unit] = None
         drone_morphing_count: int = 0
         overlord_morphing_count: int = 0
         drone_count: int = 0
@@ -76,7 +79,7 @@ class Pool12AllIn(BotAI):
             elif unit.type_id is UnitTypeId.HATCHERY:
                 if unit.is_ready:
                     if BuffId.QUEENSPAWNLARVATIMER not in unit.buffs:
-                        hatches.add(unit)
+                        inject_hatch = unit
                     drone_target += min(unit.ideal_harvesters, 11)
                     if unit.is_using_ability(AbilityId.TRAINQUEEN_QUEEN):
                         queen_morphing_count += 1
@@ -111,7 +114,7 @@ class Pool12AllIn(BotAI):
                 elif unit.is_using_ability(AbilityId.ZERGBUILD_EXTRACTOR):
                     extractor_count = unit
                 elif unit.is_using_ability(AbilityId.ZERGBUILD_HATCHERY):
-                    hatch_pending_count = unit
+                    hatch_pending_count += 1
                 elif transfer_from and unit.order_target == transfer_from.tag:
                     transfer_drone = unit
                 elif transfer_off_gas and unit.order_target == transfer_off_gas.tag:
@@ -123,9 +126,13 @@ class Pool12AllIn(BotAI):
                     drone = unit
             elif unit.type_id is UnitTypeId.QUEEN:
                 queen_count += 1
-                if hatches and 25 <= unit.energy:
-                    hatch = hatches.pop()
-                    unit(AbilityId.EFFECT_INJECTLARVA, hatch)
+                if (
+                    inject_hatch
+                    and 25 <= unit.energy
+                    and not unit.is_using_ability(AbilityId.EFFECT_INJECTLARVA)
+                ):
+                    unit(AbilityId.EFFECT_INJECTLARVA, inject_hatch)
+                    inject_hatch = None
             elif unit.type_id is UnitTypeId.ZERGLING:
                 if unit.is_idle:
                     if self.enemy_structures:
@@ -146,27 +153,32 @@ class Pool12AllIn(BotAI):
         if self.client.game_step == 1 and iteration % 2 == 0:
             return
 
-        if 96 <= self.vespene:
-            self.mine_gas = False
+        if (
+            not pool
+            and not pool_pending
+            and drone
+        ):
+            target = self.townhalls.first.position.towards(self.game_info.map_center, 6)
+            drone.build(UnitTypeId.SPAWNINGPOOL, target)
+            return
+
+        if self.supply_used < 14 and not extractor_count:
+            if larva:
+                larva.train(UnitTypeId.DRONE, can_afford_check=True)
+            return
 
         if (
-            125 <= self.minerals
-            and not extractor_count
+            not extractor_count
             and drone
         ):
             geyser = self.vespene_geyser.closest_to(self.start_location)
             drone.build_gas(geyser)
             return
 
-        if not pool and not pool_pending:
-            target = self.townhalls.first.position.towards(self.game_info.map_center, 6)
-            drone.build(UnitTypeId.SPAWNINGPOOL, target)
-            return
-
-        if self.supply_used < 13:
-            if larva:
-                larva.train(UnitTypeId.DRONE, can_afford_check=True)
-            return
+        # if self.supply_used < 13:
+        #     if larva:
+        #         larva.train(UnitTypeId.DRONE, can_afford_check=True)
+        #     return
 
         if (
             self.supply_cap == 14
@@ -184,13 +196,23 @@ class Pool12AllIn(BotAI):
                 larva.train(UnitTypeId.ZERGLING, can_afford_check=True)
             return
 
-        if UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
-            pool.research(UpgradeId.ZERGLINGMOVEMENTSPEED, can_afford_check=True)
+        if (
+            queen_count + queen_morphing_count < self.townhalls.ready.amount
+            and idle_hatch
+        ):
+            idle_hatch.train(UnitTypeId.QUEEN, can_afford_check=True)
             return
 
-        if self.supply_used < 17:
+        if self.supply_used < 20:
             if larva:
                 larva.train(UnitTypeId.ZERGLING, can_afford_check=True)
+            return
+
+        if (
+            UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades
+            and pool.is_idle
+        ):
+            pool.research(UpgradeId.ZERGLINGMOVEMENTSPEED, can_afford_check=True)
             return
 
         if (
@@ -208,13 +230,6 @@ class Pool12AllIn(BotAI):
         ):
             if larva:
                 larva.train(UnitTypeId.DRONE, can_afford_check=True)
-            return
-
-        if (
-            queen_count + queen_morphing_count < self.townhalls.ready.amount
-            and idle_hatch
-        ):
-            idle_hatch.train(UnitTypeId.QUEEN)
             return
 
         if (
