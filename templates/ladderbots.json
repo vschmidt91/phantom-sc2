@@ -1,7 +1,7 @@
 {
     "Bots": {
-        "SunTzuBot": {
-            "Race": "Zerg",
+        "${name}": {
+            "Race": "${race}",
             "Type": "Python",
             "RootPath": "./",
             "FileName": "run.py",

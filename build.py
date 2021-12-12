@@ -1,40 +1,53 @@
 
-from datetime import datetime
-import sc2
-import inspect
+from string import Template
+from dataclasses import dataclass
+from typing import List, Any
+from zipfile import ZipFile
 import os
 import zipfile
 import subprocess
 
-OUTPUT_PATH = './publish/12PoolBot.zip'
-VERSION_PATH = './version.txt'
+import src
+
+OUTPUT_PATH = 'publish'
+VERSION_PATH = 'templates/version.txt'
 EXTENSIONS = { '.py', '.txt', '.json', '.npy' }
+COMMON = ['__init__.py', 'requirements.txt', 'version.txt']
+TEMPLATES = 'templates'
 
-def zipBot(zipFile):
-    root = os.getcwd()
-    botFiles = (
-        f for f in os.listdir(root)
-        if any(ext in f for ext in EXTENSIONS)
-    )
-    for file in botFiles:
-        zipFile.write(os.path.join(root, file), file)
+@dataclass
+class BotPackage:
+    name: str
+    race: str
+    package: src
+    cls: src
+    libs: List[str]
 
+BOTS: List[BotPackage] = [
+    BotPackage('SunTzuBot', 'Zerg', 'src.zerg', 'ZergAI', ['src', 'sc2', 'MapAnalyzer', 'data']),
+    BotPackage('12PoolBot', 'Zerg', 'src.pool12_allin', 'Pool12AllIn', ['src', 'sc2']),
+]
 
-def zipLibrary(zipFile, dir_name: str):
-    # libraryDir = os.path.dirname(dir_name)
-    for root, dirs, files in os.walk(dir_name):
-        for file in files:
-            if ".pyc" in file:
+def zip_templates(zip_file: ZipFile, args: Any):
+    for root, dirs, files in os.walk(TEMPLATES):
+        for path in files:
+            if path.endswith('.pyc'):
                 continue
-            absPath = os.path.join(root, file)
-            relPath = os.path.join(dir_name, os.path.relpath(absPath, dir_name))
-            zipFile.write(absPath, relPath)
+            path_abs = os.path.join(root, path)
+            with open(path_abs, 'r') as file:
+                template = Template(file.read())
+            zip_file.writestr(path, template.substitute(args))
+
+def zip_lib(zip_file: ZipFile, dir_name: str):
+    for root, dirs, paths in os.walk(dir_name):
+        for path in paths:
+            if ".pyc" in path:
+                continue
+            path_abs = os.path.join(root, path)
+            path_rel = os.path.join(dir_name, os.path.relpath(path_abs, dir_name))
+            zip_file.write(path_abs, path_rel)
 
 if __name__ == '__main__':
-
-    path = OUTPUT_PATH
-    if os.path.exists(path):
-        os.remove(path)
 
     version_path = VERSION_PATH
     version = subprocess.check_output('git rev-parse HEAD', shell=True).decode('utf-8')
@@ -42,10 +55,15 @@ if __name__ == '__main__':
     with open(version_path, 'w') as version_file:
         version_file.write(version)
 
-    zipFile = zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED)
-    zipBot(zipFile)
-    # zipLibrary(zipFile, 'MapAnalyzer')
-    zipLibrary(zipFile, 'sc2')
-    zipLibrary(zipFile, 'src')
-    # zipLibrary(zipFile, 'data')
-    zipFile.close()
+    for bot in BOTS:
+
+        path = os.path.join(OUTPUT_PATH, bot.name + '.zip')
+        if os.path.exists(path):
+            os.remove(path)
+        zip_file = ZipFile(path, 'w', zipfile.ZIP_DEFLATED)
+        zip_templates(zip_file, bot.__dict__)
+        for lib in bot.libs:
+            zip_lib(zip_file, lib)
+        for file in COMMON:
+            zip_file.write(file, file)
+        zip_file.close()

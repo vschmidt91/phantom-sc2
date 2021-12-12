@@ -6,6 +6,7 @@ import aiohttp
 
 import sc2
 from sc2.data import Race, Difficulty
+from sc2.portconfig import Portconfig
 from sc2.player import Bot, Computer
 from sc2.protocol import ConnectionAlreadyClosed
 
@@ -56,7 +57,7 @@ def run_ladder_game(bot):
     else:
         ports = [lan_port + p for p in range(1, 6)]
 
-        portconfig = sc2.portconfig.Portconfig()
+        portconfig = Portconfig()
         portconfig.server = [ports[1], ports[2]]
         portconfig.players = [[ports[3], ports[4]]]
 

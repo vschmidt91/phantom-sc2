@@ -48,9 +48,8 @@ class SpreadCreepBehavior(UnitBehavior):
 
         start_position = unit.position
         if unit.type_id == UnitTypeId.QUEEN:
-            forward_base = self.ai.townhalls.ready.random
-            if forward_base:
-                start_position = forward_base.position
+            if self.ai.townhalls.ready:
+                start_position = self.ai.townhalls.ready.random.position
 
         target = None
         for _ in range(10):

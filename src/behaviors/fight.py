@@ -133,7 +133,8 @@ class FightBehavior(UnitBehavior):
 
         if self.stance == FightStance.FLEE:
 
-            unit.move(self.get_path_towards(unit, self.ai.start_location))
+            # unit.move(self.get_path_towards(unit, self.ai.start_location))
+            unit.move(unit.position.towards(target.position, -12))
             return BehaviorResult.ONGOING
 
         elif self.stance == FightStance.RETREAT:
@@ -142,7 +143,8 @@ class FightBehavior(UnitBehavior):
                 (unit.weapon_cooldown or unit.is_burrowed)
                 and unit.position.distance_to(target.position) <= unit.radius + self.ai.get_unit_range(unit) + target.radius + unit.distance_to_weapon_ready
             ):
-                unit.move(self.get_path_towards(unit, self.ai.start_location))
+                unit.move(unit.position.towards(target.position, -12))
+                # unit.move(self.get_path_towards(unit, self.ai.start_location))
             elif unit.position.distance_to(target.position) <= unit.radius + self.ai.get_unit_range(unit) + target.radius:
                 unit.attack(target)
             else:

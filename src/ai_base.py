@@ -59,6 +59,8 @@ from .behaviors.dodge import *
 
 from .enums import PerformanceMode
 
+VERSION_PATH = 'version.txt'
+
 class PlacementNotFoundError(Exception):
     pass
 
@@ -77,17 +79,16 @@ class MapStaticData:
 class AIBase(ABC, BotAI):
 
     def __init__(self,
-        version: str,
-        game_step: Optional[int] = None,
+        game_step: int = 4,
         debug: bool = False,
         performance: PerformanceMode = PerformanceMode.DEFAULT,
     ):
 
         self.raw_affects_selection = True
 
-        self.version: str = version
+        self.version: str = None
         self.tags: List[str] = list()
-        self.game_step: Optional[int] = game_step
+        self.game_step: int = 4
         self.performance: PerformanceMode = performance
         self.debug: bool = debug
         self.greet_enabled: bool = True
@@ -156,6 +157,10 @@ class AIBase(ABC, BotAI):
         return True
 
     async def on_before_start(self):
+
+        with open(VERSION_PATH, 'r') as file:
+            self.version = file.readline().replace('\n', '')
+        self.tags.append(self.version)
 
         for unit in UnitTypeId:
             data = self.game_data.units.get(unit.value)

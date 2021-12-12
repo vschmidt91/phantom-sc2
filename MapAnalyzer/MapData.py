@@ -96,7 +96,7 @@ class MapData:
             logger.info(f" {__version__} Starting in Arcade mode")
             self.base_locations: list = []
 
-        logger.info(f"{__version__} Compiling {self.map_name} " + WHITE)
+        # logger.info(f"{__version__} Compiling {self.map_name} " + WHITE)
         # self._compile_map()
 
     """Properties"""

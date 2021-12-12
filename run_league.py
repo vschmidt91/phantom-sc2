@@ -11,43 +11,6 @@ from src.pool12_allin import Pool12AllIn
 from src.zerg import ZergAI
 from src.dummy import DummyAI
 
-maps = [
-    'OxideAIE',
-    'RomanticideAIE',
-    '2000AtmospheresAIE',
-    'LightshadeAIE',
-    'JagannathaAIE',
-    'BlackburnAIE'
-]
-
-races = [
-    Race.Protoss,
-    Race.Terran,
-    Race.Zerg,
-]
-
-builds = [
-    AIBuild.Rush,
-    AIBuild.Timing,
-    AIBuild.Power,
-    AIBuild.Macro,
-    AIBuild.Air,
-]
-
-results: Dict[Tuple[str, Race, AIBuild], List[Result]] = defaultdict(lambda:list())
-
-def result_to_winrate(result: Result) -> float:
-    if result == Result.Victory:
-        return 1
-    elif result == Result.Defeat:
-        return 0
-    elif result == Result.Tie:
-        return 0.5
-    raise Exception
-
-def results_to_winrate(results: Iterable[Result]) -> float:
-    return sum(result_to_winrate(r) for r in results) / len(results)
-
 if __name__ == "__main__":
     time = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
     results_dir = os.path.join("replays", time)
@@ -55,9 +18,9 @@ if __name__ == "__main__":
     for league in itertools.count():
         league_dir = os.path.join(results_dir, str(1+league))
         os.mkdir(league_dir)
-        for map in maps:
-            for race in races:
-                for build in builds:
+        for map in MAPS:
+            for race in RACES:
+                for build in BUILDS:
                     replay_path = os.path.join(league_dir, f'{map}-{race.name}-{build.name}.SC2Replay')
                     bot = Bot(Race.Zerg, Pool12AllIn()) 
                     # bot = Bot(Race.Zerg, ZergAI(debug=True), 'Sun Tzu') 

@@ -12,8 +12,8 @@ from sc2.ids.unit_typeid import UnitTypeId
 
 class Pool12AllIn(BotAI):
 
-    def __init__(self, game_step: Optional[int] = None):
-        self.game_step: Optional[int] = game_step
+    def __init__(self, game_step: int = 1):
+        self.game_step: int = game_step
         super().__init__()
 
     async def on_before_start(self):
@@ -39,6 +39,7 @@ class Pool12AllIn(BotAI):
         if not self.townhalls:
             await self.client.chat_send('gg', False)
             await self.client.debug_leave()
+            return
 
         pool = next(
             (p
@@ -46,8 +47,8 @@ class Pool12AllIn(BotAI):
             if p.is_ready),
             None)
 
-        hatches = self.townhalls.ready.sorted_by_distance_to(self.start_location)
-        queens = self.units.of_type(UnitTypeId.QUEEN).sorted_by_distance_to(self.start_location)
+        hatches = self.townhalls.ready.sorted(key=lambda u:u.tag)
+        queens = self.units.of_type(UnitTypeId.QUEEN).sorted(key=lambda u:u.tag)
 
         if self.already_pending_upgrade(UpgradeId.ZERGLINGMOVEMENTSPEED):
             gas_target = 0
@@ -58,6 +59,8 @@ class Pool12AllIn(BotAI):
 
         tech_position = self.townhalls[0].position.towards(self.game_info.map_center, 5.5)
         enemy_position = self.enemy_start_locations[0]
+        drone_count = self.supply_workers + self.already_pending(UnitTypeId.DRONE)
+        drone_target = sum(min(h.ideal_harvesters, 11) for h in self.townhalls.ready)
 
         base_from = next((h for h in self.townhalls.ready if 0 < h.surplus_harvesters), None)
         if base_from:
@@ -157,7 +160,7 @@ class Pool12AllIn(BotAI):
 
         if (
             not self.already_pending(UnitTypeId.DRONE)
-            and self.units.of_type(UnitTypeId.DRONE).amount < 11 * self.townhalls.amount
+            and drone_count < drone_target
         ):
             self.train(UnitTypeId.DRONE)
             return
@@ -166,8 +169,12 @@ class Pool12AllIn(BotAI):
             self.train(UnitTypeId.QUEEN)
             return
 
-        if 300 <= self.minerals and not self.already_pending(UnitTypeId.HATCHERY):
-            await self.expand_now()
+        if (
+            self.can_afford(UnitTypeId.HATCHERY)
+            and drone_target <= drone_count
+            and not self.already_pending(UnitTypeId.HATCHERY)
+        ):
+            await self.expand_now(max_distance=0)
 
         self.train(UnitTypeId.ZERGLING)
 
