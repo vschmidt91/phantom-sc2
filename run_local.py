@@ -59,7 +59,7 @@ if __name__ == "__main__":
                 sc2.maps.get(map),
                 [
                     create_bot(),
-                    Computer(race, Difficulty.VeryHard, ai_build=build)
+                    Computer(race, Difficulty.VeryEasy, ai_build=build)
                 ],
             )
             for race in RACES
