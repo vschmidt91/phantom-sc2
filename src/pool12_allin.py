@@ -1,24 +1,20 @@
 
-from typing import Optional
 import numpy as np
 
-from s2clientprotocol.data_pb2 import AbilityData
 from sc2.bot_ai import BotAI
 from sc2.position import Point2
 from sc2.ids.ability_id import AbilityId
-from sc2.ids.buff_id import BuffId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
 
 class Pool12AllIn(BotAI):
 
-    def __init__(self, game_step: int = 1):
+    def __init__(self, game_step: int = 4):
         self.game_step: int = game_step
         super().__init__()
 
     async def on_before_start(self):
-        if self.game_step:
-            self.client.game_step = self.game_step
+        self.client.game_step = self.game_step
         return await super().on_before_start()
 
     async def on_start(self):

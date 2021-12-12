@@ -88,7 +88,7 @@ class AIBase(ABC, BotAI):
 
         self.version: str = None
         self.tags: List[str] = list()
-        self.game_step: int = 4
+        self.game_step: int = game_step
         self.performance: PerformanceMode = performance
         self.debug: bool = debug
         self.greet_enabled: bool = True
@@ -175,8 +175,7 @@ class AIBase(ABC, BotAI):
                 dps = max(dps, damage / speed)
             self.dps[unit] = dps
 
-        if self.game_step is not None:
-            self.client.game_step = self.game_step
+        self.client.game_step = self.game_step
         self.cost = dict()
         for unit in UnitTypeId:
             try:

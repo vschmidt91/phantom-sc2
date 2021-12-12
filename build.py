@@ -10,10 +10,9 @@ import subprocess
 import src
 
 OUTPUT_PATH = 'publish'
-VERSION_PATH = 'templates/version.txt'
+VERSION_PATH = 'version.txt'
 EXTENSIONS = { '.py', '.txt', '.json', '.npy' }
-COMMON = ['__init__.py', 'requirements.txt', 'version.txt']
-TEMPLATES = 'templates'
+TEMPLATES_PATH = 'templates'
 
 @dataclass
 class BotPackage:
@@ -24,12 +23,27 @@ class BotPackage:
     libs: List[str]
 
 BOTS: List[BotPackage] = [
-    BotPackage('SunTzuBot', 'Zerg', 'src.zerg', 'ZergAI', ['src', 'sc2', 'MapAnalyzer', 'data']),
-    BotPackage('12PoolBot', 'Zerg', 'src.pool12_allin', 'Pool12AllIn', ['src', 'sc2']),
+    BotPackage('SunTzuBot', 'Zerg', 'src.zerg', 'ZergAI',
+    [
+        'ladder.py',
+        'requirements.txt',
+        VERSION_PATH,
+        'src\\',
+        'sc2\\',
+        'MapAnalyzer\\',
+        'data\\'
+    ]),
+    BotPackage('12PoolBot', 'Zerg', 'src.pool12_allin', 'Pool12AllIn',
+    [
+        'ladder.py',
+        'requirements.txt',
+        'src\\pool12_allin.py',
+        'sc2\\'
+    ]),
 ]
 
 def zip_templates(zip_file: ZipFile, args: Any):
-    for root, dirs, files in os.walk(TEMPLATES):
+    for root, dirs, files in os.walk(TEMPLATES_PATH):
         for path in files:
             if path.endswith('.pyc'):
                 continue
@@ -38,13 +52,17 @@ def zip_templates(zip_file: ZipFile, args: Any):
                 template = Template(file.read())
             zip_file.writestr(path, template.substitute(args))
 
-def zip_lib(zip_file: ZipFile, dir_name: str):
-    for root, dirs, paths in os.walk(dir_name):
+def zip_libs(zip_file: ZipFile, libs: List[str]):
+    cwd = os.getcwd()
+    for root, dirs, paths in os.walk(cwd):
         for path in paths:
-            if ".pyc" in path:
+            if path.endswith('.pyc'):
                 continue
             path_abs = os.path.join(root, path)
-            path_rel = os.path.join(dir_name, os.path.relpath(path_abs, dir_name))
+            path_rel = os.path.relpath(path_abs, cwd)
+            if not any(path_rel.startswith(p) for p in libs):
+                continue
+            # path_rel = os.path.join(dir_name, os.path.relpath(path_abs, dir_name))
             zip_file.write(path_abs, path_rel)
 
 if __name__ == '__main__':
@@ -62,8 +80,5 @@ if __name__ == '__main__':
             os.remove(path)
         zip_file = ZipFile(path, 'w', zipfile.ZIP_DEFLATED)
         zip_templates(zip_file, bot.__dict__)
-        for lib in bot.libs:
-            zip_lib(zip_file, lib)
-        for file in COMMON:
-            zip_file.write(file, file)
+        zip_libs(zip_file, bot.libs)
         zip_file.close()
