@@ -57,6 +57,7 @@ class Pool12AllIn(BotAI):
         transfer_to_gas: Optional[Unit] = None
         pool_pending: Optional[Unit] = None
         drone: Optional[Unit] = None
+        enemy: Optional[Unit] = None
         idle_hatch: Optional[Unit] = None
         inject_hatch: Optional[Unit] = None
         inject_queen: Optional[Unit] = None
@@ -69,6 +70,14 @@ class Pool12AllIn(BotAI):
         hatch_count: int = 0
         queen_morphing_count: int = 0
         hatch_pending_count: int = 0
+
+        for unit in self.enemy_structures:
+            if not enemy:
+                enemy = unit
+            elif enemy.is_flying and not unit.is_flying:
+                enemy = unit
+        if enemy and enemy.is_flying and self.is_visible(self.enemy_start_locations[0]):
+            self.pull_all = True
 
         for unit in self.structures:
             if unit.is_vespene_geyser:
@@ -128,8 +137,8 @@ class Pool12AllIn(BotAI):
                     drone = unit
             elif unit.type_id in army_types:
                 if unit.is_idle:
-                    if self.enemy_structures.not_flying:
-                        unit.attack(self.enemy_structures.not_flying.random.position)
+                    if enemy:
+                        unit.attack(enemy.position)
                     elif not self.is_visible(self.enemy_start_locations[0]):
                         unit.attack(self.enemy_start_locations[0])
                     else:
@@ -155,7 +164,7 @@ class Pool12AllIn(BotAI):
 
         larva_per_second = 1/11 * hatch_count + 3/29 * min(queen_count, hatch_count)
         drone_target = min(drone_max, 1 + larva_per_second * 50 * 60/55)
-        queen_target = self.townhalls.amount
+        queen_target = hatch_count
         
         if self.state.game_loop % 2 == 1:
             pass
@@ -178,7 +187,7 @@ class Pool12AllIn(BotAI):
             pass
         elif self.supply_used < 16:
             self.train(UnitTypeId.ZERGLING)
-        elif self.can_afford(UnitTypeId.QUEEN) and idle_hatch and queen_count + queen_morphing_count < queen_target:
+        elif self.can_afford(UnitTypeId.QUEEN) and not self.larva.exists and idle_hatch and queen_count + queen_morphing_count < queen_target:
             idle_hatch.train(UnitTypeId.QUEEN)
         elif self.supply_used < 20:
             self.train(UnitTypeId.ZERGLING)
@@ -221,7 +230,7 @@ class Pool12AllIn(BotAI):
         elif drone_morphing_count < 1 and self.workers.amount + drone_morphing_count < drone_target:
             self.train(UnitTypeId.DRONE)
         else:
-            if self.can_afford(UnitTypeId.HATCHERY) and drone_target <= self.workers.amount and queen_target <= queen_count and hatch_count == self.townhalls.amount and hatch_pending_count < 1:
+            if self.can_afford(UnitTypeId.HATCHERY) and not self.larva.exists and drone_target <= self.workers.amount and queen_target <= queen_count and hatch_count == self.townhalls.amount and hatch_pending_count < 1:
                 target = await self.get_next_expansion()
                 if drone and target:
                     drone.build(UnitTypeId.HATCHERY, target)
