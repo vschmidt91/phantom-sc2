@@ -31,7 +31,7 @@ RACES = [
 ]
 
 BUILDS = [
-    AIBuild.Rush,
+    # AIBuild.Rush,
     AIBuild.Timing,
     AIBuild.Power,
     AIBuild.Macro,
@@ -62,9 +62,9 @@ if __name__ == "__main__":
                     Computer(race, Difficulty.CheatInsane, ai_build=build)
                 ],
             )
+            for map in MAPS
             for race in RACES
             for build in BUILDS
-            for map in MAPS
         ]
         results = run_multiple_games(games)
         for game, result in zip(games, results):
