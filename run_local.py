@@ -32,10 +32,10 @@ RACES = [
 
 BUILDS = [
     # AIBuild.Rush,
-    AIBuild.Timing,
-    AIBuild.Power,
+    # AIBuild.Timing,
+    # AIBuild.Power,
     AIBuild.Macro,
-    AIBuild.Air,
+    # AIBuild.Air,
 ]
 
 DIFFICULTY = Difficulty.CheatInsane
@@ -43,11 +43,16 @@ DIFFICULTY = Difficulty.CheatInsane
 RESULT_PATH = 'results.json'
 
 def create_bot():
-    ai = Pool12AllIn()
-    # ai = ZergAI()
-    # ai.debug = True
-    # ai.game_step = 10
+    # ai = Pool12AllIn()
+    ai = ZergAI()
+    ai.debug = True
+    ai.game_step = 10
     return Bot(Race.Zerg, ai)  
+
+def create_opponents(difficulty: Difficulty = Difficulty.CheatInsane) -> Iterable[Computer]:
+    for race in RACES:
+        for build in BUILDS:
+            yield Computer(race, difficulty, ai_build=build)
 
 if __name__ == "__main__":
 
@@ -55,16 +60,9 @@ if __name__ == "__main__":
 
     for i in itertools.count():
         games = [
-            GameMatch(
-                sc2.maps.get(map),
-                [
-                    create_bot(),
-                    Computer(race, Difficulty.CheatInsane, ai_build=build)
-                ],
-            )
+            GameMatch(sc2.maps.get(map), [create_bot(), opponent])
             for map in MAPS
-            for race in RACES
-            for build in BUILDS
+            for opponent in create_opponents()
         ]
         results = run_multiple_games(games)
         for game, result in zip(games, results):

@@ -23,8 +23,7 @@ class ChangelingSpawnBehavior(UnitBehavior):
         
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
-        if self.ABILITY not in self.ai.abilities[unit.tag]:
-            return BehaviorResult.SUCCESS
+        if self.ABILITY in self.ai.abilities[unit.tag]:
+            unit(self.ABILITY)
 
-        unit(self.ABILITY)
-        return BehaviorResult.ONGOING
+        return BehaviorResult.SUCCESS

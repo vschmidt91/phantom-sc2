@@ -70,7 +70,7 @@ class FightBehavior(UnitBehavior):
         advantage = self.ai.advantage_map[sample_position.rounded]
         # advantage *= advantage_army
         # advantage *= max(1, advantage_defender)
-        advantage *= advantage_creep
+        # advantage *= advantage_creep
 
         return advantage
 
@@ -88,7 +88,7 @@ class FightBehavior(UnitBehavior):
             sensitivity = 1)
 
         if not path:
-            return target.position
+            return target
         return path[min(3, len(path) - 1)]
 
     def get_stance(self, unit: Unit, advantage: float) -> FightStance:
@@ -133,7 +133,8 @@ class FightBehavior(UnitBehavior):
 
         if self.stance == FightStance.FLEE:
 
-            unit.move(self.get_path_towards(unit, self.ai.start_location))
+            # unit.move(self.get_path_towards(unit, self.ai.start_location))
+            unit.move(self.get_path_towards(unit, unit.position.towards(target.position, -12)))
             # unit.move(unit.position.towards(target.position, -12))
             return BehaviorResult.ONGOING
 
@@ -144,7 +145,8 @@ class FightBehavior(UnitBehavior):
                 and unit.position.distance_to(target.position) <= unit.radius + self.ai.get_unit_range(unit) + target.radius + unit.distance_to_weapon_ready
             ):
                 # unit.move(unit.position.towards(target.position, -12))
-                unit.move(self.get_path_towards(unit, self.ai.start_location))
+                unit.move(self.get_path_towards(unit, unit.position.towards(target.position, -12)))
+                # unit.move(self.get_path_towards(unit, self.ai.start_location))
             elif unit.position.distance_to(target.position) <= unit.radius + self.ai.get_unit_range(unit) + target.radius:
                 unit.attack(target)
             else:
