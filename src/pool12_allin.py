@@ -128,8 +128,8 @@ class Pool12AllIn(BotAI):
                     drone = unit
             elif unit.type_id in army_types:
                 if unit.is_idle:
-                    if self.enemy_structures:
-                        unit.attack(self.enemy_structures.random.position)
+                    if self.enemy_structures.not_flying:
+                        unit.attack(self.enemy_structures.not_flying.random.position)
                     elif not self.is_visible(self.enemy_start_locations[0]):
                         unit.attack(self.enemy_start_locations[0])
                     else:
