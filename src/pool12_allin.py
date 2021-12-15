@@ -15,7 +15,7 @@ from sc2.units import Units
 
 class Pool12AllIn(BotAI):
 
-    def __init__(self, game_step: int = 1):
+    def __init__(self, game_step: int = 4):
         self.game_step: int = game_step
         self.mine_gas: bool = True
         self.pull_all: bool = False
@@ -43,7 +43,7 @@ class Pool12AllIn(BotAI):
             await self.client.quit()
             return
 
-        if 96 <= self.vespene:
+        if 100 <= self.vespene:
             self.mine_gas = False
         if self.pull_all:
             army_types = { UnitTypeId.ZERGLING, UnitTypeId.QUEEN, UnitTypeId.OVERLORD }
@@ -168,8 +168,6 @@ class Pool12AllIn(BotAI):
                 drone.build_gas(geyser)
         elif self.supply_cap == 14 and overlord_morphing_count < 1:
             self.train(UnitTypeId.OVERLORD)
-        elif not pool or not pool.is_ready:
-            pass
 
         # Hatch First into Lingflood WIP
 
@@ -197,11 +195,9 @@ class Pool12AllIn(BotAI):
         #     self.train(UnitTypeId.DRONE)
         # elif self.supply_cap == 22 and overlord_morphing_count < 1:
         #     self.train(UnitTypeId.OVERLORD)
-        # elif not pool or not pool.is_ready:
-        #     pass
-        # elif self.can_afford(UnitTypeId.QUEEN) and idle_hatch and len(queens) + queen_morphing_count < queen_target:
-        #     idle_hatch.train(UnitTypeId.QUEEN)
 
+        elif not pool or not pool.is_ready:
+            pass
         elif self.supply_left <= 0 and overlord_morphing_count < 1:
             self.train(UnitTypeId.OVERLORD)
         elif drone_morphing_count < 1 and self.workers.amount + drone_morphing_count < drone_target:
