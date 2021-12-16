@@ -15,10 +15,11 @@ from sc2.units import Units
 
 class Pool12AllIn(BotAI):
 
-    def __init__(self, game_step: int = 4):
+    def __init__(self, game_step: int = 2):
         self.game_step: int = game_step
         self.mine_gas: bool = True
         self.pull_all: bool = False
+        self.pool_position: Point2 = None
         super().__init__()
 
     async def on_before_start(self):
@@ -35,6 +36,7 @@ class Pool12AllIn(BotAI):
                 worker = self.workers.tags_not_in(assigned).furthest_to(patch)
             worker.gather(patch)
             assigned.add(worker.tag)
+        self.pool_position = self.start_location.towards(self.main_base_ramp.top_center, -9)
 
     async def on_step(self, iteration: int):
 
@@ -43,7 +45,7 @@ class Pool12AllIn(BotAI):
             await self.client.quit()
             return
 
-        if 100 <= self.vespene:
+        if 96 <= self.vespene:
             self.mine_gas = False
         if self.pull_all:
             army_types = { UnitTypeId.ZERGLING, UnitTypeId.QUEEN, UnitTypeId.OVERLORD }
@@ -157,15 +159,17 @@ class Pool12AllIn(BotAI):
         # 12 Pool
 
         elif not pool and not pool_pending:
-            target = self.start_location.towards(self.game_info.map_center, -10)
+            target = await self.find_placement(UnitTypeId.SPAWNINGPOOL, self.pool_position, placement_step=1)
             if drone:
                 drone.build(UnitTypeId.SPAWNINGPOOL, target)
-        elif self.supply_used < 13:
+        elif self.supply_used < 12:
             self.train(UnitTypeId.DRONE)
-        elif not extractor_count:
+        elif not extractor_count and not pool_pending:
             geyser = self.vespene_geyser.closest_to(self.start_location)
             if drone:
                 drone.build_gas(geyser)
+        elif self.supply_used < 13:
+            self.train(UnitTypeId.DRONE)
         elif self.supply_cap == 14 and overlord_morphing_count < 1:
             self.train(UnitTypeId.OVERLORD)
 
@@ -204,7 +208,7 @@ class Pool12AllIn(BotAI):
             self.train(UnitTypeId.DRONE)
         elif self.can_afford(UnitTypeId.QUEEN) and drone_target <= self.workers.amount and not self.larva and idle_hatch and len(queens) + queen_morphing_count < queen_target:
             idle_hatch.train(UnitTypeId.QUEEN)
-        elif pool.is_idle and not self.larva and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
+        elif pool.is_idle and 19 <= self.supply_used and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
             pool.research(UpgradeId.ZERGLINGMOVEMENTSPEED)
         elif self.larva:
             if self.can_afford(UnitTypeId.HATCHERY) and drone_target <= self.workers.amount and queen_target <= len(queens) and len(hatches) == self.townhalls.amount and hatch_pending_count < 1:
