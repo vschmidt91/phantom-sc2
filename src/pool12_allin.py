@@ -26,7 +26,12 @@ class Pool12AllIn(BotAI):
     def __init__(self):
         self.mine_gas: bool = True
         self.pull_all: bool = False
+        self.pool_drone: Optional[Unit] = None
         super().__init__()
+
+    async def on_before_start(self):
+        self.client.game_step = 1
+        return await super().on_before_start()
 
     async def on_start(self):
         minerals = self.expansion_locations_dict[self.start_location].mineral_field.sorted_by_distance_to(self.start_location)
@@ -96,7 +101,7 @@ class Pool12AllIn(BotAI):
                 pending[UNIT_BY_TRAIN_ABILITY.get(unit.orders[0].ability.exact_id)] += 1
             if unit.type_id is UnitTypeId.DRONE:
                 if unit.is_idle:
-                    if self.mineral_field:
+                    if self.mineral_field and (not self.pool_drone or self.pool_drone.tag != unit.tag):
                         patch = self.mineral_field.closest_to(unit)
                         unit.gather(patch)
                 elif transfer_from and transfer_to and unit.order_target == transfer_from[0].tag:
@@ -129,8 +134,11 @@ class Pool12AllIn(BotAI):
         # build order
         if not pool or not pool.is_ready:
             if not pool and not pending[UnitTypeId.SPAWNINGPOOL]:
-                if drone:
-                    drone.build(UnitTypeId.SPAWNINGPOOL, self.pool_position)
+                if 150 < self.minerals:
+                    if not self.pool_drone:
+                        self.pool_drone = drone
+                        self.pool_drone.move(self.pool_position)
+                    self.pool_drone.build(UnitTypeId.SPAWNINGPOOL, self.pool_position)
             elif self.supply_used < 13:
                 self.train(UnitTypeId.DRONE)
             elif not self.gas_buildings and not pending[UnitTypeId.EXTRACTOR]:
