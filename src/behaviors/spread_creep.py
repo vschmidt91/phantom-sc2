@@ -67,7 +67,7 @@ class SpreadCreepBehavior(UnitBehavior):
             break
 
         if not target:
-            return BehaviorResult.FAILURE
+            return BehaviorResult.SUCCESS
 
         if unit.type_id == UnitTypeId.QUEEN:
             max_range = 3 * self.CREEP_RANGE
@@ -87,4 +87,4 @@ class SpreadCreepBehavior(UnitBehavior):
             unit.build(UnitTypeId.CREEPTUMOR, position)
             return BehaviorResult.ONGOING
 
-        return BehaviorResult.FAILURE
+        return BehaviorResult.SUCCESS
