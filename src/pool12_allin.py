@@ -29,6 +29,10 @@ class Pool12AllIn(BotAI):
         self.pool_drone: Optional[Unit] = None
         super().__init__()
 
+    async def on_before_start(self):
+        self.client.game_step = 1
+        return await super().on_before_start()
+
     async def on_start(self):
         minerals = self.expansion_locations_dict[self.start_location].mineral_field.sorted_by_distance_to(self.start_location)
         assigned = set()
@@ -40,7 +44,8 @@ class Pool12AllIn(BotAI):
                 worker = self.workers.tags_not_in(assigned).furthest_to(patch)
             worker.gather(patch)
             assigned.add(worker.tag)
-        pool_near = self.start_location.towards(self.main_base_ramp.top_center, -10)
+        pool_near = self.start_location.towards(self.main_base_ramp.top_center, -9)
+        pool_near = pool_near.rounded.offset((.5, .5))
         self.pool_position: Point2 = await self.find_placement(UnitTypeId.SPAWNINGPOOL, pool_near)
 
     async def on_step(self, iteration: int):
@@ -92,7 +97,6 @@ class Pool12AllIn(BotAI):
                 if unit.is_using_ability(AbilityId.RESEARCH_ZERGLINGMETABOLICBOOST):
                     self.mine_gas = False
 
-        # micro
         for unit in self.units:
             if not unit.is_idle:
                 pending[UNIT_BY_TRAIN_ABILITY.get(unit.orders[0].ability.exact_id)] += 1
@@ -128,10 +132,9 @@ class Pool12AllIn(BotAI):
             elif unit.type_id is UnitTypeId.QUEEN:
                 queens.append(unit)
         
-        # build order
         if not pool or not pool.is_ready:
             if not pool and not pending[UnitTypeId.SPAWNINGPOOL]:
-                if 160 < self.minerals:
+                if 170 <= self.minerals:
                     if not self.pool_drone:
                         self.pool_drone = drone
                         self.pool_drone.move(self.pool_position)
@@ -146,32 +149,34 @@ class Pool12AllIn(BotAI):
                 self.train(UnitTypeId.OVERLORD)
             return
 
-        # inject
         hatches.sort(key = lambda u : u.tag)
         queens.sort(key = lambda u : u.tag)
         for hatch, queen in zip(hatches, queens):
             if 25 <= queen.energy:
                 queen(AbilityId.EFFECT_INJECTLARVA, hatch)
-            elif not queen.is_moving and queen.radius + 1 + hatch.radius < queen.distance_to(hatch):
+            elif not queen.is_moving and 10 < queen.distance_to(hatch):
                 queen.move(hatch)
 
-        # macro
         larva_per_second = 1/11 * len(hatches) + 3/29 * min(len(queens), len(hatches))
         drone_max = sum(hatch.ideal_harvesters for hatch in self.townhalls)
         drone_target = min(drone_max, 1 + larva_per_second * 50 * 60/55)
         queen_target = len(hatches) if 16 <= self.supply_used else 0
         queen_missing = queen_target - (len(queens) + pending[UnitTypeId.QUEEN])
 
-        self.train_nonzero(UnitTypeId.OVERLORD, (1 if self.supply_left <= 0 and 2 <= self.townhalls.amount else 0) - pending[UnitTypeId.OVERLORD])
-        self.train_nonzero(UnitTypeId.DRONE, min(1, drone_target - self.workers.amount) - pending[UnitTypeId.DRONE])
-        self.train_nonzero(UnitTypeId.ZERGLING, self.larva.amount)
-        self.train_nonzero(UnitTypeId.QUEEN, min(len(idle_hatches), queen_missing))
-        if self.can_afford(UnitTypeId.HATCHERY) and not pending[UnitTypeId.HATCHERY] and len(hatches) == self.townhalls.amount:
+        if self.larva and 1 <= self.supply_left:
+            self.train_nonzero(UnitTypeId.DRONE, min(1, drone_target - self.workers.amount) - pending[UnitTypeId.DRONE])
+            self.train(UnitTypeId.ZERGLING, self.larva.amount)
+        elif queen_missing and 2 <= self.supply_left:
+            for hatch in idle_hatches[:queen_missing]:
+                hatch.train(UnitTypeId.QUEEN)
+        elif pool.is_idle and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
+            pool.research(UpgradeId.ZERGLINGMOVEMENTSPEED)
+        elif self.can_afford(UnitTypeId.HATCHERY) and not pending[UnitTypeId.HATCHERY] and len(hatches) == self.townhalls.amount:
             target = await self.get_next_expansion()
             if drone and target:
                 drone.build(UnitTypeId.HATCHERY, target)
-        if pool.is_idle and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
-            pool.research(UpgradeId.ZERGLINGMOVEMENTSPEED)
+        elif not pending[UnitTypeId.OVERLORD] and 2 <= self.townhalls.amount:
+            self.train(UnitTypeId.OVERLORD)
 
     def train_nonzero(self, unit: UnitTypeId, amount: int) -> int:
         if 0 < amount:
