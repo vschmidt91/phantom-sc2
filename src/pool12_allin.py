@@ -40,7 +40,8 @@ class Pool12AllIn(BotAI):
                 worker = self.workers.tags_not_in(assigned).furthest_to(patch)
             worker.gather(patch)
             assigned.add(worker.tag)
-        self.pool_position: Point2 = await self.find_placement(UnitTypeId.SPAWNINGPOOL, self.start_location.towards(self.main_base_ramp.top_center, -9))
+        pool_near = self.start_location.towards(self.main_base_ramp.top_center, -10)
+        self.pool_position: Point2 = await self.find_placement(UnitTypeId.SPAWNINGPOOL, pool_near)
 
     async def on_step(self, iteration: int):
 
