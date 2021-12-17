@@ -30,7 +30,7 @@ class Pool12AllIn(BotAI):
         super().__init__()
 
     async def on_before_start(self):
-        self.client.game_step = 1
+        self.client.game_step = 2
         return await super().on_before_start()
 
     async def on_start(self):
