@@ -29,10 +29,6 @@ class Pool12AllIn(BotAI):
         self.pool_drone: Optional[Unit] = None
         super().__init__()
 
-    async def on_before_start(self):
-        self.client.game_step = 1
-        return await super().on_before_start()
-
     async def on_start(self):
         minerals = self.expansion_locations_dict[self.start_location].mineral_field.sorted_by_distance_to(self.start_location)
         assigned = set()
