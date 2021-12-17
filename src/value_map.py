@@ -24,6 +24,8 @@ class ValueMap(AIComponent):
 
     def add(self, unit: Unit):
         weight = self.ai.get_unit_value(unit)
+        if weight < 1:
+            return
         base_range = 1.0 * unit.movement_speed + unit.radius
         range_vs_ground = base_range + self.ai.get_unit_range(unit, True, False)
         range_vs_air = base_range + self.ai.get_unit_range(unit, False, True)

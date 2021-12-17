@@ -1086,7 +1086,7 @@ class AIBase(ABC, BotAI):
         if not unit.is_ready:
             return 0
         cost = self.calculate_unit_value(unit.type_id)
-        return max(1, cost.minerals + cost.vespene)
+        return cost.minerals + cost.vespene
 
     def update_maps(self):
 
@@ -1100,11 +1100,14 @@ class AIBase(ABC, BotAI):
         army_influence_map = self.map_analyzer.get_pyastar_grid(0)
         for unit in self.enumerate_army():
             unit_range = unit.movement_speed + self.get_unit_range(unit)
+            unit_value = self.get_unit_value(unit)
+            if unit_value < 1:
+                continue
             army_influence_map = self.map_analyzer.add_cost(
                 position = unit.position,
                 radius = unit.radius + unit_range,
                 grid = army_influence_map,
-                weight = self.get_unit_value(unit),
+                weight = unit_value,
             )
         self.army_influence_map = np.maximum(100, army_influence_map)
 

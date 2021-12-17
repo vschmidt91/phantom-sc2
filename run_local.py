@@ -1,11 +1,13 @@
-from collections import defaultdict
+
 import itertools
+import sc2
+import json
+import cProfile
+import pstats
+
+from collections import defaultdict
 from typing import Dict, Iterable, List, Tuple
-from numpy.lib.stride_tricks import DummyArray
-from s2clientprotocol.common_pb2 import Zerg
-import sc2, sys, os, json
-from datetime import datetime
-from sc2.main import GameMatch, run_game, run_match, run_multiple_games
+from sc2.main import GameMatch, run_multiple_games
 
 from sc2.data import Race, Difficulty, AIBuild, Result
 from sc2.player import Bot, Computer
@@ -17,17 +19,17 @@ from src.dummy import DummyAI
 
 MAPS = [
     'OxideAIE',
-    'RomanticideAIE',
-    '2000AtmospheresAIE',
-    'LightshadeAIE',
-    'JagannathaAIE',
-    'BlackburnAIE'
+    # 'RomanticideAIE',
+    # '2000AtmospheresAIE',
+    # 'LightshadeAIE',
+    # 'JagannathaAIE',
+    # 'BlackburnAIE'
 ]
 
 RACES = [
     Race.Protoss,
-    Race.Terran,
-    Race.Zerg,
+    # Race.Terran,
+    # Race.Zerg,
 ]
 
 BUILDS = [
@@ -49,7 +51,7 @@ def create_bot():
     # ai.game_step = 10
     return Bot(Race.Zerg, ai)  
 
-def create_opponents(difficulty: Difficulty = Difficulty.CheatInsane) -> Iterable[Computer]:
+def create_opponents(difficulty) -> Iterable[Computer]:
     for race in RACES:
         for build in BUILDS:
             yield Computer(race, difficulty, ai_build=build)
@@ -62,9 +64,17 @@ if __name__ == "__main__":
         games = [
             GameMatch(sc2.maps.get(map), [create_bot(), opponent])
             for map in MAPS
-            for opponent in create_opponents()
+            for opponent in create_opponents(DIFFICULTY)
         ]
-        results = run_multiple_games(games)
+
+
+        with cProfile.Profile() as pr:
+            results = run_multiple_games(games)
+
+        stats = pstats.Stats(pr)
+        stats.sort_stats(pstats.SortKey.TIME)
+        stats.dump_stats(filename='profiling.prof')
+
         for game, result in zip(games, results):
             opponent = game.players[1]
             key = f'{opponent.race.name} {opponent.ai_build.name} {game.map_sc2.name}'
