@@ -30,7 +30,7 @@ class Pool12AllIn(BotAI):
         super().__init__()
 
     async def on_before_start(self):
-        self.client.game_step = 1
+        self.client.game_step = 2
         return await super().on_before_start()
 
     async def on_start(self):
@@ -132,10 +132,7 @@ class Pool12AllIn(BotAI):
                             unit.attack(target)
             elif unit.type_id is UnitTypeId.QUEEN:
                 queens.append(unit)
-
-        if self.client.game_step == 1 and self.state.game_loop % 2 == 0:
-            return
-        
+                
         if not pool or not pool.is_ready:
             if not pool and not pending[UnitTypeId.SPAWNINGPOOL]:
                 if 170 <= self.minerals:
