@@ -30,7 +30,7 @@ class Pool12AllIn(BotAI):
         super().__init__()
 
     async def on_before_start(self):
-        self.client.game_step = 2
+        self.client.game_step = 1
         return await super().on_before_start()
 
     async def on_start(self):
@@ -60,6 +60,7 @@ class Pool12AllIn(BotAI):
         if self.enemy_structures.flying and not self.enemy_structures.not_flying:
             self.pull_all = True
         if self.pull_all:
+            self.client.game_step = 22
             army_types = { UnitTypeId.ZERGLING, UnitTypeId.QUEEN, UnitTypeId.OVERLORD }
         else:
             army_types = { UnitTypeId.ZERGLING }
@@ -131,6 +132,9 @@ class Pool12AllIn(BotAI):
                             unit.attack(target)
             elif unit.type_id is UnitTypeId.QUEEN:
                 queens.append(unit)
+
+        if self.client.game_step == 1 and self.state.game_loop % 2 == 0:
+            return
         
         if not pool or not pool.is_ready:
             if not pool and not pending[UnitTypeId.SPAWNINGPOOL]:
@@ -175,7 +179,7 @@ class Pool12AllIn(BotAI):
             target = await self.get_next_expansion()
             if drone and target:
                 drone.build(UnitTypeId.HATCHERY, target)
-        elif not pending[UnitTypeId.OVERLORD] and 2 <= self.townhalls.amount:
+        elif not pending[UnitTypeId.OVERLORD]:
             self.train(UnitTypeId.OVERLORD)
 
     def train_nonzero(self, unit: UnitTypeId, amount: int) -> int:
