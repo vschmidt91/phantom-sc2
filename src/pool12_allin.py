@@ -130,7 +130,7 @@ class Pool12AllIn(BotAI):
         # build order
         if not pool or not pool.is_ready:
             if not pool and not pending[UnitTypeId.SPAWNINGPOOL]:
-                if 150 < self.minerals:
+                if 160 < self.minerals:
                     if not self.pool_drone:
                         self.pool_drone = drone
                         self.pool_drone.move(self.pool_position)
