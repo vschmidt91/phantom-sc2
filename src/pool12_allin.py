@@ -1,9 +1,8 @@
 
 from collections import defaultdict
-from typing import DefaultDict, List, Optional, Set
+from typing import DefaultDict, List, Optional
 
 import numpy as np
-import math
 
 from sc2.bot_ai import BotAI
 from sc2.position import Point2
@@ -11,7 +10,6 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
-from sc2.units import Units
 
 UNIT_BY_TRAIN_ABILITY = {
     AbilityId.ZERGBUILD_HATCHERY: UnitTypeId.HATCHERY,
@@ -31,7 +29,7 @@ class Pool12AllIn(BotAI):
         super().__init__()
 
     async def on_start(self):
-        minerals: Units = self.expansion_locations_dict[self.start_location].mineral_field.sorted_by_distance_to(self.start_location)
+        minerals = self.expansion_locations_dict[self.start_location].mineral_field.sorted_by_distance_to(self.start_location)
         assigned = set()
         for i in range(self.workers.amount):
             patch = minerals[i % minerals.amount]
@@ -156,12 +154,12 @@ class Pool12AllIn(BotAI):
         larva_per_second = 1/11 * len(hatches) + 3/29 * min(len(queens), len(hatches))
         drone_max = sum(hatch.ideal_harvesters for hatch in self.townhalls)
         drone_target = min(drone_max, 1 + larva_per_second * 50 * 60/55)
-        queen_missing = min(len(idle_hatches), len(hatches) - len(queens))
+        queen_missing = len(hatches) - len(queens) - pending[UnitTypeId.QUEEN]
 
-        self.train_nonzero(UnitTypeId.OVERLORD, (1 if self.supply_left <= 0 else 0) - pending[UnitTypeId.OVERLORD])
+        self.train_nonzero(UnitTypeId.OVERLORD, (1 if self.supply_left <= 0 and 2 <= self.townhalls.amount else 0) - pending[UnitTypeId.OVERLORD])
         self.train_nonzero(UnitTypeId.DRONE, min(1, drone_target - self.workers.amount) - pending[UnitTypeId.DRONE])
         self.train_nonzero(UnitTypeId.ZERGLING, self.larva.amount)
-        self.train_nonzero(UnitTypeId.QUEEN, queen_missing - pending[UnitTypeId.QUEEN])
+        self.train_nonzero(UnitTypeId.QUEEN, min(len(idle_hatches), queen_missing))
         if self.can_afford(UnitTypeId.HATCHERY) and not pending[UnitTypeId.HATCHERY] and len(hatches) == self.townhalls.amount:
             target = await self.get_next_expansion()
             if drone and target:
