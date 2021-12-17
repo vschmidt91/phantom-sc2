@@ -158,7 +158,8 @@ class Pool12AllIn(BotAI):
         larva_per_second = 1/11 * len(hatches) + 3/29 * min(len(queens), len(hatches))
         drone_max = sum(hatch.ideal_harvesters for hatch in self.townhalls)
         drone_target = min(drone_max, 1 + larva_per_second * 50 * 60/55)
-        queen_missing = len(hatches) - len(queens) - pending[UnitTypeId.QUEEN]
+        queen_target = len(hatches) if 16 <= self.supply_used else 0
+        queen_missing = queen_target - (len(queens) + pending[UnitTypeId.QUEEN])
 
         self.train_nonzero(UnitTypeId.OVERLORD, (1 if self.supply_left <= 0 and 2 <= self.townhalls.amount else 0) - pending[UnitTypeId.OVERLORD])
         self.train_nonzero(UnitTypeId.DRONE, min(1, drone_target - self.workers.amount) - pending[UnitTypeId.DRONE])
