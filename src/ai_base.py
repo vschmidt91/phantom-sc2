@@ -150,7 +150,7 @@ class AIBase(ABC, BotAI):
 
     def estimate_enemy_velocity(self, unit: Unit) -> Point2:
         previous_position = self.enemy_positions.get(unit.tag, unit.position)
-        velocity = unit.position - previous_position * 22.4 / (self.client.game_step)
+        velocity = (unit.position - previous_position) * 22.4 / self.client.game_step
         return velocity
 
     def destroy_destructables(self):
