@@ -81,7 +81,9 @@ class Pool12AllIn(BotAI):
         for unit in self.structures:
             if not unit.is_idle:
                 pending[UNIT_BY_TRAIN_ABILITY.get(unit.orders[0].ability.exact_id)] += 1
-            if unit.is_vespene_geyser:
+            if not unit.is_ready and unit.health_percentage < 0.1:
+                unit(AbilityId.CANCEL)
+            elif unit.is_vespene_geyser:
                 if self.mine_gas and unit.surplus_harvesters < 0:
                     transfer_to_gas.extend(unit for _ in range(unit.surplus_harvesters, 0))
                 elif not self.mine_gas and 0 < unit.assigned_harvesters:
@@ -189,5 +191,5 @@ class Pool12AllIn(BotAI):
 
     async def add_tag(self, tag: str):
         if tag not in self.tags:
-            await self.client.chat_send(f'Tag:{tag}', True)
+            await self.client.chat_send(f'Tag:{tag}@{self.time_formatted}', True)
             self.tags.add(tag)
