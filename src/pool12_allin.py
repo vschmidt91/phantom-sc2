@@ -1,6 +1,6 @@
 
 from collections import defaultdict
-from typing import DefaultDict, List, Optional
+from typing import DefaultDict, List, Optional, Set
 
 import numpy as np
 
@@ -27,6 +27,7 @@ class Pool12AllIn(BotAI):
         self.mine_gas: bool = True
         self.pull_all: bool = False
         self.pool_drone: Optional[Unit] = None
+        self.tags: Set[str] = set()
         super().__init__()
 
     async def on_before_start(self):
@@ -60,6 +61,7 @@ class Pool12AllIn(BotAI):
         if self.enemy_structures.flying and not self.enemy_structures.not_flying:
             self.pull_all = True
         if self.pull_all:
+            await self.add_tag('pull_all')
             self.client.game_step = 22
             army_types = { UnitTypeId.ZERGLING, UnitTypeId.QUEEN, UnitTypeId.OVERLORD }
         else:
@@ -176,7 +178,7 @@ class Pool12AllIn(BotAI):
             target = await self.get_next_expansion()
             if drone and target:
                 drone.build(UnitTypeId.HATCHERY, target)
-        elif not pending[UnitTypeId.OVERLORD]:
+        elif self.supply_left <= 0 and not pending[UnitTypeId.OVERLORD] and 2 <= self.townhalls.amount:
             self.train(UnitTypeId.OVERLORD)
 
     def train_nonzero(self, unit: UnitTypeId, amount: int) -> int:
@@ -184,3 +186,8 @@ class Pool12AllIn(BotAI):
             return self.train(unit, amount)
         else:
             return 0
+
+    async def add_tag(self, tag: str):
+        if tag not in self.tags:
+            await self.client.chat_send(f'Tag:{tag}', True)
+            self.tags.add(tag)
