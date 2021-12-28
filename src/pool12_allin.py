@@ -25,7 +25,6 @@ class Pool12AllIn(BotAI):
 
     def __init__(self):
         self.mine_gas: bool = True
-        self.cleanup: bool = False
         self.pool_drone: Optional[Unit] = None
         self.tags: Set[str] = set()
         super().__init__()
@@ -59,8 +58,6 @@ class Pool12AllIn(BotAI):
         if 96 <= self.vespene:
             self.mine_gas = False
         if self.enemy_structures.flying and not self.enemy_structures.not_flying:
-            self.cleanup = True
-        if self.cleanup:
             await self.add_tag('cleanup')
             self.client.game_step = 22
             army_types = { UnitTypeId.ZERGLING, UnitTypeId.QUEEN, UnitTypeId.OVERLORD }
@@ -128,7 +125,6 @@ class Pool12AllIn(BotAI):
                     elif not self.is_visible(self.enemy_start_locations[0]):
                         unit.attack(self.enemy_start_locations[0])
                     else:
-                        self.cleanup = True
                         a = self.game_info.playable_area
                         target = np.random.uniform((a.x, a.y), (a.right, a.top))
                         target = Point2(target)
