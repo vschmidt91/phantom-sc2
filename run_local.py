@@ -18,7 +18,8 @@ from src.enums import PerformanceMode
 from src.dummy import DummyAI
 
 MAPS = [
-    'OxideAIE',
+    'GlitteringAshesAIE',
+    # 'OxideAIE',
     # 'RomanticideAIE',
     # '2000AtmospheresAIE',
     # 'LightshadeAIE',
@@ -40,15 +41,15 @@ BUILDS = [
     # AIBuild.Air,
 ]
 
-DIFFICULTY = Difficulty.CheatInsane
+DIFFICULTY = Difficulty.VeryHard
 
 RESULT_PATH = 'results.json'
 
 def create_bot():
-    ai = Pool12AllIn()
-    # ai = ZergAI()
-    # ai.debug = True
-    # ai.game_step = 10
+    # ai = Pool12AllIn()
+    ai = ZergAI()
+    ai.debug = True
+    ai.game_step = 10
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:
