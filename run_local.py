@@ -13,6 +13,7 @@ from sc2.data import Race, Difficulty, AIBuild, Result
 from sc2.player import Bot, Computer
 
 from src.pool12_allin import Pool12AllIn
+from src.strategies.roach_rush import RoachRush
 from src.zerg import ZergAI
 from src.enums import PerformanceMode
 from src.dummy import DummyAI
@@ -47,9 +48,9 @@ RESULT_PATH = 'results.json'
 
 def create_bot():
     # ai = Pool12AllIn()
-    ai = ZergAI()
+    ai = ZergAI(strategy=RoachRush())
     ai.debug = True
-    ai.game_step = 2
+    ai.game_step = 4
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:

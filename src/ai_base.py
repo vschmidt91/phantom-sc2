@@ -132,6 +132,7 @@ class AIBase(ABC, BotAI):
         self.tumor_front_tags: Set[int] = set()
         self.block_manager: BlockManager = BlockManager(self)
         self.scout_manager: ScoutManager = ScoutManager(self)
+        self.strict_macro: bool = False
 
     @property
     def plan_units(self) -> List[int]:
@@ -787,6 +788,8 @@ class AIBase(ABC, BotAI):
             cost = plan.cost or self.cost[plan.item]
             can_afford = self.can_afford_with_reserve(cost, reserve)
 
+            if self.strict_macro:
+                reserve += cost
 
             unit = None
             if plan.unit:
@@ -801,7 +804,8 @@ class AIBase(ABC, BotAI):
             if any(o.ability.exact_id == plan.ability['ability'] for o in unit.orders):
                 continue
 
-            reserve += cost
+            if not self.strict_macro:
+                reserve += cost
             
             # if not can_afford:
             #     minerals_surplus = max(0, self.minerals - reserve.minerals)

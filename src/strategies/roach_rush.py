@@ -17,7 +17,6 @@ class RoachRush(ZergMacro):
             UnitTypeId.EXTRACTOR,
             UnitTypeId.OVERLORD,
             UnitTypeId.SPAWNINGPOOL,
-            # UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
@@ -38,6 +37,9 @@ class RoachRush(ZergMacro):
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
+            UnitTypeId.ROACH,
+            UnitTypeId.EXTRACTOR,
+            UnitTypeId.OVERLORD,
             UnitTypeId.RAVAGER,
             UnitTypeId.RAVAGER,
         ]
@@ -49,11 +51,15 @@ class RoachRush(ZergMacro):
             return super().filter_upgrade(bot, upgrade)
         
     def composition(self, bot) -> Dict[UnitTypeId, int]:
-        return super().composition(bot)
+        if bot.time < 3.5 * 60:
+            return { UnitTypeId.DRONE: 32 }
+        else:
+            return super().composition(bot)
 
     def update(self, bot):
+        bot.strict_macro = bot.time < 3 * 60
         if bot.supply_used == 14 and bot.count(UnitTypeId.SPAWNINGPOOL, include_planned=False) < 1:
             bot.extractor_trick_enabled = True
-        # if bot.supply_used == 35:
-        #     bot.extractor_trick_enabled = True
+        if bot.supply_used == 35:
+            bot.extractor_trick_enabled = True
         return super().update(bot)
