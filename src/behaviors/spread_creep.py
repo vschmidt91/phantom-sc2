@@ -26,6 +26,8 @@ class SpreadCreepBehavior(UnitBehavior):
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
+        a = self.ai.game_info.playable_area
+
         if .95 < self.ai.creep_coverage:
             return BehaviorResult.SUCCESS
 
@@ -73,6 +75,7 @@ class SpreadCreepBehavior(UnitBehavior):
             max_range = 3 * self.CREEP_RANGE
         else:
             max_range = self.CREEP_RANGE
+        max_range = min(max_range, int(unit.distance_to(target)))
 
         for i in range(max_range, 0, -1):
             position = unit.position.towards(target, i)
