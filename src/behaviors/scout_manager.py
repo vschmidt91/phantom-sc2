@@ -24,16 +24,17 @@ class ScoutManager(Behavior):
     def execute(self) -> BehaviorResult:
 
         targets = list()
-        if not self.ai.bases[-2].taken_since and self.ai.block_manager.enemy_base_count < 2:
+        if not self.ai.bases[-2].taken_since:
             target = self.ai.bases[-2].position.towards(self.ai.game_info.map_center, 11)
-        else:
-            enemy_location = self.ai.enemy_start_locations[0]
-            enemy_main_ramp = min(
-                (r.top_center for r in self.ai.game_info.map_ramps),
-                key = lambda r : r.distance_to(enemy_location)
-            )
-            target = min(self.ai.map_analyzer.overlord_spots, key = lambda s : s.distance_to(enemy_main_ramp))
-        targets.append(target)
+            targets.append(target)
+        # else:
+        #     enemy_location = self.ai.enemy_start_locations[0]
+        #     enemy_main_ramp = min(
+        #         (r.top_center for r in self.ai.game_info.map_ramps),
+        #         key = lambda r : r.distance_to(enemy_location)
+        #     )
+        #     target = min(self.ai.map_analyzer.overlord_spots, key = lambda s : s.distance_to(enemy_main_ramp))
+
         for base in self.ai.bases[1:len(self.ai.bases)//2]:
             targets.append(base.position)
 

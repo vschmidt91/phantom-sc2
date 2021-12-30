@@ -1101,7 +1101,7 @@ class AIBase(ABC, BotAI):
         if not unit.is_ready:
             return 0
         cost = self.calculate_unit_value(unit.type_id)
-        return cost.minerals + cost.vespene
+        return unit.shield_health_percentage * (cost.minerals + cost.vespene)
 
     def update_maps(self):
 
