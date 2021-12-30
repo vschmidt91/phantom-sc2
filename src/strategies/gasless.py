@@ -53,4 +53,4 @@ class GasLess(ZergStrategy):
             }
 
     def destroy_destructables(self, bot) -> bool:
-        return self.tech_time < bot.time
+        return 4 * 60 < bot.time

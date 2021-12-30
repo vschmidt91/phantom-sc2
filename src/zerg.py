@@ -91,9 +91,7 @@ class ZergAI(AIBase):
     def __init__(self, strategy: ZergStrategy = None, **kwargs):
         super(self.__class__, self).__init__(**kwargs)
 
-        strategy = strategy or HatchFirst()
-
-        self.strategy: ZergStrategy = strategy
+        self.strategy: Optional[ZergStrategy] = strategy
         self.composition: Dict[UnitTypeId, int] = dict()
 
         self.creep_area_min: np.ndarray = None
@@ -179,6 +177,15 @@ class ZergAI(AIBase):
         return self.strategy.destroy_destructables(self)
 
     async def on_start(self):
+
+        if not self.strategy:
+            strategy_classes = [
+                HatchFirst,
+                RoachRush
+            ]
+            if self.enemy_race == Race.Protoss:
+                strategy_classes.append(Pool12)
+            self.strategy = RoachRush()
 
         for step in self.strategy.build_order():
             self.add_macro_plan(MacroPlan(step, priority=BUILD_ORDER_PRIORITY))

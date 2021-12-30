@@ -9,19 +9,15 @@ from .zerg_strategy import ZergStrategy
 
 class RoachRush(ZergMacro):
 
-    def __init__(self):
-        super().__init__()
-        self.tech_time = 4.25 * 60
-
     def build_order(self) -> Iterable[Union[UnitTypeId, UpgradeId]]:
         return [
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.EXTRACTOR,
+            UnitTypeId.DRONE,
+            UnitTypeId.EXTRACTOR,
             UnitTypeId.OVERLORD,
             UnitTypeId.SPAWNINGPOOL,
-            UnitTypeId.DRONE,
+            # UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
@@ -30,8 +26,8 @@ class RoachRush(ZergMacro):
             UnitTypeId.HATCHERY,
             UnitTypeId.QUEEN,
             UnitTypeId.DRONE,
-            UnitTypeId.ROACHWARREN,
             UnitTypeId.DRONE,
+            UnitTypeId.ROACHWARREN,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.OVERLORD,
@@ -42,7 +38,16 @@ class RoachRush(ZergMacro):
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
-            # UnitTypeId.ROACH,
-            # UnitTypeId.EXTRACTOR,
+            UnitTypeId.RAVAGER,
             UnitTypeId.RAVAGER,
         ]
+        
+    def composition(self, bot) -> Dict[UnitTypeId, int]:
+        return super().composition(bot)
+
+    def update(self, bot):
+        if bot.supply_used == 14 and bot.count(UnitTypeId.SPAWNINGPOOL, include_planned=False) < 1:
+            bot.extractor_trick_enabled = True
+        # if bot.supply_used == 35:
+        #     bot.extractor_trick_enabled = True
+        return super().update(bot)

@@ -41,7 +41,7 @@ BUILDS = [
     # AIBuild.Air,
 ]
 
-DIFFICULTY = Difficulty.VeryHard
+DIFFICULTY = Difficulty.VeryEasy
 
 RESULT_PATH = 'results.json'
 
@@ -49,7 +49,7 @@ def create_bot():
     # ai = Pool12AllIn()
     ai = ZergAI()
     ai.debug = True
-    ai.game_step = 10
+    ai.game_step = 2
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:

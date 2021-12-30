@@ -48,7 +48,7 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
 
     def try_remove_any(self) -> Optional[int]:
         resource = max(
-            (r for r in self.items if 0 < r.harvester_count),
+            (r for r in self.items[::-1] if 0 < r.harvester_count),
             key = lambda r : r.harvester_balance,
             default=None
         )
@@ -90,7 +90,7 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
 
         while True:
             resource_from = max(
-                (r for r in self.items if 0 < r.harvester_count),
+                (r for r in self.items[::-1] if 0 < r.harvester_count),
                 key = lambda r : r.harvester_balance,
                 default = None
             )

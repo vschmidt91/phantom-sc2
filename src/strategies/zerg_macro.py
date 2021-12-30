@@ -56,11 +56,13 @@ class ZergMacro(ZergStrategy):
             and 38 <= bot.bases.harvester_count
             and 3 <= bot.townhalls.amount
         ):
-            composition[UnitTypeId.ROACH] = 0
+            tech_up = True
+        else:
+            tech_up = False
         # else:
         #     composition[UnitTypeId.BANELINGNEST] = 1
         
-        if not bot.count(UnitTypeId.ROACHWARREN, include_pending=False, include_planned=False):
+        if not tech_up:
             composition[UnitTypeId.ZERGLING] = 2 + int(ratio * enemy_ground_value / 25)
         else:
             composition[UnitTypeId.OVERSEER] = 2
@@ -96,17 +98,6 @@ class ZergMacro(ZergStrategy):
 
     def update(self, bot):
 
-        # if bot.actual_by_type[UnitTypeId.SPAWNINGPOOL]:
-        #     if bot.planned_by_type[UnitTypeId.NOTAUNIT]:
-        #         for plan in list(bot.planned_by_type[UnitTypeId.NOTAUNIT]):
-        #             bot.remove_macro_plan(plan) 
-        # else:
-        #     if not bot.planned_by_type[UnitTypeId.NOTAUNIT]:
-        #         plan = MacroPlan(UnitTypeId.NOTAUNIT)
-        #         plan.cost = Cost(1000, 0, 200)
-        #         plan.priority = BUILD_ORDER_PRIORITY
-        #         bot.add_macro_plan(plan)
-
         if 2 <= bot.block_manager.enemy_base_count:
             self.enable_expansion = True
         elif 32 <= bot.bases.harvester_count:
@@ -126,25 +117,18 @@ class ZergMacro(ZergStrategy):
             bot.update_bases: 1,
             bot.update_composition: 1,
             bot.update_gas: 1,
-            # bot.manage_queens: 1,
-            # bot.spread_creep: 1,
             bot.morph_overlords: 1,
             bot.make_composition: 1,
             bot.make_tech: 1,
-            # bot.draft_civilians: 1,
             bot.expand: 1,
             bot.micro: 1,
             bot.assess_threat_level: 1,
             bot.macro: 1,
             bot.update_strategy: 1,
             bot.save_enemy_positions: 1,
-            # bot.assign_idle_workers: 1,
             bot.greet_opponent: 1,
             bot.make_defenses: 1,
             bot.draw_debug: 1,
         }
-
-        # if self.enable_expansion:
-            # steps[bot.expand] = 1
 
         return steps

@@ -32,12 +32,11 @@ class GatherBehavior(UnitBehavior):
 
         if unit.tag in self.ai.unit_manager.drafted_civilians:
             return BehaviorResult.SUCCESS
-
-        if unit.tag in self.ai.plan_units:
-            return BehaviorResult.SUCCESS
         
         resource = self.ai.bases.get_resource(unit.tag)
         if not resource:
+            if unit.tag in self.ai.plan_units:
+                return BehaviorResult.SUCCESS
             base = min(self.ai.bases, key = lambda b : unit.position.distance_to(b.position))
             if not base.try_add(unit.tag):
                 return BehaviorResult.FAILURE
@@ -51,6 +50,12 @@ class GatherBehavior(UnitBehavior):
             return BehaviorResult.SUCCESS
 
         if not self.ai.townhalls.ready.exists:
+            return BehaviorResult.SUCCESS
+
+        if unit.tag in self.ai.plan_units:
+            if unit.is_gathering and unit.order_target != resource_unit.tag:
+                unit(AbilityId.SMART, resource_unit)
+                return BehaviorResult.ONGOING
             return BehaviorResult.SUCCESS
             
         if self.ai.is_speedmining_enabled and resource.harvester_count < 3:

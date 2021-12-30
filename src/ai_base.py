@@ -480,6 +480,8 @@ class AIBase(ABC, BotAI):
 
     def update_gas(self):
         gas_target = self.get_gas_target()
+        if not self.count(UpgradeId.ZERGLINGMOVEMENTSPEED, include_planned=False):
+            gas_target = min(gas_target, 3)
         self.transfer_to_and_from_gas(gas_target)
         self.build_gasses(gas_target)
 
@@ -646,6 +648,15 @@ class AIBase(ABC, BotAI):
                     color=font_color,
                     size=font_size)
 
+        # for unit in self.units:
+
+        #     for position in positions:
+        #         self.client.debug_text_world(
+        #             f"{unit.tag}",
+        #             unit,
+        #             color=font_color,
+        #             size=font_size)
+
         # for d in self.enemies.values():
         #     z = self.get_terrain_z_height(d)
         #     self.client.debug_text_world(f'{d.health}', Point3((*d.position, z)))
@@ -774,9 +785,7 @@ class AIBase(ABC, BotAI):
             cost = plan.cost or self.cost[plan.item]
             can_afford = self.can_afford_with_reserve(cost, reserve)
 
-            if plan.item == UnitTypeId.NOTAUNIT:
-                reserve += cost
-                continue
+            reserve += cost
 
             unit = None
             if plan.unit:
@@ -807,7 +816,6 @@ class AIBase(ABC, BotAI):
             #     vespene_needed = min(cost.vespene, vespene_surplus + round(time_to_harvest * income_vespene))
                 
             #     cost = Cost(minerals_needed, vespene_needed, cost.food)
-            reserve += cost
 
             if unit.type_id != UnitTypeId.LARVA:
                 plan.unit = unit.tag

@@ -9,10 +9,6 @@ from .zerg_strategy import ZergStrategy
 
 class HatchFirst(ZergMacro):
 
-    def __init__(self):
-        super().__init__()
-        self.tech_time = 3.75 * 60
-
     def build_order(self) -> Iterable[Union[UnitTypeId, UpgradeId]]:
         return [
             UnitTypeId.DRONE,
