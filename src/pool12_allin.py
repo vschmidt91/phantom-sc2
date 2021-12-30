@@ -156,7 +156,7 @@ class Pool12AllIn(BotAI):
             if 25 <= queen.energy:
                 queen(AbilityId.EFFECT_INJECTLARVA, hatch)
             elif not queen.is_moving and 10 < queen.distance_to(hatch):
-                queen.move(hatch)
+                queen.move(hatch.position)
 
         larva_per_second = 1/11 * len(hatches) + 3/29 * min(len(queens), len(hatches))
         drone_max = sum(hatch.ideal_harvesters for hatch in self.townhalls)
