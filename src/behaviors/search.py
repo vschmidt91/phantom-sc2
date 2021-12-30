@@ -35,7 +35,10 @@ class SearchBehavior(UnitBehavior):
             a = self.ai.game_info.playable_area
             target = np.random.uniform((a.x, a.y), (a.right, a.top))
             target = Point2(target)
-            if self.ai.in_pathing_grid(target) and not self.ai.is_visible(target):
+            if (
+                (unit.is_flying or self.ai.in_pathing_grid(target))
+                and not self.ai.is_visible(target)
+            ):
                 unit.attack(target)
                 return BehaviorResult.ONGOING
             else:
