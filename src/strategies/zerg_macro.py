@@ -29,8 +29,8 @@ class ZergMacro(ZergStrategy):
         )
         worker_count = bot.bases.harvester_count
         ratio = max(
-            1/2 * bot.threat_level,
-            pow(worker_count / worker_limit, 2),
+            2/3 * bot.threat_level,
+            -1 + 2 *(worker_count / worker_limit),
         )
         ratio = min(1, ratio)
         # ratio = pow(ratio, 8)
@@ -68,19 +68,28 @@ class ZergMacro(ZergStrategy):
             composition[UnitTypeId.OVERSEER] = 2
             if UpgradeId.ZERGMISSILEWEAPONSLEVEL1 in bot.state.upgrades:
                 composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
-            if 1/3 < enemy_flyer_ratio or bot.count(UnitTypeId.HIVE, include_planned=False):
-                composition[UnitTypeId.ROACH] = int(ratio * (1 - enemy_flyer_ratio) * 50)
-                composition[UnitTypeId.HYDRALISK] = int(ratio * enemy_flyer_ratio * 50)
+                hydra_ratio = 1/3 + 2/3 * enemy_flyer_ratio
+                composition[UnitTypeId.ROACH] = int(ratio * 50 * (1 - hydra_ratio))
+                composition[UnitTypeId.HYDRALISK] = int(ratio * 50 * hydra_ratio)
             else:
                 composition[UnitTypeId.ROACH] = int(ratio * 50)
                 composition[UnitTypeId.RAVAGER] = int(ratio * 10)
 
+            # if 1/3 < enemy_flyer_ratio or bot.count(UnitTypeId.HIVE, include_planned=False):
+            #     composition[UnitTypeId.ROACH] = int(ratio * (1 - enemy_flyer_ratio) * 50)
+            #     composition[UnitTypeId.HYDRALISK] = int(ratio * enemy_flyer_ratio * 50)
+            # else:
+            #     composition[UnitTypeId.ROACH] = int(ratio * 50)
+            #     composition[UnitTypeId.RAVAGER] = int(ratio * 10)
+
         if bot.count(UnitTypeId.HIVE, include_planned=False):
-            if 0.2 < enemy_flyer_ratio:
-                composition[UnitTypeId.CORRUPTOR] = 10
-            else:
-                composition[UnitTypeId.CORRUPTOR] = 3
-                composition[UnitTypeId.BROODLORD] = 10
+            composition[UnitTypeId.CORRUPTOR] = int(ratio * (3 + 12 * enemy_flyer_ratio))
+            composition[UnitTypeId.BROODLORD] = int(ratio * 12 * (1 - enemy_flyer_ratio))
+            # if 1/3 < enemy_flyer_ratio:
+            #     composition[UnitTypeId.CORRUPTOR] = 10
+            # else:
+            #     composition[UnitTypeId.CORRUPTOR] = 3
+            #     composition[UnitTypeId.BROODLORD] = 10
 
         return composition
 
