@@ -68,9 +68,9 @@ class ZergMacro(ZergStrategy):
             composition[UnitTypeId.OVERSEER] = 2
             if UpgradeId.ZERGMISSILEWEAPONSLEVEL1 in bot.state.upgrades:
                 composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
-            if 0.2 < enemy_flyer_ratio or bot.count(UnitTypeId.HIVE, include_planned=False):
-                composition[UnitTypeId.ROACH] = int(ratio * (1 - enemy_flyer_ratio) * 40)
-                composition[UnitTypeId.HYDRALISK] = int(ratio * enemy_flyer_ratio * 40)
+            if 1/3 < enemy_flyer_ratio or bot.count(UnitTypeId.HIVE, include_planned=False):
+                composition[UnitTypeId.ROACH] = int(ratio * (1 - enemy_flyer_ratio) * 50)
+                composition[UnitTypeId.HYDRALISK] = int(ratio * enemy_flyer_ratio * 50)
             else:
                 composition[UnitTypeId.ROACH] = int(ratio * 50)
                 composition[UnitTypeId.RAVAGER] = int(ratio * 10)

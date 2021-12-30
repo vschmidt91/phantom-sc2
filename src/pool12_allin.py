@@ -119,7 +119,7 @@ class Pool12AllIn(BotAI):
                 elif not unit.is_carrying_resource:
                     drone = unit
             elif unit.type_id in army_types:
-                if unit.is_idle:
+                if unit.is_idle or unit.is_using_ability(AbilityId.EFFECT_INJECTLARVA):
                     if self.enemy_structures:
                         unit.attack(self.enemy_structures.random.position)
                     elif not self.is_visible(self.enemy_start_locations[0]):
