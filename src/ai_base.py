@@ -275,7 +275,7 @@ class AIBase(ABC, BotAI):
             if unit.type_id not in CIVILIANS:
                 yield unit
             elif unit.tag in self.unit_manager.drafted_civilians:
-                yield unitValue
+                yield unit
 
     async def on_step(self, iteration: int):
         self.block_manager.execute()
