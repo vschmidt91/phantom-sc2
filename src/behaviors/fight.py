@@ -75,6 +75,8 @@ class FightBehavior(UnitBehavior):
         return advantage
 
     def get_path_towards(self, unit: Unit, target: Point2) -> Point2:
+        a = self.ai.game_info.playable_area
+        target = np.clip(target, (a.x, a.y), (a.right, a.top))
         if unit.is_flying:
             enemy_map = self.ai.enemy_vs_air_map
         else:
