@@ -32,7 +32,14 @@ class SearchBehavior(UnitBehavior):
         elif self.ai.time < 8 * 60:
             unit.attack(random.choice(self.ai.enemy_start_locations))
         else:
-            unit.attack(random.choice(self.ai.expansion_locations_list))
+            a = self.ai.game_info.playable_area
+            target = np.random.uniform((a.x, a.y), (a.right, a.top))
+            target = Point2(target)
+            if self.ai.in_pathing_grid(target) and not self.ai.is_visible(target):
+                unit.attack(target)
+                return BehaviorResult.ONGOING
+            else:
+                return BehaviorResult.SUCCESS
 
         return BehaviorResult.ONGOING
             

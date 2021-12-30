@@ -185,7 +185,7 @@ class ZergAI(AIBase):
             ]
             if self.enemy_race == Race.Protoss:
                 strategy_classes.append(Pool12)
-            self.strategy = RoachRush()
+            self.strategy = random.choice(strategy_classes)()
 
         for step in self.strategy.build_order():
             self.add_macro_plan(MacroPlan(step, priority=BUILD_ORDER_PRIORITY))
@@ -250,6 +250,10 @@ class ZergAI(AIBase):
 
         if iteration == 0:
             return
+
+        if 1 < self.time:
+            await self.add_tag(self.version, False)
+            await self.add_tag(type(self.strategy).__name__, False)
 
         steps = self.strategy.steps(self)
 

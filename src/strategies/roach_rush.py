@@ -41,6 +41,12 @@ class RoachRush(ZergMacro):
             UnitTypeId.RAVAGER,
             UnitTypeId.RAVAGER,
         ]
+
+    def filter_upgrade(self, bot, upgrade) -> bool:
+        if bot.time < 3.5 * 60:
+            return False
+        else:
+            return super().filter_upgrade(bot, upgrade)
         
     def composition(self, bot) -> Dict[UnitTypeId, int]:
         return super().composition(bot)

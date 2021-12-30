@@ -23,7 +23,13 @@ class Pool12(ZergMacro):
             UnitTypeId.HATCHERY,
             UnitTypeId.ZERGLING,
             UnitTypeId.ZERGLING,
-            UnitTypeId.QUEEN,
-            UnitTypeId.DRONE,
-            UnitTypeId.OVERLORD,
+            # UnitTypeId.QUEEN,
+            # UnitTypeId.DRONE,
+            # UnitTypeId.OVERLORD,
         ]
+
+    def filter_upgrade(self, bot, upgrade) -> bool:
+        if bot.time < 2.5 * 60:
+            return False
+        else:
+            return super().filter_upgrade(bot, upgrade)

@@ -79,7 +79,7 @@ class MapStaticData:
 class AIBase(ABC, BotAI):
 
     def __init__(self,
-        game_step: int = 4,
+        game_step: int = 3,
         debug: bool = False,
         performance: PerformanceMode = PerformanceMode.DEFAULT,
     ):
@@ -87,7 +87,7 @@ class AIBase(ABC, BotAI):
         self.raw_affects_selection = True
 
         self.version: str = None
-        self.tags: List[str] = list()
+        self.tags: Set[str] = set()
         self.game_step: int = game_step
         self.performance: PerformanceMode = performance
         self.debug: bool = debug
@@ -156,11 +156,19 @@ class AIBase(ABC, BotAI):
     def destroy_destructables(self):
         return True
 
+    async def add_tag(self, tag: str, include_time: bool = True):
+        if tag not in self.tags:
+            if include_time:
+                message = f'Tag:{tag}@{self.time_formatted}'
+            else:
+                message = f'Tag:{tag}'
+            await self.client.chat_send(message, True)
+            self.tags.add(tag)
+
     async def on_before_start(self):
 
         with open(VERSION_PATH, 'r') as file:
             self.version = file.readline().replace('\n', '')
-        self.tags.append(self.version)
 
         for unit in UnitTypeId:
             data = self.game_data.units.get(unit.value)
@@ -267,13 +275,7 @@ class AIBase(ABC, BotAI):
             if unit.type_id not in CIVILIANS:
                 yield unit
             elif unit.tag in self.unit_manager.drafted_civilians:
-                yield unit
-
-    async def greet_opponent(self):
-        if 1 < self.time and self.greet_enabled:
-            for tag in self.tags:
-                await self.client.chat_send('Tag:' + tag, True)
-            self.greet_enabled = False
+                yield unitValue
 
     async def on_step(self, iteration: int):
         self.block_manager.execute()
@@ -785,7 +787,6 @@ class AIBase(ABC, BotAI):
             cost = plan.cost or self.cost[plan.item]
             can_afford = self.can_afford_with_reserve(cost, reserve)
 
-            reserve += cost
 
             unit = None
             if plan.unit:
@@ -799,6 +800,8 @@ class AIBase(ABC, BotAI):
                 continue
             if any(o.ability.exact_id == plan.ability['ability'] for o in unit.orders):
                 continue
+
+            reserve += cost
             
             # if not can_afford:
             #     minerals_surplus = max(0, self.minerals - reserve.minerals)

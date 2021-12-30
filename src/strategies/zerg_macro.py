@@ -126,7 +126,6 @@ class ZergMacro(ZergStrategy):
             bot.macro: 1,
             bot.update_strategy: 1,
             bot.save_enemy_positions: 1,
-            bot.greet_opponent: 1,
             bot.make_defenses: 1,
             bot.draw_debug: 1,
         }
