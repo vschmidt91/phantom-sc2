@@ -79,7 +79,7 @@ class MapStaticData:
 class AIBase(ABC, BotAI):
 
     def __init__(self,
-        game_step: int = 3,
+        game_step: int = 2,
         debug: bool = False,
         performance: PerformanceMode = PerformanceMode.DEFAULT,
     ):
@@ -716,7 +716,7 @@ class AIBase(ABC, BotAI):
                 raise Exception()
             else:
                 return 0
-        return path / movement_speed
+        return 1.1 * path / movement_speed
 
     def add_macro_plan(self, plan: MacroPlan):
         self.macro_plans.append(plan)
