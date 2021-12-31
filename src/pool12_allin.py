@@ -27,10 +27,11 @@ class Pool12AllIn(BotAI):
         self.mine_gas: bool = True
         self.pool_drone: Optional[Unit] = None
         self.tags: Set[str] = set()
+        self.game_step: int = 2
         super().__init__()
 
     async def on_before_start(self):
-        self.client.game_step = 2
+        self.client.game_step = self.game_step
         return await super().on_before_start()
 
     async def on_start(self):
@@ -59,10 +60,11 @@ class Pool12AllIn(BotAI):
             self.mine_gas = False
         if self.enemy_structures.flying and not self.enemy_structures.not_flying:
             await self.add_tag('cleanup')
-            self.client.game_step = 22
+            self.client.game_step = 10 * self.game_step
             army_types = { UnitTypeId.ZERGLING, UnitTypeId.QUEEN, UnitTypeId.OVERLORD }
         else:
             army_types = { UnitTypeId.ZERGLING }
+            self.client.game_step = self.game_step
 
         transfer_from: List[Unit] = list()
         transfer_to: List[Unit] = list()
