@@ -18,8 +18,8 @@ class ValueMap(AIComponent):
     def __init__(self, ai: AIBase):
         super().__init__(ai)
         self.ground_vs_ground: np.ndarray = self.ai.map_analyzer.get_pyastar_grid(0)
-        self.ground_vs_air: np.ndarray = self.ai.map_analyzer.get_pyastar_grid(0)
-        self.air_vs_ground: np.ndarray = self.ai.map_analyzer.get_clean_air_grid(0)
+        self.ground_vs_air: np.ndarray = self.ai.map_analyzer.get_clean_air_grid(0)
+        self.air_vs_ground: np.ndarray = self.ai.map_analyzer.get_pyastar_grid(0)
         self.air_vs_air: np.ndarray = self.ai.map_analyzer.get_clean_air_grid(0)
 
     def add(self, unit: Unit):
