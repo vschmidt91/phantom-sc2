@@ -20,11 +20,12 @@ class ScoutManager(Behavior):
         super().__init__()
         self.ai: AIBase = ai
         self.scouts: Dict[Point2, int] = dict()
+        self.scout_enemy_natural: bool = True
 
     def execute(self) -> BehaviorResult:
 
         targets = list()
-        if self.ai.block_manager.enemy_base_count < 2:
+        if self.scout_enemy_natural and self.ai.block_manager.enemy_base_count < 2:
             target = self.ai.bases[-2].position.towards(self.ai.game_info.map_center, 11)
             targets.append(target)
         # else:

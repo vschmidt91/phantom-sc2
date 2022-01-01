@@ -58,6 +58,7 @@ class RoachRush(ZergMacro):
 
     def update(self, bot):
         bot.strict_macro = bot.time < 3 * 60
+        bot.scout_manager.scout_enemy_natural = False
         if bot.supply_used == 14 and bot.count(UnitTypeId.SPAWNINGPOOL, include_planned=False) < 1:
             bot.extractor_trick_enabled = True
         if bot.supply_used == 35:
