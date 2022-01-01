@@ -6,6 +6,8 @@ import itertools, random
 import numpy as np
 from typing import Counter, Iterable, List, Coroutine, Dict, Set, Union, Tuple, Optional
 from itertools import chain
+
+from s2clientprotocol.sc2api_pb2 import Macro
 from sc2 import unit
 
 from sc2.ids.ability_id import AbilityId
@@ -240,13 +242,18 @@ class ZergAI(AIBase):
     def extractor_trick(self):
         if not self.extractor_trick_enabled:
             return
-        if 0 < self.supply_left:
-            return
+        # if 0 < self.supply_left:
+        #     return
         extractor = next(iter(self.pending_by_type[UnitTypeId.EXTRACTOR]), None)
-        if not extractor:
-            return
-        extractor(AbilityId.CANCEL)
-        self.extractor_trick_enabled = False
+        if extractor:
+            if self.supply_left <= 0:
+                extractor(AbilityId.CANCEL)
+                self.extractor_trick_enabled = False
+        elif len(self.macro_plans) < 2 or self.macro_plans[1].item != UnitTypeId.EXTRACTOR:
+            plan = MacroPlan(UnitTypeId.EXTRACTOR)
+            self.macro_plans[0].priority += 1
+            plan.priority = self.macro_plans[0].priority
+            self.add_macro_plan(plan)
 
     async def on_step(self, iteration):
 
@@ -350,7 +357,7 @@ class ZergAI(AIBase):
         for target in targets:
             equivalents =  WITH_TECH_EQUIVALENTS.get(target, { target })
             if sum(self.count(t) for t in equivalents) == 0:
-                self.add_macro_plan(MacroPlan(target, priority=-1/3))
+                self.add_macro_plan(MacroPlan(target, priority=0))
 
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
@@ -396,19 +403,15 @@ class ZergAI(AIBase):
         saturation = self.bases.harvester_count / max(1, self.bases.harvester_target)
         priority = 2 * (saturation - 0.9)
 
-        if saturation < 2/3:
-            return
-        
-        if not self.count(UnitTypeId.HATCHERY, include_actual=False):
-            if any(self.planned_by_type[UnitTypeId.HATCHERY]):
-                for plan in self.planned_by_type[UnitTypeId.HATCHERY]:
-                    plan.max_distance = 0
-                    if plan.priority == BUILD_ORDER_PRIORITY:
-                        pass
-                    else:
-                        plan.priority = priority
-            else:
-                plan = MacroPlan(UnitTypeId.HATCHERY)
+        for plan in self.planned_by_type[UnitTypeId.HATCHERY]:
+            if plan.priority < BUILD_ORDER_PRIORITY:
                 plan.priority = priority
-                plan.max_distance = 0
-                self.add_macro_plan(plan)
+
+        if (
+            2/3 < saturation
+            and not self.count(UnitTypeId.HATCHERY, include_actual=False)
+        ):
+            plan = MacroPlan(UnitTypeId.HATCHERY)
+            plan.priority = priority
+            plan.max_distance = 0
+            self.add_macro_plan(plan)

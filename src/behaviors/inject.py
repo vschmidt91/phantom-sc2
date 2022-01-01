@@ -27,8 +27,11 @@ class InjectBehavior(UnitBehavior):
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
         if not self.did_first_inject:
-            townhall = min(self.ai.townhalls.ready, key = lambda th : th.distance_to(unit), default = None)
-            if townhall and BuffId.QUEENSPAWNLARVATIMER not in townhall.buffs:
+            townhall = min(
+                (th for th in self.ai.townhalls.ready if BuffId.QUEENSPAWNLARVATIMER not in th.buffs),
+                key = lambda th : th.distance_to(unit),
+                default = None)
+            if townhall:
                 unit(AbilityId.EFFECT_INJECTLARVA, target=townhall)
                 self.did_first_inject = True
                 return BehaviorResult.ONGOING

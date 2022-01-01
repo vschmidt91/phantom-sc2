@@ -477,7 +477,7 @@ class AIBase(ABC, BotAI):
                 self.add_macro_plan(MacroPlan(unit, priority=priority))
             else:
                 for plan in plans:
-                    if plan.priority == BUILD_ORDER_PRIORITY:
+                    if BUILD_ORDER_PRIORITY <= plan.priority:
                         continue
                     plan.priority = priority
 
@@ -777,7 +777,13 @@ class AIBase(ABC, BotAI):
         exclude.update(self.unit_manager.drafted_civilians)
         self.macro_plans.sort(key = lambda t : t.priority, reverse=True)
 
-        for plan in self.macro_plans:
+        for i, plan in enumerate(self.macro_plans):
+
+            # if (
+            #     BUILD_ORDER_PRIORITY <= self.macro_plans[0].priority
+            #     and (2 if self.extractor_trick_enabled else 1) <= i
+            # ):
+            #     break
 
             if (
                 any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False))
@@ -1067,7 +1073,7 @@ class AIBase(ABC, BotAI):
                 raise PlacementNotFoundError()
             elif self.townhalls.exists:
                 position = self.townhalls.closest_to(self.start_location).position
-                position = position.towards(self.game_info.map_center, 5.65)
+                position = position.towards(self.game_info.map_center, 5.7)
                 if data:
                     position = position.rounded
                     offset = data.footprint_radius % 1
