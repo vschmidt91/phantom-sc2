@@ -24,7 +24,7 @@ class ScoutManager(Behavior):
     def execute(self) -> BehaviorResult:
 
         targets = list()
-        if not self.ai.bases[-2].taken_since:
+        if self.ai.block_manager.enemy_base_count < 2:
             target = self.ai.bases[-2].position.towards(self.ai.game_info.map_center, 11)
             targets.append(target)
         # else:

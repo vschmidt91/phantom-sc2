@@ -1052,21 +1052,27 @@ class AIBase(ABC, BotAI):
 
     async def get_target_position(self, target: UnitTypeId, trainer: Unit) -> Point2:
         if self.is_structure(target):
+            data = self.game_data.units.get(target.value)
             if target in race_townhalls[self.race]:
                 for b in self.bases:
                     if b.position in self.townhall_by_position.keys():
                         continue
                     if b.blocked_since:
                         continue
-                    # if not b.remaining:
-                    #     continue
+                    if not b.remaining:
+                        continue
                     if not await self.can_place_single(target, b.position):
                         continue
                     return b.position
                 raise PlacementNotFoundError()
             elif self.townhalls.exists:
                 position = self.townhalls.closest_to(self.start_location).position
-                return position.towards(self.game_info.map_center, 5.65)
+                position = position.towards(self.game_info.map_center, 5.65)
+                if data:
+                    position = position.rounded
+                    offset = data.footprint_radius % 1
+                    position = position.offset((offset, offset))
+                return position
             else:
                 raise PlacementNotFoundError()
         else:

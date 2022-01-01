@@ -20,7 +20,7 @@ from src.enums import PerformanceMode
 from src.dummy import DummyAI
 
 MAPS = [
-    'CuriousMindsAIE',
+    '2000AtmospheresAIE',
     # 'OxideAIE',
     # 'RomanticideAIE',
     # '2000AtmospheresAIE',
@@ -36,14 +36,14 @@ RACES = [
 ]
 
 BUILDS = [
-    AIBuild.Rush,
+    # AIBuild.Rush,
     # AIBuild.Timing,
     # AIBuild.Power,
-    # AIBuild.Macro,
+    AIBuild.Macro,
     # AIBuild.Air,
 ]
 
-DIFFICULTY = Difficulty.VeryEasy
+DIFFICULTY = Difficulty.CheatInsane
 
 RESULT_PATH = 'results.json'
 
@@ -51,7 +51,7 @@ def create_bot():
     # ai = Pool12AllIn()
     ai = ZergAI(strategy=HatchFirst())
     ai.debug = True
-    ai.game_step = 4
+    ai.game_step = 10
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:
