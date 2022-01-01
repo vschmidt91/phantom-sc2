@@ -483,8 +483,8 @@ class AIBase(ABC, BotAI):
 
     def update_gas(self):
         gas_target = self.get_gas_target()
-        if not self.count(UpgradeId.ZERGLINGMOVEMENTSPEED, include_planned=False):
-            gas_target = min(gas_target, 3)
+        # if not self.count(UpgradeId.ZERGLINGMOVEMENTSPEED, include_planned=False):
+        #     gas_target = min(gas_target, 3)
         self.transfer_to_and_from_gas(gas_target)
         self.build_gasses(gas_target)
 
