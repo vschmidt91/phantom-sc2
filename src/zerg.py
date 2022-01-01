@@ -242,18 +242,10 @@ class ZergAI(AIBase):
     def extractor_trick(self):
         if not self.extractor_trick_enabled:
             return
-        # if 0 < self.supply_left:
-        #     return
         extractor = next(iter(self.pending_by_type[UnitTypeId.EXTRACTOR]), None)
-        if extractor:
-            if self.supply_left <= 0:
-                extractor(AbilityId.CANCEL)
-                self.extractor_trick_enabled = False
-        elif len(self.macro_plans) < 2 or self.macro_plans[1].item != UnitTypeId.EXTRACTOR:
-            plan = MacroPlan(UnitTypeId.EXTRACTOR)
-            self.macro_plans[0].priority += 1
-            plan.priority = self.macro_plans[0].priority
-            self.add_macro_plan(plan)
+        if extractor and self.supply_left <= 0:
+            extractor(AbilityId.CANCEL)
+            self.extractor_trick_enabled = False
 
     async def on_step(self, iteration):
 

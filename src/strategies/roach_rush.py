@@ -14,21 +14,21 @@ class RoachRush(ZergMacro):
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
-            # UnitTypeId.EXTRACTOR,
+            UnitTypeId.EXTRACTOR,
             UnitTypeId.OVERLORD,
             UnitTypeId.SPAWNINGPOOL,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
-            UnitTypeId.EXTRACTOR,
             UnitTypeId.DRONE,
+            UnitTypeId.EXTRACTOR,
             UnitTypeId.DRONE,
             UnitTypeId.HATCHERY,
             UnitTypeId.QUEEN,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
             UnitTypeId.ROACHWARREN,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.OVERLORD,
             UnitTypeId.ROACH,
@@ -40,8 +40,8 @@ class RoachRush(ZergMacro):
             UnitTypeId.ROACH,
             # UnitTypeId.ROACH,
             UnitTypeId.OVERLORD,
-            UnitTypeId.RAVAGER,
-            UnitTypeId.RAVAGER,
+            # UnitTypeId.RAVAGER,
+            # UnitTypeId.RAVAGER,
             # UnitTypeId.RAVAGER,
         ]
 
@@ -52,10 +52,10 @@ class RoachRush(ZergMacro):
     #         return super().filter_upgrade(bot, upgrade)
         
     # def composition(self, bot) -> Dict[UnitTypeId, int]:
+    #     composition = super().composition(bot)
     #     if bot.time < 4 * 60:
-    #         return { UnitTypeId.QUEEN: 2, UnitTypeId.DRONE: 32, UnitTypeId.ZERGLING: 0 }
-    #     else:
-    #         return super().composition(bot)
+    #         composition[UnitTypeId.QUEEN] = min(composition[UnitTypeId.QUEEN], bot.townhalls.amount)
+    #     return composition
 
     def update(self, bot):
         bot.strict_macro = bot.time < 3 * 60
@@ -64,6 +64,4 @@ class RoachRush(ZergMacro):
             bot.extractor_trick_enabled = True
         # elif bot.supply_used == 35 and 7 <= bot.count(UnitTypeId.ROACH, include_planned=False):
         #     bot.extractor_trick_enabled = True
-        else:
-            bot.extractor_trick_enabled = False
         return super().update(bot)
