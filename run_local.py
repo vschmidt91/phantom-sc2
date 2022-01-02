@@ -49,10 +49,10 @@ DIFFICULTY = Difficulty.CheatInsane
 RESULT_PATH = 'results.json'
 
 def create_bot():
-    # ai = Pool12AllIn()
-    ai = ZergAI(strategy=Pool12())
-    ai.debug = True
-    ai.game_step = 8
+    ai = Pool12AllIn()
+    # ai = ZergAI(strategy=Pool12())
+    # ai.debug = True
+    # ai.game_step = 8
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:

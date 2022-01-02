@@ -107,7 +107,8 @@ class Pool12AllIn(BotAI):
             if unit.type_id is UnitTypeId.DRONE:
                 if unit.is_idle:
                     if self.mineral_field and (not self.pool_drone or self.pool_drone.tag != unit.tag):
-                        patch = self.mineral_field.closest_to(unit)
+                        townhall = self.townhalls.closest_to(unit)
+                        patch = self.mineral_field.closest_to(townhall)
                         unit.gather(patch)
                 elif transfer_from and transfer_to and unit.order_target == transfer_from[0].tag:
                     patch = self.mineral_field.closest_to(transfer_to.pop(0))
@@ -175,7 +176,7 @@ class Pool12AllIn(BotAI):
         elif pool.is_idle and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
             pool.research(UpgradeId.ZERGLINGMOVEMENTSPEED)
         elif self.can_afford(UnitTypeId.HATCHERY) and not pending[UnitTypeId.HATCHERY] and len(hatches) == self.townhalls.amount:
-            target = await self.get_next_expansion()
+            target = self.get_next_expansion()
             if drone and target:
                 drone.build(UnitTypeId.HATCHERY, target)
         elif self.supply_left <= 0 and not pending[UnitTypeId.OVERLORD] and 2 <= self.townhalls.amount:
@@ -191,3 +192,17 @@ class Pool12AllIn(BotAI):
         if tag not in self.tags:
             await self.client.chat_send(f'Tag:{tag}@{self.time_formatted}', True)
             self.tags.add(tag)
+        
+    def get_next_expansion(self) -> Optional[Point2]:
+        townhall_positions = { townhall.position for townhall in self.townhalls }
+        def distance(b: Point2) -> float:
+            d = 0.0
+            d += b.distance_to(self.start_location)
+            d += b.distance_to(self.main_base_ramp.bottom_center)
+            return d
+        base = min(
+            (b for b in self.expansion_locations_list if b not in townhall_positions),
+            key = distance,
+            default = None
+        )
+        return base
