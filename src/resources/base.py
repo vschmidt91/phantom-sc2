@@ -134,7 +134,7 @@ class Base(ResourceGroup[ResourceBase]):
             defenses.update(u.type_id for u in self.defensive_units)
             defenses.update(p.item for p in self.defensive_units_planned)
             for unit_type, want in self.defensive_targets.items():
-                if defenses(unit_type) < want:
+                if defenses[unit_type] < want:
                     plan = MacroPlan(unit_type)
                     plan.target = self.position.towards(self.mineral_patches.position, 4.5)
                     plan.max_distance = 2
