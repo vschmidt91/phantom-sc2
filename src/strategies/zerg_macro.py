@@ -52,7 +52,7 @@ class ZergMacro(ZergStrategy):
             UnitTypeId.QUEEN: queen_target,
         }
 
-        self.tech_up = 32 <= bot.bases.harvester_count and 3 <= bot.townhalls.amount
+        self.tech_up = 38 <= bot.bases.harvester_count and 3 <= bot.townhalls.amount
 
         if self.tech_up:
             composition[UnitTypeId.ROACH] = 0
