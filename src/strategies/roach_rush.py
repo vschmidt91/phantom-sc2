@@ -20,18 +20,19 @@ class RoachRush(ZergMacro):
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
             UnitTypeId.EXTRACTOR,
+            UnitTypeId.DRONE,
             UnitTypeId.HATCHERY,
             UnitTypeId.QUEEN,
-            UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.ROACHWARREN,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
+            # UnitTypeId.DRONE,
+            # UnitTypeId.DRONE,
             # UpgradeId.ZERGLINGMOVEMENTSPEED,
             UnitTypeId.OVERLORD,
+            UnitTypeId.ROACH,
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
@@ -54,11 +55,11 @@ class RoachRush(ZergMacro):
     #     else:
     #         return super().filter_upgrade(bot, upgrade)
         
-    # def composition(self, bot) -> Dict[UnitTypeId, int]:
-    #     composition = super().composition(bot)
-    #     if bot.time < 4 * 60:
-    #         composition[UnitTypeId.QUEEN] = min(composition[UnitTypeId.QUEEN], bot.townhalls.amount)
-    #     return composition
+    def composition(self, bot) -> Dict[UnitTypeId, int]:
+        composition = super().composition(bot)
+        if bot.time < 4 * 60:
+            composition[UnitTypeId.QUEEN] = min(composition[UnitTypeId.QUEEN], bot.townhalls.ready.amount)
+        return composition
 
     def update(self, bot):
         bot.strict_macro = bot.time < 3 * 60

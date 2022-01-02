@@ -37,10 +37,10 @@ RACES = [
 ]
 
 BUILDS = [
-    AIBuild.Rush,
+    # AIBuild.Rush,
     # AIBuild.Timing,
     # AIBuild.Power,
-    # AIBuild.Macro,
+    AIBuild.Macro,
     # AIBuild.Air,
 ]
 
@@ -50,16 +50,16 @@ RESULT_PATH = 'results.json'
 
 def create_bot():
     # ai = Pool12AllIn()
-    ai = ZergAI(strategy=HatchFirst())
+    ai = ZergAI(strategy=RoachRush())
     ai.debug = True
-    ai.game_step = 8
+    ai.game_step = 4
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:
-    return [Bot(Race.Zerg, Pool12AllIn())]
-    # for race in RACES:
-    #     for build in BUILDS:
-    #         yield Computer(race, difficulty, ai_build=build)
+    # return [Bot(Race.Zerg, Pool12AllIn())]
+    for race in RACES:
+        for build in BUILDS:
+            yield Computer(race, difficulty, ai_build=build)
 
 if __name__ == "__main__":
 
