@@ -28,8 +28,6 @@ class Pool12(ZergMacro):
             # UnitTypeId.OVERLORD,
         ]
 
-    def filter_upgrade(self, bot, upgrade) -> bool:
-        if bot.time < 2.5 * 60:
-            return False
-        else:
-            return super().filter_upgrade(bot, upgrade)
+    def update(self, bot):
+        if 2.5 * 60 < bot.time and not bot.count(UpgradeId.ZERGLINGMOVEMENTSPEED):
+            bot.add_macro_plan(MacroPlan(UpgradeId.ZERGLINGMOVEMENTSPEED))
