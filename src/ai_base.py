@@ -1137,8 +1137,8 @@ class AIBase(ABC, BotAI):
 
         for enemy in self.enemies.values():
             enemy_value_map.add(enemy)
-        self.enemy_vs_ground_map = np.maximum(100, enemy_value_map.get_map_vs_ground())
-        self.enemy_vs_air_map = np.maximum(100, enemy_value_map.get_map_vs_air())
+        self.enemy_vs_ground_map = np.maximum(1, enemy_value_map.get_map_vs_ground())
+        self.enemy_vs_air_map = np.maximum(1, enemy_value_map.get_map_vs_air())
 
         army_influence_map = self.map_analyzer.get_pyastar_grid(0)
         for unit in self.enumerate_army():
@@ -1152,7 +1152,7 @@ class AIBase(ABC, BotAI):
                 grid = army_influence_map,
                 weight = unit_value,
             )
-        self.army_influence_map = np.maximum(100, army_influence_map)
+        self.army_influence_map = np.maximum(1, army_influence_map)
 
         dodge: List[DodgeElement] = list()
         delayed_positions = { e.position for e in self.dodge_delayed }
@@ -1178,7 +1178,7 @@ class AIBase(ABC, BotAI):
         advantage_army = self.army_influence_map / enemy_map
         advantage_defender = np.maximum(1/2 / self.map_data.distance, 1)
         # advantage_defender = np.maximum((1 - self.map_data.distance) / max(1e-3, self.power_level), 1)
-        self.advantage_map = advantage_army * advantage_defender
+        self.advantage_map = advantage_army
 
         # self.map_analyzer.draw_influence_in_game(10 * advantage_army, upper_threshold=1e6)
 

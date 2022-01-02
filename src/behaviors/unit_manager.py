@@ -87,8 +87,13 @@ class UnitManager(Behavior):
                 return 'overseer'
             elif unit.type_id in CHANGELINGS:
                 return 'changeling'
-            elif unit.type_id == race_worker[self.ai.race] and unit.tag not in self.drafted_civilians:
-                return 'worker'
+            elif unit.type_id == race_worker[self.ai.race]:
+                if unit.tag in self.drafted_civilians:
+                    return 'army'
+                elif 1 < self.ai.enemy_vs_ground_map[unit.position.rounded]:
+                    return 'army'
+                else:
+                    return 'worker'
             else:
                 return 'army'
         behaviors = {
@@ -137,7 +142,7 @@ class UnitManager(Behavior):
         }
         
         if (
-            2/3 < self.ai.threat_level
+            1 < self.ai.threat_level
             and self.ai.time < 3 * 60
         ):
             worker = self.ai.bases.try_remove_any()
