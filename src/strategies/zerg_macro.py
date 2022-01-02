@@ -114,6 +114,7 @@ class ZergMacro(ZergStrategy):
             # bot.make_tech: 1,
             bot.expand: 1,
             bot.micro: 1,
+            bot.extractor_trick: 1,
             bot.assess_threat_level: 1,
             bot.macro: 1,
             bot.update_strategy: 1,

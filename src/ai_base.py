@@ -5,6 +5,7 @@ from enum import Enum
 from functools import reduce
 from json import detect_encoding
 from dataclasses import dataclass
+from functools import cache
 import math
 import random
 from typing import Any, DefaultDict, Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
@@ -19,6 +20,7 @@ from queue import Queue
 import os
 import json
 import MapAnalyzer
+import matplotlib.pyplot as plt
 
 from MapAnalyzer import MapData
 from sc2.game_data import GameData
@@ -28,7 +30,7 @@ from sc2.ids.effect_id import EffectId
 from sc2 import game_info, game_state
 from sc2.position import Point2, Point3
 from sc2.bot_ai import BotAI
-from sc2.constants import IS_DETECTOR, SPEED_INCREASE_ON_CREEP_DICT, IS_STRUCTURE
+from sc2.constants import IS_DETECTOR, SPEED_INCREASE_ON_CREEP_DICT, IS_STRUCTURE, TARGET_AIR, TARGET_GROUND
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.effect_id import EffectId
@@ -135,11 +137,11 @@ class AIBase(ABC, BotAI):
         self.strict_macro: bool = False
 
     @property
-    def plan_units(self) -> List[int]:
-        return [
+    def plan_units(self) -> Iterable[int]:
+        return (
             plan.unit for plan in self.macro_plans
             if plan.unit
-        ]
+        )
 
     @property
     def is_speedmining_enabled(self) -> bool:
@@ -233,12 +235,30 @@ class AIBase(ABC, BotAI):
                     yield detector
         pass
 
+    @cache
+    def can_attack_ground(self, unit: UnitTypeId) -> bool:
+        if unit in { UnitTypeId.BATTLECRUISER, UnitTypeId.ORACLE }:
+            return True
+        weapons = self.weapons.get(unit)
+        if weapons:
+            return any(weapon.type in TARGET_GROUND for weapon in weapons)
+        return False
+
+    @cache
+    def can_attack_air(self, unit: UnitTypeId) -> bool:
+        if unit == UnitTypeId.BATTLECRUISER:
+            return True
+        weapons = self.weapons.get(unit)
+        if weapons:
+            return any(weapon.type in TARGET_AIR for weapon in weapons)
+        return False
+
     def can_attack(self, unit: Unit, target: Unit) -> bool:
         if target.is_cloaked and not target.is_revealed:
             return False
         elif target.is_burrowed and not any(self.units_detecting(target)):
             return False
-        elif target.is_flying:
+        elif target._proto.is_flying:
             return unit.can_attack_air
         else:
             return unit.can_attack_ground
@@ -297,10 +317,6 @@ class AIBase(ABC, BotAI):
         self.pending_by_type[unit.type_id].add(unit)
 
     async def on_building_construction_complete(self, unit: Unit):
-        if unit.type_id in race_townhalls[self.race]:
-            base = next((b for b in self.bases if b.position == unit.position), None)
-            if base:
-                base.townhall = unit.tag
         pass
 
     async def on_enemy_unit_entered_vision(self, unit: Unit):
@@ -553,12 +569,12 @@ class AIBase(ABC, BotAI):
         for unit_type in STATIC_DEFENSE[self.race]:
             for unit in chain(self.actual_by_type[unit_type], self.pending_by_type[unit_type]):
                 base = min(self.bases, key=lambda b:b.position.distance_to(unit.position))
-                base.defensive_units.add(unit)
+                base.defensive_units.append(unit)
             for plan in self.planned_by_type[unit_type]:
                 if not isinstance(plan.target, Point2):
                     continue
                 base = min(self.bases, key=lambda b:b.position.distance_to(plan.target))
-                base.defensive_units_planned.add(plan)
+                base.defensive_units_planned.append(plan)
 
         self.bases.update(self)
 

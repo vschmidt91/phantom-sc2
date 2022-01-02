@@ -105,19 +105,7 @@ class ZergAI(AIBase):
 
     async def micro(self):
         await super().micro()
-
-        if self.debug and self.state.game_loop % 1000 == 0:
-
-            with cProfile.Profile() as pr:
-                self.unit_manager.execute()
-
-            stats = pstats.Stats(pr)
-            stats.sort_stats(pstats.SortKey.TIME)
-            stats.dump_stats(filename='profiling.prof')
-
-        else:
-
-            self.unit_manager.execute()
+        self.unit_manager.execute()
 
     def handle_actions(self):
         for action in self.state.actions_unit_commands:
@@ -260,14 +248,27 @@ class ZergAI(AIBase):
 
         steps = self.strategy.steps(self)
 
-        self.extractor_trick()
+        async def run_steps():
             
-        for step, m in steps.items():
-            if iteration % m != 0:
-                continue
-            result = step()
-            if inspect.isawaitable(result):
-                result = await result
+            for step, m in steps.items():
+                if iteration % m != 0:
+                    continue
+                result = step()
+                if inspect.isawaitable(result):
+                    result = await result
+
+        if self.debug and self.state.game_loop % 1000 == 0:
+
+            with cProfile.Profile() as pr:
+                await run_steps()
+
+            stats = pstats.Stats(pr)
+            stats.sort_stats(pstats.SortKey.TIME)
+            stats.dump_stats(filename='profiling.prof')
+
+        else:
+
+            await run_steps()
 
     def draw_debug(self):
         if not self.debug:

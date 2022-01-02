@@ -1,5 +1,5 @@
 
-from typing import Dict, Iterable, Set, List, Optional, TypeVar, Generic
+from typing import Dict, Iterable, Set, List, Optional, TypeVar, Generic, Tuple
 from itertools import chain
 import math
 
@@ -30,11 +30,15 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         return len(self.items)
 
     def get_resource(self, harvester: int) -> Optional[ResourceBase]:
+        resource, item = self.get_resource_and_item(harvester)
+        return resource
+
+    def get_resource_and_item(self, harvester: int) -> Optional[Tuple[ResourceBase, T]]:
         for item in self.items:
             result = item.get_resource(harvester)
             if result:
-                return result
-        return None
+                return result, item
+        return None, None
 
     def try_add(self, harvester: int) -> bool:
         resource = min(
@@ -58,10 +62,6 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
 
     def try_remove(self, harvester: int) -> bool:
         return any(r.try_remove(harvester) for r in self.items)
-
-    @property
-    def harvesters(self) -> Iterable[int]:
-        return (h in r.harvesters for r in self.items for h in r.harvesters)
 
     @property
     def harvester_target(self):

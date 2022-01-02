@@ -30,11 +30,10 @@ class MineralPatch(ResourceSingle):
 
         if not patch:
             self.remaining = 0
+        elif not patch.is_visible:
+            self.remaining = 1000
         else:
-            if patch.is_visible:
-                self.remaining = patch.mineral_contents
-            else:
-                self.remaining = 1000
+            self.remaining = patch.mineral_contents
             self.is_rich = patch.type_id in RICH_MINERALS
 
     @property

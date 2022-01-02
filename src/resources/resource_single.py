@@ -11,6 +11,12 @@ class ResourceSingle(ResourceBase):
         super().__init__(position)
         self.harvester_set: Set[int] = set()
 
+    def get_resource(self, harvester: int) -> Optional[ResourceBase]:
+        if harvester in self.harvesters:
+            return self
+        else:
+            return None
+
     def try_add(self, harvester: int) -> bool:
         if harvester in self.harvester_set:
             return False

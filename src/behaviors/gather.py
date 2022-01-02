@@ -27,49 +27,44 @@ class GatherBehavior(UnitBehavior):
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
-        if unit.type_id != race_worker[self.ai.race]:
-            return BehaviorResult.SUCCESS
-
-        if unit.tag in self.ai.unit_manager.drafted_civilians:
-            return BehaviorResult.SUCCESS
+        has_plan = unit.tag in self.ai.plan_units
         
-        resource = self.ai.bases.get_resource(unit.tag)
+        resource, base = self.ai.bases.get_resource_and_item(unit.tag)
         if not resource:
-            if unit.tag in self.ai.plan_units:
+            if has_plan:
                 return BehaviorResult.SUCCESS
             base = min(self.ai.bases, key = lambda b : unit.position.distance_to(b.position))
             if not base.try_add(unit.tag):
                 return BehaviorResult.FAILURE
-            resource = self.ai.bases.get_resource(unit.tag)
+            resource, base = self.ai.bases.get_resource_and_item(unit.tag)
 
+        if not resource:
+            return BehaviorResult.FAILURE
         if not resource.remaining:
-            return BehaviorResult.SUCCESS
+            return BehaviorResult.FAILURE
 
-        resource_unit = self.ai.gas_building_by_position.get(resource.position) or self.ai.resource_by_position.get(resource.position)
-        if not resource_unit:
-            return BehaviorResult.SUCCESS
+        target = self.ai.gas_building_by_position.get(resource.position) or self.ai.resource_by_position.get(resource.position)
+        if not target:
+            return BehaviorResult.FAILURE
 
-        if not self.ai.townhalls.ready.exists:
-            return BehaviorResult.SUCCESS
-
-        if unit.tag in self.ai.plan_units:
-            if unit.is_gathering and unit.order_target != resource_unit.tag:
-                unit(AbilityId.SMART, resource_unit)
+        if has_plan:
+            if unit.is_gathering and unit.order_target != target.tag:
+                unit(AbilityId.SMART, target)
                 return BehaviorResult.ONGOING
             return BehaviorResult.SUCCESS
             
-        if self.ai.is_speedmining_enabled and resource.harvester_count < 3:
+        if base.townhall and self.ai.is_speedmining_enabled and resource.harvester_count < 3:
             
-            if unit.is_gathering and unit.order_target != resource_unit.tag:
-                unit(AbilityId.SMART, resource_unit)
+            if unit.is_gathering and unit.order_target != target.tag:
+                unit(AbilityId.SMART, target)
             elif unit.is_idle or unit.is_attacking:
-                unit(AbilityId.SMART, resource_unit)
+                unit(AbilityId.SMART, target)
             elif len(unit.orders) == 1:
                 if unit.is_returning:
                     target = self.ai.townhalls.ready.closest_to(unit)
                     move_target = None
                 else:
-                    target = resource_unit
+                    target = target
                     if isinstance(resource, MineralPatch):
                         move_target = resource.speedmining_target
                     else:
@@ -85,9 +80,18 @@ class GatherBehavior(UnitBehavior):
             if unit.is_carrying_resource:
                 if not unit.is_returning:
                     unit.return_resource()
-            elif unit.is_returning:
-                pass
+            elif unit.is_gathering:
+                if unit.order_target != target.tag:
+                    unit.gather(target)
             else:
-                unit.gather(resource_unit)
+                unit.gather(target)
+
+            # if unit.is_carrying_resource:
+            #     if not unit.is_returning:
+            #         unit.return_resource()
+            # elif unit.is_returning:
+            #     pass
+            # else:
+            #     unit.gather(target)
 
         return BehaviorResult.ONGOING

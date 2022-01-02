@@ -1,6 +1,6 @@
 
 from __future__ import annotations
-from typing import DefaultDict, Dict, Iterable, Set, List, Optional, TYPE_CHECKING
+from typing import Counter, DefaultDict, Dict, Iterable, Set, List, Optional, TYPE_CHECKING
 from itertools import chain
 import math
 
@@ -84,11 +84,11 @@ class Base(ResourceGroup[ResourceBase]):
         super().__init__([self.mineral_patches, self.vespene_geysers], townhall_position)
         self.blocked_since: Optional[float] = None
         self.taken_since: Optional[float] = None
-        self.defensive_units: Set[Unit] = set()
-        self.defensive_units_planned: Set[MacroPlan] = set()
+        self.defensive_units: List[Unit] = list()
+        self.defensive_units_planned: List[MacroPlan] = list()
         self.defensive_targets: DefaultDict[UnitTypeId, int] = DefaultDict(lambda:0)
         self.fix_speedmining_positions()
-        self.townhall: Optional[int] = None
+        self.townhall: Optional[Unit] = None
 
     def split_initial_workers(self, harvesters: Set[Unit]):
         for _ in range(len(harvesters)):
@@ -128,25 +128,17 @@ class Base(ResourceGroup[ResourceBase]):
 
     def update(self, bot: AIBase):
 
-        townhall = bot.unit_by_tag.get(self.townhall)
-        if townhall:
+        self.townhall = bot.townhall_by_position.get(self.position)
+        if self.townhall and self.defensive_targets:
+            defenses = Counter()
+            defenses.update(u.type_id for u in self.defensive_units)
+            defenses.update(p.item for p in self.defensive_units_planned)
             for unit_type, want in self.defensive_targets.items():
-                have = [
-                    u for u in self.defensive_units
-                    if u.type_id == unit_type
-                ]
-                planned = [
-                    p for p in self.defensive_units_planned
-                    if p.item == unit_type
-                ]
-                if len(have) + len(planned) < want:
+                if defenses(unit_type) < want:
                     plan = MacroPlan(unit_type)
                     plan.target = self.position.towards(self.mineral_patches.position, 4.5)
                     plan.max_distance = 2
                     plan.priority = 0
                     bot.add_macro_plan(plan)
-                    
-        else:
-            self.townhall = None
 
         super().update(bot)

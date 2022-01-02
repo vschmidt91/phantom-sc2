@@ -38,11 +38,10 @@ class ResourceBase(ABC):
     def income(self):
         raise NotImplementedError()
 
-    def get_resource(self, harvester: int) -> Optional[Any]:
-        if harvester in self.harvesters:
-            return self
-        else:
-            return None
+    @property
+    @abstractmethod
+    def get_resource(self, harvester: int) -> Optional['ResourceBase']:
+        raise NotImplementedError()
 
     @property
     def harvester_count(self):
