@@ -50,7 +50,7 @@ RESULT_PATH = 'results.json'
 
 def create_bot():
     # ai = Pool12AllIn()
-    ai = ZergAI(strategy=RoachRush())
+    ai = ZergAI(strategy=HatchFirst())
     ai.debug = True
     ai.game_step = 4
     return Bot(Race.Zerg, ai)  

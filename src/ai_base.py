@@ -126,13 +126,7 @@ class AIBase(ABC, BotAI):
         self.tumor_front_tags: Set[int] = set()
         self.block_manager: BlockManager = BlockManager(self)
         self.scout_manager: ScoutManager = ScoutManager(self)
-
-    @property
-    def plan_units(self) -> Iterable[int]:
-        return (
-            plan.unit for plan in self.macro_plans
-            if plan.unit
-        )
+        self.extractor_trick_enabled: bool = False
 
     @property
     def is_speedmining_enabled(self) -> bool:
@@ -218,10 +212,10 @@ class AIBase(ABC, BotAI):
                         base.blocked_since = self.time
                 plan.target = None
 
-    def units_detecting(self, unit) -> Iterable[Unit]:
+    def units_detecting(self, unit: Unit) -> Iterable[Unit]:
         for detector_type in IS_DETECTOR:
             for detector in self.actual_by_type[detector_type]:
-                distance = detector.position.distance_to(unit.position)
+                distance = detector.distance_to(unit)
                 if distance <= detector.radius + detector.detect_range + unit.radius:
                     yield detector
         pass
@@ -465,7 +459,7 @@ class AIBase(ABC, BotAI):
             self.enemy_positions[enemy.tag] = enemy.position
 
     def make_composition(self):
-        if self.supply_used == 200:
+        if 200 <= self.supply_used:
             return
         composition_have = {
             unit: self.count(unit)
@@ -490,8 +484,6 @@ class AIBase(ABC, BotAI):
 
     def update_gas(self):
         gas_target = self.get_gas_target()
-        # if not self.count(UpgradeId.ZERGLINGMOVEMENTSPEED, include_planned=False):
-        #     gas_target = min(gas_target, 3)
         self.transfer_to_and_from_gas(gas_target)
         self.build_gasses(gas_target)
 
@@ -782,7 +774,7 @@ class AIBase(ABC, BotAI):
                 unit = self.unit_by_tag.get(plan.unit)
             if unit == None or unit.type_id == UnitTypeId.EGG:
                 unit, plan.ability = self.search_trainer(plan.item, exclude=exclude)
-            if unit and unit.is_using_ability(plan.ability['ability']):
+            if unit and plan.ability and unit.is_using_ability(plan.ability['ability']):
                 continue
             if unit == None:
                 continue

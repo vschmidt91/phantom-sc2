@@ -26,13 +26,9 @@ class GatherBehavior(UnitBehavior):
         super().__init__(ai, unit_tag)
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
-
-        has_plan = unit.tag in self.ai.plan_units
         
         resource, base = self.ai.bases.get_resource_and_item(unit.tag)
         if not resource:
-            # if has_plan:
-            #     return BehaviorResult.SUCCESS
             base = min(self.ai.bases, key = lambda b : unit.position.distance_to(b.position))
             if not base.try_add(unit.tag):
                 return BehaviorResult.FAILURE
@@ -46,12 +42,6 @@ class GatherBehavior(UnitBehavior):
         target = self.ai.gas_building_by_position.get(resource.position) or self.ai.resource_by_position.get(resource.position)
         if not target:
             return BehaviorResult.FAILURE
-
-        # if has_plan:
-        #     if unit.is_gathering and unit.order_target != target.tag:
-        #         unit(AbilityId.SMART, target)
-        #         return BehaviorResult.ONGOING
-        #     return BehaviorResult.SUCCESS
             
         if base.townhall and self.ai.is_speedmining_enabled and resource.harvester_count < 3:
             

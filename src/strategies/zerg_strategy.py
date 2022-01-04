@@ -10,9 +10,6 @@ class ZergStrategy:
     def build_order(self) -> Iterable[Union[UnitTypeId, UpgradeId]]:
         return list()
 
-    def gas_target(self, bot) -> int:
-        return None
-
     def composition(self, bot) -> Dict[UnitTypeId, int]:
         return dict()
 

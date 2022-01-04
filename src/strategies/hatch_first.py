@@ -27,6 +27,6 @@ class HatchFirst(ZergMacro):
         ]
 
     def update(self, bot):
-        if bot.supply_used == 14:
+        if bot.supply_used == 14 and bot.count(UnitTypeId.EXTRACTOR, include_planned=False) == 0:
             bot.extractor_trick_enabled = True
         return super().update(bot)

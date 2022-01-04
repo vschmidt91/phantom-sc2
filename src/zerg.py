@@ -36,10 +36,9 @@ from .strategies.roach_rush import RoachRush
 from .strategies.hatch_first import HatchFirst
 from .strategies.pool12 import Pool12
 from .strategies.zerg_strategy import ZergStrategy
-from .timer import run_timed
 from .constants import CHANGELINGS, CREEP_ABILITIES, SUPPLY_PROVIDED
 from .ai_base import AIBase, PerformanceMode
-from .utils import armyValue, center, sample, unitValue
+from .utils import armyValue, center, sample, unitValue, run_timed
 from .constants import BUILD_ORDER_PRIORITY, WITH_TECH_EQUIVALENTS, REQUIREMENTS, ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
 from .cost import Cost
 from .macro_plan import MacroPlan
@@ -101,7 +100,6 @@ class ZergAI(AIBase):
         self.creep_coverage: float = 0
         self.creep_tile_count: int = 1
         self.build_spores: bool = False
-        self.extractor_trick_enabled: bool = False
 
     async def micro(self):
         await super().micro()
@@ -223,20 +221,6 @@ class ZergAI(AIBase):
 
     def update_strategy(self):
         self.strategy.update(self)
-
-    def get_gas_target(self):
-        gas_target = self.strategy.gas_target(self)
-        if gas_target == None:
-            gas_target = super().get_gas_target()
-        return gas_target
-
-    def extractor_trick(self):
-        if not self.extractor_trick_enabled:
-            return
-        extractor = next(iter(self.pending_by_type[UnitTypeId.EXTRACTOR]), None)
-        if extractor and self.supply_left <= 0:
-            extractor(AbilityId.CANCEL)
-            self.extractor_trick_enabled = False
 
     async def on_step(self, iteration):
 

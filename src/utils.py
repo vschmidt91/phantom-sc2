@@ -13,8 +13,21 @@ from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 
 import numpy as np
 import math
+import time
+import inspect
 
 MacroId = Union[UnitTypeId, UpgradeId]
+
+async def run_timed(steps, args = {}):
+    timings = {}
+    for step in steps:
+        start = time.perf_counter()
+        result = step(**args)
+        if inspect.isawaitable(result):
+            result = await result
+        end = time.perf_counter()
+        timings[step.__name__] = end - start
+    return timings
 
 def can_move(unit: Unit) -> bool:
     if unit.is_burrowed:

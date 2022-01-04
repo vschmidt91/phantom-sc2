@@ -44,6 +44,7 @@ class MacroBehavior(UnitBehavior):
             else:
                 if unit.type_id == race_worker[self.ai.race]:
                     self.ai.bases.try_remove(unit.tag)
+                    self.ai.unit_manager.drafted_civilians.difference_update([unit.tag])
                 unit(plan.ability['ability'], target=plan.target, subtract_cost=True)
             return BehaviorResult.ONGOING
         elif not plan.target:

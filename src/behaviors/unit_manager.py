@@ -26,6 +26,7 @@ from .macro import MacroBehavior
 from .inject import InjectBehavior
 from .gather import GatherBehavior
 from .spread_creep import SpreadCreepBehavior
+from .extractor_trick import ExtractorTrickBehavior
 from .block_manager import DetectBehavior
 from ..utils import *
 from ..constants import *
@@ -65,7 +66,9 @@ class UnitManager(Behavior):
 
     def create_behavior(self, unit_tag: int) -> Behavior:
         def selector(unit: Unit) -> str:
-            if unit.type_id in {
+            if unit.type_id == UnitTypeId.EXTRACTOR:
+                return 'extractor'
+            elif unit.type_id in {
                 UnitTypeId.CREEPTUMOR,
                 UnitTypeId.CREEPTUMORBURROWED,
                 UnitTypeId.CREEPTUMORQUEEN,
@@ -100,6 +103,7 @@ class UnitManager(Behavior):
             else:
                 return 'army'
         behaviors = {
+            'extractor': ExtractorTrickBehavior(self.ai, unit_tag),
             'creep': SpreadCreepBehavior(self.ai, unit_tag),
             'queen': BehaviorSequence([
                     DodgeBehavior(self.ai, unit_tag),
@@ -143,10 +147,7 @@ class UnitManager(Behavior):
 
     def draft_civilians(self):
 
-        self.drafted_civilians = {
-            u for u in self.drafted_civilians
-            if u in self.ai.unit_by_tag and u not in self.ai.plan_units
-        }
+        self.drafted_civilians.intersection_update(self.ai.unit_by_tag.keys())
         
         if (
             1 < self.ai.threat_level
