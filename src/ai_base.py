@@ -783,6 +783,8 @@ class AIBase(ABC, BotAI):
                 unit = self.unit_by_tag.get(plan.unit)
             if unit == None or unit.type_id == UnitTypeId.EGG:
                 unit, plan.ability = self.search_trainer(plan.item, exclude=exclude)
+            if plan.ability == None:
+                continue
             if unit == None:
                 continue
 
