@@ -111,7 +111,7 @@ class DodgeEffectDelayed(DodgeEffect):
 
     CIRCLES: Dict[EffectId, List[Tuple[float, float]]] = {
         EffectId.RAVAGERCORROSIVEBILECP: [
-            (0, 60)
+            (0.5, 60)
         ],
         EffectId.NUKEPERSISTENT: [
             (4, 150),
