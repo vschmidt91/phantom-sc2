@@ -75,7 +75,7 @@ class SpreadCreepBehavior(UnitBehavior):
             max_range = 3 * self.CREEP_RANGE
         else:
             max_range = self.CREEP_RANGE
-        max_range = min(max_range, int(unit.distance_to(target)))
+        max_range = min(max_range, int(unit.position.distance_to(target)))
 
         for i in range(max_range, 0, -1):
             position = unit.position.towards(target, i)

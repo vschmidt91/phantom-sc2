@@ -88,7 +88,7 @@ def unitValue(unit: Unit, target = None):
     return dps * (unit.health + unit.shield)
 
 def time_to_reach(unit: Unit, target: Point2) -> float:
-    distance = unit.distance_to(target)
+    distance = unit.position.distance_to(target)
     movement_speed = 1.4 * unit.movement_speed
     if movement_speed == 0:
         return np.inf

@@ -215,7 +215,7 @@ class AIBase(ABC, BotAI):
     def units_detecting(self, unit: Unit) -> Iterable[Unit]:
         for detector_type in IS_DETECTOR:
             for detector in self.actual_by_type[detector_type]:
-                distance = detector.distance_to(unit)
+                distance = detector.position.distance_to(unit.position)
                 if distance <= detector.radius + detector.detect_range + unit.radius:
                     yield detector
         pass

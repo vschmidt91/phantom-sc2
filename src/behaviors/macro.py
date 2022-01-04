@@ -54,7 +54,7 @@ class MacroBehavior(UnitBehavior):
         if plan.eta < movement_eta:
             if unit.is_carrying_resource:
                 unit.return_resource()
-            elif not unit.is_moving and 1 < unit.distance_to(plan.target.position):
+            elif not unit.is_moving and 1 < unit.position.distance_to(plan.target.position):
                 unit.move(plan.target)
             return BehaviorResult.ONGOING
             

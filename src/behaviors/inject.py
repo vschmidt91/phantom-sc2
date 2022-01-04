@@ -29,7 +29,7 @@ class InjectBehavior(UnitBehavior):
         if not self.did_first_inject:
             townhall = min(
                 (th for th in self.ai.townhalls.ready if BuffId.QUEENSPAWNLARVATIMER not in th.buffs),
-                key = lambda th : th.distance_to(unit),
+                key = lambda th : th.position.distance_to(unit.position),
                 default = None)
             if townhall:
                 unit(AbilityId.EFFECT_INJECTLARVA, target=townhall)
