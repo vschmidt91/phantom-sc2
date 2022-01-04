@@ -37,7 +37,11 @@ class RoachRush(ZergMacro):
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
-            UnitTypeId.RAVAGER,
+            # UnitTypeId.OVERLORD,
+            # UnitTypeId.OVERLORD,
+            # UnitTypeId.RAVAGER,
+            # UnitTypeId.RAVAGER,
+            # UnitTypeId.RAVAGER,
         ]
 
     # def filter_upgrade(self, bot, upgrade) -> bool:
@@ -46,11 +50,12 @@ class RoachRush(ZergMacro):
     #     else:
     #         return super().filter_upgrade(bot, upgrade)
         
-    # def composition(self, bot) -> Dict[UnitTypeId, int]:
-    #     composition = super().composition(bot)
-    #     if bot.time < 4 * 60:
-    #         composition[UnitTypeId.QUEEN] = min(composition[UnitTypeId.QUEEN], bot.townhalls.ready.amount)
-    #     return composition
+    def composition(self, bot) -> Dict[UnitTypeId, int]:
+        composition = super().composition(bot)
+        if bot.time < 4 * 60:
+            composition[UnitTypeId.QUEEN] = min(composition[UnitTypeId.QUEEN], bot.townhalls.ready.amount)
+        composition[UnitTypeId.RAVAGER] = 2
+        return composition
 
     def update(self, bot):
         bot.scout_manager.scout_enemy_natural = False
