@@ -25,9 +25,11 @@ class MacroBehavior(UnitBehavior):
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
-        plan = self.ai.macro_plan_by_unit.get(unit.tag)
+        plan = next((p for p in self.ai.macro_plans if p.unit == unit.tag), None)
 
         if plan == None:
+            return BehaviorResult.SUCCESS
+        elif plan.ability == None:
             return BehaviorResult.SUCCESS
         elif unit.is_using_ability(plan.ability['ability']):
             return BehaviorResult.ONGOING

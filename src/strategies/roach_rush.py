@@ -37,6 +37,7 @@ class RoachRush(ZergMacro):
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
+            UnitTypeId.RAVAGER,
         ]
 
     # def filter_upgrade(self, bot, upgrade) -> bool:

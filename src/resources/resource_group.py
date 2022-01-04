@@ -97,7 +97,7 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
             if not resource_from:
                 break
             resource_to = min(
-                self.items,
+                (i for i in self.items if i != resource_from),
                 key = lambda r : r.harvester_balance - math.exp(-r.position.distance_to(resource_from.position)),
                 default = None
             )
@@ -113,7 +113,7 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
                     break
                 if 0 <= resource_to.harvester_balance:
                     break
-                if resource_from.harvester_balance - 1 < resource_to.harvester_balance + 1:
+                if resource_from.harvester_balance - 1 <= resource_to.harvester_balance + 1:
                     break
             # print('transfer internal')
             if not resource_from.try_transfer_to(resource_to):

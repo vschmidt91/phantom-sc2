@@ -126,7 +126,6 @@ class AIBase(ABC, BotAI):
         self.tumor_front_tags: Set[int] = set()
         self.block_manager: BlockManager = BlockManager(self)
         self.scout_manager: ScoutManager = ScoutManager(self)
-        self.macro_plan_by_unit: Dict[int, MacroPlan] = dict()
 
     @property
     def plan_units(self) -> Iterable[int]:
@@ -767,7 +766,7 @@ class AIBase(ABC, BotAI):
         exclude.update(self.unit_manager.drafted_civilians)
         self.macro_plans.sort(key = lambda t : t.priority, reverse=True)
 
-        for i, plan in enumerate(self.macro_plans):
+        for i, plan in enumerate(list(self.macro_plans)):
 
             if (
                 any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False))
@@ -783,7 +782,7 @@ class AIBase(ABC, BotAI):
                 unit = self.unit_by_tag.get(plan.unit)
             if unit == None or unit.type_id == UnitTypeId.EGG:
                 unit, plan.ability = self.search_trainer(plan.item, exclude=exclude)
-            if plan.ability == None:
+            if unit and unit.is_using_ability(plan.ability['ability']):
                 continue
             if unit == None:
                 continue
@@ -805,10 +804,7 @@ class AIBase(ABC, BotAI):
                 continue
 
             if self.is_structure(plan.item) and isinstance(plan.target, Point2) and not await self.can_place_single(plan.item, plan.target):
-                if unit.type_id == race_worker[self.race]:
-                    self.bases.try_add(unit.tag)
-                plan.unit = None
-                plan.target = None
+                self.remove_macro_plan(plan)
                 continue
 
             minerals_needed = reserve.minerals - self.minerals
@@ -816,12 +812,6 @@ class AIBase(ABC, BotAI):
             time_minerals = 60 * minerals_needed / max(1, self.state.score.collection_rate_minerals)
             time_vespene = 60 * vespene_needed / max(1, self.state.score.collection_rate_vespene)
             plan.eta =  max(0, time_minerals, time_vespene)
-
-        self.macro_plan_by_unit = {
-            plan.unit: plan
-            for plan in self.macro_plans
-            if plan.unit
-        }
 
 
     def get_owned_geysers(self):
