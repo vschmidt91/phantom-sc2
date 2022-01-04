@@ -81,6 +81,8 @@ SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
         UnitTypeId.RAVEN,
         UnitTypeId.BANSHEE,
         UnitTypeId.BATTLECRUISER,
+        UnitTypeId.WIDOWMINE,
+        UnitTypeId.WIDOWMINEBURROWED,
     },
 }
 SPORE_TRIGGERS[Race.Random] = set((v for vs in SPORE_TRIGGERS.values() for v in vs))
