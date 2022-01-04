@@ -126,7 +126,6 @@ class AIBase(ABC, BotAI):
         self.tumor_front_tags: Set[int] = set()
         self.block_manager: BlockManager = BlockManager(self)
         self.scout_manager: ScoutManager = ScoutManager(self)
-        self.strict_macro: bool = False
         self.macro_plan_by_unit: Dict[int, MacroPlan] = dict()
 
     @property
@@ -440,7 +439,7 @@ class AIBase(ABC, BotAI):
         for upgrade in self.state.upgrades:
             self.actual_by_type[upgrade].add(upgrade)
 
-        unit_abilities = await self.get_available_abilities(self.all_own_units, ignore_resource_requirements=True)
+        unit_abilities = await self.get_available_abilities(self.all_own_units)
         self.abilities = {
             unit.tag: set(abilities)
             for unit, abilities in zip(self.all_own_units, unit_abilities)
@@ -507,7 +506,7 @@ class AIBase(ABC, BotAI):
 
     def get_gas_target(self):
         cost_zero = Cost(0, 0, 0)
-        cost_sum = sum((plan.cost or self.cost[plan.item] for plan in self.macro_plans), cost_zero)
+        cost_sum = sum((self.cost[plan.item] for plan in self.macro_plans), cost_zero)
         cs = [self.cost[unit] * max(0, count - self.count(unit, include_planned=False)) for unit, count in self.composition.items()]
         cost_sum += sum(cs, cost_zero)
         minerals = max(0, cost_sum.minerals - self.minerals)
@@ -779,12 +778,6 @@ class AIBase(ABC, BotAI):
             if (2 if self.extractor_trick_enabled else 1) <= i and plan.priority == BUILD_ORDER_PRIORITY:
                 break
 
-            cost = plan.cost or self.cost[plan.item]
-            can_afford = self.can_afford_with_reserve(cost, reserve)
-
-            if self.strict_macro:
-                reserve += cost
-
             unit = None
             if plan.unit:
                 unit = self.unit_by_tag.get(plan.unit)
@@ -793,8 +786,7 @@ class AIBase(ABC, BotAI):
             if unit == None:
                 continue
 
-            if not self.strict_macro:
-                reserve += cost
+            reserve += self.cost[plan.item]
 
             plan.unit = unit.tag
             exclude.add(plan.unit)
@@ -805,41 +797,23 @@ class AIBase(ABC, BotAI):
                 except PlacementNotFoundError as p: 
                     continue
 
-            if plan.ability['ability'] not in self.abilities[unit.tag]:
+            # if plan.ability['ability'] not in self.abilities[plan.unit]:
+            #     continue
+            if any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
                 continue
 
-            # if any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
-            #     continue
+            if self.is_structure(plan.item) and isinstance(plan.target, Point2) and not await self.can_place_single(plan.item, plan.target):
+                if unit.type_id == race_worker[self.race]:
+                    self.bases.try_add(unit.tag)
+                plan.unit = None
+                plan.target = None
+                continue
 
-            if self.is_structure(plan.item) and isinstance(plan.target, Point2):
-                if not await self.can_place_single(plan.item, plan.target):
-                    plan.target = None
-                    continue
-
-            self.move_trainer = True
             minerals_needed = reserve.minerals - self.minerals
             vespene_needed = reserve.vespene - self.vespene
             time_minerals = 60 * minerals_needed / max(1, self.state.score.collection_rate_minerals)
             time_vespene = 60 * vespene_needed / max(1, self.state.score.collection_rate_vespene)
             plan.eta =  max(0, time_minerals, time_vespene)
-
-            if not can_afford:
-                continue
-
-            if unit.type_id == race_worker[self.race]:
-                self.bases.try_remove(unit.tag)
-
-                    # if plan.max_distance is None:
-                    #     max_distance = 20
-                    # else:
-                    #     max_distance = plan.max_distance
-                    # target2 = await self.find_placement(plan.item, plan.target, max_distance=max_distance)
-                    # if not target2:
-                    #     continue
-                    # plan.target = target2
-
-            # if unit.is_structure or unit.type_id == UnitTypeId.LARVA:
-            #     unit(plan.ability["ability"], target=plan.target, subtract_cost=True)
 
         self.macro_plan_by_unit = {
             plan.unit: plan
