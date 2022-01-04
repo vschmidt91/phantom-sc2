@@ -134,7 +134,7 @@ class DodgeEffectDelayed(DodgeEffect):
         
     def get_circles(self, time: float) -> Iterable[DamageCircle]:
         time_remaining = self.time + self.delay - time
-        movement_speed = 0
+        movement_speed = 1.0
         for radius, damage in self.CIRCLES[self.effect.id]:
             radius_adjusted = radius - movement_speed * time_remaining
             yield DamageCircle(self.position, radius_adjusted, damage)
