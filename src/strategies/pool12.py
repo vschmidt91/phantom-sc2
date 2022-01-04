@@ -10,7 +10,7 @@ from ..macro_plan import MacroPlan
 
 class Pool12(ZergMacro):
 
-    def build_order(self) -> Iterable[Union[UnitTypeId, UpgradeId]]:
+    def build_order(self) -> Iterable:
         return [
             UnitTypeId.SPAWNINGPOOL,
             UnitTypeId.DRONE,
@@ -20,7 +20,7 @@ class Pool12(ZergMacro):
             UnitTypeId.ZERGLING,
             UnitTypeId.ZERGLING,
             UnitTypeId.ZERGLING,
-            UnitTypeId.HATCHERY,
+            MacroPlan(UnitTypeId.HATCHERY, max_distance=0),
             UnitTypeId.ZERGLING,
             UnitTypeId.ZERGLING,
             # UnitTypeId.QUEEN,

@@ -2,21 +2,12 @@
 from abc import ABC
 from collections import defaultdict
 from enum import Enum
-from functools import reduce
-from json import detect_encoding
 from dataclasses import dataclass
 from functools import cache
 import math
 import random
 from typing import Any, DefaultDict, Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
 import numpy as np
-from s2clientprotocol.data_pb2 import UnitTypeData, Weapon
-from s2clientprotocol.raw_pb2 import Effect
-from s2clientprotocol.sc2api_pb2 import Macro
-from scipy import ndimage
-from s2clientprotocol.common_pb2 import Point
-from s2clientprotocol.error_pb2 import Error
-from queue import Queue
 import os
 import json
 import MapAnalyzer
@@ -25,6 +16,7 @@ import matplotlib.pyplot as plt
 from MapAnalyzer import MapData
 from sc2.game_data import GameData
 
+from sc2.data import Alliance
 from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.effect_id import EffectId
 from sc2 import game_info, game_state
@@ -86,7 +78,7 @@ class AIBase(ABC, BotAI):
         performance: PerformanceMode = PerformanceMode.DEFAULT,
     ):
 
-        self.raw_affects_selection = True
+        # self.raw_affects_selection = True
 
         self.version: str = None
         self.tags: Set[str] = set()
@@ -94,7 +86,7 @@ class AIBase(ABC, BotAI):
         self.performance: PerformanceMode = performance
         self.debug: bool = debug
         self.greet_enabled: bool = True
-        self.macro_plans = list()
+        self.macro_plans: List[MacroPlan] = list()
         self.composition: Dict[UnitTypeId, int] = dict()
         self.worker_split: Dict[int, int] = None
         self.cost: Dict[MacroId, Cost] = dict()
@@ -135,6 +127,7 @@ class AIBase(ABC, BotAI):
         self.block_manager: BlockManager = BlockManager(self)
         self.scout_manager: ScoutManager = ScoutManager(self)
         self.strict_macro: bool = False
+        self.macro_plan_by_unit: Dict[int, MacroPlan] = dict()
 
     @property
     def plan_units(self) -> Iterable[int]:
@@ -447,7 +440,7 @@ class AIBase(ABC, BotAI):
         for upgrade in self.state.upgrades:
             self.actual_by_type[upgrade].add(upgrade)
 
-        unit_abilities = await self.get_available_abilities(self.all_own_units)
+        unit_abilities = await self.get_available_abilities(self.all_own_units, ignore_resource_requirements=True)
         self.abilities = {
             unit.tag: set(abilities)
             for unit, abilities in zip(self.all_own_units, unit_abilities)
@@ -716,24 +709,6 @@ class AIBase(ABC, BotAI):
         #     c = (255, 255, 255)
         #     self.client.debug_text_world(f'{round(v)}', Point3((*p, z)), c)
 
-    async def time_to_reach(self, unit, target):
-        if isinstance(target, Unit):
-            position = target.position
-        elif isinstance(target, Point2):
-            position = target
-        else:
-            raise TypeError()
-        path = await self.client.query_pathing(unit.position, target.position)
-        if not path:
-            path = unit.position.distance_to(position)
-        movement_speed = 1.4 * unit.movement_speed
-        if movement_speed == 0:
-            if self.debug:
-                raise Exception()
-            else:
-                return 0
-        return 1.1 * path / movement_speed
-
     def add_macro_plan(self, plan: MacroPlan):
         self.macro_plans.append(plan)
         self.planned_by_type[plan.item].add(plan)
@@ -795,17 +770,14 @@ class AIBase(ABC, BotAI):
 
         for i, plan in enumerate(self.macro_plans):
 
-            # if (
-            #     BUILD_ORDER_PRIORITY <= self.macro_plans[0].priority
-            #     and (2 if self.extractor_trick_enabled else 1) <= i
-            # ):
-            #     break
-
             if (
                 any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False))
                 and plan.priority < BUILD_ORDER_PRIORITY
             ):
                 continue
+
+            if (2 if self.extractor_trick_enabled else 1) <= i and plan.priority == BUILD_ORDER_PRIORITY:
+                break
 
             cost = plan.cost or self.cost[plan.item]
             can_afford = self.can_afford_with_reserve(cost, reserve)
@@ -816,84 +788,40 @@ class AIBase(ABC, BotAI):
             unit = None
             if plan.unit:
                 unit = self.unit_by_tag.get(plan.unit)
-            if not unit:
+            if unit == None or unit.type_id == UnitTypeId.EGG:
                 unit, plan.ability = self.search_trainer(plan.item, exclude=exclude)
-            if not unit:
-                continue
-            if not plan.ability:
-                plan.unit = None
-                continue
-            if any(o.ability.exact_id == plan.ability['ability'] for o in unit.orders):
+            if unit == None:
                 continue
 
             if not self.strict_macro:
                 reserve += cost
-            
-            # if not can_afford:
-            #     minerals_surplus = max(0, self.minerals - reserve.minerals)
-            #     vespene_surplus = max(0, self.vespene - reserve.vespene)
-            #     minerals_needed = max(0, cost.minerals - minerals_surplus)
-            #     vespene_needed = max(0, cost.vespene - vespene_surplus)
-            #     time_minerals = minerals_needed / max(1, income_minerals)
-            #     time_vespene = vespene_needed / max(1, income_vespene)
-            #     time_to_harvest =  max(time_minerals, time_vespene)
 
-            #     if time_minerals < time_vespene:
-            #         minerals_reserve = minerals_needed * time_minerals / time_vespene
-
-            #     minerals_needed = min(cost.minerals, minerals_surplus + round(time_to_harvest * income_minerals))
-            #     vespene_needed = min(cost.vespene, vespene_surplus + round(time_to_harvest * income_vespene))
-                
-            #     cost = Cost(minerals_needed, vespene_needed, cost.food)
-
-            if unit.type_id != UnitTypeId.LARVA:
-                plan.unit = unit.tag
+            plan.unit = unit.tag
             exclude.add(plan.unit)
 
-            if plan.target is None:
+            if plan.target == None:
                 try:
                     plan.target = await self.get_target(unit, plan)
                 except PlacementNotFoundError as p: 
                     continue
 
-            # if isinstance(plan.target, Unit):
-            #     plan.target = self.unit_by_tag.get(plan.target.tag)
-            #     if not plan.target:
-            #         continue
-
-            if any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
+            if plan.ability['ability'] not in self.abilities[unit.tag]:
                 continue
 
-            if (
-                plan.target
-                and not unit.is_moving
-                and 0 < unit.movement_speed
-                and 1 < unit.position.distance_to(plan.target)
-            ):
-            
-                time = await self.time_to_reach(unit, plan.target)
-                
-                minerals_needed = reserve.minerals - self.minerals
-                vespene_needed = reserve.vespene - self.vespene
-                time_minerals = 60 * minerals_needed / max(1, self.state.score.collection_rate_minerals)
-                time_vespene = 60 * vespene_needed / max(1, self.state.score.collection_rate_vespene)
-                time_to_harvest =  max(0, time_minerals, time_vespene)
+            # if any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
+            #     continue
 
-                if time_to_harvest < time:
-                    
-                    if type(plan.target) is Unit:
-                        move_to = plan.target
-                    else:
-                        move_to = plan.target
+            if self.is_structure(plan.item) and isinstance(plan.target, Point2):
+                if not await self.can_place_single(plan.item, plan.target):
+                    plan.target = None
+                    continue
 
-                    if unit.is_carrying_resource:
-                        unit.return_resource()
-                        unit.move(move_to, queue=True)
-                    else:
-                        unit.move(move_to)
-
-                    if unit.type_id == race_worker[self.race]:
-                        self.bases.try_remove(unit.tag)
+            self.move_trainer = True
+            minerals_needed = reserve.minerals - self.minerals
+            vespene_needed = reserve.vespene - self.vespene
+            time_minerals = 60 * minerals_needed / max(1, self.state.score.collection_rate_minerals)
+            time_vespene = 60 * vespene_needed / max(1, self.state.score.collection_rate_vespene)
+            plan.eta =  max(0, time_minerals, time_vespene)
 
             if not can_afford:
                 continue
@@ -901,26 +829,23 @@ class AIBase(ABC, BotAI):
             if unit.type_id == race_worker[self.race]:
                 self.bases.try_remove(unit.tag)
 
-            if self.is_structure(plan.item) and isinstance(plan.target, Point2):
-                if not await self.can_place_single(plan.item, plan.target):
-                    if plan.max_distance is None:
-                        max_distance = 20
-                    else:
-                        max_distance = plan.max_distance
-                    target2 = await self.find_placement(plan.item, plan.target, max_distance=max_distance)
-                    if not target2:
-                        continue
-                    plan.target = target2
+                    # if plan.max_distance is None:
+                    #     max_distance = 20
+                    # else:
+                    #     max_distance = plan.max_distance
+                    # target2 = await self.find_placement(plan.item, plan.target, max_distance=max_distance)
+                    # if not target2:
+                    #     continue
+                    # plan.target = target2
 
-            queue = False
-            if unit.is_carrying_resource:
-                unit.return_resource()
-                queue = True
+            # if unit.is_structure or unit.type_id == UnitTypeId.LARVA:
+            #     unit(plan.ability["ability"], target=plan.target, subtract_cost=True)
 
-            if not unit(plan.ability["ability"], target=plan.target, queue=queue, subtract_cost=True):
-                if self.debug:
-                    print("objective failed:" + str(plan))
-                    raise Exception()
+        self.macro_plan_by_unit = {
+            plan.unit: plan
+            for plan in self.macro_plans
+            if plan.unit
+        }
 
 
     def get_owned_geysers(self):

@@ -22,6 +22,7 @@ from .search import SearchBehavior
 from .scout_manager import ScoutBehavior
 from .transfuse import TransfuseBehavior
 from .survive import SurviveBehavior
+from .macro import MacroBehavior
 from .inject import InjectBehavior
 from .gather import GatherBehavior
 from .spread_creep import SpreadCreepBehavior
@@ -34,7 +35,7 @@ if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 IGNORED_UNIT_TYPES = {
-    UnitTypeId.LARVA,
+    # UnitTypeId.LARVA,
     UnitTypeId.EGG,
     UnitTypeId.BROODLING,
     UnitTypeId.LOCUSTMP,
@@ -94,6 +95,8 @@ class UnitManager(Behavior):
                     return 'army'
                 else:
                     return 'worker'
+            elif unit.is_structure or unit.type_id == UnitTypeId.LARVA:
+                return 'structure_or_larva'
             else:
                 return 'army'
         behaviors = {
@@ -107,6 +110,7 @@ class UnitManager(Behavior):
                     SearchBehavior(self.ai, unit_tag),
                 ]),
             'overlord': BehaviorSequence([
+                    MacroBehavior(self.ai, unit_tag),
                     DodgeBehavior(self.ai, unit_tag),
                     SurviveBehavior(self.ai, unit_tag),
                     ScoutBehavior(self.ai, unit_tag),
@@ -119,12 +123,15 @@ class UnitManager(Behavior):
                     FightBehavior(self.ai, unit_tag),
                     SearchBehavior(self.ai, unit_tag),
                 ]),
+            'structure_or_larva': MacroBehavior(self.ai, unit_tag),
             'worker': BehaviorSequence([
+                    MacroBehavior(self.ai, unit_tag),
                     DodgeBehavior(self.ai, unit_tag),
                     SurviveBehavior(self.ai, unit_tag),
                     GatherBehavior(self.ai, unit_tag),
                 ]),
             'army': BehaviorSequence([
+                    MacroBehavior(self.ai, unit_tag),
                     DodgeBehavior(self.ai, unit_tag),
                     BurrowBehavior(self.ai, unit_tag),
                     LaunchCorrosiveBilesBehavior(self.ai, unit_tag),
@@ -201,7 +208,7 @@ class UnitManager(Behavior):
             self.inject_queens[queen.tag] = townhall.tag
 
         tags: List[int] = list()
-        tags.extend(u.tag for u in self.ai.units if u.type_id not in IGNORED_UNIT_TYPES)
+        tags.extend(u.tag for u in self.ai.all_own_units if u.type_id not in IGNORED_UNIT_TYPES)
         tags.extend(self.ai.tumor_front_tags)
 
 

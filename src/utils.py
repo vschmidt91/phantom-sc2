@@ -74,6 +74,13 @@ def unitValue(unit: Unit, target = None):
         dps = unit.calculate_dps_vs_target(target)
     return dps * (unit.health + unit.shield)
 
+def time_to_reach(unit: Unit, target: Point2) -> float:
+    distance = unit.distance_to(target)
+    movement_speed = 1.4 * unit.movement_speed
+    if movement_speed == 0:
+        return np.inf
+    return distance / movement_speed
+
 def dot(x, y):
     return sum((xi * yi for xi, yi in zip(x, y)))
 

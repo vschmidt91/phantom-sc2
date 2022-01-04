@@ -4,31 +4,26 @@ from typing import Union, Iterable, Dict
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
 
+from ..macro_plan import MacroPlan
 from .zerg_macro import ZergMacro
 from .zerg_strategy import ZergStrategy
 
 class HatchFirst(ZergMacro):
 
-    def build_order(self) -> Iterable[Union[UnitTypeId, UpgradeId]]:
+    def build_order(self) -> Iterable:
         return [
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.EXTRACTOR,
             UnitTypeId.OVERLORD,
-            UnitTypeId.HATCHERY,
+            MacroPlan(UnitTypeId.HATCHERY, max_distance=0),
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.EXTRACTOR,
             UnitTypeId.SPAWNINGPOOL,
             UpgradeId.ZERGLINGMOVEMENTSPEED,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.OVERLORD,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.OVERLORD,
         ]
 
     def update(self, bot):

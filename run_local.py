@@ -21,7 +21,7 @@ from src.enums import PerformanceMode
 from src.dummy import DummyAI
 
 MAPS = [
-    '2000AtmospheresAIE',
+    'CuriousMindsAIE',
     # 'OxideAIE',
     # 'RomanticideAIE',
     # '2000AtmospheresAIE',
@@ -31,9 +31,9 @@ MAPS = [
 ]
 
 RACES = [
-    # Race.Protoss,
+    Race.Protoss,
     # Race.Terran,
-    Race.Zerg,
+    # Race.Zerg,
 ]
 
 BUILDS = [
@@ -52,11 +52,11 @@ def create_bot():
     # ai = Pool12AllIn()
     ai = ZergAI(strategy=RoachRush())
     ai.debug = True
-    ai.game_step = 4
+    ai.game_step = 2
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:
-    # return [Bot(Race.Zerg, Pool12AllIn())]
+    # return [Bot(Race.Zerg, DummyAI())]
     for race in RACES:
         for build in BUILDS:
             yield Computer(race, difficulty, ai_build=build)

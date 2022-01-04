@@ -1,5 +1,6 @@
 
-from typing import List, Union, Optional, Callable
+from __future__ import annotations
+from typing import List, Union, Optional, Callable, TYPE_CHECKING
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
@@ -9,6 +10,9 @@ from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 
 from .cost import Cost
+
+if TYPE_CHECKING:
+    from .ai_base import AIBase
 
 class MacroPlan:
 
@@ -20,6 +24,8 @@ class MacroPlan:
         self.target = None
         self.priority: float = 0
         self.max_distance: Optional[float] = None
+        self.eta: Optional[float] = None
+        self.condition: Callable[[AIBase], bool] = lambda b : True
         self.__dict__.update(**kwargs)
 
     def __repr__(self) -> str:

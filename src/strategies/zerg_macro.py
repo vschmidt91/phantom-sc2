@@ -56,9 +56,11 @@ class ZergMacro(ZergStrategy):
 
         if self.tech_up:
             composition[UnitTypeId.ROACH] = 0
+            
+        if bot.count(UnitTypeId.LAIR, include_pending=False, include_planned=False):
+            composition[UnitTypeId.OVERSEER] = 2
 
         if bot.count(UnitTypeId.ROACHWARREN, include_pending=False, include_planned=False):
-            composition[UnitTypeId.OVERSEER] = 2
             if UpgradeId.ZERGMISSILEWEAPONSLEVEL1 in bot.state.upgrades:
                 composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
                 hydra_ratio = 1/3 + 2/3 * enemy_flyer_ratio
@@ -113,10 +115,10 @@ class ZergMacro(ZergStrategy):
             bot.make_composition: 1,
             # bot.make_tech: 1,
             bot.expand: 1,
-            bot.micro: 1,
             bot.extractor_trick: 1,
             bot.assess_threat_level: 1,
             bot.macro: 1,
+            bot.micro: 1,
             bot.update_strategy: 1,
             bot.save_enemy_positions: 1,
             bot.make_defenses: 1,

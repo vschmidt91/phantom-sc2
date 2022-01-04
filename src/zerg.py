@@ -178,7 +178,10 @@ class ZergAI(AIBase):
             self.strategy = random.choice(strategy_classes)()
 
         for step in self.strategy.build_order():
-            plan = MacroPlan(step)
+            if isinstance(step, MacroPlan):
+                plan = step
+            else:
+                plan = MacroPlan(step)
             plan.priority = BUILD_ORDER_PRIORITY
             if step in race_townhalls[self.race]:
                 plan.max_distance = 0
