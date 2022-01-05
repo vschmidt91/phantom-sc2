@@ -57,7 +57,7 @@ class ZergMacro(ZergStrategy):
         if self.tech_up:
             composition[UnitTypeId.ROACH] = 0
             
-        if bot.count(UnitTypeId.LAIR, include_pending=False, include_planned=False):
+        if 1 <= bot.count(UnitTypeId.LAIR, include_pending=False, include_planned=False) + bot.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
             composition[UnitTypeId.OVERSEER] = 2
 
         if bot.count(UnitTypeId.ROACHWARREN, include_pending=False, include_planned=False):
