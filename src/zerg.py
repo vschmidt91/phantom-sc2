@@ -107,12 +107,6 @@ class ZergAI(AIBase):
         await super().micro()
         self.unit_manager.execute()
 
-    def handle_actions(self):
-        for action in self.state.actions_unit_commands:
-            if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
-                self.tumor_front_tags.difference_update(action.unit_tags)
-        return super().handle_actions()
-
     def counter_composition(self, enemies: Iterable[Unit]) -> Dict[UnitTypeId, int]:
 
         def value(unit: UnitTypeId):

@@ -250,23 +250,13 @@ class AIBase(ABC, BotAI):
 
     def handle_actions(self):
         for action in self.state.actions_unit_commands:
-            item = UNIT_BY_TRAIN_ABILITY.get(action.exact_id) or UPGRADE_BY_RESEARCH_ABILITY.get(action.exact_id)
-            if not item:
-                continue
-            for unit_tag in action.unit_tags:
-                unit = self.unit_by_tag.get(unit_tag)
-                if not unit:
-                    continue
-                if not unit.is_structure and self.is_structure(item):
-                    continue
-                plan = next((
-                    plan
-                    for plan in self.macro_plans
-                    if plan.item == item
-                ), None)
-                if not plan:
-                    continue
-                self.remove_macro_plan(plan)
+            if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
+                self.tumor_front_tags.difference_update(action.unit_tags)
+            elif item := ITEM_BY_ABILITY.get(action.exact_id):
+                self.remove_macro_plan_by_item(item)
+                # for tag in action.unit_tags:
+                #     if unit := self.unit_by_tag.get(tag):
+                #         self.pending_by_type[item].add(unit)
 
     def handle_delayed_effects(self):
 
@@ -292,14 +282,15 @@ class AIBase(ABC, BotAI):
         pass
 
     async def on_building_construction_started(self, unit: Unit):
-        plan = next((
-            plan
-            for plan in self.macro_plans
-            if plan.item == unit.type_id
-        ), None)
-        if plan:
-            self.remove_macro_plan(plan)
-        self.pending_by_type[unit.type_id].add(unit)
+        # plan = next((
+        #     plan
+        #     for plan in self.macro_plans
+        #     if plan.item == unit.type_id
+        # ), None)
+        # if plan:
+        #     self.remove_macro_plan(plan)
+        # self.pending_by_type[unit.type_id].add(unit)
+        pass
 
     async def on_building_construction_complete(self, unit: Unit):
         pass
@@ -415,9 +406,8 @@ class AIBase(ABC, BotAI):
                 self.pending_by_type[unit.type_id].add(unit)
             for order in unit.orders:
                 ability = order.ability.exact_id
-                training = UNIT_BY_TRAIN_ABILITY.get(ability) or UPGRADE_BY_RESEARCH_ABILITY.get(ability)
-                if training and (unit.is_structure or not self.is_structure(training)):
-                    self.pending_by_type[training].add(unit)
+                if item := ITEM_BY_ABILITY.get(ability):
+                    self.pending_by_type[item].add(unit)
 
         for unit in self.resources:
             self.resource_by_position[unit.position] = unit
@@ -703,6 +693,14 @@ class AIBase(ABC, BotAI):
         self.macro_plans.append(plan)
         self.planned_by_type[plan.item].add(plan)
 
+    def remove_macro_plan_by_item(self, item):
+        for i in range(len(self.macro_plans)):
+            plan = self.macro_plans[i]
+            if plan.item == item:
+                del self.macro_plans[i]
+                self.planned_by_type[plan.item].remove(plan)
+                return
+
     def remove_macro_plan(self, plan: MacroPlan):
         self.macro_plans.remove(plan)
         self.planned_by_type[plan.item].remove(plan)
@@ -779,7 +777,8 @@ class AIBase(ABC, BotAI):
             if unit == None:
                 continue
 
-            reserve += self.cost[plan.item]
+            cost = self.cost[plan.item]
+            reserve += cost
 
             plan.unit = unit.tag
             exclude.add(plan.unit)
@@ -801,8 +800,8 @@ class AIBase(ABC, BotAI):
 
             minerals_needed = reserve.minerals - self.minerals
             vespene_needed = reserve.vespene - self.vespene
-            time_minerals = 60 * minerals_needed / max(1, self.state.score.collection_rate_minerals)
-            time_vespene = 60 * vespene_needed / max(1, self.state.score.collection_rate_vespene)
+            time_minerals = np.sign(cost.minerals) * 60 * minerals_needed / max(1, self.state.score.collection_rate_minerals)
+            time_vespene = np.sign(cost.vespene) * 60 * vespene_needed / max(1, self.state.score.collection_rate_vespene)
             plan.eta =  max(0, time_minerals, time_vespene)
 
 
@@ -1088,6 +1087,7 @@ class AIBase(ABC, BotAI):
         workers = 0
         workers += sum((b.harvester_target for b in self.bases))
         workers += 16 * self.count(UnitTypeId.HATCHERY, include_actual=False, include_planned=False)
+        workers += 3 * self.count(GAS_BY_RACE[self.race], include_actual=False, include_planned=False)
         return workers
 
     def blocked_base(self, position: Point2) -> Optional[Point]:

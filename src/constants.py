@@ -150,6 +150,11 @@ UPGRADE_BY_RESEARCH_ABILITY = {
     for upgrade, upgrade_element in research_element.items()
 }
 
+ITEM_BY_ABILITY = {
+    **UNIT_BY_TRAIN_ABILITY,
+    **UPGRADE_BY_RESEARCH_ABILITY
+}
+
 GAS_BY_RACE = {
     Race.Zerg: UnitTypeId.EXTRACTOR,
     Race.Protoss: UnitTypeId.ASSIMILATOR,

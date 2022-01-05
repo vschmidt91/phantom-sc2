@@ -25,6 +25,10 @@ class MacroBehavior(UnitBehavior):
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
+        for order in unit.orders:
+            if order.ability.exact_id in ITEM_BY_ABILITY:
+                return BehaviorResult.ONGOING
+
         plan = next((p for p in self.ai.macro_plans if p.unit == unit.tag), None)
 
         if plan == None:

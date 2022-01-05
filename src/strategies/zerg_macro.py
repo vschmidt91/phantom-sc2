@@ -28,7 +28,7 @@ class ZergMacro(ZergStrategy):
             bot.get_max_harvester(),
             # enemy_max_workers + 11,
         )
-        worker_count = bot.bases.harvester_count
+        worker_count = bot.count(UnitTypeId.DRONE, include_planned=False)
         ratio = max(
             2/3 * bot.threat_level,
             -1 + 2 *(worker_count / worker_limit),
@@ -52,7 +52,7 @@ class ZergMacro(ZergStrategy):
             UnitTypeId.QUEEN: queen_target,
         }
 
-        self.tech_up = 38 <= bot.bases.harvester_count and 3 <= bot.townhalls.amount
+        self.tech_up = 38 <= worker_count and 3 <= bot.townhalls.amount
 
         if self.tech_up:
             composition[UnitTypeId.ROACH] = 0
