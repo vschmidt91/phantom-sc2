@@ -798,11 +798,15 @@ class AIBase(ABC, BotAI):
                 self.remove_macro_plan(plan)
                 continue
 
-            minerals_needed = reserve.minerals - self.minerals
-            vespene_needed = reserve.vespene - self.vespene
-            time_minerals = np.sign(cost.minerals) * 60 * minerals_needed / max(1, self.state.score.collection_rate_minerals)
-            time_vespene = np.sign(cost.vespene) * 60 * vespene_needed / max(1, self.state.score.collection_rate_vespene)
-            plan.eta =  max(0, time_minerals, time_vespene)
+            eta = 0
+            if 0 < cost.minerals:
+                eta = max(eta, 60 * (reserve.minerals - self.minerals) / max(1, self.state.score.collection_rate_minerals))
+            if 0 < cost.vespene:
+                eta = max(eta, 60 * (reserve.vespene - self.vespene) / max(1, self.state.score.collection_rate_vespene))
+            if 0 < cost.food:
+                if self.supply_left < cost.food:
+                    eta = None
+            plan.eta = eta
 
 
     def get_owned_geysers(self):

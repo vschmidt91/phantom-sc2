@@ -50,6 +50,7 @@ class MacroBehavior(UnitBehavior):
                     self.ai.bases.try_remove(unit.tag)
                     self.ai.unit_manager.drafted_civilians.difference_update([unit.tag])
                 unit(plan.ability['ability'], target=plan.target, subtract_cost=True)
+                print(plan)
             return BehaviorResult.ONGOING
         elif not plan.target:
             return BehaviorResult.SUCCESS

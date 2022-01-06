@@ -23,6 +23,13 @@ class HatchFirst(ZergMacro):
             UnitTypeId.DRONE,
             UnitTypeId.EXTRACTOR,
             UnitTypeId.SPAWNINGPOOL,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
+            UnitTypeId.OVERLORD,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
             UpgradeId.ZERGLINGMOVEMENTSPEED,
         ]
 
