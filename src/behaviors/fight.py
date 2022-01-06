@@ -106,7 +106,7 @@ class FightBehavior(UnitBehavior):
                 else:
                     return FightStance.FIGHT
         else:
-            if 0 < unit.weapon_cooldown and self.stance != FightStance.FLEE:
+            if not unit.weapon_cooldown and self.stance != FightStance.FLEE:
                 return self.stance
             elif advantage < 2/3:
                 return FightStance.FLEE
