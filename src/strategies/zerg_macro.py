@@ -16,7 +16,6 @@ from .zerg_strategy import ZergStrategy
 class ZergMacro(ZergStrategy):
 
     def __init__(self):
-        self.enable_expansion: bool = False
         self.tech_up: bool = False
 
     def composition(self, bot) -> Dict[UnitTypeId, int]:
@@ -52,7 +51,7 @@ class ZergMacro(ZergStrategy):
             UnitTypeId.QUEEN: queen_target,
         }
 
-        self.tech_up = 38 <= worker_count and 3 <= bot.townhalls.amount
+        self.tech_up = 40 <= worker_count and 3 <= bot.townhalls.amount
 
         if self.tech_up:
             composition[UnitTypeId.ROACH] = 0
@@ -63,6 +62,7 @@ class ZergMacro(ZergStrategy):
         if bot.count(UnitTypeId.ROACHWARREN, include_pending=False, include_planned=False):
             if UpgradeId.ZERGMISSILEWEAPONSLEVEL1 in bot.state.upgrades:
                 composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
+            if UpgradeId.ZERGMISSILEWEAPONSLEVEL2 in bot.state.upgrades:
                 hydra_ratio = 1/3 + 2/3 * enemy_flyer_ratio
                 composition[UnitTypeId.ROACH] = int(ratio * 50 * (1 - hydra_ratio))
                 composition[UnitTypeId.HYDRALISK] = int(ratio * 50 * hydra_ratio)
@@ -90,15 +90,6 @@ class ZergMacro(ZergStrategy):
             return False
         return True
 
-    def update(self, bot):
-
-        if 2 <= bot.block_manager.enemy_base_count:
-            self.enable_expansion = True
-        elif 32 <= bot.bases.harvester_count:
-            self.enable_expansion = True
-
-        return super().update(bot)
-
     def steps(self, bot):
 
         steps = {
@@ -117,9 +108,9 @@ class ZergMacro(ZergStrategy):
             bot.expand: 1,
             # bot.extractor_trick: 1,
             bot.assess_threat_level: 1,
+            bot.update_strategy: 1,
             bot.macro: 1,
             bot.micro: 1,
-            bot.update_strategy: 1,
             bot.save_enemy_positions: 1,
             bot.make_defenses: 1,
             bot.draw_debug: 1,
