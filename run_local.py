@@ -51,13 +51,13 @@ RESULT_PATH = 'results.json'
 
 def create_bot():
     # ai = Pool12AllIn()
-    ai = ZergAI(strategy=RoachRush())
+    ai = ZergAI(strategy=HatchFirst())
     ai.debug = True
-    ai.game_step = 2
+    ai.game_step = 4
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:
-    # return [Bot(Race.Zerg, DummyAI())]
+    # return [Bot(Race.Zerg, Pool12AllIn())]
     for race in RACES:
         for build in BUILDS:
             yield Computer(race, difficulty, ai_build=build)

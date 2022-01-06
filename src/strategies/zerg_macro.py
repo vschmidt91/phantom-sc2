@@ -30,7 +30,7 @@ class ZergMacro(ZergStrategy):
         worker_count = bot.count(UnitTypeId.DRONE, include_planned=False)
         ratio = max(
             2/3 * bot.threat_level,
-            -1 + 2 *(worker_count / worker_limit),
+            -1 + 2 *(worker_count / worker_target),
         )
         ratio = min(1, ratio)
         # ratio = pow(ratio, 8)
@@ -62,7 +62,7 @@ class ZergMacro(ZergStrategy):
         if bot.count(UnitTypeId.ROACHWARREN, include_pending=False, include_planned=False):
             if UpgradeId.ZERGMISSILEWEAPONSLEVEL1 in bot.state.upgrades:
                 composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
-            if UpgradeId.ZERGMISSILEWEAPONSLEVEL2 in bot.state.upgrades:
+            if UpgradeId.ZERGGROUNDARMORSLEVEL1 in bot.state.upgrades:
                 hydra_ratio = 1/3 + 2/3 * enemy_flyer_ratio
                 composition[UnitTypeId.ROACH] = int(ratio * 50 * (1 - hydra_ratio))
                 composition[UnitTypeId.HYDRALISK] = int(ratio * 50 * hydra_ratio)
