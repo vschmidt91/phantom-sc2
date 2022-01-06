@@ -27,6 +27,7 @@ class ZergMacro(ZergStrategy):
             bot.get_max_harvester(),
             # enemy_max_workers + 11,
         )
+        worker_target = max(worker_target, 1)
         worker_count = bot.count(UnitTypeId.DRONE, include_planned=False)
         ratio = max(
             2/3 * bot.threat_level,
