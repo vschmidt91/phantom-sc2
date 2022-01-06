@@ -150,7 +150,7 @@ class UnitManager(Behavior):
         self.drafted_civilians.intersection_update(self.ai.unit_by_tag.keys())
         
         if (
-            1/3 < self.ai.threat_level
+            1 < self.ai.threat_level
             and self.ai.time < 3 * 60
         ):
             worker = self.ai.bases.try_remove_any()
@@ -158,9 +158,11 @@ class UnitManager(Behavior):
                 self.drafted_civilians.add(worker)
         elif self.ai.threat_level < 1/3:
             if self.drafted_civilians:
-                worker = self.drafted_civilians.pop()
-                if not self.ai.bases.try_add(worker):
-                    self.drafted_civilians.add(worker)
+                worker = min(self.drafted_civilians, key = lambda tag : self.ai.unit_by_tag[tag].shield_health_percentage, default = None)
+                # worker = self.drafted_civilians.pop()
+                self.drafted_civilians.remove(worker)
+                # if not self.ai.bases.try_add(worker):
+                #     self.drafted_civilians.add(worker)
 
     def target_priority_apriori(self, target: Unit) -> float:
         if target.is_hallucination:

@@ -176,7 +176,7 @@ class ZergAI(AIBase):
                 plan = step
             else:
                 plan = MacroPlan(step)
-            plan.priority = BUILD_ORDER_PRIORITY
+            plan.priority = plan.priority or BUILD_ORDER_PRIORITY
             if step in race_townhalls[self.race]:
                 plan.max_distance = 0
             self.add_macro_plan(plan)

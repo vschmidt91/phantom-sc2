@@ -3,6 +3,8 @@ from typing import Dict, Iterable, Set, List, Optional, TypeVar, Generic, Tuple
 from itertools import chain
 import math
 
+from google.protobuf.descriptor import Error
+
 from sc2.unit import Unit
 from sc2.position import Point2
 
@@ -84,6 +86,12 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         for resource in self.items:
             resource.update(bot)
 
+        # for a, b in zip(self.items, self.items[1:]):
+        #     ha = list(a.harvesters)
+        #     hb = list(b.harvesters)
+        #     if any(set(ha).intersection(hb)):
+        #         raise Error
+
         super().update(bot)
 
         self.remaining = sum(r.remaining for r in self.items)
@@ -113,7 +121,7 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
                     break
                 if 0 <= resource_to.harvester_balance:
                     break
-                if resource_from.harvester_balance - 1 <= resource_to.harvester_balance + 1:
+                if resource_from.harvester_balance - 1 < resource_to.harvester_balance + 1:
                     break
             # print('transfer internal')
             if not resource_from.try_transfer_to(resource_to):

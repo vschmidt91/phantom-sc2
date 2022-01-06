@@ -52,7 +52,7 @@ class ZergMacro(ZergStrategy):
             UnitTypeId.QUEEN: queen_target,
         }
 
-        self.tech_up = 40 <= worker_count and 3 <= bot.townhalls.amount
+        self.tech_up = 40 <= worker_count and 3 <= bot.townhalls.ready.amount
 
         if self.tech_up:
             composition[UnitTypeId.ROACH] = 0
@@ -71,7 +71,7 @@ class ZergMacro(ZergStrategy):
                 composition[UnitTypeId.ROACH] = int(ratio * 50)
                 composition[UnitTypeId.RAVAGER] = int(ratio * 10)
         else:
-            composition[UnitTypeId.ZERGLING] = 2 + int(ratio * enemy_ground_value / 25)
+            composition[UnitTypeId.ZERGLING] = 6 + int(enemy_ground_value / 10)
 
         if bot.count(UnitTypeId.HIVE, include_planned=False):
             composition[UnitTypeId.CORRUPTOR] = int(ratio * (3 + 12 * enemy_flyer_ratio))
