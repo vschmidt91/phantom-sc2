@@ -57,10 +57,10 @@ def create_bot():
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:
-    return [Bot(Race.Zerg, Pool12AllIn())]
-    # for race in RACES:
-    #     for build in BUILDS:
-    #         yield Computer(race, difficulty, ai_build=build)
+    # return [Bot(Race.Zerg, Pool12AllIn())]
+    for race in RACES:
+        for build in BUILDS:
+            yield Computer(race, difficulty, ai_build=build)
 
 if __name__ == "__main__":
 

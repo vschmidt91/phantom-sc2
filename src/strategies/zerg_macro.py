@@ -71,7 +71,7 @@ class ZergMacro(ZergStrategy):
                 composition[UnitTypeId.ROACH] = int(ratio * 50)
                 composition[UnitTypeId.RAVAGER] = int(ratio * 10)
         else:
-            composition[UnitTypeId.ZERGLING] = 6 + int(enemy_ground_value / 10)
+            composition[UnitTypeId.ZERGLING] = 6 + int(ratio * enemy_ground_value / 10)
 
         if bot.count(UnitTypeId.HIVE, include_planned=False):
             composition[UnitTypeId.CORRUPTOR] = int(ratio * (3 + 12 * enemy_flyer_ratio))
