@@ -377,7 +377,7 @@ class ZergAI(AIBase):
         worker_max = self.get_max_harvester()
         saturation = self.count(UnitTypeId.DRONE, include_planned=False) / max(1, worker_max)
         # saturation = self.bases.harvester_count / max(1, self.bases.harvester_target)
-        priority = 3 * (saturation - 1)
+        priority = 2 * (saturation - 1)
 
         for plan in self.planned_by_type[UnitTypeId.HATCHERY]:
             if plan.priority < BUILD_ORDER_PRIORITY:
