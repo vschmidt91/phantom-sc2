@@ -59,8 +59,7 @@ class Pool12AllIn(BotAI):
         self.close_patches = { m.tag for m in minerals[0:4] }
         assigned = set()
         for i in range(self.workers.amount):
-            j = i % minerals.amount
-            patch = minerals[j]
+            patch = minerals[i % minerals.amount]
             if i < minerals.amount:
                 worker = self.workers.tags_not_in(assigned).closest_to(patch)
             else:
@@ -82,10 +81,12 @@ class Pool12AllIn(BotAI):
         if self.enemy_structures.flying and not self.enemy_structures.not_flying:
             await self.add_tag('cleanup')
             self.client.game_step = 10 * self.game_step
+            self.speedmining_enabled = False
             army_types = { UnitTypeId.ZERGLING, UnitTypeId.QUEEN, UnitTypeId.OVERLORD }
         else:
             army_types = { UnitTypeId.ZERGLING }
             self.client.game_step = self.game_step
+            self.speedmining_enabled = self.time < 8 * 60
 
         transfer_from: List[Unit] = list()
         transfer_to: List[Unit] = list()
@@ -182,7 +183,7 @@ class Pool12AllIn(BotAI):
                 if 1 < queen.distance_to(target):
                     queen.move(target)
 
-        mineral_starved = self.minerals < 150 and self.state.score.collection_rate_minerals < 4/3 * 50 * 60 * larva_per_second
+        mineral_starved = self.minerals < 150 and self.state.score.collection_rate_minerals < 1.2 * 50 * 60 * larva_per_second
         drone_max = sum(hatch.ideal_harvesters for hatch in self.townhalls)
         queen_missing = self.townhalls.amount - (len(queens) + abilities[AbilityId.TRAINQUEEN_QUEEN])
                 
