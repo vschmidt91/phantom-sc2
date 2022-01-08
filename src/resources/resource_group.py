@@ -109,7 +109,7 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
                 key = lambda r : r.harvester_balance - math.exp(-r.position.distance_to(resource_from.position)),
                 default = None
             )
-            if not resource_from:
+            if not resource_to:
                 break
             if self.balance_aggressively:
                 if resource_from.harvester_count == 0:
