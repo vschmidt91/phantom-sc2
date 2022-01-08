@@ -182,7 +182,7 @@ class Pool12AllIn(BotAI):
                 if 1 < queen.distance_to(target):
                     queen.move(target)
 
-        mineral_starved = self.minerals < 150 and self.state.score.collection_rate_minerals < 1.1 * 50 * 60 * larva_per_second
+        mineral_starved = self.minerals < 150 and self.state.score.collection_rate_minerals < 4/3 * 50 * 60 * larva_per_second
         drone_max = sum(hatch.ideal_harvesters for hatch in self.townhalls)
         queen_missing = self.townhalls.amount - (len(queens) + abilities[AbilityId.TRAINQUEEN_QUEEN])
                 
