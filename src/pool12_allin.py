@@ -192,11 +192,13 @@ class Pool12AllIn(BotAI):
             elif 170 <= self.minerals and not self.pool_drone:
                 self.pool_drone = drone
                 self.pool_drone.move(self.pool_position)
-        elif self.supply_used < 14 and not self.gas_buildings.amount:
+        elif self.supply_used < 12:
             self.train(UnitTypeId.DRONE)
         elif not self.gas_buildings.amount and not abilities[AbilityId.ZERGBUILD_EXTRACTOR]:
             if drone:
                 drone.build_gas(self.geyser)
+        elif self.supply_used < 13:
+            self.train(UnitTypeId.DRONE)
         elif self.supply_cap == 14 and not abilities[AbilityId.LARVATRAIN_OVERLORD]:
             self.train(UnitTypeId.OVERLORD)
         elif not pool.is_ready:
