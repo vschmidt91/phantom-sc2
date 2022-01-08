@@ -65,13 +65,13 @@ class ZergMacro(ZergStrategy):
                 composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
             if UpgradeId.ZERGGROUNDARMORSLEVEL1 in bot.state.upgrades:
                 hydra_ratio = 1/3 + 2/3 * enemy_flyer_ratio
-                composition[UnitTypeId.ROACH] = int(1/2 * ratio * worker_target * (1 - hydra_ratio))
-                composition[UnitTypeId.HYDRALISK] = int(1/2 * ratio * worker_target * hydra_ratio)
+                composition[UnitTypeId.ROACH] = int(ratio * worker_target * (1 - hydra_ratio))
+                composition[UnitTypeId.HYDRALISK] = int(ratio * worker_target * hydra_ratio)
             else:
-                composition[UnitTypeId.ROACH] = int(1/2 * ratio * worker_target)
-                composition[UnitTypeId.RAVAGER] = int(1/10 * ratio * worker_target)
+                composition[UnitTypeId.ROACH] = int(ratio * worker_target)
+                composition[UnitTypeId.RAVAGER] = int(1/5 * ratio * worker_target)
         else:
-            composition[UnitTypeId.ZERGLING] = 6 + int(ratio * enemy_ground_value / 12.5)
+            composition[UnitTypeId.ZERGLING] = max(2, int(ratio * enemy_ground_value / 12.5))
 
         if bot.count(UnitTypeId.HIVE, include_planned=False):
             composition[UnitTypeId.CORRUPTOR] = int(ratio * (3 + 12 * enemy_flyer_ratio))
