@@ -52,28 +52,31 @@ class ZergMacro(ZergStrategy):
             UnitTypeId.QUEEN: queen_target,
         }
 
-        self.tech_up = 40 <= worker_count and 3 <= bot.townhalls.ready.amount
+        self.tech_up = 48 <= worker_count and 3 <= bot.townhalls.ready.amount
 
         if self.tech_up:
             composition[UnitTypeId.ROACH] = 0
+            # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
+            if bot.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False, include_pending=False):
+                composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
+                composition[UnitTypeId.HYDRALISK] = 0
             
         if 1 <= bot.count(UnitTypeId.LAIR, include_pending=False, include_planned=False) + bot.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
-            composition[UnitTypeId.OVERSEER] = 2
+            composition[UnitTypeId.OVERSEER] = 3
 
         if bot.count(UnitTypeId.ROACHWARREN, include_pending=False, include_planned=False):
-            if UpgradeId.ZERGMISSILEWEAPONSLEVEL1 in bot.state.upgrades:
-                composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
-                hydra_ratio = 1/3 + 2/3 * enemy_flyer_ratio
+            if bot.count(UnitTypeId.HYDRALISKDEN, include_pending=False, include_planned=False):
+                hydra_ratio = enemy_flyer_ratio
                 composition[UnitTypeId.ROACH] = int(ratio * worker_target * (1 - hydra_ratio))
                 composition[UnitTypeId.HYDRALISK] = int(ratio * worker_target * hydra_ratio)
             else:
                 composition[UnitTypeId.ROACH] = int(ratio * worker_target)
                 composition[UnitTypeId.RAVAGER] = int(1/5 * ratio * worker_target)
         else:
-            composition[UnitTypeId.ZERGLING] = max(2, int(ratio * enemy_ground_value / 12.5))
+            composition[UnitTypeId.ZERGLING] = max(2, int(ratio * enemy_ground_value / 20))
 
         if bot.count(UnitTypeId.HIVE, include_planned=False):
-            composition[UnitTypeId.CORRUPTOR] = int(ratio * (3 + 12 * enemy_flyer_ratio))
+            composition[UnitTypeId.CORRUPTOR] = max(3, int(ratio * 20 * enemy_flyer_ratio))
             composition[UnitTypeId.BROODLORD] = int(ratio * 12 * (1 - enemy_flyer_ratio))
 
         return composition

@@ -26,11 +26,11 @@ class HatchFirst(ZergMacro):
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
-            # UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
             UnitTypeId.OVERLORD,
             UnitTypeId.ZERGLING,
             UnitTypeId.ZERGLING,
-            UnitTypeId.ZERGLING,
+            # UnitTypeId.ZERGLING,
             # UpgradeId.ZERGLINGMOVEMENTSPEED,
             MacroPlan(UpgradeId.ZERGLINGMOVEMENTSPEED, priority = -0.5),
         ]
