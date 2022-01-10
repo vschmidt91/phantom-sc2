@@ -1,5 +1,6 @@
 from __future__ import annotations
 from datetime import time
+from dataclasses import dataclass
 from typing import Optional, Union, List, Iterable, Dict, TYPE_CHECKING
 from abc import ABC, abstractmethod, abstractproperty
 from numpy.lib.arraysetops import isin
@@ -37,70 +38,42 @@ DODGE_UNITS = {
     UnitTypeId.BANELING,
 }
 
+@dataclass
 class DamageCircle:
-
-    def __init__(self, position: Point2, radius: float, damage: float):
-        self.position: Point2 = position
-        self.radius: float = radius
-        self.damage: float = damage
+    radius: float
+    damage: float
 
 class DodgeElement(ABC):
 
-    SAFETY_DISTANCE = 3.0
-    
-    @abstractmethod
-    def add_damage(self, analyzer, grid: np.ndarray, time: float) -> np.ndarray:
-        raise NotImplementedError
+    def __init__(self, position: Point2, circles: List[DamageCircle]):
+        self.position: Point2 = position
+        self.circles: List[DamageCircle] = circles
 
 class DodgeUnit(DodgeElement):
 
-    RADIUS: Dict[UnitTypeId, float] = {
-        UnitTypeId.DISRUPTORPHASED: 1.5,
-        UnitTypeId.BANELING: 2.2,
-    }
-
-    DAMAGE: Dict[UnitTypeId, float] = {
-        UnitTypeId.DISRUPTORPHASED: 145.0,
-        UnitTypeId.BANELING: 19.0,
+    CIRCLES: Dict[EffectId, List[Tuple[float, float]]] = {
+        UnitTypeId.DISRUPTORPHASED: [DamageCircle(1.5, 145.0)],
+        UnitTypeId.BANELING: [DamageCircle(2.2, 19.0)],
     }
 
     def __init__(self, unit: Unit):
-        self.unit = unit
-        super().__init__()
-
-    def add_damage(self, analyzer, grid: np.ndarray, time: float) -> np.ndarray:
-        position = self.unit.position
-        radius = self.RADIUS[self.unit.type_id] + self.SAFETY_DISTANCE
-        damage = self.DAMAGE[self.unit.type_id]
-        grid = analyzer.add_cost(position, radius, grid, damage)
-        return grid
+        position = unit.position
+        circles = self.CIRCLES[unit.type_id]
+        super().__init__(position, circles)
 
 class DodgeEffect(DodgeElement):
 
-    DAMAGE: Dict[EffectId, float] = {
-        EffectId.LURKERMP: 20.0,
-        EffectId.PSISTORMPERSISTENT: 80.0,
+    CIRCLES: Dict[EffectId, List[Tuple[float, float]]] = {
+        EffectId.LURKERMP: [DamageCircle(0.5, 20.0)],
+        EffectId.PSISTORMPERSISTENT: [DamageCircle(1.5, 80.0)],
+        EffectId.RAVAGERCORROSIVEBILECP: [DamageCircle(0.0, 60)],
+        EffectId.NUKEPERSISTENT: [DamageCircle(4, 150), DamageCircle(6, 75), DamageCircle(8, 75)],
     }
 
     def __init__(self, effect: EffectData):
-        self.effect = effect
-        super().__init__()
-
-    def get_circles(self, time: float) -> Iterable[DamageCircle]:
-        radius = self.effect.radius
-        damage = self.DAMAGE[self.effect.id]
-        for position in self.effect.positions:
-            yield DamageCircle(position, radius, damage)
-
-    def add_damage(self, analyzer, grid: np.ndarray, time: float) -> np.ndarray:
-        for circle in self.get_circles(time):
-            position = circle.position
-            radius = circle.radius + self.SAFETY_DISTANCE
-            damage = circle.damage
-            if radius < 0:
-                continue
-            grid = analyzer.add_cost(position, radius, grid, damage)
-        return grid
+        position = next(iter(effect.positions))
+        circles = self.CIRCLES[effect.id]
+        super().__init__(position, circles)
 
 class DodgeEffectDelayed(DodgeEffect):
 
@@ -109,69 +82,44 @@ class DodgeEffectDelayed(DodgeEffect):
         EffectId.NUKEPERSISTENT: 320 / 22.4,
     }
 
-    CIRCLES: Dict[EffectId, List[Tuple[float, float]]] = {
-        EffectId.RAVAGERCORROSIVEBILECP: [
-            (0.5, 60)
-        ],
-        EffectId.NUKEPERSISTENT: [
-            (4, 150),
-            (6, 75),
-            (8, 75),
-        ],
-    }
-
     def __init__(self, effect: EffectData, time: float):
-        self.time: float = time
+        self.time_of_impact: float = time + self.DELAY[effect.id]
         super().__init__(effect)
-
-    @property
-    def delay(self) -> float:
-        return self.DELAY[self.effect.id]
-
-    @property
-    def position(self) -> Point2:
-        return next(iter(self.effect.positions))
         
-    def get_circles(self, time: float) -> Iterable[DamageCircle]:
-        time_remaining = self.time + self.delay - time
-        movement_speed = 1.0
-        for radius, damage in self.CIRCLES[self.effect.id]:
-            radius_adjusted = radius - movement_speed * time_remaining
-            yield DamageCircle(self.position, radius_adjusted, damage)
+    # def get_circles(self, time: float) -> Iterable[DamageCircle]:
+    #     time_remaining = self.time + self.delay - time
+    #     movement_speed = 1.0
+    #     for radius, damage in self.CIRCLES[self.effect.id]:
+    #         radius_adjusted = radius - movement_speed * time_remaining
+    #         yield DamageCircle(self.position, radius_adjusted, damage)
 
 class DodgeBehavior(UnitBehavior):
 
     def __init__(self, ai: AIBase, unit_tag: int):
+        self.safety_distance: float = 1.0
         super().__init__(ai, unit_tag)
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
-
-        p = unit.position.rounded
-        dodge_threat = self.ai.dodge_map[p]
-        if dodge_threat == np.inf:
-            return BehaviorResult.SUCCESS
-        if dodge_threat <= 1:
-            return BehaviorResult.SUCCESS
+        
+        # dodge = min((c for d in self.ai.dodge for c in d.circles), key = lambda c : unit.distance_to(c.position))
 
         # if dodge_threat < unit.health + unit.shield:
         #     return BehaviorResult.SUCCESS
 
-        path = self.ai.map_analyzer.pathfind(
-            start = unit.position,
-            goal = self.ai.start_location,
-            grid = self.ai.dodge_map,
-            large = is_large(unit),
-            smoothing = False,
-            sensitivity = 1)
+        for dodge in self.ai.dodge:
+            distance_bonus = 0.0
+            if isinstance(dodge, DodgeEffectDelayed):
+                time_remaining = max(0, dodge.time_of_impact - self.ai.time)
+                distance_bonus = 1.4 * unit.movement_speed * time_remaining
+            distance = unit.distance_to(dodge.position)
+            for circle in dodge.circles:
+                if distance + distance_bonus < circle.radius + unit.radius + self.safety_distance:
+                    target = unit.position.towards(dodge.position, -3)
+                    if unit.is_burrowed and not can_move(unit):
+                        unit(AbilityId.BURROWUP)
+                        unit.move(target, queue=True)
+                    else:
+                        unit.move(target)
+                    return BehaviorResult.ONGOING
 
-        if not path:
-            return BehaviorResult.FAILURE
-
-        target = path[min(3, len(path) - 1)]
-        if unit.is_burrowed and not can_move(unit):
-            unit(AbilityId.BURROWUP)
-            unit.move(target, queue=True)
-        else:
-            unit.move(target)
-
-        return BehaviorResult.ONGOING
+        return BehaviorResult.SUCCESS

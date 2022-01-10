@@ -11,7 +11,8 @@ class DummyAI(BotAI):
         #     for b in self.expansion_locations_list
         # ])
         await self.client.debug_create_unit([
-            [UnitTypeId.DRONE, 50, self.enemy_start_locations[0], 1]
+            [UnitTypeId.RAVAGER, 5, self.game_info.map_center, 1],
+            [UnitTypeId.RAVAGER, 5, self.game_info.map_center, 2]
         ])
         pass
     

@@ -92,7 +92,6 @@ class AIBase(ABC, BotAI):
         self.cost: Dict[MacroId, Cost] = dict()
         self.bases: ResourceGroup[Base] = None
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
-        self.dodge_delayed: List[DodgeEffectDelayed] = list()
         self.power_level: float = 0.0
         self.threat_level: float = 0.0
         self.weapons: Dict[UnitTypeId, List] = dict()
@@ -112,8 +111,8 @@ class AIBase(ABC, BotAI):
         self.gg_sent: bool = False
         self.unit_ref: Optional[int] = None
         self.advantage_map: np.ndarray = None
-        self.dodge_map: np.ndarray = None
-        self.dodge_gradient_map: np.ndarray = None
+        self.dodge: List[DodgeElement] = list()
+        self.dodge_delayed: List[DodgeEffectDelayed] = list()
         self.abilities: DefaultDict[int, Set[AbilityId]] = defaultdict(lambda:set())
         self.map_data: MapStaticData = None
         self.map_analyzer: MapData = None
@@ -263,7 +262,7 @@ class AIBase(ABC, BotAI):
         self.dodge_delayed = [
             d
             for d in self.dodge_delayed
-            if self.time < self.dodge_delayed[0].time + self.dodge_delayed[0].delay
+            if self.time < d.time_of_impact
         ]
 
     def enumerate_army(self) -> Iterable[Unit]:
@@ -1040,7 +1039,7 @@ class AIBase(ABC, BotAI):
             )
         self.army_influence_map = np.maximum(1, army_influence_map)
 
-        dodge: List[DodgeElement] = list()
+        self.dodge.clear()
         delayed_positions = { e.position for e in self.dodge_delayed }
         for effect in self.state.effects:
             if effect.id in DODGE_DELAYED_EFFECTS:
@@ -1049,16 +1048,11 @@ class AIBase(ABC, BotAI):
                     continue
                 self.dodge_delayed.append(dodge_effect)
             elif effect.id in DODGE_EFFECTS:
-                dodge.append(DodgeEffect(effect))
+                self.dodge.append(DodgeEffect(effect))
         for type in DODGE_UNITS:
             for enemy in self.enemies_by_type[type]:
-                dodge.append(DodgeUnit(enemy))
-        dodge.extend(self.dodge_delayed)
-
-        dodge_map = self.map_analyzer.get_pyastar_grid()
-        for element in dodge:
-            dodge_map = element.add_damage(self.map_analyzer, dodge_map, self.time)
-        self.dodge_map = dodge_map
+                self.dodge.append(DodgeUnit(enemy))
+        self.dodge.extend(self.dodge_delayed)
 
         enemy_map = np.maximum(self.enemy_vs_air_map, self.enemy_vs_ground_map)
         advantage_army = self.army_influence_map / enemy_map

@@ -162,6 +162,11 @@ class ZergAI(AIBase):
 
     async def on_start(self):
 
+        # await self.client.debug_create_unit([
+        #     [UnitTypeId.RAVAGER, 20, self.game_info.map_center, 2],
+        #     [UnitTypeId.RAVAGER, 20, self.game_info.map_center, 1],
+        # ])
+
         if not self.strategy:
             strategy_classes = [
                 HatchFirst,

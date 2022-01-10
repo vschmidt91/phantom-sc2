@@ -24,8 +24,8 @@ MAPS = [
     # 'BerlingradAIE',
     # 'CuriousMindsAIE',
     # 'HardwireAIE',
-    'OxideAIE',
-    # 'RomanticideAIE',
+    # 'OxideAIE',
+    'RomanticideAIE',
     # '2000AtmospheresAIE',
     # 'LightshadeAIE',
     # 'JagannathaAIE',
@@ -33,9 +33,9 @@ MAPS = [
 ]
 
 RACES = [
-    Race.Protoss,
+    # Race.Protoss,
     # Race.Terran,
-    # Race.Zerg,
+    Race.Zerg,
 ]
 
 BUILDS = [
@@ -58,7 +58,7 @@ def create_bot():
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:
-    # return [Bot(Race.Zerg, Pool12AllIn())]
+    # return [Bot(Race.Zerg, DummyAI())]
     for race in RACES:
         for build in BUILDS:
             yield Computer(race, difficulty, ai_build=build)
