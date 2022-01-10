@@ -36,6 +36,9 @@ class InjectBehavior(UnitBehavior):
                 self.did_first_inject = True
                 return BehaviorResult.ONGOING
 
+        if unit.is_using_ability(AbilityId.EFFECT_INJECTLARVA):
+            return BehaviorResult.ONGOING
+
         townhall_tag = self.ai.unit_manager.inject_queens.get(unit.tag)
         if not townhall_tag:
             return BehaviorResult.SUCCESS
@@ -43,9 +46,6 @@ class InjectBehavior(UnitBehavior):
         townhall = self.ai.unit_by_tag.get(townhall_tag)
         if not townhall:
             return BehaviorResult.SUCCESS
-
-        if unit.is_using_ability(AbilityId.EFFECT_INJECTLARVA):
-            return BehaviorResult.ONGOING
             
         base = next(b for b in self.ai.bases if b.position == townhall.position)
         if base:
