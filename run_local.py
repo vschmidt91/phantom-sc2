@@ -33,9 +33,9 @@ MAPS = [
 ]
 
 RACES = [
-    # Race.Protoss,
+    Race.Protoss,
     # Race.Terran,
-    Race.Zerg,
+    # Race.Zerg,
 ]
 
 BUILDS = [
@@ -52,7 +52,7 @@ RESULT_PATH = 'results.json'
 
 def create_bot():
     # ai = Pool12AllIn()
-    ai = ZergAI(strategy=HatchFirst())
+    ai = ZergAI(strategy=RoachRush())
     ai.debug = True
     ai.game_step = 10
     return Bot(Race.Zerg, ai)  

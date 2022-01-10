@@ -91,7 +91,13 @@ class UnitManager(Behavior):
                 return 'overseer'
             elif unit.type_id in CHANGELINGS:
                 return 'changeling'
-            elif unit.type_id == race_worker[self.ai.race]:
+            elif unit.type_id in {
+                UnitTypeId.SCV,
+                UnitTypeId.DRONE,
+                UnitTypeId.DRONEBURROWED,
+                UnitTypeId.PROBE,
+                UnitTypeId.MULE,
+            }:
                 if unit.tag in self.drafted_civilians:
                     return 'army'
                 elif 1 < self.ai.enemy_vs_ground_map[unit.position.rounded] < np.inf:

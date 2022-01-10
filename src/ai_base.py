@@ -793,7 +793,7 @@ class AIBase(ABC, BotAI):
             if any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
                 continue
 
-            if self.is_structure(plan.item) and isinstance(plan.target, Point2) and not await self.can_place_single(plan.item, plan.target):
+            if plan.priority < BUILD_ORDER_PRIORITY and self.is_structure(plan.item) and isinstance(plan.target, Point2) and not await self.can_place_single(plan.item, plan.target):
                 self.remove_macro_plan(plan)
                 continue
 

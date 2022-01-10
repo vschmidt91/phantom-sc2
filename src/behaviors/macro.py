@@ -44,7 +44,6 @@ class MacroBehavior(UnitBehavior):
         elif plan.eta == 0.0:
             if unit.is_carrying_resource:
                 unit.return_resource()
-                return BehaviorResult.SUCCESS
             else:
                 if unit.type_id == race_worker[self.ai.race]:
                     self.ai.bases.try_remove(unit.tag)
