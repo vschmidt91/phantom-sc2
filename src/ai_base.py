@@ -1011,8 +1011,8 @@ class AIBase(ABC, BotAI):
     def get_unit_value(self, unit: Unit) -> float:
         # if unit.is_burrowed:
         #     return 0
-        if not unit.is_ready:
-            return 0
+        # if not unit.is_ready:
+        #     return 0
         cost = self.calculate_unit_value(unit.type_id)
         return cost.minerals + cost.vespene
 
