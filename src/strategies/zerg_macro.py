@@ -20,7 +20,7 @@ class ZergMacro(ZergStrategy):
 
     def composition(self, bot) -> Dict[UnitTypeId, int]:
 
-        worker_limit = 88
+        worker_limit = 100
         enemy_max_workers = 22 * bot.block_manager.enemy_base_count
         worker_target = min(
             worker_limit,
