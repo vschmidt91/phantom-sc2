@@ -51,19 +51,21 @@ class GatherBehavior(UnitBehavior):
                 unit(AbilityId.SMART, target)
             elif len(unit.orders) == 1:
                 if unit.is_returning:
-                    target = self.ai.townhalls.ready.closest_to(unit)
-                    move_target = None
+                    townhall = self.ai.townhalls.ready.closest_to(unit)
+                    move_target = townhall.position.towards(unit, townhall.radius + unit.radius)
+                    if 0.75 < unit.position.distance_to(move_target) < 2:
+                        unit.move(move_target)
+                        unit(AbilityId.SMART, townhall, True)
+                        unit(AbilityId.SMART, target, True)
                 else:
-                    target = target
+                    move_target = None
                     if isinstance(resource, MineralPatch):
                         move_target = resource.speedmining_target
-                    else:
-                        move_target = None
-                move_target = move_target or target.position.towards(unit, target.radius + unit.radius)
-                    
-                if 0.75 < unit.position.distance_to(move_target) < 2:
-                    unit.move(move_target)
-                    unit(AbilityId.SMART, target, True)
+                    if not move_target:
+                        move_target = target.position.towards(unit, target.radius + unit.radius)
+                    if 0.75 < unit.position.distance_to(move_target) < 2:
+                        unit.move(move_target)
+                        unit(AbilityId.SMART, target, True)
 
         else:
                 

@@ -262,7 +262,7 @@ class AIBase(ABC, BotAI):
         self.dodge_delayed = [
             d
             for d in self.dodge_delayed
-            if self.time < d.time_of_impact
+            if self.time <= d.time_of_impact
         ]
 
     def enumerate_army(self) -> Iterable[Unit]:

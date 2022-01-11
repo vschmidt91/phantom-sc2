@@ -66,7 +66,7 @@ class DodgeEffect(DodgeElement):
     CIRCLES: Dict[EffectId, List[Tuple[float, float]]] = {
         EffectId.LURKERMP: [DamageCircle(0.5, 20.0)],
         EffectId.PSISTORMPERSISTENT: [DamageCircle(1.5, 80.0)],
-        EffectId.RAVAGERCORROSIVEBILECP: [DamageCircle(0.0, 60)],
+        EffectId.RAVAGERCORROSIVEBILECP: [DamageCircle(1.0, 60)],
         EffectId.NUKEPERSISTENT: [DamageCircle(4, 150), DamageCircle(6, 75), DamageCircle(8, 75)],
     }
 
@@ -96,7 +96,7 @@ class DodgeEffectDelayed(DodgeEffect):
 class DodgeBehavior(UnitBehavior):
 
     def __init__(self, ai: AIBase, unit_tag: int):
-        self.safety_distance: float = 1.0
+        self.safety_distance: float = 1.5
         super().__init__(ai, unit_tag)
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
