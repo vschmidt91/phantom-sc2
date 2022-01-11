@@ -34,7 +34,7 @@ class FightBehavior(UnitBehavior):
         if not self.ai.can_attack(unit, target) and not unit.is_detector:
             return 0
         priority = self.ai.unit_manager.enemy_priorities[target.tag]
-        priority /= 50 + target.position.distance_to(unit.position)
+        priority /= 30 + target.position.distance_to(unit.position)
         if unit.is_detector:
             priority *= 10 if target.is_cloaked else 1
             priority *= 10 if not target.is_revealed else 1

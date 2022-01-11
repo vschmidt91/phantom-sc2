@@ -181,7 +181,7 @@ class UnitManager(Behavior):
         if target.is_enemy:
             priority /= 100 + target.shield + target.health
         else:
-            priority /= 200
+            priority /= 500
         priority *= 3 if target.type_id in WORKERS else 1
         priority /= 10 if target.type_id in CIVILIANS else 1
         return priority
