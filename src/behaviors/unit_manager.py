@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import DefaultDict, Optional, Set, Union, Iterable, Tuple, List, TYPE_CHECKING
 from enum import Enum
 import numpy as np
+import traceback
 import random
 from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT
 
@@ -227,9 +228,11 @@ class UnitManager(Behavior):
                 behavior = self.create_behavior(tag)
                 self.behaviors[tag] = behavior
             result = behavior.execute()
-            # if result is not BehaviorResult.ONGOING:
-            #     print('error')
-            #     behavior.execute()
+            if result is not BehaviorResult.ONGOING:
+                print('behavior result:', result)
+                for line in traceback.format_stack():
+                    print(line.strip())
+                behavior.execute()
 
         removed_tags = {
             tag for tag in self.behaviors.keys()
