@@ -29,8 +29,7 @@ class GatherBehavior(UnitBehavior):
         
         resource, base = self.ai.bases.get_resource_and_item(unit.tag)
         if not resource:
-            base = min(self.ai.bases, key = lambda b : unit.position.distance_to(b.position))
-            if not base.try_add(unit.tag):
+            if not self.ai.bases.try_add(unit.tag):
                 return BehaviorResult.FAILURE
             resource, base = self.ai.bases.get_resource_and_item(unit.tag)
 
