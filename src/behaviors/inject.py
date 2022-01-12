@@ -54,7 +54,10 @@ class InjectBehavior(UnitBehavior):
             target = townhall.position
 
         if 5 < unit.position.distance_to(target):
-            unit.attack(target)
+            if unit.is_attacking and unit.order_target == target:
+                pass
+            else:
+                unit.attack(target)
             return BehaviorResult.ONGOING
         elif AbilityId.EFFECT_INJECTLARVA in self.ai.abilities[unit.tag]:
             unit(AbilityId.EFFECT_INJECTLARVA, target=townhall)
