@@ -90,7 +90,7 @@ class ScoutBehavior(UnitBehavior):
         if unit.position.distance_to(target) < 1:
             return BehaviorResult.SUCCESS
 
-        if unit.is_moving and unit.order_target == target:
+        if unit.is_moving and target.distance_to(unit.order_target) < 1:
             return BehaviorResult.ONGOING
 
         unit.move(target)

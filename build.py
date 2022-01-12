@@ -40,6 +40,13 @@ BOTS: List[BotPackage] = [
         'src\\pool12_allin.py',
         'sc2\\'
     ]),
+    BotPackage('LingFlood', 'Zerg', 'src.lingflood', 'LingFlood',
+    [
+        'ladder.py',
+        'requirements.txt',
+        'src\\lingflood.py',
+        'sc2\\'
+    ]),
 ]
 
 def zip_templates(zip_file: ZipFile, args: Any):
