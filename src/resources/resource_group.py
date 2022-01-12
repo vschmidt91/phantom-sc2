@@ -86,11 +86,13 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         for resource in self.items:
             resource.update(bot)
 
-        # for a, b in zip(self.items, self.items[1:]):
-        #     ha = list(a.harvesters)
-        #     hb = list(b.harvesters)
-        #     if any(set(ha).intersection(hb)):
-        #         raise Error
+        if bot.debug:
+            for i, a in enumerate(self.items):
+                for b in self.items[i+1:]:
+                    ha = list(a.harvesters)
+                    hb = list(b.harvesters)
+                    if any(set(ha).intersection(hb)):
+                        raise Error
 
         super().update(bot)
 

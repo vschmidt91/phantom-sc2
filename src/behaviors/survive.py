@@ -54,8 +54,10 @@ class SurviveBehavior(UnitBehavior):
             smoothing = False,
             sensitivity = 1)
 
-        if retreat_path and 2 <= len(retreat_path):
-            unit.move(retreat_path[1])
-            return BehaviorResult.ONGOING
+        if retreat_path:
+            target = retreat_path[min(1, len(retreat_path) - 1)]
+        else:
+            target = retreat_goal
 
-        return BehaviorResult.FAILURE
+        unit.move(target)
+        return BehaviorResult.ONGOING

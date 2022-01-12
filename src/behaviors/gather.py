@@ -36,7 +36,7 @@ class GatherBehavior(UnitBehavior):
         if not resource:
             return BehaviorResult.FAILURE
         if not resource.remaining:
-            return BehaviorResult.FAILURE
+            return BehaviorResult.SUCCESS
 
         target = self.ai.gas_building_by_position.get(resource.position) or self.ai.resource_by_position.get(resource.position)
         if not target:

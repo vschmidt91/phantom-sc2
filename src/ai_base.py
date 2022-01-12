@@ -503,34 +503,28 @@ class AIBase(ABC, BotAI):
     def transfer_to_and_from_gas(self, gas_target: int):
 
         while self.gas_harvester_count + 1 <= gas_target:
-            minerals_from = max(
-                (b.mineral_patches for b in self.bases if 0 < b.mineral_patches.harvester_count),
-                key = lambda m : m.harvester_balance,
+            base = max(
+                (b for b in self.bases if 0 < b.mineral_patches.harvester_count and b.vespene_geysers.harvester_balance < 0),
+                key = lambda b : b.mineral_patches.harvester_balance - b.vespene_geysers.harvester_balance,
                 default = None
             )
-            gas_to = min(
-                (b.vespene_geysers for b in self.bases if b.vespene_geysers.harvester_balance < 0),
-                key = lambda g : g.harvester_balance,
-                default = None
-            )
-            if minerals_from and gas_to and minerals_from.try_transfer_to(gas_to):
-                continue
-            break
+            if not base:
+                break
+            if not base.mineral_patches.try_transfer_to(base.vespene_geysers):
+                print('transfer to gas failure')
+                break
 
         while gas_target <= self.gas_harvester_count - 1:
-            gas_from = max(
-                (b.vespene_geysers for b in self.bases if 0 < b.vespene_geysers.harvester_count),
-                key = lambda g : g.harvester_balance,
+            base = max(
+                (b for b in self.bases if 0 < b.vespene_geysers.harvester_count and b.mineral_patches.harvester_balance < 0),
+                key = lambda b : b.vespene_geysers.harvester_balance - b.mineral_patches.harvester_balance,
                 default = None
             )
-            minerals_to = min(
-                (b.mineral_patches for b in self.bases if b.mineral_patches.harvester_balance < 0),
-                key = lambda m : m.harvester_balance,
-                default = None
-            )
-            if gas_from and minerals_to and gas_from.try_transfer_to(minerals_to):
-                continue
-            break
+            if not base:
+                break
+            if not base.vespene_geysers.try_transfer_to(base.mineral_patches):
+                print('transfer from gas failure')
+                break
         
     def update_bases(self):
 

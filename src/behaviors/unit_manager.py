@@ -140,6 +140,7 @@ class UnitManager(Behavior):
                     DodgeBehavior(self.ai, unit_tag),
                     SurviveBehavior(self.ai, unit_tag),
                     GatherBehavior(self.ai, unit_tag),
+                    FightBehavior(self.ai, unit_tag),
                 ]),
             'army': BehaviorSequence([
                     MacroBehavior(self.ai, unit_tag),
@@ -228,10 +229,8 @@ class UnitManager(Behavior):
                 behavior = self.create_behavior(tag)
                 self.behaviors[tag] = behavior
             result = behavior.execute()
-            if result is not BehaviorResult.ONGOING:
-                print('behavior result:', result)
-                for line in traceback.format_stack():
-                    print(line.strip())
+            if result == BehaviorResult.FAILURE:
+                print('behavior failure')
                 behavior.execute()
 
         removed_tags = {
