@@ -96,7 +96,7 @@ class FightBehavior(UnitBehavior):
     def get_stance(self, unit: Unit, advantage: float) -> FightStance:
         if self.ai.get_unit_range(unit) < 2:
             if self.stance is FightStance.FLEE:
-                if advantage < 3/2:
+                if advantage < 1:
                     return FightStance.FLEE
                 else:
                     return FightStance.FIGHT
