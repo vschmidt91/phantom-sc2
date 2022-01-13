@@ -177,7 +177,7 @@ class UnitManager(Behavior):
             return 0
         if target.type_id in CHANGELINGS:
             return 0
-        priority = 1e3
+        priority = 1e8
         priority /= 150 + target.position.distance_to(self.ai.start_location)
         priority /= 3 if target.is_structure else 1
         if target.is_enemy:

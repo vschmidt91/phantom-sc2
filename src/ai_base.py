@@ -73,7 +73,7 @@ class MapStaticData:
 class AIBase(ABC, BotAI):
 
     def __init__(self,
-        game_step: int = 2,
+        game_step: int = 4,
         debug: bool = False,
         performance: PerformanceMode = PerformanceMode.DEFAULT,
     ):
