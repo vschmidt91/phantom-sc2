@@ -145,7 +145,7 @@ class Pool12AllIn(BotAI):
                     drone = unit
 
                 if self.speedmining_enabled and len(unit.orders) == 1:
-                    if unit.is_returning and unit.is_carrying_minerals:
+                    if unit.is_returning:
                         target = self.townhalls.closest_to(unit)
                         move_target = target.position.towards(unit.position, target.radius + unit.radius)
                     elif unit.is_gathering:
