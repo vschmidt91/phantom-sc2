@@ -215,12 +215,12 @@ class Pool12AllIn(BotAI):
                 hatch.train(UnitTypeId.QUEEN)
         elif pool.is_idle and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
             pool.research(UpgradeId.ZERGLINGMOVEMENTSPEED)
+        elif self.supply_left < self.larva.amount and not abilities[AbilityId.LARVATRAIN_OVERLORD]:
+            self.train(UnitTypeId.OVERLORD)
         elif self.can_afford(UnitTypeId.HATCHERY) and not abilities[AbilityId.ZERGBUILD_HATCHERY] and not hatch_morphing:
             target = self.get_next_expansion()
             if drone and target:
                 drone.build(UnitTypeId.HATCHERY, target)
-        elif self.supply_left <= 0 and not abilities[AbilityId.LARVATRAIN_OVERLORD] and 2 <= self.townhalls.amount:
-            self.train(UnitTypeId.OVERLORD)
 
     async def add_tag(self, tag: str):
         if tag not in self.tags:
