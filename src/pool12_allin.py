@@ -105,8 +105,8 @@ class Pool12AllIn(BotAI):
             if not unit.is_ready and unit.health_percentage < 0.1:
                 unit(AbilityId.CANCEL)
             elif unit.is_vespene_geyser:
-                if mine_gas and unit.is_ready and unit.surplus_harvesters < 0:
-                    transfer_to_gas.extend(unit for _ in range(unit.surplus_harvesters, 0))
+                if mine_gas and unit.is_ready and unit.assigned_harvesters < 1:
+                    transfer_to_gas.extend(unit for _ in range(unit.assigned_harvesters, 1))
                 elif not mine_gas and 0 < unit.assigned_harvesters:
                     transfer_from_gas.extend(unit for _ in range(0, unit.assigned_harvesters))
             elif unit.type_id == UnitTypeId.HATCHERY:
@@ -149,9 +149,11 @@ class Pool12AllIn(BotAI):
                         target = self.townhalls.closest_to(unit)
                         move_target = target.position.towards(unit.position, target.radius + unit.radius)
                     elif unit.is_gathering:
-                        target = self.mineral_field.find_by_tag(unit.order_target)
+                        target = self.mineral_field.find_by_tag(unit.order_target) or self.gas_buildings.find_by_tag(unit.order_target)
                         if target:
-                            move_target = self.speedmining_positions[target.position]
+                            move_target = self.speedmining_positions.get(target.position)
+                            if not move_target:
+                                move_target = target.position.towards(unit.position, target.radius + unit.radius)
                     else:
                         target = None
                     if target and 0.75 < unit.distance_to(move_target) < 2:

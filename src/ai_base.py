@@ -461,7 +461,7 @@ class AIBase(ABC, BotAI):
                 continue
             if any(self.get_missing_requirements(unit, include_pending=False, include_planned=False)):
                 continue
-            priority = -self.count(unit, include_planned=False) /  count
+            priority = -(self.count(unit, include_planned=False) + 0.5) /  count
             plans = self.planned_by_type[unit]
             if not plans:
                 self.add_macro_plan(MacroPlan(unit, priority=priority))

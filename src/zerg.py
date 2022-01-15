@@ -170,10 +170,10 @@ class ZergAI(AIBase):
         if not self.strategy:
             strategy_classes = [
                 HatchFirst,
-                RoachRush
+                # RoachRush
             ]
-            if self.enemy_race == Race.Protoss:
-                strategy_classes.append(Pool12)
+            # if self.enemy_race == Race.Protoss:
+            #     strategy_classes.append(Pool12)
             self.strategy = random.choice(strategy_classes)()
 
         for step in self.strategy.build_order():

@@ -54,6 +54,8 @@ class ZergMacro(ZergStrategy):
 
         self.tech_up = 48 <= worker_count and 3 <= bot.townhalls.ready.amount
 
+        composition[UnitTypeId.ROACHWARREN] = 1
+
         if self.tech_up:
             composition[UnitTypeId.ROACH] = 0
             # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
