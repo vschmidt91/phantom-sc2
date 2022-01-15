@@ -107,8 +107,8 @@ class Pool12AllIn(BotAI):
             elif unit.is_vespene_geyser:
                 if mine_gas and unit.is_ready and unit.assigned_harvesters < 1:
                     transfer_to_gas.extend(unit for _ in range(unit.assigned_harvesters, 1))
-                elif not mine_gas and 0 < unit.assigned_harvesters:
-                    transfer_from_gas.extend(unit for _ in range(0, unit.assigned_harvesters))
+                elif not mine_gas and 2 < unit.assigned_harvesters:
+                    transfer_from_gas.extend(unit for _ in range(2, unit.assigned_harvesters))
             elif unit.type_id == UnitTypeId.HATCHERY:
                 if unit.is_ready:
                     larva_per_second += 1/11
