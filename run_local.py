@@ -21,6 +21,8 @@ from src.zerg import ZergAI
 from src.enums import PerformanceMode
 from src.dummy import DummyAI
 
+from test import CompetitiveBot
+
 MAPS = [
     # 'BerlingradAIE',
     # 'CuriousMindsAIE',
@@ -37,7 +39,8 @@ MAPS = [
 RACES = [
     # Race.Protoss,
     # Race.Terran,
-    Race.Zerg,
+    # Race.Zerg,
+    Race.Random,
 ]
 
 BUILDS = [
@@ -53,12 +56,13 @@ DIFFICULTY = Difficulty.CheatInsane
 RESULT_PATH = 'results.json'
 
 def create_bot():
+    ai = CompetitiveBot()
     # ai = Pool12AllIn()
-    ai = LingFlood()
+    # ai = LingFlood()
     # ai = ZergAI(strategy=HatchFirst())
     # ai.debug = True
     # ai.game_step = 8
-    return Bot(Race.Zerg, ai)  
+    return Bot(Race.Terran, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:
     # return [Bot(Race.Zerg, DummyAI())]
