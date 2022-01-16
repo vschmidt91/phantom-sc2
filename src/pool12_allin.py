@@ -209,8 +209,9 @@ class Pool12AllIn(BotAI):
         elif not pool.is_ready:
             pass
         elif self.larva and 1 <= self.supply_left:
-            if self.supply_workers < drone_max and mineral_starved and abilities[AbilityId.LARVATRAIN_DRONE] < self.townhalls.amount:
-                self.train(UnitTypeId.DRONE)
+            max_pending_drones = self.townhalls.amount
+            if self.supply_workers < drone_max and mineral_starved and abilities[AbilityId.LARVATRAIN_DRONE] < max_pending_drones:
+                self.train(UnitTypeId.DRONE, max_pending_drones - abilities[AbilityId.LARVATRAIN_DRONE])
             self.train(UnitTypeId.ZERGLING, self.larva.amount)
         elif queen_missing and 2 <= self.supply_left:
             for hatch in idle_hatches[:queen_missing]:
