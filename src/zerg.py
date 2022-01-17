@@ -338,7 +338,7 @@ class ZergAI(AIBase):
         for target in targets:
             equivalents =  WITH_TECH_EQUIVALENTS.get(target, { target })
             if sum(self.count(t) for t in equivalents) == 0:
-                self.add_macro_plan(MacroPlan(target, priority=-1/2))
+                self.add_macro_plan(MacroPlan(target, priority=-1/3))
 
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
