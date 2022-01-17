@@ -23,7 +23,7 @@ class ValueMap(AIComponent):
         self.air_vs_air: np.ndarray = self.ai.map_analyzer.get_clean_air_grid(0)
 
     def add(self, unit: Unit):
-        weight = self.ai.get_unit_value(unit)
+        weight = self.ai.get_unit_value(unit.type_id)
         if weight < 1:
             return
         base_range = 1.0 * unit.movement_speed + unit.radius

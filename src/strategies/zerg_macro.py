@@ -6,7 +6,7 @@ from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.data import Race
-from ..constants import BUILD_ORDER_PRIORITY, ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_MELEE_UPGRADES
+from ..constants import BUILD_ORDER_PRIORITY, ZERG_ARMOR_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES
 from ..cost import Cost
 from ..macro_plan import MacroPlan
 from ..utils import unitValue
@@ -38,14 +38,14 @@ class ZergMacro(ZergStrategy):
         # ratio = 1 if 0.5 < ratio else 0
 
         enemy_value = {
-            tag: bot.get_unit_value(enemy)
+            tag: bot.get_unit_value(enemy.type_id)
             for tag, enemy in bot.enemies.items()
         }
         enemy_flyer_value = sum(enemy_value[e.tag] for e in bot.enemies.values() if e.is_flying)
         enemy_ground_value = sum(enemy_value[e.tag] for e in bot.enemies.values() if not e.is_flying)
         enemy_flyer_ratio = enemy_flyer_value / max(1, enemy_flyer_value + enemy_ground_value)
 
-        queen_target = min(5, 1 + bot.townhalls.amount)
+        queen_target = min(5, 2 * bot.townhalls.amount)
 
         composition = {
             UnitTypeId.DRONE: worker_target,
@@ -54,11 +54,11 @@ class ZergMacro(ZergStrategy):
 
         self.tech_up = 48 <= worker_count and 3 <= bot.townhalls.ready.amount
 
-        composition[UnitTypeId.ROACHWARREN] = 1
+        composition[UnitTypeId.ZERGLING] = 0
+        composition[UnitTypeId.ROACH] = 0
 
         if self.tech_up:
-            composition[UnitTypeId.ROACH] = 0
-            # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
+            composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
             if bot.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False, include_pending=False):
                 composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
                 composition[UnitTypeId.HYDRALISK] = 0
@@ -89,10 +89,16 @@ class ZergMacro(ZergStrategy):
     def filter_upgrade(self, bot, upgrade) -> bool:
         if upgrade in ZERG_FLYER_UPGRADES:
             return False
-        if upgrade in ZERG_FLYER_ARMOR_UPGRADES:
+        elif upgrade in ZERG_FLYER_ARMOR_UPGRADES:
             return False
-        if upgrade in ZERG_MELEE_UPGRADES:
+        elif upgrade in ZERG_MELEE_UPGRADES:
             return False
+        elif upgrade in ZERG_ARMOR_UPGRADES:
+            return self.tech_up
+        elif upgrade in ZERG_RANGED_UPGRADES:
+            return self.tech_up
+        elif upgrade == UpgradeId.GLIALRECONSTITUTION:
+            return self.tech_up
         return True
 
     def steps(self, bot):
@@ -109,7 +115,7 @@ class ZergMacro(ZergStrategy):
             bot.update_gas: 1,
             bot.morph_overlords: 1,
             bot.make_composition: 1,
-            # bot.make_tech: 1,
+            bot.make_tech: 1,
             bot.expand: 1,
             # bot.extractor_trick: 1,
             bot.assess_threat_level: 1,
@@ -121,7 +127,7 @@ class ZergMacro(ZergStrategy):
             bot.draw_debug: 1,
         }
 
-        if self.tech_up:
-            steps[bot.make_tech] = 1
+        # if self.tech_up:
+        #     steps[bot.make_tech] = 1
 
         return steps

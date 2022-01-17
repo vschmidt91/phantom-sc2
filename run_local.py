@@ -37,10 +37,10 @@ MAPS = [
 ]
 
 RACES = [
-    # Race.Protoss,
+    Race.Protoss,
     # Race.Terran,
     # Race.Zerg,
-    Race.Random,
+    # Race.Random,
 ]
 
 BUILDS = [
@@ -57,11 +57,11 @@ RESULT_PATH = 'results.json'
 
 def create_bot():
     # ai = CompetitiveBot()
-    ai = Pool12AllIn()
+    # ai = Pool12AllIn()
     # ai = LingFlood()
-    # ai = ZergAI(strategy=HatchFirst())
-    # ai.debug = True
-    # ai.game_step = 2
+    ai = ZergAI(strategy=HatchFirst())
+    ai.debug = True
+    ai.game_step = 8
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:

@@ -1,5 +1,6 @@
 
 from abc import ABC
+from asyncio import gather
 from collections import defaultdict
 from enum import Enum
 from dataclasses import dataclass
@@ -461,7 +462,7 @@ class AIBase(ABC, BotAI):
                 continue
             if any(self.get_missing_requirements(unit, include_pending=False, include_planned=False)):
                 continue
-            priority = -(self.count(unit, include_planned=False) + 0.5) /  count
+            priority = -self.count(unit, include_planned=False) /  count
             plans = self.planned_by_type[unit]
             if not plans:
                 self.add_macro_plan(MacroPlan(unit, priority=priority))
@@ -484,7 +485,7 @@ class AIBase(ABC, BotAI):
         if gas_have < gas_want:
             self.add_macro_plan(MacroPlan(UnitTypeId.EXTRACTOR, priority=1))
 
-    def get_gas_target(self):
+    def get_gas_target(self) -> int:
         cost_zero = Cost(0, 0, 0)
         cost_sum = sum((self.cost[plan.item] for plan in self.macro_plans), cost_zero)
         cs = [self.cost[unit] * max(0, count - self.count(unit, include_planned=False)) for unit, count in self.composition.items()]
@@ -497,7 +498,9 @@ class AIBase(ABC, BotAI):
             gas_ratio = vespene / max(1, vespene + minerals)
         worker_type = race_worker[self.race]
         gas_target = gas_ratio * self.count(worker_type, include_planned=False, include_pending=False)
-        gas_target = 3 * math.ceil(gas_target / 3)
+        # gas_target = 3 * math.ceil(gas_target / 3)
+        gas_target = math.ceil(gas_target * 2/3)
+        gas_target = math.ceil(gas_target * 3/2)
         return gas_target
 
     def transfer_to_and_from_gas(self, gas_target: int):
@@ -751,14 +754,14 @@ class AIBase(ABC, BotAI):
 
         for i, plan in enumerate(list(self.macro_plans)):
 
-            if (
-                any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False))
-                and plan.priority < BUILD_ORDER_PRIORITY
-            ):
-                continue
+            # if (
+            #     any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False))
+            #     and plan.priority < BUILD_ORDER_PRIORITY
+            # ):
+            #     continue
 
-            if (2 if self.extractor_trick_enabled else 1) <= i and plan.priority == BUILD_ORDER_PRIORITY:
-                break
+            # if (2 if self.extractor_trick_enabled else 1) <= i and plan.priority == BUILD_ORDER_PRIORITY:
+            #     break
 
             unit = None
             if plan.unit:
@@ -1002,12 +1005,8 @@ class AIBase(ABC, BotAI):
         buffer += 3 * self.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
         return buffer
 
-    def get_unit_value(self, unit: Unit) -> float:
-        # if unit.is_burrowed:
-        #     return 0
-        # if not unit.is_ready:
-        #     return 0
-        cost = self.calculate_unit_value(unit.type_id)
+    def get_unit_value(self, unit_type: UnitTypeId) -> float:
+        cost = self.calculate_unit_value(unit_type)
         return cost.minerals + cost.vespene
 
     def update_maps(self):
@@ -1022,7 +1021,7 @@ class AIBase(ABC, BotAI):
         army_influence_map = self.map_analyzer.get_pyastar_grid(0)
         for unit in self.enumerate_army():
             unit_range = unit.movement_speed + self.get_unit_range(unit)
-            unit_value = self.get_unit_value(unit)
+            unit_value = self.get_unit_value(unit.type_id)
             if unit_value < 1:
                 continue
             army_influence_map = self.map_analyzer.add_cost(
@@ -1057,10 +1056,11 @@ class AIBase(ABC, BotAI):
         # self.map_analyzer.draw_influence_in_game(10 * advantage_army, upper_threshold=1e6)
 
     def assess_threat_level(self):
-
-        value_self = sum(self.get_unit_value(u) for u in self.enumerate_army())
-        value_enemy = sum(self.get_unit_value(e) for e in self.enemies.values())
-        value_enemy_threats = sum(self.get_unit_value(e) * (1 - self.map_data.distance[e.position.rounded]) for e in self.enemies.values())
+        
+        value_self = sum(self.get_unit_value(u.type_id) for u in self.enumerate_army())
+        value_self += sum(len(self.pending_by_type[t]) * self.get_unit_value(t) for t in self.composition)
+        value_enemy = sum(self.get_unit_value(e.type_id) for e in self.enemies.values())
+        value_enemy_threats = sum(self.get_unit_value(e.type_id) * (1 - self.map_data.distance[e.position.rounded]) for e in self.enemies.values())
 
         self.power_level = value_enemy / max(1, value_self + value_enemy)
         self.threat_level = value_enemy_threats / max(1, value_self + value_enemy_threats)

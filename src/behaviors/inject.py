@@ -54,7 +54,7 @@ class InjectBehavior(UnitBehavior):
             target = townhall.position
 
         if 5 < unit.position.distance_to(target):
-            if unit.is_attacking and unit.order_target == target:
+            if unit.is_attacking and isinstance(unit.order_target, Point2) and target.distance_to(unit.order_target) < 1:
                 pass
             else:
                 unit.attack(target)

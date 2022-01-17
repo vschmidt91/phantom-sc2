@@ -55,7 +55,7 @@ class GatherBehavior(UnitBehavior):
                     if 0.75 < unit.position.distance_to(move_target) < 2:
                         unit.move(move_target)
                         unit(AbilityId.SMART, townhall, True)
-                        unit(AbilityId.SMART, target, True)
+                        # unit(AbilityId.SMART, target, True)
                 else:
                     move_target = None
                     if isinstance(resource, MineralPatch):
