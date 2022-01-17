@@ -158,13 +158,13 @@ class UnitManager(Behavior):
         self.drafted_civilians.intersection_update(self.ai.unit_by_tag.keys())
         
         if (
-            2/3 < self.ai.threat_level
+            1 < self.ai.threat_level
             and self.ai.time < 3 * 60
         ):
             worker = self.ai.bases.try_remove_any()
             if worker:
                 self.drafted_civilians.add(worker)
-        elif self.ai.threat_level < 1/3:
+        elif self.ai.threat_level < 1/2:
             if self.drafted_civilians:
                 worker = min(self.drafted_civilians, key = lambda tag : self.ai.unit_by_tag[tag].shield_health_percentage, default = None)
                 # worker = self.drafted_civilians.pop()
