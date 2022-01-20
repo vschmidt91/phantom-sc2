@@ -378,6 +378,9 @@ class ZergAI(AIBase):
             self.add_macro_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
 
     def expand(self):
+
+        if self.block_manager.enemy_base_count + 1 <= self.townhalls.amount:
+            return
         
         worker_max = self.get_max_harvester()
         saturation = self.count(UnitTypeId.DRONE, include_planned=False) / max(1, worker_max)

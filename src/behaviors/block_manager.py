@@ -61,9 +61,8 @@ class BlockManager(Behavior):
             del self.detectors[pos]
 
         enemy_townhall_positions = {
-            th.position
-            for t in race_townhalls[self.ai.enemy_race]
-            for th in self.ai.enemies_by_type[t]
+            building.position
+            for building in self.ai.enemy_structures
         }
 
         for base in self.ai.bases:
@@ -72,8 +71,10 @@ class BlockManager(Behavior):
                     base.taken_since = self.ai.time
                 else:
                     base.taken_since = None
-        self.enemy_base_count = sum(1 for b in self.ai.bases if b.taken_since and not b.townhall)
-        self.enemy_base_count = max(math.ceil(self.ai.time / (4 * 60)), self.enemy_base_count)
+        self.enemy_base_count = max(
+            math.ceil(self.ai.time / (5 * 60)),
+            sum(1 for b in self.ai.bases if b.taken_since != None)
+        )
                     
         return BehaviorResult.SUCCESS
 

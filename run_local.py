@@ -19,7 +19,7 @@ from src.strategies.pool12 import Pool12
 from src.strategies.roach_rush import RoachRush
 from src.zerg import ZergAI
 from src.enums import PerformanceMode
-from src.dummy import DummyAI
+from src.dummy import DummyAI, DummyAI2
 
 from test import CompetitiveBot
 
@@ -27,13 +27,13 @@ MAPS = [
     # 'BerlingradAIE',
     # 'CuriousMindsAIE',
     # 'HardwireAIE',
-    'GlitteringAshesAIE',
+    # 'GlitteringAshesAIE',
     # 'OxideAIE',
     # 'RomanticideAIE',
-    # '2000AtmospheresAIE',
+    '2000AtmospheresAIE',
     # 'LightshadeAIE',
     # 'JagannathaAIE',
-    # 'BlackburnAIE'
+    # 'BlackburnAIE',
 ]
 
 RACES = [
@@ -59,13 +59,14 @@ def create_bot():
     # ai = CompetitiveBot()
     # ai = Pool12AllIn()
     # ai = LingFlood()
+    # ai = DummyAI()
     ai = ZergAI(strategy=HatchFirst())
     ai.debug = True
     ai.game_step = 8
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:
-    # return [Bot(Race.Zerg, DummyAI())]
+    # return [Bot(Race.Zerg, DummyAI2())]
     for race in RACES:
         for build in BUILDS:
             yield Computer(race, difficulty, ai_build=build)

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from functools import cache
 import math
 import random
+from re import S
 from typing import Any, DefaultDict, Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
 import numpy as np
 import os
@@ -549,14 +550,19 @@ class AIBase(ABC, BotAI):
 
     async def initialize_bases(self):
 
+        positions = dict()
+        for b in self.expansion_locations_list:
+            positions[b] = await self.find_placement(UnitTypeId.HATCHERY, b.rounded, placement_step=1)
+
+
         bases = sorted((
-            Base(position, (m.position for m in resources.mineral_field), (g.position for g in resources.vespene_geyser))
+            Base(positions[position], (m.position for m in resources.mineral_field), (g.position for g in resources.vespene_geyser))
             for position, resources in self.expansion_locations_dict.items()
         ), key = lambda b : self.map_data.distance[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
         self.bases = ResourceGroup(bases)
         self.bases[0].split_initial_workers(set(self.workers))
-        self.bases[-1].taken_since = 1
+        self.bases[-1].taken_since = 0
 
     async def load_map_data(self) -> Coroutine[Any, Any, MapStaticData]:
 
@@ -600,7 +606,7 @@ class AIBase(ABC, BotAI):
         
         return distance_map
 
-    def draw_debug(self):
+    async def draw_debug(self):
 
         if not self.debug:
             return
@@ -649,6 +655,8 @@ class AIBase(ABC, BotAI):
         #     z = self.get_terrain_z_height(d)
         #     self.client.debug_text_world(f'{d.health}', Point3((*d.position, z)))
 
+        # self.map_analyzer.draw_influence_in_game(100 * self.map_data.distance)
+
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.threat_level)}%', (0.01, 0.01))
         self.client.debug_text_screen(f'Enemy Bases: {self.block_manager.enemy_base_count}', (0.01, 0.02))
         for i, plan in enumerate(self.macro_plans):
@@ -659,14 +667,20 @@ class AIBase(ABC, BotAI):
         #     advantage_defender = (1 - self.distance_map[p]) / max(1e-3, self.power_level)
         #     self.client.debug_text_world(f'{round(100 * advantage_defender)}', Point3((*p, z)))
 
-        # for base in self.bases:
-        #     for patch in base.mineral_patches:
-        #         if not patch.speed_mining_position:
-        #             continue
-        #         p = patch.speed_mining_position
-        #         z = self.get_terrain_z_height(p)
-        #         c = (255, 255, 255)
-        #         self.client.debug_text_world(f'x', Point3((*p, z)), c)
+        # grid = self.map_analyzer.get_pyastar_grid()
+        # for base in self.expansion_locations_list:
+        #     p = await self.find_placement(UnitTypeId.HATCHERY, base.rounded, placement_step=1)
+        #     grid[base.rounded] = 10
+        #     grid[p.rounded] = 5
+        # plt.imshow(grid)
+        # plt.show()
+
+        for i, base in enumerate(self.bases):
+            can_place = await self.can_place_single(UnitTypeId.HATCHERY, base.position)
+            print(base.position, can_place)
+            z = self.get_terrain_z_height(base.position)
+            c = (255, 255, 255)
+            self.client.debug_text_world(f'{i} can_place={can_place}', Point3((*base.position, z)), c)
 
         # for p, v in np.ndenumerate(self.heat_map):
         #     if not self.in_pathing_grid(Point2(p)):
@@ -959,13 +973,13 @@ class AIBase(ABC, BotAI):
             data = self.game_data.units.get(target.value)
             if target in race_townhalls[self.race]:
                 for b in self.bases:
-                    if b.position in self.townhall_by_position.keys():
+                    if b.townhall:
                         continue
                     if b.blocked_since:
                         continue
                     if not b.remaining:
                         continue
-                    if not await self.can_place_single(target, b.position):
+                    if not (await self.can_place_single(target, b.position)):
                         continue
                     return b.position
                 raise PlacementNotFoundError()
