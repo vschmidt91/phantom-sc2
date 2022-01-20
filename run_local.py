@@ -52,17 +52,17 @@ BUILDS = [
 ]
 
 DIFFICULTY = Difficulty.CheatInsane
-
+REAL_TIME = True
 RESULT_PATH = 'results.json'
 
 def create_bot():
     # ai = CompetitiveBot()
-    # ai = Pool12AllIn()
+    ai = Pool12AllIn()
     # ai = LingFlood()
     # ai = DummyAI()
-    ai = ZergAI(strategy=HatchFirst())
-    ai.debug = True
-    ai.game_step = 8
+    # ai = ZergAI(strategy=HatchFirst())
+    # ai.debug = True
+    # ai.game_step = 8
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:
@@ -77,7 +77,7 @@ if __name__ == "__main__":
 
     for i in itertools.count():
         games = [
-            GameMatch(sc2.maps.get(map), [create_bot(), opponent])
+            GameMatch(sc2.maps.get(map), [create_bot(), opponent], realtime=REAL_TIME)
             for map in MAPS
             for opponent in create_opponents(DIFFICULTY)
         ]

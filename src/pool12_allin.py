@@ -66,9 +66,11 @@ class Pool12AllIn(BotAI):
                 worker = self.workers.tags_not_in(assigned).furthest_to(patch)
             worker.gather(patch)
             assigned.add(worker.tag)
-        pool_near = self.start_location.towards(self.main_base_ramp.top_center, -9)
+        # pool_near = self.start_location.towards(self.main_base_ramp.top_center, -9)
+        pool_near = self.start_location.towards(self.game_info.map_center, 8)
         pool_near = pool_near.rounded.offset((.5, .5))
-        self.pool_position: Point2 = await self.find_placement(UnitTypeId.SPAWNINGPOOL, pool_near)
+        self.pool_position: Point2 = pool_near
+        # self.pool_position: Point2 = await self.find_placement(UnitTypeId.SPAWNINGPOOL, pool_near)
         self.fix_speedmining_positions()
 
     async def on_step(self, iteration: int):
