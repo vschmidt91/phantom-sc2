@@ -550,13 +550,21 @@ class AIBase(ABC, BotAI):
 
     async def initialize_bases(self):
 
+        exclude_bases = {
+            self.start_location,
+            *self.enemy_start_locations
+        }
         positions = dict()
         for b in self.expansion_locations_list:
-            positions[b] = await self.find_placement(UnitTypeId.HATCHERY, b.rounded, placement_step=1)
+            if b in exclude_bases:
+                continue
+            if await self.can_place_single(UnitTypeId.HATCHERY, b):
+                continue
+            positions[b] = await self.find_placement(UnitTypeId.HATCHERY, b, placement_step=1)
 
 
         bases = sorted((
-            Base(positions[position], (m.position for m in resources.mineral_field), (g.position for g in resources.vespene_geyser))
+            Base(positions.get(position, position), (m.position for m in resources.mineral_field), (g.position for g in resources.vespene_geyser))
             for position, resources in self.expansion_locations_dict.items()
         ), key = lambda b : self.map_data.distance[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
@@ -675,12 +683,12 @@ class AIBase(ABC, BotAI):
         # plt.imshow(grid)
         # plt.show()
 
-        for i, base in enumerate(self.bases):
-            can_place = await self.can_place_single(UnitTypeId.HATCHERY, base.position)
-            print(base.position, can_place)
-            z = self.get_terrain_z_height(base.position)
-            c = (255, 255, 255)
-            self.client.debug_text_world(f'{i} can_place={can_place}', Point3((*base.position, z)), c)
+        # for i, base in enumerate(self.bases):
+        #     can_place = await self.can_place_single(UnitTypeId.HATCHERY, base.position)
+        #     print(base.position, can_place)
+        #     z = self.get_terrain_z_height(base.position)
+        #     c = (255, 255, 255)
+        #     self.client.debug_text_world(f'{i} can_place={can_place}', Point3((*base.position, z)), c)
 
         # for p, v in np.ndenumerate(self.heat_map):
         #     if not self.in_pathing_grid(Point2(p)):
