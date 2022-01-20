@@ -1104,11 +1104,11 @@ class AIBase(ABC, BotAI):
         workers += 3 * self.count(GAS_BY_RACE[self.race], include_actual=False, include_planned=False)
         return workers
 
-    def blocked_base(self, position: Point2) -> Optional[Point]:
+    def blocked_base(self, position: Point2) -> Optional[Base]:
         px, py = position
         radius = 3
-        for base in self.expansion_locations_list:
-            bx, by = base
+        for base in self.bases:
+            bx, by = base.position
             if abs(px - bx) < radius and abs(py - by) < radius:
                 return base
         return None
