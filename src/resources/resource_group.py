@@ -67,7 +67,8 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
                 key = lambda r : r.harvester_balance,
                 default = None
             )
-            return resource.try_remove_any()
+            if resource:
+                return resource.try_remove_any()
         else:
             for resource in reversed(self.items):
                 if 0 < resource.harvester_balance:
