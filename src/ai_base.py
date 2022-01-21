@@ -499,7 +499,7 @@ class AIBase(ABC, BotAI):
             gas_ratio = vespene / max(1, vespene + minerals)
         worker_type = race_worker[self.race]
         gas_target = gas_ratio * self.count(worker_type, include_planned=False, include_pending=False)
-        gas_target = math.ceil(gas_target)
+        # gas_target = math.ceil(gas_target)
         # gas_target = 3 * math.ceil(gas_target / 3)
         # gas_target = math.ceil(gas_target * 2/3)
         # gas_target = math.ceil(gas_target * 3/2)
