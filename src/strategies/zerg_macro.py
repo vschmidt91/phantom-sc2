@@ -52,10 +52,10 @@ class ZergMacro(ZergStrategy):
             UnitTypeId.QUEEN: queen_target,
         }
 
-        self.tech_up = 48 <= worker_count and 3 <= bot.townhalls.ready.amount
+        self.tech_up = 44 <= worker_count and 3 <= bot.townhalls.ready.amount
 
         # composition[UnitTypeId.ZERGLING] = 0
-        composition[UnitTypeId.ROACH] = 0
+        # composition[UnitTypeId.ROACH] = 0
 
         if self.tech_up:
             # composition[UnitTypeId.ROACH] = 0
