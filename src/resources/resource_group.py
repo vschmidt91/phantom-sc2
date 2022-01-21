@@ -43,20 +43,25 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         return None, None
 
     def try_add(self, harvester: int) -> bool:
-        resource = min(
-            (r for r in self.items if 0 < r.remaining),
-            key=lambda r : r.harvester_balance,
-            default=None
+        resource = next(
+            (r for r in self.items if r.harvester_balance < 0),
+            None
         )
+        if not resource:
+            resource = min(
+                (r for r in self.items),
+                key=lambda r : r.harvester_balance,
+                default=None
+            )
         if not resource:
             return False
         return resource.try_add(harvester)
 
-    def try_remove_any(self) -> Optional[int]:
-        resource = max(
+    def try_remove_any(self) -> Optional[Tuple[int, T]]:
+        resource = next(
             (r for r in self.items[::-1] if 0 < r.harvester_count),
-            key = lambda r : r.harvester_balance,
-            default=None
+            # key = lambda r : r.harvester_balance,
+            None
         )
         if not resource:
             return None
@@ -98,34 +103,49 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
 
         self.remaining = sum(r.remaining for r in self.items)
 
+        last_harvester = None
         while True:
-            resource_from = max(
-                (r for r in self.items[::-1] if 0 < r.harvester_count),
-                key = lambda r : r.harvester_balance,
-                default = None
-            )
-            if not resource_from:
+            removed = self.try_remove_any()
+            if not removed:
                 break
-            resource_to = min(
-                (i for i in self.items if i != resource_from),
-                key = lambda r : r.harvester_balance - math.exp(-r.position.distance_to(resource_from.position)),
-                default = None
-            )
-            if not resource_to:
+            harvester, resource = removed
+            if harvester == last_harvester:
                 break
-            if self.balance_aggressively:
-                if resource_from.harvester_count == 0:
-                    break
-                if resource_from.harvester_balance - 1 <= resource_to.harvester_balance + 1:
-                    break
-            else:
-                if resource_from.harvester_balance <= 0:
-                    break
-                if 0 <= resource_to.harvester_balance:
-                    break
-                if resource_from.harvester_balance - 1 < resource_to.harvester_balance + 1:
-                    break
-            # print('transfer internal')
-            if not resource_from.try_transfer_to(resource_to):
-                print('transfer internal failed')
+            if not self.try_add(harvester):
                 break
+            resource2 = self.get_resource(harvester)
+            if resource2 == resource:
+                break
+            last_harvester = harvester
+            # break
+
+        # while True:
+        #     resource_from = max(
+        #         (r for r in self.items[::-1] if 0 < r.harvester_count),
+        #         key = lambda r : r.harvester_balance,
+        #         default = None
+        #     )
+        #     if not resource_from:
+        #         break
+        #     resource_to = min(
+        #         (i for i in self.items if i != resource_from),
+        #         key = lambda r : r.harvester_balance - math.exp(-r.position.distance_to(resource_from.position)),
+        #         default = None
+        #     )
+        #     if not resource_to:
+        #         break
+        #     if self.balance_aggressively:
+        #         if resource_from.harvester_count == 0:
+        #             break
+        #         if resource_from.harvester_balance - 1 <= resource_to.harvester_balance + 1:
+        #             break
+        #     else:
+        #         if resource_from.harvester_balance <= 0:
+        #             break
+        #         if 0 <= resource_to.harvester_balance:
+        #             break
+        #         if resource_from.harvester_balance - 1 < resource_to.harvester_balance + 1:
+        #             break
+        #     if not resource_from.try_transfer_to(resource_to):
+        #         print('transfer internal failed')
+        #         break

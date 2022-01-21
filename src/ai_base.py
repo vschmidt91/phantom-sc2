@@ -812,7 +812,12 @@ class AIBase(ABC, BotAI):
             if any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
                 continue
 
-            if plan.priority < BUILD_ORDER_PRIORITY and self.is_structure(plan.item) and isinstance(plan.target, Point2) and not await self.can_place_single(plan.item, plan.target):
+            if (
+                plan.priority < BUILD_ORDER_PRIORITY
+                and self.is_structure(plan.item)
+                and isinstance(plan.target, Point2)
+                and not await self.can_place_single(plan.item, plan.target)
+            ):
                 self.remove_macro_plan(plan)
                 continue
 
@@ -1022,10 +1027,12 @@ class AIBase(ABC, BotAI):
         return IS_STRUCTURE in data.attributes
 
     def get_supply_buffer(self) -> int:
-        buffer = 4
-        buffer += 1 * self.townhalls.amount
-        buffer += 3 * self.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
-        return buffer
+        income = self.state.score.collection_rate_minerals + self.state.score.collection_rate_vespene
+        return income / 500
+        # buffer = 2
+        # buffer += 2 * self.townhalls.amount
+        # buffer += 2 * self.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
+        # return buffer
 
     def get_unit_value(self, unit_type: UnitTypeId) -> float:
         cost = self.calculate_unit_value(unit_type)

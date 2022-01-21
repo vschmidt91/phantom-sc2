@@ -370,10 +370,13 @@ class ZergAI(AIBase):
         )
         if 200 <= self.supply_cap + supply_pending:
             return
-        supply_buffer = 3
-        supply_buffer += 3 * self.townhalls.amount
-        supply_buffer += 3 * len(self.unit_manager.inject_queens)
-        # supply_buffer += self.larva.amount
+        # income = self.state.score.collection_rate_minerals + self.state.score.collection_rate_vespene
+        # supply_buffer = income / 300
+
+        supply_buffer = 6
+        supply_buffer += 2 * self.townhalls.amount
+        supply_buffer += 2 * len(self.unit_manager.inject_queens)
+        
         if self.supply_left + supply_pending < supply_buffer:
             self.add_macro_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
 

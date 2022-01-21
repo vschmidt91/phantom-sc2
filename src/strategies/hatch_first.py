@@ -18,27 +18,16 @@ class HatchFirst(ZergMacro):
             UnitTypeId.EXTRACTOR,
             UnitTypeId.OVERLORD,
             MacroPlan(UnitTypeId.HATCHERY, max_distance=0),
-
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
-            # UnitTypeId.EXTRACTOR,
-            # UnitTypeId.SPAWNINGPOOL,
-
-            # UnitTypeId.DRONE,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.OVERLORD,
-            # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
-            # UpgradeId.ZERGLINGMOVEMENTSPEED,
-            # MacroPlan(UpgradeId.ZERGLINGMOVEMENTSPEED, priority = -0.7),
-            # MacroPlan(UnitTypeId.ROACHWARREN, priority = -0.7),
         ]
 
     def update(self, bot):
-        if bot.townhalls.amount < 2 and bot.supply_used == 14 and bot.count(UnitTypeId.EXTRACTOR, include_planned=False) == 0:
+        if (
+            bot.townhalls.amount < 2
+            and bot.supply_used == 14
+            and bot.count(UnitTypeId.EXTRACTOR, include_planned=False) == 0
+        ):
             bot.extractor_trick_enabled = True
         return super().update(bot)

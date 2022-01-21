@@ -1,5 +1,5 @@
 
-from typing import Optional, Set, Union, Iterable
+from typing import Optional, Set, Union, Iterable, Tuple
 from sc2.position import Point2
 from abc import ABC, abstractmethod
 
@@ -23,10 +23,10 @@ class ResourceSingle(ResourceBase):
         self.harvester_set.add(harvester)
         return True
 
-    def try_remove_any(self) -> Optional[int]:
+    def try_remove_any(self) -> Optional[Tuple[int, ResourceBase]]:
         if not any(self.harvesters):
             return None
-        return self.harvester_set.pop()
+        return self.harvester_set.pop(), self
 
     def try_remove(self, harvester: int) -> bool:
         if harvester in self.harvester_set:

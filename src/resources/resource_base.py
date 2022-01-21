@@ -1,5 +1,5 @@
 
-from typing import Any, Optional, Set, Union, Iterable
+from typing import Any, Optional, Set, Union, Iterable, Tuple
 
 from s2clientprotocol.error_pb2 import Error
 from sc2.position import Point2
@@ -16,7 +16,7 @@ class ResourceBase(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def try_remove_any(self) -> Optional[int]:
+    def try_remove_any(self) -> Optional[Tuple[int, 'ResourceBase']]:
         raise NotImplementedError()
 
     @abstractmethod
@@ -55,9 +55,10 @@ class ResourceBase(ABC):
         pass
 
     def try_transfer_to(self, other) -> Optional[int]:
-        harvester = self.try_remove_any()
-        if not harvester:
+        removed = self.try_remove_any()
+        if not removed:
             return None
+        harvester, resource = removed
         if other.try_add(harvester):
             return harvester
         if self.try_add(harvester):
