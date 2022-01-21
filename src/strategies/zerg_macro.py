@@ -54,17 +54,18 @@ class ZergMacro(ZergStrategy):
 
         self.tech_up = 48 <= worker_count and 3 <= bot.townhalls.ready.amount
 
-        composition[UnitTypeId.ZERGLING] = 0
+        # composition[UnitTypeId.ZERGLING] = 0
         composition[UnitTypeId.ROACH] = 0
 
         if self.tech_up:
-            composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
+            # composition[UnitTypeId.ROACH] = 0
+            # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
             if bot.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False, include_pending=False):
                 composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
                 composition[UnitTypeId.HYDRALISK] = 0
             
         if 1 <= bot.count(UnitTypeId.LAIR, include_pending=False, include_planned=False) + bot.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
-            composition[UnitTypeId.OVERSEER] = 3
+            composition[UnitTypeId.OVERSEER] = 2
 
         if bot.count(UnitTypeId.ROACHWARREN, include_pending=False, include_planned=False):
             if bot.count(UnitTypeId.HYDRALISKDEN, include_pending=False, include_planned=False):
@@ -75,7 +76,7 @@ class ZergMacro(ZergStrategy):
                 composition[UnitTypeId.ROACH] = int(ratio * worker_target)
                 composition[UnitTypeId.RAVAGER] = int(1/5 * ratio * worker_target)
         else:
-            composition[UnitTypeId.ZERGLING] = max(2, int(ratio * enemy_ground_value / 20))
+            composition[UnitTypeId.ZERGLING] = int(ratio * enemy_ground_value / 20)
 
         if bot.count(UnitTypeId.HIVE, include_planned=False):
             composition[UnitTypeId.CORRUPTOR] = max(3, int(ratio * 20 * enemy_flyer_ratio))

@@ -499,9 +499,10 @@ class AIBase(ABC, BotAI):
             gas_ratio = vespene / max(1, vespene + minerals)
         worker_type = race_worker[self.race]
         gas_target = gas_ratio * self.count(worker_type, include_planned=False, include_pending=False)
+        gas_target = math.ceil(gas_target)
         # gas_target = 3 * math.ceil(gas_target / 3)
-        gas_target = math.ceil(gas_target * 2/3)
-        gas_target = math.ceil(gas_target * 3/2)
+        # gas_target = math.ceil(gas_target * 2/3)
+        # gas_target = math.ceil(gas_target * 3/2)
         return gas_target
 
     def transfer_to_and_from_gas(self, gas_target: int):
@@ -569,6 +570,7 @@ class AIBase(ABC, BotAI):
         ), key = lambda b : self.map_data.distance[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
         self.bases = ResourceGroup(bases)
+        self.bases.balance_evenly = True
         self.bases[0].split_initial_workers(set(self.workers))
         self.bases[-1].taken_since = 0
 
@@ -795,6 +797,11 @@ class AIBase(ABC, BotAI):
             if unit == None:
                 continue
 
+            # if plan.ability['ability'] not in self.abilities[plan.unit]:
+            #     continue
+            if any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
+                continue
+
             cost = self.cost[plan.item]
             reserve += cost
 
@@ -806,11 +813,6 @@ class AIBase(ABC, BotAI):
                     plan.target = await self.get_target(unit, plan)
                 except PlacementNotFoundError as p: 
                     continue
-
-            # if plan.ability['ability'] not in self.abilities[plan.unit]:
-            #     continue
-            if any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
-                continue
 
             if (
                 plan.priority < BUILD_ORDER_PRIORITY

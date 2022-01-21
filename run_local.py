@@ -62,7 +62,7 @@ def create_bot():
     # ai = DummyAI()
     ai = ZergAI(strategy=HatchFirst())
     ai.debug = True
-    ai.game_step = 8
+    ai.game_step = 4
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:

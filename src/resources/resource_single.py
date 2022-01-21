@@ -23,10 +23,10 @@ class ResourceSingle(ResourceBase):
         self.harvester_set.add(harvester)
         return True
 
-    def try_remove_any(self) -> Optional[Tuple[int, ResourceBase]]:
+    def try_remove_any(self) -> Optional[int]:
         if not any(self.harvesters):
             return None
-        return self.harvester_set.pop(), self
+        return self.harvester_set.pop()
 
     def try_remove(self, harvester: int) -> bool:
         if harvester in self.harvester_set:

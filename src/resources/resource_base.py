@@ -54,14 +54,11 @@ class ResourceBase(ABC):
     def update(self, bot):
         pass
 
-    def try_transfer_to(self, other) -> Optional[int]:
-        removed = self.try_remove_any()
-        if not removed:
+    def try_transfer_to(self, other: 'ResourceBase') -> Optional[int]:
+        if not (harvester := self.try_remove_any()):
             return None
-        harvester, resource = removed
         if other.try_add(harvester):
             return harvester
         if self.try_add(harvester):
             return None
         return None
-        # raise Exception()
