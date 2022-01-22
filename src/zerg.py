@@ -338,7 +338,7 @@ class ZergAI(AIBase):
         for target in targets:
             equivalents =  WITH_TECH_EQUIVALENTS.get(target, { target })
             if sum(self.count(t) for t in equivalents) == 0:
-                self.add_macro_plan(MacroPlan(target, priority=0))
+                self.add_macro_plan(MacroPlan(target, priority=-1/3))
 
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
@@ -355,11 +355,18 @@ class ZergAI(AIBase):
             if any(self.enemies_by_type[unit_type]):
                 self.build_spores = True
 
-        if self.build_spores:
-            for base in self.bases:
-                base.defensive_targets = {
-                    UnitTypeId.SPORECRAWLER: 1,
-                }
+        for i, base in enumerate(self.bases):
+            targets: Dict[UnitTypeId, int] = dict()
+            if self.build_spores:
+                targets[UnitTypeId.SPORECRAWLER] = 1
+            if (
+                i == 1
+                and base.townhall
+                # and 1 <= self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False)
+                # and self.block_manager.enemy_base_count <= 1
+            ):
+                targets[UnitTypeId.SPINECRAWLER] = 1
+            base.defensive_targets = targets
 
     def morph_overlords(self):
         if 200 <= self.supply_cap:

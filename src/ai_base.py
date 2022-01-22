@@ -502,7 +502,7 @@ class AIBase(ABC, BotAI):
 
         if 0 < gas_target:
             gas_target = max(1.5, gas_target)
-            
+
         # gas_target = math.ceil(gas_target)
         # gas_target = 3 * math.ceil(gas_target / 3)
         # gas_target = math.ceil(gas_target * 2/3)
@@ -574,7 +574,7 @@ class AIBase(ABC, BotAI):
         ), key = lambda b : self.map_data.distance[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
         self.bases = ResourceGroup(bases)
-        self.bases.balance_evenly = True
+        # self.bases.balance_evenly = True
         self.bases[0].split_initial_workers(set(self.workers))
         self.bases[-1].taken_since = 0
 

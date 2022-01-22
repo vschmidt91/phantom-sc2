@@ -29,6 +29,10 @@ class SearchBehavior(UnitBehavior):
 
         if not unit.is_idle:
             pass
+        elif 0.5 < self.ai.threat_level:
+            target = next((b for b in reversed(self.ai.bases) if b.townhall), None)
+            if target:
+                unit.attack(target)
         elif self.ai.time < 8 * 60:
             unit.attack(random.choice(self.ai.enemy_start_locations))
         else:

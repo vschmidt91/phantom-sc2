@@ -136,7 +136,13 @@ class Base(ResourceGroup[ResourceBase]):
             for unit_type, want in self.defensive_targets.items():
                 if defenses[unit_type] < want:
                     plan = MacroPlan(unit_type)
-                    plan.target = self.position.towards(self.mineral_patches.position, 4.5)
+                    if unit_type == UnitTypeId.SPORECRAWLER:
+                        plan.target = self.position.towards(self.mineral_patches.position, 4.5)
+                    elif unit_type == UnitTypeId.SPINECRAWLER:
+                        plan.target = self.position.towards(self.mineral_patches.position, -5)
+                    else:
+                        plan.target = self.position
+                    plan.target = plan.target.rounded.offset((.5, .5))
                     plan.max_distance = 2
                     plan.priority = 0
                     bot.add_macro_plan(plan)

@@ -21,6 +21,7 @@ class HatchFirst(ZergMacro):
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
         ]
 
     def update(self, bot):
