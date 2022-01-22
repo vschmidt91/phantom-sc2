@@ -574,7 +574,7 @@ class AIBase(ABC, BotAI):
         ), key = lambda b : self.map_data.distance[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
         self.bases = ResourceGroup(bases)
-        # self.bases.balance_evenly = True
+        self.bases.balance_evenly = True
         self.bases[0].split_initial_workers(set(self.workers))
         self.bases[-1].taken_since = 0
 
