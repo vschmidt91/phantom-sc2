@@ -360,7 +360,7 @@ class ZergAI(AIBase):
             if self.build_spores:
                 targets[UnitTypeId.SPORECRAWLER] = 1
             if (
-                i == 1
+                1 <= i
                 and base.townhall
                 # and 1 <= self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False)
                 # and self.block_manager.enemy_base_count <= 1

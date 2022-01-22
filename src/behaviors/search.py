@@ -29,7 +29,7 @@ class SearchBehavior(UnitBehavior):
 
         if not unit.is_idle:
             pass
-        elif 0.5 < self.ai.threat_level:
+        elif 1/3 < self.ai.threat_level:
             target = next((b for b in reversed(self.ai.bases) if b.townhall), None)
             if target:
                 unit.attack(target)
