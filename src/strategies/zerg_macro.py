@@ -30,7 +30,7 @@ class ZergMacro(ZergStrategy):
         worker_target = max(worker_target, 1)
         worker_count = bot.count(UnitTypeId.DRONE, include_planned=False)
         ratio = max(
-            3/2 * bot.threat_level,
+            bot.threat_level,
             -2 + 3 *(worker_count / worker_target),
         )
         ratio = min(1, ratio)
@@ -76,7 +76,7 @@ class ZergMacro(ZergStrategy):
                 composition[UnitTypeId.ROACH] = int(ratio * worker_target)
                 composition[UnitTypeId.RAVAGER] = int(1/5 * ratio * worker_target)
         else:
-            composition[UnitTypeId.ZERGLING] = int(ratio * enemy_ground_value / 20)
+            composition[UnitTypeId.ZERGLING] = int(ratio * enemy_ground_value / 12.5)
 
         if bot.count(UnitTypeId.HIVE, include_planned=False):
             composition[UnitTypeId.CORRUPTOR] = max(3, int(ratio * 20 * enemy_flyer_ratio))
