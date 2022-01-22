@@ -139,7 +139,7 @@ class Base(ResourceGroup[ResourceBase]):
                     if unit_type == UnitTypeId.SPORECRAWLER:
                         plan.target = self.position.towards(self.mineral_patches.position, 4.5)
                     elif unit_type == UnitTypeId.SPINECRAWLER:
-                        plan.target = self.position.towards(self.mineral_patches.position, -5.5)
+                        plan.target = self.position.towards(self.mineral_patches.position, -5)
                     else:
                         plan.target = self.position
                     plan.target = plan.target.rounded.offset((.5, .5))
