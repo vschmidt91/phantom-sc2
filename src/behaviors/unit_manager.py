@@ -158,7 +158,7 @@ class UnitManager(Behavior):
         self.drafted_civilians.intersection_update(self.ai.unit_by_tag.keys())
         
         if (
-            1 < self.ai.threat_level
+            2/3 < self.ai.threat_level
             and self.ai.time < 3 * 60
         ):
             if worker := self.ai.bases.try_remove_any():
