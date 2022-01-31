@@ -194,7 +194,7 @@ class Pool12AllIn(BotAI):
         if not pool and abilities[AbilityId.ZERGBUILD_SPAWNINGPOOL] < 1:
             if 200 <= self.minerals and self.pool_drone:
                 self.pool_drone.build(UnitTypeId.SPAWNINGPOOL, self.pool_position)
-            elif 170 <= self.minerals and not self.pool_drone:
+            elif 150 <= self.minerals and not self.pool_drone:
                 self.pool_drone = drone
                 self.pool_drone.move(self.pool_position)
         elif self.supply_used < 12:
@@ -209,7 +209,7 @@ class Pool12AllIn(BotAI):
         elif not pool.is_ready:
             pass
         elif self.larva and 1 <= self.supply_left:
-            max_pending_drones = max(3, math.ceil(self.townhalls.amount / 2))
+            max_pending_drones = min(3, math.ceil(self.townhalls.amount / 2))
             if self.supply_workers < drone_max and mineral_starved and abilities[AbilityId.LARVATRAIN_DRONE] < max_pending_drones:
                 self.train(UnitTypeId.DRONE, max_pending_drones - abilities[AbilityId.LARVATRAIN_DRONE])
             self.train(UnitTypeId.ZERGLING, self.larva.amount)
