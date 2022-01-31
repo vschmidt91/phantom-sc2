@@ -4,18 +4,16 @@ import matplotlib.pyplot as plt
 from plot_utils import api, api_list, api_url, winrate_intervals
 import numpy as np
 
-DIVISION_LOWER = ('Season 2 Lower Division', 7)
-DIVISION_UPPER = ('Season 2', 8)
-
 CATEGORIES_MATCHUP = ('Matchup', True)
 CATEGORIES_RACE = ('Race', False)
 
-competition_title, competition_id = DIVISION_UPPER
-categories_title, category_by_matchup = CATEGORIES_RACE
+competition_title = '2022 Season 1'
+competition_id = 12
+categories_title, category_by_matchup = CATEGORIES_MATCHUP
 round_limit = 1000
 confidence_alpha = 0.15
 plot_args = { 'dpi': 200 }
-plot_path = '../publish/plot_balance'
+plot_path = './publish/plot_balance'
 length_bins = np.arange(0, 25, 1)
 
 bots = api_list(api_url + 'bots')

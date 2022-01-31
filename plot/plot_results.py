@@ -5,17 +5,18 @@ import numpy as np
 
 from plot_utils import api, api_list, api_url, winrate_intervals
 
-competition_id = 7
+competition_id = 12
 confidence_alpha = 0.15
-bot_count = 5
+bot_count = 50
 plot_args = { 'dpi': 200 }
 bot_filter = [
     # 'MicroMachine',
     # 'Ketroc',
     # 'Eris',
-    'SunTzuBot'
+    'Rasputin',
+    '12PoolBot'
 ]
-round_limit = 1000
+round_limit = 100
 length_bins = np.arange(0, 20, 1)
 
 bots = {
@@ -52,6 +53,6 @@ for category, intervals in intervals_by_category.items():
     plt.fill_between(length_bins, y_min, y_max, alpha=confidence_alpha)
 
 plt.legend(legend)
-plt.savefig("../publish/plot.svg", **plot_args)
-plt.savefig("../publish/plot.png", **plot_args)
+plt.savefig("./publish/plot.svg", **plot_args)
+plt.savefig("./publish/plot.png", **plot_args)
 plt.show()
