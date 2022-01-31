@@ -66,11 +66,9 @@ class Pool12AllIn(BotAI):
                 worker = self.workers.tags_not_in(assigned).furthest_to(patch)
             worker.gather(patch)
             assigned.add(worker.tag)
-        # pool_near = self.start_location.towards(self.main_base_ramp.top_center, -9)
-        pool_near = self.start_location.towards(self.game_info.map_center, 8)
+        pool_near = self.start_location.towards(self.game_info.map_center, 7)
         pool_near = pool_near.rounded.offset((.5, .5))
         self.pool_position: Point2 = pool_near
-        # self.pool_position: Point2 = await self.find_placement(UnitTypeId.SPAWNINGPOOL, pool_near)
         self.fix_speedmining_positions()
 
     async def on_step(self, iteration: int):
@@ -211,7 +209,7 @@ class Pool12AllIn(BotAI):
         elif not pool.is_ready:
             pass
         elif self.larva and 1 <= self.supply_left:
-            max_pending_drones = self.townhalls.amount
+            max_pending_drones = max(3, math.ceil(self.townhalls.amount / 2))
             if self.supply_workers < drone_max and mineral_starved and abilities[AbilityId.LARVATRAIN_DRONE] < max_pending_drones:
                 self.train(UnitTypeId.DRONE, max_pending_drones - abilities[AbilityId.LARVATRAIN_DRONE])
             self.train(UnitTypeId.ZERGLING, self.larva.amount)
