@@ -20,7 +20,7 @@ class ZergMacro(ZergStrategy):
 
     def composition(self, bot) -> Dict[UnitTypeId, int]:
 
-        worker_limit = 88
+        worker_limit = 100
         enemy_max_workers = 22 * bot.block_manager.enemy_base_count
         worker_target = min(
             worker_limit,
@@ -30,7 +30,7 @@ class ZergMacro(ZergStrategy):
         worker_target = max(worker_target, 1)
         worker_count = bot.count(UnitTypeId.DRONE, include_planned=False)
         ratio = max(
-            bot.threat_level,
+            2/3 * bot.threat_level,
             -2 + 3 *(worker_count / worker_target),
         )
         ratio = min(1, ratio)
@@ -52,7 +52,7 @@ class ZergMacro(ZergStrategy):
             UnitTypeId.QUEEN: queen_target,
         }
 
-        self.tech_up = 40 <= worker_count and 3 <= bot.townhalls.ready.amount
+        self.tech_up = 32 <= worker_count and 3 <= bot.townhalls.ready.amount
 
         # composition[UnitTypeId.ZERGLING] = 0
         # composition[UnitTypeId.ROACH] = 0
