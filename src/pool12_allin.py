@@ -209,7 +209,7 @@ class Pool12AllIn(BotAI):
         elif not pool.is_ready:
             pass
         elif self.larva and 1 <= self.supply_left:
-            max_pending_drones = min(3, self.townhalls.amount)
+            max_pending_drones = min(3, math.ceil(self.townhalls.amount / 2))
             if self.supply_workers < drone_max and mineral_starved and abilities[AbilityId.LARVATRAIN_DRONE] < max_pending_drones:
                 self.train(UnitTypeId.DRONE, max_pending_drones - abilities[AbilityId.LARVATRAIN_DRONE])
             self.train(UnitTypeId.ZERGLING, self.larva.amount)
