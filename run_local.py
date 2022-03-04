@@ -14,6 +14,9 @@ from sc2.player import Bot, Computer
 
 from src.pool12_allin import Pool12AllIn
 from src.lingflood import LingFlood
+from src.strategies.muta import Muta
+from src.strategies.bane_bust import BaneBust
+from src.strategies.roach_ling_bust import RoachLingBust
 from src.strategies.hatch_first import HatchFirst
 from src.strategies.pool12 import Pool12
 from src.strategies.roach_rush import RoachRush
@@ -25,12 +28,12 @@ from test import CompetitiveBot
 
 MAPS = [
     # 'BerlingradAIE',
-    # 'CuriousMindsAIE',
+    'CuriousMindsAIE',
     # 'HardwireAIE',
     # 'GlitteringAshesAIE',
     # 'OxideAIE',
     # 'RomanticideAIE',
-    '2000AtmospheresAIE',
+    # '2000AtmospheresAIE',
     # 'LightshadeAIE',
     # 'JagannathaAIE',
     # 'BlackburnAIE',
@@ -60,16 +63,16 @@ def create_bot():
     # ai = Pool12AllIn()
     # ai = LingFlood()
     # ai = DummyAI()
-    ai = ZergAI(strategy=HatchFirst())
+    ai = ZergAI(strategy=RoachRush())
     ai.debug = True
-    ai.game_step = 4
+    ai.game_step = 2
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:
-    return [Bot(Race.Zerg, Pool12AllIn())]
-    # for race in RACES:
-    #     for build in BUILDS:
-    #         yield Computer(race, difficulty, ai_build=build)
+    # return [Bot(Race.Zerg, Pool12AllIn())]
+    for race in RACES:
+        for build in BUILDS:
+            yield Computer(race, difficulty, ai_build=build)
 
 if __name__ == "__main__":
 
@@ -90,10 +93,10 @@ if __name__ == "__main__":
         stats.sort_stats(pstats.SortKey.TIME)
         stats.dump_stats(filename='profiling.prof')
 
-        for game, result in zip(games, results):
-            opponent = game.players[1]
-            key = f'{opponent.race.name} {opponent.ai_build.name} {game.map_sc2.name}'
-            result_dict[key].append(result[game.players[0]].name)
+        # for game, result in zip(games, results):
+        #     opponent = game.players[1]
+        #     key = f'{opponent.race.name} {opponent.ai_build.name} {game.map_sc2.name}'
+        #     result_dict[key].append(result[game.players[0]].name)
 
-        with open(RESULT_PATH, 'w') as file:
-            json.dump(dict(result_dict), file, indent=4)
+        # with open(RESULT_PATH, 'w') as file:
+        #     json.dump(dict(result_dict), file, indent=4)

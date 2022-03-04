@@ -16,7 +16,7 @@ class ResourceBase(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def try_remove_any(self) -> Optional[Tuple[int, 'ResourceBase']]:
+    def try_remove_any(self, force: bool = True) -> Optional[int]:
         raise NotImplementedError()
 
     @abstractmethod
@@ -54,8 +54,8 @@ class ResourceBase(ABC):
     def update(self, bot):
         pass
 
-    def try_transfer_to(self, other: 'ResourceBase') -> Optional[int]:
-        if not (harvester := self.try_remove_any()):
+    def try_transfer_to(self, other: 'ResourceBase', force: bool = True) -> Optional[int]:
+        if not (harvester := self.try_remove_any(force=force)):
             return None
         if other.try_add(harvester):
             return harvester

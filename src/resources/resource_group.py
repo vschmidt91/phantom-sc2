@@ -53,29 +53,33 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         if not resource:
             resource = min(
                 (r for r in self.items),
-                key=lambda r : r.harvester_balance,
+                key=lambda r : r.harvester_balance - math.exp(-r.position.distance_to(self.position)),
                 default=None
             )
         if not resource:
             return False
         return resource.try_add(harvester)
 
-    def try_remove_any(self) -> Optional[int]:
+    def try_remove_any(self, force: bool = True) -> Optional[int]:
         if self.balance_evenly:
             resource = max(
                 (r for r in self.items if 0 < r.harvester_count),
-                key = lambda r : r.harvester_balance,
+                key = lambda r : r.harvester_balance + math.exp(-r.position.distance_to(self.position)),
                 default = None
             )
-            if resource:
-                return resource.try_remove_any()
+            if (
+                resource
+                and (force or 0 < resource.harvester_balance)
+            ):
+                return resource.try_remove_any(force=force)
         else:
             for resource in reversed(self.items):
                 if 0 < resource.harvester_balance:
-                    return resource.try_remove_any()
-            for resource in reversed(self.items):
-                if 0 < resource.harvester_count:
-                    return resource.try_remove_any()
+                    return resource.try_remove_any(force=force)
+            if force:
+                for resource in reversed(self.items):
+                    if 0 < resource.harvester_count:
+                        return resource.try_remove_any(force=force)
         return None
 
     def try_remove(self, harvester: int) -> bool:
@@ -117,12 +121,15 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
 
         self.remaining = sum(r.remaining for r in self.items)
 
-        harvesters_transfered = set()
-        while True:
-            if not (harvester := self.try_remove_any()):
-                break
-            if not self.try_add(harvester):
-                break
-            if harvester in harvesters_transfered:
-                break
-            harvesters_transfered.add(harvester)
+        # harvesters_transfered = set()
+        # while True:
+        #     if not (harvester := self.try_remove_any()):
+        #         break
+        #     if not self.try_add(harvester):
+        #         break
+        #     if harvester in harvesters_transfered:
+        #         break
+        #     harvesters_transfered.add(harvester)
+        
+        if harvester := self.try_remove_any(force=False):
+            self.try_add(harvester)

@@ -1,5 +1,6 @@
 
 from sc2.bot_ai import BotAI
+from sc2.data import Alliance
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 
@@ -16,6 +17,10 @@ class DummyAI(BotAI):
         pass
     
     async def on_step(self, iteration: int):
+
+        for unit in self.all_units:
+            if unit.alliance == 3:
+                unit.move(self.start_location)
 
         # if not self.units(UnitTypeId.QUEEN):
         #     return

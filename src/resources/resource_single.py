@@ -23,8 +23,10 @@ class ResourceSingle(ResourceBase):
         self.harvester_set.add(harvester)
         return True
 
-    def try_remove_any(self) -> Optional[int]:
+    def try_remove_any(self, force: bool = True) -> Optional[int]:
         if not any(self.harvesters):
+            return None
+        if not force and self.harvester_balance <= 0:
             return None
         return self.harvester_set.pop()
 

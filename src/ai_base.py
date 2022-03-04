@@ -8,7 +8,7 @@ from functools import cache
 import math
 import random
 from re import S
-from typing import Any, DefaultDict, Iterable, Optional, Tuple, Union, Coroutine, Set, List, Callable, Dict
+from typing import Any, DefaultDict, Iterable, Optional, Tuple, Type, Union, Coroutine, Set, List, Callable, Dict
 import numpy as np
 import os
 import json
@@ -63,6 +63,19 @@ class PlacementNotFoundError(Exception):
 class VersionConflictError(Exception):
     pass
 
+GREET_MESSAGES = [
+    "Who dares to challenge me?",
+    "None shall pass. I move for no bot.",
+    # "Then you shall die."
+]
+
+LOSS_MESSAGES = [
+    "'tis but a scratch!",
+    "It's just a flesh wound.",
+    "I'M INVINCIBLE",
+    "Alright... we'll call it a draw."
+]
+
 @dataclass
 class MapStaticData:
 
@@ -82,8 +95,11 @@ class AIBase(ABC, BotAI):
 
         # self.raw_affects_selection = True
 
+        self.message_greet = random.choice(GREET_MESSAGES)
+        self.message_loss = random.choice(LOSS_MESSAGES)
+
         self.version: str = None
-        self.tags: Set[str] = set()
+        self.messages: Set[str] = set()
         self.game_step: int = game_step
         self.performance: PerformanceMode = performance
         self.debug: bool = debug
@@ -145,14 +161,17 @@ class AIBase(ABC, BotAI):
     def destroy_destructables(self):
         return True
 
+    async def add_message(self, message: str, team_only: bool = False):
+        if message not in self.messages:
+            await self.client.chat_send(message, team_only)
+            self.messages.add(message)
+
     async def add_tag(self, tag: str, include_time: bool = True):
-        if tag not in self.tags:
-            if include_time:
-                message = f'Tag:{tag}@{self.time_formatted}'
-            else:
-                message = f'Tag:{tag}'
-            await self.client.chat_send(message, True)
-            self.tags.add(tag)
+        if include_time:
+            message = f'Tag:{tag}@{self.time_formatted}'
+        else:
+            message = f'Tag:{tag}'
+        await self.add_message(message, True)
 
     async def on_before_start(self):
 
@@ -275,6 +294,13 @@ class AIBase(ABC, BotAI):
                 yield unit
 
     async def on_step(self, iteration: int):
+
+        # if 20 < self.time:
+        #     await self.add_message(self.message_greet)
+
+        if 5 * 60 < self.time and 0.8 < self.threat_level:
+            await self.add_message(self.message_loss)
+
         self.block_manager.execute()
         self.scout_manager.execute()
         pass
@@ -500,40 +526,44 @@ class AIBase(ABC, BotAI):
         worker_type = race_worker[self.race]
         gas_target = gas_ratio * self.count(worker_type, include_planned=False, include_pending=False)
 
-        if 0 < gas_target:
-            gas_target = max(1.5, gas_target)
+        # if 0 < gas_target:
+        #     gas_target = max(1.5, gas_target)
 
         # gas_target = math.ceil(gas_target)
-        # gas_target = 3 * math.ceil(gas_target / 3)
         # gas_target = math.ceil(gas_target * 2/3)
         # gas_target = math.ceil(gas_target * 3/2)
-        return gas_target
+        
+        gas_target = 3 * math.ceil(gas_target / 3)
+        # gas_target = 1.5 * math.ceil(gas_target / 1.5)
+
+        return math.ceil(gas_target)
 
     def transfer_to_and_from_gas(self, gas_target: int):
 
-        while self.gas_harvester_count + 1 <= gas_target:
+        if self.gas_harvester_count + 1 <= gas_target:
             base = max(
                 (b for b in self.bases if 0 < b.mineral_patches.harvester_count and b.vespene_geysers.harvester_balance < 0),
                 key = lambda b : b.mineral_patches.harvester_balance - b.vespene_geysers.harvester_balance,
                 default = None
             )
             if not base:
-                break
+                return
             if not base.mineral_patches.try_transfer_to(base.vespene_geysers):
                 print('transfer to gas failure')
-                break
+                return
 
-        while gas_target <= self.gas_harvester_count - 1:
+        elif gas_target < self.gas_harvester_count - 1:
             base = max(
-                (b for b in self.bases if 0 < b.vespene_geysers.harvester_count and b.mineral_patches.harvester_balance < 0),
+                # (b for b in self.bases if 0 < b.vespene_geysers.harvester_count and b.mineral_patches.harvester_balance < 0),
+                (b for b in self.bases if 0 < b.vespene_geysers.harvester_count and 0 < b.mineral_patches.harvester_target),
                 key = lambda b : b.vespene_geysers.harvester_balance - b.mineral_patches.harvester_balance,
                 default = None
             )
             if not base:
-                break
+                return
             if not base.vespene_geysers.try_transfer_to(base.mineral_patches):
                 print('transfer from gas failure')
-                break
+                return
         
     def update_bases(self):
 
@@ -574,7 +604,7 @@ class AIBase(ABC, BotAI):
         ), key = lambda b : self.map_data.distance[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
         self.bases = ResourceGroup(bases)
-        self.bases.balance_evenly = True
+        # self.bases.balance_evenly = True
         self.bases[0].split_initial_workers(set(self.workers))
         self.bases[-1].taken_since = 0
 
@@ -788,8 +818,8 @@ class AIBase(ABC, BotAI):
             # ):
             #     continue
 
-            # if (2 if self.extractor_trick_enabled else 1) <= i and plan.priority == BUILD_ORDER_PRIORITY:
-            #     break
+            if (2 if self.extractor_trick_enabled else 1) <= i and plan.priority == BUILD_ORDER_PRIORITY:
+                break
 
             unit = None
             if plan.unit:
@@ -897,19 +927,30 @@ class AIBase(ABC, BotAI):
 
     def search_trainer(self, item: Union[UnitTypeId, UpgradeId], exclude: Set[int]) -> Tuple[Unit, any]:
 
-        if type(item) is UnitTypeId:
+        if type(item) == UnitTypeId:
             trainer_types = {
                 equivalent
                 for trainer in UNIT_TRAINED_FROM[item]
                 for equivalent in WITH_TECH_EQUIVALENTS[trainer]
             }
-        elif type(item) is UpgradeId:
+        elif type(item) == UpgradeId:
             trainer_types = WITH_TECH_EQUIVALENTS[UPGRADE_RESEARCHED_FROM[item]]
+
+        def enumerate_trainers(trainer_type: UnitTypeId) -> Iterable[Unit]:
+            if trainer_type == race_worker[self.race]:
+                if tag := self.bases.try_remove_any(True):
+                    if tag not in exclude:
+                        if unit := self.unit_by_tag.get(tag):
+                            if unit.type_id == trainer_type:
+                                return [unit]
+                    else:
+                        self.bases.try_add(tag)
+            return self.actual_by_type[trainer_type]
 
         trainers = sorted((
             trainer
             for trainer_type in trainer_types
-            for trainer in self.actual_by_type[trainer_type]
+            for trainer in enumerate_trainers(trainer_type)
         ), key=lambda t:t.tag)
             
         for trainer in trainers:

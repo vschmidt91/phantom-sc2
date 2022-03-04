@@ -34,6 +34,8 @@ from .behaviors.unit_manager import UnitManager
 from .strategies.gasless import GasLess
 from .strategies.roach_rush import RoachRush
 from .strategies.hatch_first import HatchFirst
+from .strategies.roach_ling_bust import RoachLingBust
+from .strategies.muta import Muta
 from .strategies.pool12 import Pool12
 from .strategies.zerg_strategy import ZergStrategy
 from .constants import CHANGELINGS, CREEP_ABILITIES, SUPPLY_PROVIDED
@@ -102,6 +104,7 @@ class ZergAI(AIBase):
         self.creep_coverage: float = 0
         self.creep_tile_count: int = 1
         self.build_spores: bool = False
+        self.build_spines: bool = False
 
     async def micro(self):
         await super().micro()
@@ -168,10 +171,27 @@ class ZergAI(AIBase):
         # ])
 
         if not self.strategy:
-            strategy_classes = [
-                HatchFirst,
-                # RoachRush
-            ]
+            strategy_classes = [HatchFirst]
+            if self.enemy_race == Race.Protoss:
+                strategy_classes = [
+                    # HatchFirst,
+                    # RoachRush,
+                    Muta,
+                    # RoachLingBust,
+                ]
+            elif self.enemy_race == Race.Zerg:
+                strategy_classes = [
+                    # HatchFirst,
+                    RoachRush,
+                    # Muta,
+                    RoachLingBust,
+                ]
+            elif self.enemy_race == Race.Terran:
+                strategy_classes = [
+                    HatchFirst,
+                    RoachRush,
+                    RoachLingBust,
+                ]
             # if self.enemy_race == Race.Protoss:
             #     strategy_classes.append(Pool12)
             self.strategy = random.choice(strategy_classes)()
@@ -230,9 +250,9 @@ class ZergAI(AIBase):
         if iteration == 0:
             return
 
-        if 1 < self.time:
-            await self.add_tag(self.version, False)
-            await self.add_tag(type(self.strategy).__name__, False)
+        # if 1 < self.time:
+        #     await self.add_tag(self.version, False)
+        #     await self.add_tag(type(self.strategy).__name__, False)
 
         steps = self.strategy.steps(self)
 
@@ -330,9 +350,9 @@ class ZergAI(AIBase):
         upgrades = list(dict.fromkeys(upgrades))
         upgrades = [u for u in upgrades if self.strategy.filter_upgrade(self, u)]
         targets = (
+            *upgrades,
             *chain(*(REQUIREMENTS[unit] for unit in self.composition)),
             *chain(*(REQUIREMENTS[upgrade] for upgrade in upgrades)),
-            *upgrades,
         )
         targets = list(dict.fromkeys(targets))
         for target in targets:
@@ -362,6 +382,7 @@ class ZergAI(AIBase):
             if (
                 1 <= i
                 and base.townhall
+                and self.build_spines
                 # and 1 <= self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False)
                 # and self.block_manager.enemy_base_count <= 1
             ):
