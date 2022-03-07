@@ -12,13 +12,13 @@ class Muta(HatchFirst):
         if 7 * 60 < bot.time:
             return super().composition(bot)
         composition = super().composition(bot)
-        # if UnitTypeId.ROACH in composition:
-        #     del composition[UnitTypeId.ROACH]
-        # if UnitTypeId.RAVAGER in composition:
-        #     del composition[UnitTypeId.RAVAGER]
+        if UnitTypeId.ROACH in composition:
+            del composition[UnitTypeId.ROACH]
+        if UnitTypeId.RAVAGER in composition:
+            del composition[UnitTypeId.RAVAGER]
         if UnitTypeId.HYDRALISK in composition:
             del composition[UnitTypeId.HYDRALISK]
-        if 1 <= bot.count(UnitTypeId.QUEEN, include_planned=False):
+        if 2 <= bot.count(UnitTypeId.QUEEN, include_planned=False):
             composition[UnitTypeId.LAIR] = 1
         if 1 <= bot.count(UnitTypeId.LAIR, include_planned=False):
             composition[UnitTypeId.MUTALISK] = composition[UnitTypeId.DRONE] // 3

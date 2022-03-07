@@ -56,7 +56,8 @@ class ZergMacro(ZergStrategy):
         self.tech_up = 40 <= worker_count and 3 <= bot.townhalls.ready.amount
 
         # composition[UnitTypeId.ZERGLING] = 0
-        composition[UnitTypeId.ROACH] = 0
+        if 2.5 * 60 <= bot.time:
+            composition[UnitTypeId.ROACH] = 0
 
         # self.tech_up = True
 
