@@ -172,7 +172,7 @@ class ZergAI(AIBase):
         # ])
 
         if not self.strategy:
-            strategy_classes = [HatchFirst]
+            strategy_classes = [HatchFirst, RoachRush, RoachLingBust]
             print(self.opponent_id)
             if opponent_name := OPPONENTS.get(self.opponent_id):
                 print(opponent_name)
