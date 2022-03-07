@@ -6,6 +6,7 @@ from enum import Enum
 from dataclasses import dataclass
 from functools import cache
 import math
+import re
 import random
 from re import S
 from typing import Any, DefaultDict, Iterable, Optional, Tuple, Type, Union, Coroutine, Set, List, Callable, Dict
@@ -39,14 +40,21 @@ from sc2.data import Result, race_townhalls, race_worker, ActionResult
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.units import Units
-from src.behaviors.block_manager import BlockManager
-from src.behaviors.scout_manager import ScoutManager
+from src.managers.drop_manager import DropManager
+
+from .managers.block_manager import BlockManager
+from .managers.scout_manager import ScoutManager
+from .managers.unit_manager import IGNORED_UNIT_TYPES, UnitManager
+from .managers.block_manager import BlockManager
+
+from src.chat import RESPONSES
 from src.value_map import ValueMap
+
+from .chat import FIGHT_MESSAGES, GREET_MESSAGES, LOSS_MESSAGES
 
 from .resources.base import Base
 from .resources.resource_group import ResourceGroup
 from .behaviors.dodge import *
-from .behaviors.unit_manager import IGNORED_UNIT_TYPES, UnitManager
 from .constants import *
 from .macro_plan import MacroPlan
 from .cost import Cost
@@ -63,19 +71,6 @@ class PlacementNotFoundError(Exception):
 class VersionConflictError(Exception):
     pass
 
-GREET_MESSAGES = [
-    "Who dares to challenge me?",
-    "None shall pass. I move for no bot.",
-    # "Then you shall die."
-]
-
-LOSS_MESSAGES = [
-    "'tis but a scratch!",
-    "It's just a flesh wound.",
-    "I'M INVINCIBLE",
-    "Alright... we'll call it a draw."
-]
-
 @dataclass
 class MapStaticData:
 
@@ -88,7 +83,7 @@ class MapStaticData:
 class AIBase(ABC, BotAI):
 
     def __init__(self,
-        game_step: int = 3,
+        game_step: int = 2,
         debug: bool = False,
         performance: PerformanceMode = PerformanceMode.DEFAULT,
     ):
@@ -96,6 +91,7 @@ class AIBase(ABC, BotAI):
         # self.raw_affects_selection = True
 
         self.message_greet = random.choice(GREET_MESSAGES)
+        self.message_fight = random.choice(FIGHT_MESSAGES)
         self.message_loss = random.choice(LOSS_MESSAGES)
 
         self.version: str = None
@@ -127,6 +123,7 @@ class AIBase(ABC, BotAI):
         self.destructables_fixed: Set[Unit] = set()
         self.damage_taken: Dict[int] = dict()
         self.gg_sent: bool = False
+        self.opponent_name: Optional[str] = None
         self.unit_ref: Optional[int] = None
         self.advantage_map: np.ndarray = None
         self.dodge: List[DodgeElement] = list()
@@ -139,11 +136,10 @@ class AIBase(ABC, BotAI):
         self.enemy_influence_map: np.ndarray = None
         self.enemy_vs_ground_map: np.ndarray = None
         self.enemy_vs_air_map: np.ndarray = None
-        self.unit_manager: UnitManager = UnitManager(self)
-        self.tumor_front_tags: Set[int] = set()
-        self.block_manager: BlockManager = BlockManager(self)
-        self.scout_manager: ScoutManager = ScoutManager(self)
         self.extractor_trick_enabled: bool = False
+        self.tumor_front_tags: Set[int] = set()
+
+        super().__init__()
 
     @property
     def is_speedmining_enabled(self) -> bool:
@@ -211,7 +207,13 @@ class AIBase(ABC, BotAI):
 
         self.map_analyzer = MapData(self)
         self.map_data = await self.load_map_data()
+        
         await self.initialize_bases()
+
+        self.block_manager: BlockManager = BlockManager(self)
+        self.scout_manager: ScoutManager = ScoutManager(self)
+        self.drop_manager: DropManager = DropManager(self)
+        self.unit_manager: UnitManager = UnitManager(self)
 
     def handle_errors(self):
         for error in self.state.action_errors:
@@ -295,10 +297,25 @@ class AIBase(ABC, BotAI):
 
     async def on_step(self, iteration: int):
 
+        for item in self.state.chat:
+            if item.player_id == self.player_id:
+                continue
+            for pattern, response in RESPONSES.items():
+                if match := re.search(pattern, item.message):
+                    await self.add_message(response)
+                    break
+
+        if 1 < self.time:
+            if self.opponent_name:
+                await self.add_message(f'(glhf) {self.opponent_name}')
+
         # if 20 < self.time:
         #     await self.add_message(self.message_greet)
 
-        if 5 * 60 < self.time and 0.8 < self.threat_level:
+        if 2 * 60 < self.time and 0.5 < self.threat_level:
+            await self.add_message(self.message_fight)
+
+        if 4 * 60 < self.time and 0.8 < self.threat_level:
             await self.add_message(self.message_loss)
 
         self.block_manager.execute()

@@ -27,7 +27,6 @@ class RoachLingBust(ZergMacro):
             UnitTypeId.QUEEN,
             UnitTypeId.ZERGLING,
             UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
             UnitTypeId.ROACHWARREN,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
@@ -41,6 +40,18 @@ class RoachLingBust(ZergMacro):
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
+            UnitTypeId.OVERLORD,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            # UnitTypeId.ROACH,
+            # UnitTypeId.ROACH,
 
             # UnitTypeId.ROACH,
             # UnitTypeId.ROACH,
@@ -49,20 +60,7 @@ class RoachLingBust(ZergMacro):
             # UnitTypeId.ROACH,
 
             # UnitTypeId.ROACH,
-            # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
         ]
-
-    def composition(self, bot) -> Dict[UnitTypeId, int]:
-        composition = super().composition(bot)
-        # composition[UnitTypeId.ROACH] = 10
-        composition[UnitTypeId.ZERGLING] = composition[UnitTypeId.DRONE]
-        return composition
-
     def update(self, bot):
         bot.build_spines = False
         if (

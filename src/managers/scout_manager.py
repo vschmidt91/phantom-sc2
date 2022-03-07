@@ -10,7 +10,7 @@ from sc2.position import Point2
 
 from ..constants import CHANGELINGS
 from ..resources.base import Base
-from .behavior import Behavior, BehaviorResult, UnitBehavior
+from ..behaviors.behavior import Behavior, BehaviorResult, UnitBehavior
 if TYPE_CHECKING:
     from ..ai_base import AIBase
     

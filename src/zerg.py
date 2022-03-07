@@ -1,5 +1,6 @@
 
 from collections import defaultdict
+import datetime
 import inspect
 import math
 import itertools, random
@@ -19,6 +20,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.position import Point2
 from sc2.unit_command import UnitCommand
+from src.probots import OPPONENTS, STRATEGIES
 
 from .unit_counters import UNIT_COUNTERS
 from .behaviors.behavior import Behavior, BehaviorSelector, BehaviorSequence
@@ -30,7 +32,7 @@ from .behaviors.gather import GatherBehavior
 from .behaviors.survive import SurviveBehavior
 from .behaviors.launch_corrosive_biles import LaunchCorrosiveBilesBehavior
 from .behaviors.transfuse import TransfuseBehavior
-from .behaviors.unit_manager import UnitManager
+from .managers.unit_manager import UnitManager
 from .strategies.gasless import GasLess
 from .strategies.roach_rush import RoachRush
 from .strategies.hatch_first import HatchFirst
@@ -166,34 +168,18 @@ class ZergAI(AIBase):
     async def on_start(self):
 
         # await self.client.debug_create_unit([
-        #     [UnitTypeId.RAVAGER, 20, self.game_info.map_center, 2],
-        #     [UnitTypeId.RAVAGER, 20, self.game_info.map_center, 1],
+        #     [UnitTypeId.OVERLORDTRANSPORT, 1, self.game_info.map_center, 1],
         # ])
 
         if not self.strategy:
             strategy_classes = [HatchFirst]
-            if self.enemy_race == Race.Protoss:
-                strategy_classes = [
-                    # HatchFirst,
-                    # RoachRush,
-                    Muta,
-                    # RoachLingBust,
-                ]
-            elif self.enemy_race == Race.Zerg:
-                strategy_classes = [
-                    # HatchFirst,
-                    RoachRush,
-                    # Muta,
-                    RoachLingBust,
-                ]
-            elif self.enemy_race == Race.Terran:
-                strategy_classes = [
-                    HatchFirst,
-                    RoachRush,
-                    RoachLingBust,
-                ]
-            # if self.enemy_race == Race.Protoss:
-            #     strategy_classes.append(Pool12)
+            print(self.opponent_id)
+            if opponent_name := OPPONENTS.get(self.opponent_id):
+                print(opponent_name)
+                self.opponent_name = opponent_name
+                if prepared_strategies := STRATEGIES.get(opponent_name):
+                    print(prepared_strategies)
+                    strategy_classes = prepared_strategies
             self.strategy = random.choice(strategy_classes)()
 
         for step in self.strategy.build_order():

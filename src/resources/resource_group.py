@@ -71,15 +71,15 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
                 resource
                 and (force or 0 < resource.harvester_balance)
             ):
-                return resource.try_remove_any(force=force)
+                return resource.try_remove_any(force=True)
         else:
             for resource in reversed(self.items):
                 if 0 < resource.harvester_balance:
-                    return resource.try_remove_any(force=force)
+                    return resource.try_remove_any(force=True)
             if force:
                 for resource in reversed(self.items):
                     if 0 < resource.harvester_count:
-                        return resource.try_remove_any(force=force)
+                        return resource.try_remove_any(force=True)
         return None
 
     def try_remove(self, harvester: int) -> bool:

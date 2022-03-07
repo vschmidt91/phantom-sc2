@@ -11,7 +11,7 @@ from sc2.data import race_townhalls
 
 from ..constants import CHANGELINGS
 from ..resources.base import Base
-from .behavior import Behavior, BehaviorResult, UnitBehavior
+from ..behaviors.behavior import Behavior, BehaviorResult, UnitBehavior
 if TYPE_CHECKING:
     from ..ai_base import AIBase
     

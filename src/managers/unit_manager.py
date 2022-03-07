@@ -14,24 +14,27 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
-from .changeling_scout import ChangelingSpawnBehavior
-from .burrow import BurrowBehavior
-from .dodge import DodgeBehavior
-from .fight import FightBehavior
-from .launch_corrosive_biles import LaunchCorrosiveBilesBehavior
-from .search import SearchBehavior
+from src.behaviors.hide import HideBehavior
+
+from ..behaviors.changeling_scout import ChangelingSpawnBehavior
+from ..behaviors.burrow import BurrowBehavior
+from ..behaviors.dodge import DodgeBehavior
+from ..behaviors.fight import FightBehavior
+from ..behaviors.launch_corrosive_biles import LaunchCorrosiveBilesBehavior
+from ..behaviors.search import SearchBehavior
 from .scout_manager import ScoutBehavior
-from .transfuse import TransfuseBehavior
-from .survive import SurviveBehavior
-from .macro import MacroBehavior
-from .inject import InjectBehavior
-from .gather import GatherBehavior
-from .spread_creep import SpreadCreepBehavior
-from .extractor_trick import ExtractorTrickBehavior
+from ..behaviors.transfuse import TransfuseBehavior
+from ..behaviors.survive import SurviveBehavior
+from ..behaviors.macro import MacroBehavior
+from ..managers.drop_manager import DropBehavior
+from ..behaviors.inject import InjectBehavior
+from ..behaviors.gather import GatherBehavior
+from ..behaviors.spread_creep import SpreadCreepBehavior
+from ..behaviors.extractor_trick import ExtractorTrickBehavior
 from .block_manager import DetectBehavior
 from ..utils import *
 from ..constants import *
-from .behavior import Behavior, BehaviorResult, LambdaBehavior, BehaviorSequence, BehaviorSelector, SwitchBehavior, UnitBehavior, LambdaBehavior
+from ..behaviors.behavior import Behavior, BehaviorResult, LambdaBehavior, BehaviorSequence, BehaviorSelector, SwitchBehavior, UnitBehavior, LambdaBehavior
 from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -123,6 +126,7 @@ class UnitManager(Behavior):
             'overlord': BehaviorSequence([
                     MacroBehavior(self.ai, unit_tag),
                     DodgeBehavior(self.ai, unit_tag),
+                    DropBehavior(self.ai, unit_tag),
                     SurviveBehavior(self.ai, unit_tag),
                     ScoutBehavior(self.ai, unit_tag),
                 ]),
@@ -147,6 +151,8 @@ class UnitManager(Behavior):
                     DodgeBehavior(self.ai, unit_tag),
                     BurrowBehavior(self.ai, unit_tag),
                     LaunchCorrosiveBilesBehavior(self.ai, unit_tag),
+                    DropBehavior(self.ai, unit_tag),
+                    # HideBehavior(self.ai, unit_tag),
                     FightBehavior(self.ai, unit_tag),
                     SearchBehavior(self.ai, unit_tag),
                 ]),

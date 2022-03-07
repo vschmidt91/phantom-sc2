@@ -101,7 +101,7 @@ class FightBehavior(UnitBehavior):
                 else:
                     return FightStance.FIGHT
             elif self.stance is FightStance.FIGHT:
-                if advantage < 1/2:
+                if advantage < 1/3:
                     return FightStance.FLEE
                 else:
                     return FightStance.FIGHT
@@ -120,6 +120,9 @@ class FightBehavior(UnitBehavior):
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
         if unit.type_id == UnitTypeId.OVERLORD:
+            return BehaviorResult.SUCCESS
+
+        if unit.type_id == UnitTypeId.DRONE and self.ai.time < 2 * 60:
             return BehaviorResult.SUCCESS
 
         target, priority = max(

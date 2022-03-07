@@ -49,6 +49,7 @@ def run_ladder_game(bot):
     opponent = args.OpponentId
     if not opponent:
         opponent = "unknown"
+    bot.ai.opponent_id = opponent
 
     # Join ladder game
     g = join_ladder_game(host=host, port=host_port, players=[bot], realtime=args.RealTime, portconfig=portconfig)
