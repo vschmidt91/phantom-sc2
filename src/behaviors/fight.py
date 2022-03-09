@@ -122,9 +122,6 @@ class FightBehavior(UnitBehavior):
         if unit.type_id == UnitTypeId.OVERLORD:
             return BehaviorResult.SUCCESS
 
-        if unit.type_id == UnitTypeId.DRONE and self.ai.time < 2 * 60:
-            return BehaviorResult.SUCCESS
-
         target, priority = max(
             ((t, self.target_priority(unit, t))
             for t in self.ai.enumerate_enemies()),
