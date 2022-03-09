@@ -31,7 +31,7 @@ class ZergMacro(ZergStrategy):
         worker_target = max(worker_target, 1)
         worker_count = bot.count(UnitTypeId.DRONE, include_planned=False)
         ratio = max(
-            2 * bot.threat_level,
+            min(1, 1.5 * bot.threat_level),
             pow(worker_count / worker_target, 2),
         )
         ratio = min(1, ratio)
@@ -53,15 +53,15 @@ class ZergMacro(ZergStrategy):
             UnitTypeId.QUEEN: queen_target,
         }
 
-        self.tech_up = 40 <= worker_count and 3 <= bot.townhalls.amount
+        tech_up = 40 <= worker_count and 3 <= bot.townhalls.amount
 
         # composition[UnitTypeId.ZERGLING] = 0
         # if 2.5 * 60 <= bot.time:
         #     composition[UnitTypeId.ROACH] = 0
 
-        # self.tech_up = True
+        # tech_up = True
 
-        if self.tech_up:
+        if tech_up:
             composition[UnitTypeId.ROACH] = 0
             composition[UnitTypeId.HYDRALISK] = 0
             # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
@@ -73,7 +73,7 @@ class ZergMacro(ZergStrategy):
             composition[UnitTypeId.OVERSEER] = 2
 
         # if bot.count(UnitTypeId.ROACHWARREN, include_planned=False):
-        if self.tech_up:
+        if tech_up:
             if bot.count(UnitTypeId.HYDRALISKDEN, include_pending=False, include_planned=False):
                 hydra_ratio = enemy_flyer_ratio
                 composition[UnitTypeId.ROACH] = int(ratio * worker_target * (1 - hydra_ratio))
@@ -97,18 +97,18 @@ class ZergMacro(ZergStrategy):
         return 5 * 60 < bot.time
 
     def filter_upgrade(self, bot, upgrade) -> bool:
-        if upgrade in ZERG_FLYER_UPGRADES:
-            return False
-        elif upgrade in ZERG_FLYER_ARMOR_UPGRADES:
-            return False
-        elif upgrade in ZERG_MELEE_UPGRADES:
-            return False
-        elif upgrade in ZERG_ARMOR_UPGRADES:
-            return self.tech_up
-        elif upgrade in ZERG_RANGED_UPGRADES:
-            return self.tech_up
-        elif upgrade == UpgradeId.GLIALRECONSTITUTION:
-            return self.tech_up
+        # if upgrade in ZERG_FLYER_UPGRADES:
+        #     return False
+        # elif upgrade in ZERG_FLYER_ARMOR_UPGRADES:
+        #     return False
+        # elif upgrade in ZERG_MELEE_UPGRADES:
+        #     return False
+        # elif upgrade in ZERG_ARMOR_UPGRADES:
+        #     return self.tech_up
+        # elif upgrade in ZERG_RANGED_UPGRADES:
+        #     return self.tech_up
+        # elif upgrade == UpgradeId.GLIALRECONSTITUTION:
+        #     return self.tech_up
         # elif upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
         #     return False
         return True
