@@ -312,11 +312,11 @@ class AIBase(ABC, BotAI):
         # if 20 < self.time:
         #     await self.add_message(self.message_greet)
 
-        if 2 * 60 < self.time and 0.5 < self.threat_level:
-            await self.add_message(self.message_fight)
+        # if 2 * 60 < self.time and 0.5 < self.threat_level:
+        #     await self.add_message(self.message_fight)
 
-        if 4 * 60 < self.time and 0.8 < self.threat_level:
-            await self.add_message(self.message_loss)
+        # if 4 * 60 < self.time and 0.8 < self.threat_level:
+        #     await self.add_message(self.message_loss)
 
         self.block_manager.execute()
         self.scout_manager.execute()
@@ -534,12 +534,9 @@ class AIBase(ABC, BotAI):
         cost_sum = sum((self.cost[plan.item] for plan in self.macro_plans), cost_zero)
         cs = [self.cost[unit] * max(0, count - self.count(unit, include_planned=False)) for unit, count in self.composition.items()]
         cost_sum += sum(cs, cost_zero)
-        minerals = max(0, cost_sum.minerals - self.minerals)
-        vespene = max(0, cost_sum.vespene - self.vespene)
-        if 7 * 60 < self.time and (minerals + vespene) == 0:
-            gas_ratio = 6 / 22
-        else:
-            gas_ratio = vespene / max(1, vespene + minerals)
+        minerals = max(16, cost_sum.minerals - self.minerals)
+        vespene = max(6, cost_sum.vespene - self.vespene)
+        gas_ratio = vespene / max(1, vespene + minerals)
         worker_type = race_worker[self.race]
         gas_target = gas_ratio * self.count(worker_type, include_planned=False, include_pending=False)
 
@@ -550,7 +547,7 @@ class AIBase(ABC, BotAI):
         # gas_target = math.ceil(gas_target * 2/3)
         # gas_target = math.ceil(gas_target * 3/2)
         
-        gas_target = 3 * math.ceil(gas_target / 3)
+        gas_target = 2 * math.ceil(gas_target / 2)
         # gas_target = 1.5 * math.ceil(gas_target / 1.5)
 
         return math.ceil(gas_target)

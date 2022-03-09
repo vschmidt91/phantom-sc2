@@ -41,6 +41,7 @@ class GatherBehavior(UnitBehavior):
         target = self.ai.gas_building_by_position.get(resource.position) or self.ai.resource_by_position.get(resource.position)
         if not target:
             return BehaviorResult.FAILURE
+
             
         if base.townhall and self.ai.is_speedmining_enabled and resource.harvester_count < 3:
             
@@ -52,17 +53,18 @@ class GatherBehavior(UnitBehavior):
                 if unit.is_returning:
                     townhall = self.ai.townhalls.ready.closest_to(unit)
                     move_target = townhall.position.towards(unit, townhall.radius + unit.radius)
-                    if 0.75 < unit.position.distance_to(move_target) < 2:
+                    if 0.75 < unit.position.distance_to(move_target) < 1.5:
                         unit.move(move_target)
                         unit(AbilityId.SMART, townhall, True)
-                        # unit(AbilityId.SMART, target, True)
+                    else:
+                        unit.return_resource()
                 else:
                     move_target = None
                     if isinstance(resource, MineralPatch):
                         move_target = resource.speedmining_target
                     if not move_target:
                         move_target = target.position.towards(unit, target.radius + unit.radius)
-                    if 0.75 < unit.position.distance_to(move_target) < 2:
+                    if 0.75 < unit.position.distance_to(move_target) < 1.5:
                         unit.move(move_target)
                         unit(AbilityId.SMART, target, True)
 

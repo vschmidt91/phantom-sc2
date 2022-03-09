@@ -115,10 +115,7 @@ class WorkerStackBot(BotAI):
             self.speedmining_positions[patch.position] = target
 
     async def assign_workers(self):
-        self.minerals_sorted_by_distance = self.mineral_field.closer_than(10,
-                                                                          self.start_location).sorted_by_distance_to(
-                                                                              self.start_location
-                                                                          )
+        self.minerals_sorted_by_distance = self.mineral_field.closer_than(10, self.start_location).sorted_by_distance_to(self.start_location)
 
         # Assign workers to mineral patch, start with the mineral patch closest to base
         for i, mineral in enumerate(self.minerals_sorted_by_distance):
@@ -169,7 +166,7 @@ class WorkerStackBot(BotAI):
                         target = mineral
                         move_target = self.speedmining_positions[mineral.position]
                     if (
-                        0.75 < worker.distance_to(move_target) < 2
+                        0.75 < worker.distance_to(move_target) < 1.5
                         or (0.75 < worker.distance_to(move_target) and worker.is_returning)
                     ):
                         worker.move(move_target)

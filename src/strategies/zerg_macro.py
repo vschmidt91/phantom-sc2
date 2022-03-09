@@ -46,7 +46,7 @@ class ZergMacro(ZergStrategy):
         enemy_ground_value = sum(enemy_value[e.tag] for e in bot.enemies.values() if not e.is_flying)
         enemy_flyer_ratio = enemy_flyer_value / max(1, enemy_flyer_value + enemy_ground_value)
 
-        queen_target = min(8, 2 * bot.townhalls.amount)
+        queen_target = min(5, bot.townhalls.amount)
 
         composition = {
             UnitTypeId.DRONE: worker_target,
@@ -56,8 +56,8 @@ class ZergMacro(ZergStrategy):
         self.tech_up = 40 <= worker_count and 3 <= bot.townhalls.ready.amount
 
         # composition[UnitTypeId.ZERGLING] = 0
-        if 2.5 * 60 <= bot.time:
-            composition[UnitTypeId.ROACH] = 0
+        # if 2.5 * 60 <= bot.time:
+        #     composition[UnitTypeId.ROACH] = 0
 
         # self.tech_up = True
 
@@ -108,8 +108,8 @@ class ZergMacro(ZergStrategy):
             return self.tech_up
         elif upgrade == UpgradeId.GLIALRECONSTITUTION:
             return self.tech_up
-        elif upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
-            return False
+        # elif upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
+        #     return False
         return True
 
     def steps(self, bot):

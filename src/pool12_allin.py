@@ -160,7 +160,7 @@ class Pool12AllIn(BotAI):
                                 move_target = target.position.towards(unit.position, target.radius + unit.radius)
                     else:
                         target = None
-                    if target and 0.75 < unit.distance_to(move_target) < 2:
+                    if target and 0.75 < unit.distance_to(move_target) < 1.5:
                         unit.move(move_target)
                         unit(AbilityId.SMART, target, True)
 

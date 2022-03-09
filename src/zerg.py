@@ -172,14 +172,14 @@ class ZergAI(AIBase):
         # ])
 
         if not self.strategy:
-            strategy_classes = [HatchFirst, RoachRush, RoachLingBust]
-            print(self.opponent_id)
-            if opponent_name := OPPONENTS.get(self.opponent_id):
-                print(opponent_name)
-                self.opponent_name = opponent_name
-                if prepared_strategies := STRATEGIES.get(opponent_name):
-                    print(prepared_strategies)
-                    strategy_classes = prepared_strategies
+            strategy_classes = [HatchFirst, RoachRush]
+            # print(self.opponent_id)
+            # if opponent_name := OPPONENTS.get(self.opponent_id):
+            #     print(opponent_name)
+            #     self.opponent_name = opponent_name
+            #     if prepared_strategies := STRATEGIES.get(opponent_name):
+            #         print(prepared_strategies)
+            #         strategy_classes = prepared_strategies
             self.strategy = random.choice(strategy_classes)()
 
         for step in self.strategy.build_order():
@@ -236,9 +236,9 @@ class ZergAI(AIBase):
         if iteration == 0:
             return
 
-        # if 1 < self.time:
-        #     await self.add_tag(self.version, False)
-        #     await self.add_tag(type(self.strategy).__name__, False)
+        if 1 < self.time:
+            await self.add_tag(self.version, False)
+            await self.add_tag(type(self.strategy).__name__, False)
 
         steps = self.strategy.steps(self)
 
@@ -398,18 +398,21 @@ class ZergAI(AIBase):
 
         # if self.block_manager.enemy_base_count + 1 <= self.townhalls.amount:
         #     return
+
+        if self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False) < 1:
+            return
         
         worker_max = self.get_max_harvester()
         saturation = self.count(UnitTypeId.DRONE, include_planned=False) / max(1, worker_max)
         # saturation = self.bases.harvester_count / max(1, self.bases.harvester_target)
-        priority = 2 * (saturation - 1)
+        priority = 5 * (saturation - 1)
 
         for plan in self.planned_by_type[UnitTypeId.HATCHERY]:
             if plan.priority < BUILD_ORDER_PRIORITY:
                 plan.priority = priority
 
         if (
-            2/3 < saturation
+            -1 < priority
             and not self.count(UnitTypeId.HATCHERY, include_actual=False)
         ):
             plan = MacroPlan(UnitTypeId.HATCHERY)

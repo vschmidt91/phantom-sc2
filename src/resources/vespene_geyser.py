@@ -17,7 +17,7 @@ class VespeneGeyser(ResourceSingle):
     @property
     def harvester_target(self):
         if self.remaining:
-            return 3
+            return 2
         else:
             return 0
 
