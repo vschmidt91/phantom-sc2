@@ -551,7 +551,10 @@ class AIBase(ABC, BotAI):
         minerals =   max(0, cost_sum.minerals - self.minerals)
         vespene =  max(0, cost_sum.vespene - self.vespene)
         if minerals + vespene == 0:
-            cost_sum = [self.cost[unit] * max(0, count - self.count(unit, include_planned=False)) for unit, count in self.composition.items()]
+            cost_sum = sum(
+                (self.cost[unit] * max(0, count - self.count(unit, include_planned=False))
+                for unit, count in self.composition.items()),
+                cost_zero)
             minerals = max(0, cost_sum.minerals - self.minerals)
             vespene = max(0, cost_sum.vespene - self.vespene)
         gas_ratio = vespene / max(1, vespene + minerals)
