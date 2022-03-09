@@ -72,8 +72,8 @@ class ZergMacro(ZergStrategy):
         if 1 <= bot.count(UnitTypeId.LAIR, include_pending=False, include_planned=False) + bot.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
             composition[UnitTypeId.OVERSEER] = 2
 
-        # if bot.count(UnitTypeId.ROACHWARREN, include_planned=False):
-        if tech_up:
+        if bot.count(UnitTypeId.ROACHWARREN, include_planned=False):
+        # if tech_up:
             if bot.count(UnitTypeId.HYDRALISKDEN, include_pending=False, include_planned=False):
                 hydra_ratio = enemy_flyer_ratio
                 composition[UnitTypeId.ROACH] = int(ratio * worker_target * (1 - hydra_ratio))
