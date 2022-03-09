@@ -1,6 +1,7 @@
 publish/
 __pycache__/
 .vscode/
+.VSCodeCounter/
 api_key.txt
 replays/
 replays-hof/
