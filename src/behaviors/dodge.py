@@ -96,7 +96,7 @@ class DodgeEffectDelayed(DodgeEffect):
 class DodgeBehavior(UnitBehavior):
 
     def __init__(self, ai: AIBase, unit_tag: int):
-        self.safety_distance: float = 1.5
+        self.safety_distance: float = 1.0
         super().__init__(ai, unit_tag)
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
@@ -113,9 +113,9 @@ class DodgeBehavior(UnitBehavior):
                 distance_bonus = 1.4 * unit.movement_speed * time_remaining
             distance_have = unit.distance_to(dodge.position)
             for circle in dodge.circles:
-                distance_want = circle.radius + unit.radius + self.safety_distance
+                distance_want = circle.radius + unit.radius
                 if distance_have + distance_bonus < distance_want:
-                    target = dodge.position.position.towards(unit, distance_want)
+                    target = dodge.position.position.towards(unit, distance_want + self.safety_distance)
                     if unit.is_burrowed and not can_move(unit):
                         unit(AbilityId.BURROWUP)
                         unit.move(target, queue=True)
