@@ -17,7 +17,7 @@ from ..utils import dot
 from .mineral_patch import MineralPatch
 from .vespene_geyser import VespeneGeyser
 from .resource_base import ResourceBase
-from .resource_group import ResourceGroup
+from .resource_group import BalancingMode, ResourceGroup
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase, AIComponent
@@ -79,11 +79,12 @@ class Base(ResourceGroup[ResourceBase]):
             (VespeneGeyser(g) for g in gasses),
             key = lambda g : g.position.distance_to(townhall_position)
         ))
-        self.mineral_patches.balance_evenly = True
-        self.vespene_geysers.balance_evenly = True
+        self.mineral_patches.balancing_mode = BalancingMode.MINIMIZE_TRANSFERS
+        self.vespene_geysers.balancing_mode = BalancingMode.EVEN_DISTRIBUTION
         super().__init__([self.mineral_patches, self.vespene_geysers], townhall_position)
         self.blocked_since: Optional[float] = None
         self.taken_since: Optional[float] = None
+        self.balancing_mode = BalancingMode.NONE
         self.defensive_units: List[Unit] = list()
         self.defensive_units_planned: List[MacroPlan] = list()
         self.defensive_targets: DefaultDict[UnitTypeId, int] = DefaultDict(lambda:0)

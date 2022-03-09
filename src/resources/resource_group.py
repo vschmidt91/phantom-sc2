@@ -1,4 +1,5 @@
 
+from enum import Enum
 from typing import Dict, Iterable, Set, List, Optional, TypeVar, Generic, Tuple
 from itertools import chain
 import math
@@ -13,6 +14,11 @@ from ..utils import center
 
 T = TypeVar('T', bound=ResourceBase)
 
+class BalancingMode(Enum):
+    NONE = 0
+    MINIMIZE_TRANSFERS = 1
+    EVEN_DISTRIBUTION = 2
+
 class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
 
     def __init__(self, items: List[T], position: Optional[Point2] = None):
@@ -20,7 +26,7 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
             position = center((r.position for r in items))
         super().__init__(position)
         self.items: List[T] = items
-        self.balance_evenly: bool = False
+        self.balancing_mode: BalancingMode = BalancingMode.MINIMIZE_TRANSFERS
 
     def __iter__(self):
         return iter(self.items)
@@ -43,9 +49,8 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         return None, None
 
     def try_add(self, harvester: int) -> bool:
-        if self.balance_evenly:
-            resource = None
-        else:
+        resource = None
+        if self.balancing_mode == BalancingMode.MINIMIZE_TRANSFERS:
             resource = next(
                 (r for r in self.items if r.harvester_balance < 0),
                 None
@@ -53,33 +58,30 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         if not resource:
             resource = min(
                 (r for r in self.items),
-                key=lambda r : r.harvester_balance - math.exp(-r.position.distance_to(self.position)),
+                key=lambda r : r.harvester_balance,
                 default=None
             )
         if not resource:
             return False
         return resource.try_add(harvester)
 
-    def try_remove_any(self, force: bool = True) -> Optional[int]:
-        if self.balance_evenly:
+    def try_remove_any(self) -> Optional[int]:
+        if self.balancing_mode == BalancingMode.EVEN_DISTRIBUTION:
             resource = max(
-                (r for r in self.items if 0 < r.harvester_count),
-                key = lambda r : r.harvester_balance + math.exp(-r.position.distance_to(self.position)),
+                (r for r in reversed(self.items) if 0 < r.harvester_count),
+                key = lambda r : r.harvester_balance,
                 default = None
             )
-            if (
-                resource
-                and (force or 0 < resource.harvester_balance)
-            ):
-                return resource.try_remove_any(force=True)
+            if not resource:
+                return None
+            return resource.try_remove_any()
         else:
             for resource in reversed(self.items):
                 if 0 < resource.harvester_balance:
-                    return resource.try_remove_any(force=True)
-            if force:
-                for resource in reversed(self.items):
-                    if 0 < resource.harvester_count:
-                        return resource.try_remove_any(force=True)
+                    return resource.try_remove_any()
+            for resource in reversed(self.items):
+                if 0 < resource.harvester_count:
+                    return resource.try_remove_any()
         return None
 
     def try_remove(self, harvester: int) -> bool:
@@ -109,13 +111,13 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         for resource in self.items:
             resource.update(bot)
 
-        if bot.debug:
-            for i, a in enumerate(self.items):
-                for b in self.items[i+1:]:
-                    ha = list(a.harvesters)
-                    hb = list(b.harvesters)
-                    if any(set(ha).intersection(hb)):
-                        raise Error
+        # if bot.debug:
+        #     for i, a in enumerate(self.items):
+        #         for b in self.items[i+1:]:
+        #             ha = list(a.harvesters)
+        #             hb = list(b.harvesters)
+        #             if any(set(ha).intersection(hb)):
+        #                 raise Error
 
         super().update(bot)
 
@@ -131,5 +133,6 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         #         break
         #     harvesters_transfered.add(harvester)
         
-        if harvester := self.try_remove_any(force=False):
-            self.try_add(harvester)
+        if self.balancing_mode != BalancingMode.NONE:
+            if harvester := self.try_remove_any():
+                self.try_add(harvester)

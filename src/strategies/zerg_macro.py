@@ -31,7 +31,7 @@ class ZergMacro(ZergStrategy):
         worker_target = max(worker_target, 1)
         worker_count = bot.count(UnitTypeId.DRONE, include_planned=False)
         ratio = max(
-            1/2 * bot.threat_level,
+            bot.threat_level,
             pow(worker_count / worker_target, 2),
         )
         ratio = min(1, ratio)
@@ -46,7 +46,7 @@ class ZergMacro(ZergStrategy):
         enemy_ground_value = sum(enemy_value[e.tag] for e in bot.enemies.values() if not e.is_flying)
         enemy_flyer_ratio = enemy_flyer_value / max(1, enemy_flyer_value + enemy_ground_value)
 
-        queen_target = min(5, bot.townhalls.amount)
+        queen_target = min(5, 1 + bot.townhalls.amount)
 
         composition = {
             UnitTypeId.DRONE: worker_target,

@@ -167,7 +167,7 @@ class UnitManager(Behavior):
             2/3 < self.ai.threat_level
             and self.ai.time < 3 * 60
         ):
-            if worker := self.ai.bases.try_remove_any(force=True):
+            if worker := self.ai.bases.try_remove_any():
                 self.drafted_civilians.add(worker)
         elif self.ai.threat_level < 1/2:
             if self.drafted_civilians:

@@ -53,7 +53,7 @@ from src.value_map import ValueMap
 from .chat import FIGHT_MESSAGES, GREET_MESSAGES, LOSS_MESSAGES
 
 from .resources.base import Base
-from .resources.resource_group import ResourceGroup
+from .resources.resource_group import BalancingMode, ResourceGroup
 from .behaviors.dodge import *
 from .constants import *
 from .macro_plan import MacroPlan
@@ -297,17 +297,19 @@ class AIBase(ABC, BotAI):
 
     async def on_step(self, iteration: int):
 
-        for item in self.state.chat:
-            if item.player_id == self.player_id:
-                continue
-            for pattern, response in RESPONSES.items():
-                if match := re.search(pattern, item.message):
-                    await self.add_message(response)
-                    break
+        # for item in self.state.chat:
+        #     if item.player_id == self.player_id:
+        #         continue
+        #     for pattern, response in RESPONSES.items():
+        #         if match := re.search(pattern, item.message):
+        #             await self.add_message(response)
+        #             break
 
         if 1 < self.time:
             if self.opponent_name:
                 await self.add_message(f'(glhf) {self.opponent_name}')
+            else:
+                await self.add_message(f'(glhf)')
 
         # if 20 < self.time:
         #     await self.add_message(self.message_greet)
@@ -488,8 +490,12 @@ class AIBase(ABC, BotAI):
         return sum(1 for _ in self.gas_harvesters)
 
     @property
+    def gas_harvester_target(self) -> int:
+        return sum(b.vespene_geysers.harvester_target for b in self.bases)
+
+    @property
     def gas_harvester_balance(self) -> int:
-        return sum(b.vespene_geysers.harvester_balance for b in self.bases)
+        return self.gas_harvester_count - self.gas_harvester_target
 
     def save_enemy_positions(self):
         self.enemy_positions.clear()
@@ -532,19 +538,25 @@ class AIBase(ABC, BotAI):
         gas_have = self.count(UnitTypeId.EXTRACTOR)
         gas_max = sum(1 for g in self.get_owned_geysers())
         gas_want = min(gas_max, gas_depleted + math.ceil(gas_target / 2))
-        if gas_have < gas_want and self.count(UnitTypeId.EXTRACTOR, include_actual=False) < 1:
+        if gas_have < gas_want:
             self.add_macro_plan(MacroPlan(UnitTypeId.EXTRACTOR))
 
     def get_gas_target(self) -> int:
+
+        if 0 < len(self.macro_plans) and BUILD_ORDER_PRIORITY <= self.macro_plans[0].priority:
+            return self.gas_harvester_target
+
         cost_zero = Cost(0, 0, 0)
         cost_sum = sum((self.cost[plan.item] for plan in self.macro_plans), cost_zero)
-        cs = [self.cost[unit] * max(0, count - self.count(unit, include_planned=False)) for unit, count in self.composition.items()]
-        cost_sum += sum(cs, cost_zero)
-        minerals = max(16, cost_sum.minerals - self.minerals)
-        vespene = max(6, cost_sum.vespene - self.vespene)
+        minerals =   max(0, cost_sum.minerals - self.minerals)
+        vespene =  max(0, cost_sum.vespene - self.vespene)
+        if minerals + vespene == 0:
+            cost_sum = [self.cost[unit] * max(0, count - self.count(unit, include_planned=False)) for unit, count in self.composition.items()]
+            minerals = max(0, cost_sum.minerals - self.minerals)
+            vespene = max(0, cost_sum.vespene - self.vespene)
         gas_ratio = vespene / max(1, vespene + minerals)
         worker_type = race_worker[self.race]
-        gas_target = gas_ratio * self.count(worker_type, include_planned=False, include_pending=False)
+        gas_target = gas_ratio * self.count(worker_type, include_pending=False)
 
         # if 0 < gas_target:
         #     gas_target = max(1.5, gas_target)
@@ -553,14 +565,14 @@ class AIBase(ABC, BotAI):
         # gas_target = math.ceil(gas_target * 2/3)
         # gas_target = math.ceil(gas_target * 3/2)
         
-        gas_target = 2 * math.ceil(gas_target / 2)
+        # gas_target = 2 * math.ceil(gas_target / 2)
         # gas_target = 1.5 * math.ceil(gas_target / 1.5)
 
-        return math.ceil(gas_target)
+        return round(gas_target)
 
     def transfer_to_and_from_gas(self, gas_target: int):
 
-        if self.gas_harvester_balance < 0 and self.gas_harvester_count + 1 <= gas_target:
+        if self.gas_harvester_count + 1 <= gas_target:
             base = max(
                 (b for b in self.bases if 0 < b.mineral_patches.harvester_count and b.vespene_geysers.harvester_balance < 0),
                 key = lambda b : b.mineral_patches.harvester_balance - b.vespene_geysers.harvester_balance,
@@ -572,7 +584,7 @@ class AIBase(ABC, BotAI):
                 print('transfer to gas failure')
                 return
 
-        elif 0 < self.gas_harvester_balance or gas_target < self.gas_harvester_count - 1:
+        elif gas_target < self.gas_harvester_count - 1:
             base = max(
                 # (b for b in self.bases if 0 < b.vespene_geysers.harvester_count and b.mineral_patches.harvester_balance < 0),
                 (b for b in self.bases if 0 < b.vespene_geysers.harvester_count and 0 < b.mineral_patches.harvester_target),
@@ -624,7 +636,7 @@ class AIBase(ABC, BotAI):
         ), key = lambda b : self.map_data.distance[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
         self.bases = ResourceGroup(bases)
-        # self.bases.balance_evenly = True
+        self.bases.balancing_mode = BalancingMode.EVEN_DISTRIBUTION
         self.bases[0].split_initial_workers(set(self.workers))
         self.bases[-1].taken_since = 0
 
@@ -958,7 +970,7 @@ class AIBase(ABC, BotAI):
 
         def enumerate_trainers(trainer_type: UnitTypeId) -> Iterable[Unit]:
             if trainer_type == race_worker[self.race]:
-                if tag := self.bases.try_remove_any(True):
+                if tag := self.bases.try_remove_any():
                     if tag not in exclude:
                         if unit := self.unit_by_tag.get(tag):
                             if unit.type_id == trainer_type:
