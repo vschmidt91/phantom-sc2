@@ -18,15 +18,15 @@ class RoachRush(ZergMacro):
             UnitTypeId.SPAWNINGPOOL,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
             UnitTypeId.EXTRACTOR,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
             MacroPlan(UnitTypeId.HATCHERY, max_distance=0),
             UnitTypeId.QUEEN,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
             UnitTypeId.ROACHWARREN,
+            UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
@@ -39,6 +39,11 @@ class RoachRush(ZergMacro):
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
         ]
+
+    def filter_upgrade(self, bot, upgrade) -> bool:
+        if bot.time < 160:
+            return False
+        return super().filter_upgrade(bot, upgrade)
 
     # def build_order(self) -> Iterable:
     #     return [

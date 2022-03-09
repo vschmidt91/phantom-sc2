@@ -487,6 +487,10 @@ class AIBase(ABC, BotAI):
     def gas_harvester_count(self) -> int:
         return sum(1 for _ in self.gas_harvesters)
 
+    @property
+    def gas_harvester_balance(self) -> int:
+        return sum(b.vespene_geysers.harvester_balance for b in self.bases)
+
     def save_enemy_positions(self):
         self.enemy_positions.clear()
         for enemy in self.enemies.values():
@@ -519,6 +523,8 @@ class AIBase(ABC, BotAI):
     def update_gas(self):
         gas_target = self.get_gas_target()
         self.transfer_to_and_from_gas(gas_target)
+        if self.macro_plans and self.macro_plans[0].priority == BUILD_ORDER_PRIORITY:
+            return
         self.build_gasses(gas_target)
 
     def build_gasses(self, gas_target: int):
@@ -554,7 +560,7 @@ class AIBase(ABC, BotAI):
 
     def transfer_to_and_from_gas(self, gas_target: int):
 
-        if self.gas_harvester_count + 1 <= gas_target:
+        if self.gas_harvester_balance < 0 and self.gas_harvester_count + 1 <= gas_target:
             base = max(
                 (b for b in self.bases if 0 < b.mineral_patches.harvester_count and b.vespene_geysers.harvester_balance < 0),
                 key = lambda b : b.mineral_patches.harvester_balance - b.vespene_geysers.harvester_balance,
@@ -566,7 +572,7 @@ class AIBase(ABC, BotAI):
                 print('transfer to gas failure')
                 return
 
-        elif gas_target < self.gas_harvester_count - 1:
+        elif 0 < self.gas_harvester_balance or gas_target < self.gas_harvester_count - 1:
             base = max(
                 # (b for b in self.bases if 0 < b.vespene_geysers.harvester_count and b.mineral_patches.harvester_balance < 0),
                 (b for b in self.bases if 0 < b.vespene_geysers.harvester_count and 0 < b.mineral_patches.harvester_target),
