@@ -101,7 +101,7 @@ class FightBehavior(UnitBehavior):
                 else:
                     return FightStance.FIGHT
             elif self.stance is FightStance.FIGHT:
-                if advantage < 1/3:
+                if advantage < 1/2:
                     return FightStance.FLEE
                 else:
                     return FightStance.FIGHT
