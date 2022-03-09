@@ -32,7 +32,7 @@ class ZergMacro(ZergStrategy):
         worker_count = bot.count(UnitTypeId.DRONE, include_planned=False)
         ratio = max(
             1/2 * bot.threat_level,
-            pow(worker_count / worker_target, 3),
+            pow(worker_count / worker_target, 2),
         )
         ratio = min(1, ratio)
         # ratio = pow(ratio, 8)
@@ -53,7 +53,7 @@ class ZergMacro(ZergStrategy):
             UnitTypeId.QUEEN: queen_target,
         }
 
-        self.tech_up = 40 <= worker_count and 3 <= bot.townhalls.ready.amount
+        self.tech_up = 40 <= worker_count and 3 <= bot.townhalls.amount
 
         # composition[UnitTypeId.ZERGLING] = 0
         # if 2.5 * 60 <= bot.time:

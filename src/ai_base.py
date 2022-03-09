@@ -531,7 +531,7 @@ class AIBase(ABC, BotAI):
         gas_depleted = self.gas_buildings.filter(lambda g : not g.has_vespene).amount
         gas_have = self.count(UnitTypeId.EXTRACTOR)
         gas_max = sum(1 for g in self.get_owned_geysers())
-        gas_want = min(gas_max, gas_depleted + math.ceil(gas_target / 3))
+        gas_want = min(gas_max, gas_depleted + math.ceil(gas_target / 2))
         if gas_have < gas_want:
             self.add_macro_plan(MacroPlan(UnitTypeId.EXTRACTOR, priority=1))
 

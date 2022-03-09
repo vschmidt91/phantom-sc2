@@ -64,7 +64,7 @@ class GatherBehavior(UnitBehavior):
                         move_target = resource.speedmining_target
                     if not move_target:
                         move_target = target.position.towards(unit, target.radius + unit.radius)
-                    if 0.75 < unit.position.distance_to(move_target) < 1.5:
+                    if 0.75 < unit.position.distance_to(move_target) < 1.75:
                         unit.move(move_target)
                         unit(AbilityId.SMART, target, True)
 
