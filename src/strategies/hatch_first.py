@@ -60,6 +60,6 @@ class HatchFirst(ZergMacro):
             and bot.count(UnitTypeId.OVERLORD, include_planned=False) < 2
         ):
             bot.extractor_trick_enabled = True
-        if 160 < bot.time and bot.count(UpgradeId.OVERLORDSPEED) < 1:
-            bot.add_macro_plan(MacroPlan(UpgradeId.OVERLORDSPEED))
+        # if 160 < bot.time and bot.count(UpgradeId.OVERLORDSPEED) < 1:
+        #     bot.add_macro_plan(MacroPlan(UpgradeId.OVERLORDSPEED))
         return super().update(bot)
