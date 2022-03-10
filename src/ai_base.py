@@ -552,7 +552,7 @@ class AIBase(ABC, BotAI):
         vespene =  max(0, cost_sum.vespene - self.vespene)
         if minerals + vespene == 0:
             cost_sum = sum(
-                (self.cost[unit] * count)
+                (self.cost[unit] * count
                 for unit, count in self.composition.items()),
                 cost_zero)
             minerals = max(0, cost_sum.minerals - self.minerals)
