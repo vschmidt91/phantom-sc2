@@ -12,14 +12,14 @@ from sc2.data import race_townhalls
 from ..constants import CHANGELINGS
 from ..resources.base import Base
 from ..behaviors.behavior import Behavior, BehaviorResult, UnitBehavior
+from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
     
-class BlockManager(Behavior):
+class BlockManager(AIComponent, Behavior):
 
     def __init__(self, ai: AIBase) -> None:
-        super().__init__()
-        self.ai: AIBase = ai
+        super().__init__(ai)
         self.detectors: Dict[Point2, int] = dict()
         self.enemy_base_count: int = 1
 

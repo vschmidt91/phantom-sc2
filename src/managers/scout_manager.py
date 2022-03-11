@@ -11,14 +11,15 @@ from sc2.position import Point2
 from ..constants import CHANGELINGS
 from ..resources.base import Base
 from ..behaviors.behavior import Behavior, BehaviorResult, UnitBehavior
+from ..ai_component import AIComponent
+
 if TYPE_CHECKING:
     from ..ai_base import AIBase
     
-class ScoutManager(Behavior):
+class ScoutManager(AIComponent, Behavior):
 
     def __init__(self, ai: AIBase) -> None:
-        super().__init__()
-        self.ai: AIBase = ai
+        super().__init__(ai)
         self.scouts: Dict[Point2, int] = dict()
         self.scout_enemy_natural: bool = True
 

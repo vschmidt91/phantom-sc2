@@ -13,13 +13,14 @@ from sc2.data import race_townhalls
 from ..constants import CHANGELINGS
 from ..resources.base import Base
 from ..behaviors.behavior import Behavior, BehaviorResult, UnitBehavior
+from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
     
-class DropManager(Behavior):
+class DropManager(AIComponent, Behavior):
 
     def __init__(self, ai: AIBase) -> None:
-        super().__init__()
+        super().__init__(ai)
         self.ai: AIBase = ai
 
         enemy_start = self.ai.enemy_start_locations[0]

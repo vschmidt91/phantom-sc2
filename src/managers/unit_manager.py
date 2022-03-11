@@ -47,11 +47,10 @@ IGNORED_UNIT_TYPES = {
     UnitTypeId.LOCUSTMPFLYING,
 }
 
-class UnitManager(Behavior):
+class UnitManager(AIComponent, Behavior):
 
     def __init__(self, ai: AIBase):
-        super().__init__()
-        self.ai: AIBase = ai
+        super().__init__(ai)
         self.inject_queens: Dict[int, int] = dict()
         self.drafted_civilians: Set[int] = set()
         self.creep_coverage: float = 0.0
