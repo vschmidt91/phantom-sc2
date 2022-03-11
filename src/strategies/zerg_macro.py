@@ -116,7 +116,6 @@ class ZergMacro(ZergStrategy):
     def steps(self, bot):
 
         steps = {
-            # bot.kill_random_unit: 100,
             bot.update_tables: 1,
             bot.handle_errors: 1,
             bot.handle_actions: 1,
@@ -129,7 +128,6 @@ class ZergMacro(ZergStrategy):
             bot.make_composition: 1,
             bot.make_tech: 1,
             bot.expand: 1,
-            # bot.extractor_trick: 1,
             bot.assess_threat_level: 1,
             bot.update_strategy: 1,
             bot.macro: 1,
@@ -138,8 +136,5 @@ class ZergMacro(ZergStrategy):
             bot.make_defenses: 1,
             bot.draw_debug: 1,
         }
-
-        # if self.tech_up:
-        #     steps[bot.make_tech] = 1
 
         return steps

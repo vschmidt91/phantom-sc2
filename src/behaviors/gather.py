@@ -12,6 +12,8 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
+from src.resources.vespene_geyser import VespeneGeyser
+
 from ..resources.mineral_patch import MineralPatch
 from ..utils import *
 from ..constants import *
@@ -45,6 +47,9 @@ class GatherBehavior(UnitBehavior):
             
         if base.townhall and self.ai.is_speedmining_enabled and resource.harvester_count < 3:
             
+            if isinstance(resource, VespeneGeyser):
+                assert True
+
             if unit.is_gathering and unit.order_target != target.tag:
                 unit(AbilityId.SMART, target)
             elif unit.is_idle or unit.is_attacking:

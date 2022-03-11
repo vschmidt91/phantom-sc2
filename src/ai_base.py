@@ -575,9 +575,12 @@ class AIBase(ABC, BotAI):
 
     def transfer_to_and_from_gas(self, gas_target: int):
 
+        gas_target = 4
+
         if self.gas_harvester_count + 1 <= gas_target:
             base = max(
                 (b for b in self.bases if 0 < b.mineral_patches.harvester_count and b.vespene_geysers.harvester_balance < 0),
+                # (b for b in self.bases if 0 < b.mineral_patches.harvester_count and b.vespene_geysers.harvester_balance <= 0),
                 key = lambda b : b.mineral_patches.harvester_balance - b.vespene_geysers.harvester_balance,
                 default = None
             )
@@ -639,7 +642,7 @@ class AIBase(ABC, BotAI):
         ), key = lambda b : self.map_data.distance[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
         self.bases = ResourceGroup(bases)
-        self.bases.balancing_mode = BalancingMode.EVEN_DISTRIBUTION
+        self.bases.balancing_mode = BalancingMode.MINIMIZE_TRANSFERS
         self.bases[0].split_initial_workers(set(self.workers))
         self.bases[-1].taken_since = 0
 

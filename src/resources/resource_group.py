@@ -27,6 +27,7 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         super().__init__(position)
         self.items: List[T] = items
         self.balancing_mode: BalancingMode = BalancingMode.MINIMIZE_TRANSFERS
+        self.vespene_switching_enabled: bool = False
 
     def __iter__(self):
         return iter(self.items)
@@ -122,17 +123,7 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         super().update(bot)
 
         self.remaining = sum(r.remaining for r in self.items)
-
-        # harvesters_transfered = set()
-        # while True:
-        #     if not (harvester := self.try_remove_any()):
-        #         break
-        #     if not self.try_add(harvester):
-        #         break
-        #     if harvester in harvesters_transfered:
-        #         break
-        #     harvesters_transfered.add(harvester)
         
-        if self.balancing_mode != BalancingMode.NONE:
-            if harvester := self.try_remove_any():
-                self.try_add(harvester)
+        # if self.balancing_mode != BalancingMode.NONE:
+        #     if harvester := self.try_remove_any():
+        #         self.try_add(harvester)

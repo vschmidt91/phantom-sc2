@@ -1,8 +1,11 @@
 
 from __future__ import annotations
+from collections import defaultdict
+from email.policy import default
 from typing import Counter, DefaultDict, Dict, Iterable, Set, List, Optional, TYPE_CHECKING
 from itertools import chain
 import math
+from matplotlib.pyplot import jet
 
 from s2clientprotocol.sc2api_pb2 import Observation
 from sc2.ids.ability_id import AbilityId
@@ -80,7 +83,7 @@ class Base(ResourceGroup[ResourceBase]):
             key = lambda g : g.position.distance_to(townhall_position)
         ))
         self.mineral_patches.balancing_mode = BalancingMode.MINIMIZE_TRANSFERS
-        self.vespene_geysers.balancing_mode = BalancingMode.EVEN_DISTRIBUTION
+        self.vespene_geysers.balancing_mode = BalancingMode.NONE
         super().__init__([self.mineral_patches, self.vespene_geysers], townhall_position)
         self.blocked_since: Optional[float] = None
         self.taken_since: Optional[float] = None
@@ -90,6 +93,12 @@ class Base(ResourceGroup[ResourceBase]):
         self.defensive_targets: DefaultDict[UnitTypeId, int] = DefaultDict(lambda:0)
         self.fix_speedmining_positions()
         self.townhall: Optional[Unit] = None
+
+        self.vespene_switching_state: Dict[int, bool] = dict()
+        # if 2 <= len(self.vespene_geysers):
+        #     geyser_distance = self.vespene_geysers[0].position.distance_to(self.vespene_geysers[1].position)
+        #     if geyser_distance < 10:
+        #         self.vespene_switching_enabled = True
 
     def split_initial_workers(self, harvesters: Set[Unit]):
         for _ in range(len(harvesters)):
@@ -149,3 +158,23 @@ class Base(ResourceGroup[ResourceBase]):
                     bot.add_macro_plan(plan)
 
         super().update(bot)
+
+        if self.vespene_switching_enabled:
+
+            for tag in self.harvesters:
+                unit = bot.unit_by_tag.get(tag)
+                if not unit:
+                    continue
+                state = self.vespene_switching_state.setdefault(tag, False)
+                if state and not unit.is_carrying_vespene:
+                    if tag in self.vespene_geysers[0].harvesters:
+                        i = 0
+                        j = 1
+                    else:
+                        i = 1
+                        j = 0
+                    assert self.vespene_geysers[i].try_remove(tag)
+                    assert self.vespene_geysers[j].try_add(tag)
+                    self.vespene_switching_state[tag] = False
+                elif not state and unit.is_carrying_vespene:
+                    self.vespene_switching_state[tag] = True

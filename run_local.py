@@ -14,6 +14,7 @@ from sc2.player import Bot, Computer
 
 from src.pool12_allin import Pool12AllIn
 from src.lingflood import LingFlood
+from src.strategies.dummy import DummyStrategy
 from src.strategies.muta import Muta
 from src.strategies.bane_bust import BaneBust
 from src.strategies.roach_ling_bust import RoachLingBust
@@ -28,9 +29,9 @@ from test import CompetitiveBot
 
 MAPS = [
     # 'BerlingradAIE',
-    'CuriousMindsAIE',
+    # 'CuriousMindsAIE',
     # 'HardwireAIE',
-    # 'GlitteringAshesAIE',
+    'GlitteringAshesAIE',
     # 'OxideAIE',
     # 'RomanticideAIE',
     # '2000AtmospheresAIE',
@@ -54,7 +55,7 @@ BUILDS = [
     # AIBuild.Air,
 ]
 
-DIFFICULTY = Difficulty.CheatInsane
+DIFFICULTY = Difficulty.VeryEasy
 REAL_TIME = False
 RESULT_PATH = 'results.json'
 
@@ -63,7 +64,7 @@ def create_bot():
     # ai = Pool12AllIn()
     # ai = LingFlood()
     # ai = DummyAI()
-    ai = ZergAI(strategy=RoachRush())
+    ai = ZergAI(strategy=DummyStrategy())
     ai.debug = True
     ai.game_step = 4
     return Bot(Race.Zerg, ai)  
