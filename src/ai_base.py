@@ -5,6 +5,7 @@ from collections import defaultdict
 from enum import Enum
 from dataclasses import dataclass
 from functools import cache
+from importlib.resources import Resource
 import math
 import re
 import random
@@ -41,6 +42,8 @@ from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.units import Units
 from src.managers.drop_manager import DropManager
+from src.resources.mineral_patch import MineralPatch
+from src.resources.vespene_geyser import VespeneGeyser
 
 from .managers.block_manager import BlockManager
 from .managers.scout_manager import ScoutManager
@@ -82,29 +85,29 @@ class MapStaticData:
 
 class AIBase(ABC, BotAI):
 
-    def __init__(self,
-        game_step: int = 2,
-        debug: bool = False,
-        performance: PerformanceMode = PerformanceMode.DEFAULT,
-    ):
+    def __init__(self):
 
-        # self.raw_affects_selection = True
+        self.raw_affects_selection = True
 
         self.message_greet = random.choice(GREET_MESSAGES)
         self.message_fight = random.choice(FIGHT_MESSAGES)
         self.message_loss = random.choice(LOSS_MESSAGES)
 
-        self.version: str = None
+        self.version: str = ''
         self.messages: Set[str] = set()
-        self.game_step: int = game_step
-        self.performance: PerformanceMode = performance
-        self.debug: bool = debug
+        self.game_step: int = 2
+        self.performance: PerformanceMode = PerformanceMode.DEFAULT
+        self.debug: bool = False
         self.greet_enabled: bool = True
         self.macro_plans: List[MacroPlan] = list()
         self.composition: Dict[UnitTypeId, int] = dict()
         self.worker_split: Dict[int, int] = None
         self.cost: Dict[MacroId, Cost] = dict()
+
         self.bases: ResourceGroup[Base] = None
+        self.vespene_geysers: ResourceGroup[VespeneGeyser] = None
+        self.mineral_patches: ResourceGroup[MineralPatch] = None
+
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
         self.power_level: float = 0.0
         self.threat_level: float = 0.0
@@ -124,7 +127,6 @@ class AIBase(ABC, BotAI):
         self.damage_taken: Dict[int] = dict()
         self.gg_sent: bool = False
         self.opponent_name: Optional[str] = None
-        self.unit_ref: Optional[int] = None
         self.advantage_map: np.ndarray = None
         self.dodge: List[DodgeElement] = list()
         self.dodge_delayed: List[DodgeEffectDelayed] = list()
@@ -538,7 +540,7 @@ class AIBase(ABC, BotAI):
         gas_have = self.count(UnitTypeId.EXTRACTOR)
         gas_max = sum(1 for g in self.get_owned_geysers())
         gas_want = min(gas_max, gas_depleted + math.ceil(gas_target / 2))
-        if gas_have < gas_want:
+        if gas_have < gas_want and self.count(UnitTypeId.EXTRACTOR, include_actual=False) < 1:
             self.add_macro_plan(MacroPlan(UnitTypeId.EXTRACTOR))
 
     def get_gas_target(self) -> int:
@@ -550,7 +552,7 @@ class AIBase(ABC, BotAI):
         cost_sum = sum((self.cost[plan.item] for plan in self.macro_plans), cost_zero)
         minerals =   max(0, cost_sum.minerals - self.minerals)
         vespene =  max(0, cost_sum.vespene - self.vespene)
-        if minerals + vespene < 500:
+        if minerals + vespene == 0:
             cost_sum = sum(
                 (self.cost[unit] * count
                 for unit, count in self.composition.items()),
@@ -571,35 +573,41 @@ class AIBase(ABC, BotAI):
         # gas_target = 2 * math.ceil(gas_target / 2)
         # gas_target = 1.5 * math.ceil(gas_target / 1.5)
 
-        return round(gas_target)
+        return math.ceil(gas_target)
 
     def transfer_to_and_from_gas(self, gas_target: int):
 
         if self.gas_harvester_count + 1 <= gas_target:
-            base = max(
-                (b for b in self.bases if 0 < b.mineral_patches.harvester_count and b.vespene_geysers.harvester_balance < 0),
-                # (b for b in self.bases if 0 < b.mineral_patches.harvester_count and b.vespene_geysers.harvester_balance <= 0),
-                key = lambda b : b.mineral_patches.harvester_balance - b.vespene_geysers.harvester_balance,
-                default = None
-            )
-            if not base:
-                return
-            if not base.mineral_patches.try_transfer_to(base.vespene_geysers):
-                print('transfer to gas failure')
-                return
 
-        elif gas_target < self.gas_harvester_count - 1:
-            base = max(
-                # (b for b in self.bases if 0 < b.vespene_geysers.harvester_count and b.mineral_patches.harvester_balance < 0),
-                (b for b in self.bases if 0 < b.vespene_geysers.harvester_count and 0 < b.mineral_patches.harvester_target),
-                key = lambda b : b.vespene_geysers.harvester_balance - b.mineral_patches.harvester_balance,
-                default = None
-            )
-            if not base:
-                return
-            if not base.vespene_geysers.try_transfer_to(base.mineral_patches):
+            if not self.mineral_patches.try_transfer_to(self.vespene_geysers):
+                print('transfer to gas failure')
+                
+            # base = max(
+            #     (b for b in self.bases if 0 < b.mineral_patches.harvester_count and b.vespene_geysers.harvester_balance < 0),
+            #     key = lambda b : b.mineral_patches.harvester_balance - b.vespene_geysers.harvester_balance,
+            #     default = None
+            # )
+            # if not base:
+            #     return
+            # if not base.mineral_patches.try_transfer_to(base.vespene_geysers):
+            #     print('transfer to gas failure')
+            #     return
+
+        elif gas_target <= self.gas_harvester_count - 1:
+
+            if not self.vespene_geysers.try_transfer_to(self.mineral_patches):
                 print('transfer from gas failure')
-                return
+
+            # base = max(
+            #     (b for b in self.bases if 0 < b.vespene_geysers.harvester_count and 0 < b.mineral_patches.harvester_target),
+            #     key = lambda b : b.vespene_geysers.harvester_balance - b.mineral_patches.harvester_balance,
+            #     default = None
+            # )
+            # if not base:
+            #     return
+            # if not base.vespene_geysers.try_transfer_to(base.mineral_patches):
+            #     print('transfer from gas failure')
+            #     return
         
     def update_bases(self):
 
@@ -618,6 +626,8 @@ class AIBase(ABC, BotAI):
                 base.defensive_units_planned.append(plan)
 
         self.bases.update(self)
+        self.mineral_patches.update(self)
+        self.vespene_geysers.update(self)
 
     async def initialize_bases(self):
 
@@ -640,9 +650,12 @@ class AIBase(ABC, BotAI):
         ), key = lambda b : self.map_data.distance[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
         self.bases = ResourceGroup(bases)
-        self.bases.balancing_mode = BalancingMode.MINIMIZE_TRANSFERS
+        self.bases.balancing_mode = BalancingMode.NONE
         self.bases[0].split_initial_workers(set(self.workers))
         self.bases[-1].taken_since = 0
+
+        self.vespene_geysers = ResourceGroup([b.vespene_geysers for b in self.bases])
+        self.mineral_patches = ResourceGroup([b.mineral_patches for b in self.bases])
 
     async def load_map_data(self) -> Coroutine[Any, Any, MapStaticData]:
 

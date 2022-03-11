@@ -64,7 +64,7 @@ def create_bot():
     # ai = Pool12AllIn()
     # ai = LingFlood()
     # ai = DummyAI()
-    ai = ZergAI(strategy=DummyStrategy())
+    ai = ZergAI(strategy_cls=RoachRush)
     ai.debug = True
     ai.game_step = 4
     return Bot(Race.Zerg, ai)  

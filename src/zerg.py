@@ -5,7 +5,7 @@ import inspect
 import math
 import itertools, random
 import numpy as np
-from typing import Counter, Iterable, List, Coroutine, Dict, Set, Union, Tuple, Optional
+from typing import Counter, Iterable, List, Coroutine, Dict, Set, Union, Tuple, Optional, Type
 from itertools import chain
 
 from s2clientprotocol.sc2api_pb2 import Macro
@@ -95,10 +95,10 @@ TIMING_INTERVAL = 64
 
 class ZergAI(AIBase):
 
-    def __init__(self, strategy: ZergStrategy = None, **kwargs):
-        super(self.__class__, self).__init__(**kwargs)
+    def __init__(self, strategy_cls: Type[ZergStrategy] = None):
+        super().__init__()
 
-        self.strategy: Optional[ZergStrategy] = strategy
+        self.strategy_cls: Optional[Type[ZergStrategy]] = strategy_cls
         self.composition: Dict[UnitTypeId, int] = dict()
 
         self.creep_area_min: np.ndarray = None
@@ -163,7 +163,7 @@ class ZergAI(AIBase):
             }
 
     def destroy_destructables(self):
-        return self.strategy.destroy_destructables(self)
+        return self.strategy.destroy_destructables()
 
     async def on_start(self):
 
@@ -171,7 +171,7 @@ class ZergAI(AIBase):
         #     [UnitTypeId.OVERLORDTRANSPORT, 1, self.game_info.map_center, 1],
         # ])
 
-        if not self.strategy:
+        if not self.strategy_cls:
             strategy_classes = [HatchFirst, RoachRush]
             # print(self.opponent_id)
             # if opponent_name := OPPONENTS.get(self.opponent_id):
@@ -180,7 +180,9 @@ class ZergAI(AIBase):
             #     if prepared_strategies := STRATEGIES.get(opponent_name):
             #         print(prepared_strategies)
             #         strategy_classes = prepared_strategies
-            self.strategy = random.choice(strategy_classes)()
+            self.strategy_cls = random.choice(strategy_classes)
+
+        self.strategy: ZergStrategy = self.strategy_cls(self)
 
         for step in self.strategy.build_order():
             if isinstance(step, MacroPlan):
@@ -227,7 +229,7 @@ class ZergAI(AIBase):
         return await super(self.__class__, self).on_unit_took_damage(unit, amount_damage_taken)
 
     def update_strategy(self):
-        self.strategy.update(self)
+        self.strategy.update()
 
     async def on_step(self, iteration):
 
@@ -238,9 +240,9 @@ class ZergAI(AIBase):
 
         if 1 < self.time:
             await self.add_tag(self.version, False)
-            await self.add_tag(type(self.strategy).__name__, False)
+            await self.add_tag(self.strategy.name, False)
 
-        steps = self.strategy.steps(self)
+        steps = self.strategy.steps()
 
         async def run_steps():
             
@@ -334,7 +336,7 @@ class ZergAI(AIBase):
     def make_tech(self):
         upgrades = chain(*(self.upgrades_by_unit(unit) for unit in self.composition))
         upgrades = list(dict.fromkeys(upgrades))
-        upgrades = [u for u in upgrades if self.strategy.filter_upgrade(self, u)]
+        upgrades = [u for u in upgrades if self.strategy.filter_upgrade(u)]
         targets = (
             *upgrades,
             *chain(*(REQUIREMENTS[unit] for unit in self.composition)),
@@ -353,7 +355,7 @@ class ZergAI(AIBase):
         return tuple()
 
     def update_composition(self):
-        self.composition = self.strategy.composition(self)
+        self.composition = self.strategy.composition()
 
     def make_defenses(self):
 
@@ -406,7 +408,7 @@ class ZergAI(AIBase):
         saturation = self.count(UnitTypeId.DRONE, include_planned=False) / max(1, worker_max)
         saturation = max(0, min(1, saturation))
         # saturation = self.bases.harvester_count / max(1, self.bases.harvester_target)
-        priority = pow(saturation, 2) - 1
+        priority = pow(saturation, 3) - 1
 
         for plan in self.planned_by_type[UnitTypeId.HATCHERY]:
             if plan.priority < BUILD_ORDER_PRIORITY:

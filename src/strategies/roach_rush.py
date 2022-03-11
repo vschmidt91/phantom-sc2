@@ -17,10 +17,10 @@ class RoachRush(ZergMacro):
             UnitTypeId.OVERLORD,
             UnitTypeId.SPAWNINGPOOL,
             UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
             UnitTypeId.EXTRACTOR,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
             MacroPlan(UnitTypeId.HATCHERY, max_distance=0),
             UnitTypeId.QUEEN,
             UnitTypeId.ZERGLING,
@@ -38,13 +38,19 @@ class RoachRush(ZergMacro):
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
-            MacroPlan(UnitTypeId.HATCHERY, max_distance=0),
+            # MacroPlan(UnitTypeId.HATCHERY, max_distance=0),
         ]
 
-    def filter_upgrade(self, bot, upgrade) -> bool:
-        if bot.time < 200:
+    def filter_upgrade(self, upgrade: UpgradeId) -> bool:
+        if self.ai.time < 200:
             return False
-        return super().filter_upgrade(bot, upgrade)
+        return super().filter_upgrade(upgrade)
+
+    def composition(self) -> Dict[UnitTypeId, int]:
+        composition = super().composition()
+        if self.ai.time < 200 and UnitTypeId.ZERGLING in composition:
+            del composition[UnitTypeId.ZERGLING]
+        return composition
 
     # def build_order(self) -> Iterable:
     #     return [
@@ -72,6 +78,6 @@ class RoachRush(ZergMacro):
     #         # UnitTypeId.ROACH,
     #     ]
 
-    def update(self, bot):
-        bot.scout_manager.scout_enemy_natural = False
-        return super().update(bot)
+    def update(self):
+        self.ai.scout_manager.scout_enemy_natural = False
+        return super().update()
