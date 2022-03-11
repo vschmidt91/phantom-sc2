@@ -550,13 +550,13 @@ class AIBase(ABC, BotAI):
         cost_sum = sum((self.cost[plan.item] for plan in self.macro_plans), cost_zero)
         minerals =   max(0, cost_sum.minerals - self.minerals)
         vespene =  max(0, cost_sum.vespene - self.vespene)
-        if minerals + vespene == 0:
+        if minerals + vespene < 500:
             cost_sum = sum(
                 (self.cost[unit] * count
                 for unit, count in self.composition.items()),
                 cost_zero)
-            minerals = max(0, cost_sum.minerals - self.minerals)
-            vespene = max(0, cost_sum.vespene - self.vespene)
+            minerals += max(0, cost_sum.minerals - self.minerals)
+            vespene += max(0, cost_sum.vespene - self.vespene)
         gas_ratio = vespene / max(1, vespene + minerals)
         worker_type = race_worker[self.race]
         gas_target = gas_ratio * self.count(worker_type, include_pending=False)
@@ -574,8 +574,6 @@ class AIBase(ABC, BotAI):
         return round(gas_target)
 
     def transfer_to_and_from_gas(self, gas_target: int):
-
-        gas_target = 4
 
         if self.gas_harvester_count + 1 <= gas_target:
             base = max(
