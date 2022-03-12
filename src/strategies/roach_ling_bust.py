@@ -8,7 +8,12 @@ from ..macro_plan import MacroPlan
 from .zerg_macro import ZergMacro
 from .zerg_strategy import ZergStrategy
 
+from ..ai_base import AIBase
+
 class RoachLingBust(ZergMacro):
+
+    def __init__(self, ai: AIBase):
+        super().__init__(ai)
 
     def build_order(self) -> Iterable:
         return [
@@ -39,28 +44,24 @@ class RoachLingBust(ZergMacro):
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
+            UnitTypeId.ROACH,
+            UnitTypeId.ROACH,
+            UnitTypeId.OVERLORD,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
             # UnitTypeId.ROACH,
             # UnitTypeId.ROACH,
 
             # UnitTypeId.OVERLORD,
             # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
 
         ]
-    def update(self, bot):
-        bot.build_spines = False
-        # if (
-        #     bot.count(UnitTypeId.SPAWNINGPOOL, include_planned=False) < 1
-        #     and bot.supply_used == 14
-        #     and bot.count(UnitTypeId.EXTRACTOR, include_planned=False) == 0
-        # ):
-        #     bot.extractor_trick_enabled = True
-        bot.scout_manager.scout_enemy_natural = False
-        return super().update(bot)
+    def update(self):
+        self.ai.scout_manager.scout_enemy_natural = False
+        return super().update()
