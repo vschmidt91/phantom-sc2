@@ -54,7 +54,7 @@ class HatchFirst(ZergMacro):
     def filter_upgrade(self, upgrade) -> bool:
         if self.ai.time < 2 * 60:
             return False
-        return super().filter_upgrade(self.ai, upgrade)
+        return super().filter_upgrade(upgrade)
 
     def update(self):
         if (
