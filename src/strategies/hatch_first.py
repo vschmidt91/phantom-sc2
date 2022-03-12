@@ -57,6 +57,8 @@ class HatchFirst(ZergMacro):
     #     return super().filter_upgrade(upgrade)
 
     def update(self):
+        if 125 < self.ai.time:
+            self.ai.build_spines = True
         if (
             self.ai.supply_used == 14
             and self.ai.count(UnitTypeId.EXTRACTOR, include_planned=False) < 1

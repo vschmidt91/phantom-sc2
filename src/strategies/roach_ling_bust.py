@@ -31,7 +31,7 @@ class RoachLingBust(ZergMacro):
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
-            UpgradeId.BURROW,
+            UpgradeId.ZERGLINGMOVEMENTSPEED,
             UnitTypeId.OVERLORD,
 
             UnitTypeId.ROACH,
