@@ -57,7 +57,7 @@ class ZergMacro(ZergStrategy):
             UnitTypeId.QUEEN: queen_target,
         }
 
-        tech_up = 40 <= worker_count and 3 <= self.ai.townhalls.amount
+        tech_up = 32 <= worker_count and 3 <= self.ai.townhalls.amount
 
         # composition[UnitTypeId.ZERGLING] = 0
         # if 2.5 * 60 <= self.ai.time:

@@ -40,21 +40,21 @@ class HatchFirst(ZergMacro):
             UnitTypeId.EXTRACTOR,
             UnitTypeId.DRONE,
             UnitTypeId.SPAWNINGPOOL,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.OVERLORD,
-            # UnitTypeId.QUEEN,
-            # UnitTypeId.QUEEN,
-            # UnitTypeId.ZERGLING,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
+            UnitTypeId.OVERLORD,
+            UnitTypeId.QUEEN,
+            UnitTypeId.QUEEN,
+            UpgradeId.ZERGLINGMOVEMENTSPEED,
 
         ]
 
-    def filter_upgrade(self, upgrade) -> bool:
-        if self.ai.time < 2 * 60:
-            return False
-        return super().filter_upgrade(upgrade)
+    # def filter_upgrade(self, upgrade) -> bool:
+    #     if self.ai.time < 2 * 60:
+    #         return False
+    #     return super().filter_upgrade(upgrade)
 
     def update(self):
         if (
