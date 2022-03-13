@@ -1150,7 +1150,7 @@ class AIBase(ABC, BotAI):
             enemy_health[unit.position.rounded] += unit.health + unit.shield
 
         def add_unit_to_map(unit: Unit, map: np.ndarray, t: float) -> np.ndarray:
-            range = unit.radius + max(unit.ground_range, unit.air_range) + t * unit.movement_speed
+            range = 2 + unit.radius + max(unit.ground_range, unit.air_range) + t * unit.movement_speed
             dps = max(unit.ground_dps, unit.air_dps)
             if dps < 1:
                 return map
@@ -1160,7 +1160,7 @@ class AIBase(ABC, BotAI):
                 grid = map,
                 weight = dps)
 
-        for t in range(0, 8, 1):
+        for t in range(0, 16, 1):
 
             army_dps = self.map_analyzer.get_clean_air_grid(0)
             for unit in self.enumerate_army():
