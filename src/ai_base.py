@@ -95,7 +95,7 @@ class AIBase(ABC, BotAI):
 
         self.version: str = ''
         self.messages: Set[str] = set()
-        self.game_step: int = 2
+        self.game_step: int = 4
         self.performance: PerformanceMode = PerformanceMode.DEFAULT
         self.debug: bool = False
         self.greet_enabled: bool = True
@@ -1161,7 +1161,7 @@ class AIBase(ABC, BotAI):
                 grid = map,
                 weight = dps)
 
-        for t in range(0, 16, 1):
+        for t in range(0, 8, 1):
 
             army_dps = self.map_analyzer.get_clean_air_grid(0)
             for unit in self.enumerate_army():
