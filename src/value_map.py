@@ -22,13 +22,12 @@ class ValueMap(AIComponent):
         self.air_vs_ground: np.ndarray = self.ai.map_analyzer.get_pyastar_grid(0)
         self.air_vs_air: np.ndarray = self.ai.map_analyzer.get_clean_air_grid(0)
 
-    def add(self, unit: Unit):
+    def add(self, unit: Unit, bonus_distance: float) -> None:
         weight = self.ai.get_unit_value(unit)
         if weight < 1:
             return
-        base_range = 1.0 * unit.movement_speed + unit.radius
-        range_vs_ground = base_range + self.ai.get_unit_range(unit, True, False)
-        range_vs_air = base_range + self.ai.get_unit_range(unit, False, True)
+        range_vs_ground = unit.radius + self.ai.get_unit_range(unit, True, False) + bonus_distance
+        range_vs_air = unit.radius + self.ai.get_unit_range(unit, False, True) + bonus_distance
         if unit.is_flying:
             if unit.can_attack_ground:
                 self.air_vs_ground = self.ai.map_analyzer.add_cost(unit.position, range_vs_ground, self.air_vs_ground, weight)

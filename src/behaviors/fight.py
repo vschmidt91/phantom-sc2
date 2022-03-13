@@ -94,28 +94,32 @@ class FightBehavior(UnitBehavior):
         return path[min(3, len(path) - 1)]
 
     def get_stance(self, unit: Unit, advantage: float) -> FightStance:
-        if self.ai.get_unit_range(unit) < 2:
-            if self.stance is FightStance.FLEE:
-                if advantage < 1:
-                    return FightStance.FLEE
-                else:
-                    return FightStance.FIGHT
-            elif self.stance is FightStance.FIGHT:
-                if advantage < 1/2:
-                    return FightStance.FLEE
-                else:
-                    return FightStance.FIGHT
+
+        # if self.ai.get_unit_range(unit) < 2:
+        #     if self.stance is FightStance.FLEE:
+        #         if advantage < 1:
+        #             return FightStance.FLEE
+        #         else:
+        #             return FightStance.FIGHT
+        #     elif self.stance is FightStance.FIGHT:
+        #         if advantage < 1/2:
+        #             return FightStance.FLEE
+        #         else:
+        #             return FightStance.FIGHT
+        # else:
+        #     if advantage < 2/3:
+        #         return FightStance.FLEE
+        #     elif advantage < 3/2:
+        #         return FightStance.RETREAT
+        #     elif advantage < 3:
+        #         return FightStance.FIGHT
+        #     else:
+        #         return FightStance.ADVANCE
+        
+        if self.ai.fight_map[unit.position.rounded]:
+            return FightStance.FIGHT
         else:
-            # if not unit.weapon_cooldown and self.stance != FightStance.FLEE:
-            #     return self.stance
-            if advantage < 2/3:
-                return FightStance.FLEE
-            elif advantage < 3/2:
-                return FightStance.RETREAT
-            elif advantage < 3:
-                return FightStance.FIGHT
-            else:
-                return FightStance.ADVANCE
+            return FightStance.FLEE
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
 

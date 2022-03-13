@@ -134,10 +134,11 @@ class AIBase(ABC, BotAI):
         self.map_data: MapStaticData = None
         self.map_analyzer: MapData = None
         self.army_center: Point2 = Point2((0, 0))
-        self.army_influence_map: np.ndarray = None
-        self.enemy_influence_map: np.ndarray = None
         self.enemy_vs_ground_map: np.ndarray = None
         self.enemy_vs_air_map: np.ndarray = None
+        self.army_vs_ground_map: np.ndarray = None
+        self.army_vs_air_map: np.ndarray = None
+        self.fight_map: np.ndarray = None
         self.extractor_trick_enabled: bool = False
         self.tumor_front_tags: Set[int] = set()
 
@@ -1106,26 +1107,18 @@ class AIBase(ABC, BotAI):
 
     def update_maps(self):
 
-        enemy_value_map = ValueMap(self)
+        enemy_map = ValueMap(self)
 
         for enemy in self.enemies.values():
-            enemy_value_map.add(enemy)
-        self.enemy_vs_ground_map = np.maximum(1, enemy_value_map.get_map_vs_ground())
-        self.enemy_vs_air_map = np.maximum(1, enemy_value_map.get_map_vs_air())
+            enemy_map.add(enemy, 0.0)
+        self.enemy_vs_ground_map = np.maximum(1, enemy_map.get_map_vs_ground())
+        self.enemy_vs_air_map = np.maximum(1, enemy_map.get_map_vs_air())
 
-        army_influence_map = self.map_analyzer.get_pyastar_grid(0)
+        army_map = ValueMap(self)
         for unit in self.enumerate_army():
-            unit_range = unit.movement_speed + self.get_unit_range(unit)
-            unit_value = self.get_unit_value(unit)
-            if unit_value < 1:
-                continue
-            army_influence_map = self.map_analyzer.add_cost(
-                position = unit.position,
-                radius = unit.radius + unit_range,
-                grid = army_influence_map,
-                weight = unit_value,
-            )
-        self.army_influence_map = np.maximum(1, army_influence_map)
+            army_map.add(unit, 0.0)
+        self.army_vs_ground_map = np.maximum(1, army_map.get_map_vs_ground())
+        self.army_vs_air_map = np.maximum(1, army_map.get_map_vs_air())
 
         self.dodge.clear()
         delayed_positions = { e.position for e in self.dodge_delayed }
@@ -1143,12 +1136,45 @@ class AIBase(ABC, BotAI):
         self.dodge.extend(self.dodge_delayed)
 
         enemy_map = np.maximum(self.enemy_vs_air_map, self.enemy_vs_ground_map)
-        advantage_army = self.army_influence_map / enemy_map
-        advantage_defender = np.maximum(1/2 / self.map_data.distance, 1)
-        # advantage_defender = np.maximum((1 - self.map_data.distance) / max(1e-3, self.power_level), 1)
-        self.advantage_map = advantage_army
+        army_map = np.maximum(self.army_vs_air_map, self.army_vs_ground_map)
+        self.advantage_map = army_map / enemy_map
 
-        # self.map_analyzer.draw_influence_in_game(10 * advantage_army, upper_threshold=1e6)
+        # EXPERIMENTAL FIGHTING
+
+        army_health = self.map_analyzer.get_clean_air_grid(0)
+        for unit in self.enumerate_army():
+            army_health[unit.position.rounded] += unit.health + unit.shield
+
+        enemy_health = self.map_analyzer.get_clean_air_grid(0)
+        for unit in self.enemies.values():
+            enemy_health[unit.position.rounded] += unit.health + unit.shield
+
+        def add_unit_to_map(unit: Unit, map: np.ndarray, t: float) -> np.ndarray:
+            range = unit.radius + max(unit.ground_range, unit.air_range) + t * unit.movement_speed
+            dps = max(unit.ground_dps, unit.air_dps)
+            if dps < 1:
+                return map
+            return self.map_analyzer.add_cost(
+                position = unit.position,
+                radius = range,
+                grid = map,
+                weight = dps)
+
+        for t in range(0, 8, 1):
+
+            army_dps = self.map_analyzer.get_clean_air_grid(0)
+            for unit in self.enumerate_army():
+                army_dps = add_unit_to_map(unit, army_dps, t)
+                    
+            enemy_dps = self.map_analyzer.get_clean_air_grid(0)
+            for unit in self.enemies.values():
+                enemy_dps = add_unit_to_map(unit, enemy_dps, t)
+
+            discount = pow(.9, t)
+            army_health -= discount * enemy_dps
+            enemy_health -= discount * army_dps
+
+        self.fight_map = enemy_health < army_health
 
     def assess_threat_level(self):
         
