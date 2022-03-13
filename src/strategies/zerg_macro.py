@@ -35,7 +35,7 @@ class ZergMacro(ZergStrategy):
         worker_target = max(worker_target, 1)
         worker_count = self.ai.count(UnitTypeId.DRONE, include_planned=False)
         ratio = max(
-            self.ai.threat_level,
+            2/3 * self.ai.threat_level,
             pow(worker_count / worker_target, 3),
         )
         ratio = min(1, ratio)
