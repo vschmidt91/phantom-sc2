@@ -4,7 +4,7 @@ import math
 from itertools import chain
 from typing import Dict
 
-from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
+from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS, SPEED_INCREASE_DICT, SPEED_UPGRADE_DICT
 from sc2.data import Race
 from sc2.helpers.devtools import time_this
 from sc2.ids.unit_typeid import UnitTypeId
@@ -45,6 +45,12 @@ RANGE_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, int]] = {
     UnitTypeId.PLANETARYFORTRESS: { UpgradeId.HISECAUTOTRACKING: 1 },
     UnitTypeId.MISSILETURRET: { UpgradeId.HISECAUTOTRACKING: 1 },
     UnitTypeId.AUTOTURRET: { UpgradeId.HISECAUTOTRACKING: 1 },
+}
+
+SPEED_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, float]] = {
+    unit_type: { upgrade: SPEED_INCREASE_DICT[unit_type] }
+    for unit_type, upgrade in SPEED_UPGRADE_DICT.items()
+    
 }
 
 CREEP_ABILITIES = {

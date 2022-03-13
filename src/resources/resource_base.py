@@ -1,13 +1,19 @@
 
-from typing import Any, Optional, Set, Union, Iterable, Tuple
+from __future__ import annotations
+from typing import Any, Optional, Set, Union, Iterable, Tuple, TYPE_CHECKING
 
 from s2clientprotocol.error_pb2 import Error
 from sc2.position import Point2
 from abc import ABC, abstractmethod
+from ..ai_component import AIComponent
 
-class ResourceBase(ABC):
+if TYPE_CHECKING:
+    from ..ai_base import AIBase
 
-    def __init__(self, position: Point2):
+class ResourceBase(AIComponent):
+
+    def __init__(self, ai: AIBase, position: Point2):
+        super().__init__(ai)
         self.position: Point2 = position
         self.remaining: Optional[int] = 0
 
@@ -51,7 +57,7 @@ class ResourceBase(ABC):
     def harvester_balance(self):
         return self.harvester_count - self.harvester_target
 
-    def update(self, bot):
+    def update(self):
         pass
 
     def try_transfer_to(self, other: 'ResourceBase') -> Optional[int]:

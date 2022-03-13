@@ -577,37 +577,15 @@ class AIBase(ABC, BotAI):
 
     def transfer_to_and_from_gas(self, gas_target: int):
 
-        if self.gas_harvester_count + 1 <= gas_target:
+        if self.gas_harvester_count + 1 <= gas_target and self.vespene_geysers.harvester_balance < 0:
 
             if not self.mineral_patches.try_transfer_to(self.vespene_geysers):
                 print('transfer to gas failure')
-                
-            # base = max(
-            #     (b for b in self.bases if 0 < b.mineral_patches.harvester_count and b.vespene_geysers.harvester_balance < 0),
-            #     key = lambda b : b.mineral_patches.harvester_balance - b.vespene_geysers.harvester_balance,
-            #     default = None
-            # )
-            # if not base:
-            #     return
-            # if not base.mineral_patches.try_transfer_to(base.vespene_geysers):
-            #     print('transfer to gas failure')
-            #     return
 
-        elif gas_target <= self.gas_harvester_count - 1:
+        elif gas_target <= self.gas_harvester_count - 1 or 0 < self.vespene_geysers.harvester_balance:
 
             if not self.vespene_geysers.try_transfer_to(self.mineral_patches):
                 print('transfer from gas failure')
-
-            # base = max(
-            #     (b for b in self.bases if 0 < b.vespene_geysers.harvester_count and 0 < b.mineral_patches.harvester_target),
-            #     key = lambda b : b.vespene_geysers.harvester_balance - b.mineral_patches.harvester_balance,
-            #     default = None
-            # )
-            # if not base:
-            #     return
-            # if not base.vespene_geysers.try_transfer_to(base.mineral_patches):
-            #     print('transfer from gas failure')
-            #     return
         
     def update_bases(self):
 
@@ -625,9 +603,9 @@ class AIBase(ABC, BotAI):
                 base = min(self.bases, key=lambda b:b.position.distance_to(plan.target))
                 base.defensive_units_planned.append(plan)
 
-        self.bases.update(self)
-        self.mineral_patches.update(self)
-        self.vespene_geysers.update(self)
+        self.bases.update()
+        self.mineral_patches.update()
+        self.vespene_geysers.update()
 
     async def initialize_bases(self):
 
@@ -645,17 +623,17 @@ class AIBase(ABC, BotAI):
 
 
         bases = sorted((
-            Base(positions.get(position, position), (m.position for m in resources.mineral_field), (g.position for g in resources.vespene_geyser))
+            Base(self, positions.get(position, position), (m.position for m in resources.mineral_field), (g.position for g in resources.vespene_geyser))
             for position, resources in self.expansion_locations_dict.items()
         ), key = lambda b : self.map_data.distance[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
-        self.bases = ResourceGroup(bases)
+        self.bases = ResourceGroup(self, bases)
         self.bases.balancing_mode = BalancingMode.NONE
         self.bases[0].split_initial_workers(set(self.workers))
         self.bases[-1].taken_since = 0
 
-        self.vespene_geysers = ResourceGroup([b.vespene_geysers for b in self.bases])
-        self.mineral_patches = ResourceGroup([b.mineral_patches for b in self.bases])
+        self.vespene_geysers = ResourceGroup(self, [b.vespene_geysers for b in self.bases])
+        self.mineral_patches = ResourceGroup(self, [b.mineral_patches for b in self.bases])
 
     async def load_map_data(self) -> Coroutine[Any, Any, MapStaticData]:
 
@@ -1047,21 +1025,12 @@ class AIBase(ABC, BotAI):
         return None, None
 
     def get_unit_range(self, unit: Unit, ground: bool = True, air: bool = True) -> float:
-
         unit_range = 0
         if ground:
             unit_range = max(unit_range, unit.ground_range)
         if air:
             unit_range = max(unit_range, unit.air_range)
-
-        range_upgrades = RANGE_UPGRADES.get(unit.type_id)
-        if range_upgrades:
-            if unit.is_mine:
-                range_boni = (v for u, v in range_upgrades.items() if u in self.state.upgrades)
-            elif unit.is_enemy:
-                range_boni = range_upgrades.values()
-            unit_range += sum(range_boni)
-
+        unit_range += unit_boni(unit, RANGE_UPGRADES)
         return unit_range
 
     def enumerate_enemies(self) -> Iterable[Unit]:
@@ -1130,9 +1099,10 @@ class AIBase(ABC, BotAI):
         # buffer += 2 * self.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
         # return buffer
 
-    def get_unit_value(self, unit_type: UnitTypeId) -> float:
-        cost = self.calculate_unit_value(unit_type)
-        return cost.minerals + cost.vespene
+    def get_unit_value(self, unit: Unit) -> float:
+        return (unit.health + unit.shield) * max(unit.ground_dps, unit.air_dps)
+        # cost = self.calculate_unit_value(unit.type_id)
+        # return cost.minerals + cost.vespene
 
     def update_maps(self):
 
@@ -1146,7 +1116,7 @@ class AIBase(ABC, BotAI):
         army_influence_map = self.map_analyzer.get_pyastar_grid(0)
         for unit in self.enumerate_army():
             unit_range = unit.movement_speed + self.get_unit_range(unit)
-            unit_value = self.get_unit_value(unit.type_id)
+            unit_value = self.get_unit_value(unit)
             if unit_value < 1:
                 continue
             army_influence_map = self.map_analyzer.add_cost(
@@ -1182,10 +1152,10 @@ class AIBase(ABC, BotAI):
 
     def assess_threat_level(self):
         
-        value_self = sum(self.get_unit_value(u.type_id) for u in self.enumerate_army())
-        value_self += sum(len(self.pending_by_type[t]) * self.get_unit_value(t) for t in self.composition)
-        value_enemy = sum(self.get_unit_value(e.type_id) for e in self.enemies.values())
-        value_enemy_threats = sum(self.get_unit_value(e.type_id) * (1 - self.map_data.distance[e.position.rounded]) for e in self.enemies.values())
+        value_self = sum(self.get_unit_value(u) for u in self.enumerate_army())
+        # value_self += sum(len(self.pending_by_type[t]) * self.get_unit_value(t) for t in self.composition)
+        value_enemy = sum(self.get_unit_value(e) for e in self.enemies.values())
+        value_enemy_threats = sum(self.get_unit_value(e) * (1 - self.map_data.distance[e.position.rounded]) for e in self.enemies.values())
 
         self.power_level = value_enemy / max(1, value_self + value_enemy)
         self.threat_level = value_enemy_threats / max(1, value_self + value_enemy_threats)

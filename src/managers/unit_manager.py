@@ -226,7 +226,6 @@ class UnitManager(AIComponent, Behavior):
         tags.extend(u.tag for u in self.ai.all_own_units if u.type_id not in IGNORED_UNIT_TYPES)
         tags.extend(self.ai.tumor_front_tags)
 
-
         for tag in tags:
             behavior = self.behaviors.get(tag)
             if not behavior:

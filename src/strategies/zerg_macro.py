@@ -43,7 +43,7 @@ class ZergMacro(ZergStrategy):
         # ratio = 1 if 0.5 < ratio else 0
 
         enemy_value = {
-            tag: self.ai.get_unit_value(enemy.type_id)
+            tag: self.ai.get_unit_value(enemy)
             for tag, enemy in self.ai.enemies.items()
         }
         enemy_flyer_value = sum(enemy_value[e.tag] for e in self.ai.enemies.values() if e.is_flying)
@@ -58,6 +58,7 @@ class ZergMacro(ZergStrategy):
         }
 
         tech_up = 32 <= worker_count and 3 <= self.ai.townhalls.amount
+        # tech_up = False
 
         # composition[UnitTypeId.ZERGLING] = 0
         # if 2.5 * 60 <= self.ai.time:

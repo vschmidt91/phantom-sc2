@@ -1,6 +1,6 @@
 
 from math import floor
-from typing import Iterable, Optional, Set, Tuple, Union
+from typing import Iterable, Optional, Set, Tuple, Union, Dict
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -28,6 +28,14 @@ async def run_timed(steps, args = {}):
         end = time.perf_counter()
         timings[step.__name__] = end - start
     return timings
+
+def unit_boni(unit: Unit, bonus_dict: Dict[UnitTypeId, Dict[UpgradeId, float]]) -> float:
+    result = 0.0
+    if unit.is_mine and (boni := bonus_dict.get(unit.type_id)):
+        for upgrade, bonus in boni.items():
+            if upgrade in unit._bot_object.state.upgrades:
+                result += bonus
+    return result
 
 def can_move(unit: Unit) -> bool:
     if unit.is_burrowed:

@@ -1,14 +1,16 @@
-
-from typing import Optional, Set, Union, Iterable, Tuple, List
+from __future__ import annotations
+from typing import Optional, Set, Union, Iterable, Tuple, List, TYPE_CHECKING
 from sc2.position import Point2
 from abc import ABC, abstractmethod
 
 from .resource_base import ResourceBase
+if TYPE_CHECKING:
+    from ..ai_base import AIBase
 
 class ResourceSingle(ResourceBase):
 
-    def __init__(self, position: Point2):
-        super().__init__(position)
+    def __init__(self, ai: AIBase, position: Point2):
+        super().__init__(ai, position)
         self.harvester_list: List[int] = list()
 
     def get_resource(self, harvester: int) -> Optional[ResourceBase]:

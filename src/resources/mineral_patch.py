@@ -1,5 +1,6 @@
 
-from typing import Set, Union, Iterable, Optional
+from __future__ import annotations
+from typing import Set, Union, Iterable, Optional, TYPE_CHECKING
 
 from sc2.position import Point2
 from sc2.ids.ability_id import AbilityId
@@ -8,10 +9,13 @@ from ..constants import RICH_MINERALS
 from .resource_base import ResourceBase
 from .resource_single import ResourceSingle
 
+if TYPE_CHECKING:
+    from ..ai_base import AIBase
+
 class MineralPatch(ResourceSingle):
 
-    def __init__(self, position: Point2):
-        super().__init__(position)
+    def __init__(self, ai: AIBase, position: Point2):
+        super().__init__(ai, position)
         self.is_rich = False
         self.speedmining_target: Optional[Point2] = None
 
@@ -22,11 +26,11 @@ class MineralPatch(ResourceSingle):
         else:
             return 0
 
-    def update(self, bot):
+    def update(self):
 
-        super().update(bot)
+        super().update()
         
-        patch = bot.resource_by_position.get(self.position)
+        patch = self.ai.resource_by_position.get(self.position)
 
         if not patch:
             self.remaining = 0

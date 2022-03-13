@@ -1,6 +1,7 @@
 
+from __future__ import annotations
 from enum import Enum
-from typing import Dict, Iterable, Set, List, Optional, TypeVar, Generic, Tuple
+from typing import Dict, Iterable, Set, List, Optional, TypeVar, Generic, Tuple, TYPE_CHECKING
 from itertools import chain
 import math
 
@@ -11,6 +12,8 @@ from sc2.position import Point2
 
 from .resource_base import ResourceBase
 from ..utils import center
+if TYPE_CHECKING:
+    from ..ai_base import AIBase
 
 T = TypeVar('T', bound=ResourceBase)
 
@@ -21,10 +24,10 @@ class BalancingMode(Enum):
 
 class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
 
-    def __init__(self, items: List[T], position: Optional[Point2] = None):
+    def __init__(self, ai: AIBase, items: List[T], position: Optional[Point2] = None):
         if position == None:
             position = center((r.position for r in items))
-        super().__init__(position)
+        super().__init__(ai, position)
         self.items: List[T] = items
         self.balancing_mode: BalancingMode = BalancingMode.MINIMIZE_TRANSFERS
         self.vespene_switching_enabled: bool = False
@@ -107,10 +110,10 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
     def income(self):
         return sum(r.income for r in self.items)
 
-    def update(self, bot):
+    def update(self):
 
         for resource in self.items:
-            resource.update(bot)
+            resource.update()
 
         # if bot.debug:
         #     for i, a in enumerate(self.items):
@@ -120,7 +123,7 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         #             if any(set(ha).intersection(hb)):
         #                 raise Error
 
-        super().update(bot)
+        super().update()
 
         self.remaining = sum(r.remaining for r in self.items)
         

@@ -1,5 +1,6 @@
 
-from typing import Optional, Set
+from __future__ import annotations
+from typing import Optional, Set, TYPE_CHECKING
 
 from sc2.position import Point2
 from sc2.constants import ALL_GAS
@@ -7,11 +8,13 @@ from ..constants import RICH_GAS
 
 from .resource_single import ResourceSingle
 from .resource_base import ResourceBase
+if TYPE_CHECKING:
+    from ..ai_base import AIBase
 
 class VespeneGeyser(ResourceSingle):
 
-    def __init__(self, position: Point2):
-        super().__init__(position)
+    def __init__(self, ai: AIBase, position: Point2):
+        super().__init__(ai, position)
         self.is_rich = False
 
     @property
@@ -21,13 +24,13 @@ class VespeneGeyser(ResourceSingle):
         else:
             return 0
 
-    def update(self, bot):
+    def update(self):
 
-        super().update(bot)
+        super().update()
 
-        geyser = bot.resource_by_position.get(self.position)
+        geyser = self.ai.resource_by_position.get(self.position)
         self.is_rich = geyser.type_id in RICH_GAS
-        building = bot.gas_building_by_position.get(self.position)
+        building = self.ai.gas_building_by_position.get(self.position)
 
         if building and building.is_ready:
             self.remaining = building.vespene_contents

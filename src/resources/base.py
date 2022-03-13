@@ -23,8 +23,9 @@ from .vespene_geyser import VespeneGeyser
 from .resource_base import ResourceBase
 from .resource_group import BalancingMode, ResourceGroup
 
+from ..ai_component import AIComponent
 if TYPE_CHECKING:
-    from ..ai_base import AIBase, AIComponent
+    from ..ai_base import AIBase
 
 MINING_RADIUS = 1.325
 # MINING_RADIUS = 1.4
@@ -82,21 +83,26 @@ def _get_intersections(x0: float, y0: float, r0: float, x1: float, y1: float, r1
 class Base(ResourceGroup[ResourceBase]):
 
     def __init__(self,
+        ai: AIBase,
         townhall_position: Point2,
         minerals: Iterable[Point2],
         gasses: Iterable[Point2],
     ):
-        self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(sorted(
-            (MineralPatch(m) for m in minerals),
-            key = lambda m : m.position.distance_to(townhall_position)
-        ))
-        self.vespene_geysers: ResourceGroup[VespeneGeyser] = ResourceGroup(sorted(
-            (VespeneGeyser(g) for g in gasses),
-            key = lambda g : g.position.distance_to(townhall_position)
-        ))
+        self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(
+            ai,
+            sorted(
+                (MineralPatch(ai, m) for m in minerals),
+                key = lambda m : m.position.distance_to(townhall_position)
+            ))
+        self.vespene_geysers: ResourceGroup[VespeneGeyser] = ResourceGroup(
+            ai,
+            sorted(
+                (VespeneGeyser(ai, g) for g in gasses),
+                key = lambda g : g.position.distance_to(townhall_position)
+            ))
         self.mineral_patches.balancing_mode = BalancingMode.MINIMIZE_TRANSFERS
         self.vespene_geysers.balancing_mode = BalancingMode.NONE
-        super().__init__([self.mineral_patches, self.vespene_geysers], townhall_position)
+        super().__init__(ai, [self.mineral_patches, self.vespene_geysers], townhall_position)
         self.blocked_since: Optional[float] = None
         self.taken_since: Optional[float] = None
         self.balancing_mode = BalancingMode.NONE
@@ -149,9 +155,9 @@ class Base(ResourceGroup[ResourceBase]):
             return 0
         return super().harvester_target
 
-    def update(self, bot: AIBase):
+    def update(self):
 
-        self.townhall = bot.townhall_by_position.get(self.position)
+        self.townhall = self.ai.townhall_by_position.get(self.position)
         if self.townhall and self.defensive_targets:
             defenses = Counter()
             defenses.update(u.type_id for u in self.defensive_units)
@@ -168,14 +174,14 @@ class Base(ResourceGroup[ResourceBase]):
                     plan.target = plan.target.rounded.offset((.5, .5))
                     plan.max_distance = 2
                     plan.priority = 0
-                    bot.add_macro_plan(plan)
+                    self.ai.add_macro_plan(plan)
 
-        super().update(bot)
+        super().update()
 
         if self.vespene_switching_enabled:
 
             for tag in self.harvesters:
-                unit = bot.unit_by_tag.get(tag)
+                unit = self.ai.unit_by_tag.get(tag)
                 if not unit:
                     continue
                 state = self.vespene_switching_state.setdefault(tag, False)
