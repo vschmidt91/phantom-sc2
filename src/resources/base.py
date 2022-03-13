@@ -1,5 +1,6 @@
 
 from __future__ import annotations
+import numpy as np
 from collections import defaultdict
 from email.policy import default
 from typing import Counter, DefaultDict, Dict, Iterable, Set, List, Optional, TYPE_CHECKING
@@ -35,8 +36,19 @@ def project_point_onto_line(p: Point2, d: Point2, x: Point2) -> float:
     n = Point2((d[1], -d[0]))
     return x - dot(x - p, n) / dot(n, n) * n
 
-def get_intersections(p0: Point2, r0: float, p1: Point2, r1: float) -> List[Point2]:
-    return _get_intersections(p0.x, p0.y, r0, p1.x, p1.y, r1)
+def get_intersections(p0: Point2, r0: float, p1: Point2, r1: float) -> Iterable[Point2]:
+    p01 = p1 - p0
+    d = np.linalg.norm(p01)
+    if 0 < d and abs(r0 - r1) <= d <= r0 + r1:
+        a = (r0 ** 2 - r1 ** 2 + d ** 2) / (2 * d)
+        h = math.sqrt(r0 ** 2 - a ** 2)
+        pm = p0 + (a / d) * p01
+        po = (h / d) * np.array([p01.y, -p01.x])
+        yield pm + po
+        yield pm - po
+
+# def get_intersections(p0: Point2, r0: float, p1: Point2, r1: float) -> List[Point2]:
+#     return _get_intersections(p0.x, p0.y, r0, p1.x, p1.y, r1)
 
 
 def _get_intersections(x0: float, y0: float, r0: float, x1: float, y1: float, r1: float) -> List[Point2]:
@@ -124,9 +136,10 @@ class Base(ResourceGroup[ResourceBase]):
                     continue
                 if MINING_RADIUS <= patch2.position.distance_to(p):
                     continue
-                points = get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS)
-                if len(points) == 2:
-                    target = min(points, key=lambda p:p.distance_to(self.position))
+                if target := min(
+                    get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS),
+                    key = lambda p : p.distance_to(self.position),
+                    default = None):
                     break
             patch.speedmining_target = target
 
