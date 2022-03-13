@@ -93,7 +93,7 @@ class FightBehavior(UnitBehavior):
             return target
         return path[min(3, len(path) - 1)]
 
-    def get_stance(self, unit: Unit, advantage: float) -> FightStance:
+    def get_stance(self, unit: Unit, target: Unit) -> FightStance:
 
         # if self.ai.get_unit_range(unit) < 2:
         #     if self.stance is FightStance.FLEE:
@@ -116,7 +116,7 @@ class FightBehavior(UnitBehavior):
         #     else:
         #         return FightStance.ADVANCE
         
-        if self.ai.fight_map[unit.position.rounded]:
+        if np.sign(self.ai.enemy_projection[target.position.rounded]) <= np.sign(self.ai.army_projection[unit.position.rounded]):
             return FightStance.FIGHT
         else:
             return FightStance.FLEE
@@ -136,8 +136,8 @@ class FightBehavior(UnitBehavior):
         if priority <= 0:
             return BehaviorResult.SUCCESS
 
-        advantage = self.get_advantage(unit, target)
-        self.stance = self.get_stance(unit, advantage)
+        # advantage = self.get_advantage(unit, target)
+        self.stance = self.get_stance(unit, target)
 
         if self.stance == FightStance.FLEE:
 
