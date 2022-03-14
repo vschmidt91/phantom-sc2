@@ -1161,9 +1161,7 @@ class AIBase(ABC, BotAI):
                 grid = map,
                 weight = dps)
 
-        for log_t in range(0, 8, 1):
-
-            t = 2 ** t
+        for t in range(0, 8, 1):
 
             army_dps = self.map_analyzer.get_clean_air_grid(0)
             for unit in self.enumerate_army():
@@ -1175,7 +1173,7 @@ class AIBase(ABC, BotAI):
                 if 0 < enemy_health[unit.position.rounded]:
                     enemy_dps = add_unit_to_map(unit, enemy_dps, t)
 
-            discount = .5 / t
+            discount = pow(.5, t)
             army_health -= discount * enemy_dps
             enemy_health -= discount * army_dps
 
