@@ -95,7 +95,7 @@ class AIBase(ABC, BotAI):
 
         self.version: str = ''
         self.messages: Set[str] = set()
-        self.game_step: int = 3
+        self.game_step: int = 4
         self.performance: PerformanceMode = PerformanceMode.DEFAULT
         self.debug: bool = False
         self.greet_enabled: bool = True
