@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from functools import cache
 from importlib.resources import Resource
 import math
+from pickle import BUILD
 import re
 import random
 from re import S
@@ -533,27 +534,27 @@ class AIBase(ABC, BotAI):
     def update_gas(self):
         gas_target = self.get_gas_target()
         self.transfer_to_and_from_gas(gas_target)
-        if self.macro_plans and self.macro_plans[0].priority == BUILD_ORDER_PRIORITY:
-            return
         self.build_gasses(gas_target)
 
-    def build_gasses(self, gas_target: int):
+    def build_gasses(self, gas_target: float):
         gas_depleted = self.gas_buildings.filter(lambda g : not g.has_vespene).amount
-        gas_have = self.count(UnitTypeId.EXTRACTOR)
+        gas_pending = self.count(UnitTypeId.EXTRACTOR, include_actual=False)
+        gas_have = self.count(UnitTypeId.EXTRACTOR, include_pending=False, include_planned=False)
         gas_max = sum(1 for g in self.get_owned_geysers())
-        gas_want = min(gas_max, gas_depleted + math.ceil(gas_target / 2))
-        if gas_have < gas_want and self.count(UnitTypeId.EXTRACTOR, include_actual=False) < 1:
+        gas_want = min(gas_max, gas_depleted + math.ceil(gas_target / 3))
+        if gas_have + gas_pending < gas_want and gas_pending < 2:
             self.add_macro_plan(MacroPlan(UnitTypeId.EXTRACTOR))
+        else:
+            for _, plan in zip(range(gas_have + gas_pending - gas_want), list(self.planned_by_type[UnitTypeId.EXTRACTOR])):
+                if plan.priority < BUILD_ORDER_PRIORITY:
+                    self.remove_macro_plan(plan)
 
-    def get_gas_target(self) -> int:
-
-        if 0 < len(self.macro_plans) and BUILD_ORDER_PRIORITY <= self.macro_plans[0].priority:
-            return self.gas_harvester_target
+    def get_gas_target(self) -> float:
 
         cost_zero = Cost(0, 0, 0)
         cost_sum = sum((self.cost[plan.item] for plan in self.macro_plans), cost_zero)
-        minerals =   max(0, cost_sum.minerals - self.minerals)
-        vespene =  max(0, cost_sum.vespene - self.vespene)
+        minerals = max(0, cost_sum.minerals - self.minerals)
+        vespene = max(0, cost_sum.vespene - self.vespene)
         if minerals + vespene == 0:
             cost_sum = sum(
                 (self.cost[unit] * count
@@ -575,9 +576,10 @@ class AIBase(ABC, BotAI):
         # gas_target = 2 * math.ceil(gas_target / 2)
         # gas_target = 1.5 * math.ceil(gas_target / 1.5)
 
-        return math.ceil(gas_target)
+        return gas_target
+        # return math.ceil(gas_target)
 
-    def transfer_to_and_from_gas(self, gas_target: int):
+    def transfer_to_and_from_gas(self, gas_target: float):
 
         if self.gas_harvester_count + 1 <= gas_target and self.vespene_geysers.harvester_balance < 0:
 
@@ -732,6 +734,7 @@ class AIBase(ABC, BotAI):
 
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.threat_level)}%', (0.01, 0.01))
         self.client.debug_text_screen(f'Enemy Bases: {self.block_manager.enemy_base_count}', (0.01, 0.02))
+        self.client.debug_text_screen(f'Gas Target: {round(self.get_gas_target(), 3)}', (0.01, 0.03))
         for i, plan in enumerate(self.macro_plans):
             self.client.debug_text_screen(f'{1+i} {plan.item.name}', (0.01, 0.1 + 0.01 * i))
 

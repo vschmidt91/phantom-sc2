@@ -35,10 +35,10 @@ class ZergMacro(ZergStrategy):
         worker_target = max(worker_target, 1)
         worker_count = self.ai.count(UnitTypeId.DRONE, include_planned=False)
         ratio = max(
-            2/3 * self.ai.threat_level,
-            pow(worker_count / worker_target, 3),
+            self.ai.threat_level,
+            -2 + 3 * (worker_count / worker_target),
         )
-        ratio = min(1, ratio)
+        ratio = max(0, min(1, ratio))
         # ratio = pow(ratio, 8)
         # ratio = 1 if 0.5 < ratio else 0
 
@@ -68,17 +68,17 @@ class ZergMacro(ZergStrategy):
 
         if tech_up:
             composition[UnitTypeId.ROACH] = 0
-            composition[UnitTypeId.HYDRALISK] = 0
+            # composition[UnitTypeId.HYDRALISK] = 0
             # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
             if self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False, include_pending=False):
                 composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
-                # composition[UnitTypeId.HYDRALISK] = 0
+                composition[UnitTypeId.HYDRALISK] = 0
             
         if 1 <= self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False) + self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
             composition[UnitTypeId.OVERSEER] = 2
 
-        # if self.ai.count(UnitTypeId.ROACHWARREN, include_planned=False):
-        if tech_up:
+        if self.ai.count(UnitTypeId.ROACHWARREN, include_planned=False):
+        # if tech_up:
             if self.ai.count(UnitTypeId.HYDRALISKDEN, include_pending=False, include_planned=False):
                 hydra_ratio = enemy_flyer_ratio
                 composition[UnitTypeId.ROACH] = int(ratio * worker_target * (1 - hydra_ratio))

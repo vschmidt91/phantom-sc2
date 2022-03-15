@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 from enum import Enum
-from typing import Dict, Iterable, Set, List, Optional, TypeVar, Generic, Tuple, TYPE_CHECKING
+from typing import Iterator, Dict, Iterable, Set, List, Optional, TypeVar, Generic, Tuple, TYPE_CHECKING
 from itertools import chain
 import math
 
@@ -24,7 +24,7 @@ class BalancingMode(Enum):
 
 class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
 
-    def __init__(self, ai: AIBase, items: List[T], position: Optional[Point2] = None):
+    def __init__(self, ai: AIBase, items: List[T], position: Optional[Point2] = None) -> None:
         if position == None:
             position = center((r.position for r in items))
         super().__init__(ai, position)
@@ -32,13 +32,13 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         self.balancing_mode: BalancingMode = BalancingMode.MINIMIZE_TRANSFERS
         self.vespene_switching_enabled: bool = False
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[T]:
         return iter(self.items)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index) -> T:
         return self.items[index]
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.items)
 
     def get_resource(self, harvester: int) -> Optional[ResourceBase]:
@@ -95,7 +95,7 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         return False
 
     @property
-    def harvester_target(self):
+    def harvester_target(self) -> int:
         return sum(r.harvester_target for r in self.items)
 
     @property
@@ -107,7 +107,7 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         return sum(r.harvester_target for r in self.items)
 
     @property
-    def income(self):
+    def income(self) -> float:
         return sum(r.income for r in self.items)
 
     def update(self):

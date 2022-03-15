@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 class ResourceSingle(ResourceBase):
 
-    def __init__(self, ai: AIBase, position: Point2):
+    def __init__(self, ai: AIBase, position: Point2) -> None:
         super().__init__(ai, position)
         self.harvester_list: List[int] = list()
 

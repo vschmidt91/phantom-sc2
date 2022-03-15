@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 class ResourceBase(AIComponent):
 
-    def __init__(self, ai: AIBase, position: Point2):
+    def __init__(self, ai: AIBase, position: Point2) -> None:
         super().__init__(ai)
         self.position: Point2 = position
         self.remaining: Optional[int] = 0
@@ -36,12 +36,12 @@ class ResourceBase(AIComponent):
 
     @property
     @abstractmethod
-    def harvester_target(self):
+    def harvester_target(self) -> int:
         raise NotImplementedError()
 
     @property
     @abstractmethod
-    def income(self):
+    def income(self) -> float:
         raise NotImplementedError()
 
     @property
@@ -50,14 +50,14 @@ class ResourceBase(AIComponent):
         raise NotImplementedError()
 
     @property
-    def harvester_count(self):
+    def harvester_count(self) -> int:
         return sum(1 for _ in self.harvesters)
 
     @property
-    def harvester_balance(self):
+    def harvester_balance(self) -> int:
         return self.harvester_count - self.harvester_target
 
-    def update(self):
+    def update(self) -> None:
         pass
 
     def try_transfer_to(self, other: 'ResourceBase') -> Optional[int]:

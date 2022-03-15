@@ -61,8 +61,11 @@ class GatherBehavior(UnitBehavior):
                     if 0.75 < unit.position.distance_to(move_target) < 1.5:
                         unit.move(move_target)
                         unit(AbilityId.SMART, townhall, True)
-                    else:
-                        unit.return_resource()
+                        # if isinstance(resource, VespeneGeyser):
+                        #     global LAST_RETURN
+                        #     self.ai.client.game_step = 1
+                        #     print(self.ai.state.game_loop - LAST_RETURN, unit.tag)
+                        #     LAST_RETURN = self.ai.state.game_loop
                 else:
                     move_target = None
                     if isinstance(resource, MineralPatch):

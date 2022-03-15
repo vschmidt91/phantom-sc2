@@ -13,18 +13,18 @@ if TYPE_CHECKING:
 
 class VespeneGeyser(ResourceSingle):
 
-    def __init__(self, ai: AIBase, position: Point2):
+    def __init__(self, ai: AIBase, position: Point2) -> None:
         super().__init__(ai, position)
         self.is_rich = False
 
     @property
-    def harvester_target(self):
+    def harvester_target(self) -> int:
         if self.remaining:
-            return 2
+            return 3
         else:
             return 0
 
-    def update(self):
+    def update(self) -> None:
 
         super().update()
 
@@ -39,15 +39,13 @@ class VespeneGeyser(ResourceSingle):
 
 
     @property
-    def income(self):
-        income_per_trip = 8 if self.is_rich else 4
+    def income(self) -> float:
         if not self.remaining:
             return 0
-        elif self.harvester_count == 0:
-            return 0
-        elif self.harvester_count == 1:
-            return income_per_trip * 15 / 60
-        elif self.harvester_count == 2:
-            return income_per_trip * 30 / 60
+        vespene_per_trip = 8 if self.is_rich else 4
+        if self.harvester_count <= 2:
+            trips_per_second = self.harvester_count * 22.4 / 81.0
         else:
-            return income_per_trip * 41 / 60
+            trips_per_second = 22.4 / 33.0
+        vespene_per_second = vespene_per_trip * trips_per_second
+        return vespene_per_second
