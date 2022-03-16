@@ -1,6 +1,5 @@
 
 from collections import Counter
-from msilib.schema import Error
 from typing import Dict, Iterable, List, Optional, Set
 from itertools import chain
 
