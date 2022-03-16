@@ -55,18 +55,18 @@ BUILDS = [
     # AIBuild.Air,
 ]
 
-DIFFICULTY = Difficulty.VeryEasy
+DIFFICULTY = Difficulty.CheatInsane
 REAL_TIME = False
 RESULT_PATH = 'results.json'
 
 def create_bot():
     # ai = CompetitiveBot()
-    # ai = Pool12AllIn()
+    ai = Pool12AllIn()
     # ai = LingFlood()
     # ai = DummyAI()
-    ai = ZergAI(strategy_cls=HatchFirst)
-    ai.debug = True
-    ai.game_step = 10
+    # ai = ZergAI(strategy_cls=HatchFirst)
+    # ai.debug = True
+    # ai.game_step = 10
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:
