@@ -40,7 +40,7 @@ class Pool12AllIn(BotAI):
         self.pool_drone: Optional[Unit] = None
         self.tags: Set[str] = set()
         self.gas_harvesters: Set[int] = set()
-        self.game_step: int = 1
+        self.game_step: int = 2
         self.speedmining_enabled: bool = True
         super().__init__()
 
@@ -180,7 +180,7 @@ class Pool12AllIn(BotAI):
         elif any(self.transfer_from_gas) and unit.order_target == self.transfer_from_gas[0].tag:
             unit.stop()
             self.transfer_from_gas.pop(0)
-            self.gas_harvesters.remove(unit.tag)
+            self.gas_harvesters.difference_update([unit.tag])
         elif any(self.transfer_to_gas) and unit.order_target != self.transfer_to_gas[0] and not unit.is_carrying_minerals and len(unit.orders) < 2 and unit.order_target not in self.close_minerals:
             unit.gather(self.transfer_to_gas.pop(0))
             self.gas_harvesters.add(unit.tag)
