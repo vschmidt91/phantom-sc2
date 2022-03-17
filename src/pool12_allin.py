@@ -108,7 +108,8 @@ class Pool12AllIn(BotAI):
                 larva_per_second += 1/11
                 if hatchery.has_buff(BuffId.QUEENSPAWNLARVATIMER):
                     larva_per_second += 3/29
-        mineral_starved = self.minerals < 150 and self.state.score.collection_rate_minerals < 1.2 * 50 * 60 * larva_per_second
+        minerals_for_lings = 50 * 60 * larva_per_second # maximum we can possibly spend on lings
+        mineral_starved = self.minerals < 150 and self.state.score.collection_rate_minerals < 1.2 * minerals_for_lings # aim for a 20% surplus
         drone_max = sum(hatch.ideal_harvesters for hatch in self.townhalls)
         queen_missing = self.townhalls.amount - (len(self.inject_queens) + self.abilities[AbilityId.TRAINQUEEN_QUEEN])
         if not self.pool and self.abilities[AbilityId.ZERGBUILD_SPAWNINGPOOL] < 1:
