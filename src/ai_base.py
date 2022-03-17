@@ -542,7 +542,8 @@ class AIBase(ABC, BotAI):
         gas_have = self.count(UnitTypeId.EXTRACTOR, include_pending=False, include_planned=False)
         gas_max = sum(1 for g in self.get_owned_geysers())
         gas_want = min(gas_max, gas_depleted + math.ceil(gas_target / 3))
-        if gas_have + gas_pending < gas_want and gas_pending < 2:
+        if gas_have + gas_pending < gas_want:
+        # if gas_have + gas_pending < gas_want and gas_pending < 2:
             self.add_macro_plan(MacroPlan(UnitTypeId.EXTRACTOR))
         else:
             for _, plan in zip(range(gas_have + gas_pending - gas_want), list(self.planned_by_type[UnitTypeId.EXTRACTOR])):
@@ -553,15 +554,15 @@ class AIBase(ABC, BotAI):
 
         cost_zero = Cost(0, 0, 0)
         cost_sum = sum((self.cost[plan.item] for plan in self.macro_plans), cost_zero)
+        cost_sum += sum(
+            (self.cost[unit] * max(0, count - self.count(unit))
+            for unit, count in self.composition.items()),
+            cost_zero) * 0.5
         minerals = max(0, cost_sum.minerals - self.minerals)
         vespene = max(0, cost_sum.vespene - self.vespene)
-        if minerals + vespene == 0:
-            cost_sum = sum(
-                (self.cost[unit] * count
-                for unit, count in self.composition.items()),
-                cost_zero)
-            minerals += max(0, cost_sum.minerals - self.minerals)
-            vespene += max(0, cost_sum.vespene - self.vespene)
+        # if minerals + vespene == 0:
+        #     minerals += max(0, cost_sum.minerals - self.minerals)
+        #     vespene += max(0, cost_sum.vespene - self.vespene)
         gas_ratio = vespene / max(1, vespene + minerals)
         worker_type = race_worker[self.race]
         gas_target = gas_ratio * self.count(worker_type, include_pending=False)
@@ -1106,8 +1107,10 @@ class AIBase(ABC, BotAI):
 
     def get_unit_value(self, unit: Unit) -> float:
         return (unit.health + unit.shield) * max(unit.ground_dps, unit.air_dps)
-        # cost = self.calculate_unit_value(unit.type_id)
-        # return cost.minerals + cost.vespene
+
+    def get_unit_cost(self, unit_type: UnitTypeId) -> int:
+        cost = self.calculate_unit_value(unit_type)
+        return cost.minerals + cost.vespene
 
     def update_maps(self):
 

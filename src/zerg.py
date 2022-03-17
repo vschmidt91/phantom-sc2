@@ -22,7 +22,7 @@ from sc2.position import Point2
 from sc2.unit_command import UnitCommand
 from src.probots import OPPONENTS, STRATEGIES
 
-from .unit_counters import UNIT_COUNTERS
+from .unit_counters import UNIT_COUNTER_MATRIX
 from .behaviors.behavior import Behavior, BehaviorSelector, BehaviorSequence
 from .behaviors.burrow import BurrowBehavior
 from .behaviors.fight import FightBehavior
@@ -138,9 +138,9 @@ class ZergAI(AIBase):
         weights = {
             unit: sum(
                 w * len(enemies_by_type[e])
-                for e, w in UNIT_COUNTERS[unit].items()
+                for e, w in UNIT_COUNTER_MATRIX[unit].items()
             )
-            for unit in UNIT_COUNTERS.keys()
+            for unit in UNIT_COUNTER_MATRIX.keys()
         }
 
         weights = sorted(weights.items(),
@@ -408,13 +408,13 @@ class ZergAI(AIBase):
         saturation = self.count(UnitTypeId.DRONE, include_planned=False) / max(1, worker_max)
         saturation = max(0, min(1, saturation))
         # saturation = self.bases.harvester_count / max(1, self.bases.harvester_target)
-        priority = 7 * (saturation - 1)
+        priority = 4 * (saturation - 1)
 
         for plan in self.planned_by_type[UnitTypeId.HATCHERY]:
             if plan.priority < BUILD_ORDER_PRIORITY:
                 plan.priority = priority
 
-        if self.count(UnitTypeId.HATCHERY, include_actual=False) < 1:
+        if -1 < priority and self.count(UnitTypeId.HATCHERY, include_actual=False) < 1:
             plan = MacroPlan(UnitTypeId.HATCHERY)
             plan.priority = priority
             plan.max_distance = 0
