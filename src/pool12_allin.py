@@ -193,8 +193,9 @@ class Pool12AllIn(BotAI):
                 target = self.townhalls.closest_to(unit)
                 move_target = target.position.towards(unit.position, target.radius + unit.radius)
             elif unit.is_gathering:
-                target = self.resource_by_tag[unit.order_target]
-                move_target = self.speedmining_positions[target.position]
+                target = self.resource_by_tag.get(unit.order_target)
+                if target:
+                    move_target = self.speedmining_positions[target.position]
             if target and 2 * unit.radius < unit.distance_to(move_target) < SPEEDMINING_DISTANCE:
                 unit.move(move_target)
                 unit(AbilityId.SMART, target, True)
