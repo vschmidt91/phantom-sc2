@@ -5,6 +5,7 @@ from itertools import chain
 
 import numpy as np
 import math
+import random
 
 from sc2.bot_ai import BotAI
 from sc2.ids.buff_id import BuffId
@@ -83,6 +84,7 @@ class Pool12AllIn(BotAI):
         self.hatch_morphing: Optional[Unit] = None
         self.pool: Optional[Unit] = None
         self.abilities: Counter[AbilityId] = Counter(o.ability.exact_id for u in self.all_own_units for o in u.orders)
+        self.invisible_enemy_start_locations: List[Point2] = [p for p in self.enemy_start_locations if not self.is_visible(p)]
 
         self.resource_by_tag = { unit.tag: unit for unit in chain(self.mineral_field, self.gas_buildings) }
         for structure in self.structures:
@@ -204,8 +206,8 @@ class Pool12AllIn(BotAI):
         if unit.is_idle or unit.is_using_ability(AbilityId.EFFECT_INJECTLARVA):
             if self.enemy_structures:
                 unit.attack(self.enemy_structures.random.position)
-            elif not self.is_visible(self.enemy_start_locations[0]):
-                unit.attack(self.enemy_start_locations[0])
+            elif any(self.invisible_enemy_start_locations):
+                unit.attack(random.choice(self.invisible_enemy_start_locations))
             else:
                 a = self.game_info.playable_area
                 target = np.random.uniform((a.x, a.y), (a.right, a.top))
