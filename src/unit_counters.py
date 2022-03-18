@@ -1,55 +1,7 @@
 
 from sc2.ids.unit_typeid import UnitTypeId
 
-UNIT_COUNTER_DICT = {
-    
-    UnitTypeId.ZEALOT: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
-    UnitTypeId.STALKER: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.SENTRY: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
-    UnitTypeId.ADEPT: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
-    UnitTypeId.HIGHTEMPLAR: [UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
-    UnitTypeId.DARKTEMPLAR: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
-    UnitTypeId.ARCHON: [UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
-    UnitTypeId.IMMORTAL: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.COLOSSUS: [UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
-    UnitTypeId.DISRUPTOR: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH], 
-    UnitTypeId.PHOENIX: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.VOIDRAY: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.ORACLE: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.CARRIER: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.TEMPEST: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-
-    UnitTypeId.MARINE: [UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
-    UnitTypeId.MARAUDER: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.REAPER: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
-    UnitTypeId.GHOST: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
-    UnitTypeId.HELLION: [UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
-    UnitTypeId.SIEGETANK: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.THOR: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.WIDOWMINE: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.CYCLONE: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.VIKING: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
-    UnitTypeId.RAVEN: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.BANSHEE: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.BATTLECRUISER: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.LIBERATOR: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-
-    UnitTypeId.ZERGLING: [UnitTypeId.ROACH, UnitTypeId.ZERGLING, UnitTypeId.HYDRALISK],
-    UnitTypeId.BANELING: [UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
-    UnitTypeId.ROACH: [UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
-    UnitTypeId.RAVAGER: [UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
-    UnitTypeId.HYDRALISK: [UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
-    UnitTypeId.MUTALISK: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
-    UnitTypeId.CORRUPTOR: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
-    UnitTypeId.BROODLORD: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
-    UnitTypeId.ULTRALISK: [UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
-    UnitTypeId.SWARMHOSTMP: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
-    UnitTypeId.INFESTOR: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
-    UnitTypeId.VIPER: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
-
-}
-
-UNIT_COUNTER_MATRIX = {
+UNIT_COUNTERS = {
     UnitTypeId.ROACH: {
 
         UnitTypeId.ZEALOT: +1,

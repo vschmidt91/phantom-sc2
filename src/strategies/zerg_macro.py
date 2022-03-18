@@ -7,7 +7,6 @@ from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.data import Race
-from src.unit_counters import UNIT_COUNTER_DICT
 from ..constants import BUILD_ORDER_PRIORITY, ZERG_ARMOR_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES
 from ..cost import Cost
 from ..macro_plan import MacroPlan
@@ -37,7 +36,7 @@ class ZergMacro(ZergStrategy):
         worker_count = self.ai.count(UnitTypeId.DRONE, include_planned=False)
         ratio = max(
             self.ai.threat_level,
-            -3 + 4 * (worker_count / worker_target),
+            -2 + 3 * (worker_count / worker_target),
         )
         ratio = max(0, min(1, ratio))
         # ratio = pow(ratio, 8)
@@ -58,7 +57,7 @@ class ZergMacro(ZergStrategy):
             UnitTypeId.QUEEN: queen_target,
         }
 
-        tech_up = 32 <= worker_count and 3 <= self.ai.townhalls.amount
+        tech_up = 40 <= worker_count and 3 <= self.ai.townhalls.amount
         # tech_up = False
 
         # composition[UnitTypeId.ZERGLING] = 0
@@ -68,46 +67,28 @@ class ZergMacro(ZergStrategy):
         # tech_up = True
 
         if tech_up:
-            composition[UnitTypeId.ROACHWARREN] = 1
-            composition[UnitTypeId.LAIR] = 1
-            if self.ai.count(UnitTypeId.LAIR, include_planned=False, include_pending=False):
-                # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
-                composition[UnitTypeId.HYDRALISKDEN] = 1
+            composition[UnitTypeId.ROACH] = 0
+            # composition[UnitTypeId.HYDRALISK] = 0
+            # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
+            if self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False, include_pending=False):
+                composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
+                composition[UnitTypeId.HYDRALISK] = 0
             
         if 1 <= self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False) + self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
             composition[UnitTypeId.OVERSEER] = 2
 
-        army_composition = {
-            UnitTypeId.ZERGLING: 1.0,
-            UnitTypeId.ROACH: 0.0,
-            UnitTypeId.HYDRALISK: 0.0,
-        }
-
-        can_build = {
-            t: not any(self.ai.get_missing_requirements(t, include_pending=False, include_planned=False))
-            for t in army_composition
-        }
-
-        for enemy in self.ai.enumerate_enemies():
-            if counters := UNIT_COUNTER_DICT.get(enemy.type_id):
-                for t in counters:
-                    if can_build[t]:
-                        count = self.ai.get_unit_cost(enemy.type_id) / self.ai.get_unit_cost(t)
-                        army_composition[t] += 2 * ratio * count
-                        break
-
-        composition.update({ k: int(v) for k, v in army_composition.items() if 0 < v })
-
-        # if self.ai.count(UnitTypeId.ROACHWARREN, include_pending=False, include_planned=False):
-        #     if self.ai.count(UnitTypeId.HYDRALISKDEN, include_pending=False, include_planned=False):
-        #         hydra_ratio = enemy_flyer_ratio
-        #         composition[UnitTypeId.ROACH] = int(ratio * worker_target * (1 - hydra_ratio))
-        #         composition[UnitTypeId.HYDRALISK] = int(ratio * worker_target * hydra_ratio)
-        #     else:
-        #         composition[UnitTypeId.ROACH] = int(ratio * worker_target)
-        #         composition[UnitTypeId.RAVAGER] = int(1/5 * ratio * worker_target)
-        # else:
-        #     composition[UnitTypeId.ZERGLING] = max(1, int(ratio * enemy_ground_value / 12.5))
+        if self.ai.count(UnitTypeId.ROACHWARREN, include_planned=False):
+        # if tech_up:
+            if self.ai.count(UnitTypeId.HYDRALISKDEN, include_pending=False, include_planned=False):
+                hydra_ratio = enemy_flyer_ratio
+                composition[UnitTypeId.ROACH] = int(ratio * worker_target * (1 - hydra_ratio))
+                composition[UnitTypeId.HYDRALISK] = int(ratio * worker_target * hydra_ratio)
+            else:
+                composition[UnitTypeId.ROACH] = int(ratio * worker_target)
+                composition[UnitTypeId.RAVAGER] = int(1/5 * ratio * worker_target)
+                # composition[UnitTypeId.ZERGLING] = int(ratio * enemy_ground_value / 50)
+        else:
+            composition[UnitTypeId.ZERGLING] = max(1, int(ratio * enemy_ground_value / 12.5))
 
         if self.ai.count(UnitTypeId.HIVE, include_planned=False):
             if self.ai.count(UnitTypeId.SPIRE) + self.ai.count(UnitTypeId.GREATERSPIRE) == 0:
@@ -121,9 +102,19 @@ class ZergMacro(ZergStrategy):
         return 5 * 60 < self.ai.time
 
     def filter_upgrade(self, upgrade) -> bool:
-        if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
-            return True
-        # elif self.ai.count(UnitTypeId.LAIR, include_planned=False, include_pending=False) < 1:
+        # if upgrade in ZERG_FLYER_UPGRADES:
+        #     return False
+        # elif upgrade in ZERG_FLYER_ARMOR_UPGRADES:
+        #     return False
+        # elif upgrade in ZERG_MELEE_UPGRADES:
+        #     return False
+        # elif upgrade in ZERG_ARMOR_UPGRADES:
+        #     return self.tech_up
+        # elif upgrade in ZERG_RANGED_UPGRADES:
+        #     return self.tech_up
+        # elif upgrade == UpgradeId.GLIALRECONSTITUTION:
+        #     return self.tech_up
+        # elif upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
         #     return False
         return super().filter_upgrade(upgrade)
 
