@@ -4,7 +4,7 @@ from asyncio import gather
 from collections import defaultdict
 from enum import Enum
 from dataclasses import dataclass
-from functools import cache
+from functools import cache, cmp_to_key
 from importlib.resources import Resource
 import math
 from pickle import BUILD
@@ -1144,7 +1144,7 @@ class AIBase(ABC, BotAI):
                 grid = map,
                 weight = dps)
 
-        for t in range(0, 10, 1):
+        for t in range(0, 8, 1):
 
             army_dps = self.map_analyzer.get_clean_air_grid(0)
             for unit in self.enumerate_army():
@@ -1156,7 +1156,7 @@ class AIBase(ABC, BotAI):
                 if 0 < enemy_health[unit.position.rounded]:
                     enemy_dps = add_unit_to_map(unit, enemy_dps, t)
 
-            discount = pow(.9, t)
+            discount = pow(.8, t)
             army_health -= discount * enemy_dps
             enemy_health -= discount * army_dps
 
@@ -1164,6 +1164,103 @@ class AIBase(ABC, BotAI):
         self.enemy_projection = enemy_health
 
         # self.fight_map = enemy_health < army_health
+
+    def get_attack_target(unit: Unit, targets: Iterable[Unit]) -> Optional[Unit]:
+
+        def is_threat(target: Unit) -> bool:
+            if target.type_id in {
+                UnitTypeId.HIGHTEMPLAR,
+                UnitTypeId.ORACLE,
+                UnitTypeId.DISRUPTOR,
+                UnitTypeId.WIDOWMINE,
+                UnitTypeId.RAVEN,
+                UnitTypeId.INFESTOR,
+                UnitTypeId.INFESTORBURROWED,
+                UnitTypeId.SWARMHOSTMP,
+                UnitTypeId.SWARMHOSTBURROWEDMP,
+                UnitTypeId.VIPER,
+                UnitTypeId.LURKER,
+            }:
+                return True
+            elif unit.is_ground and target.can_attack_ground:
+                return True
+            elif unit.is_flyer and target.can_attack_air:
+                return True
+            else:
+                return False
+
+        def atp(target: Unit) -> int:
+            if target.is_structure:
+                if target.type_id in {
+                    UnitTypeId.PHOTONCANNON,
+                    UnitTypeId.PYLONOVERCHARGED,
+                    UnitTypeId.BUNKER,
+                    UnitTypeId.PLANETARYFORTRESS,
+                    UnitTypeId.AUTOTURRET,
+                    UnitTypeId.SPINECRAWLER,
+                }:
+                    atp = 20
+                elif target.type_id in {
+                    UnitTypeId.SPINECRAWLERUPROOTED,
+                    UnitTypeId.SPORECRAWLER,
+                    UnitTypeId.SPORECRAWLERUPROOTED,
+                    UnitTypeId.MISSILETURRET,
+                }:
+                    atp = 19
+                elif target.type_id == UnitTypeId.ORACLESTASISTRAP:
+                    atp = 10
+                else:
+                    atp = 11
+            else:
+                if target.type_id == UnitTypeId.WIDOWMINE:
+                    atp = 19
+                elif target.type_id in {
+                    UnitTypeId.LARVA,
+                    UnitTypeId.OVERLORDCOCOON,
+                    UnitTypeId.BROODLORDCOCOON,
+                    UnitTypeId.BANELINGCOCOON,
+                    UnitTypeId.RAVAGERCOCOON,
+                    UnitTypeId.LURKEREGG,
+                }:
+                    atp = 10
+                elif target.type_id == UnitTypeId.INFESTEDTERRANSEGG:
+                    atp = 0
+                else:
+                    atp = 20
+
+        def compare(a: Unit, b: Unit) -> int:
+
+            a_threat = is_threat(a)
+            b_threat = is_threat(b)
+            if a_threat and not b_threat:
+                return +1
+            elif not a_threat and b_threat:
+                return -1
+
+            a_atp = atp(a)
+            b_atp = atp(b)
+            if a_atp < b_atp:
+                return -1
+            elif b_atp < a_atp:
+                return +1
+
+            a_distance = unit.distance_to(a)
+            b_distance = unit.distance_to(b)
+            if a_distance < b_distance:
+                return +1
+            elif b_distance < a_distance:
+                return -1
+
+            return 0
+
+        weapon_range = max(unit.ground_range, unit.air_range)
+        scan_range = max(5, weapon_range + 0.5)
+        targets_in_range = [t for t in targets if unit.distance_to(t) <= unit.radius + scan_range + t.radius]
+        if not any(targets_in_range):
+            return None
+        
+        targets_sorted = sorted(targets_in_range, key=cmp_to_key(compare))
+        return targets_sorted[0]
 
     def assess_threat_level(self):
         
