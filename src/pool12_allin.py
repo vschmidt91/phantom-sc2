@@ -41,6 +41,7 @@ class Pool12AllIn(BotAI):
         self.pool_drone: Optional[Unit] = None
         self.tags: Set[str] = set()
         self.gas_harvesters: Set[int] = set()
+        self.gas_harvester_target: int = 2
         self.game_step: int = 2
         self.speedmining_enabled: bool = True
         super().__init__()
@@ -51,6 +52,7 @@ class Pool12AllIn(BotAI):
     async def on_start(self) -> None:
         self.geyser = self.vespene_geyser.closest_to(self.start_location)
         self.pool_position = self.get_pool_position()
+        self.spire_position = self.get_spire_position()
         self.speedmining_positions = self.get_speedmining_positions()
         self.split_workers()
 
@@ -68,11 +70,13 @@ class Pool12AllIn(BotAI):
             await self.add_tag('cleanup')
             self.client.game_step = 10 * self.game_step
             self.speedmining_enabled = False
-            army_types = { UnitTypeId.QUEEN, UnitTypeId.OVERLORD }
+            self.army_type = UnitTypeId.MUTALISK
         else:
             self.client.game_step = self.game_step
             self.speedmining_enabled = self.time < 8 * 60
-            army_types = { UnitTypeId.ZERGLING }
+            self.army_type = UnitTypeId.ZERGLING
+
+        self.army_type = UnitTypeId.MUTALISK
 
         self.transfer_from: List[Unit] = list()
         self.transfer_to: List[Unit] = list()
@@ -83,8 +87,10 @@ class Pool12AllIn(BotAI):
         self.drone: Optional[Unit] = None
         self.hatch_morphing: Optional[Unit] = None
         self.pool: Optional[Unit] = None
+        self.spire: Optional[Unit] = None
         self.abilities: Counter[AbilityId] = Counter(o.ability.exact_id for u in self.all_own_units for o in u.orders)
         self.invisible_enemy_start_locations: List[Point2] = [p for p in self.enemy_start_locations if not self.is_visible(p)]
+
 
         self.resource_by_tag = { unit.tag: unit for unit in chain(self.mineral_field, self.gas_buildings) }
         for structure in self.structures:
@@ -94,26 +100,36 @@ class Pool12AllIn(BotAI):
             self.micro_worker(worker)
 
         for unit in self.units:
-            if unit.type_id in army_types:
-                self.micro_army(unit)
-            elif unit.type_id == UnitTypeId.QUEEN:
+            if unit.type_id == UnitTypeId.QUEEN:
                 self.inject_queens.append(unit)
+            elif unit.type_id == self.army_type:
+                self.micro_army(unit)
 
-        if UnitTypeId.QUEEN not in army_types:
-            self.inject_larvae()
-        self.macro()
+        self.inject_larvae()
 
-    def macro(self) -> None:
-        larva_per_second = 0
-        for hatchery in self.townhalls:
-            if hatchery.is_ready:
-                larva_per_second += 1/11
-                if hatchery.has_buff(BuffId.QUEENSPAWNLARVATIMER):
-                    larva_per_second += 3/29
-        minerals_for_lings = 50 * 60 * larva_per_second # maximum we can possibly spend on lings
-        mineral_starved = self.minerals < 150 and self.state.score.collection_rate_minerals < 1.2 * minerals_for_lings # aim for a 20% surplus
-        drone_max = sum(hatch.ideal_harvesters for hatch in self.townhalls)
-        queen_missing = self.townhalls.amount - (len(self.inject_queens) + self.abilities[AbilityId.TRAINQUEEN_QUEEN])
+        if self.build_order():
+            build_army = True
+            if self.army_type == UnitTypeId.MUTALISK:
+                self.gas_harvester_target = 3
+                build_army = self.build_spire()
+            elif self.vespene < 96 and self.abilities[AbilityId.RESEARCH_ZERGLINGMETABOLICBOOST] < 1 and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
+                self.gas_harvester_target = 2
+            else:
+                self.gas_harvester_target = 0
+            self.macro(build_army)
+            
+    def build_spire(self) -> bool:
+        main = self.townhalls.closest_to(self.start_location)
+        if self.spire:
+            return self.spire.is_ready
+        elif main.type_id == UnitTypeId.LAIR:
+            if self.abilities[AbilityId.ZERGBUILD_SPIRE] < 1 and self.can_afford(UnitTypeId.SPIRE) and self.drone:
+                self.drone(AbilityId.ZERGBUILD_SPIRE, self.spire_position)
+        elif self.abilities[AbilityId.UPGRADETOLAIR_LAIR] < 1 and self.can_afford(UnitTypeId.LAIR) and main.is_idle:
+            main(AbilityId.UPGRADETOLAIR_LAIR)
+        return False
+
+    def build_order(self) -> bool:        
         if not self.pool and self.abilities[AbilityId.ZERGBUILD_SPAWNINGPOOL] < 1:
             if 200 <= self.minerals and self.pool_drone:
                 self.pool_drone.build(UnitTypeId.SPAWNINGPOOL, self.pool_position)
@@ -127,13 +143,25 @@ class Pool12AllIn(BotAI):
                 self.drone.build_gas(self.geyser)
         elif self.supply_cap == 14 and self.abilities[AbilityId.LARVATRAIN_OVERLORD] < 1:
             self.train(UnitTypeId.OVERLORD)
-        elif not self.pool.is_ready:
-            pass
-        elif self.larva and 1 <= self.supply_left:
+        return self.pool and self.pool.is_ready
+
+    def macro(self, build_army: bool) -> None:
+        larva_per_second = 0
+        for hatchery in self.townhalls:
+            if hatchery.is_ready:
+                larva_per_second += 1/11
+                if hatchery.has_buff(BuffId.QUEENSPAWNLARVATIMER):
+                    larva_per_second += 3/29
+        minerals_for_lings = 50 * 60 * larva_per_second # maximum we can possibly spend on lings
+        mineral_starved = self.minerals < 150 and self.state.score.collection_rate_minerals < 1.2 * minerals_for_lings # aim for a 20% surplus
+        drone_max = sum(hatch.ideal_harvesters for hatch in self.townhalls)
+        queen_missing = self.townhalls.amount - (len(self.inject_queens) + self.abilities[AbilityId.TRAINQUEEN_QUEEN])
+        if self.larva and 1 <= self.supply_left:
             max_pending_drones = self.townhalls.amount
             if self.supply_workers < drone_max and mineral_starved and self.abilities[AbilityId.LARVATRAIN_DRONE] < max_pending_drones:
                 self.train(UnitTypeId.DRONE, max_pending_drones - self.abilities[AbilityId.LARVATRAIN_DRONE])
-            self.train(UnitTypeId.ZERGLING, self.larva.amount)
+            if build_army:
+                self.train(self.army_type, self.larva.amount)
         elif queen_missing and 2 <= self.supply_left:
             for hatch in self.idle_hatches[:queen_missing]:
                 hatch.train(UnitTypeId.QUEEN)
@@ -147,16 +175,13 @@ class Pool12AllIn(BotAI):
             self.train(UnitTypeId.OVERLORD)
 
     def micro_structure(self, unit: Unit) -> None:
-        mine_gas = self.vespene < 96 and self.abilities[AbilityId.RESEARCH_ZERGLINGMETABOLICBOOST] < 1 and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades
         if not unit.is_ready and unit.health_percentage < 0.1:
             unit(AbilityId.CANCEL)
         elif unit.is_vespene_geyser:
-            if mine_gas and unit.is_ready and len(self.gas_harvesters) < 2:
-                self.transfer_to_gas.extend(unit for _ in range(len(self.gas_harvesters), 2))
-            elif 2 < len(self.gas_harvesters):
-                self.transfer_from_gas.extend(unit for _ in range(2, len(self.gas_harvesters)))
-            elif not mine_gas:
-                self.transfer_from_gas.extend(unit for _ in range(0, len(self.gas_harvesters)))
+            if unit.is_ready and len(self.gas_harvesters) < self.gas_harvester_target:
+                self.transfer_to_gas.extend(unit for _ in range(len(self.gas_harvesters), self.gas_harvester_target))
+            elif self.gas_harvester_target < len(self.gas_harvesters):
+                self.transfer_from_gas.extend(unit for _ in range(self.gas_harvester_target, len(self.gas_harvesters)))
         elif unit.type_id == UnitTypeId.HATCHERY:
             if unit.is_ready:
                 if unit.is_idle:
@@ -169,6 +194,8 @@ class Pool12AllIn(BotAI):
                 self.hatch_morphing = unit
         elif unit.type_id == UnitTypeId.SPAWNINGPOOL:
             self.pool = unit
+        elif unit.type_id == UnitTypeId.SPIRE:
+            self.spire = unit
 
     def micro_worker(self, unit: Unit) -> None:
         if unit.is_idle:
@@ -180,11 +207,11 @@ class Pool12AllIn(BotAI):
             patch = self.mineral_field.closest_to(self.transfer_to.pop(0))
             self.transfer_from.pop(0)
             unit.gather(patch)
-        elif any(self.transfer_from_gas) and unit.order_target == self.transfer_from_gas[0].tag:
+        elif any(self.transfer_from_gas) and unit.tag in self.gas_harvesters and not unit.is_carrying_resource:
             unit.stop()
             self.transfer_from_gas.pop(0)
-            self.gas_harvesters.difference_update([unit.tag])
-        elif any(self.transfer_to_gas) and unit.order_target != self.transfer_to_gas[0] and not unit.is_carrying_minerals and len(unit.orders) < 2 and unit.order_target not in self.close_minerals:
+            self.gas_harvesters.remove(unit.tag)
+        elif any(self.transfer_to_gas) and unit.tag not in self.gas_harvesters and not unit.is_carrying_resource and len(unit.orders) < 2 and unit.order_target not in self.close_minerals:
             unit.gather(self.transfer_to_gas.pop(0))
             self.gas_harvesters.add(unit.tag)
         elif not unit.is_carrying_resource and len(unit.orders) == 1 and unit.order_target not in self.close_minerals and unit.tag not in self.gas_harvesters:
@@ -265,6 +292,12 @@ class Pool12AllIn(BotAI):
     def get_pool_position(self) -> Point2:
         """find position for the spawning pool"""
         position = self.start_location.towards(self.game_info.map_center, -10)
+        position.rounded.offset((.5, .5))
+        return position
+
+    def get_spire_position(self) -> Point2:
+        """find position for the spire"""
+        position = self.start_location.towards(self.game_info.map_center, 8)
         position.rounded.offset((.5, .5))
         return position
 
