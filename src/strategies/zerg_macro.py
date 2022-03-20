@@ -1,7 +1,6 @@
 
 from __future__ import annotations
 import math
-from msilib.schema import Upgrade
 from typing import Union, Iterable, Dict, TYPE_CHECKING
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 
