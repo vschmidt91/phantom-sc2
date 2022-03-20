@@ -68,7 +68,7 @@ class Pool12AllIn(BotAI):
             await self.add_tag('cleanup')
             self.client.game_step = 10 * self.game_step
             self.speedmining_enabled = False
-            army_types = { UnitTypeId.ZERGLING, UnitTypeId.QUEEN, UnitTypeId.OVERLORD }
+            army_types = { UnitTypeId.QUEEN, UnitTypeId.OVERLORD }
         else:
             self.client.game_step = self.game_step
             self.speedmining_enabled = self.time < 8 * 60
