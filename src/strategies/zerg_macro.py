@@ -59,6 +59,7 @@ class ZergMacro(ZergStrategy):
 
         if UpgradeId.ZERGLINGMOVEMENTSPEED in self.ai.state.upgrades:
             composition[UnitTypeId.ROACHWARREN] = 1
+            composition[UnitTypeId.OVERSEER] = 1
 
         if self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False) + self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
             composition[UnitTypeId.HYDRALISKDEN] = 1
