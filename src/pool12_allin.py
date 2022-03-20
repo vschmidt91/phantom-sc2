@@ -76,8 +76,6 @@ class Pool12AllIn(BotAI):
             self.speedmining_enabled = self.time < 8 * 60
             self.army_type = UnitTypeId.ZERGLING
 
-        self.army_type = UnitTypeId.MUTALISK
-
         self.transfer_from: List[Unit] = list()
         self.transfer_to: List[Unit] = list()
         self.transfer_from_gas: List[Unit] = list()
