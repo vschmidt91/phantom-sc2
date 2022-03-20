@@ -16,18 +16,6 @@ class HatchFirst(ZergMacro):
 
     def build_order(self) -> Iterable:
         return [
-
-            # UnitTypeId.DRONE,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.EXTRACTOR,
-            # MacroPlan(UnitTypeId.HATCHERY, max_distance=0),
-            # UnitTypeId.DRONE,
-            # UnitTypeId.EXTRACTOR,
-            # UnitTypeId.OVERLORD,
-            # UnitTypeId.SPAWNINGPOOL,
-
-
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
@@ -36,19 +24,10 @@ class HatchFirst(ZergMacro):
             MacroPlan(UnitTypeId.HATCHERY, max_distance=0),
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
             UnitTypeId.EXTRACTOR,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
             UnitTypeId.SPAWNINGPOOL,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
-            UnitTypeId.OVERLORD,
-            UnitTypeId.QUEEN,
-            UnitTypeId.QUEEN,
-            UpgradeId.ZERGLINGMOVEMENTSPEED,
-
         ]
 
     def update(self):

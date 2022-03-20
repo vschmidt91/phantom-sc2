@@ -542,7 +542,7 @@ class AIBase(ABC, BotAI):
         gas_have = self.count(UnitTypeId.EXTRACTOR, include_pending=False, include_planned=False)
         gas_max = sum(1 for g in self.get_owned_geysers())
         gas_want = min(gas_max, gas_depleted + math.ceil(gas_target / 3))
-        if gas_have + gas_pending < gas_want and gas_pending < 2:
+        if gas_have + gas_pending < gas_want:
             self.add_macro_plan(MacroPlan(UnitTypeId.EXTRACTOR))
         else:
             for _, plan in zip(range(gas_have + gas_pending - gas_want), list(self.planned_by_type[UnitTypeId.EXTRACTOR])):
@@ -553,31 +553,17 @@ class AIBase(ABC, BotAI):
 
         cost_zero = Cost(0, 0, 0)
         cost_sum = sum((self.cost[plan.item] for plan in self.macro_plans), cost_zero)
+        cost_sum += sum(
+            (self.cost[unit] * max(0, count - self.count(unit))
+            for unit, count in self.composition.items()),
+            cost_zero) * 0.5
         minerals = max(0, cost_sum.minerals - self.minerals)
         vespene = max(0, cost_sum.vespene - self.vespene)
-        if minerals + vespene == 0:
-            cost_sum = sum(
-                (self.cost[unit] * count
-                for unit, count in self.composition.items()),
-                cost_zero)
-            minerals += max(0, cost_sum.minerals - self.minerals)
-            vespene += max(0, cost_sum.vespene - self.vespene)
         gas_ratio = vespene / max(1, vespene + minerals)
         worker_type = race_worker[self.race]
         gas_target = gas_ratio * self.count(worker_type, include_pending=False)
 
-        # if 0 < gas_target:
-        #     gas_target = max(1.5, gas_target)
-
-        # gas_target = math.ceil(gas_target)
-        # gas_target = math.ceil(gas_target * 2/3)
-        # gas_target = math.ceil(gas_target * 3/2)
-        
-        # gas_target = 2 * math.ceil(gas_target / 2)
-        # gas_target = 1.5 * math.ceil(gas_target / 1.5)
-
         return gas_target
-        # return math.ceil(gas_target)
 
     def transfer_to_and_from_gas(self, gas_target: float):
 
@@ -1096,18 +1082,12 @@ class AIBase(ABC, BotAI):
             return False
         return IS_STRUCTURE in data.attributes
 
-    def get_supply_buffer(self) -> int:
-        income = self.state.score.collection_rate_minerals + self.state.score.collection_rate_vespene
-        return income / 500
-        # buffer = 2
-        # buffer += 2 * self.townhalls.amount
-        # buffer += 2 * self.count(UnitTypeId.QUEEN, include_pending=False, include_planned=False)
-        # return buffer
-
     def get_unit_value(self, unit: Unit) -> float:
         return (unit.health + unit.shield) * max(unit.ground_dps, unit.air_dps)
-        # cost = self.calculate_unit_value(unit.type_id)
-        # return cost.minerals + cost.vespene
+
+    def get_unit_cost(self, unit_type: UnitTypeId) -> int:
+        cost = self.calculate_unit_value(unit_type)
+        return cost.minerals + cost.vespene
 
     def update_maps(self):
 
@@ -1164,7 +1144,7 @@ class AIBase(ABC, BotAI):
                 grid = map,
                 weight = dps)
 
-        for t in range(0, 8, 1):
+        for t in range(0, 10, 1):
 
             army_dps = self.map_analyzer.get_clean_air_grid(0)
             for unit in self.enumerate_army():
@@ -1176,7 +1156,7 @@ class AIBase(ABC, BotAI):
                 if 0 < enemy_health[unit.position.rounded]:
                     enemy_dps = add_unit_to_map(unit, enemy_dps, t)
 
-            discount = pow(.5, t)
+            discount = pow(.9, t)
             army_health -= discount * enemy_dps
             enemy_health -= discount * army_dps
 
