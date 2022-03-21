@@ -56,7 +56,7 @@ BUILDS = [
 ]
 
 DIFFICULTY = Difficulty.CheatInsane
-REAL_TIME = True
+REAL_TIME = False
 RESULT_PATH = 'results.json'
 
 def create_bot():

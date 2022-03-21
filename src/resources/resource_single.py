@@ -9,9 +9,10 @@ if TYPE_CHECKING:
 
 class ResourceSingle(ResourceBase):
 
-    def __init__(self, ai: AIBase, position: Point2) -> None:
+    def __init__(self, ai: AIBase, position: Point2, base_position: Point2) -> None:
         super().__init__(ai, position)
         self.harvester_list: List[int] = list()
+        self.base_position: Point2 = base_position
 
     def get_resource(self, harvester: int) -> Optional[ResourceBase]:
         if harvester in self.harvesters:

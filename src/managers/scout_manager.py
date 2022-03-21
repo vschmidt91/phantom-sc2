@@ -23,22 +23,22 @@ class ScoutManager(AIComponent, Behavior):
         self.scouts: Dict[Point2, int] = dict()
         self.scout_enemy_natural: bool = True
 
+        self.static_targets: List[Point2] = list()
+        for base in self.ai.bases[1:len(self.ai.bases)//2]:
+            self.static_targets.append(base.position)
+
+        ramps = sorted(self.ai.game_info.map_ramps, key=lambda r:r.bottom_center.distance_to(self.ai.start_location))
+        for ramp in ramps[:len(ramps)//2]:
+            self.static_targets.append(ramp.bottom_center.towards(self.ai.game_info.map_center, 10))
+
+        self.static_targets.sort(key=lambda t:t.distance_to(self.ai.start_location))
+
     def execute(self) -> BehaviorResult:
 
-        targets = list()
+        targets = list(self.static_targets)
         if self.scout_enemy_natural and self.ai.block_manager.enemy_base_count < 2:
             target = self.ai.bases[-2].position.towards(self.ai.game_info.map_center, 11)
             targets.append(target)
-        # else:
-        #     enemy_location = self.ai.enemy_start_locations[0]
-        #     enemy_main_ramp = min(
-        #         (r.top_center for r in self.ai.game_info.map_ramps),
-        #         key = lambda r : r.distance_to(enemy_location)
-        #     )
-        #     target = min(self.ai.map_analyzer.overlord_spots, key = lambda s : s.distance_to(enemy_main_ramp))
-
-        for base in self.ai.bases[1:len(self.ai.bases)//2]:
-            targets.append(base.position)
 
         for target in targets:
 

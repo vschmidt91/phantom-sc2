@@ -59,13 +59,13 @@ class Base(ResourceGroup[ResourceBase]):
         self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(
             ai,
             sorted(
-                (MineralPatch(ai, m) for m in minerals),
+                (MineralPatch(ai, m, townhall_position) for m in minerals),
                 key = lambda m : m.position.distance_to(townhall_position)
             ))
         self.vespene_geysers: ResourceGroup[VespeneGeyser] = ResourceGroup(
             ai,
             sorted(
-                (VespeneGeyser(ai, g) for g in gasses),
+                (VespeneGeyser(ai, g, townhall_position) for g in gasses),
                 key = lambda g : g.position.distance_to(townhall_position)
             ))
         self.mineral_patches.balancing_mode = BalancingMode.MINIMIZE_TRANSFERS

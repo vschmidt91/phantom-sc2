@@ -14,14 +14,16 @@ if TYPE_CHECKING:
 
 class MineralPatch(ResourceSingle):
 
-    def __init__(self, ai: AIBase, position: Point2):
-        super().__init__(ai, position)
+    def __init__(self, ai: AIBase, position: Point2, base_position: Point2):
+        super().__init__(ai, position, base_position)
         self.is_rich = False
         self.speedmining_target: Optional[Point2] = None
 
     @property
     def harvester_target(self):
-        if self.remaining:
+        if self.base_position not in self.ai.townhall_by_position:
+            return 0
+        elif self.remaining:
             return 2
         else:
             return 0

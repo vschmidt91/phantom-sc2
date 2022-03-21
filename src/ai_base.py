@@ -570,12 +570,17 @@ class AIBase(ABC, BotAI):
 
     def transfer_to_and_from_gas(self, gas_target: float):
 
-        if self.gas_harvester_count + 1 <= gas_target and self.vespene_geysers.harvester_balance < 0:
+        effective_gas_target = min(self.vespene_geysers.harvester_target, gas_target)
+        effective_gas_balance = self.vespene_geysers.harvester_count - effective_gas_target
+
+        # if self.gas_harvester_count + 1 <= gas_target and self.vespene_geysers.harvester_balance < 0:
+        if 0 < self.mineral_patches.harvester_count and (effective_gas_balance < 0 or 0 < self.mineral_patches.harvester_balance):
 
             if not self.mineral_patches.try_transfer_to(self.vespene_geysers):
                 print('transfer to gas failure')
 
-        elif gas_target <= self.gas_harvester_count - 1 or 0 < self.vespene_geysers.harvester_balance:
+        # elif gas_target <= self.gas_harvester_count - 1 or 0 < self.vespene_geysers.harvester_balance:
+        elif 0 < self.vespene_geysers.harvester_count and (1 <= effective_gas_balance and self.mineral_patches.harvester_balance < 0):
 
             if not self.vespene_geysers.try_transfer_to(self.mineral_patches):
                 print('transfer from gas failure')
