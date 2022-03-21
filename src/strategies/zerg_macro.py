@@ -56,7 +56,26 @@ class ZergMacro(ZergStrategy):
         composition = {
             UnitTypeId.DRONE: worker_target,
             UnitTypeId.QUEEN: queen_target,
+            UnitTypeId.ZERGLING: 1.0,
+            UnitTypeId.ROACH: 0.0,
+            UnitTypeId.HYDRALISK: 0.0,
+            UnitTypeId.BROODLORD: 0.0,
+            UnitTypeId.CORRUPTOR: 0.0,
         }
+
+        can_build = {
+            t: not any(self.ai.get_missing_requirements(t, include_pending=False, include_planned=False))
+            for t in composition
+        }
+
+        for enemy in self.ai.enumerate_enemies():
+            if counters := UNIT_COUNTER_DICT.get(enemy.type_id):
+                for t in counters:
+                    if can_build[t]:
+                        count = self.ai.get_unit_cost(enemy.type_id) / self.ai.get_unit_cost(t)
+                        composition[t] += 2 * ratio * count
+                        break
+
 
         tech_up = 32 <= worker_count and 3 <= self.ai.townhalls.amount
 
@@ -69,39 +88,11 @@ class ZergMacro(ZergStrategy):
             composition[UnitTypeId.OVERSEER] = 2
 
         if tech_up and self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
-            composition[UnitTypeId.CORRUPTOR] = 0
-            composition[UnitTypeId.BROODLORD] = 0
+            composition[UnitTypeId.GREATERSPIRE] = 1
             composition[UnitTypeId.OVERSEER] = 3
 
-        army_composition = {
-            UnitTypeId.ZERGLING: 1.0,
-            UnitTypeId.ROACH: 0.0,
-            UnitTypeId.HYDRALISK: 0.0,
-            UnitTypeId.BROODLORD: 0.0,
-            UnitTypeId.CORRUPTOR: 0.0,
-        }
-
-        can_build = {
-            t: not any(self.ai.get_missing_requirements(t, include_pending=False, include_planned=False))
-            for t in army_composition
-        }
-
-        for enemy in self.ai.enumerate_enemies():
-            if counters := UNIT_COUNTER_DICT.get(enemy.type_id):
-                for t in counters:
-                    if can_build[t]:
-                        count = self.ai.get_unit_cost(enemy.type_id) / self.ai.get_unit_cost(t)
-                        army_composition[t] += 2 * ratio * count
-                        break
-
-        composition.update({ k: int(v) for k, v in army_composition.items() if 0 < v })
-
-        # if self.ai.count(UnitTypeId.HIVE, include_planned=False):
-        #     if self.ai.count(UnitTypeId.SPIRE) + self.ai.count(UnitTypeId.GREATERSPIRE) == 0:
-        #         composition[UnitTypeId.SPIRE] = 1
-        #     composition[UnitTypeId.CORRUPTOR] = max(3, int(ratio * 20 * enemy_flyer_ratio))
-        #     composition[UnitTypeId.BROODLORD] = int(ratio * 12 * (1 - enemy_flyer_ratio))
-
+        composition = { k: int(v) for k, v in composition.items() if 0 < v}
+            
         return composition
 
     def destroy_destructables(self) -> bool:
