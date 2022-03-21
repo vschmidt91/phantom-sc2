@@ -28,7 +28,7 @@ UNIT_COUNTER_DICT = {
     UnitTypeId.THOR: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.WIDOWMINE: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.CYCLONE: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.VIKING: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
+    UnitTypeId.VIKINGFIGHTER: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
     UnitTypeId.RAVEN: [UnitTypeId.CORRUPTOR, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.BANSHEE: [UnitTypeId.CORRUPTOR, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.BATTLECRUISER: [UnitTypeId.CORRUPTOR, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
