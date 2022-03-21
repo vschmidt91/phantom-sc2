@@ -57,15 +57,15 @@ class ZergMacro(ZergStrategy):
             UnitTypeId.QUEEN: queen_target,
         }
 
-        if UpgradeId.ZERGLINGMOVEMENTSPEED in self.ai.state.upgrades:
+        if 3 <= self.ai.townhalls.amount and UpgradeId.ZERGLINGMOVEMENTSPEED in self.ai.state.upgrades:
             composition[UnitTypeId.ROACHWARREN] = 1
             composition[UnitTypeId.OVERSEER] = 1
 
-        if self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False) + self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
+        if 4 <= self.ai.townhalls.amount and self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False) + self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
             composition[UnitTypeId.HYDRALISKDEN] = 1
             composition[UnitTypeId.OVERSEER] = 2
 
-        if self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
+        if 5 <= self.ai.townhalls.amount and self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
             composition[UnitTypeId.CORRUPTOR] = 0
             composition[UnitTypeId.BROODLORD] = 0
             composition[UnitTypeId.OVERSEER] = 3
