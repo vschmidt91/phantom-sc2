@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from typing import Union, Iterable, Dict, TYPE_CHECKING
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
+from sc2.game_data import UpgradeData
 
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -109,6 +110,8 @@ class ZergMacro(ZergStrategy):
             return UpgradeId.ZERGMISSILEWEAPONSLEVEL2 in self.ai.state.upgrades
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
             return UpgradeId.ZERGMISSILEWEAPONSLEVEL3 in self.ai.state.upgrades
+        elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
+            return self.ai.count(UnitTypeId.GREATERSPIRE, include_planned=False)
         return super().filter_upgrade(upgrade)
 
     def steps(self):
