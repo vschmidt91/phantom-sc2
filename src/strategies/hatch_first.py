@@ -37,4 +37,5 @@ class HatchFirst(ZergMacro):
             and self.ai.count(UnitTypeId.OVERLORD, include_planned=False) < 2
         ):
             self.ai.extractor_trick_enabled = True
+        self.ai.build_spines = True
         return super().update()
