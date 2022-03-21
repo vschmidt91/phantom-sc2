@@ -560,8 +560,8 @@ class AIBase(ABC, BotAI):
         minerals = max(0, cost_sum.minerals - self.minerals)
         vespene = max(0, cost_sum.vespene - self.vespene)
         if minerals + vespene == 0:
-            minerals = self.mineral_patches.remaining
-            vespene = self.vespene_geysers.remaining
+            minerals = sum(b.mineral_patches.remaining for b in self.bases if b.townhall)
+            vespene = sum(b.vespene_geysers.remaining for b in self.bases if b.townhall)
         gas_ratio = vespene / max(1, vespene + minerals)
         worker_type = race_worker[self.race]
         gas_target = gas_ratio * self.count(worker_type, include_pending=False)
