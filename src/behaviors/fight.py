@@ -95,28 +95,10 @@ class FightBehavior(UnitBehavior):
 
     def get_stance(self, unit: Unit, target: Unit) -> FightStance:
 
-        # if self.ai.get_unit_range(unit) < 2:
-        #     if self.stance is FightStance.FLEE:
-        #         if advantage < 1:
-        #             return FightStance.FLEE
-        #         else:
-        #             return FightStance.FIGHT
-        #     elif self.stance is FightStance.FIGHT:
-        #         if advantage < 1/2:
-        #             return FightStance.FLEE
-        #         else:
-        #             return FightStance.FIGHT
-        # else:
-        #     if advantage < 2/3:
-        #         return FightStance.FLEE
-        #     elif advantage < 3/2:
-        #         return FightStance.RETREAT
-        #     elif advantage < 3:
-        #         return FightStance.FIGHT
-        #     else:
-        #         return FightStance.ADVANCE
+        army_projection = self.ai.army_projection[unit.position.rounded]
+        enemy_projection = self.ai.enemy_projection[target.position.rounded]
         
-        if np.sign(self.ai.enemy_projection[target.position.rounded]) <= np.sign(self.ai.army_projection[unit.position.rounded]):
+        if np.sign(enemy_projection) <= np.sign(army_projection):
             return FightStance.FIGHT
         else:
             return FightStance.FLEE

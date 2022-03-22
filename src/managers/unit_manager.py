@@ -161,6 +161,8 @@ class UnitManager(AIComponent, Behavior):
     def draft_civilians(self):
 
         self.drafted_civilians.intersection_update(self.ai.unit_by_tag.keys())
+
+        pass
         
         if (
             2/3 < self.ai.threat_level
@@ -171,10 +173,7 @@ class UnitManager(AIComponent, Behavior):
         elif self.ai.threat_level < 1/2:
             if self.drafted_civilians:
                 worker = min(self.drafted_civilians, key = lambda tag : self.ai.unit_by_tag[tag].shield_health_percentage, default = None)
-                # worker = self.drafted_civilians.pop()
                 self.drafted_civilians.remove(worker)
-                # if not self.ai.bases.try_add(worker):
-                #     self.drafted_civilians.add(worker)
 
     def target_priority_apriori(self, target: Unit) -> float:
         if target.is_hallucination:

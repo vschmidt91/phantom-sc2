@@ -15,27 +15,39 @@ class HatchFirst(ZergMacro):
         super().__init__(ai)
 
     def build_order(self) -> Iterable:
+        # return [
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.EXTRACTOR,
+        #     UnitTypeId.OVERLORD,
+        #     MacroPlan(UnitTypeId.HATCHERY, max_distance=0),
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.EXTRACTOR,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.SPAWNINGPOOL,
+        # ]
         return [
             UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
-            UnitTypeId.EXTRACTOR,
             UnitTypeId.OVERLORD,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
             MacroPlan(UnitTypeId.HATCHERY, max_distance=0),
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.EXTRACTOR,
             UnitTypeId.DRONE,
-            UnitTypeId.DRONE,
             UnitTypeId.SPAWNINGPOOL,
         ]
 
-    def update(self):
-        if (
-            self.ai.supply_used == 14
-            and self.ai.count(UnitTypeId.EXTRACTOR, include_planned=False) < 1
-            and self.ai.count(UnitTypeId.OVERLORD, include_planned=False) < 2
-        ):
-            self.ai.extractor_trick_enabled = True
-        # self.ai.build_spines = True
-        return super().update()
+    # def update(self):
+    #     if (
+    #         self.ai.supply_used == 14
+    #         and self.ai.count(UnitTypeId.EXTRACTOR, include_planned=False) < 1
+    #         and self.ai.count(UnitTypeId.OVERLORD, include_planned=False) < 2
+    #     ):
+    #         self.ai.extractor_trick_enabled = True
+    #     return super().update()
