@@ -38,7 +38,7 @@ class ScoutManager(AIComponent, Behavior):
         targets = list(self.static_targets)
         if self.scout_enemy_natural and self.ai.block_manager.enemy_base_count < 2:
             target = self.ai.bases[-2].position.towards(self.ai.game_info.map_center, 11)
-            targets.append(target)
+            targets.insert(0, target)
 
         for target in targets:
 
