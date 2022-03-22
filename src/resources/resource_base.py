@@ -2,7 +2,6 @@
 from __future__ import annotations
 from typing import Any, Optional, Set, Union, Iterable, Tuple, TYPE_CHECKING
 
-from s2clientprotocol.error_pb2 import Error
 from sc2.position import Point2
 from abc import ABC, abstractmethod
 from ..ai_component import AIComponent
