@@ -9,7 +9,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
-from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
+from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS, IS_STRUCTURE
 
 import numpy as np
 import math
@@ -78,6 +78,10 @@ def center(points: Iterable[Point2]) -> Point2:
 
 def is_large(unit: Unit) -> bool:
     return 2 <= unit.radius
+
+def is_structure(unit: Unit) -> bool:
+    data = unit._bot_object.game_data.units[unit.type_id.value]
+    return IS_STRUCTURE in data.attributes
 
 def unitValue(unit: Unit, target = None):
     if unit.is_hallucination:

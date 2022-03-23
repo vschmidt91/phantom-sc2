@@ -1,8 +1,7 @@
 from __future__ import annotations
-import math
-from tracemalloc import start
 
 from typing import Dict, TYPE_CHECKING
+
 from sc2.constants import IS_DETECTOR
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
@@ -14,10 +13,11 @@ from ..constants import CHANGELINGS
 from ..resources.base import Base
 from ..behaviors.behavior import Behavior, BehaviorResult, UnitBehavior
 from ..ai_component import AIComponent
+from .module import AIModule
 if TYPE_CHECKING:
     from ..ai_base import AIBase
     
-class DropManager(AIComponent, Behavior):
+class DropManager(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
@@ -52,8 +52,8 @@ class DropManager(AIComponent, Behavior):
         self.drop_from: Point2 = drop_from or drop_base
         self.drop_to: Point2 = drop_to or enemy_start
 
-    def execute(self) -> BehaviorResult:                    
-        return BehaviorResult.SUCCESS
+    async def on_step(self) -> None:                 
+        pass
 
 class DropBehavior(UnitBehavior):
 

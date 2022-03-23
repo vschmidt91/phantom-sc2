@@ -25,6 +25,7 @@ class LaunchCorrosiveBilesBehavior(UnitBehavior):
 
     def __init__(self, ai: AIBase, unit_tag: int):
         super().__init__(ai, unit_tag)
+        self.last_used = 0
 
     def target_priority(self, unit: Unit, target: Unit):
         if not self.ai.is_visible(target.position):
@@ -47,8 +48,9 @@ class LaunchCorrosiveBilesBehavior(UnitBehavior):
 
         if self.ABILITY in { o.ability.exact_id for o in unit.orders }:
             return BehaviorResult.ONGOING
-            
-        if self.ABILITY not in self.ai.abilities[unit.tag]:
+
+        if self.last_used + COOLDOWN[AbilityId.EFFECT_CORROSIVEBILE] < self.ai.state.game_loop:
+        # if self.ABILITY not in self.ai.abilities[unit.tag]:
             return BehaviorResult.SUCCESS
 
         targets = (
@@ -68,4 +70,5 @@ class LaunchCorrosiveBilesBehavior(UnitBehavior):
             velocity = Point2((0, 0))
         predicted_position = target.position + velocity * 50 / 22.4
         unit(self.ABILITY, target=predicted_position)
+        self.last_used = self.ai.state.game_loop
         return BehaviorResult.ONGOING

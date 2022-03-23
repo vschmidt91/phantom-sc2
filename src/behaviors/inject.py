@@ -59,7 +59,8 @@ class InjectBehavior(UnitBehavior):
             else:
                 unit.attack(target)
             return BehaviorResult.ONGOING
-        elif AbilityId.EFFECT_INJECTLARVA in self.ai.abilities[unit.tag]:
+        elif ENERGY_COST[AbilityId.EFFECT_INJECTLARVA] <= unit.energy:
+        # elif AbilityId.EFFECT_INJECTLARVA in self.ai.abilities[unit.tag]:
             unit(AbilityId.EFFECT_INJECTLARVA, target=townhall)
             return BehaviorResult.ONGOING
 

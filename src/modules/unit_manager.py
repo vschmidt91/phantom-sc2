@@ -14,8 +14,6 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
-from src.behaviors.hide import HideBehavior
-
 from ..behaviors.changeling_scout import ChangelingSpawnBehavior
 from ..behaviors.burrow import BurrowBehavior
 from ..behaviors.dodge import DodgeBehavior
@@ -26,16 +24,15 @@ from .scout_manager import ScoutBehavior
 from ..behaviors.transfuse import TransfuseBehavior
 from ..behaviors.survive import SurviveBehavior
 from ..behaviors.macro import MacroBehavior
-from ..managers.drop_manager import DropBehavior
+from .drop_manager import DropBehavior
 from ..behaviors.inject import InjectBehavior
 from ..behaviors.gather import GatherBehavior
-from ..behaviors.spread_creep import SpreadCreepBehavior
 from ..behaviors.extractor_trick import ExtractorTrickBehavior
-from .block_manager import DetectBehavior
+from .scout_manager import DetectBehavior
 from ..utils import *
 from ..constants import *
 from ..behaviors.behavior import Behavior, BehaviorResult, LambdaBehavior, BehaviorSequence, BehaviorSelector, SwitchBehavior, UnitBehavior, LambdaBehavior
-from ..ai_component import AIComponent
+from .module import AIModule
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
@@ -45,15 +42,17 @@ IGNORED_UNIT_TYPES = {
     UnitTypeId.BROODLING,
     UnitTypeId.LOCUSTMP,
     UnitTypeId.LOCUSTMPFLYING,
+    UnitTypeId.CREEPTUMOR,
+    UnitTypeId.CREEPTUMORBURROWED,
+    UnitTypeId.CREEPTUMORQUEEN,
 }
 
-class UnitManager(AIComponent, Behavior):
+class UnitManager(AIModule):
 
-    def __init__(self, ai: AIBase):
+    def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
         self.inject_queens: Dict[int, int] = dict()
         self.drafted_civilians: Set[int] = set()
-        self.creep_coverage: float = 0.0
         self.enemy_priorities: Dict[int, float] = dict()
         self.behaviors: Dict[int, UnitBehavior] = dict()
 
@@ -71,12 +70,6 @@ class UnitManager(AIComponent, Behavior):
         def selector(unit: Unit) -> str:
             if unit.type_id == UnitTypeId.EXTRACTOR:
                 return 'extractor'
-            elif unit.type_id in {
-                UnitTypeId.CREEPTUMOR,
-                UnitTypeId.CREEPTUMORBURROWED,
-                UnitTypeId.CREEPTUMORQUEEN,
-            }:
-                return 'creep'
             elif unit.type_id in {
                 UnitTypeId.QUEEN,
                 UnitTypeId.QUEENBURROWED
@@ -113,11 +106,11 @@ class UnitManager(AIComponent, Behavior):
                 return 'army'
         behaviors = {
             'extractor': ExtractorTrickBehavior(self.ai, unit_tag),
-            'creep': SpreadCreepBehavior(self.ai, unit_tag),
             'queen': BehaviorSequence([
                     DodgeBehavior(self.ai, unit_tag),
                     InjectBehavior(self.ai, unit_tag),
-                    SpreadCreepBehavior(self.ai, unit_tag),
+                    LambdaBehavior(lambda:self.ai.creep.spread(self.ai.unit_by_tag[unit_tag])),
+                    # SpreadCreepBehavior(self.ai, unit_tag),
                     TransfuseBehavior(self.ai, unit_tag),
                     FightBehavior(self.ai, unit_tag),
                     SearchBehavior(self.ai, unit_tag),
@@ -158,7 +151,7 @@ class UnitManager(AIComponent, Behavior):
         }
         return SwitchBehavior(self.ai, unit_tag, selector, behaviors)
 
-    def draft_civilians(self):
+    def draft_civilians(self) -> None:
 
         self.drafted_civilians.intersection_update(self.ai.unit_by_tag.keys())
         
@@ -189,9 +182,7 @@ class UnitManager(AIComponent, Behavior):
         priority /= 10 if target.type_id in CIVILIANS else 1
         return priority
 
-    def execute(self) -> BehaviorResult:
-
-        self.creep_coverage = np.sum(self.ai.state.creep.data_numpy) / self.ai.creep_tile_count
+    async def on_step(self) -> None:
 
         self.enemy_priorities = {
             e.tag: self.target_priority_apriori(e)
@@ -221,7 +212,7 @@ class UnitManager(AIComponent, Behavior):
 
         tags: List[int] = list()
         tags.extend(u.tag for u in self.ai.all_own_units if u.type_id not in IGNORED_UNIT_TYPES)
-        tags.extend(self.ai.tumor_front_tags)
+        # tags.extend(self.ai.creep.tumor_front_tags)
 
         for tag in tags:
             behavior = self.behaviors.get(tag)
@@ -239,5 +230,3 @@ class UnitManager(AIComponent, Behavior):
         }
         for tag in removed_tags:
             del self.behaviors[tag]
-
-        return BehaviorResult.ONGOING

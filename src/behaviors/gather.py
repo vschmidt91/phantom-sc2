@@ -12,7 +12,7 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
-from src.resources.vespene_geyser import VespeneGeyser
+from ..resources.vespene_geyser import VespeneGeyser
 
 from ..resources.mineral_patch import MineralPatch
 from ..utils import *

@@ -8,44 +8,21 @@ import numpy as np
 from typing import Counter, Iterable, List, Coroutine, Dict, Set, Union, Tuple, Optional, Type
 from itertools import chain
 
-from s2clientprotocol.sc2api_pb2 import Macro
-from sc2 import unit
-
-from sc2.ids.ability_id import AbilityId
-from sc2.ids.buff_id import BuffId
 from sc2.unit import Unit
-from sc2.data import Race, race_townhalls, race_worker, Result
+from sc2.data import Race, race_townhalls
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
-from sc2.position import Point2
-from sc2.unit_command import UnitCommand
-from src.probots import OPPONENTS, STRATEGIES
 
 from .unit_counters import UNIT_COUNTER_MATRIX
-from .behaviors.behavior import Behavior, BehaviorSelector, BehaviorSequence
-from .behaviors.burrow import BurrowBehavior
-from .behaviors.fight import FightBehavior
-from .behaviors.dodge import DodgeBehavior
-from .behaviors.search import SearchBehavior
-from .behaviors.gather import GatherBehavior
-from .behaviors.survive import SurviveBehavior
-from .behaviors.launch_corrosive_biles import LaunchCorrosiveBilesBehavior
-from .behaviors.transfuse import TransfuseBehavior
-from .managers.unit_manager import UnitManager
-from .strategies.gasless import GasLess
-from .strategies.roach_rush import RoachRush
 from .strategies.hatch_first import HatchFirst
-from .strategies.roach_ling_bust import RoachLingBust
-from .strategies.muta import Muta
-from .strategies.pool12 import Pool12
 from .strategies.zerg_strategy import ZergStrategy
-from .constants import CHANGELINGS, CREEP_ABILITIES, SUPPLY_PROVIDED
-from .ai_base import AIBase, PerformanceMode
+from .constants import SUPPLY_PROVIDED
+from .ai_base import AIBase
 from .utils import armyValue, center, sample, unitValue, run_timed
 from .constants import BUILD_ORDER_PRIORITY, WITH_TECH_EQUIVALENTS, REQUIREMENTS, ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
 from .cost import Cost
 from .macro_plan import MacroPlan
+from .modules.creep import Creep
 
 import cProfile
 import pstats
@@ -101,16 +78,8 @@ class ZergAI(AIBase):
         self.strategy_cls: Optional[Type[ZergStrategy]] = strategy_cls
         self.composition: Dict[UnitTypeId, int] = dict()
 
-        self.creep_area_min: np.ndarray = None
-        self.creep_area_max: np.ndarray = None
-        self.creep_coverage: float = 0
-        self.creep_tile_count: int = 1
         self.build_spores: bool = False
         self.build_spines: bool = False
-
-    async def micro(self):
-        await super().micro()
-        self.unit_manager.execute()
 
     def counter_composition(self, enemies: Iterable[Unit]) -> Dict[UnitTypeId, int]:
 
@@ -167,10 +136,6 @@ class ZergAI(AIBase):
 
     async def on_start(self):
 
-        # await self.client.debug_create_unit([
-        #     [UnitTypeId.OVERLORDTRANSPORT, 1, self.game_info.map_center, 1],
-        # ])
-
         if not self.strategy_cls:
             strategy_classes = [HatchFirst]
             # print(self.opponent_id)
@@ -196,24 +161,12 @@ class ZergAI(AIBase):
 
         await super().on_start()
 
-        self.creep_area_min = np.array(self.game_info.map_center)
-        self.creep_area_max = np.array(self.game_info.map_center)
-        for base in self.expansion_locations_list:
-            self.creep_area_min = np.minimum(self.creep_area_min, base)
-            self.creep_area_max = np.maximum(self.creep_area_max, base)
-
-        self.creep_tile_count = np.sum(self.game_info.pathing_grid.data_numpy)
-
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
+        if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
+            self.creep.tumor_front[unit.tag] = self.state.game_loop
         return await super().on_unit_type_changed(unit, previous_type)
 
     async def on_building_construction_started(self, unit: Unit):
-        if unit.type_id in {
-            UnitTypeId.CREEPTUMOR,
-            UnitTypeId.CREEPTUMORQUEEN,
-            UnitTypeId.CREEPTUMORBURROWED
-        }:
-            self.tumor_front_tags.add(unit.tag)
         return await super().on_building_construction_started(unit)
 
     async def on_building_construction_complete(self, unit: Unit):
@@ -223,24 +176,22 @@ class ZergAI(AIBase):
         return await super().on_unit_destroyed(unit_tag)
 
     async def on_unit_created(self, unit: Unit):
-        return await super(self.__class__, self).on_unit_created(unit)
+        return await super().on_unit_created(unit)
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
-        return await super(self.__class__, self).on_unit_took_damage(unit, amount_damage_taken)
+        return await super().on_unit_took_damage(unit, amount_damage_taken)
 
     def update_strategy(self):
         self.strategy.update()
 
     async def on_step(self, iteration):
 
-        await super(self.__class__, self).on_step(iteration)
-
         if iteration == 0:
             return
 
         if 1 < self.time:
-            await self.add_tag(self.version, False)
-            await self.add_tag(self.strategy.name, False)
+            await self.chat.add_tag(self.version, False)
+            await self.chat.add_tag(self.strategy.name, False)
 
         steps = self.strategy.steps()
 
@@ -266,10 +217,12 @@ class ZergAI(AIBase):
 
             await run_steps()
 
+        await super().on_step(iteration)
+
     def draw_debug(self):
         if not self.debug:
             return
-        self.client.debug_text_screen(f'Creep Coverage: {round(100 * self.creep_coverage)}%', (0.01, 0.05))
+        self.client.debug_text_screen(f'Creep Coverage: {round(100 * self.creep.coverage)}%', (0.01, 0.05))
         return super().draw_debug()
 
     def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
@@ -398,8 +351,8 @@ class ZergAI(AIBase):
 
     def expand(self):
 
-        # if self.block_manager.enemy_base_count + 1 <= self.townhalls.amount:
-        #     return
+        if self.scout_manager.enemy_base_count + 1 <= self.townhalls.amount:
+            return
 
         if self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False) < 1:
             return

@@ -8,12 +8,12 @@ from sc2.game_data import UpgradeData
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.data import Race
-from src.unit_counters import UNIT_COUNTER_DICT
+
+from ..unit_counters import UNIT_COUNTER_DICT
 from ..constants import BUILD_ORDER_PRIORITY, ZERG_ARMOR_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES
 from ..cost import Cost
 from ..macro_plan import MacroPlan
 from ..utils import unitValue
-
 from .zerg_strategy import ZergStrategy
 
 from ..ai_base import AIBase
@@ -28,7 +28,7 @@ class ZergMacro(ZergStrategy):
     def composition(self) -> Dict[UnitTypeId, int]:
 
         worker_limit = 80
-        enemy_max_workers = 22 * self.ai.block_manager.enemy_base_count
+        enemy_max_workers = 22 * self.ai.scout_manager.enemy_base_count
         worker_target = min(
             worker_limit,
             self.ai.get_max_harvester(),
@@ -126,7 +126,6 @@ class ZergMacro(ZergStrategy):
             self.ai.assess_threat_level: 1,
             self.ai.update_strategy: 1,
             self.ai.macro: 1,
-            self.ai.micro: 1,
             self.ai.save_enemy_positions: 1,
             self.ai.make_defenses: 1,
             self.ai.draw_debug: 1,

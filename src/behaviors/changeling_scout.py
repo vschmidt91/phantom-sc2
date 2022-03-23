@@ -7,7 +7,7 @@ from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 
-from ..constants import CHANGELINGS
+from ..constants import CHANGELINGS, ENERGY_COST
 from ..utils import sample
 from ..resources.base import Base
 from .behavior import Behavior, BehaviorResult, UnitBehavior
@@ -23,7 +23,9 @@ class ChangelingSpawnBehavior(UnitBehavior):
         
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
-        if self.ABILITY in self.ai.abilities[unit.tag]:
+        if ENERGY_COST[self.ABILITY] <= unit.energy:
+        # if self.ABILITY in self.ai.abilities[unit.tag]:
             unit(self.ABILITY)
+            return BehaviorResult.ONGOING
 
         return BehaviorResult.SUCCESS

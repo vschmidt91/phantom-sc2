@@ -42,19 +42,19 @@ from sc2.data import Result, race_townhalls, race_worker, ActionResult
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.units import Units
-from src.managers.drop_manager import DropManager
-from src.resources.mineral_patch import MineralPatch
-from src.resources.vespene_geyser import VespeneGeyser
+from .modules.chat import Chat
+from .modules.module import AIModule
+from .modules.creep import Creep
 
-from .managers.block_manager import BlockManager
-from .managers.scout_manager import ScoutManager
-from .managers.unit_manager import IGNORED_UNIT_TYPES, UnitManager
-from .managers.block_manager import BlockManager
+from .modules.drop_manager import DropManager
+from .resources.mineral_patch import MineralPatch
+from .resources.vespene_geyser import VespeneGeyser
+from .modules.scout_manager import ScoutManager
+from .modules.unit_manager import IGNORED_UNIT_TYPES, UnitManager
 
-from src.chat import RESPONSES
-from src.value_map import ValueMap
+from .simulation.simulation import Simulation
 
-from .chat import FIGHT_MESSAGES, GREET_MESSAGES, LOSS_MESSAGES
+from .value_map import ValueMap
 
 from .resources.base import Base
 from .resources.resource_group import BalancingMode, ResourceGroup
@@ -90,16 +90,10 @@ class AIBase(ABC, BotAI):
 
         self.raw_affects_selection = True
 
-        self.message_greet = random.choice(GREET_MESSAGES)
-        self.message_fight = random.choice(FIGHT_MESSAGES)
-        self.message_loss = random.choice(LOSS_MESSAGES)
-
         self.version: str = ''
-        self.messages: Set[str] = set()
         self.game_step: int = 3
         self.performance: PerformanceMode = PerformanceMode.DEFAULT
         self.debug: bool = False
-        self.greet_enabled: bool = True
         self.macro_plans: List[MacroPlan] = list()
         self.composition: Dict[UnitTypeId, int] = dict()
         self.worker_split: Dict[int, int] = None
@@ -126,7 +120,6 @@ class AIBase(ABC, BotAI):
         self.worker_supply_fixed: int = 0
         self.destructables_fixed: Set[Unit] = set()
         self.damage_taken: Dict[int] = dict()
-        self.gg_sent: bool = False
         self.opponent_name: Optional[str] = None
         self.advantage_map: np.ndarray = None
         self.dodge: List[DodgeElement] = list()
@@ -142,7 +135,6 @@ class AIBase(ABC, BotAI):
         self.army_projection: np.ndarray = None
         self.enemy_projection: np.ndarray = None
         self.extractor_trick_enabled: bool = False
-        self.tumor_front_tags: Set[int] = set()
 
         super().__init__()
 
@@ -161,18 +153,6 @@ class AIBase(ABC, BotAI):
 
     def destroy_destructables(self):
         return True
-
-    async def add_message(self, message: str, team_only: bool = False):
-        if message not in self.messages:
-            await self.client.chat_send(message, team_only)
-            self.messages.add(message)
-
-    async def add_tag(self, tag: str, include_time: bool = True):
-        if include_time:
-            message = f'Tag:{tag}@{self.time_formatted}'
-        else:
-            message = f'Tag:{tag}'
-        await self.add_message(message, True)
 
     async def on_before_start(self):
 
@@ -215,10 +195,17 @@ class AIBase(ABC, BotAI):
         
         await self.initialize_bases()
 
-        self.block_manager: BlockManager = BlockManager(self)
         self.scout_manager: ScoutManager = ScoutManager(self)
         self.drop_manager: DropManager = DropManager(self)
         self.unit_manager: UnitManager = UnitManager(self)
+        self.chat: Chat = Chat(self)
+        self.creep: Creep = Creep(self)
+
+        self.modules: List[AIModule] = [
+            value
+            for value in self.__dict__.values()
+            if isinstance(value, AIModule)
+        ]
 
     def handle_errors(self):
         for error in self.state.action_errors:
@@ -277,9 +264,10 @@ class AIBase(ABC, BotAI):
 
     def handle_actions(self):
         for action in self.state.actions_unit_commands:
-            if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
-                self.tumor_front_tags.difference_update(action.unit_tags)
-            elif item := ITEM_BY_ABILITY.get(action.exact_id):
+            # if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
+            #     for tag in action.unit_tags:
+            #         del self.creep.tumor_front[tag]
+            if item := ITEM_BY_ABILITY.get(action.exact_id):
                 self.remove_macro_plan_by_item(item)
                 # for tag in action.unit_tags:
                 #     if unit := self.unit_by_tag.get(tag):
@@ -301,46 +289,13 @@ class AIBase(ABC, BotAI):
                 yield unit
 
     async def on_step(self, iteration: int):
-
-        # for item in self.state.chat:
-        #     if item.player_id == self.player_id:
-        #         continue
-        #     for pattern, response in RESPONSES.items():
-        #         if match := re.search(pattern, item.message):
-        #             await self.add_message(response)
-        #             break
-
-        if 1 < self.time:
-            if self.opponent_name:
-                await self.add_message(f'(glhf) {self.opponent_name}')
-            else:
-                await self.add_message(f'(glhf)')
-
-        # if 20 < self.time:
-        #     await self.add_message(self.message_greet)
-
-        # if 2 * 60 < self.time and 0.5 < self.threat_level:
-        #     await self.add_message(self.message_fight)
-
-        # if 4 * 60 < self.time and 0.8 < self.threat_level:
-        #     await self.add_message(self.message_loss)
-
-        self.block_manager.execute()
-        self.scout_manager.execute()
-        pass
+        for module in self.modules:
+            await module.on_step()
 
     async def on_end(self, game_result: Result):
         pass
 
     async def on_building_construction_started(self, unit: Unit):
-        # plan = next((
-        #     plan
-        #     for plan in self.macro_plans
-        #     if plan.item == unit.type_id
-        # ), None)
-        # if plan:
-        #     self.remove_macro_plan(plan)
-        # self.pending_by_type[unit.type_id].add(unit)
         pass
 
     async def on_building_construction_complete(self, unit: Unit):
@@ -358,7 +313,8 @@ class AIBase(ABC, BotAI):
     async def on_unit_destroyed(self, unit_tag: int):
         self.enemies.pop(unit_tag, None)
         self.bases.try_remove(unit_tag)
-        self.tumor_front_tags.difference_update((unit_tag,))
+        # if unit_tag in self.creep.tumor_front:
+        #     del self.creep.tumor_front[unit_tag]
         pass
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
@@ -381,6 +337,8 @@ class AIBase(ABC, BotAI):
         pass
         
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
+        # if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
+        #     print(self.state.game_loop)
         pass
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
@@ -727,7 +685,7 @@ class AIBase(ABC, BotAI):
         # self.map_analyzer.draw_influence_in_game(100 * self.map_data.distance)
 
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.threat_level)}%', (0.01, 0.01))
-        self.client.debug_text_screen(f'Enemy Bases: {self.block_manager.enemy_base_count}', (0.01, 0.02))
+        self.client.debug_text_screen(f'Enemy Bases: {self.scout_manager.enemy_base_count}', (0.01, 0.02))
         self.client.debug_text_screen(f'Gas Target: {round(self.get_gas_target(), 3)}', (0.01, 0.03))
         for i, plan in enumerate(self.macro_plans):
             self.client.debug_text_screen(f'{1+i} {plan.item.name}', (0.01, 0.1 + 0.01 * i))
@@ -1042,9 +1000,6 @@ class AIBase(ABC, BotAI):
             enemies = chain(enemies, self.destructables_fixed)
         return enemies
 
-    async def micro(self):
-        pass
-
     async def get_target_position(self, target: UnitTypeId, trainer: Unit) -> Point2:
         if self.is_structure(target):
             data = self.game_data.units.get(target.value)
@@ -1130,8 +1085,6 @@ class AIBase(ABC, BotAI):
 
         # EXPERIMENTAL FIGHTING
 
-        # EXPERIMENTAL FIGHTING
-
         army_health = self.map_analyzer.get_clean_air_grid(0)
         for unit in self.enumerate_army():
             army_health[unit.position.rounded] += unit.health + unit.shield
@@ -1169,6 +1122,11 @@ class AIBase(ABC, BotAI):
 
         self.army_projection = army_health
         self.enemy_projection = enemy_health
+
+        # EXPERIMENTAL SIMULATION
+
+        simulation = Simulation(self, self.enumerate_army(), self.enemies.values())
+        simulation.run(10)
 
     def assess_threat_level(self):
         
