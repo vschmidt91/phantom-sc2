@@ -163,12 +163,12 @@ class UnitManager(AIComponent, Behavior):
         self.drafted_civilians.intersection_update(self.ai.unit_by_tag.keys())
         
         if (
-            1/2 < self.ai.threat_level
+            2/3 < self.ai.threat_level
             and self.ai.time < 3 * 60
         ):
             if worker := self.ai.bases.try_remove_any():
                 self.drafted_civilians.add(worker)
-        elif self.ai.threat_level < 1/3:
+        elif self.ai.threat_level < 1/2:
             if self.drafted_civilians:
                 worker = min(self.drafted_civilians, key = lambda tag : self.ai.unit_by_tag[tag].shield_health_percentage, default = None)
                 self.drafted_civilians.remove(worker)
@@ -198,7 +198,7 @@ class UnitManager(AIComponent, Behavior):
             for e in self.ai.enumerate_enemies()
         }
 
-        self.draft_civilians()
+        # self.draft_civilians()
 
         queens = sorted(
             self.ai.actual_by_type[UnitTypeId.QUEEN],
