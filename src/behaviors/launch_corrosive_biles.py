@@ -50,7 +50,6 @@ class LaunchCorrosiveBilesBehavior(UnitBehavior):
             return BehaviorResult.ONGOING
 
         if self.last_used + COOLDOWN[AbilityId.EFFECT_CORROSIVEBILE] < self.ai.state.game_loop:
-        # if self.ABILITY not in self.ai.abilities[unit.tag]:
             return BehaviorResult.SUCCESS
 
         targets = (

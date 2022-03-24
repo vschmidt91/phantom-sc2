@@ -24,7 +24,6 @@ class ChangelingSpawnBehavior(UnitBehavior):
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
         if ENERGY_COST[self.ABILITY] <= unit.energy:
-        # if self.ABILITY in self.ai.abilities[unit.tag]:
             unit(self.ABILITY)
             return BehaviorResult.ONGOING
 

@@ -59,12 +59,6 @@ class Creep(AIModule):
 
         if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
             pass
-            # if age < 240:
-            #     print(age)
-            #     assert AbilityId.BUILD_CREEPTUMOR_TUMOR not in self.ai.abilities[unit.tag]
-            #     return BehaviorResult.SUCCESS
-            # else:
-            # assert AbilityId.BUILD_CREEPTUMOR_TUMOR in self.ai.abilities[unit.tag]
         elif unit.type_id == UnitTypeId.QUEEN:
             if 10 <= len(self.tumor_front):
                 return BehaviorResult.SUCCESS

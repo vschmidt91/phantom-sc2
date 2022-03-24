@@ -124,7 +124,6 @@ class AIBase(ABC, BotAI):
         self.advantage_map: np.ndarray = None
         self.dodge: List[DodgeElement] = list()
         self.dodge_delayed: List[DodgeEffectDelayed] = list()
-        # self.abilities: DefaultDict[int, Set[AbilityId]] = defaultdict(lambda:set())
         self.map_data: MapStaticData = None
         self.map_analyzer: MapData = None
         self.army_center: Point2 = Point2((0, 0))
@@ -291,6 +290,8 @@ class AIBase(ABC, BotAI):
     async def on_step(self, iteration: int):
         for module in self.modules:
             await module.on_step()
+        # if 8*60 < self.time:
+        #     await self.client.quit()
 
     async def on_end(self, game_result: Result):
         pass
@@ -430,12 +431,6 @@ class AIBase(ABC, BotAI):
 
         for upgrade in self.state.upgrades:
             self.actual_by_type[upgrade].add(upgrade)
-
-        # unit_abilities = await self.get_available_abilities(self.all_own_units)
-        # self.abilities = {
-        #     unit.tag: set(abilities)
-        #     for unit, abilities in zip(self.all_own_units, unit_abilities)
-        # }
 
     @property
     def supply_workers_fixed(self) -> int:
@@ -814,9 +809,6 @@ class AIBase(ABC, BotAI):
                 continue
             if unit == None:
                 continue
-
-            # if plan.ability['ability'] not in self.abilities[plan.unit]:
-            #     continue
             if any(self.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
                 continue
 
@@ -1104,7 +1096,7 @@ class AIBase(ABC, BotAI):
                 grid = map,
                 weight = dps)
 
-        for t in range(0, 8, 1):
+        for t in range(0, 10, 1):
 
             army_dps = self.map_analyzer.get_clean_air_grid(0)
             for unit in self.enumerate_army():
@@ -1116,7 +1108,7 @@ class AIBase(ABC, BotAI):
                 if 0 < enemy_health[unit.position.rounded]:
                     enemy_dps = add_unit_to_map(unit, enemy_dps, t)
 
-            discount = pow(.8, t)
+            discount = pow(.9, t)
             army_health -= discount * enemy_dps
             enemy_health -= discount * army_dps
 
@@ -1125,8 +1117,8 @@ class AIBase(ABC, BotAI):
 
         # EXPERIMENTAL SIMULATION
 
-        simulation = Simulation(self, self.enumerate_army(), self.enemies.values())
-        simulation.run(10)
+        # simulation = Simulation(self, self.enumerate_army(), self.enemies.values())
+        # simulation.run(10)
 
     def assess_threat_level(self):
         

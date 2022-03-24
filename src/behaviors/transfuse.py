@@ -44,7 +44,6 @@ class TransfuseBehavior(UnitBehavior):
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
         if unit.energy < ENERGY_COST[self.ABILITY]:
-        # if self.ABILITY not in self.ai.abilities[unit.tag]:
             return BehaviorResult.SUCCESS
 
         target = max(self.ai.all_own_units,
