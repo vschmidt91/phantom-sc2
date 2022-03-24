@@ -34,31 +34,30 @@ class ScoutManager(AIModule):
         self.static_targets.sort(key=lambda t:t.distance_to(self.ai.start_location))
 
         self.detectors: Dict[Point2, int] = dict()
-        self.enemy_base_count: int = 1
+        self.blocked_positions: Dict[Point2, float] = dict()
+        self.enemy_bases: Dict[Point2, float] = dict()
 
     def reset_blocked_bases(self) -> None:
-        for base in self.ai.bases:
-            if base.blocked_since:
-                if base.blocked_since + 30 < self.ai.time:
-                    base.blocked_since = None
+        for position, blocked_since in list(self.blocked_positions.items()):
+            if blocked_since + 60 < self.ai.time:
+                del self.blocked_positions[position]
 
-    def detect_blocked_bases(self) -> None:
+    def find_taken_bases(self) -> None:
 
-        enemy_townhall_positions = {
+        enemy_building_positions = {
             building.position
             for building in self.ai.enemy_structures
         }
 
         for base in self.ai.bases:
             if self.ai.is_visible(base.position):
-                if base.position in enemy_townhall_positions:
-                    base.taken_since = self.ai.time
+                if base.position in enemy_building_positions:
+                    if base.position not in self.enemy_bases:
+                        self.enemy_bases[base.position] = self.ai.time
                 else:
                     base.taken_since = None
-        self.enemy_base_count = max(
-            math.ceil(self.ai.time / (4 * 60)),
-            sum(1 for b in self.ai.bases if b.taken_since != None)
-        )
+
+        self.enemy_base_count = len(self.enemy_bases)
 
     def send_detectors(self) -> None:
         
@@ -68,31 +67,28 @@ class ScoutManager(AIModule):
             for u in self.ai.actual_by_type[t]
             if 0 < u.movement_speed
         ]
-        for base in self.ai.bases:
-            if base.blocked_since:
-                detector_tag = self.detectors.get(base.position)
-                detector = self.ai.unit_by_tag.get(detector_tag)
+        for position in self.blocked_positions.keys():
+            detector_tag = self.detectors.get(position)
+            detector = self.ai.unit_by_tag.get(detector_tag)
+            if not detector:
+                detector = min(
+                    (d for d in detectors if d.tag not in self.detectors.values()),
+                    key = lambda u : u.position.distance_to(position),
+                    default = None)
                 if not detector:
-                    detector = min(
-                        (d for d in detectors if d.tag not in self.detectors.values()),
-                        key = lambda u : u.position.distance_to(base.position),
-                        default = None)
-                    if not detector:
-                        continue
-                    self.detectors[base.position] = detector.tag
-            else:
-                if base.position in self.detectors:
-                    del self.detectors[base.position]
+                    continue
+                self.detectors[position] = detector.tag
 
         for pos, tag in list(self.detectors.items()):
-            if tag in self.ai.unit_by_tag:
-                continue
-            del self.detectors[pos]
+            if tag not in self.ai.unit_by_tag:
+                del self.detectors[pos]
+            if pos not in self.blocked_positions:
+                del self.detectors[pos]
 
     def send_scouts(self) -> None:
 
         targets = list(self.static_targets)
-        if self.scout_enemy_natural and self.enemy_base_count < 2:
+        if self.scout_enemy_natural and len(self.enemy_bases) < 2:
             target = self.ai.bases[-2].position.towards(self.ai.game_info.map_center, 11)
             targets.insert(0, target)
 
@@ -118,7 +114,7 @@ class ScoutManager(AIModule):
 
     async def on_step(self) -> None:
         self.reset_blocked_bases()
-        self.detect_blocked_bases()
+        self.find_taken_bases()
         self.send_detectors()
         self.send_scouts()
 

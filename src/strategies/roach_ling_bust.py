@@ -61,6 +61,7 @@ class RoachLingBust(ZergMacro):
             # UnitTypeId.ZERGLING,
 
         ]
-    def update(self):
+
+    def update(self) -> None:
         self.ai.scout_manager.scout_enemy_natural = False
         return super().update()

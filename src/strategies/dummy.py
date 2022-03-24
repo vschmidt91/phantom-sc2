@@ -40,34 +40,8 @@ class DummyStrategy(ZergStrategy):
         ]
 
 
-    def update(self, bot):
-        bot.scout_manager.scout_enemy_natural = False
-        if 6720 <= bot.state.game_loop:
-            print(bot.state.score.collected_vespene)
-        return super().update(bot)
-
-    def steps(self, bot):
-
-        steps = {
-            bot.update_tables: 1,
-            bot.handle_errors: 1,
-            bot.handle_actions: 1,
-            bot.update_maps: 1,
-            bot.handle_delayed_effects: 1,
-            bot.update_bases: 1,
-            bot.update_composition: 1,
-            bot.update_gas: 1,
-            bot.morph_overlords: 1,
-            bot.make_composition: 1,
-            bot.make_tech: 1,
-            bot.expand: 1,
-            bot.assess_threat_level: 1,
-            bot.update_strategy: 1,
-            bot.macro: 1,
-            bot.micro: 1,
-            bot.save_enemy_positions: 1,
-            bot.make_defenses: 1,
-            bot.draw_debug: 1,
-        }
-
-        return steps
+    def update(self):
+        self.ai.scout_manager.scout_enemy_natural = False
+        if 6720 <= self.ai.state.game_loop:
+            print(self.ai.state.score.collected_vespene)
+        return super().update()

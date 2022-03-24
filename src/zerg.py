@@ -81,72 +81,10 @@ class ZergAI(AIBase):
         self.build_spores: bool = False
         self.build_spines: bool = False
 
-    def counter_composition(self, enemies: Iterable[Unit]) -> Dict[UnitTypeId, int]:
-
-        def value(unit: UnitTypeId):
-            cost = self.cost[unit]
-            return cost.minerals + cost.vespene
-
-        if not any(enemies):
-            return {
-                UnitTypeId.ZERGLING: 1,
-                UnitTypeId.OVERSEER: 1
-            }
-
-        enemies_by_type = defaultdict(lambda: set())
-        for enemy in enemies:
-            enemies_by_type[enemy.type_id].add(enemy)
-
-        enemy_cost = sum(
-            (self.cost[enemy_type] * len(n)
-            for enemy_type, n in enemies_by_type.items()
-            if enemy_type in self.cost)
-        , Cost(0, 0, 0))
-        enemy_value = enemy_cost.minerals + enemy_cost.vespene
-
-        weights = {
-            unit: sum(
-                w * len(enemies_by_type[e])
-                for e, w in UNIT_COUNTER_MATRIX[unit].items()
-            )
-            for unit in UNIT_COUNTER_MATRIX.keys()
-        }
-
-        weights = sorted(weights.items(),
-            key = lambda p : p[1],
-            reverse = True)
-
-        best_unit, _ = weights[0]
-        best_can_build = next(
-            (u for u, _ in weights if not any(self.get_missing_requirements(u, include_pending=False, include_planned=False))),
-            None)
-
-        if best_unit == best_can_build:
-            return {
-                best_unit: math.ceil(enemy_value / value(best_unit))
-            }
-        else:
-            return {
-                best_unit: 0,
-                best_can_build: math.ceil(enemy_value / value(best_can_build))
-            }
-
-    def destroy_destructables(self):
-        return self.strategy.destroy_destructables()
-
     async def on_start(self):
 
         if not self.strategy_cls:
-            strategy_classes = [HatchFirst]
-            # print(self.opponent_id)
-            # if opponent_name := OPPONENTS.get(self.opponent_id):
-            #     print(opponent_name)
-            #     self.opponent_name = opponent_name
-            #     if prepared_strategies := STRATEGIES.get(opponent_name):
-            #         print(prepared_strategies)
-            #         strategy_classes = prepared_strategies
-            self.strategy_cls = random.choice(strategy_classes)
-
+            self.strategy_cls = HatchFirst
         self.strategy: ZergStrategy = self.strategy_cls(self)
 
         for step in self.strategy.build_order():
@@ -160,6 +98,9 @@ class ZergAI(AIBase):
             self.add_macro_plan(plan)
 
         await super().on_start()
+
+    async def on_before_start(self):
+        return await super().on_before_start()
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
@@ -181,9 +122,6 @@ class ZergAI(AIBase):
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         return await super().on_unit_took_damage(unit, amount_damage_taken)
 
-    def update_strategy(self):
-        self.strategy.update()
-
     async def on_step(self, iteration):
 
         if iteration == 0:
@@ -193,35 +131,15 @@ class ZergAI(AIBase):
             await self.chat.add_tag(self.version, False)
             await self.chat.add_tag(self.strategy.name, False)
 
-        steps = self.strategy.steps()
-
-        async def run_steps():
-            
-            for step, m in steps.items():
-                if iteration % m != 0:
-                    continue
-                result = step()
-                if inspect.isawaitable(result):
-                    result = await result
-
-        if self.debug and self.state.game_loop % 1000 == 0:
-
-            with cProfile.Profile() as pr:
-                await run_steps()
-
-            stats = pstats.Stats(pr)
-            stats.sort_stats(pstats.SortKey.TIME)
-            stats.dump_stats(filename='profiling.prof')
-
-        else:
-
-            await run_steps()
-
         await super().on_step(iteration)
 
+        self.strategy.update()
+        self.morph_overlords()
+        self.make_defenses()
+        self.make_tech()
+        self.expand()
+
     def draw_debug(self):
-        if not self.debug:
-            return
         self.client.debug_text_screen(f'Creep Coverage: {round(100 * self.creep.coverage)}%', (0.01, 0.05))
         return super().draw_debug()
 
@@ -307,9 +225,6 @@ class ZergAI(AIBase):
                 return (upgrade,)
         return tuple()
 
-    def update_composition(self):
-        self.composition = self.strategy.composition()
-
     def make_defenses(self):
 
         for unit_type in SPORE_TRIGGERS[self.enemy_race]:
@@ -360,8 +275,7 @@ class ZergAI(AIBase):
         worker_max = self.get_max_harvester()
         saturation = self.count(UnitTypeId.DRONE, include_planned=False) / max(1, worker_max)
         saturation = max(0, min(1, saturation))
-        # saturation = self.bases.harvester_count / max(1, self.bases.harvester_target)
-        priority = 4 * (saturation - 1)
+        priority = 3 * (saturation - 1)
 
         for plan in self.planned_by_type[UnitTypeId.HATCHERY]:
             if plan.priority < BUILD_ORDER_PRIORITY:

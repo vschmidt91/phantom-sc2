@@ -37,20 +37,17 @@ class GasLess(ZergStrategy):
             UpgradeId.ZERGLINGMOVEMENTSPEED,
         ]
 
-    def composition(self, bot) -> Dict[UnitTypeId, int]:
-
-        if bot.time < 4 * 60:
-            return {
+    def update(self) -> None:
+        self.ai.destroy_destructables = 4 * 60 < self.ai.time
+        if self.ai.time < 4 * 60:
+            self.ai.composition = {
                 UnitTypeId.DRONE: 66,
                 UnitTypeId.QUEEN: 4,
             }
         else:
-            return {
+            self.ai.composition = {
                 UnitTypeId.DRONE: 66,
                 UnitTypeId.QUEEN: 80,
                 UnitTypeId.ZERGLING: 80,
                 UnitTypeId.BANELING: 80,
             }
-
-    def destroy_destructables(self, bot) -> bool:
-        return 4 * 60 < bot.time

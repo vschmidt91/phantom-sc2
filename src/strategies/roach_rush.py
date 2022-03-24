@@ -46,38 +46,8 @@ class RoachRush(ZergMacro):
             return False
         return super().filter_upgrade(upgrade)
 
-    def composition(self) -> Dict[UnitTypeId, int]:
-        composition = super().composition()
-        if self.ai.time < 200 and UnitTypeId.ZERGLING in composition:
-            del composition[UnitTypeId.ZERGLING]
-        return composition
-
-    # def build_order(self) -> Iterable:
-    #     return [
-    #         UnitTypeId.DRONE,
-    #         UnitTypeId.DRONE,
-    #         UnitTypeId.OVERLORD,
-    #         UnitTypeId.SPAWNINGPOOL,
-    #         UnitTypeId.DRONE,
-    #         UnitTypeId.DRONE,
-    #         UnitTypeId.DRONE,
-    #         UnitTypeId.DRONE,
-    #         UnitTypeId.HATCHERY,
-    #         UnitTypeId.EXTRACTOR,
-    #         UnitTypeId.ZERGLING,
-    #         UnitTypeId.ZERGLING,
-    #         UnitTypeId.ZERGLING,
-    #         # UnitTypeId.ROACHWARREN,
-    #         # UnitTypeId.DRONE,
-    #         # UnitTypeId.QUEEN,
-    #         # UnitTypeId.OVERLORD,
-    #         # UnitTypeId.ROACH,
-    #         # UnitTypeId.ROACH,
-    #         # UnitTypeId.ROACH,
-    #         # UnitTypeId.ROACH,
-    #         # UnitTypeId.ROACH,
-    #     ]
-
     def update(self):
         self.ai.scout_manager.scout_enemy_natural = False
+        if self.ai.time < 200 and UnitTypeId.ZERGLING in self.ai.composition:
+            del self.ai.composition[UnitTypeId.ZERGLING]
         return super().update()

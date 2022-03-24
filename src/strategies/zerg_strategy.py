@@ -16,12 +16,6 @@ class ZergStrategy(AIComponent):
     def build_order(self) -> Iterable[Union[UnitTypeId, UpgradeId]]:
         return list()
 
-    def composition(self) -> Dict[UnitTypeId, int]:
-        return dict()
-
-    def destroy_destructables(self) -> bool:
-        return False
-
     def filter_upgrade(self, upgrade: UpgradeId) -> bool:
         return True
 
@@ -31,6 +25,3 @@ class ZergStrategy(AIComponent):
     @property
     def name(self) -> str:
         return type(self).__name__
-
-    def steps(self):
-        return {}

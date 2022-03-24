@@ -22,13 +22,12 @@ class ZergMacro(ZergStrategy):
 
     def __init__(self, ai: AIBase):
         super().__init__(ai)
-        self.tech_up: bool = False
-        self.straight_hydra: bool = False
 
-    def composition(self) -> Dict[UnitTypeId, int]:
+    def update(self) -> None:
+
+        self.ai.destroy_destructables = 5 * 60 < self.ai.time
 
         worker_limit = 80
-        enemy_max_workers = 22 * self.ai.scout_manager.enemy_base_count
         worker_target = min(
             worker_limit,
             self.ai.get_max_harvester(),
@@ -92,12 +91,7 @@ class ZergMacro(ZergStrategy):
             composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
             composition[UnitTypeId.OVERSEER] = 3
 
-        composition = { k: int(v) for k, v in composition.items() if 0 < v}
-            
-        return composition
-
-    def destroy_destructables(self) -> bool:
-        return 5 * 60 < self.ai.time
+        self.ai.composition = { k: int(v) for k, v in composition.items() if 0 < v}
 
     def filter_upgrade(self, upgrade) -> bool:
         if upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
@@ -107,28 +101,3 @@ class ZergMacro(ZergStrategy):
         elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
             return self.ai.count(UnitTypeId.GREATERSPIRE, include_planned=False)
         return super().filter_upgrade(upgrade)
-
-    def steps(self):
-
-        steps = {
-            self.ai.update_tables: 1,
-            self.ai.handle_errors: 1,
-            self.ai.handle_actions: 1,
-            self.ai.update_maps: 1,
-            self.ai.handle_delayed_effects: 1,
-            self.ai.update_bases: 1,
-            self.ai.update_composition: 1,
-            self.ai.update_gas: 1,
-            self.ai.morph_overlords: 1,
-            self.ai.make_composition: 1,
-            self.ai.make_tech: 1,
-            self.ai.expand: 1,
-            self.ai.assess_threat_level: 1,
-            self.ai.update_strategy: 1,
-            self.ai.macro: 1,
-            self.ai.save_enemy_positions: 1,
-            self.ai.make_defenses: 1,
-            self.ai.draw_debug: 1,
-        }
-
-        return steps

@@ -42,20 +42,17 @@ from sc2.data import Result, race_townhalls, race_worker, ActionResult
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.units import Units
+
 from .modules.chat import Chat
 from .modules.module import AIModule
 from .modules.creep import Creep
-
 from .modules.drop_manager import DropManager
 from .resources.mineral_patch import MineralPatch
 from .resources.vespene_geyser import VespeneGeyser
 from .modules.scout_manager import ScoutManager
 from .modules.unit_manager import IGNORED_UNIT_TYPES, UnitManager
-
 from .simulation.simulation import Simulation
-
 from .value_map import ValueMap
-
 from .resources.base import Base
 from .resources.resource_group import BalancingMode, ResourceGroup
 from .behaviors.dodge import *
@@ -64,7 +61,6 @@ from .macro_plan import MacroPlan
 from .cost import Cost
 from .utils import *
 from .behaviors.dodge import *
-
 from .enums import PerformanceMode
 
 VERSION_PATH = 'version.txt'
@@ -91,21 +87,15 @@ class AIBase(ABC, BotAI):
         self.raw_affects_selection = True
 
         self.version: str = ''
-        self.game_step: int = 3
+        self.game_step: int = 2
         self.performance: PerformanceMode = PerformanceMode.DEFAULT
         self.debug: bool = False
+        self.destroy_destructables: bool = True
+
         self.macro_plans: List[MacroPlan] = list()
         self.composition: Dict[UnitTypeId, int] = dict()
-        self.worker_split: Dict[int, int] = None
         self.cost: Dict[MacroId, Cost] = dict()
-
-        self.bases: ResourceGroup[Base] = None
-        self.vespene_geysers: ResourceGroup[VespeneGeyser] = None
-        self.mineral_patches: ResourceGroup[MineralPatch] = None
-
         self.enemy_positions: Optional[Dict[int, Point2]] = dict()
-        self.power_level: float = 0.0
-        self.threat_level: float = 0.0
         self.weapons: Dict[UnitTypeId, List] = dict()
         self.dps: Dict[UnitTypeId, float] = dict()
         self.resource_by_position: Dict[Point2, Unit] = dict()
@@ -117,16 +107,16 @@ class AIBase(ABC, BotAI):
         self.actual_by_type: DefaultDict[MacroId, Set[Unit]] = defaultdict(lambda:set())
         self.pending_by_type: DefaultDict[MacroId, Set[Unit]] = defaultdict(lambda:set())
         self.planned_by_type: DefaultDict[MacroId, Set[MacroPlan]] = defaultdict(lambda:set())
-        self.worker_supply_fixed: int = 0
         self.destructables_fixed: Set[Unit] = set()
         self.damage_taken: Dict[int] = dict()
-        self.opponent_name: Optional[str] = None
-        self.advantage_map: np.ndarray = None
         self.dodge: List[DodgeElement] = list()
         self.dodge_delayed: List[DodgeEffectDelayed] = list()
+
+        self.threat_level: float = 0.0
+        self.opponent_name: Optional[str] = None
+        self.advantage_map: np.ndarray = None
         self.map_data: MapStaticData = None
         self.map_analyzer: MapData = None
-        self.army_center: Point2 = Point2((0, 0))
         self.enemy_vs_ground_map: np.ndarray = None
         self.enemy_vs_air_map: np.ndarray = None
         self.army_vs_ground_map: np.ndarray = None
@@ -149,9 +139,6 @@ class AIBase(ABC, BotAI):
         previous_position = self.enemy_positions.get(unit.tag, unit.position)
         velocity = (unit.position - previous_position) * 22.4 / self.client.game_step
         return velocity
-
-    def destroy_destructables(self):
-        return True
 
     async def on_before_start(self):
 
@@ -206,24 +193,15 @@ class AIBase(ABC, BotAI):
             if isinstance(value, AIModule)
         ]
 
+        # await self.client.debug_create_unit([
+        #     [UnitTypeId.ZERGLINGBURROWED, 1, self.bases[1].position, 2],
+        # ])
+
     def handle_errors(self):
         for error in self.state.action_errors:
             if error.result == ActionResult.CantBuildLocationInvalid.value:
-                item = UNIT_BY_TRAIN_ABILITY.get(error.exact_id)
-                if not item:
-                    continue
-                plan = next((
-                    plan
-                    for plan in self.macro_plans
-                    if plan.item == item and plan.unit == error.unit_tag
-                ), None)
-                if not plan:
-                    continue
-                if item in race_townhalls[self.race] and plan.target:
-                    base = min(self.bases, key = lambda b : b.position.distance_to(plan.target))
-                    if not base.blocked_since:
-                        base.blocked_since = self.time
-                plan.target = None
+                if unit := self.unit_by_tag.get(error.unit_tag):
+                    self.scout_manager.blocked_positions[unit.position] = self.time
 
     def units_detecting(self, unit: Unit) -> Iterable[Unit]:
         for detector_type in IS_DETECTOR:
@@ -262,15 +240,18 @@ class AIBase(ABC, BotAI):
             return unit.can_attack_ground
 
     def handle_actions(self):
+        plan_by_unit = {
+            plan.unit: plan
+            for plan in self.macro_plans
+            if plan.unit
+        }
         for action in self.state.actions_unit_commands:
-            # if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
-            #     for tag in action.unit_tags:
-            #         del self.creep.tumor_front[tag]
             if item := ITEM_BY_ABILITY.get(action.exact_id):
-                self.remove_macro_plan_by_item(item)
-                # for tag in action.unit_tags:
-                #     if unit := self.unit_by_tag.get(tag):
-                #         self.pending_by_type[item].add(unit)
+                for unit_tag in action.unit_tags:
+                    if plan := plan_by_unit.get(unit_tag):
+                        if plan.item == item:
+                            self.remove_macro_plan(plan)
+            #     self.remove_macro_plan_by_item(item)
 
     def handle_delayed_effects(self):
 
@@ -288,10 +269,24 @@ class AIBase(ABC, BotAI):
                 yield unit
 
     async def on_step(self, iteration: int):
+
+        self.update_tables()
+        self.handle_errors()
+        self.handle_actions()
+        self.update_maps()
+        self.handle_delayed_effects()
+        self.update_bases()
+        self.update_gas()
+        self.make_composition()
+        self.assess_threat_level()
+        self.save_enemy_positions()
+        await self.macro()
+
+        if self.debug:
+            await self.draw_debug()
+
         for module in self.modules:
             await module.on_step()
-        # if 8*60 < self.time:
-        #     await self.client.quit()
 
     async def on_end(self, game_result: Result):
         pass
@@ -314,22 +309,11 @@ class AIBase(ABC, BotAI):
     async def on_unit_destroyed(self, unit_tag: int):
         self.enemies.pop(unit_tag, None)
         self.bases.try_remove(unit_tag)
-        # if unit_tag in self.creep.tumor_front:
-        #     del self.creep.tumor_front[unit_tag]
         pass
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         if unit.is_structure and not unit.is_ready:
             should_cancel = False
-            # if self.performance is PerformanceMode.DEFAULT:
-            #     potential_damage = 0
-            #     for enemy in self.all_enemy_units:
-            #         damage, speed, range = enemy.calculate_damage_vs_target(unit)
-            #         if unit.position.distance_to(enemy.position) <= unit.radius + range + enemy.radius:
-            #             potential_damage += damage
-            #     if unit.health + unit.shield <= potential_damage:
-            #         should_cancel = True
-            # else:
             if unit.shield_health_percentage < 0.1:
                 should_cancel = True
             if should_cancel:
@@ -338,8 +322,6 @@ class AIBase(ABC, BotAI):
         pass
         
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
-        # if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
-        #     print(self.state.game_loop)
         pass
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
@@ -375,7 +357,7 @@ class AIBase(ABC, BotAI):
 
         return sum
 
-    async def update_tables(self):
+    def update_tables(self):
 
         enemies_remembered = self.enemies.copy()
         self.enemies = {
@@ -427,7 +409,6 @@ class AIBase(ABC, BotAI):
         for unit in self.destructables:
             if 0 < unit.armor:
                 self.destructables_fixed.add(unit)
-
 
         for upgrade in self.state.upgrades:
             self.actual_by_type[upgrade].add(upgrade)
@@ -509,7 +490,7 @@ class AIBase(ABC, BotAI):
         cost_sum += sum(
             (self.cost[unit] * max(0, count - self.count(unit))
             for unit, count in self.composition.items()),
-            cost_zero) * 0.5
+            cost_zero)
         minerals = max(0, cost_sum.minerals - self.minerals)
         vespene = max(0, cost_sum.vespene - self.vespene)
         if minerals + vespene == 0:
@@ -630,9 +611,6 @@ class AIBase(ABC, BotAI):
 
     async def draw_debug(self):
 
-        if not self.debug:
-            return
-
         font_color = (255, 255, 255)
         font_size = 12
 
@@ -664,75 +642,15 @@ class AIBase(ABC, BotAI):
                     color=font_color,
                     size=font_size)
 
-        # for unit in self.units:
-
-        #     for position in positions:
-        #         self.client.debug_text_world(
-        #             f"{unit.tag}",
-        #             unit,
-        #             color=font_color,
-        #             size=font_size)
-
-        # for d in self.enemies.values():
-        #     z = self.get_terrain_z_height(d)
-        #     self.client.debug_text_world(f'{d.health}', Point3((*d.position, z)))
-
-        # self.map_analyzer.draw_influence_in_game(100 * self.map_data.distance)
-
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.threat_level)}%', (0.01, 0.01))
-        self.client.debug_text_screen(f'Enemy Bases: {self.scout_manager.enemy_base_count}', (0.01, 0.02))
+        self.client.debug_text_screen(f'Enemy Bases: {len(self.scout_manager.enemy_bases)}', (0.01, 0.02))
         self.client.debug_text_screen(f'Gas Target: {round(self.get_gas_target(), 3)}', (0.01, 0.03))
         for i, plan in enumerate(self.macro_plans):
             self.client.debug_text_screen(f'{1+i} {plan.item.name}', (0.01, 0.1 + 0.01 * i))
 
-        # for p, d in np.ndenumerate(self.distance_map):
-        #     z = self.get_terrain_z_height(Point2(p))
-        #     advantage_defender = (1 - self.distance_map[p]) / max(1e-3, self.power_level)
-        #     self.client.debug_text_world(f'{round(100 * advantage_defender)}', Point3((*p, z)))
-
-        # grid = self.map_analyzer.get_pyastar_grid()
-        # for base in self.expansion_locations_list:
-        #     p = await self.find_placement(UnitTypeId.HATCHERY, base.rounded, placement_step=1)
-        #     grid[base.rounded] = 10
-        #     grid[p.rounded] = 5
-        # plt.imshow(grid)
-        # plt.show()
-
-        # for i, base in enumerate(self.bases):
-        #     can_place = await self.can_place_single(UnitTypeId.HATCHERY, base.position)
-        #     print(base.position, can_place)
-        #     z = self.get_terrain_z_height(base.position)
-        #     c = (255, 255, 255)
-        #     self.client.debug_text_world(f'{i} can_place={can_place}', Point3((*base.position, z)), c)
-
-        # for p, v in np.ndenumerate(self.heat_map):
-        #     if not self.in_pathing_grid(Point2(p)):
-        #         continue
-        #     z = self.get_terrain_z_height(Point2(p))
-        #     c = int(255 * v)
-        #     c = (c, 255 - c, 0)
-        #     self.client.debug_text_world(f'{round(100 * v)}', Point3((*p, z)), c)
-
-        # for p, v in np.ndenumerate(self.enemy_map_blur):
-        #     if v == 0:
-        #         continue
-        #     if not self.in_pathing_grid(Point2(p)):
-        #         continue
-        #     z = self.get_terrain_z_height(Point2(p))
-        #     c = (255, 255, 255)
-        #     self.client.debug_text_world(f'{round(v)}', Point3((*p, z)), c)
-
     def add_macro_plan(self, plan: MacroPlan):
         self.macro_plans.append(plan)
         self.planned_by_type[plan.item].add(plan)
-
-    def remove_macro_plan_by_item(self, item):
-        for i in range(len(self.macro_plans)):
-            plan = self.macro_plans[i]
-            if plan.item == item:
-                del self.macro_plans[i]
-                self.planned_by_type[plan.item].remove(plan)
-                return
 
     def remove_macro_plan(self, plan: MacroPlan):
         self.macro_plans.remove(plan)
@@ -988,7 +906,7 @@ class AIBase(ABC, BotAI):
             for e in self.enemies.values()
             if e.type_id not in IGNORED_UNIT_TYPES
         )
-        if self.destroy_destructables():
+        if self.destroy_destructables:
             enemies = chain(enemies, self.destructables_fixed)
         return enemies
 
@@ -999,7 +917,7 @@ class AIBase(ABC, BotAI):
                 for b in self.bases:
                     if b.townhall:
                         continue
-                    if b.blocked_since:
+                    if b.position in self.scout_manager.blocked_positions:
                         continue
                     if not b.remaining:
                         continue
@@ -1127,7 +1045,6 @@ class AIBase(ABC, BotAI):
         value_enemy = sum(self.get_unit_value(e) for e in self.enemies.values())
         value_enemy_threats = sum(self.get_unit_value(e) * (1 - self.map_data.distance[e.position.rounded]) for e in self.enemies.values())
 
-        self.power_level = value_enemy / max(1, value_self + value_enemy)
         self.threat_level = value_enemy_threats / max(1, value_self + value_enemy_threats)
 
     def can_afford_with_reserve(self, cost: Cost, reserve: Cost) -> bool:

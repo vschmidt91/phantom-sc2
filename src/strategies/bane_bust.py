@@ -10,16 +10,16 @@ class BaneBust(HatchFirst):
     
     def composition(self, bot) -> Dict[UnitTypeId, int]:
         composition = super().composition(bot)
-        if bot.time < 5 * 60:
-            composition[UnitTypeId.BANELING] = 4
-            composition[UnitTypeId.ZERGLING] = 16
         return composition
 
-    def update(self, bot):
-        bot.build_spines = False
-        return super().update(bot)
+    def update(self):
+        self.ai.build_spines = False
+        super().update()
+        if self.ai.time < 5 * 60:
+            self.ai.composition[UnitTypeId.BANELING] = 4
+            self.ai.composition[UnitTypeId.ZERGLING] = 16
 
-    def filter_upgrade(self, bot, upgrade) -> bool:
-        if bot.time < 5 * 60 and upgrade == UpgradeId.CENTRIFICALHOOKS:
+    def filter_upgrade(self, upgrade) -> bool:
+        if self.ai.time < 5 * 60 and upgrade == UpgradeId.CENTRIFICALHOOKS:
             return False
-        return super().filter_upgrade(bot, upgrade)
+        return super().filter_upgrade(upgrade)

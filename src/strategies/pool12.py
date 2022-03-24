@@ -34,17 +34,12 @@ class Pool12(ZergMacro):
             # UnitTypeId.OVERLORD,
         ]
 
-    def composition(self, bot) -> Dict[UnitTypeId, int]:
-        composition = super().composition(bot)
-        if UnitTypeId.ROACH in composition and bot.time < 2.5 * 60:
-            del composition[UnitTypeId.ROACH]
-        return composition
-
-    def filter_upgrade(self, bot, upgrade) -> bool:
-        if bot.time < 2.5 * 60:
+    def filter_upgrade(self, upgrade) -> bool:
+        if self.ai.time < 2.5 * 60:
             return False
-        return super().filter_upgrade(bot, upgrade)
+        return super().filter_upgrade(upgrade)
 
-    # def update(self, bot):
-    #     if 2.5 * 60 < bot.time and not bot.count(UpgradeId.ZERGLINGMOVEMENTSPEED):
-    #         bot.add_macro_plan(MacroPlan(UpgradeId.ZERGLINGMOVEMENTSPEED))
+    def update(self) -> None:
+        super().update()
+        if UnitTypeId.ROACH in self.ai.composition and self.ai.time < 2.5 * 60:
+            del self.ai.composition[UnitTypeId.ROACH]

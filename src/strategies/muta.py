@@ -8,32 +8,26 @@ from .hatch_first import HatchFirst
 
 class Muta(HatchFirst):
     
-    def composition(self, bot) -> Dict[UnitTypeId, int]:
-        if 7 * 60 < bot.time:
-            return super().composition(bot)
-        composition = super().composition(bot)
-        if UnitTypeId.ROACH in composition:
-            del composition[UnitTypeId.ROACH]
-        if UnitTypeId.RAVAGER in composition:
-            del composition[UnitTypeId.RAVAGER]
-        if UnitTypeId.HYDRALISK in composition:
-            del composition[UnitTypeId.HYDRALISK]
-        if 2 <= bot.count(UnitTypeId.QUEEN, include_planned=False):
-            composition[UnitTypeId.LAIR] = 1
-        if 1 <= bot.count(UnitTypeId.LAIR, include_planned=False):
-            composition[UnitTypeId.MUTALISK] = composition[UnitTypeId.DRONE] // 3
-        if UnitTypeId.ZERGLING in composition and 1 <= bot.count(UnitTypeId.SPIRE, include_planned=False, include_pending=False):
-            del composition[UnitTypeId.ZERGLING]
+    def update(self) -> None:
+        super().update()
+        self.ai.build_spines = True
+        if UnitTypeId.ROACH in self.ai.composition:
+            del self.ai.composition[UnitTypeId.ROACH]
+        if UnitTypeId.RAVAGER in self.ai.composition:
+            del self.ai.composition[UnitTypeId.RAVAGER]
+        if UnitTypeId.HYDRALISK in self.ai.composition:
+            del self.ai.composition[UnitTypeId.HYDRALISK]
+        if 2 <= self.ai.count(UnitTypeId.QUEEN, include_planned=False):
+            self.ai.composition[UnitTypeId.LAIR] = 1
+        if 1 <= self.ai.count(UnitTypeId.LAIR, include_planned=False):
+            self.ai.composition[UnitTypeId.MUTALISK] = self.ai.composition[UnitTypeId.DRONE] // 3
+        if UnitTypeId.ZERGLING in self.ai.composition and 1 <= self.ai.count(UnitTypeId.SPIRE, include_planned=False, include_pending=False):
+            del self.ai.composition[UnitTypeId.ZERGLING]
         # composition[UnitTypeId.ZERGLING] = 2
         # composition.pop(UnitTypeId.ROACH, 0)
         # composition.pop(UnitTypeId.RAVAGER, 0)
-        return composition
 
-    def filter_upgrade(self, bot, upgrade) -> bool:
-        if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED and bot.count(UnitTypeId.SPIRE, include_planned=False) < 1:
+    def filter_upgrade(self, upgrade) -> bool:
+        if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED and self.ai.count(UnitTypeId.SPIRE, include_planned=False) < 1:
             return False
-        return super().filter_upgrade(bot, upgrade)
-
-    def update(self, bot):
-        bot.build_spines = True
-        return super().update(bot)
+        return super().filter_upgrade(upgrade)
