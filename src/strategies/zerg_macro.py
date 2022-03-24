@@ -100,4 +100,6 @@ class ZergMacro(ZergStrategy):
             return UpgradeId.ZERGMISSILEWEAPONSLEVEL3 in self.ai.state.upgrades
         elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
             return self.ai.count(UnitTypeId.GREATERSPIRE, include_planned=False)
+        elif upgrade == UpgradeId.OVERLORDSPEED:
+            return 8 * 60 < self.ai.time
         return super().filter_upgrade(upgrade)
