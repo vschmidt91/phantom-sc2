@@ -115,7 +115,8 @@ class DodgeBehavior(UnitBehavior):
             for circle in dodge.circles:
                 distance_want = circle.radius + unit.radius
                 if distance_have + distance_bonus < distance_want + self.safety_distance:
-                    target = dodge.position.position.towards(unit, distance_want + 2 * self.safety_distance)
+                    dodge_from = dodge.position + Point2(np.random.normal(loc=0.0, scale=0.001, size=2))
+                    target = dodge_from.towards(unit, distance_want + 2 * self.safety_distance)
                     if unit.is_burrowed and not can_move(unit):
                         unit(AbilityId.BURROWUP)
                         unit.move(target, queue=True)
