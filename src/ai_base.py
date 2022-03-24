@@ -1078,39 +1078,39 @@ class AIBase(ABC, BotAI):
         # EXPERIMENTAL FIGHTING
 
         army_health = self.map_analyzer.get_clean_air_grid(0)
-        for unit in self.enumerate_army():
-            army_health[unit.position.rounded] += unit.health + unit.shield
-
         enemy_health = self.map_analyzer.get_clean_air_grid(0)
-        for unit in self.enemies.values():
-            enemy_health[unit.position.rounded] += unit.health + unit.shield
 
-        def add_unit_to_map(unit: Unit, map: np.ndarray, t: float) -> np.ndarray:
-            range = 1 + unit.radius + max(unit.ground_range, unit.air_range) + 1.4 * t * unit.movement_speed
-            dps = max(unit.ground_dps, unit.air_dps)
-            if dps < 1:
-                return map
-            return self.map_analyzer.add_cost(
-                position = unit.position,
-                radius = range,
-                grid = map,
-                weight = dps)
+        # for unit in self.enumerate_army():
+        #     army_health[unit.position.rounded] += unit.health + unit.shield
+        # for unit in self.enemies.values():
+        #     enemy_health[unit.position.rounded] += unit.health + unit.shield
 
-        for t in range(0, 10, 1):
+        # def add_unit_to_map(unit: Unit, map: np.ndarray, t: float) -> np.ndarray:
+        #     range = 1 + unit.radius + max(unit.ground_range, unit.air_range) + 1.4 * t * unit.movement_speed
+        #     dps = max(unit.ground_dps, unit.air_dps)
+        #     if dps < 1:
+        #         return map
+        #     return self.map_analyzer.add_cost(
+        #         position = unit.position,
+        #         radius = range,
+        #         grid = map,
+        #         weight = dps)
 
-            army_dps = self.map_analyzer.get_clean_air_grid(0)
-            for unit in self.enumerate_army():
-                if 0 < army_health[unit.position.rounded]:
-                    army_dps = add_unit_to_map(unit, army_dps, t)
+        # for t in range(0, 10, 1):
+
+        #     army_dps = self.map_analyzer.get_clean_air_grid(0)
+        #     for unit in self.enumerate_army():
+        #         if 0 < army_health[unit.position.rounded]:
+        #             army_dps = add_unit_to_map(unit, army_dps, t)
                     
-            enemy_dps = self.map_analyzer.get_clean_air_grid(0)
-            for unit in self.enemies.values():
-                if 0 < enemy_health[unit.position.rounded]:
-                    enemy_dps = add_unit_to_map(unit, enemy_dps, t)
+        #     enemy_dps = self.map_analyzer.get_clean_air_grid(0)
+        #     for unit in self.enemies.values():
+        #         if 0 < enemy_health[unit.position.rounded]:
+        #             enemy_dps = add_unit_to_map(unit, enemy_dps, t)
 
-            discount = pow(.9, t)
-            army_health -= discount * enemy_dps
-            enemy_health -= discount * army_dps
+        #     discount = pow(.9, t)
+        #     army_health -= discount * enemy_dps
+        #     enemy_health -= discount * army_dps
 
         self.army_projection = army_health
         self.enemy_projection = enemy_health

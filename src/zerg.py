@@ -351,8 +351,8 @@ class ZergAI(AIBase):
 
     def expand(self):
 
-        if self.scout_manager.enemy_base_count + 1 <= self.townhalls.amount:
-            return
+        # if self.scout_manager.enemy_base_count + 1 <= self.townhalls.amount:
+        #     return
 
         if self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False) < 1:
             return
