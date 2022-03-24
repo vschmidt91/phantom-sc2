@@ -124,7 +124,7 @@ class AIBase(ABC, BotAI):
         self.advantage_map: np.ndarray = None
         self.dodge: List[DodgeElement] = list()
         self.dodge_delayed: List[DodgeEffectDelayed] = list()
-        self.abilities: DefaultDict[int, Set[AbilityId]] = defaultdict(lambda:set())
+        # self.abilities: DefaultDict[int, Set[AbilityId]] = defaultdict(lambda:set())
         self.map_data: MapStaticData = None
         self.map_analyzer: MapData = None
         self.army_center: Point2 = Point2((0, 0))
@@ -291,6 +291,8 @@ class AIBase(ABC, BotAI):
     async def on_step(self, iteration: int):
         for module in self.modules:
             await module.on_step()
+        if 8 * 60 < self.time:
+            await self.client.quit()
 
     async def on_end(self, game_result: Result):
         pass
@@ -431,11 +433,11 @@ class AIBase(ABC, BotAI):
         for upgrade in self.state.upgrades:
             self.actual_by_type[upgrade].add(upgrade)
 
-        unit_abilities = await self.get_available_abilities(self.all_own_units)
-        self.abilities = {
-            unit.tag: set(abilities)
-            for unit, abilities in zip(self.all_own_units, unit_abilities)
-        }
+        # unit_abilities = await self.get_available_abilities(self.all_own_units)
+        # self.abilities = {
+        #     unit.tag: set(abilities)
+        #     for unit, abilities in zip(self.all_own_units, unit_abilities)
+        # }
 
     @property
     def supply_workers_fixed(self) -> int:

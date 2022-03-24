@@ -174,7 +174,7 @@ class DetectBehavior(UnitBehavior):
 
         base_position = next((
             pos
-            for pos, tag in self.detectors.items()
+            for pos, tag in self.ai.scout_manager.detectors.items()
             if tag == unit.tag
             ), None)
 
