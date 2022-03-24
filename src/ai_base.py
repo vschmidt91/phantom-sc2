@@ -291,8 +291,6 @@ class AIBase(ABC, BotAI):
     async def on_step(self, iteration: int):
         for module in self.modules:
             await module.on_step()
-        if 8 * 60 < self.time:
-            await self.client.quit()
 
     async def on_end(self, game_result: Result):
         pass
