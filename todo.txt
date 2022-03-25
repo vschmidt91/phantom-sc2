@@ -1,4 +1,1 @@
-maybe don't reserve trainer (doesnt mix well with priority)
-seperate ground/air maps
-expanding to mined out base
-reset taken_since
+- fix blocked and taken bases 1095281

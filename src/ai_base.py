@@ -88,7 +88,7 @@ class AIBase(ABC, BotAI):
         self.raw_affects_selection = True
 
         self.version: str = ''
-        self.game_step: int = 2
+        self.game_step: int = 3
         self.performance: PerformanceMode = PerformanceMode.DEFAULT
         self.debug: bool = False
         self.destroy_destructables: bool = True
