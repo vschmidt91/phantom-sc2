@@ -27,28 +27,9 @@ class ZergMacro(ZergStrategy):
 
         self.ai.destroy_destructables = 5 * 60 < self.ai.time
 
-        worker_limit = 80
-        worker_target = min(
-            worker_limit,
-            self.ai.get_max_harvester(),
-            # enemy_max_workers + 11,
-        )
-        worker_target = max(worker_target, 1)
-        worker_count = self.ai.count(UnitTypeId.DRONE, include_planned=False)
-        ratio = max(
-            self.ai.threat_level,
-            worker_count / worker_target,
-            # -3 + 4 * (worker_count / worker_target),
-        )
-        ratio = max(0, min(1, ratio))
-
-        enemy_value = {
-            tag: self.ai.get_unit_value(enemy)
-            for tag, enemy in self.ai.enemies.items()
-        }
-        enemy_flyer_value = sum(enemy_value[e.tag] for e in self.ai.enemies.values() if e.is_flying)
-        enemy_ground_value = sum(enemy_value[e.tag] for e in self.ai.enemies.values() if not e.is_flying)
-        enemy_flyer_ratio = enemy_flyer_value / max(1, enemy_flyer_value + enemy_ground_value)
+        worker_count = self.ai.state.score.food_used_economy
+        worker_target = max(1, min(80, self.ai.get_max_harvester()))
+        ratio = max(self.ai.threat_level, worker_count / worker_target)
 
         queen_target = min(8, 2 * self.ai.townhalls.amount)
 
@@ -72,6 +53,7 @@ class ZergMacro(ZergStrategy):
                 for t in counters:
                     if can_build[t]:
                         count = self.ai.get_unit_cost(enemy.type_id) / self.ai.get_unit_cost(t)
+                        # composition[t] += (ratio + 1 - self.ai.map_data.distance[enemy.position.rounded]) * count
                         composition[t] += 2 * ratio * count
                         break
 

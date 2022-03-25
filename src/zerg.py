@@ -139,10 +139,6 @@ class ZergAI(AIBase):
         self.make_tech()
         self.expand()
 
-    def draw_debug(self):
-        self.client.debug_text_screen(f'Creep Coverage: {round(100 * self.creep.coverage)}%', (0.01, 0.05))
-        return super().draw_debug()
-
     def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
         if unit == UnitTypeId.ZERGLING:
             return chain(
@@ -273,7 +269,7 @@ class ZergAI(AIBase):
             return
         
         worker_max = self.get_max_harvester()
-        saturation = self.count(UnitTypeId.DRONE, include_planned=False) / max(1, worker_max)
+        saturation = self.state.score.food_used_economy / max(1, worker_max)
         saturation = max(0, min(1, saturation))
         priority = 3 * (saturation - 1)
 

@@ -1,6 +1,7 @@
 
 from abc import ABC
 from asyncio import gather
+import cProfile, pstats
 from collections import defaultdict
 from enum import Enum
 from dataclasses import dataclass
@@ -270,6 +271,11 @@ class AIBase(ABC, BotAI):
 
     async def on_step(self, iteration: int):
 
+        profiler = None
+        if self.debug and iteration % 100 == 0:
+            profiler = cProfile.Profile()
+            profiler.enable()
+
         self.update_tables()
         self.handle_errors()
         self.handle_actions()
@@ -280,6 +286,7 @@ class AIBase(ABC, BotAI):
         self.make_composition()
         self.assess_threat_level()
         self.save_enemy_positions()
+
         await self.macro()
 
         if self.debug:
@@ -287,6 +294,12 @@ class AIBase(ABC, BotAI):
 
         for module in self.modules:
             await module.on_step()
+
+        if profiler:
+            profiler.disable()
+            stats = pstats.Stats(profiler)
+            stats.sort_stats(pstats.SortKey.TIME)
+            stats.dump_stats(filename='profiling.prof')
 
     async def on_end(self, game_result: Result):
         pass
@@ -496,6 +509,7 @@ class AIBase(ABC, BotAI):
         if minerals + vespene == 0:
             minerals = sum(b.mineral_patches.remaining for b in self.bases if b.townhall)
             vespene = sum(b.vespene_geysers.remaining for b in self.bases if b.townhall)
+
         gas_ratio = vespene / max(1, vespene + minerals)
         worker_type = race_worker[self.race]
         gas_target = gas_ratio * self.count(worker_type, include_pending=False)
@@ -645,6 +659,7 @@ class AIBase(ABC, BotAI):
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.threat_level)}%', (0.01, 0.01))
         self.client.debug_text_screen(f'Enemy Bases: {len(self.scout_manager.enemy_bases)}', (0.01, 0.02))
         self.client.debug_text_screen(f'Gas Target: {round(self.get_gas_target(), 3)}', (0.01, 0.03))
+        self.client.debug_text_screen(f'Creep Coverage: {round(100 * self.creep.coverage)}%', (0.01, 0.06))
         for i, plan in enumerate(self.macro_plans):
             self.client.debug_text_screen(f'{1+i} {plan.item.name}', (0.01, 0.1 + 0.01 * i))
 
@@ -1014,7 +1029,7 @@ class AIBase(ABC, BotAI):
                 grid = map,
                 weight = dps)
 
-        for t in range(0, 5, 1):
+        for t in range(0, 8, 1):
 
             army_dps = self.map_analyzer.get_clean_air_grid(0)
             for unit in self.enumerate_army():
@@ -1026,7 +1041,7 @@ class AIBase(ABC, BotAI):
                 if 0 < enemy_health[unit.position.rounded]:
                     enemy_dps = add_unit_to_map(unit, enemy_dps, t)
 
-            discount = pow(.9, t)
+            discount = pow(.85, t)
             army_health -= discount * enemy_dps
             enemy_health -= discount * army_dps
 
