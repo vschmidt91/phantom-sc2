@@ -81,7 +81,7 @@ class UnitManager(AIModule):
                 FightBehavior(self.ai, unit.tag),
                 SearchBehavior(self.ai, unit.tag),
             ])
-        elif unit.type_id == UnitTypeId.CHANGELING:
+        elif unit.type_id in CHANGELINGS:
             return SearchBehavior(self.ai, unit.tag)
         elif unit.type_id == UnitTypeId.EXTRACTOR:
             return ExtractorTrickBehavior(self.ai, unit.tag)
