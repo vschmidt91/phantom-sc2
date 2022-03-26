@@ -18,7 +18,7 @@ UNIT_COUNTER_DICT = {
     UnitTypeId.ORACLE: [UnitTypeId.CORRUPTOR, UnitTypeId.HYDRALISK, UnitTypeId.QUEEN],
     UnitTypeId.TEMPEST: [UnitTypeId.CORRUPTOR, UnitTypeId.HYDRALISK, UnitTypeId.QUEEN],
     UnitTypeId.CARRIER: [UnitTypeId.CORRUPTOR, UnitTypeId.HYDRALISK, UnitTypeId.QUEEN],
-    UnitTypeId.PROBE: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
+    # UnitTypeId.PROBE: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
 
     UnitTypeId.MARINE: [UnitTypeId.BROODLORD, UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
     UnitTypeId.MARAUDER: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
@@ -35,7 +35,7 @@ UNIT_COUNTER_DICT = {
     UnitTypeId.BANSHEE: [UnitTypeId.CORRUPTOR, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.BATTLECRUISER: [UnitTypeId.CORRUPTOR, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.LIBERATOR: [UnitTypeId.CORRUPTOR, UnitTypeId.HYDRALISK, UnitTypeId.QUEEN],
-    UnitTypeId.SCV: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
+    # UnitTypeId.SCV: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
 
     UnitTypeId.ZERGLING: [UnitTypeId.BROODLORD, UnitTypeId.ROACH, UnitTypeId.ZERGLING, UnitTypeId.HYDRALISK],
     UnitTypeId.ZERGLINGBURROWED: [UnitTypeId.BROODLORD, UnitTypeId.ROACH, UnitTypeId.ZERGLING, UnitTypeId.HYDRALISK],
@@ -59,8 +59,8 @@ UNIT_COUNTER_DICT = {
     UnitTypeId.VIPER: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
     UnitTypeId.QUEEN: [UnitTypeId.BROODLORD, UnitTypeId.ROACH, UnitTypeId.ZERGLING, UnitTypeId.HYDRALISK],
     UnitTypeId.QUEENBURROWED: [UnitTypeId.BROODLORD, UnitTypeId.ROACH, UnitTypeId.ZERGLING, UnitTypeId.HYDRALISK],
-    UnitTypeId.DRONE: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
-    UnitTypeId.DRONEBURROWED: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
+    # UnitTypeId.DRONE: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
+    # UnitTypeId.DRONEBURROWED: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
 
 }
 
