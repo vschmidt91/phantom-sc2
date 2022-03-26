@@ -935,8 +935,8 @@ class AIBase(ABC, BotAI):
                         continue
                     if not b.remaining:
                         continue
-                    if not (await self.can_place_single(target, b.position)):
-                        continue
+                    # if not (await self.can_place_single(target, b.position)):
+                    #     continue
                     return b.position
                 raise PlacementNotFoundError()
             elif self.townhalls.exists:

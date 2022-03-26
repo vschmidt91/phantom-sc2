@@ -36,7 +36,7 @@ class ZergMacro(ZergStrategy):
         composition = {
             UnitTypeId.DRONE: worker_target,
             UnitTypeId.QUEEN: queen_target,
-            UnitTypeId.ZERGLING: 1.0,
+            UnitTypeId.ZERGLING: 4.0,
             UnitTypeId.ROACH: 0.0,
             UnitTypeId.HYDRALISK: 0.0,
             UnitTypeId.BROODLORD: 0.0,

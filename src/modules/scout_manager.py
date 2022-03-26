@@ -32,6 +32,7 @@ class ScoutManager(AIModule):
             self.static_targets.append(ramp.bottom_center.towards(self.ai.game_info.map_center, 10))
 
         self.static_targets.sort(key=lambda t:t.distance_to(self.ai.start_location))
+        self.static_targets.insert(1, self.ai.game_info.map_center)
 
         self.detectors: Dict[Point2, int] = dict()
         self.blocked_positions: Dict[Point2, float] = dict()
