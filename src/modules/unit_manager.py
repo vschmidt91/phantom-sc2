@@ -195,7 +195,7 @@ class UnitManager(AIModule):
         )
 
         inject_queen_max = min(5, len(queens))
-        inject_queen_count = min(math.ceil((1 - self.ai.threat_level) * inject_queen_max), self.ai.townhalls.amount)
+        inject_queen_count = min(math.floor((1 - self.ai.threat_level) * inject_queen_max), self.ai.townhalls.amount)
         inject_queens = queens[0:inject_queen_count]
 
         bases = [

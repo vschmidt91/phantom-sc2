@@ -576,7 +576,6 @@ class AIBase(ABC, BotAI):
         self.bases = ResourceGroup(self, bases)
         self.bases.balancing_mode = BalancingMode.NONE
         self.bases[0].split_initial_workers(set(self.workers))
-        self.bases[-1].taken_since = 0
 
         self.vespene_geysers = ResourceGroup(self, [b.vespene_geysers for b in self.bases])
         self.mineral_patches = ResourceGroup(self, [b.mineral_patches for b in self.bases])

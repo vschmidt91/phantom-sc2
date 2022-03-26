@@ -55,7 +55,7 @@ class FightBehavior(UnitBehavior):
         # advantage_defender = (1 - self.ai.distance_map[unit.position.rounded]) / max(1e-3, self.ai.power_level)
 
         if unit.type_id == UnitTypeId.QUEEN:
-            creep_bonus = 30
+            creep_bonus = 10
         else:
             creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id, 1)
 
@@ -70,7 +70,7 @@ class FightBehavior(UnitBehavior):
         advantage = self.ai.advantage_map[sample_position.rounded]
         # advantage *= advantage_army
         # advantage *= max(1, advantage_defender)
-        # advantage *= advantage_creep
+        advantage *= advantage_creep
 
         return advantage
 

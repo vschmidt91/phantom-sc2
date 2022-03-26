@@ -39,6 +39,9 @@ class InjectBehavior(UnitBehavior):
         if unit.is_using_ability(AbilityId.EFFECT_INJECTLARVA):
             return BehaviorResult.ONGOING
 
+        if 1 < self.ai.enemy_vs_ground_map[unit.position.rounded]:
+            return BehaviorResult.SUCCESS
+
         townhall_tag = self.ai.unit_manager.inject_queens.get(unit.tag)
         if not townhall_tag:
             return BehaviorResult.SUCCESS

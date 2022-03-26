@@ -71,7 +71,6 @@ class Base(ResourceGroup[ResourceBase]):
         self.mineral_patches.balancing_mode = BalancingMode.MINIMIZE_TRANSFERS
         self.vespene_geysers.balancing_mode = BalancingMode.NONE
         super().__init__(ai, [self.mineral_patches, self.vespene_geysers], townhall_position)
-        self.taken_since: Optional[float] = None
         self.balancing_mode = BalancingMode.NONE
         self.defensive_units: List[Unit] = list()
         self.defensive_units_planned: List[MacroPlan] = list()

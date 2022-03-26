@@ -36,6 +36,9 @@ class ScoutManager(AIModule):
         self.detectors: Dict[Point2, int] = dict()
         self.blocked_positions: Dict[Point2, float] = dict()
         self.enemy_bases: Dict[Point2, float] = dict()
+        
+        for pos in self.ai.enemy_start_locations:
+            self.enemy_bases[pos] = 0
 
     def reset_blocked_bases(self) -> None:
         for position, blocked_since in list(self.blocked_positions.items()):
@@ -46,7 +49,8 @@ class ScoutManager(AIModule):
 
         enemy_building_positions = {
             building.position
-            for building in self.ai.enemy_structures
+            for building in self.ai.enemies.values()
+            if building.is_structure
         }
 
         for base in self.ai.bases:
@@ -55,9 +59,8 @@ class ScoutManager(AIModule):
                     if base.position not in self.enemy_bases:
                         self.enemy_bases[base.position] = self.ai.time
                 else:
-                    base.taken_since = None
-
-        self.enemy_base_count = len(self.enemy_bases)
+                    if base.position in self.enemy_bases:
+                        del self.enemy_bases[base.position]
 
     def send_detectors(self) -> None:
         
