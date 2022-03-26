@@ -67,10 +67,10 @@ class ZergMacro(ZergStrategy):
         if tech_up and self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False) + self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
             composition[UnitTypeId.HYDRALISKDEN] = 1
             composition[UnitTypeId.OVERSEER] = 2
+            composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
 
         if tech_up and self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
             composition[UnitTypeId.GREATERSPIRE] = 1
-            composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
             composition[UnitTypeId.OVERSEER] = 3
 
         self.ai.composition = { k: int(v) for k, v in composition.items() if 0 < v}
