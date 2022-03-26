@@ -1028,8 +1028,8 @@ class AIBase(ABC, BotAI):
                 grid = map,
                 weight = dps)
 
-        dt = 0.5
-        for t in np.arange(0, 7, dt):
+        dt = 2/3
+        for t in np.arange(0, 5, dt):
 
             army_dps = self.map_analyzer.get_clean_air_grid(0)
             for unit in self.enumerate_army():
