@@ -86,11 +86,16 @@ class WorkerStackBot(BotAI):
             mineral = minerals[i % len(minerals)]
             workers = self.workers.tags_not_in(self.worker_to_mineral_patch_dict)
             worker = workers.closest_to(mineral)
+            if i == 0:
+                self.worker_tag = worker.tag
             self.worker_to_mineral_patch_dict[worker.tag] = mineral.tag
 
     async def on_step(self, iteration: int):
         global DISTANCE
         global RESULTS
+
+        worker = self.workers.find_by_tag(self.worker_tag)
+        print(self.state.game_loop, worker.is_carrying_minerals, worker.is_gathering)
         
         minerals: Dict[int, Unit] = {mineral.tag: mineral for mineral in self.mineral_field}
 

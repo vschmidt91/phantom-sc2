@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Optional, Set, Union, Iterable, Tuple, List, TYPE_CHECKING
 from sc2.position import Point2
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, abstractproperty
 
 from .resource_base import ResourceBase
 if TYPE_CHECKING:
@@ -37,6 +37,10 @@ class ResourceSingle(ResourceBase):
             return True
         else:
             return False
+
+    @abstractproperty
+    def harvest_duration(self) -> int:
+        raise NotImplementedError
 
     @property
     def harvesters(self) -> Iterable[int]:
