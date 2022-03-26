@@ -23,7 +23,12 @@ class ScoutManager(AIModule):
         self.scouts: Dict[Point2, int] = dict()
         self.scout_enemy_natural: bool = True
 
+
+        self.detectors: Dict[Point2, int] = dict()
+        self.blocked_positions: Dict[Point2, float] = dict()
+        self.enemy_bases: Dict[Point2, float] = dict()
         self.static_targets: List[Point2] = list()
+
         for base in self.ai.bases[1:len(self.ai.bases)//2]:
             self.static_targets.append(base.position)
 
@@ -32,14 +37,11 @@ class ScoutManager(AIModule):
             self.static_targets.append(ramp.bottom_center.towards(self.ai.game_info.map_center, 10))
 
         self.static_targets.sort(key=lambda t:t.distance_to(self.ai.start_location))
-        self.static_targets.insert(1, self.ai.game_info.map_center)
 
-        self.detectors: Dict[Point2, int] = dict()
-        self.blocked_positions: Dict[Point2, float] = dict()
-        self.enemy_bases: Dict[Point2, float] = dict()
-        
         for pos in self.ai.enemy_start_locations:
             self.enemy_bases[pos] = 0
+            if path := self.ai.map_analyzer.pathfind(self.ai.start_location, pos):
+                self.static_targets.insert(1, path[len(path) // 2])
 
     def reset_blocked_bases(self) -> None:
         for position, blocked_since in list(self.blocked_positions.items()):

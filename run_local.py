@@ -31,13 +31,13 @@ MAPS = [
     # 'BerlingradAIE',
     # 'CuriousMindsAIE',
     # 'HardwireAIE',
-    'GlitteringAshesAIE',
+    # 'GlitteringAshesAIE',
     # 'OxideAIE',
     # 'RomanticideAIE',
     # '2000AtmospheresAIE',
     # 'LightshadeAIE',
     # 'JagannathaAIE',
-    # 'BlackburnAIE',
+    'BlackburnAIE',
 ]
 
 RACES = [
