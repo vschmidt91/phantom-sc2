@@ -34,7 +34,7 @@ class SurviveBehavior(UnitBehavior):
         last_attacked = self.ai.damage_taken.get(unit.tag)
         if not last_attacked:
             return BehaviorResult.SUCCESS
-        if last_attacked + 3 < self.ai.time:
+        if last_attacked + 10 < self.ai.time:
             return BehaviorResult.SUCCESS
         
         if self.ai.townhalls:
@@ -55,7 +55,7 @@ class SurviveBehavior(UnitBehavior):
             sensitivity = 1)
 
         if retreat_path:
-            target = retreat_path[min(1, len(retreat_path) - 1)]
+            target = retreat_path[min(3, len(retreat_path) - 1)]
         else:
             target = retreat_goal
 

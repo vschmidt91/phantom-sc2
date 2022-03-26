@@ -132,7 +132,7 @@ class UnitManager(AIModule):
             'worker': BehaviorSequence([
                     MacroBehavior(self.ai, unit.tag),
                     DodgeBehavior(self.ai, unit.tag),
-                    SurviveBehavior(self.ai, unit.tag),
+                    # SurviveBehavior(self.ai, unit.tag),
                     GatherBehavior(self.ai, unit.tag),
                     FightBehavior(self.ai, unit.tag),
                 ]),
