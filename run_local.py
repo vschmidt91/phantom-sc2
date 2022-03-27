@@ -25,6 +25,8 @@ from src.zerg import ZergAI
 from src.enums import PerformanceMode
 from src.dummy import DummyAI, DummyAI2
 
+from queens.examples.example import ZergBot as QueenBot
+
 from test import CompetitiveBot
 
 MAPS = [
@@ -60,13 +62,13 @@ REAL_TIME = False
 RESULT_PATH = 'results.json'
 
 def create_bot():
-    # ai = CompetitiveBot()
-    # ai = Pool12AllIn()
-    # ai = LingFlood()
-    # ai = DummyAI()
+
+    # ai = QueenBot()
+
     ai = ZergAI(strategy_cls=HatchFirst)
     ai.debug = True
     ai.game_step = 2
+
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:
@@ -86,19 +88,4 @@ if __name__ == "__main__":
             for map in MAPS
             for opponent in create_opponents(DIFFICULTY)
         ]
-
-
-        with cProfile.Profile() as pr:
-            results = run_multiple_games(games)
-
-        stats = pstats.Stats(pr)
-        stats.sort_stats(pstats.SortKey.TIME)
-        stats.dump_stats(filename='profiling.prof')
-
-        # for game, result in zip(games, results):
-        #     opponent = game.players[1]
-        #     key = f'{opponent.race.name} {opponent.ai_build.name} {game.map_sc2.name}'
-        #     result_dict[key].append(result[game.players[0]].name)
-
-        # with open(RESULT_PATH, 'w') as file:
-        #     json.dump(dict(result_dict), file, indent=4)
+        results = run_multiple_games(games)

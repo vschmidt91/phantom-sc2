@@ -96,7 +96,7 @@ class DodgeEffectDelayed(DodgeEffect):
 class DodgeBehavior(UnitBehavior):
 
     def __init__(self, ai: AIBase, unit_tag: int):
-        self.safety_distance: float = 1.0
+        self.safety_distance: float = 0.5
         super().__init__(ai, unit_tag)
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
@@ -109,7 +109,8 @@ class DodgeBehavior(UnitBehavior):
         for dodge in self.ai.dodge:
             distance_bonus = 0.0
             if isinstance(dodge, DodgeEffectDelayed):
-                time_remaining = max(0, dodge.time_of_impact - self.ai.time)
+                delay = (2 * self.ai.client.game_step) / 22.4
+                time_remaining = max(0, dodge.time_of_impact - self.ai.time - delay)
                 distance_bonus = 1.4 * unit.movement_speed * time_remaining
             distance_have = unit.distance_to(dodge.position)
             for circle in dodge.circles:
