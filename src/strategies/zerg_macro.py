@@ -29,7 +29,11 @@ class ZergMacro(ZergStrategy):
 
         worker_count = self.ai.state.score.food_used_economy
         worker_target = max(1, min(80, self.ai.get_max_harvester()))
-        ratio = max(self.ai.threat_level, worker_count / worker_target)
+        # ratio = max(
+        #     self.ai.threat_level,
+        #     worker_count / worker_target,
+        # )
+        ratio = self.ai.threat_level
 
         queen_target = min(8, 2 * self.ai.townhalls.amount)
 
@@ -77,11 +81,11 @@ class ZergMacro(ZergStrategy):
 
     def filter_upgrade(self, upgrade) -> bool:
         if upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
-            return UpgradeId.ZERGMISSILEWEAPONSLEVEL2 in self.ai.state.upgrades
+            return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False):
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
-            return UpgradeId.ZERGMISSILEWEAPONSLEVEL3 in self.ai.state.upgrades
+            return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False):
         elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
-            return self.ai.count(UnitTypeId.GREATERSPIRE, include_planned=False)
+            return 0 < self.ai.count(UnitTypeId.GREATERSPIRE, include_planned=False)
         elif upgrade == UpgradeId.OVERLORDSPEED:
             return 8 * 60 < self.ai.time
         return super().filter_upgrade(upgrade)
