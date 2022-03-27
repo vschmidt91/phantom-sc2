@@ -25,8 +25,6 @@ from src.zerg import ZergAI
 from src.enums import PerformanceMode
 from src.dummy import DummyAI, DummyAI2
 
-from queens.examples.example import ZergBot as QueenBot
-
 from test import CompetitiveBot
 
 MAPS = [

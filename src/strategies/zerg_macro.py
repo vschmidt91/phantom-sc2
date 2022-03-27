@@ -29,11 +29,11 @@ class ZergMacro(ZergStrategy):
 
         worker_count = self.ai.state.score.food_used_economy
         worker_target = max(1, min(80, self.ai.get_max_harvester()))
-        # ratio = max(
-        #     self.ai.threat_level,
-        #     worker_count / worker_target,
-        # )
-        ratio = self.ai.threat_level
+        ratio = max(
+            self.ai.threat_level,
+            pow(worker_count / worker_target, 2),
+        )
+        # ratio = self.ai.threat_level
 
         queen_target = min(8, 2 * self.ai.townhalls.amount)
 
