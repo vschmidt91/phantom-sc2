@@ -28,13 +28,13 @@ class SurviveBehavior(UnitBehavior):
         if unit.type_id == UnitTypeId.OVERLORD:
             unit(AbilityId.BEHAVIOR_GENERATECREEPON)
 
-        if unit.type_id != race_worker[self.ai.race]:
-            return BehaviorResult.SUCCESS
+        # if unit.type_id != race_worker[self.ai.race]:
+        #     return BehaviorResult.SUCCESS
 
         last_attacked = self.ai.damage_taken.get(unit.tag)
         if not last_attacked:
             return BehaviorResult.SUCCESS
-        if last_attacked + 10 < self.ai.time:
+        if last_attacked + 30 < self.ai.time:
             return BehaviorResult.SUCCESS
         
         if self.ai.townhalls:

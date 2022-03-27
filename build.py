@@ -7,8 +7,6 @@ import os
 import zipfile
 import subprocess
 
-import src
-
 OUTPUT_PATH = 'publish'
 VERSION_PATH = 'version.txt'
 EXTENSIONS = { '.py', '.txt', '.json', '.npy' }
@@ -18,8 +16,8 @@ TEMPLATES_PATH = 'templates'
 class BotPackage:
     name: str
     race: str
-    package: src
-    cls: src
+    package: str
+    cls: str
     libs: List[str]
 
 BOTS: List[BotPackage] = [
