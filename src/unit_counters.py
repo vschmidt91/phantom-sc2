@@ -3,7 +3,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 
 UNIT_COUNTER_DICT = {
 
-    UnitTypeId.ZEALOT: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
+    UnitTypeId.ZEALOT: [UnitTypeId.BROODLORD, UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
     UnitTypeId.STALKER: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.SENTRY: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
     UnitTypeId.ADEPT: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
