@@ -1058,7 +1058,7 @@ class AIBase(ABC, BotAI):
         value_self = sum(self.get_unit_value(u) for u in self.enumerate_army())
         # value_self += sum(len(self.pending_by_type[t]) * self.get_unit_value(t) for t in self.composition)
         # value_enemy = sum(self.get_unit_value(e) for e in self.enemies.values())
-        value_enemy_threats = sum(self.get_unit_value(e) * (1 - self.map_data.distance[e.position.rounded]) for e in self.enemies.values())
+        value_enemy_threats = 2 * sum(self.get_unit_value(e) * (1 - self.map_data.distance[e.position.rounded]) for e in self.enemies.values())
 
         self.threat_level = value_enemy_threats / max(1, value_self + value_enemy_threats)
 
