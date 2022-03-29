@@ -285,8 +285,8 @@ class UnitManager(AIModule):
 
         # EXPERIMENTAL SIMULATION
 
-        # enemies = { u.tag: SimulationUnit(u) for u in self.ai.enumerate_enemies() }
-        # army = [SimulationUnit(u) for u in self.ai.enumerate_army()]
+        enemies = { u.tag: SimulationUnit(u) for u in self.ai.enumerate_enemies() }
+        army = [SimulationUnit(u) for u in self.ai.enumerate_army()]
 
-        # self.simulation = Simulation(self.ai, army, enemies.values())
-        # self.simulation.run(3)
+        self.simulation = Simulation(self.ai, army, enemies.values())
+        self.simulation.run(3)
