@@ -78,7 +78,6 @@ class SimulationUnit(object):
         self.damage: float = 0.0
         self.ground_weapon: Optional[SimulationWeapon] = None
         self.air_weapon: Optional[SimulationWeapon] = None
-        self.is_moving: bool = True
         self.is_ground: bool = not unit.is_flying or unit.type_id == UnitTypeId.COLOSSUS
         self.is_air: bool = unit.is_flying
         self.is_structure: bool = is_structure(unit)
@@ -90,6 +89,10 @@ class SimulationUnit(object):
 
     def __hash__(self) -> int:
         return self.tag
+
+    @property
+    def is_alive(self) -> bool:
+        return self.damage < self.health
 
     @property
     def priority(self) -> int:

@@ -285,21 +285,8 @@ class UnitManager(AIModule):
 
         # EXPERIMENTAL SIMULATION
 
-        enemies = { u.tag: SimulationUnit(u) for u in self.ai.enumerate_enemies() }
-        army = [SimulationUnit(u) for u in self.ai.enumerate_army()]
+        # enemies = { u.tag: SimulationUnit(u) for u in self.ai.enumerate_enemies() }
+        # army = [SimulationUnit(u) for u in self.ai.enumerate_army()]
 
-        self.simulation = Simulation(self, army, enemies.values())
-        self.simulation.run(10)
-
-    def local_simulation_result(self, position: Point2) -> float:
-        def local_value(unit: SimulationUnit) -> float:
-            v = self.ai.get_unit_cost(unit.type_id)
-            v *= max(0, unit.damage / unit.health)
-            d = unit.position.distance_to(position)
-            v /= 5 + d
-            # v /= 3 + t
-            return v
-        units_lost = sum(local_value(u) for u in self.simulation.units)
-        enemies_killed = sum(local_value(u) for u in self.simulation.enemies)
-        bias = 5.0
-        return (bias + enemies_killed) / (bias + units_lost + enemies_killed)
+        # self.simulation = Simulation(self.ai, army, enemies.values())
+        # self.simulation.run(3)

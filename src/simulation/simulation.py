@@ -27,8 +27,8 @@ class Simulation(AIComponent):
 
     def step(self, t: float, dt: float) -> None:
 
-        units_alive = [u for u in self.units if u.damage < u.health]
-        enemies_alive = [u for u in self.enemies if u.damage < u.health]
+        units_alive = [u for u in self.units if u.is_alive]
+        enemies_alive = [u for u in self.enemies if u.is_alive]
 
         for unit in units_alive:
             if target := unit.select_target(enemies_alive):
@@ -43,3 +43,16 @@ class Simulation(AIComponent):
                     target.damage += weapon.dps * dt
                 else:
                     unit.position = unit.position.towards(target.position, unit.speed * dt, limit=True)
+
+    def weighted_result(self, position: Point2) -> float:
+        def local_value(unit: SimulationUnit) -> float:
+            v = self.ai.get_unit_cost(unit.type_id)
+            v *= max(0, unit.damage / max(1, unit.health))
+            d = unit.position.distance_to(position)
+            v /= 5 + d
+            # v /= 3 + t
+            return v
+        units_lost = sum(local_value(u) for u in self.units)
+        enemies_killed = sum(local_value(u) for u in self.enemies)
+        bias = 5
+        return (bias + enemies_killed) / (bias + units_lost + enemies_killed)

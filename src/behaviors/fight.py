@@ -71,8 +71,7 @@ class FightBehavior(UnitBehavior):
     def get_stance(self, unit: Unit, target: Unit) -> FightStance:
 
         # halfway = .5 * (unit.position + target.position)
-
-        # simulation_result = self.ai.unit_manager.local_simulation_result(halfway)
+        # simulation_result = self.ai.unit_manager.simulation.weighted_result(halfway)
 
         # if unit.ground_range < 2:
 
@@ -99,13 +98,6 @@ class FightBehavior(UnitBehavior):
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
-        # target, priority = max(
-        #     ((t, self.target_priority(unit, t))
-        #     for t in self.ai.enumerate_enemies()),
-        #     key = lambda p : p[1],
-        #     default = (None, 0)
-        # )
-
         target = self.ai.unit_manager.targets.get(unit.tag)
         
         if not target:
@@ -123,7 +115,7 @@ class FightBehavior(UnitBehavior):
         if self.stance == FightStance.FLEE:
 
             # unit.move(self.get_path_towards(unit, self.ai.start_location))
-            unit.move(self.get_path_towards(unit, unit.position.towards(target.position, -12)))
+            unit.move(retreat_point)
             # unit.move(unit.position.towards(target.position, -12))
             return BehaviorResult.ONGOING
 
@@ -134,7 +126,7 @@ class FightBehavior(UnitBehavior):
                 and unit.position.distance_to(target.position) <= unit.radius + self.ai.get_unit_range(unit) + target.radius + unit.distance_to_weapon_ready
             ):
                 # unit.move(unit.position.towards(target.position, -12))
-                unit.move(self.get_path_towards(unit, unit.position.towards(target.position, -12)))
+                unit.move(retreat_point)
                 # unit.move(self.get_path_towards(unit, self.ai.start_location))
             elif unit.position.distance_to(target.position) <= unit.radius + self.ai.get_unit_range(unit) + target.radius:
                 unit.attack(target)
@@ -147,18 +139,18 @@ class FightBehavior(UnitBehavior):
             if unit.position.distance_to(target.position) <= unit.radius + self.ai.get_unit_range(unit) + target.radius:
                 unit.attack(target)
             else:
-                unit.attack(self.get_path_towards(unit, target.position))
+                unit.attack(attack_point)
             return BehaviorResult.ONGOING
 
         elif self.stance == FightStance.ADVANCE:
 
             distance = unit.position.distance_to(target.position) - unit.radius - target.radius
             if unit.weapon_cooldown and 1 < distance:
-                unit.move(self.get_path_towards(unit, target.position))
+                unit.move(attack_point)
             elif unit.position.distance_to(target.position) <= unit.radius + self.ai.get_unit_range(unit) + target.radius:
                 unit.attack(target)
             else:
-                unit.attack(self.get_path_towards(unit, target.position))
+                unit.attack(attack_point)
             return BehaviorResult.ONGOING
 
         return BehaviorResult.ONGOING
