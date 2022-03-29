@@ -91,7 +91,7 @@ class AIBase(ABC, BotAI):
         self.game_step: int = 4
         self.performance: PerformanceMode = PerformanceMode.DEFAULT
         self.debug: bool = False
-        self.destroy_destructables: bool = True
+        self.destroy_destructables: bool = False
 
         self.macro_plans: List[MacroPlan] = list()
         self.composition: Dict[UnitTypeId, int] = dict()
@@ -289,9 +289,6 @@ class AIBase(ABC, BotAI):
 
         await self.macro()
 
-        if self.debug:
-            await self.draw_debug()
-
         for module in self.modules:
             await module.on_step()
 
@@ -300,6 +297,9 @@ class AIBase(ABC, BotAI):
             stats = pstats.Stats(profiler)
             stats.sort_stats(pstats.SortKey.TIME)
             stats.dump_stats(filename='profiling.prof')
+
+        if self.debug:
+            await self.draw_debug()
 
     async def on_end(self, game_result: Result):
         pass
@@ -649,18 +649,27 @@ class AIBase(ABC, BotAI):
             text = f"{str(i+1)} {str(target.item.name)}"
 
             for position in positions:
-                self.client.debug_text_world(
-                    text,
-                    position,
-                    color=font_color,
-                    size=font_size)
+                self.client.debug_text_world(text, position, color=font_color, size=font_size)
+
+        # for unit in chain(self.unit_manager.simulation.units_lost.keys(), self.unit_manager.simulation.enemies_killed.keys()):
+        #     u = self.unit_by_tag.get(unit.tag) or self.enemies.get(unit.tag)
+        #     if not u:
+        #         continue
+        #     pos = u.position
+        #     z = self.get_terrain_z_height(pos)
+        #     position = Point3((*pos, z))
+        #     text = f"{str(unit.tag)}"
+        #     self.client.debug_text_world(text, position, color=font_color, size=font_size)
 
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.threat_level)}%', (0.01, 0.01))
         self.client.debug_text_screen(f'Enemy Bases: {len(self.scout_manager.enemy_bases)}', (0.01, 0.02))
         self.client.debug_text_screen(f'Gas Target: {round(self.get_gas_target(), 3)}', (0.01, 0.03))
+        # self.client.debug_text_screen(f'Simulation Resullt: {round(self.unit_manager.simulation_result, 3)}', (0.01, 0.04))
         self.client.debug_text_screen(f'Creep Coverage: {round(100 * self.creep.coverage)}%', (0.01, 0.06))
         for i, plan in enumerate(self.macro_plans):
             self.client.debug_text_screen(f'{1+i} {plan.item.name}', (0.01, 0.1 + 0.01 * i))
+
+        # self.map_analyzer.draw_influence_in_game(self.unit_manager.simulation_map)
 
     def add_macro_plan(self, plan: MacroPlan):
         self.macro_plans.append(plan)
@@ -1047,11 +1056,6 @@ class AIBase(ABC, BotAI):
 
         self.army_projection = army_health
         self.enemy_projection = enemy_health
-
-        # EXPERIMENTAL SIMULATION
-
-        # simulation = Simulation(self, self.enumerate_army(), self.enemies.values())
-        # simulation.run(10)
 
     def assess_threat_level(self):
         

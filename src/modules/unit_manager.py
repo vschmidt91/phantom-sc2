@@ -14,6 +14,8 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
+from src.simulation.unit import SimulationUnit, SimulationUnitWithTarget
+
 from ..behaviors.changeling_scout import ChangelingSpawnBehavior
 from ..behaviors.burrow import BurrowBehavior
 from ..behaviors.dodge import DodgeBehavior
@@ -21,6 +23,7 @@ from ..behaviors.fight import FightBehavior
 from ..behaviors.launch_corrosive_biles import LaunchCorrosiveBilesBehavior
 from ..behaviors.search import SearchBehavior
 from .scout_manager import ScoutBehavior
+from ..simulation.simulation import Simulation
 from ..behaviors.transfuse import TransfuseBehavior
 from ..behaviors.survive import SurviveBehavior
 from ..behaviors.macro import MacroBehavior
@@ -55,6 +58,10 @@ class UnitManager(AIModule):
         self.drafted_civilians: Set[int] = set()
         self.enemy_priorities: Dict[int, float] = dict()
         self.behaviors: Dict[int, UnitBehavior] = dict()
+        self.targets: Dict[int, Unit] = dict()
+        self.attack_paths: Dict[int, List[Point2]] = dict()
+        self.retreat_paths: Dict[int, List[Point2]] = dict()
+        self.simulation_map: np.ndarray = np.zeros(self.ai.game_info.map_size)
 
     def is_civilian(self, unit: Unit) -> bool:
         if unit.tag in self.drafted_civilians:
@@ -180,12 +187,61 @@ class UnitManager(AIModule):
         priority /= 10 if target.type_id in CIVILIANS else 1
         return priority
 
+    def target_priority(self, unit: Unit, target: Unit) -> float:
+        if not self.ai.can_attack(unit, target) and not unit.is_detector:
+            return 0
+        priority = self.enemy_priorities[target.tag]
+        priority /= 30 + target.position.distance_to(unit.position)
+        if unit.is_detector:
+            priority *= 10 if target.is_cloaked else 1
+            priority *= 10 if not target.is_revealed else 1
+        return priority
+
+    def get_path_towards(self, unit: Unit, target: Point2) -> List[Point2]:
+        a = self.ai.game_info.playable_area
+        target = Point2(np.clip(target, (a.x, a.y), (a.right, a.top)))
+        if unit.is_flying:
+            enemy_map = self.ai.enemy_vs_air_map
+        else:
+            enemy_map = self.ai.enemy_vs_ground_map
+
+        path = self.ai.map_analyzer.pathfind(
+            start = unit.position,
+            goal = target,
+            grid = enemy_map,
+            large = is_large(unit),
+            smoothing = False,
+            sensitivity = 1)
+
+        if not path:
+            d = unit.distance_to(target)
+            return [
+                unit.position.towards(target, d)
+                for i in np.arange(d)
+            ]
+        return path
+
     async def on_step(self) -> None:
 
         self.enemy_priorities = {
             e.tag: self.target_priority_apriori(e)
             for e in self.ai.enumerate_enemies()
         }
+
+        self.targets = dict()
+        for unit in self.ai.enumerate_army():
+            target, priority = max(
+                ((t, self.target_priority(unit, t))
+                for t in self.ai.enumerate_enemies()),
+                key = lambda p : p[1],
+                default = (None, 0))
+            if priority <= 0:
+                continue
+            attack_path = self.get_path_towards(unit, target.position)
+            retreat_path = self.get_path_towards(unit, unit.position.towards(target.position, -12))
+            self.targets[unit.tag] = target
+            self.attack_paths[unit.tag] = attack_path
+            self.retreat_paths[unit.tag] = retreat_path
 
         # self.draft_civilians()
 
@@ -226,3 +282,24 @@ class UnitManager(AIModule):
         # }
         # for tag in removed_tags:
         #     del self.behaviors[tag]
+
+        # EXPERIMENTAL SIMULATION
+
+        enemies = { u.tag: SimulationUnit(u) for u in self.ai.enumerate_enemies() }
+        army = [SimulationUnit(u) for u in self.ai.enumerate_army()]
+
+        self.simulation = Simulation(self, army, enemies.values())
+        self.simulation.run(10)
+
+    def local_simulation_result(self, position: Point2) -> float:
+        def local_value(unit: SimulationUnit) -> float:
+            v = self.ai.get_unit_cost(unit.type_id)
+            v *= max(0, unit.damage / unit.health)
+            d = unit.position.distance_to(position)
+            v /= 5 + d
+            # v /= 3 + t
+            return v
+        units_lost = sum(local_value(u) for u in self.simulation.units)
+        enemies_killed = sum(local_value(u) for u in self.simulation.enemies)
+        bias = 5.0
+        return (bias + enemies_killed) / (bias + units_lost + enemies_killed)

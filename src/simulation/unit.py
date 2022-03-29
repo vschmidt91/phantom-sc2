@@ -1,14 +1,23 @@
 
 from functools import cmp_to_key
-from optparse import Option
-from typing import Iterable, Optional
+from typing import Iterable, List, Optional
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.position import Point2
 
 import numpy as np
+import math
 
 from ..utils import is_structure
+
+def sample_path(path: List[Point2], t: float) -> Point2:
+    t = np.clip(t, 0, len(path) - 1)
+    if t <= 0:
+        return path[0]
+    elif len(path) - 1 <= t:
+        return path[-1]
+    i = math.floor(t)
+    return path[i] + (t - i) * (path[i+1] - path[i])
 
 PRIORITY_SPECIAL_CASES = {
     UnitTypeId.PHOTONCANNON: 20,
@@ -61,12 +70,15 @@ class SimulationUnit(object):
     def __init__(self, unit: Unit) -> None:
 
         self.type_id: UnitTypeId = unit.type_id
+        self.tag: int = unit.tag
         self.position: Point2 = unit.position
         self.radius: float = unit.radius
         self.speed: float = unit.movement_speed
         self.health: float = unit.health + unit.shield
+        self.damage: float = 0.0
         self.ground_weapon: Optional[SimulationWeapon] = None
         self.air_weapon: Optional[SimulationWeapon] = None
+        self.is_moving: bool = True
         self.is_ground: bool = not unit.is_flying or unit.type_id == UnitTypeId.COLOSSUS
         self.is_air: bool = unit.is_flying
         self.is_structure: bool = is_structure(unit)
@@ -75,6 +87,9 @@ class SimulationUnit(object):
             self.air_weapon = SimulationWeapon(unit.air_dps, unit.air_range)
         if unit.can_attack_ground:
             self.ground_weapon = SimulationWeapon(unit.ground_dps, unit.ground_range)
+
+    def __hash__(self) -> int:
+        return self.tag
 
     @property
     def priority(self) -> int:
@@ -142,8 +157,16 @@ class SimulationUnit(object):
             for u, w in unit_weapons
             if w and self.position.distance_to(u.position) <= self.radius + w.scan_range + u.radius
         ]
+        
         if not any(targets_in_range):
-            return None
+            return min(units, key=lambda u:u.position.distance_to(self.position),default=None)
         
         targets_sorted = sorted(targets_in_range, key=cmp_to_key(compare))
         return targets_sorted[-1]
+
+class SimulationUnitWithTarget(SimulationUnit):
+
+    def __init__(self, unit: Unit, target: SimulationUnit, path: List[Point2]) -> None:
+        super().__init__(unit)
+        self.target: SimulationUnit = target
+        self.path: List[Point2] = path

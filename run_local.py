@@ -41,17 +41,17 @@ MAPS = [
 ]
 
 RACES = [
-    # Race.Protoss,
+    Race.Protoss,
     # Race.Terran,
-    Race.Zerg,
+    # Race.Zerg,
     # Race.Random,
 ]
 
 BUILDS = [
-    AIBuild.Rush,
+    # AIBuild.Rush,
     # AIBuild.Timing,
     # AIBuild.Power,
-    # AIBuild.Macro,
+    AIBuild.Macro,
     # AIBuild.Air,
 ]
 
@@ -65,16 +65,16 @@ def create_bot():
 
     ai = ZergAI(strategy_cls=HatchFirst)
     ai.debug = True
-    ai.game_step = 2
+    ai.game_step = 4
 
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:
     # return [Bot(Race.Zerg, DummyAI())]
-    return [Bot(Race.Zerg, Pool12AllIn())]
-    # for race in RACES:
-    #     for build in BUILDS:
-    #         yield Computer(race, difficulty, ai_build=build)
+    # yield Bot(Race.Zerg, Pool12AllIn())
+    for race in RACES:
+        for build in BUILDS:
+            yield Computer(race, difficulty, ai_build=build)
 
 if __name__ == "__main__":
 

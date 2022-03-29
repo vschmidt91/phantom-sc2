@@ -68,26 +68,29 @@ class FightBehavior(UnitBehavior):
 
         return advantage
 
-    def get_path_towards(self, unit: Unit, target: Point2) -> Point2:
-        a = self.ai.game_info.playable_area
-        target = Point2(np.clip(target, (a.x, a.y), (a.right, a.top)))
-        if unit.is_flying:
-            enemy_map = self.ai.enemy_vs_air_map
-        else:
-            enemy_map = self.ai.enemy_vs_ground_map
-        path = self.ai.map_analyzer.pathfind(
-            start = unit.position,
-            goal = target,
-            grid = enemy_map,
-            large = is_large(unit),
-            smoothing = False,
-            sensitivity = 1)
-
-        if not path:
-            return target
-        return path[min(3, len(path) - 1)]
-
     def get_stance(self, unit: Unit, target: Unit) -> FightStance:
+
+        # halfway = .5 * (unit.position + target.position)
+
+        # simulation_result = self.ai.unit_manager.local_simulation_result(halfway)
+
+        # if unit.ground_range < 2:
+
+        #     if simulation_result < 1/2:
+        #         return FightStance.FLEE
+        #     else:
+        #         return FightStance.FIGHT
+
+        # else:
+
+        #     if simulation_result < 1/4:
+        #         return FightStance.FLEE
+        #     elif simulation_result < 2/4:
+        #         return FightStance.RETREAT
+        #     elif simulation_result < 3/4:
+        #         return FightStance.FIGHT
+        #     else:
+        #         return FightStance.ADVANCE
 
         if np.sign(self.ai.enemy_projection[target.position.rounded]) <= np.sign(self.ai.army_projection[unit.position.rounded]):
             return FightStance.FIGHT
@@ -96,18 +99,23 @@ class FightBehavior(UnitBehavior):
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
 
-        if unit.type_id == UnitTypeId.OVERLORD:
+        # target, priority = max(
+        #     ((t, self.target_priority(unit, t))
+        #     for t in self.ai.enumerate_enemies()),
+        #     key = lambda p : p[1],
+        #     default = (None, 0)
+        # )
+
+        target = self.ai.unit_manager.targets.get(unit.tag)
+        
+        if not target:
             return BehaviorResult.SUCCESS
 
-        target, priority = max(
-            ((t, self.target_priority(unit, t))
-            for t in self.ai.enumerate_enemies()),
-            key = lambda p : p[1],
-            default = (None, 0)
-        )
+        attack_path = self.ai.unit_manager.attack_paths[unit.tag]
+        retreat_path = self.ai.unit_manager.retreat_paths[unit.tag]
 
-        if priority <= 0:
-            return BehaviorResult.SUCCESS
+        attack_point = attack_path[min(len(attack_path) - 1, 3)]
+        retreat_point = retreat_path[min(len(retreat_path) - 1, 3)]
 
         # advantage = self.get_advantage(unit, target)
         self.stance = self.get_stance(unit, target)
@@ -153,4 +161,4 @@ class FightBehavior(UnitBehavior):
                 unit.attack(self.get_path_towards(unit, target.position))
             return BehaviorResult.ONGOING
 
-        return BehaviorResult.SUCCESS
+        return BehaviorResult.ONGOING

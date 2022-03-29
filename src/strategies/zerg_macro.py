@@ -26,14 +26,15 @@ class ZergMacro(ZergStrategy):
     def update(self) -> None:
 
         self.ai.destroy_destructables = 5 * 60 < self.ai.time
+        self.ai.destroy_destructables = False
 
         worker_count = self.ai.state.score.food_used_economy
         worker_target = max(1, min(80, self.ai.get_max_harvester()))
         
         ratio = max(
             self.ai.threat_level,
-            1 if worker_count == worker_target else 0,
-            # pow(worker_count / worker_target, 2),
+            # 1 if worker_count == worker_target else 0,
+            worker_count / worker_target,
         )
         # ratio = self.ai.threat_level
 
@@ -62,6 +63,8 @@ class ZergMacro(ZergStrategy):
                         # composition[t] += (ratio + 1 - self.ai.map_data.distance[enemy.position.rounded]) * count
                         composition[t] += 2 * ratio * count
                         break
+
+        composition[UnitTypeId.RAVAGER] = composition[UnitTypeId.ROACH] // 5
 
 
         tech_up = 32 <= worker_count and 3 <= self.ai.townhalls.amount
