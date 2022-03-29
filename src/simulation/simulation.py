@@ -49,10 +49,10 @@ class Simulation(AIComponent):
             v = self.ai.get_unit_cost(unit.type_id)
             v *= max(0, unit.damage / max(1, unit.health))
             d = unit.position.distance_to(position)
-            v /= 10 + d
+            v /= 5 + d
             # v /= 3 + t
             return v
         units_lost = sum(local_value(u) for u in self.units)
         enemies_killed = sum(local_value(u) for u in self.enemies)
-        bias = 4
+        bias = 5
         return (bias + enemies_killed) / (bias + units_lost + enemies_killed)
