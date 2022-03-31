@@ -117,6 +117,11 @@ class UnitManager(AIModule):
                     return 'army'
                 elif 1 < self.ai.enemy_vs_ground_map[unit.position.rounded] < np.inf:
                     return 'army'
+                elif (
+                    (last_attacked := self.ai.damage_taken.get(unit.tag))
+                    and self.ai.time < last_attacked + 5
+                ):
+                    return 'army'
                 else:
                     return 'worker'
             else:
@@ -161,12 +166,12 @@ class UnitManager(AIModule):
         self.drafted_civilians.intersection_update(self.ai.unit_by_tag.keys())
         
         if (
-            2/3 < self.ai.threat_level
-            and self.ai.time < 3 * 60
+            0 == self.ai.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False)
+            and 1 == self.ai.threat_level
         ):
             if worker := self.ai.bases.try_remove_any():
                 self.drafted_civilians.add(worker)
-        elif self.ai.threat_level < 1/2:
+        elif self.ai.threat_level < 3/5:
             if self.drafted_civilians:
                 worker = min(self.drafted_civilians, key = lambda tag : self.ai.unit_by_tag[tag].shield_health_percentage, default = None)
                 self.drafted_civilians.remove(worker)
@@ -243,12 +248,12 @@ class UnitManager(AIModule):
             self.attack_paths[unit.tag] = attack_path
             self.retreat_paths[unit.tag] = retreat_path
 
-        # self.draft_civilians()
-
         queens = sorted(
             self.ai.actual_by_type[UnitTypeId.QUEEN],
             key = lambda q : q.tag
         )
+
+        self.draft_civilians()
 
         inject_queen_max = min(5, len(queens))
         inject_queen_count = min(math.floor((1 - self.ai.threat_level) * inject_queen_max), self.ai.townhalls.amount)

@@ -382,8 +382,11 @@ class AIBase(ABC, BotAI):
             if tag in self.enemies:
                 # can see
                 continue
-            elif self.is_visible(enemy.position):
-                # could see, but not there
+            visible = True
+            for offset in {(0, 0), (0, 1), (0, -1), (1, 0), (-1, 0)}:
+                if not self.is_visible(enemy.position.offset(offset)):
+                    visible = False
+            if visible:
                 continue
             # cannot see, maybe still there
             self.enemies[tag] = enemy
