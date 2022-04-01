@@ -70,7 +70,7 @@ class FightBehavior(UnitBehavior):
 
     def get_stance(self, unit: Unit, target: Unit) -> FightStance:
 
-        # halfway = .5 * (unit.position + target.position)
+        halfway = .5 * (unit.position + target.position)
         # simulation_result = self.ai.unit_manager.simulation.weighted_result(halfway)
 
         # if unit.ground_range < 2:
@@ -91,10 +91,27 @@ class FightBehavior(UnitBehavior):
         #     else:
         #         return FightStance.ADVANCE
 
-        if np.sign(self.ai.enemy_projection[target.position.rounded]) <= np.sign(self.ai.army_projection[unit.position.rounded]):
-            return FightStance.FIGHT
+        army_losses = max(1, self.ai.army_projection[unit.position.rounded])
+        enemy_losses = max(1, self.ai.enemy_projection[target.position.rounded])
+        loss_ratio = enemy_losses / army_losses
+
+        if unit.ground_range < 2:
+
+            if loss_ratio < 1:
+                return FightStance.FLEE
+            else:
+                return FightStance.FIGHT
+
         else:
-            return FightStance.FLEE
+
+            if loss_ratio < 1/2:
+                return FightStance.FLEE
+            elif loss_ratio < 1:
+                return FightStance.RETREAT
+            elif loss_ratio < 2:
+                return FightStance.FIGHT
+            else:
+                return FightStance.ADVANCE
 
     def execute_single(self, unit: Unit) -> BehaviorResult:
 

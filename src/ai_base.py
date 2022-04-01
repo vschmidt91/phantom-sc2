@@ -18,6 +18,7 @@ import os
 import json
 import MapAnalyzer
 import matplotlib.pyplot as plt
+from scipy.ndimage import gaussian_filter
 
 from MapAnalyzer import MapData
 from sc2.game_data import GameData
@@ -979,7 +980,9 @@ class AIBase(ABC, BotAI):
         return False
 
     def get_unit_value(self, unit: Unit) -> float:
-        return (unit.health + unit.shield) * max(unit.ground_dps, unit.air_dps)
+        health = unit.health + unit.shield
+        dps =  max(unit.ground_dps, unit.air_dps)
+        return math.sqrt(health * dps)
 
     def get_unit_cost(self, unit_type: UnitTypeId) -> int:
         cost = self.calculate_unit_value(unit_type)
@@ -1021,16 +1024,8 @@ class AIBase(ABC, BotAI):
 
         # EXPERIMENTAL FIGHTING
 
-        army_health = self.map_analyzer.get_clean_air_grid(0)
-        enemy_health = self.map_analyzer.get_clean_air_grid(0)
-
-        for unit in self.enumerate_army():
-            army_health[unit.position.rounded] += unit.health + unit.shield
-        for unit in self.enemies.values():
-            enemy_health[unit.position.rounded] += unit.health + unit.shield
-
-        def add_unit_to_map(unit: Unit, map: np.ndarray, t: float) -> np.ndarray:
-            range = 1 + unit.radius + max(unit.ground_range, unit.air_range) + 1.4 * t * unit.movement_speed
+        def add_unit_to_map(map: np.ndarray, unit: Unit) -> np.ndarray:
+            range = unit.radius + max(unit.ground_range, unit.air_range)
             dps = max(unit.ground_dps, unit.air_dps)
             if dps < 1:
                 return map
@@ -1040,25 +1035,69 @@ class AIBase(ABC, BotAI):
                 grid = map,
                 weight = dps)
 
-        dt = 2/3
-        for t in np.arange(0, 5, dt):
+        def transport(map: np.ndarray, sigma: float) -> np.ndarray:
+            map = gaussian_filter(map, sigma=sigma)
+            # map = map * np.transpose(self.game_info.pathing_grid.data_numpy)
+            return map
 
-            army_dps = self.map_analyzer.get_clean_air_grid(0)
-            for unit in self.enumerate_army():
-                if 0 < army_health[unit.position.rounded]:
-                    army_dps = add_unit_to_map(unit, army_dps, t)
-                    
-            enemy_dps = self.map_analyzer.get_clean_air_grid(0)
-            for unit in self.enemies.values():
-                if 0 < enemy_health[unit.position.rounded]:
-                    enemy_dps = add_unit_to_map(unit, enemy_dps, t)
+        def remove_border(map: np.ndarray) -> np.ndarray:
+            return np.where(map==np.inf,0,map)
 
-            discount = pow(.9, t)
-            army_health -= discount * enemy_dps * dt
-            enemy_health -= discount * army_dps * dt
+        army_health = remove_border(self.map_analyzer.get_clean_air_grid(0))
+        army_dps = remove_border(self.map_analyzer.get_clean_air_grid(0))
+        enemy_health = remove_border(self.map_analyzer.get_clean_air_grid(0))
+        enemy_dps = remove_border(self.map_analyzer.get_clean_air_grid(0))
 
-        self.army_projection = army_health
-        self.enemy_projection = enemy_health
+        for unit in self.enumerate_army():
+        # for unit in self.all_own_units:
+            army_health[unit.position.rounded] += unit.health + unit.shield
+            army_dps = add_unit_to_map(army_dps, unit)
+
+        for unit in self.enemies.values():
+        # for unit in self.all_enemy_units:
+            enemy_health[unit.position.rounded] += unit.health + unit.shield
+            enemy_dps = add_unit_to_map(enemy_dps, unit)
+
+        # army_value = np.sqrt(army_health * army_dps)
+        # enemy_value = np.sqrt(enemy_health * enemy_dps)
+
+        army_losses = remove_border(self.map_analyzer.get_clean_air_grid(1))
+        enemy_losses = remove_border(self.map_analyzer.get_clean_air_grid(1))
+
+        movement_speed = 3.5
+        dt = 0.3
+        for t in np.arange(0, 3, dt):
+
+            sigma2 = movement_speed * dt
+            sigma = math.sqrt(sigma2)
+
+            army_health = transport(army_health, sigma)
+            army_dps = transport(army_dps, sigma)
+            enemy_health = transport(enemy_health, sigma)
+            enemy_dps = transport(enemy_dps, sigma)
+
+            army_damage = np.minimum(army_health, enemy_dps * dt)
+            enemy_damage = np.minimum(enemy_health, army_dps * dt)
+
+            army_health2 = army_health - army_damage
+            enemy_health2 = enemy_health - enemy_damage
+
+            army_dps *= army_health2 / np.maximum(1, army_health)
+            enemy_dps *= enemy_health2 / np.maximum(1, enemy_health)
+
+            army_health = army_health2
+            enemy_health = enemy_health2
+
+            army_losses += army_damage
+            enemy_losses += enemy_damage
+
+        self.army_projection = army_losses
+        self.enemy_projection = enemy_losses
+
+        # if self.state.game_loop % 1024 == 0:
+        #     plt.imshow(army_health)
+        #     # plt.show()
+        #     plt.savefig(f'debug/{self.state.game_loop}.png')
 
     def assess_threat_level(self):
         

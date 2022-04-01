@@ -34,12 +34,13 @@ class BurrowBehavior(UnitBehavior):
             return BehaviorResult.SUCCESS
 
         if unit.is_burrowed:
-            if unit.health_percentage == 1:
+            if unit.health_percentage == 1 or unit.is_revealed:
                 unit(AbilityId.BURROWUP)
             return BehaviorResult.ONGOING
         elif (
             unit.health_percentage < 1/3
             and unit.weapon_cooldown
+            and not unit.is_revealed
         ):
             unit(AbilityId.BURROWDOWN)
             return BehaviorResult.ONGOING

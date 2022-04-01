@@ -164,7 +164,7 @@ class ZergAI(AIBase):
                 # (UpgradeId.GLIALRECONSTITUTION,
                 # UpgradeId.BURROW,
                 # UpgradeId.TUNNELINGCLAWS),
-                (UpgradeId.GLIALRECONSTITUTION,),
+                (UpgradeId.GLIALRECONSTITUTION, UpgradeId.BURROW),
                 self.upgrade_sequence(ZERG_RANGED_UPGRADES),
                 self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
             )
