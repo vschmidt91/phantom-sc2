@@ -3,6 +3,7 @@ from typing import Union, Iterable, Dict
 
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
+from src.constants import BUILD_ORDER_PRIORITY
 
 from ..macro_plan import MacroPlan
 from .zerg_macro import ZergMacro
@@ -18,8 +19,8 @@ class RoachLingBust(ZergMacro):
     def build_order(self) -> Iterable:
         return [
             UnitTypeId.DRONE,
-            UnitTypeId.EXTRACTOR,
             UnitTypeId.DRONE,
+            UnitTypeId.EXTRACTOR,
             UnitTypeId.DRONE,
             UnitTypeId.OVERLORD,
             UnitTypeId.SPAWNINGPOOL,
@@ -32,8 +33,8 @@ class RoachLingBust(ZergMacro):
             UnitTypeId.QUEEN,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
+            # UnitTypeId.DRONE,
             UnitTypeId.ROACHWARREN,
-            UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UpgradeId.ZERGLINGMOVEMENTSPEED,
@@ -43,9 +44,9 @@ class RoachLingBust(ZergMacro):
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
-            UnitTypeId.ROACH,
-            UnitTypeId.ROACH,
-            UnitTypeId.ROACH,
+            # UnitTypeId.ROACH,
+            # UnitTypeId.ROACH,
+            # UnitTypeId.ROACH,
             
             # UnitTypeId.OVERLORD,
             # UnitTypeId.ZERGLING,
@@ -64,4 +65,14 @@ class RoachLingBust(ZergMacro):
 
     def update(self) -> None:
         self.ai.scout_manager.scout_enemy_natural = False
+        # if (
+        #     self.ai.supply_used == 14
+        #     and self.ai.count(UnitTypeId.EXTRACTOR, include_planned=False) < 1
+        #     and self.ai.count(UnitTypeId.OVERLORD, include_planned=False) < 2
+        # ):
+        #     self.ai.extractor_trick_enabled = True
+        if self.ai.count(UnitTypeId.ROACH, include_pending=False, include_actual=False) < 1:
+            self.ai.add_macro_plan(MacroPlan(UnitTypeId.ROACH, priority=BUILD_ORDER_PRIORITY))
+        if self.ai.count(UnitTypeId.ZERGLING, include_pending=False, include_actual=False) < 1:
+            self.ai.add_macro_plan(MacroPlan(UnitTypeId.ZERGLING, priority=BUILD_ORDER_PRIORITY))
         return super().update()

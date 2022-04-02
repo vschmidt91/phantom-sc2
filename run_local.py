@@ -63,9 +63,9 @@ def create_bot():
 
     # ai = QueenBot()
 
-    ai = ZergAI(strategy_cls=HatchFirst)
+    ai = ZergAI(strategy_cls=RoachLingBust)
     ai.debug = True
-    ai.game_step = 4
+    ai.game_step = 2
 
     return Bot(Race.Zerg, ai)  
 

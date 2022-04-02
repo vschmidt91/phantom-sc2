@@ -44,9 +44,9 @@ class FightBehavior(UnitBehavior):
     def get_stance(self, unit: Unit, target: Unit) -> FightStance:
 
         halfway = .5 * (unit.position + target.position)
-        eps = 1e-8
-        army = max(eps, self.ai.army_projection[target.position.rounded])
-        enemy = max(eps, self.ai.enemy_projection[unit.position.rounded])
+        eps = 1e-3
+        army = 2 * eps + self.ai.army_projection[target.position.rounded]
+        enemy = eps + self.ai.enemy_projection[unit.position.rounded]
         advantage = army / enemy
 
         if unit.ground_range < 2:

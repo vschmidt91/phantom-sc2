@@ -748,8 +748,8 @@ class AIBase(ABC, BotAI):
             # ):
             #     continue
 
-            # if (2 if self.extractor_trick_enabled else 1) <= i and plan.priority == BUILD_ORDER_PRIORITY:
-            #     break
+            if (2 if self.extractor_trick_enabled else 1) <= i and plan.priority == BUILD_ORDER_PRIORITY:
+                break
 
             unit = None
             if plan.unit:
