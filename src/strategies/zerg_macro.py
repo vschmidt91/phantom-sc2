@@ -29,7 +29,7 @@ class ZergMacro(ZergStrategy):
         self.ai.destroy_destructables = False
 
         worker_count = self.ai.state.score.food_used_economy
-        worker_target = max(1, min(80, self.ai.get_max_harvester()))
+        worker_target = max(1, self.ai.get_max_harvester())
         
         ratio = max(
             self.ai.threat_level,
