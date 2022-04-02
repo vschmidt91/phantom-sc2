@@ -82,6 +82,9 @@ class ZergMacro(ZergStrategy):
             composition[UnitTypeId.GREATERSPIRE] = 1
             composition[UnitTypeId.OVERSEER] = 3
 
+        if 0 < composition[UnitTypeId.BROODLORD]:
+            composition[UnitTypeId.CORRUPTOR] = max(3, composition[UnitTypeId.CORRUPTOR])
+
         self.ai.composition = { k: math.ceil(v) for k, v in composition.items() if 0 < v}
 
     def filter_upgrade(self, upgrade) -> bool:
