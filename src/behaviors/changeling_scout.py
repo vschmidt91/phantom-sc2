@@ -25,6 +25,6 @@ class ChangelingSpawnBehavior(UnitBehavior):
 
         if ENERGY_COST[self.ABILITY] <= unit.energy:
             unit(self.ABILITY)
-            return BehaviorResult.ONGOING
+            # return BehaviorResult.ONGOING
 
         return BehaviorResult.SUCCESS

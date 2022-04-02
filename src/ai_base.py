@@ -1066,7 +1066,7 @@ class AIBase(ABC, BotAI):
         enemy_dps = np.copy(enemy_dps0)
 
         movement_speed = 3.5
-        t = 3.0
+        t = 5.0
         sigma = movement_speed * t
 
         army_health = transport(army_health0, sigma)
@@ -1111,24 +1111,23 @@ class AIBase(ABC, BotAI):
         def orient_image(img: np.ndarray) -> np.ndarray:
             return np.transpose(np.fliplr(img), (1, 0, 2))
 
-        if self.debug:
+        # if self.debug:
 
-            health_map = np.stack((enemy_health, army_health, np.zeros_like(army_health)), axis=-1)
-            dps_map = np.stack((enemy_dps, army_dps, np.zeros_like(army_dps)), axis=-1)
-            maps = [health_map, dps_map]
+        #     health_map = np.stack((enemy_health, army_health, np.zeros_like(army_health)), axis=-1)
+        #     dps_map = np.stack((enemy_dps, army_dps, np.zeros_like(army_dps)), axis=-1)
+        #     maps = [health_map, dps_map]
 
-            if not self.plot_images:
-                self.plot_images = [self.plot_axes[i].imshow(maps[i]) for i in range(len(maps))]
-                self.plot_axes[0].set_title("Health")
-                self.plot_axes[1].set_title("DPS")
-                plt.show()
+        #     if not self.plot_images:
+        #         self.plot_images = [self.plot_axes[i].imshow(maps[i]) for i in range(len(maps))]
+        #         self.plot_axes[0].set_title("Health")
+        #         self.plot_axes[1].set_title("DPS")
+        #         plt.show()
 
-            for i, data in enumerate(maps):
-                plot = self.plot_images[i]
-                plot.set_data(orient_image(data / np.max(data)))
-
-            # self.plot_images[0][0].set
-            self.plot.canvas.flush_events()
+        #     for i, data in enumerate(maps):
+        #         plot = self.plot_images[i]
+        #         plot.set_data(orient_image(data / np.max(data)))
+                
+        #     self.plot.canvas.flush_events()
 
         self.army_projection = np.sqrt(army_health * army_dps)
         self.enemy_projection = np.sqrt(enemy_health * enemy_dps)
