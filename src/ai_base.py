@@ -13,6 +13,7 @@ import re
 import random
 from re import S
 from typing import Any, DefaultDict, Iterable, Optional, Tuple, Type, Union, Coroutine, Set, List, Callable, Dict
+from matplotlib.colors import Normalize
 import numpy as np
 import os
 import json
@@ -89,7 +90,7 @@ class AIBase(ABC, BotAI):
         self.raw_affects_selection = True
 
         self.version: str = ''
-        self.game_step: int = 4
+        self.game_step: int = 3
         self.performance: PerformanceMode = PerformanceMode.DEFAULT
         self.debug: bool = False
         self.destroy_destructables: bool = False
@@ -143,6 +144,11 @@ class AIBase(ABC, BotAI):
         return velocity
 
     async def on_before_start(self):
+
+        if self.debug:
+            plt.ion()
+            self.plot, self.plot_axes = plt.subplots(1, 2)
+            self.plot_images = None
 
         with open(VERSION_PATH, 'r') as file:
             self.version = file.readline().replace('\n', '')
@@ -997,12 +1003,6 @@ class AIBase(ABC, BotAI):
         self.enemy_vs_ground_map = np.maximum(1, enemy_map.get_map_vs_ground())
         self.enemy_vs_air_map = np.maximum(1, enemy_map.get_map_vs_air())
 
-        army_map = ValueMap(self)
-        for unit in self.enumerate_army():
-            army_map.add(unit, 0.0)
-        self.army_vs_ground_map = np.maximum(1, army_map.get_map_vs_ground())
-        self.army_vs_air_map = np.maximum(1, army_map.get_map_vs_air())
-
         self.dodge.clear()
         delayed_positions = { e.position for e in self.dodge_delayed }
         for effect in self.state.effects:
@@ -1018,86 +1018,121 @@ class AIBase(ABC, BotAI):
                 self.dodge.append(DodgeUnit(enemy))
         self.dodge.extend(self.dodge_delayed)
 
-        enemy_map = np.maximum(self.enemy_vs_air_map, self.enemy_vs_ground_map)
-        army_map = np.maximum(self.army_vs_air_map, self.army_vs_ground_map)
-        self.advantage_map = army_map / enemy_map
-
         # EXPERIMENTAL FIGHTING
 
         def add_unit_to_map(map: np.ndarray, unit: Unit) -> np.ndarray:
-            range = unit.radius + max(unit.ground_range, unit.air_range)
+            radius = unit.radius + max(unit.ground_range, unit.air_range)
             dps = max(unit.ground_dps, unit.air_dps)
-            if dps < 1:
-                return map
+            weight = dps / (math.pi * radius**2)
+            # if weight < 1:
+            #     return map
             return self.map_analyzer.add_cost(
                 position = unit.position,
-                radius = range,
+                radius = radius,
                 grid = map,
-                weight = dps)
+                weight = weight)
 
         def transport(map: np.ndarray, sigma: float) -> np.ndarray:
-            map = gaussian_filter(map, sigma=sigma)
+            map = gaussian_filter(map, sigma=sigma, truncate=2)
             # map = map * np.transpose(self.game_info.pathing_grid.data_numpy)
             return map
 
         def remove_border(map: np.ndarray) -> np.ndarray:
             return np.where(map==np.inf,0,map)
 
-        army_health = remove_border(self.map_analyzer.get_clean_air_grid(0))
-        army_dps = remove_border(self.map_analyzer.get_clean_air_grid(0))
-        enemy_health = remove_border(self.map_analyzer.get_clean_air_grid(0))
-        enemy_dps = remove_border(self.map_analyzer.get_clean_air_grid(0))
+        army_health0 = np.ones(self.game_info.map_size)
+        army_dps0 = np.ones(self.game_info.map_size)
+        enemy_health0 = np.ones(self.game_info.map_size)
+        enemy_dps0 = np.ones(self.game_info.map_size)
 
         for unit in self.enumerate_army():
         # for unit in self.all_own_units:
-            army_health[unit.position.rounded] += unit.health + unit.shield
-            army_dps = add_unit_to_map(army_dps, unit)
+            army_health0[unit.position.rounded] += unit.health + unit.shield
+            army_dps0 = add_unit_to_map(army_dps0, unit)
 
         for unit in self.enemies.values():
         # for unit in self.all_enemy_units:
-            enemy_health[unit.position.rounded] += unit.health + unit.shield
-            enemy_dps = add_unit_to_map(enemy_dps, unit)
+            enemy_health0[unit.position.rounded] += unit.health + unit.shield
+            enemy_dps0 = add_unit_to_map(enemy_dps0, unit)
 
-        # army_value = np.sqrt(army_health * army_dps)
-        # enemy_value = np.sqrt(enemy_health * enemy_dps)
+        army_health0 -= 1
+        army_dps0 -= 1
+        enemy_health0 -= 1
+        enemy_dps0 -= 1
 
-        army_losses = remove_border(self.map_analyzer.get_clean_air_grid(1))
-        enemy_losses = remove_border(self.map_analyzer.get_clean_air_grid(1))
+        army_health = np.copy(army_health0)
+        army_dps = np.copy(army_dps0)
+        enemy_health = np.copy(enemy_health0)
+        enemy_dps = np.copy(enemy_dps0)
 
         movement_speed = 3.5
-        dt = 0.3
-        for t in np.arange(0, 3, dt):
+        t = 3.0
+        sigma = movement_speed * t
 
-            sigma2 = movement_speed * dt
-            sigma = math.sqrt(sigma2)
+        army_health = transport(army_health0, sigma)
+        army_dps = transport(army_dps0, sigma)
+        enemy_health = transport(enemy_health0, sigma)
+        enemy_dps = transport(enemy_dps0, sigma)
 
-            army_health = transport(army_health, sigma)
-            army_dps = transport(army_dps, sigma)
-            enemy_health = transport(enemy_health, sigma)
-            enemy_dps = transport(enemy_dps, sigma)
+        # army_dps = (army_dps + army_dps0) / 2
+        # enemy_dps = (enemy_dps + enemy_dps0) / 2
 
-            army_damage = np.minimum(army_health, enemy_dps * dt)
-            enemy_damage = np.minimum(enemy_health, army_dps * dt)
+        army_health = np.maximum(0, army_health - t * enemy_dps)
+        enemy_health = np.maximum(0, enemy_health - t * army_dps)
 
-            army_health2 = army_health - army_damage
-            enemy_health2 = enemy_health - enemy_damage
 
-            army_dps *= army_health2 / np.maximum(1, army_health)
-            enemy_dps *= enemy_health2 / np.maximum(1, enemy_health)
+        # movement_speed = 3.5
+        # dt = 0.3
+        # for i, t in enumerate(np.arange(0, 3, dt)):
 
-            army_health = army_health2
-            enemy_health = enemy_health2
+        #     sigma2 = movement_speed * dt
+        #     sigma = math.sqrt(sigma2)
 
-            army_losses += army_damage
-            enemy_losses += enemy_damage
+        #     army_health = transport(army_health, sigma)
+        #     army_dps = transport(army_dps, sigma)
+        #     enemy_health = transport(enemy_health, sigma)
+        #     enemy_dps = transport(enemy_dps, sigma)
 
-        self.army_projection = army_losses
-        self.enemy_projection = enemy_losses
+            # army_damage = np.minimum(army_health, enemy_dps * dt)
+            # enemy_damage = np.minimum(enemy_health, army_dps * dt)
 
-        # if self.state.game_loop % 1024 == 0:
-        #     plt.imshow(army_health)
-        #     # plt.show()
-        #     plt.savefig(f'debug/{self.state.game_loop}.png')
+            # army_health2 = army_health - army_damage
+            # enemy_health2 = enemy_health - enemy_damage
+
+            # army_dps *= army_health2 / np.maximum(1, army_health)
+            # enemy_dps *= enemy_health2 / np.maximum(1, enemy_health)
+
+            # army_health = army_health2
+            # enemy_health = enemy_health2
+
+            # army_losses += army_damage
+            # enemy_losses += enemy_damage        
+
+        def orient_image(img: np.ndarray) -> np.ndarray:
+            return np.transpose(np.fliplr(img), (1, 0, 2))
+
+        if self.debug:
+
+            health_map = np.stack((enemy_health, army_health, np.zeros_like(army_health)), axis=-1)
+            dps_map = np.stack((enemy_dps, army_dps, np.zeros_like(army_dps)), axis=-1)
+            maps = [health_map, dps_map]
+
+            if not self.plot_images:
+                self.plot_images = [self.plot_axes[i].imshow(maps[i]) for i in range(len(maps))]
+                self.plot_axes[0].set_title("Health")
+                self.plot_axes[1].set_title("DPS")
+                plt.show()
+
+            for i, data in enumerate(maps):
+                plot = self.plot_images[i]
+                plot.set_data(orient_image(data / np.max(data)))
+
+            # self.plot_images[0][0].set
+            self.plot.canvas.flush_events()
+
+        self.army_projection = np.sqrt(army_health * army_dps)
+        self.enemy_projection = np.sqrt(enemy_health * enemy_dps)
+
 
     def assess_threat_level(self):
         

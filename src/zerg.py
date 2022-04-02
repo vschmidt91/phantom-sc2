@@ -231,6 +231,8 @@ class ZergAI(AIBase):
             targets: Dict[UnitTypeId, int] = dict()
             if self.build_spores:
                 targets[UnitTypeId.SPORECRAWLER] = 1
+                # if self.enemy_race == Race.Terran:
+                #     targets[UnitTypeId.SPORECRAWLER] += 1
             if (
                 1 <= i
                 and base.townhall

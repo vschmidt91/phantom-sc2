@@ -40,75 +40,29 @@ class FightBehavior(UnitBehavior):
             priority *= 10 if not target.is_revealed else 1
         return priority
 
-    def get_advantage(self, unit: Unit, target: Unit) -> float:
-
-        if not target:
-            return 1
-        
-        unit_range = unit.radius + self.ai.get_unit_range(unit) + target.radius
-        sample_position = unit.position.towards(target.position, unit_range, limit=True)
-        
-        if unit.type_id == UnitTypeId.QUEEN:
-            creep_bonus = 30
-        else:
-            creep_bonus = SPEED_INCREASE_ON_CREEP_DICT.get(unit.type_id, 1)
-
-        advantage_creep = 1
-        if self.ai.state.creep.is_empty(unit.position.rounded):
-            advantage_creep = 1 / creep_bonus
-        else:
-            advantage_creep = 1
-
-        # advantage_defender = .5 / self.ai.distance_map[unit.position.rounded]
-
-        advantage = self.ai.advantage_map[sample_position.rounded]
-        # advantage *= advantage_army
-        # advantage *= max(1, advantage_defender)
-        advantage *= advantage_creep
-
-        return advantage
 
     def get_stance(self, unit: Unit, target: Unit) -> FightStance:
 
         halfway = .5 * (unit.position + target.position)
-        # simulation_result = self.ai.unit_manager.simulation.weighted_result(halfway)
-
-        # if unit.ground_range < 2:
-
-        #     if simulation_result < 1/2:
-        #         return FightStance.FLEE
-        #     else:
-        #         return FightStance.FIGHT
-
-        # else:
-
-        #     if simulation_result < 1/4:
-        #         return FightStance.FLEE
-        #     elif simulation_result < 2/4:
-        #         return FightStance.RETREAT
-        #     elif simulation_result < 3/4:
-        #         return FightStance.FIGHT
-        #     else:
-        #         return FightStance.ADVANCE
-
-        army_losses = max(1, self.ai.army_projection[unit.position.rounded])
-        enemy_losses = max(1, self.ai.enemy_projection[target.position.rounded])
-        loss_ratio = enemy_losses / army_losses
+        eps = 1e-8
+        army = max(eps, self.ai.army_projection[target.position.rounded])
+        enemy = max(eps, self.ai.enemy_projection[unit.position.rounded])
+        advantage = army / enemy
 
         if unit.ground_range < 2:
 
-            if loss_ratio < 1:
+            if advantage < 1:
                 return FightStance.FLEE
             else:
                 return FightStance.FIGHT
 
         else:
 
-            if loss_ratio < 1/2:
+            if advantage < 1/2:
                 return FightStance.FLEE
-            elif loss_ratio < 1:
+            elif advantage < 1:
                 return FightStance.RETREAT
-            elif loss_ratio < 2:
+            elif advantage < 2:
                 return FightStance.FIGHT
             else:
                 return FightStance.ADVANCE
