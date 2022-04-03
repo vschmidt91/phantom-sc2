@@ -36,6 +36,7 @@ UNIT_COUNTER_DICT = {
     UnitTypeId.BATTLECRUISER: [UnitTypeId.CORRUPTOR, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.LIBERATOR: [UnitTypeId.CORRUPTOR, UnitTypeId.HYDRALISK, UnitTypeId.QUEEN],
     # UnitTypeId.SCV: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
+    UnitTypeId.MEDIVAC: [UnitTypeId.CORRUPTOR, UnitTypeId.HYDRALISK, UnitTypeId.QUEEN],
     UnitTypeId.COMMANDCENTERFLYING: [UnitTypeId.CORRUPTOR],
     UnitTypeId.BARRACKSFLYING: [UnitTypeId.CORRUPTOR],
     UnitTypeId.FACTORYFLYING: [UnitTypeId.CORRUPTOR],

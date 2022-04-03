@@ -12,6 +12,7 @@ from sc2.unit import Unit
 from sc2.data import Race, race_townhalls
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
+from src.strategies.muta import Muta
 
 from .unit_counters import UNIT_COUNTER_MATRIX
 from .strategies.hatch_first import HatchFirst

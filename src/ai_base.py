@@ -714,7 +714,7 @@ class AIBase(ABC, BotAI):
 
         requirements.append(info.get('required_building'))
         requirements.append(info.get('required_upgrade'))
-        requirements = [r for r in requirements if r is not UnitTypeId.LARVA]
+        requirements = [r for r in requirements if r not in { UnitTypeId.LARVA, UnitTypeId.CORRUPTOR, UnitTypeId.ROACH, UnitTypeId.ZERGLING }]
         
         missing = set()
         i = 0
@@ -1070,7 +1070,7 @@ class AIBase(ABC, BotAI):
         enemy_dps = np.copy(enemy_dps0)
 
         movement_speed = 3.5
-        t = 5.0
+        t = 4.0
         sigma = movement_speed * t
 
         army_health = transport(army_health0, sigma)
