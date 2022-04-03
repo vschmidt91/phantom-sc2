@@ -70,6 +70,8 @@ class Chat(AIModule):
         # if 4 * 60 < self.time and 0.8 < self.threat_level:
         #     await self.add_message(self.message_loss)
 
+        pass
+
     async def add_message(self, message: str, team_only: bool = False) -> None:
         if message not in self.messages:
             await self.ai.client.chat_send(message, team_only)

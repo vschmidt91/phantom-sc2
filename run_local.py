@@ -30,12 +30,12 @@ from test import CompetitiveBot
 
 MAPS = [
     # 'BerlingradAIE',
-    # 'CuriousMindsAIE',
+    'CuriousMindsAIE',
     # 'HardwireAIE',
     # 'GlitteringAshesAIE',
     # 'OxideAIE',
     # 'RomanticideAIE',
-    '2000AtmospheresAIE',
+    # '2000AtmospheresAIE',
     # 'LightshadeAIE',
     # 'JagannathaAIE',
     # 'BlackburnAIE',
@@ -43,13 +43,13 @@ MAPS = [
 
 RACES = [
     Race.Protoss,
-    # Race.Terran,
-    # Race.Zerg,
+    Race.Terran,
+    Race.Zerg,
     # Race.Random,
 ]
 
 BUILDS = [
-    # AIBuild.Rush,
+    AIBuild.Rush,
     # AIBuild.Timing,
     # AIBuild.Power,
     AIBuild.Macro,
@@ -65,8 +65,8 @@ def create_bot():
     # ai = QueenBot()
 
     ai = ZergAI(strategy_cls=FastLair)
-    ai.debug = True
-    ai.game_step = 4
+    ai.debug = False
+    ai.game_step = 8
 
     return Bot(Race.Zerg, ai)  
 
