@@ -55,11 +55,11 @@ class Chat(AIModule):
         #             await self.add_message(response)
         #             break
 
-        if 1 < self.ai.time:
-            if self.ai.opponent_name:
-                await self.add_message(f'(glhf) {self.ai.opponent_name}')
-            else:
-                await self.add_message(f'(glhf)')
+        # if 1 < self.ai.time:
+        #     if self.ai.opponent_name:
+        #         await self.add_message(f'(glhf) {self.ai.opponent_name}')
+        #     else:
+        #         await self.add_message(f'(glhf)')
 
         # if 20 < self.time:
         #     await self.add_message(self.message_greet)
