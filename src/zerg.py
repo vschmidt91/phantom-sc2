@@ -235,7 +235,7 @@ class ZergAI(AIBase):
         for i, base in enumerate(self.bases):
             targets: Dict[UnitTypeId, int] = dict()
             if self.build_spores:
-                targets[UnitTypeId.SPORECRAWLER] = 2 if i == 1 else 1
+                targets[UnitTypeId.SPORECRAWLER] = 1
                 # if self.enemy_race == Race.Terran:
                 #     targets[UnitTypeId.SPORECRAWLER] += 1
             if (

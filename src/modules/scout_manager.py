@@ -32,9 +32,9 @@ class ScoutManager(AIModule):
         for base in self.ai.bases[1:len(self.ai.bases)//2]:
             self.static_targets.append(base.position)
 
-        ramps = sorted(self.ai.game_info.map_ramps, key=lambda r:r.bottom_center.distance_to(self.ai.start_location))
-        for ramp in ramps[:len(ramps)//2]:
-            self.static_targets.append(ramp.bottom_center.towards(self.ai.game_info.map_center, 10))
+        # ramps = sorted(self.ai.game_info.map_ramps, key=lambda r:r.bottom_center.distance_to(self.ai.start_location))
+        # for ramp in ramps[:len(ramps)//2]:
+        #     self.static_targets.append(ramp.bottom_center.towards(self.ai.game_info.map_center, 10))
 
         self.static_targets.sort(key=lambda t:t.distance_to(self.ai.start_location))
 

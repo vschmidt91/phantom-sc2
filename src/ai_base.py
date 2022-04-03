@@ -968,7 +968,7 @@ class AIBase(ABC, BotAI):
                         continue
                     elif not base.townhall.is_ready:
                         continue
-                    position = base.position.towards(self.game_info.map_center, -10)
+                    position = base.position.towards(base.mineral_patches.position, 10)
                     offset = data.footprint_radius % 1
                     position = position.rounded.offset((offset, offset))
                     return position
@@ -1081,7 +1081,7 @@ class AIBase(ABC, BotAI):
         enemy_dps = np.copy(enemy_dps0)
 
         movement_speed = 3.5
-        t = 4.0
+        t = 3.0
         sigma = movement_speed * t
 
         army_health = transport(army_health0, sigma)

@@ -45,8 +45,8 @@ class FightBehavior(UnitBehavior):
 
         halfway = .5 * (unit.position + target.position)
         eps = 1e-3
-        army = 2 * eps + self.ai.army_projection[target.position.rounded]
-        enemy = eps + self.ai.enemy_projection[unit.position.rounded]
+        army = max(2 * eps, self.ai.army_projection[target.position.rounded])
+        enemy = max(eps, self.ai.enemy_projection[unit.position.rounded])
         advantage = army / enemy
 
         if unit.ground_range < 2:
