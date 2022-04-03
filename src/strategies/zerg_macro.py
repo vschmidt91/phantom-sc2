@@ -45,6 +45,7 @@ class ZergMacro(ZergStrategy):
             UnitTypeId.QUEEN: queen_target,
             UnitTypeId.ZERGLING: 1.0,
             UnitTypeId.ROACH: 0.0,
+            UnitTypeId.RAVAGER: 0.0,
             UnitTypeId.HYDRALISK: 0.0,
             UnitTypeId.BROODLORD: 0.0,
             UnitTypeId.CORRUPTOR: 0.0,
@@ -64,8 +65,8 @@ class ZergMacro(ZergStrategy):
                         composition[t] += 2 * ratio * count
                         break
 
-        composition[UnitTypeId.RAVAGER] = composition[UnitTypeId.ROACH] // 7
-
+        composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] // 7
+        composition[UnitTypeId.CORRUPTOR] = composition[UnitTypeId.BROODLORD] // 3
 
         tech_up = 32 <= worker_count and 3 <= self.ai.townhalls.amount
 
@@ -81,9 +82,6 @@ class ZergMacro(ZergStrategy):
         if tech_up and self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
             composition[UnitTypeId.GREATERSPIRE] = 1
             composition[UnitTypeId.OVERSEER] = 3
-
-        if 0 < composition[UnitTypeId.BROODLORD]:
-            composition[UnitTypeId.CORRUPTOR] = max(3, composition[UnitTypeId.CORRUPTOR])
 
         self.ai.composition = { k: math.ceil(v) for k, v in composition.items() if 0 < v}
 
