@@ -845,7 +845,7 @@ class AIBase(ABC, BotAI):
             withAddon = objective in { UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT }
             
             if objective.max_distance is None:
-                max_distance = 20
+                max_distance = 4
             else:
                 max_distance = objective.max_distance
             position = await self.find_placement(objective.ability["ability"], position, max_distance=max_distance, placement_step=1, addon_place=withAddon)
@@ -963,12 +963,14 @@ class AIBase(ABC, BotAI):
                     return b.position
                 raise PlacementNotFoundError()
             elif data:
-                for base in self.bases[::-1]:
+                bases = list(self.bases)
+                random.shuffle(bases)
+                for base in bases:
                     if not base.townhall:
                         continue
                     elif not base.townhall.is_ready:
                         continue
-                    position = base.position.towards(base.mineral_patches.position, 10)
+                    position = base.position.towards_with_random_angle(base.mineral_patches.position, 10)
                     offset = data.footprint_radius % 1
                     position = position.rounded.offset((offset, offset))
                     return position

@@ -166,10 +166,10 @@ class ZergAI(AIBase):
             )
         elif unit == UnitTypeId.ROACH:
             return chain(
-                # (UpgradeId.GLIALRECONSTITUTION,
-                # UpgradeId.BURROW,
-                # UpgradeId.TUNNELINGCLAWS),
-                (UpgradeId.GLIALRECONSTITUTION,),
+                (UpgradeId.GLIALRECONSTITUTION,
+                UpgradeId.BURROW,
+                UpgradeId.TUNNELINGCLAWS),
+                # (UpgradeId.GLIALRECONSTITUTION,),
                 self.upgrade_sequence(ZERG_RANGED_UPGRADES),
                 self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
             )
