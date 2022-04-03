@@ -15,6 +15,7 @@ from sc2.player import Bot, Computer
 from src.pool12_allin import Pool12AllIn
 from src.lingflood import LingFlood
 from src.strategies.dummy import DummyStrategy
+from src.strategies.fast_lair import FastLair
 from src.strategies.muta import Muta
 from src.strategies.bane_bust import BaneBust
 from src.strategies.roach_ling_bust import RoachLingBust
@@ -63,7 +64,7 @@ def create_bot():
 
     # ai = QueenBot()
 
-    ai = ZergAI(strategy_cls=Muta)
+    ai = ZergAI(strategy_cls=FastLair)
     ai.debug = True
     ai.game_step = 4
 

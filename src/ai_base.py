@@ -962,14 +962,25 @@ class AIBase(ABC, BotAI):
                     #     continue
                     return b.position
                 raise PlacementNotFoundError()
-            elif self.townhalls.exists:
-                position = self.townhalls.closest_to(self.start_location).position
-                position = position.towards(self.game_info.map_center, 5.7)
-                if data:
-                    position = position.rounded
+            elif data:
+                for base in self.bases[::-1]:
+                    if not base.townhall:
+                        continue
+                    elif not base.townhall.is_ready:
+                        continue
+                    position = base.position.towards(self.game_info.map_center, -10)
                     offset = data.footprint_radius % 1
-                    position = position.offset((offset, offset))
-                return position
+                    position = position.rounded.offset((offset, offset))
+                    return position
+                raise PlacementNotFoundError()
+            # elif self.townhalls.exists:
+            #     position = self.townhalls.closest_to(self.start_location).position
+            #     position = position.towards(self.game_info.map_center, 5.7)
+            #     if data:
+            #         position = position.rounded
+            #         offset = data.footprint_radius % 1
+            #         position = position.offset((offset, offset))
+            #     return position
             else:
                 raise PlacementNotFoundError()
         else:

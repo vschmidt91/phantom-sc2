@@ -12,6 +12,7 @@ from sc2.unit import Unit
 from sc2.data import Race, race_townhalls
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
+from src.strategies.fast_lair import FastLair
 from src.strategies.muta import Muta
 
 from .unit_counters import UNIT_COUNTER_MATRIX
@@ -85,7 +86,10 @@ class ZergAI(AIBase):
     async def on_start(self):
 
         if not self.strategy_cls:
-            self.strategy_cls = HatchFirst
+            if self.enemy_race == Race.Terran:
+                self.strategy_cls = FastLair
+            else:
+                self.strategy_cls = HatchFirst
         self.strategy: ZergStrategy = self.strategy_cls(self)
 
         for step in self.strategy.build_order():
@@ -231,7 +235,7 @@ class ZergAI(AIBase):
         for i, base in enumerate(self.bases):
             targets: Dict[UnitTypeId, int] = dict()
             if self.build_spores:
-                targets[UnitTypeId.SPORECRAWLER] = 1
+                targets[UnitTypeId.SPORECRAWLER] = 2 if i == 1 else 1
                 # if self.enemy_race == Race.Terran:
                 #     targets[UnitTypeId.SPORECRAWLER] += 1
             if (

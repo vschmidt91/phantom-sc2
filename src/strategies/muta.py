@@ -16,7 +16,7 @@ class Muta(HatchFirst):
 
             for key in {
                 UnitTypeId.ROACH,
-                # UnitTypeId.ZERGLING,
+                UnitTypeId.ZERGLING,
                 UnitTypeId.RAVAGER,
                 UnitTypeId.ROACHWARREN,
                 UnitTypeId.HYDRALISK,
@@ -28,5 +28,6 @@ class Muta(HatchFirst):
 
             if 1 <= self.ai.count(UpgradeId.ZERGLINGMOVEMENTSPEED, include_planned=False):
                 self.ai.composition[UnitTypeId.LAIR] = 1
-                self.ai.composition[UnitTypeId.SPIRE] = 1
-                self.ai.composition[UnitTypeId.MUTALISK] = self.ai.composition[UnitTypeId.DRONE] // 2
+                
+                # self.ai.composition[UnitTypeId.SPIRE] = 1
+                # self.ai.composition[UnitTypeId.MUTALISK] = self.ai.composition[UnitTypeId.DRONE] // 2
