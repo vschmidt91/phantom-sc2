@@ -66,7 +66,7 @@ class ZergMacro(ZergStrategy):
                         break
 
         composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] // 7
-        composition[UnitTypeId.CORRUPTOR] = composition[UnitTypeId.BROODLORD] // 3
+        composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] // 3
 
         tech_up = 32 <= worker_count and 3 <= self.ai.townhalls.amount
 
