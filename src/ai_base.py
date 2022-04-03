@@ -127,6 +127,7 @@ class AIBase(ABC, BotAI):
         self.army_projection: np.ndarray = None
         self.enemy_projection: np.ndarray = None
         self.extractor_trick_enabled: bool = False
+        self.max_gas: bool = False
 
         super().__init__()
 
@@ -507,6 +508,9 @@ class AIBase(ABC, BotAI):
                     self.remove_macro_plan(plan)
 
     def get_gas_target(self) -> float:
+
+        if self.max_gas:
+            return sum(g.ideal_harvesters for g in self.gas_buildings.ready)
 
         cost_zero = Cost(0, 0, 0)
         cost_sum = sum((self.cost[plan.item] for plan in self.macro_plans), cost_zero)

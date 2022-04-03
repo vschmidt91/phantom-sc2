@@ -236,7 +236,7 @@ class ZergAI(AIBase):
             if (
                 1 <= i
                 and base.townhall
-                and self.build_spines
+                and self.build_spiness
                 # and 1 <= self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False)
                 # and self.block_manager.enemy_base_count <= 1
             ):
