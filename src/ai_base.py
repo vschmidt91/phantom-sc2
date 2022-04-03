@@ -1083,7 +1083,7 @@ class AIBase(ABC, BotAI):
         enemy_dps = np.copy(enemy_dps0)
 
         movement_speed = 3.5
-        t = 3.0
+        t = 5.0
         sigma = movement_speed * t
 
         army_health = transport(army_health0, sigma)
