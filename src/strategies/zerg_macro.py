@@ -95,6 +95,7 @@ class ZergMacro(ZergStrategy):
         elif upgrade == UpgradeId.OVERLORDSPEED:
             return 8 * 60 < self.ai.time
         elif upgrade in { UpgradeId.BURROW, UpgradeId.TUNNELINGCLAWS }:
-            return 10 * 60 < self.ai.time
+            # return 10 * 60 < self.ai.time
+            return False
         else:
             return super().filter_upgrade(upgrade)
