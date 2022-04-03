@@ -132,9 +132,9 @@ class ZergAI(AIBase):
         if iteration == 0:
             return
 
-        if 1 < self.time:
-            await self.chat.add_tag(self.version, False)
-            await self.chat.add_tag(self.strategy.name, False)
+        # if 1 < self.time:
+        #     await self.chat.add_tag(self.version, False)
+        #     await self.chat.add_tag(self.strategy.name, False)
 
         await super().on_step(iteration)
 
