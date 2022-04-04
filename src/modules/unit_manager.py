@@ -60,7 +60,9 @@ class UnitManager(AIModule):
         self.behaviors: Dict[int, UnitBehavior] = dict()
         self.targets: Dict[int, Unit] = dict()
         self.attack_paths: Dict[int, List[Point2]] = dict()
+        self.retreat_paths: Dict[int, List[Point2]] = dict()
         self.simulation_map: np.ndarray = np.zeros(self.ai.game_info.map_size)
+        self.path_modulus: int = 4
 
     def is_civilian(self, unit: Unit) -> bool:
         if unit.tag in self.drafted_civilians:
@@ -234,6 +236,8 @@ class UnitManager(AIModule):
 
         self.targets = dict()
         for unit in self.ai.enumerate_army():
+            if (unit.tag % self.path_modulus) != (self.ai.iteration % self.path_modulus):
+                continue
             target, priority = max(
                 ((t, self.target_priority(unit, t))
                 for t in self.ai.enumerate_enemies()),
@@ -241,9 +245,9 @@ class UnitManager(AIModule):
                 default = (None, 0))
             if priority <= 0:
                 continue
-            attack_path = self.get_path_towards(unit, target.position)
             self.targets[unit.tag] = target
-            self.attack_paths[unit.tag] = attack_path
+            self.attack_paths[unit.tag] = self.get_path_towards(unit, target.position)
+            self.retreat_paths[unit.tag] = self.get_path_towards(unit, unit.position.towards(target.position, -12))
 
         queens = sorted(
             self.ai.actual_by_type[UnitTypeId.QUEEN],

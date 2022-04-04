@@ -128,6 +128,7 @@ class AIBase(ABC, BotAI):
         self.enemy_projection: np.ndarray = None
         self.extractor_trick_enabled: bool = False
         self.max_gas: bool = False
+        self.iteration: int = 0
 
         super().__init__()
 
@@ -278,7 +279,9 @@ class AIBase(ABC, BotAI):
                 yield unit
 
     async def on_step(self, iteration: int):
-
+        
+        self.iteration = iteration
+        
         profiler = None
         if self.debug and iteration % 100 == 0:
             profiler = cProfile.Profile()

@@ -75,9 +75,10 @@ class FightBehavior(UnitBehavior):
             return BehaviorResult.SUCCESS
 
         attack_path = self.ai.unit_manager.attack_paths[unit.tag]
+        retreat_path = self.ai.unit_manager.retreat_paths[unit.tag]
 
         attack_point = attack_path[min(len(attack_path) - 1, 3)]
-        retreat_point = unit.position.towards(target.position, -12)
+        retreat_point = retreat_path[min(len(retreat_path) - 1, 3)]
 
         # advantage = self.get_advantage(unit, target)
         self.stance = self.get_stance(unit, target)
