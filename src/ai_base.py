@@ -90,7 +90,7 @@ class AIBase(ABC, BotAI):
         self.raw_affects_selection = True
 
         self.version: str = ''
-        self.game_step: int = 3
+        self.game_step: int = 2
         self.performance: PerformanceMode = PerformanceMode.DEFAULT
         self.debug: bool = False
         self.destroy_destructables: bool = False
@@ -114,6 +114,7 @@ class AIBase(ABC, BotAI):
         self.damage_taken: Dict[int] = dict()
         self.dodge: List[DodgeElement] = list()
         self.dodge_delayed: List[DodgeEffectDelayed] = list()
+        self.army: List[Unit] = list()
 
         self.threat_level: float = 0.0
         self.opponent_name: Optional[str] = None
@@ -271,13 +272,6 @@ class AIBase(ABC, BotAI):
             if self.time <= d.time_of_impact
         ]
 
-    def enumerate_army(self) -> Iterable[Unit]:
-        for unit in self.units:
-            if unit.type_id not in CIVILIANS:
-                yield unit
-            elif unit.tag in self.unit_manager.drafted_civilians:
-                yield unit
-
     async def on_step(self, iteration: int):
         
         self.iteration = iteration
@@ -295,7 +289,6 @@ class AIBase(ABC, BotAI):
         self.update_bases()
         self.update_gas()
         self.make_composition()
-        self.assess_threat_level()
         self.save_enemy_positions()
 
         await self.macro()
@@ -382,6 +375,12 @@ class AIBase(ABC, BotAI):
         return sum
 
     def update_tables(self):
+
+        self.army = [
+            unit
+            for unit in self.units
+            if unit.type_id not in CIVILIANS or unit.tag in self.unit_manager.drafted_civilians
+        ]
 
         enemies_remembered = self.enemies.copy()
         self.enemies = {
@@ -1067,13 +1066,18 @@ class AIBase(ABC, BotAI):
         enemy_health0 = np.ones(self.game_info.map_size)
         enemy_dps0 = np.ones(self.game_info.map_size)
 
-        for unit in self.enumerate_army():
+        value_army = 0.0
+        value_enemy_threats = 0.0
+
+        for unit in self.army:
         # for unit in self.all_own_units:
+            value_army += self.get_unit_value(unit)
             army_health0[unit.position.rounded] += unit.health + unit.shield
             army_dps0 = add_unit_to_map(army_dps0, unit)
 
         for unit in self.enemies.values():
         # for unit in self.all_enemy_units:
+            value_enemy_threats += 2 * (1 - self.map_data.distance[unit.position.rounded]) * self.get_unit_value(unit)
             enemy_health0[unit.position.rounded] += unit.health + unit.shield
             enemy_dps0 = add_unit_to_map(enemy_dps0, unit)
 
@@ -1154,15 +1158,7 @@ class AIBase(ABC, BotAI):
         self.army_projection = np.sqrt(army_health * army_dps)
         self.enemy_projection = np.sqrt(enemy_health * enemy_dps)
 
-
-    def assess_threat_level(self):
-        
-        value_self = sum(self.get_unit_value(u) for u in self.enumerate_army())
-        # value_self += sum(len(self.pending_by_type[t]) * self.get_unit_value(t) for t in self.composition)
-        # value_enemy = sum(self.get_unit_value(e) for e in self.enemies.values())
-        value_enemy_threats = 2 * sum(self.get_unit_value(e) * (1 - self.map_data.distance[e.position.rounded]) for e in self.enemies.values())
-
-        self.threat_level = value_enemy_threats / max(1, value_self + value_enemy_threats)
+        self.threat_level = value_enemy_threats / max(1, value_army + value_enemy_threats)
 
     def can_afford_with_reserve(self, cost: Cost, reserve: Cost) -> bool:
         if max(0, self.minerals - reserve.minerals) < cost.minerals:

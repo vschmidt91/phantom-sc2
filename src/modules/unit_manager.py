@@ -235,7 +235,7 @@ class UnitManager(AIModule):
         }
 
         self.targets = dict()
-        for unit in self.ai.enumerate_army():
+        for unit in self.ai.army:
             if (unit.tag % self.path_modulus) != (self.ai.iteration % self.path_modulus):
                 continue
             target, priority = max(
