@@ -1039,6 +1039,8 @@ class AIBase(ABC, BotAI):
 
         def add_unit_to_map(map: np.ndarray, unit: Unit) -> np.ndarray:
             radius = unit.radius + max(unit.ground_range, unit.air_range)
+            if radius == 0:
+                return radius
             dps = max(unit.ground_dps, unit.air_dps)
             weight = dps / (math.pi * radius**2)
             # if weight < 1:
