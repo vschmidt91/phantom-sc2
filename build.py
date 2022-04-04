@@ -31,6 +31,16 @@ BOTS: List[BotPackage] = [
         'MapAnalyzer\\',
         'data\\'
     ]),
+    BotPackage('PhantomBot', 'Zerg', 'src.zerg', 'ZergAI',
+    [
+        'ladder.py',
+        'requirements.txt',
+        VERSION_PATH,
+        'src\\',
+        'sc2\\',
+        'MapAnalyzer\\',
+        'data\\'
+    ]),
     BotPackage('12PoolBot', 'Zerg', 'src.pool12_allin', 'Pool12AllIn',
     [
         'ladder.py',

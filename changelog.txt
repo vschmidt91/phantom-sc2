@@ -1,0 +1,13 @@
+CHANGELOG
+
+Submission 2
+------------
+
+- rush openers have been disabled ... for now ;)
+- experimental new micro/decision making
+- improved mineral/gas balancing
+- reactive macro: always get tech, units only as needed
+- adaptive composition: mix of Ling/Roach/Hydra based on enemy units
+- re-enable old Ravager code
+- MORE DRONES
+- let's have a game with Broodlords maybe?

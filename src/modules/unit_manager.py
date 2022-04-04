@@ -167,11 +167,11 @@ class UnitManager(AIModule):
         
         if (
             0 == self.ai.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False)
-            and 1 == self.ai.threat_level
+            and 2/3 < self.ai.threat_level
         ):
             if worker := self.ai.bases.try_remove_any():
                 self.drafted_civilians.add(worker)
-        elif self.ai.threat_level < 3/5:
+        elif self.ai.threat_level < 1/2:
             if self.drafted_civilians:
                 worker = min(self.drafted_civilians, key = lambda tag : self.ai.unit_by_tag[tag].shield_health_percentage, default = None)
                 self.drafted_civilians.remove(worker)

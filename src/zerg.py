@@ -86,10 +86,11 @@ class ZergAI(AIBase):
     async def on_start(self):
 
         if not self.strategy_cls:
-            if self.enemy_race == Race.Terran:
-                self.strategy_cls = FastLair
-            else:
-                self.strategy_cls = HatchFirst
+            # if self.enemy_race == Race.Terran:
+            #     self.strategy_cls = FastLair
+            # else:
+            #     self.strategy_cls = HatchFirst
+            self.strategy_cls = HatchFirst
         self.strategy: ZergStrategy = self.strategy_cls(self)
 
         for step in self.strategy.build_order():
@@ -132,9 +133,9 @@ class ZergAI(AIBase):
         if iteration == 0:
             return
 
-        # if 1 < self.time:
-        #     await self.chat.add_tag(self.version, False)
-        #     await self.chat.add_tag(self.strategy.name, False)
+        if 1 < self.time:
+            await self.chat.add_tag(self.version, False)
+            await self.chat.add_tag(self.strategy.name, False)
 
         await super().on_step(iteration)
 
