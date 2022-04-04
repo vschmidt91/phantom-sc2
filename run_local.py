@@ -49,7 +49,7 @@ RACES = [
 ]
 
 BUILDS = [
-    AIBuild.Rush,
+    # AIBuild.Rush,
     # AIBuild.Timing,
     # AIBuild.Power,
     AIBuild.Macro,
@@ -64,7 +64,7 @@ def create_bot():
 
     # ai = QueenBot()
 
-    ai = ZergAI(strategy_cls=FastLair)
+    ai = ZergAI(strategy_cls=HatchFirst)
     ai.debug = False
     ai.game_step = 8
 

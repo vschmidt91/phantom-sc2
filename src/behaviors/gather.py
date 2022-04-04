@@ -1,4 +1,5 @@
 from __future__ import annotations
+from sre_constants import SUCCESS
 from typing import Optional, Set, Union, Iterable, Tuple, TYPE_CHECKING
 import numpy as np
 import random
@@ -79,7 +80,9 @@ class GatherBehavior(UnitBehavior):
         else:
                 
             if unit.is_carrying_resource:
-                if not unit.is_returning:
+                if not self.ai.townhalls.exists:
+                    return BehaviorResult.SUCCESS
+                elif not unit.is_returning:
                     unit.return_resource()
             elif unit.is_gathering:
                 if unit.order_target != target.tag:
