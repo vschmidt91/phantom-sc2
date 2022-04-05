@@ -301,7 +301,8 @@ class AIBase(ABC, BotAI):
             profiler.disable()
             stats = pstats.Stats(profiler)
             stats.strip_dirs().sort_stats(pstats.SortKey.TIME).print_stats(32)
-            stats.dump_stats(filename='profiling.prof')
+            if self.debug:
+                stats.dump_stats(filename='profiling.prof')
 
         if self.debug:
             await self.draw_debug()
