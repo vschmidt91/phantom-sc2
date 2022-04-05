@@ -62,7 +62,7 @@ class UnitManager(AIModule):
         self.attack_paths: Dict[int, List[Point2]] = dict()
         self.retreat_paths: Dict[int, List[Point2]] = dict()
         self.simulation_map: np.ndarray = np.zeros(self.ai.game_info.map_size)
-        self.path_modulus: int = 10
+        self.path_modulus: int = 4
 
     def is_civilian(self, unit: Unit) -> bool:
         if unit.tag in self.drafted_civilians:

@@ -90,7 +90,7 @@ class AIBase(ABC, BotAI):
         self.raw_affects_selection = True
 
         self.version: str = ''
-        self.game_step: int = 4
+        self.game_step: int = 2
         self.performance: PerformanceMode = PerformanceMode.DEFAULT
         self.debug: bool = False
         self.destroy_destructables: bool = False
@@ -277,7 +277,7 @@ class AIBase(ABC, BotAI):
         self.iteration = iteration
         
         profiler = None
-        if self.debug and iteration % 100 == 0:
+        if iteration % 100 == 0:
             profiler = cProfile.Profile()
             profiler.enable()
 
@@ -297,9 +297,10 @@ class AIBase(ABC, BotAI):
             await module.on_step()
 
         if profiler:
+            print(f'Iteration {iteration}')
             profiler.disable()
             stats = pstats.Stats(profiler)
-            stats.sort_stats(pstats.SortKey.TIME)
+            stats.strip_dirs().sort_stats(pstats.SortKey.TIME).print_stats(32)
             stats.dump_stats(filename='profiling.prof')
 
         if self.debug:
@@ -1054,7 +1055,7 @@ class AIBase(ABC, BotAI):
                 weight = weight)
 
         def transport(map: np.ndarray, sigma: float) -> np.ndarray:
-            map = gaussian_filter(map, sigma=sigma, truncate=4)
+            map = gaussian_filter(map, sigma=sigma, truncate=2)
             # map = map * np.transpose(self.game_info.pathing_grid.data_numpy)
             return map
 
@@ -1092,7 +1093,7 @@ class AIBase(ABC, BotAI):
         enemy_dps = np.copy(enemy_dps0)
 
         movement_speed = 3.5
-        t = 4.0
+        t = 3.0
         sigma = movement_speed * t
 
         army_health = transport(army_health0, sigma)
