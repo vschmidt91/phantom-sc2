@@ -18,6 +18,7 @@ from src.strategies.dummy import DummyStrategy
 from src.strategies.fast_lair import FastLair
 from src.strategies.muta import Muta
 from src.strategies.bane_bust import BaneBust
+from src.strategies.pool_first import PoolFirst
 from src.strategies.roach_ling_bust import RoachLingBust
 from src.strategies.hatch_first import HatchFirst
 from src.strategies.pool12 import Pool12
@@ -64,18 +65,18 @@ def create_bot():
 
     # ai = QueenBot()
 
-    ai = ZergAI(strategy_cls=HatchFirst)
+    ai = ZergAI(strategy_cls=PoolFirst)
     ai.debug = True
-    ai.game_step = 8
+    ai.game_step = 2
 
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:
     # return [Bot(Race.Zerg, DummyAI())]
-    # yield Bot(Race.Zerg, Pool12AllIn())
-    for race in RACES:
-        for build in BUILDS:
-            yield Computer(race, difficulty, ai_build=build)
+    yield Bot(Race.Zerg, Pool12AllIn())
+    # for race in RACES:
+    #     for build in BUILDS:
+    #         yield Computer(race, difficulty, ai_build=build)
 
 if __name__ == "__main__":
 
