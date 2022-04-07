@@ -1056,7 +1056,7 @@ class AIBase(ABC, BotAI):
                 weight = weight)
 
         def transport(map: np.ndarray, sigma: float) -> np.ndarray:
-            map = gaussian_filter(map, sigma=sigma, truncate=2)
+            map = gaussian_filter(map, sigma=sigma, truncate=4)
             # map = map * np.transpose(self.game_info.pathing_grid.data_numpy)
             return map
 
