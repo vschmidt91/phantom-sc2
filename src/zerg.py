@@ -14,6 +14,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from src.strategies.fast_lair import FastLair
 from src.strategies.muta import Muta
+from src.strategies.pool_first import PoolFirst
 
 from .unit_counters import UNIT_COUNTER_MATRIX
 from .strategies.hatch_first import HatchFirst

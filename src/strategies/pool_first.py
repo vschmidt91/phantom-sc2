@@ -22,11 +22,18 @@ class PoolFirst(ZergMacro):
             UnitTypeId.SPAWNINGPOOL,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
-            UnitTypeId.EXTRACTOR,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             MacroPlan(UnitTypeId.HATCHERY, max_distance=0),
             UnitTypeId.QUEEN,
-            UnitTypeId.ZERGLING,
-            UnitTypeId.ZERGLING,
+            # UnitTypeId.ZERGLING,
+            # UnitTypeId.ZERGLING,
         ]
+
+    def update(self) -> None:
+        # if (
+        #     self.ai.supply_used == 14
+        #     and self.ai.count(UnitTypeId.EXTRACTOR, include_planned=False) < 1
+        # ):
+        #     self.ai.extractor_trick_enabled = True
+        return super().update()
