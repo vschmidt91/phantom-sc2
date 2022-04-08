@@ -26,8 +26,8 @@ class PoolFirst(ZergMacro):
             UnitTypeId.DRONE,
             MacroPlan(UnitTypeId.HATCHERY, max_distance=0),
             UnitTypeId.QUEEN,
-            # UnitTypeId.ZERGLING,
-            # UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
+            UnitTypeId.ZERGLING,
         ]
 
     def update(self) -> None:

@@ -45,6 +45,7 @@ from sc2.data import Result, race_townhalls, race_worker, ActionResult
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.units import Units
+from src.techtree import TechTree
 
 from .modules.chat import Chat
 from .modules.module import AIModule
@@ -130,6 +131,7 @@ class AIBase(ABC, BotAI):
         self.extractor_trick_enabled: bool = False
         self.max_gas: bool = False
         self.iteration: int = 0
+        self.techtree: TechTree = TechTree('data/techtree.json')
 
         super().__init__()
 
@@ -258,11 +260,19 @@ class AIBase(ABC, BotAI):
         }
         for action in self.state.actions_unit_commands:
             if item := ITEM_BY_ABILITY.get(action.exact_id):
-                for unit_tag in action.unit_tags:
-                    if plan := plan_by_unit.get(unit_tag):
-                        if plan.item == item:
-                            self.remove_macro_plan(plan)
-            #     self.remove_macro_plan_by_item(item)
+                # for unit_tag in action.unit_tags:
+                #     if plan := plan_by_unit.get(unit_tag):
+                #         if plan.item == item:
+                #             self.remove_macro_plan(plan)
+                self.remove_macro_plan_by_item(item)
+
+    def remove_macro_plan_by_item(self, item):
+        for i in range(len(self.macro_plans)):
+            plan = self.macro_plans[i]
+            if plan.item == item:
+                del self.macro_plans[i]
+                self.planned_by_type[plan.item].remove(plan)
+                return
 
     def handle_delayed_effects(self):
 
