@@ -18,6 +18,7 @@ import numpy as np
 import os
 import json
 import MapAnalyzer
+import skimage.draw
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter
 
@@ -1051,19 +1052,15 @@ class AIBase(ABC, BotAI):
 
         # EXPERIMENTAL FIGHTING
 
-        def add_unit_to_map(map: np.ndarray, unit: Unit) -> np.ndarray:
+        def add_unit_to_map(map: np.ndarray, unit: Unit) -> None:
             radius = unit.radius + max(unit.ground_range, unit.air_range)
             if radius == 0:
                 return map
             dps = max(unit.ground_dps, unit.air_dps)
             weight = dps / (math.pi * radius**2)
-            # if weight < 1:
-            #     return map
-            return self.map_analyzer.add_cost(
-                position = unit.position,
-                radius = radius,
-                grid = map,
-                weight = weight)
+            
+            disk = skimage.draw.disk(unit.position, radius)
+            map[disk] += weight
 
         def transport(map: np.ndarray, sigma: float) -> np.ndarray:
             map = gaussian_filter(map, sigma=sigma, truncate=3)
@@ -1073,10 +1070,10 @@ class AIBase(ABC, BotAI):
         def remove_border(map: np.ndarray) -> np.ndarray:
             return np.where(map==np.inf,0,map)
 
-        army_health0 = np.ones(self.game_info.map_size)
-        army_dps0 = np.ones(self.game_info.map_size)
-        enemy_health0 = np.ones(self.game_info.map_size)
-        enemy_dps0 = np.ones(self.game_info.map_size)
+        army_health0 = np.zeros(self.game_info.map_size)
+        army_dps0 = np.zeros(self.game_info.map_size)
+        enemy_health0 = np.zeros(self.game_info.map_size)
+        enemy_dps0 = np.zeros(self.game_info.map_size)
 
         value_army = 0.0
         value_enemy_threats = 0.0
@@ -1085,18 +1082,13 @@ class AIBase(ABC, BotAI):
         # for unit in self.all_own_units:
             value_army += self.get_unit_value(unit)
             army_health0[unit.position.rounded] += unit.health + unit.shield
-            army_dps0 = add_unit_to_map(army_dps0, unit)
+            add_unit_to_map(army_dps0, unit)
 
         for unit in self.enemies.values():
         # for unit in self.all_enemy_units:
             value_enemy_threats += 2 * (1 - self.map_data.distance[unit.position.rounded]) * self.get_unit_value(unit)
             enemy_health0[unit.position.rounded] += unit.health + unit.shield
-            enemy_dps0 = add_unit_to_map(enemy_dps0, unit)
-
-        army_health0 -= 1
-        army_dps0 -= 1
-        enemy_health0 -= 1
-        enemy_dps0 -= 1
+            add_unit_to_map(enemy_dps0, unit)
 
         army_health = np.copy(army_health0)
         army_dps = np.copy(army_dps0)
