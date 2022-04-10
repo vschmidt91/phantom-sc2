@@ -1057,7 +1057,7 @@ class AIBase(ABC, BotAI):
             if radius == 0:
                 return map
             dps = max(unit.ground_dps, unit.air_dps)
-            weight = dps / (math.pi * radius**2)
+            weight = (unit.health + unit.shield) * dps / (math.pi * radius**2)
             
             disk = skimage.draw.disk(unit.position, radius)
             map[disk] += weight
@@ -1070,10 +1070,8 @@ class AIBase(ABC, BotAI):
         def remove_border(map: np.ndarray) -> np.ndarray:
             return np.where(map==np.inf,0,map)
 
-        army_health0 = np.zeros(self.game_info.map_size)
-        army_dps0 = np.zeros(self.game_info.map_size)
-        enemy_health0 = np.zeros(self.game_info.map_size)
-        enemy_dps0 = np.zeros(self.game_info.map_size)
+        army0 = np.zeros(self.game_info.map_size)
+        enemy0 = np.zeros(self.game_info.map_size)
 
         value_army = 0.0
         value_enemy_threats = 0.0
@@ -1081,34 +1079,24 @@ class AIBase(ABC, BotAI):
         for unit in self.army:
         # for unit in self.all_own_units:
             value_army += self.get_unit_value(unit)
-            army_health0[unit.position.rounded] += unit.health + unit.shield
-            add_unit_to_map(army_dps0, unit)
+            # army_health0[unit.position.rounded] += unit.health + unit.shield
+            add_unit_to_map(army0, unit)
 
         for unit in self.enemies.values():
         # for unit in self.all_enemy_units:
             value_enemy_threats += 2 * (1 - self.map_data.distance[unit.position.rounded]) * self.get_unit_value(unit)
-            enemy_health0[unit.position.rounded] += unit.health + unit.shield
-            add_unit_to_map(enemy_dps0, unit)
-
-        army_health = np.copy(army_health0)
-        army_dps = np.copy(army_dps0)
-        enemy_health = np.copy(enemy_health0)
-        enemy_dps = np.copy(enemy_dps0)
+            # enemy_health0[unit.position.rounded] += unit.health + unit.shield
+            add_unit_to_map(enemy0, unit)
 
         movement_speed = 3.5
         t = 3.0
         sigma = movement_speed * t
 
-        army_health = transport(army_health0, sigma)
-        army_dps = transport(army_dps0, sigma)
-        enemy_health = transport(enemy_health0, sigma)
-        enemy_dps = transport(enemy_dps0, sigma)
+        army = transport(army0, sigma)
+        enemy = transport(enemy0, sigma)
 
-        # army_dps = (army_dps + army_dps0) / 2
-        # enemy_dps = (enemy_dps + enemy_dps0) / 2
-
-        army_health = np.maximum(0, army_health - t * enemy_dps)
-        enemy_health = np.maximum(0, enemy_health - t * army_dps)
+        army_health = np.maximum(0, army - t * enemy)
+        enemy_health = np.maximum(0, enemy - t * army)
 
 
         # movement_speed = 3.5
@@ -1159,8 +1147,8 @@ class AIBase(ABC, BotAI):
                 
         #     self.plot.canvas.flush_events()
 
-        self.army_projection = np.sqrt(army_health * army_dps)
-        self.enemy_projection = np.sqrt(enemy_health * enemy_dps)
+        self.army_projection = army
+        self.enemy_projection = enemy
 
         self.threat_level = value_enemy_threats / max(1, value_army + value_enemy_threats)
 
