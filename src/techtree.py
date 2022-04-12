@@ -4,7 +4,7 @@ from enum import Enum, Flag, auto
 import json
 from dataclasses import dataclass
 from typing import List, Set, Union, Optional, Dict
-from functools import reduce
+from sc2.data import Race, Attribute
 
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -46,20 +46,9 @@ class TechTreeAbility:
     cooldown: int
     target: Union[TechTreeAbilityTarget, TechTreeAbilityTargetResearch, TechTreeAbilityTargetUnit]
 
-class TechTreeUnitAttribute(Flag):
-    Mechanical = auto()
-    Biological = auto()
-    Massive = auto()
-    Armored = auto()
-    Structure = auto()
-    Light = auto()
-    Psionic = auto()
-    Heroic = auto()
-    Summoned = auto()
-
 @dataclass
 class TechTreeWeaponBonus:
-    against: TechTreeUnitAttribute
+    against: Attribute
     damage: float
 
 class TechTreeWeaponType(Flag):
@@ -81,14 +70,14 @@ class TechTreeWeapon:
 class TechTreeUnit:
     id: UnitTypeId
     name: str
-    race: str
+    race: Race
     supply: float
     max_health: float
     armor: float
     sight: float
     speed_creep_mul: float
     weapons: List
-    attributes: List[TechTreeUnitAttribute]
+    attributes: List[Attribute]
     abilities: Set[AbilityId]
     size: int
     accepts_addon: bool
@@ -155,10 +144,8 @@ class TechTree:
         for item in data['Unit']:
 
             item['id'] = UnitTypeId(item['id'])
-
-            attributes = [TechTreeUnitAttribute[a] for a in item['attributes']]
-            item['attributes'] = reduce(lambda a, b: a | b, attributes, TechTreeUnitAttribute(0))
-            
+            item['race'] = Race[item['race']]
+            item['attributes'] = [Attribute[a] for a in item['attributes']]
             item['abilities'] = {AbilityId(a['ability']) for a in item['abilities']}
 
             weapons = []
@@ -166,7 +153,7 @@ class TechTree:
                 weapon['target_type'] = TechTreeWeaponType[weapon['target_type']]
                 bonuses = []
                 for bonus in weapon['bonuses']:
-                    bonus['against'] = TechTreeUnitAttribute[bonus['against']]
+                    bonus['against'] = Attribute[bonus['against']]
                     bonuses.append(TechTreeWeaponBonus(**bonus))
                 weapon['bonuses'] = bonuses
                 weapons.append(TechTreeWeapon(**weapon))

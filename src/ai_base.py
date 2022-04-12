@@ -288,7 +288,7 @@ class AIBase(ABC, BotAI):
         self.iteration = iteration
         
         profiler = None
-        if iteration % 100 == 0:
+        if iteration % 1000 == 0:
             profiler = cProfile.Profile()
             profiler.enable()
 
@@ -311,7 +311,7 @@ class AIBase(ABC, BotAI):
             print(f'Iteration {iteration}')
             profiler.disable()
             stats = pstats.Stats(profiler)
-            stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE).print_stats(100)
+            stats.strip_dirs().sort_stats(pstats.SortKey.TIME).print_stats(32)
             if self.debug:
                 stats.dump_stats(filename='profiling.prof')
 
