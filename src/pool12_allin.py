@@ -91,6 +91,7 @@ class Pool12AllIn(BotAI):
 
         if 100 < self.time and AbilityId.RESEARCH_ZERGLINGMETABOLICBOOST not in self.abilities and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
             await self.add_tag('latespeed')
+            print(self.gas_harvesters, self.workers.tags)
 
         self.resource_by_tag = { unit.tag: unit for unit in chain(self.mineral_field, self.gas_buildings) }
         for structure in self.structures:
