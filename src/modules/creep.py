@@ -65,7 +65,6 @@ class Creep(AIModule):
             elif 1 < self.ai.enemy_vs_ground_map[unit.position.rounded]:
                 return BehaviorResult.SUCCESS
             elif unit.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
-            # elif AbilityId.BUILD_CREEPTUMOR_QUEEN not in self.ai.abilities[unit.tag]:
                 return BehaviorResult.SUCCESS
             elif AbilityId.BUILD_CREEPTUMOR_QUEEN in { o.ability.exact_id for o in unit.orders }:
                 return BehaviorResult.ONGOING

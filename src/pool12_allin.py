@@ -40,7 +40,6 @@ class Pool12AllIn(BotAI):
     def __init__(self) -> None:
         self.pool_drone: Optional[Unit] = None
         self.tags: Set[str] = set()
-        self.gas_harvesters: Set[int] = set()
         self.gas_harvester_target: int = 2
         self.game_step: int = 2
         self.speedmining_enabled: bool = True
@@ -88,10 +87,6 @@ class Pool12AllIn(BotAI):
         self.spire: Optional[Unit] = None
         self.abilities: Counter[AbilityId] = Counter(o.ability.exact_id for u in self.all_own_units for o in u.orders)
         self.invisible_enemy_start_locations: List[Point2] = [p for p in self.enemy_start_locations if not self.is_visible(p)]
-
-        if 100 < self.time and AbilityId.RESEARCH_ZERGLINGMETABOLICBOOST not in self.abilities and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
-            await self.add_tag('latespeed')
-            print(self.gas_harvesters, self.workers.tags)
 
         self.resource_by_tag = { unit.tag: unit for unit in chain(self.mineral_field, self.gas_buildings) }
         for structure in self.structures:
@@ -179,10 +174,10 @@ class Pool12AllIn(BotAI):
         if not unit.is_ready and unit.health_percentage < 0.1:
             unit(AbilityId.CANCEL)
         elif unit.is_vespene_geyser:
-            if unit.is_ready and len(self.gas_harvesters) < self.gas_harvester_target:
-                self.transfer_to_gas.extend(unit for _ in range(len(self.gas_harvesters), self.gas_harvester_target))
-            elif self.gas_harvester_target < len(self.gas_harvesters):
-                self.transfer_from_gas.extend(unit for _ in range(self.gas_harvester_target, len(self.gas_harvesters)))
+            if unit.is_ready and unit.assigned_harvesters + 1 < self.gas_harvester_target:
+                self.transfer_to_gas.extend(unit for _ in range(unit.assigned_harvesters + 1, self.gas_harvester_target))
+            elif self.gas_harvester_target < unit.assigned_harvesters:
+                self.transfer_from_gas.extend(unit for _ in range(self.gas_harvester_target, unit.assigned_harvesters))
         elif unit.type_id == UnitTypeId.HATCHERY:
             if unit.is_ready:
                 if unit.is_idle:
@@ -208,14 +203,12 @@ class Pool12AllIn(BotAI):
             patch = self.mineral_field.closest_to(self.transfer_to.pop(0))
             self.transfer_from.pop(0)
             unit.gather(patch)
-        elif any(self.transfer_from_gas) and unit.tag in self.gas_harvesters and not unit.is_carrying_resource:
+        elif any(self.transfer_from_gas) and unit.order_target in self.gas_buildings.tags and not unit.is_carrying_resource:
             unit.stop()
             self.transfer_from_gas.pop(0)
-            self.gas_harvesters.remove(unit.tag)
-        elif any(self.transfer_to_gas) and unit.tag not in self.gas_harvesters and not unit.is_carrying_resource and len(unit.orders) < 2 and unit.order_target not in self.close_minerals:
+        elif any(self.transfer_to_gas) and not unit.is_carrying_resource and len(unit.orders) < 2 and unit.order_target not in self.close_minerals:
             unit.gather(self.transfer_to_gas.pop(0))
-            self.gas_harvesters.add(unit.tag)
-        elif not unit.is_carrying_resource and len(unit.orders) == 1 and unit.order_target not in self.close_minerals and unit.tag not in self.gas_harvesters:
+        elif not unit.is_carrying_resource and len(unit.orders) == 1 and unit.order_target not in self.close_minerals:
             self.drone = unit
         if self.speedmining_enabled and len(unit.orders) == 1:
             target = None

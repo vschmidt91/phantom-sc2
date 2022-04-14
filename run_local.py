@@ -69,6 +69,8 @@ def create_bot():
     ai.debug = False
     ai.game_step = 2
 
+    # ai = Pool12AllIn()
+
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:
