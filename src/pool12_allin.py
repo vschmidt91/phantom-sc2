@@ -157,7 +157,7 @@ class Pool12AllIn(BotAI):
         queen_missing = self.townhalls.amount - (len(self.inject_queens) + self.abilities[AbilityId.TRAINQUEEN_QUEEN])
         if self.larva and 1 <= self.supply_left:
             max_pending_drones = self.townhalls.amount
-            if self.supply_workers < drone_max and mineral_starved and self.abilities[AbilityId.LARVATRAIN_DRONE] < max_pending_drones:
+            if self.state.score.food_used_economy < drone_max and mineral_starved and self.abilities[AbilityId.LARVATRAIN_DRONE] < max_pending_drones:
                 self.train(UnitTypeId.DRONE, max_pending_drones - self.abilities[AbilityId.LARVATRAIN_DRONE])
             if build_army:
                 self.train(self.army_type, self.larva.amount)

@@ -377,7 +377,7 @@ class AIBase(ABC, BotAI):
         sum = 0
         if include_actual:
             if item in WORKERS:
-                sum += self.supply_workers_fixed
+                sum += self.state.score.food_used_economy
             else:
                 sum += len(self.actual_by_type[item])
         if include_pending:
@@ -451,10 +451,6 @@ class AIBase(ABC, BotAI):
 
         for upgrade in self.state.upgrades:
             self.actual_by_type[upgrade].add(upgrade)
-
-    @property
-    def supply_workers_fixed(self) -> int:
-        return self.supply_used - self.supply_army
         
     @property
     def gas_harvesters(self) -> Iterable[int]:
