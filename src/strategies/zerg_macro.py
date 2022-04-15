@@ -62,7 +62,7 @@ class ZergMacro(ZergStrategy):
                     if can_build[t]:
                         count = self.ai.get_unit_cost(enemy.type_id) / self.ai.get_unit_cost(t)
                         # composition[t] += (ratio + 1 - self.ai.map_data.distance[enemy.position.rounded]) * count
-                        composition[t] += 2.5 * ratio * count
+                        composition[t] += 3 * ratio * count
                         break
 
         composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] // 7
