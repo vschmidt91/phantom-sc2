@@ -91,7 +91,7 @@ class ZergAI(AIBase):
             #     self.strategy_cls = FastLair
             # else:
             #     self.strategy_cls = HatchFirst
-            self.strategy_cls = PoolFirst
+            self.strategy_cls = HatchFirst
         self.strategy: ZergStrategy = self.strategy_cls(self)
 
         for step in self.strategy.build_order():
