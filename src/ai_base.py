@@ -96,6 +96,7 @@ class AIBase(ABC, BotAI):
         self.performance: PerformanceMode = PerformanceMode.DEFAULT
         self.debug: bool = False
         self.destroy_destructables: bool = False
+        self.unit_command_uses_self_do = True
 
         self.macro_plans: List[MacroPlan] = list()
         self.composition: Dict[UnitTypeId, int] = dict()

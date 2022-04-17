@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Set
+from typing import TYPE_CHECKING, Dict, Optional, Set
 
 import random
 import math
@@ -8,12 +8,12 @@ import numpy as np
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
-from sc2.unit import Unit
+from sc2.unit import Unit, UnitCommand
 from sc2.position import Point2
+from src.behaviors.behavior import Behavior
 from src.constants import COOLDOWN, ENERGY_COST
 
 from .module import AIModule
-from ..behaviors.behavior import BehaviorResult
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
@@ -35,45 +35,41 @@ class Creep(AIModule):
 
     async def on_step(self) -> None:
 
-        # for action in self.ai.state.actions_unit_commands:
-        #     if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
-        #         for tag in action.unit_tags:
-        #             del self.tumor_front[tag]
-
         self.coverage = np.sum(self.ai.state.creep.data_numpy) / self.tile_count
-        for tag, step in list(self.tumor_front.items()):
-            age = self.ai.state.game_loop - step
-            if age < 240:
-                continue
-            elif unit := self.ai.unit_by_tag.get(tag):
-                self.spread(unit)
-            else:
-                del self.tumor_front[tag]
+    
+class SpreadCreep(Behavior):
 
-    def spread(self, unit: Unit) -> BehaviorResult:
+    def __init__(self, ai: AIBase, unit_tag: int):
+        super().__init__(ai, unit_tag)
+        self.creation_step = self.ai.state.game_loop
+
+    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
 
         a = self.ai.game_info.playable_area
 
-        if .95 < self.coverage:
-            return BehaviorResult.SUCCESS
+        if .99 < self.coverage:
+            return None
 
         if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
-            pass
+            age = self.ai.state.game_loop - self.creation_step
+            if age < 240:
+                return None
         elif unit.type_id == UnitTypeId.QUEEN:
             if 10 <= len(self.tumor_front):
-                return BehaviorResult.SUCCESS
+                return None
             elif 1 < self.ai.enemy_vs_ground_map[unit.position.rounded]:
-                return BehaviorResult.SUCCESS
+                return None
             elif unit.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
-                return BehaviorResult.SUCCESS
+                return None
             elif AbilityId.BUILD_CREEPTUMOR_QUEEN in { o.ability.exact_id for o in unit.orders }:
-                return BehaviorResult.ONGOING
+                return unit.orders[0]
             elif not self.ai.has_creep(unit.position) and self.ai.townhalls.ready:
-                if not unit.is_moving:
-                    unit.move(self.ai.townhalls.ready.closest_to(unit)) 
-                return BehaviorResult.ONGOING
+                if unit.is_moving:
+                    return unit.orders[0]
+                else:
+                    return unit.move(self.ai.townhalls.ready.closest_to(unit)) 
         else:
-            return BehaviorResult.SUCCESS
+            return None
 
         start_position = unit.position
         if unit.type_id == UnitTypeId.QUEEN:
@@ -96,7 +92,7 @@ class Creep(AIModule):
             break
 
         if not target:
-            return BehaviorResult.SUCCESS
+            return None
 
         if unit.type_id == UnitTypeId.QUEEN:
             max_range = 3 * TUMOR_RANGE
@@ -114,9 +110,10 @@ class Creep(AIModule):
                 continue
             if self.ai.blocked_base(position):
                 continue
-            unit.build(UnitTypeId.CREEPTUMOR, position)
-            # self.ai.client.game_step = 1
-            self.tumor_front.pop(unit.tag, None)
-            return BehaviorResult.ONGOING
 
-        return BehaviorResult.SUCCESS
+            if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
+                del self.ai.unit_manager.behaviors[unit.tag]
+
+            return unit.build(UnitTypeId.CREEPTUMOR, position)
+
+        return super().execute

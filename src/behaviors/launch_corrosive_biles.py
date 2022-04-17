@@ -14,12 +14,12 @@ from abc import ABC, abstractmethod
 
 from ..utils import *
 from ..constants import *
-from .behavior import Behavior, BehaviorResult, UnitBehavior
+from .behavior import Behavior
 from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class LaunchCorrosiveBilesBehavior(UnitBehavior):
+class LaunchCorrosiveBilesBehavior(Behavior):
 
     ABILITY = AbilityId.EFFECT_CORROSIVEBILE
 
@@ -41,16 +41,16 @@ class LaunchCorrosiveBilesBehavior(UnitBehavior):
         priority /= 2 + target.movement_speed
         return priority
 
-    def execute_single(self, unit: Unit) -> BehaviorResult:
+    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
 
         if unit.type_id is not UnitTypeId.RAVAGER:
-            return BehaviorResult.SUCCESS
+            return None
 
-        if self.ABILITY in { o.ability.exact_id for o in unit.orders }:
-            return BehaviorResult.ONGOING
+        # if self.ABILITY in { o.ability.exact_id for o in unit.orders }:
+        #     return BehaviorResult.ONGOING
 
         if self.ai.state.game_loop < self.last_used + COOLDOWN[AbilityId.EFFECT_CORROSIVEBILE]:
-            return BehaviorResult.SUCCESS
+            return None
 
         targets = (
             target
@@ -61,13 +61,12 @@ class LaunchCorrosiveBilesBehavior(UnitBehavior):
             default = None
         )
         if not target:
-            return BehaviorResult.SUCCESS
+            return None
         if self.target_priority(unit, target) <= 0:
-            return BehaviorResult.SUCCESS
+            return None
         velocity = self.ai.estimate_enemy_velocity(target)
         if 2 < velocity.length:
             velocity = Point2((0, 0))
         predicted_position = target.position + velocity * 50 / 22.4
-        unit(self.ABILITY, target=predicted_position)
         self.last_used = self.ai.state.game_loop
-        return BehaviorResult.ONGOING
+        return unit(self.ABILITY, target=predicted_position)

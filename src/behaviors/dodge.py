@@ -18,7 +18,7 @@ from sc2.game_state import EffectData
 from sc2.unit_command import UnitCommand
 
 from ..utils import *
-from .behavior import Behavior, BehaviorResult, UnitBehavior
+from .behavior import Behavior
 from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -93,18 +93,13 @@ class DodgeEffectDelayed(DodgeEffect):
     #         radius_adjusted = radius - movement_speed * time_remaining
     #         yield DamageCircle(self.position, radius_adjusted, damage)
 
-class DodgeBehavior(UnitBehavior):
+class DodgeBehavior(Behavior):
 
     def __init__(self, ai: AIBase, unit_tag: int):
-        self.safety_distance: float = 0.5
         super().__init__(ai, unit_tag)
+        self.safety_distance: float = 0.5
 
-    def execute_single(self, unit: Unit) -> BehaviorResult:
-        
-        # dodge = min((c for d in self.ai.dodge for c in d.circles), key = lambda c : unit.distance_to(c.position))
-
-        # if dodge_threat < unit.health + unit.shield:
-        #     return BehaviorResult.SUCCESS
+    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
 
         for dodge in self.ai.dodge:
             distance_bonus = 0.0
@@ -120,9 +115,6 @@ class DodgeBehavior(UnitBehavior):
                     target = dodge_from.towards(unit, distance_want + 2 * self.safety_distance)
                     if unit.is_burrowed and not can_move(unit):
                         unit(AbilityId.BURROWUP)
-                        unit.move(target, queue=True)
+                        return unit.move(target, queue=True)
                     else:
-                        unit.move(target)
-                    return BehaviorResult.ONGOING
-
-        return BehaviorResult.SUCCESS
+                        return unit.move(target)

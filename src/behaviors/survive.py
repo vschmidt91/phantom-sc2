@@ -13,29 +13,29 @@ from abc import ABC, abstractmethod
 
 from ..utils import *
 from ..constants import *
-from .behavior import Behavior, BehaviorResult, UnitBehavior
+from .behavior import Behavior
 from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class SurviveBehavior(UnitBehavior):
+class SurviveBehavior(Behavior):
 
     def __init__(self, ai: AIBase, unit_tag: int):
         super().__init__(ai, unit_tag)
 
-    def execute_single(self, unit: Unit) -> BehaviorResult:
+    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
 
         if unit.type_id == UnitTypeId.OVERLORD:
-            unit(AbilityId.BEHAVIOR_GENERATECREEPON)
+            return unit(AbilityId.BEHAVIOR_GENERATECREEPON)
 
         # if unit.type_id != race_worker[self.ai.race]:
         #     return BehaviorResult.SUCCESS
 
         last_attacked = self.ai.damage_taken.get(unit.tag)
         if not last_attacked:
-            return BehaviorResult.SUCCESS
+            return None
         if last_attacked + 5 < self.ai.time:
-            return BehaviorResult.SUCCESS
+            return None
         
         if self.ai.townhalls:
             retreat_goal = self.ai.townhalls.closest_to(unit.position).position
@@ -59,5 +59,4 @@ class SurviveBehavior(UnitBehavior):
         else:
             target = retreat_goal
 
-        unit.move(target)
-        return BehaviorResult.ONGOING
+        return unit.move(target)

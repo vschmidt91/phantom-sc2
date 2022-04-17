@@ -1,4 +1,5 @@
 from __future__ import annotations
+from optparse import Option
 
 from typing import Dict, TYPE_CHECKING
 
@@ -8,10 +9,11 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2
 from sc2.data import race_townhalls
+from sc2.unit_command import UnitCommand
 
 from ..constants import CHANGELINGS
 from ..resources.base import Base
-from ..behaviors.behavior import Behavior, BehaviorResult, UnitBehavior
+from ..behaviors.behavior import Behavior
 from ..ai_component import AIComponent
 from .module import AIModule
 if TYPE_CHECKING:
@@ -55,23 +57,20 @@ class DropManager(AIModule):
     async def on_step(self) -> None:                 
         pass
 
-class DropBehavior(UnitBehavior):
+class DropBehavior(Behavior):
 
     def __init__(self, ai: AIBase, unit_tag: int):
         super().__init__(ai, unit_tag)
         
-    def execute_single(self, unit: Unit) -> BehaviorResult:
+    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
 
         if unit.type_id == UnitTypeId.OVERLORDTRANSPORT:
             # if len(unit.passengers_tags) < 4:
             #     unit.move(self.ai.drop_manager.drop_from)
             if unit.distance_to(self.ai.drop_manager.drop_to) < 1:
-                unit.move(self.ai.drop_manager.drop_from)
+                return unit.move(self.ai.drop_manager.drop_from)
                 # unit(AbilityId.UNLOADALL, self.ai.drop_manager.drop_to)
             elif unit.distance_to(self.ai.drop_manager.drop_from) < 1:
-                unit.move(self.ai.drop_manager.drop_to)
+                return unit.move(self.ai.drop_manager.drop_to)
             elif unit.is_idle:
-                unit.move(self.ai.drop_manager.drop_from)
-            return BehaviorResult.ONGOING
-
-        return BehaviorResult.SUCCESS
+                return unit.move(self.ai.drop_manager.drop_from)

@@ -10,79 +10,52 @@ from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class BehaviorResult(Enum):
-    ONGOING = 1
-    SUCCESS = 2
-    FAILURE = 3
+class Behavior(AIComponent):
 
-class Behavior(ABC):
-
-    @abstractmethod
-    def execute(self) -> BehaviorResult:
-        raise NotImplementedError
-
-class UnitBehavior(Behavior):
-
-    def __init__(self, ai: AIBase, unit_tag: int):
-        super().__init__()
-        self.ai: AIBase = ai
+    def __init__(self, ai: AIBase, unit_tag: int) -> None:
+        super().__init__(ai)
         self.unit_tag: int = unit_tag
 
-    def execute(self) -> BehaviorResult:
-        unit = self.ai.unit_by_tag.get(self.unit_tag)
-        if not unit:
-            return BehaviorResult.FAILURE
-        return self.execute_single(unit)
+    def execute(self) -> Optional[UnitCommand]:
+        if unit := self.ai.unit_by_tag.get(self.unit_tag):
+            return self.execute_single(unit)
+        else:
+            return None
 
-    @abstractmethod
-    def execute_single(self, unit: Unit) -> BehaviorResult:
-        raise NotImplementedError
+    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
+        return None
 
 class LambdaBehavior(Behavior):
 
-    def __init__(self, func: Callable[[], BehaviorResult]):
-        super().__init__()
-        self.func: Callable[[], BehaviorResult] = func
+    def __init__(self, ai: AIBase, unit_tag: int, func: Callable[[], Optional[UnitCommand]]):
+        super().__init__(ai, unit_tag)
+        self.func: Callable[[Unit], Optional[UnitCommand]] = func
 
-    def execute(self) -> BehaviorResult:
-        return self.func()
+    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
+        return self.func(unit)
         
 T = TypeVar('T')
 
-class SwitchBehavior(UnitBehavior, Generic[T]):
+class SwitchBehavior(Behavior, Generic[T]):
 
     def __init__(self, ai: AIBase, unit_tag: int, selector: Callable[[Unit], T], cases: Dict[T, Behavior]):
         super().__init__(ai, unit_tag)
         self.selector: Callable[[Unit], T] = selector
         self.cases: Dict[T, Behavior] = cases
 
-    def execute_single(self, unit: Unit) -> BehaviorResult:
-        case = self.selector(unit)
-        behavior = self.cases[case]
-        return behavior.execute()
+    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
+        select = self.selector(unit)
+        if behavior := self.cases.get(select):
+            return behavior.execute()
 
 class BehaviorSequence(Behavior):
 
-    def __init__(self, behaviors: List[Behavior]):
-        super().__init__()
+    def __init__(self, ai: AIBase, unit_tag: int, behaviors: List[Behavior]) -> None:
+        super().__init__(ai, unit_tag)
         self.behaviors = behaviors
 
-    def execute(self) -> BehaviorResult:
+    def execute(self) -> Optional[UnitCommand]:
         for behavior in self.behaviors:
-            result = behavior.execute()
-            if result in { BehaviorResult.ONGOING, BehaviorResult.FAILURE }:
-                return result
-        return BehaviorResult.SUCCESS
-
-class BehaviorSelector(Behavior):
-
-    def __init__(self, behaviors: List[Behavior]):
-        super().__init__()
-        self.behaviors = behaviors
-
-    def execute(self) -> BehaviorResult:
-        for behavior in self.behaviors:
-            result = behavior.execute()
-            if result in { BehaviorResult.ONGOING, BehaviorResult.SUCCESS }:
-                return result
-        return BehaviorResult.FAILURE
+            if command := behavior.execute():
+                return command
+        return None

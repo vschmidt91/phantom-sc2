@@ -16,12 +16,12 @@ from abc import ABC, abstractmethod
 
 from ..utils import *
 from ..constants import *
-from .behavior import Behavior, BehaviorResult, UnitBehavior
+from .behavior import Behavior
 from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class TransfuseBehavior(UnitBehavior):
+class TransfuseBehavior(Behavior):
 
     ABILITY = AbilityId.TRANSFUSION_TRANSFUSION
 
@@ -41,19 +41,18 @@ class TransfuseBehavior(UnitBehavior):
         priority *= 10 + self.ai.get_unit_value(target)
         return priority
 
-    def execute_single(self, unit: Unit) -> BehaviorResult:
+    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
 
         if unit.energy < ENERGY_COST[self.ABILITY]:
-            return BehaviorResult.SUCCESS
+            return None
 
         target = max(self.ai.all_own_units,
             key = lambda t : self.priority(unit, t),
             default = None
         )
         if not target:
-            return BehaviorResult.SUCCESS 
+            return None
         if self.priority(unit, target) <= 0:
-            return BehaviorResult.SUCCESS
+            return None
 
-        unit(self.ABILITY, target=target)
-        return BehaviorResult.ONGOING
+        return unit(self.ABILITY, target=target)

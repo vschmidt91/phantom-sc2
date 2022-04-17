@@ -18,55 +18,48 @@ from ..resources.vespene_geyser import VespeneGeyser
 from ..resources.mineral_patch import MineralPatch
 from ..utils import *
 from ..constants import *
-from .behavior import Behavior, BehaviorResult, UnitBehavior
+from .behavior import Behavior
 from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class GatherBehavior(UnitBehavior):
+class GatherBehavior(Behavior):
 
     def __init__(self, ai: AIBase, unit_tag: int):
         super().__init__(ai, unit_tag)
 
-    def execute_single(self, unit: Unit) -> BehaviorResult:
+    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
         
         resource, base = self.ai.bases.get_resource_and_item(unit.tag)
         if not resource:
             if not self.ai.bases.try_add(unit.tag):
-                return BehaviorResult.FAILURE
+                raise Exception()
             resource, base = self.ai.bases.get_resource_and_item(unit.tag)
 
         if not resource:
-            return BehaviorResult.FAILURE
+            raise Exception()
         if not resource.remaining:
-            return BehaviorResult.SUCCESS
+            return None
 
         target = self.ai.gas_building_by_position.get(resource.position) or self.ai.resource_by_position.get(resource.position)
         if not target:
-            return BehaviorResult.FAILURE
+            raise Exception()
 
             
         if base.townhall and self.ai.is_speedmining_enabled and resource.harvester_count < 3:
-            
-            if isinstance(resource, VespeneGeyser):
-                assert True
 
             if unit.is_gathering and unit.order_target != target.tag:
-                unit(AbilityId.SMART, target)
+                return unit.smart(target)
             elif unit.is_idle or unit.is_attacking:
-                unit(AbilityId.SMART, target)
+                return unit.smart(target)
             elif len(unit.orders) == 1:
                 if unit.is_returning:
                     townhall = self.ai.townhalls.ready.closest_to(unit)
                     move_target = townhall.position.towards(unit, townhall.radius + unit.radius)
                     if 0.75 < unit.position.distance_to(move_target) < 1.5:
-                        unit.move(move_target)
-                        unit(AbilityId.SMART, townhall, True)
-                        # if isinstance(resource, VespeneGeyser):
-                        #     global LAST_RETURN
-                        #     self.ai.client.game_step = 1
-                        #     print(self.ai.state.game_loop - LAST_RETURN, unit.tag)
-                        #     LAST_RETURN = self.ai.state.game_loop
+                        return None
+                        # return unit.move(move_target)
+                        # unit(AbilityId.SMART, townhall, True)
                 else:
                     move_target = None
                     if isinstance(resource, MineralPatch):
@@ -74,28 +67,19 @@ class GatherBehavior(UnitBehavior):
                     if not move_target:
                         move_target = target.position.towards(unit, target.radius + unit.radius)
                     if 0.75 < unit.position.distance_to(move_target) < 1.75:
-                        unit.move(move_target)
-                        unit(AbilityId.SMART, target, True)
+                        return None
+                        # unit.move(move_target)
+                        # unit(AbilityId.SMART, target, True)
 
         else:
                 
             if unit.is_carrying_resource:
                 if not self.ai.townhalls.exists:
-                    return BehaviorResult.SUCCESS
+                    return None
                 elif not unit.is_returning:
-                    unit.return_resource()
+                    return unit.return_resource()
             elif unit.is_gathering:
                 if unit.order_target != target.tag:
-                    unit.gather(target)
+                    return unit.gather(target)
             else:
-                unit.gather(target)
-
-            # if unit.is_carrying_resource:
-            #     if not unit.is_returning:
-            #         unit.return_resource()
-            # elif unit.is_returning:
-            #     pass
-            # else:
-            #     unit.gather(target)
-
-        return BehaviorResult.ONGOING
+                return unit.gather(target)

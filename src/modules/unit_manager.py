@@ -13,10 +13,11 @@ from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
+from src.modules.creep import SpreadCreep
 
 from src.simulation.unit import SimulationUnit, SimulationUnitWithTarget
 
-from ..behaviors.changeling_scout import ChangelingSpawnBehavior
+from ..behaviors.changeling_scout import SpawnChangeling
 from ..behaviors.burrow import BurrowBehavior
 from ..behaviors.dodge import DodgeBehavior
 from ..behaviors.fight import FightBehavior
@@ -34,7 +35,7 @@ from ..behaviors.extractor_trick import ExtractorTrickBehavior
 from .scout_manager import DetectBehavior
 from ..utils import *
 from ..constants import *
-from ..behaviors.behavior import Behavior, BehaviorResult, LambdaBehavior, BehaviorSequence, BehaviorSelector, SwitchBehavior, UnitBehavior, LambdaBehavior
+from ..behaviors.behavior import Behavior, LambdaBehavior, BehaviorSequence, SwitchBehavior
 from .module import AIModule
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -57,7 +58,7 @@ class UnitManager(AIModule):
         self.inject_queens: Dict[int, int] = dict()
         self.drafted_civilians: Set[int] = set()
         self.enemy_priorities: Dict[int, float] = dict()
-        self.behaviors: Dict[int, UnitBehavior] = dict()
+        self.behaviors: Dict[int, Behavior] = dict()
         self.targets: Dict[int, Unit] = dict()
         self.attack_paths: Dict[int, List[Point2]] = dict()
         self.retreat_paths: Dict[int, List[Point2]] = dict()
@@ -74,6 +75,9 @@ class UnitManager(AIModule):
         else:
             return False
 
+    def add_creep_tumor(self, tumor: Unit) -> None:
+        self.behaviors[tumor.tag] = SpreadCreep(self.ai, tumor.tag)
+
     def create_behavior(self, unit: Unit) -> Behavior:
 
         if unit.type_id in {
@@ -84,7 +88,7 @@ class UnitManager(AIModule):
                 DodgeBehavior(self.ai, unit.tag),
                 InjectBehavior(self.ai, unit.tag),
                 LambdaBehavior(lambda:self.ai.creep.spread(self.ai.unit_by_tag[unit.tag])),
-                # SpreadCreepBehavior(self.ai, unit.tag),
+                SpreadCreep(self.ai, unit.tag),
                 TransfuseBehavior(self.ai, unit.tag),
                 FightBehavior(self.ai, unit.tag),
                 SearchBehavior(self.ai, unit.tag),
@@ -128,28 +132,28 @@ class UnitManager(AIModule):
             else:
                 return 'army'
         behaviors = {
-            'overlord': BehaviorSequence([
+            'overlord': BehaviorSequence(self.ai, unit.tag, [
                     MacroBehavior(self.ai, unit.tag),
                     DodgeBehavior(self.ai, unit.tag),
                     DropBehavior(self.ai, unit.tag),
                     SurviveBehavior(self.ai, unit.tag),
                     ScoutBehavior(self.ai, unit.tag),
                 ]),
-            'overseer': BehaviorSequence([
+            'overseer': BehaviorSequence(self.ai, unit.tag, [
                     DodgeBehavior(self.ai, unit.tag),
-                    ChangelingSpawnBehavior(self.ai, unit.tag),
+                    SpawnChangeling(self.ai, unit.tag),
                     DetectBehavior(self.ai, unit.tag),
                     FightBehavior(self.ai, unit.tag),
                     SearchBehavior(self.ai, unit.tag),
                 ]),
-            'worker': BehaviorSequence([
+            'worker': BehaviorSequence(self.ai, unit.tag, [
                     MacroBehavior(self.ai, unit.tag),
                     DodgeBehavior(self.ai, unit.tag),
                     # SurviveBehavior(self.ai, unit.tag),
                     GatherBehavior(self.ai, unit.tag),
                     FightBehavior(self.ai, unit.tag),
                 ]),
-            'army': BehaviorSequence([
+            'army': BehaviorSequence(self.ai, unit.tag, [
                     MacroBehavior(self.ai, unit.tag),
                     DodgeBehavior(self.ai, unit.tag),
                     BurrowBehavior(self.ai, unit.tag),
@@ -270,6 +274,8 @@ class UnitManager(AIModule):
             townhall = self.ai.townhall_by_position[base.position]
             self.inject_queens[queen.tag] = townhall.tag
 
+        commands: List[UnitCommand] = list()
+
         for unit in self.ai.all_own_units:
             if unit.type_id in IGNORED_UNIT_TYPES:
                 continue
@@ -277,22 +283,6 @@ class UnitManager(AIModule):
             if not behavior:
                 behavior = self.create_behavior(unit)
                 self.behaviors[unit.tag] = behavior
-            result = behavior.execute()
-            if result == BehaviorResult.FAILURE:
-                print('behavior failure')
-                behavior.execute()
-
-        # removed_tags = {
-        #     tag for tag in self.behaviors.keys()
-        #     if tag not in tags
-        # }
-        # for tag in removed_tags:
-        #     del self.behaviors[tag]
-
-        # EXPERIMENTAL SIMULATION
-
-        # enemies = { u.tag: SimulationUnit(u) for u in self.ai.enumerate_enemies() }
-        # army = [SimulationUnit(u) for u in self.ai.enumerate_army()]
-
-        # self.simulation = Simulation(self.ai, army, enemies.values())
-        # self.simulation.run(3)
+            if command := behavior.execute():
+                if not self.ai.do(command, subtract_cost=True, subtract_supply=True):
+                    raise Exception()

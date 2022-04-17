@@ -1,16 +1,17 @@
 from __future__ import annotations
 import math
 
-from typing import Dict, List, TYPE_CHECKING
+from typing import Dict, List, TYPE_CHECKING, Optional
 from sc2.constants import IS_DETECTOR
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2
+from sc2.unit_command import UnitCommand
 
 from ..constants import CHANGELINGS
 from ..resources.base import Base
-from ..behaviors.behavior import Behavior, BehaviorResult, UnitBehavior
+from ..behaviors.behavior import Behavior
 from .module import AIModule
 
 if TYPE_CHECKING:
@@ -124,7 +125,7 @@ class ScoutManager(AIModule):
         self.send_detectors()
         self.send_scouts()
 
-class ScoutBehavior(UnitBehavior):
+class ScoutBehavior(Behavior):
     
     ABILITY = AbilityId.SPAWNCHANGELING_SPAWNCHANGELING
 
@@ -139,7 +140,7 @@ class ScoutBehavior(UnitBehavior):
             return 1e-5
         return d
         
-    def execute_single(self, unit: Unit) -> BehaviorResult:
+    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
 
         target = next((
             pos
@@ -148,18 +149,14 @@ class ScoutBehavior(UnitBehavior):
             ), None)
 
         if not target:
-            return BehaviorResult.SUCCESS
+            return None
 
         if unit.position.distance_to(target) < 1:
-            return BehaviorResult.SUCCESS
+            return None
 
-        if unit.is_moving and target.distance_to(unit.order_target) < 1:
-            return BehaviorResult.ONGOING
+        return unit.move(target)
 
-        unit.move(target)
-        return BehaviorResult.ONGOING
-
-class DetectBehavior(UnitBehavior):
+class DetectBehavior(Behavior):
 
     def __init__(self, ai: AIBase, unit_tag: int):
         super().__init__(ai, unit_tag)
@@ -172,7 +169,7 @@ class DetectBehavior(UnitBehavior):
             return 1e-5
         return d
         
-    def execute_single(self, unit: Unit) -> BehaviorResult:
+    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
 
         base_position = next((
             pos
@@ -181,10 +178,8 @@ class DetectBehavior(UnitBehavior):
             ), None)
 
         if not base_position:
-            return BehaviorResult.SUCCESS
+            return None
 
         target_distance = unit.detect_range - 3
         if target_distance < unit.position.distance_to(base_position):
-            unit.move(base_position.towards(unit, target_distance))
-
-        return BehaviorResult.ONGOING
+            return unit.move(base_position.towards(unit, target_distance))

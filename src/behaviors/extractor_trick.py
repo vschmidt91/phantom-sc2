@@ -16,32 +16,31 @@ from abc import ABC, abstractmethod
 
 from ..utils import *
 from ..constants import *
-from .behavior import Behavior, BehaviorResult, UnitBehavior
+from .behavior import Behavior
 from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class ExtractorTrickBehavior(UnitBehavior):
+class ExtractorTrickBehavior(Behavior):
 
     ABILITY = AbilityId.TRANSFUSION_TRANSFUSION
 
     def __init__(self, ai: AIBase, unit_tag: int):
         super().__init__(ai, unit_tag)
 
-    def execute_single(self, unit: Unit) -> BehaviorResult:
+    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
 
         if unit.type_id != UnitTypeId.EXTRACTOR:
-            return BehaviorResult.SUCCESS
+            return None
 
         if unit.is_ready:
-            return BehaviorResult.SUCCESS
+            return None
 
         if not self.ai.extractor_trick_enabled:
-            return BehaviorResult.SUCCESS
+            return None
 
         if 0 < self.ai.supply_left:
-            return BehaviorResult.SUCCESS
+            return None
 
         self.ai.extractor_trick_enabled = False
-        unit(AbilityId.CANCEL)
-        return BehaviorResult.ONGOING
+        return unit(AbilityId.CANCEL)

@@ -12,37 +12,34 @@ from abc import ABC, abstractmethod
 
 from ..utils import *
 from ..constants import *
-from .behavior import BehaviorResult, UnitBehavior
+from .behavior import Behavior
 from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class BurrowBehavior(UnitBehavior):
+class BurrowBehavior(Behavior):
 
     def __init__(self, ai: AIBase, unit_tag: int):
         super().__init__(ai, unit_tag)
 
-    def execute_single(self, unit: Unit) -> BehaviorResult:
+    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
 
         if unit.type_id not in { UnitTypeId.ROACH, UnitTypeId.ROACHBURROWED }:
-            return BehaviorResult.SUCCESS
+            return None
 
         if UpgradeId.BURROW not in self.ai.state.upgrades:
-            return BehaviorResult.SUCCESS
+            return None
 
         if UpgradeId.TUNNELINGCLAWS in self.ai.state.upgrades:
-            return BehaviorResult.SUCCESS
+            return None
 
         if unit.is_burrowed:
             if unit.health_percentage == 1 or unit.is_revealed:
-                unit(AbilityId.BURROWUP)
-            return BehaviorResult.ONGOING
-        elif (
-            unit.health_percentage < 1/3
-            and unit.weapon_cooldown
-            and not unit.is_revealed
-        ):
-            unit(AbilityId.BURROWDOWN)
-            return BehaviorResult.ONGOING
-
-        return BehaviorResult.SUCCESS
+                return unit(AbilityId.BURROWUP)
+        else:
+            if (
+                unit.health_percentage < 1/3
+                and unit.weapon_cooldown
+                and not unit.is_revealed
+            ):
+                return unit(AbilityId.BURROWDOWN)

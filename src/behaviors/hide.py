@@ -12,12 +12,12 @@ from abc import ABC, abstractmethod
 
 from ..utils import *
 from ..constants import *
-from .behavior import BehaviorResult, UnitBehavior
+from .behavior import Behavior
 from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class HideBehavior(UnitBehavior):
+class HideBehavior(Behavior):
 
     def __init__(self, ai: AIBase, unit_tag: int):
         super().__init__(ai, unit_tag)
@@ -30,16 +30,15 @@ class HideBehavior(UnitBehavior):
         ]
         self.corner = ai.start_location
 
-    def execute_single(self, unit: Unit) -> BehaviorResult:
+    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
 
         if unit.type_id is not UnitTypeId.MUTALISK:
-            return BehaviorResult.SUCCESS
+            return None
 
         if 7 * 60 < self.ai.time:
-            return BehaviorResult.SUCCESS
+            return None
 
         if unit.distance_to(self.corner) < 3:
-            return BehaviorResult.SUCCESS
+            return None
 
-        unit.move(self.corner)
-        return BehaviorResult.ONGOING
+        return unit.move(self.corner)
