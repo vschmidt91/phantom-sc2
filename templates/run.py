@@ -3,6 +3,7 @@ import sc2, sys
 from ladder import run_ladder_game
 from sc2.data import Race, Difficulty
 from sc2.player import Bot, Computer
+from sc2.main import run_game
 
 from ${package} import ${cls}
 bot = Bot(Race.${race}, ${cls}(), '${name}')
@@ -18,7 +19,7 @@ if __name__ == '__main__':
     else:
         # Local game
         print("Starting local game...")
-        sc2.run_game(sc2.maps.get("Abyssal Reef LE"), [
+        run_game(sc2.maps.get("2000AtmospheresAIE"), [
             bot,
             Computer(Race.Protoss, Difficulty.VeryHard)
         ], realtime=True)
