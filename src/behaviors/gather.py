@@ -27,14 +27,16 @@ class GatherBehavior(Behavior):
 
     def __init__(self, ai: AIBase, unit_tag: int):
         super().__init__(ai, unit_tag)
+        self.target: Optional[Unit] = None
 
     def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
         
         resource, base = self.ai.bases.get_resource_and_item(unit.tag)
         if not resource:
-            if not self.ai.bases.try_add(unit.tag):
-                raise Exception()
-            resource, base = self.ai.bases.get_resource_and_item(unit.tag)
+            return None
+            # if not self.ai.bases.try_add(unit.tag):
+            #     raise Exception()
+            # resource, base = self.ai.bases.get_resource_and_item(unit.tag)
 
         if not resource:
             raise Exception()
@@ -52,13 +54,17 @@ class GatherBehavior(Behavior):
                 return unit.smart(target)
             elif unit.is_idle or unit.is_attacking:
                 return unit.smart(target)
+            elif unit.is_moving and self.target:
+                self.target, target = None, self.target
+                return unit.smart(target, queue=True)
             elif len(unit.orders) == 1:
                 if unit.is_returning:
                     townhall = self.ai.townhalls.ready.closest_to(unit)
                     move_target = townhall.position.towards(unit, townhall.radius + unit.radius)
                     if 0.75 < unit.position.distance_to(move_target) < 1.5:
-                        return None
-                        # return unit.move(move_target)
+                        self.target = townhall
+                        return unit.move(move_target)
+                        # 
                         # unit(AbilityId.SMART, townhall, True)
                 else:
                     move_target = None
@@ -67,19 +73,14 @@ class GatherBehavior(Behavior):
                     if not move_target:
                         move_target = target.position.towards(unit, target.radius + unit.radius)
                     if 0.75 < unit.position.distance_to(move_target) < 1.75:
-                        return None
+                        self.target = target
+                        return unit.move(move_target)
                         # unit.move(move_target)
                         # unit(AbilityId.SMART, target, True)
 
         else:
-                
-            if unit.is_carrying_resource:
-                if not self.ai.townhalls.exists:
-                    return None
-                elif not unit.is_returning:
-                    return unit.return_resource()
-            elif unit.is_gathering:
-                if unit.order_target != target.tag:
-                    return unit.gather(target)
-            else:
+
+            if not unit.is_carrying_resource:
                 return unit.gather(target)
+            elif self.ai.townhalls.ready.exists:
+                return unit.return_resource()

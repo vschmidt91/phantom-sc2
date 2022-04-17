@@ -335,6 +335,8 @@ class AIBase(ABC, BotAI):
         pass
 
     async def on_unit_created(self, unit: Unit):
+        if 0 < self.state.game_loop and unit.type_id == race_worker[self.race]:
+            self.bases.try_add(unit.tag)
         pass
 
     async def on_unit_destroyed(self, unit_tag: int):
@@ -881,13 +883,14 @@ class AIBase(ABC, BotAI):
 
         def enumerate_trainers(trainer_type: UnitTypeId) -> Iterable[Unit]:
             if trainer_type == race_worker[self.race]:
-                if tag := self.bases.try_remove_any():
-                    if tag not in exclude:
-                        if unit := self.unit_by_tag.get(tag):
-                            if unit.type_id == trainer_type:
-                                return [unit]
-                    else:
-                        self.bases.try_add(tag)
+                return (self.unit_by_tag[t] for t in self.bases.harvesters if t in self.unit_by_tag)
+                # if tag := self.bases.try_remove_any():
+                #     if tag not in exclude:
+                #         if unit := self.unit_by_tag.get(tag):
+                #             if unit.type_id == trainer_type:
+                #                 return [unit]
+                #     else:
+                #         self.bases.try_add(tag)
             return self.actual_by_type[trainer_type]
 
         trainers = sorted((

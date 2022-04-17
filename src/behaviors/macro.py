@@ -31,8 +31,8 @@ class MacroBehavior(Behavior):
             return None
         elif plan.ability == None:
             return None
-        # elif unit.is_using_ability(plan.ability['ability']):
-        #     return BehaviorResult.ONGOING
+        elif any(unit.orders) and unit.orders[0].ability.exact_id == plan.ability['ability']:
+            return unit(plan.ability['ability'], target=unit.orders[0].target)
         elif plan.eta == None:
             return None
         elif not plan.condition(self.ai):
@@ -52,5 +52,7 @@ class MacroBehavior(Behavior):
         if plan.eta < movement_eta:
             if unit.is_carrying_resource:
                 return unit.return_resource()
-            elif not unit.is_moving and 1 < unit.position.distance_to(plan.target.position):
+            elif 1e-3 < unit.position.distance_to(plan.target.position):
                 return unit.move(plan.target.position)
+            else:
+                return unit.hold_position()

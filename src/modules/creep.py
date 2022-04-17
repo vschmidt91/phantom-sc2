@@ -47,7 +47,7 @@ class SpreadCreep(Behavior):
 
         a = self.ai.game_info.playable_area
 
-        if .99 < self.coverage:
+        if .99 < self.ai.creep.coverage:
             return None
 
         if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
@@ -55,19 +55,19 @@ class SpreadCreep(Behavior):
             if age < 240:
                 return None
         elif unit.type_id == UnitTypeId.QUEEN:
-            if 10 <= len(self.tumor_front):
+            if 10 <= len(self.ai.creep.tumor_front):
                 return None
             elif 1 < self.ai.enemy_vs_ground_map[unit.position.rounded]:
                 return None
             elif unit.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
                 return None
-            elif AbilityId.BUILD_CREEPTUMOR_QUEEN in { o.ability.exact_id for o in unit.orders }:
-                return unit.orders[0]
-            elif not self.ai.has_creep(unit.position) and self.ai.townhalls.ready:
-                if unit.is_moving:
-                    return unit.orders[0]
-                else:
-                    return unit.move(self.ai.townhalls.ready.closest_to(unit)) 
+            elif any(unit.orders) and unit.orders[0].ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN:
+                return unit(AbilityId.BUILD_CREEPTUMOR_QUEEN, target=unit.order_target)
+            # elif not self.ai.has_creep(unit.position) and self.ai.townhalls.ready:
+            #     if unit.is_moving:
+            #         return unit.move(unit.order_target)
+            #     else:
+            #         return unit.move(self.ai.townhalls.ready.closest_to(unit)) 
         else:
             return None
 
@@ -81,7 +81,7 @@ class SpreadCreep(Behavior):
             angle = np.random.uniform(0, 2 * math.pi)
             distance = np.random.exponential(0.5 * TUMOR_RANGE)
             target_test = start_position + distance * Point2((math.cos(angle), math.sin(angle)))
-            target_test = np.clip(target_test, self.area_min, self.area_max)
+            target_test = np.clip(target_test, self.ai.creep.area_min, self.ai.creep.area_max)
             target_test = Point2(target_test).rounded
             
             if self.ai.has_creep(target_test):
@@ -111,9 +111,7 @@ class SpreadCreep(Behavior):
             if self.ai.blocked_base(position):
                 continue
 
-            if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
-                del self.ai.unit_manager.behaviors[unit.tag]
+            # if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
+            #     del self.ai.unit_manager.behaviors[unit.tag]
 
             return unit.build(UnitTypeId.CREEPTUMOR, position)
-
-        return super().execute

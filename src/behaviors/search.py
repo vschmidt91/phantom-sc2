@@ -27,20 +27,18 @@ class SearchBehavior(Behavior):
         if unit.type_id == UnitTypeId.OVERLORD:
             return None
 
-        if not unit.is_idle:
-            return unit.orders[0]
-        elif 1/3 < self.ai.threat_level:
-            target = next((b for b in reversed(self.ai.bases) if b.townhall), None)
-            if target:
-                return unit.attack(target.position)
-        elif self.ai.time < 8 * 60:
-            return unit.attack(random.choice(self.ai.enemy_start_locations))
-        else:
-            a = self.ai.game_info.playable_area
-            target = np.random.uniform((a.x, a.y), (a.right, a.top))
-            target = Point2(target)
-            if (
-                (unit.is_flying or self.ai.in_pathing_grid(target))
-                and not self.ai.is_visible(target)
-            ):
-                return unit.attack(target)
+        if unit.is_idle:
+            if 1/3 < self.ai.threat_level:
+                if target := next((b for b in reversed(self.ai.bases) if b.townhall), None):
+                    return unit.attack(target.position)
+            elif self.ai.time < 8 * 60:
+                return unit.attack(random.choice(self.ai.enemy_start_locations))
+            else:
+                a = self.ai.game_info.playable_area
+                target = np.random.uniform((a.x, a.y), (a.right, a.top))
+                target = Point2(target)
+                if (
+                    (unit.is_flying or self.ai.in_pathing_grid(target))
+                    and not self.ai.is_visible(target)
+                ):
+                    return unit.attack(target)

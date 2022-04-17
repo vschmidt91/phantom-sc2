@@ -25,8 +25,8 @@ class SurviveBehavior(Behavior):
 
     def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
 
-        if unit.type_id == UnitTypeId.OVERLORD:
-            return unit(AbilityId.BEHAVIOR_GENERATECREEPON)
+        # if unit.type_id == UnitTypeId.OVERLORD:
+        #     return unit(AbilityId.BEHAVIOR_GENERATECREEPON)
 
         # if unit.type_id != race_worker[self.ai.race]:
         #     return BehaviorResult.SUCCESS

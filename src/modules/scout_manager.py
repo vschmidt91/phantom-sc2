@@ -126,8 +126,6 @@ class ScoutManager(AIModule):
         self.send_scouts()
 
 class ScoutBehavior(Behavior):
-    
-    ABILITY = AbilityId.SPAWNCHANGELING_SPAWNCHANGELING
 
     def __init__(self, ai: AIBase, unit_tag: int):
         super().__init__(ai, unit_tag)
@@ -151,8 +149,8 @@ class ScoutBehavior(Behavior):
         if not target:
             return None
 
-        if unit.position.distance_to(target) < 1:
-            return None
+        if unit.position.distance_to(target) < 1e-3:
+            return unit.hold_position()
 
         return unit.move(target)
 

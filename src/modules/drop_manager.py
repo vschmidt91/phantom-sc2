@@ -1,7 +1,7 @@
 from __future__ import annotations
 from optparse import Option
 
-from typing import Dict, TYPE_CHECKING
+from typing import Dict, TYPE_CHECKING, Optional
 
 from sc2.constants import IS_DETECTOR
 from sc2.unit import Unit

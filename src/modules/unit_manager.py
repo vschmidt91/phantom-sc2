@@ -11,7 +11,7 @@ from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
-from sc2.data import race_worker
+from sc2.data import Target, race_worker
 from abc import ABC, abstractmethod
 from src.modules.creep import SpreadCreep
 
@@ -47,8 +47,8 @@ IGNORED_UNIT_TYPES = {
     UnitTypeId.LOCUSTMP,
     UnitTypeId.LOCUSTMPFLYING,
     UnitTypeId.CREEPTUMOR,
-    UnitTypeId.CREEPTUMORBURROWED,
-    UnitTypeId.CREEPTUMORQUEEN,
+    # UnitTypeId.CREEPTUMORBURROWED,
+    # UnitTypeId.CREEPTUMORQUEEN,
 }
 
 class UnitManager(AIModule):
@@ -75,19 +75,16 @@ class UnitManager(AIModule):
         else:
             return False
 
-    def add_creep_tumor(self, tumor: Unit) -> None:
-        self.behaviors[tumor.tag] = SpreadCreep(self.ai, tumor.tag)
-
     def create_behavior(self, unit: Unit) -> Behavior:
 
         if unit.type_id in {
             UnitTypeId.QUEEN,
             UnitTypeId.QUEENBURROWED,
         }:
-            return BehaviorSequence([
+            return BehaviorSequence(self.ai, unit.tag, [
                 DodgeBehavior(self.ai, unit.tag),
                 InjectBehavior(self.ai, unit.tag),
-                LambdaBehavior(lambda:self.ai.creep.spread(self.ai.unit_by_tag[unit.tag])),
+                # LambdaBehavior(lambda:self.ai.creep.spread(self.ai.unit_by_tag[unit.tag])),
                 SpreadCreep(self.ai, unit.tag),
                 TransfuseBehavior(self.ai, unit.tag),
                 FightBehavior(self.ai, unit.tag),
@@ -97,6 +94,11 @@ class UnitManager(AIModule):
             return SearchBehavior(self.ai, unit.tag)
         elif unit.type_id == UnitTypeId.EXTRACTOR:
             return ExtractorTrickBehavior(self.ai, unit.tag)
+        elif unit.type_id in {
+            UnitTypeId.CREEPTUMORBURROWED,
+            UnitTypeId.CREEPTUMORQUEEN
+        }:
+            return SpreadCreep(self.ai, unit.tag)
         elif unit.is_structure or unit.type_id == UnitTypeId.LARVA:
             return MacroBehavior(self.ai, unit.tag)
 
@@ -147,11 +149,11 @@ class UnitManager(AIModule):
                     SearchBehavior(self.ai, unit.tag),
                 ]),
             'worker': BehaviorSequence(self.ai, unit.tag, [
-                    MacroBehavior(self.ai, unit.tag),
                     DodgeBehavior(self.ai, unit.tag),
+                    MacroBehavior(self.ai, unit.tag),
                     # SurviveBehavior(self.ai, unit.tag),
                     GatherBehavior(self.ai, unit.tag),
-                    FightBehavior(self.ai, unit.tag),
+                    # FightBehavior(self.ai, unit.tag),
                 ]),
             'army': BehaviorSequence(self.ai, unit.tag, [
                     MacroBehavior(self.ai, unit.tag),
@@ -274,8 +276,6 @@ class UnitManager(AIModule):
             townhall = self.ai.townhall_by_position[base.position]
             self.inject_queens[queen.tag] = townhall.tag
 
-        commands: List[UnitCommand] = list()
-
         for unit in self.ai.all_own_units:
             if unit.type_id in IGNORED_UNIT_TYPES:
                 continue
@@ -284,5 +284,14 @@ class UnitManager(AIModule):
                 behavior = self.create_behavior(unit)
                 self.behaviors[unit.tag] = behavior
             if command := behavior.execute():
+                target_matches = False
+                if command.target == unit.order_target == None:
+                    target_matches = True
+                elif isinstance(command.target, Unit) and isinstance(unit.order_target, int):
+                    target_matches = command.target.tag == unit.order_target
+                elif isinstance(command.target, Point2) and isinstance(unit.order_target, Point2):
+                    target_matches = command.target.distance_to(unit.order_target) < 1e-3
+                if any(unit.orders) and unit.orders[0].ability.exact_id == command.ability and target_matches:
+                    continue
                 if not self.ai.do(command, subtract_cost=True, subtract_supply=True):
                     raise Exception()

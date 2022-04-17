@@ -1,7 +1,7 @@
 
 from __future__ import annotations
 import math
-from typing import Union, Iterable, Dict, TYPE_CHECKING
+from typing import Counter, Union, Iterable, Dict, TYPE_CHECKING
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.game_data import UpgradeData
 
@@ -56,13 +56,13 @@ class ZergMacro(ZergStrategy):
             for t in composition
         }
 
-        for enemy in self.ai.enumerate_enemies():
-            if counters := UNIT_COUNTER_DICT.get(enemy.type_id):
+        enemy_counts = Counter(enemy.type_id for enemy in self.ai.enumerate_enemies())
+
+        for enemy_type, count in enemy_counts.items():
+            if counters := UNIT_COUNTER_DICT.get(enemy_type):
                 for t in counters:
                     if can_build[t]:
-                        count = self.ai.get_unit_cost(enemy.type_id) / self.ai.get_unit_cost(t)
-                        # composition[t] += (ratio + 1 - self.ai.map_data.distance[enemy.position.rounded]) * count
-                        composition[t] += 3 * ratio * count
+                        composition[t] += 3 * ratio * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(t)
                         break
 
         composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] // 7
