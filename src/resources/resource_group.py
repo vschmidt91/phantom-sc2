@@ -127,6 +127,6 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
 
         self.remaining = sum(r.remaining for r in self.items)
         
-        # if self.balancing_mode != BalancingMode.NONE:
-        #     if harvester := self.try_remove_any():
-        #         self.try_add(harvester)
+        if self.balancing_mode != BalancingMode.NONE:
+            if harvester := self.try_remove_any():
+                self.try_add(harvester)

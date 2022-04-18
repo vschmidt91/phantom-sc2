@@ -341,7 +341,8 @@ class AIBase(ABC, BotAI):
 
     async def on_unit_destroyed(self, unit_tag: int):
         self.enemies.pop(unit_tag, None)
-        self.bases.try_remove(unit_tag)
+        if self.bases.try_remove(unit_tag):
+            print('harvester killed')
         pass
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):

@@ -182,6 +182,7 @@ class UnitManager(AIModule):
             if self.drafted_civilians:
                 worker = min(self.drafted_civilians, key = lambda tag : self.ai.unit_by_tag[tag].shield_health_percentage, default = None)
                 self.drafted_civilians.remove(worker)
+                self.ai.bases.try_add(worker)
 
     def target_priority_apriori(self, target: Unit) -> float:
         if target.is_hallucination:

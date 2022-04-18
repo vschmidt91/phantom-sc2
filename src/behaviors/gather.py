@@ -33,6 +33,8 @@ class GatherBehavior(Behavior):
         
         resource, base = self.ai.bases.get_resource_and_item(unit.tag)
         if not resource:
+            if unit.is_idle:
+                raise Exception()
             return None
             # if not self.ai.bases.try_add(unit.tag):
             #     raise Exception()

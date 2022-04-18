@@ -156,13 +156,13 @@ TRAIN_ABILITIES = {
     for u in UnitTypeId
 }
 
-UNIT_BY_TRAIN_ABILITY = {
+UNIT_BY_TRAIN_ABILITY: Dict[AbilityId, UnitTypeId] = {
     unit_element["ability"] : unit
     for trainer_element in TRAIN_INFO.values()
     for unit, unit_element in trainer_element.items()
 }
 
-UPGRADE_BY_RESEARCH_ABILITY = {
+UPGRADE_BY_RESEARCH_ABILITY: Dict[AbilityId, UpgradeId] = {
     upgrade_element["ability"] : upgrade
     for research_element in RESEARCH_INFO.values()
     for upgrade, upgrade_element in research_element.items()

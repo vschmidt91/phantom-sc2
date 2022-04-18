@@ -31,8 +31,10 @@ class MacroBehavior(Behavior):
             return None
         elif plan.ability == None:
             return None
-        elif any(unit.orders) and unit.orders[0].ability.exact_id == plan.ability['ability']:
-            return unit(plan.ability['ability'], target=unit.orders[0].target)
+        elif any(unit.orders) and unit.orders[0].ability.exact_id in ITEM_BY_ABILITY:
+            return None
+        # elif any(unit.orders) and unit.orders[0].ability.exact_id == plan.ability['ability']:
+        #     return unit(plan.ability['ability'], target=unit.orders[0].target)
         elif plan.eta == None:
             return None
         elif not plan.condition(self.ai):
