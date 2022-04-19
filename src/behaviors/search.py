@@ -28,7 +28,7 @@ class SearchBehavior(Behavior):
             return None
 
         if unit.is_idle:
-            if 1/3 < self.ai.threat_level:
+            if 1/3 < self.ai.combat.threat_level:
                 if target := next((b for b in reversed(self.ai.bases) if b.townhall), None):
                     return unit.attack(target.position)
             elif self.ai.time < 8 * 60:

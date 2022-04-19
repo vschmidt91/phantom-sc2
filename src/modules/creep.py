@@ -57,7 +57,7 @@ class SpreadCreep(Behavior):
         elif unit.type_id == UnitTypeId.QUEEN:
             if 10 <= len(self.ai.creep.tumor_front):
                 return None
-            elif 1 < self.ai.enemy_vs_ground_map[unit.position.rounded]:
+            elif 1 < self.ai.combat.enemy_vs_ground_map[unit.position.rounded]:
                 return None
             elif unit.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
                 return None
@@ -108,7 +108,7 @@ class SpreadCreep(Behavior):
                 continue
             if not self.ai.in_pathing_grid(position):
                 continue
-            if self.ai.blocked_base(position):
+            if any(self.ai.blocked_bases(position, 1.0)):
                 continue
 
             # if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:

@@ -16,7 +16,11 @@ import math
 import time
 import inspect
 
-MacroId = Union[UnitTypeId, UpgradeId]
+class PlacementNotFoundException(Exception):
+    pass
+
+class VersionConflictException(Exception):
+    pass
 
 async def run_timed(steps, args = {}):
     timings = {}
@@ -82,6 +86,15 @@ def is_large(unit: Unit) -> bool:
 def is_structure(unit: Unit) -> bool:
     data = unit._bot_object.game_data.units[unit.type_id.value]
     return IS_STRUCTURE in data.attributes
+
+def has_capacity(unit: Unit) -> bool:
+    if unit.is_structure:
+        if unit.has_reactor:
+            return len(unit.orders) < 2
+        else:
+            return unit.is_idle
+    else:
+        return True
 
 def unitValue(unit: Unit, target = None):
     if unit.is_hallucination:

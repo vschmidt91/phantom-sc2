@@ -18,8 +18,9 @@ from sc2.game_state import EffectData
 from sc2.unit_command import UnitCommand
 
 from ..utils import *
-from .behavior import Behavior
+from ..behaviors.behavior import Behavior
 from ..ai_component import AIComponent
+from .module import AIModule
 if TYPE_CHECKING:
     from ..ai_base import AIBase
  
@@ -42,6 +43,36 @@ DODGE_UNITS = {
 class DamageCircle:
     radius: float
     damage: float
+
+class DodgeManager(AIModule):
+
+    def __init__(self, ai: AIBase) -> None:
+        super().__init__(ai)
+        self.elements: List[DodgeElement] = list()
+        self.elements_delayed: List[DodgeEffectDelayed] = list()
+
+    async def on_step(self):
+
+        self.elements_delayed = [
+            d
+            for d in self.elements_delayed
+            if self.ai.time <= d.time_of_impact
+        ]
+
+        self.elements.clear()
+        delayed_positions = { e.position for e in self.elements_delayed }
+        for effect in self.ai.state.effects:
+            if effect.id in DODGE_DELAYED_EFFECTS:
+                dodge_effect = DodgeEffectDelayed(effect, self.time)
+                if dodge_effect.position in delayed_positions:
+                    continue
+                self.elements_delayed.append(dodge_effect)
+            elif effect.id in DODGE_EFFECTS:
+                self.elements.append(DodgeEffect(effect))
+        for type in DODGE_UNITS:
+            for enemy in self.ai.enemies_by_type[type]:
+                self.elements.append(DodgeUnit(enemy))
+        self.elements.extend(self.elements_delayed)
 
 class DodgeElement(ABC):
 
@@ -101,7 +132,7 @@ class DodgeBehavior(Behavior):
 
     def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
 
-        for dodge in self.ai.dodge:
+        for dodge in self.ai.dodge.elements:
             distance_bonus = 0.0
             if isinstance(dodge, DodgeEffectDelayed):
                 delay = (2 * self.ai.client.game_step) / 22.4

@@ -5,7 +5,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
 from src.constants import BUILD_ORDER_PRIORITY
 
-from ..macro_plan import MacroPlan
+from ..modules.macro import MacroPlan
 from .zerg_macro import ZergMacro
 from .zerg_strategy import ZergStrategy
 

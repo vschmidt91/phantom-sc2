@@ -8,7 +8,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 
 from .zerg_macro import ZergMacro
 from .zerg_strategy import ZergStrategy
-from ..macro_plan import MacroPlan
+from ..modules.macro import MacroPlan
 
 class Pool12(ZergMacro):
 

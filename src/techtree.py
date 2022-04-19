@@ -4,6 +4,8 @@ from enum import Enum, Flag, auto
 import json
 from dataclasses import dataclass
 from typing import List, Set, Union, Optional, Dict
+from functools import cached_property
+
 from sc2.data import Race, Attribute
 
 from sc2.ids.ability_id import AbilityId
@@ -76,7 +78,7 @@ class TechTreeUnit:
     armor: float
     sight: float
     speed_creep_mul: float
-    weapons: List
+    weapons: List[TechTreeWeapon]
     attributes: List[Attribute]
     abilities: Set[AbilityId]
     size: int
@@ -102,6 +104,18 @@ class TechTreeUnit:
     cargo_capacity: Optional[int] = None
     detection_range: Optional[float] = None
     power_radius: Optional[float] = None
+
+    @cached_property
+    def can_attack_ground(self) -> bool:
+        if self.id in { UnitTypeId.BATTLECRUISER, UnitTypeId.ORACLE }:
+            return True
+        return any(weapon.target_type & TechTreeWeaponType.Ground for weapon in self.weapons)
+
+    @cached_property
+    def can_attack_air(self) -> bool:
+        if self.id in { UnitTypeId.BATTLECRUISER }:
+            return True
+        return any(weapon.target_type & TechTreeWeaponType.Air for weapon in self.weapons)
 
 @dataclass
 class TechTreeCost:

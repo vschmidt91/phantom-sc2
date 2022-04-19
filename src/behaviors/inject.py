@@ -35,7 +35,7 @@ class InjectBehavior(Behavior):
                 self.did_first_inject = True
                 return unit(AbilityId.EFFECT_INJECTLARVA, target=townhall)
 
-        if 1 < self.ai.enemy_vs_ground_map[unit.position.rounded]:
+        if 1 < self.ai.combat.enemy_vs_ground_map[unit.position.rounded]:
             return None
 
         townhall_tag = self.ai.unit_manager.inject_queens.get(unit.tag)

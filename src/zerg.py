@@ -24,7 +24,7 @@ from .ai_base import AIBase
 from .utils import armyValue, center, sample, unitValue, run_timed
 from .constants import BUILD_ORDER_PRIORITY, WITH_TECH_EQUIVALENTS, REQUIREMENTS, ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
 from .cost import Cost
-from .macro_plan import MacroPlan
+from .modules.macro import MacroPlan
 from .modules.creep import Creep
 
 import cProfile
@@ -86,6 +86,8 @@ class ZergAI(AIBase):
 
     async def on_start(self):
 
+        await super().on_start()
+
         if not self.strategy_cls:
             # if self.enemy_race == Race.Terran:
             #     self.strategy_cls = FastLair
@@ -102,9 +104,7 @@ class ZergAI(AIBase):
             plan.priority = plan.priority or BUILD_ORDER_PRIORITY
             if step in race_townhalls[self.race]:
                 plan.max_distance = 0
-            self.add_macro_plan(plan)
-
-        await super().on_start()
+            self.macro.add_plan(plan)
 
     async def on_before_start(self):
         return await super().on_before_start()
@@ -220,7 +220,7 @@ class ZergAI(AIBase):
         for target in targets:
             equivalents =  WITH_TECH_EQUIVALENTS.get(target, { target })
             if sum(self.count(t) for t in equivalents) == 0:
-                self.add_macro_plan(MacroPlan(target, priority=-1/3))
+                self.macro.add_plan(MacroPlan(target, priority=-1/3))
 
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
@@ -267,7 +267,7 @@ class ZergAI(AIBase):
         supply_buffer += 2 * len(self.unit_manager.inject_queens)
         
         if self.supply_left + supply_pending < supply_buffer:
-            self.add_macro_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
+            self.macro.add_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
 
     def expand(self):
 
@@ -282,7 +282,7 @@ class ZergAI(AIBase):
         saturation = max(0, min(1, saturation))
         priority = 3 * (saturation - 1)
 
-        for plan in self.planned_by_type[UnitTypeId.HATCHERY]:
+        for plan in self.macro.planned_by_type[UnitTypeId.HATCHERY]:
             if plan.priority < BUILD_ORDER_PRIORITY:
                 plan.priority = priority
 
@@ -290,4 +290,4 @@ class ZergAI(AIBase):
             plan = MacroPlan(UnitTypeId.HATCHERY)
             plan.priority = priority
             plan.max_distance = 0
-            self.add_macro_plan(plan)
+            self.macro.add_plan(plan)

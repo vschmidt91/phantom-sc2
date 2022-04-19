@@ -19,15 +19,15 @@ from src.simulation.unit import SimulationUnit, SimulationUnitWithTarget
 
 from ..behaviors.changeling_scout import SpawnChangeling
 from ..behaviors.burrow import BurrowBehavior
-from ..behaviors.dodge import DodgeBehavior
-from ..behaviors.fight import FightBehavior
-from ..behaviors.launch_corrosive_biles import LaunchCorrosiveBilesBehavior
+from .dodge import DodgeBehavior
+from .combat import CombatBehavior
+from .bile import BileBehavior
 from ..behaviors.search import SearchBehavior
 from .scout_manager import ScoutBehavior
 from ..simulation.simulation import Simulation
 from ..behaviors.transfuse import TransfuseBehavior
 from ..behaviors.survive import SurviveBehavior
-from ..behaviors.macro import MacroBehavior
+from .macro import MacroBehavior
 from .drop_manager import DropBehavior
 from ..behaviors.inject import InjectBehavior
 from ..behaviors.gather import GatherBehavior
@@ -62,7 +62,6 @@ class UnitManager(AIModule):
         self.targets: Dict[int, Unit] = dict()
         self.attack_paths: Dict[int, List[Point2]] = dict()
         self.retreat_paths: Dict[int, List[Point2]] = dict()
-        self.simulation_map: np.ndarray = np.zeros(self.ai.game_info.map_size)
         self.path_modulus: int = 4
 
     def is_civilian(self, unit: Unit) -> bool:
@@ -87,7 +86,7 @@ class UnitManager(AIModule):
                 # LambdaBehavior(lambda:self.ai.creep.spread(self.ai.unit_by_tag[unit.tag])),
                 SpreadCreep(self.ai, unit.tag),
                 TransfuseBehavior(self.ai, unit.tag),
-                FightBehavior(self.ai, unit.tag),
+                CombatBehavior(self.ai, unit.tag),
                 SearchBehavior(self.ai, unit.tag),
             ])
         elif unit.type_id in CHANGELINGS:
@@ -122,7 +121,7 @@ class UnitManager(AIModule):
             }:
                 if unit.tag in self.drafted_civilians:
                     return 'army'
-                elif 1 < self.ai.enemy_vs_ground_map[unit.position.rounded] < np.inf:
+                elif 1 < self.ai.combat.enemy_vs_ground_map[unit.position.rounded] < np.inf:
                     return 'army'
                 elif (
                     (last_attacked := self.ai.damage_taken.get(unit.tag))
@@ -145,7 +144,7 @@ class UnitManager(AIModule):
                     DodgeBehavior(self.ai, unit.tag),
                     SpawnChangeling(self.ai, unit.tag),
                     DetectBehavior(self.ai, unit.tag),
-                    FightBehavior(self.ai, unit.tag),
+                    CombatBehavior(self.ai, unit.tag),
                     SearchBehavior(self.ai, unit.tag),
                 ]),
             'worker': BehaviorSequence(self.ai, unit.tag, [
@@ -159,10 +158,10 @@ class UnitManager(AIModule):
                     MacroBehavior(self.ai, unit.tag),
                     DodgeBehavior(self.ai, unit.tag),
                     BurrowBehavior(self.ai, unit.tag),
-                    LaunchCorrosiveBilesBehavior(self.ai, unit.tag),
+                    BileBehavior(self.ai, unit.tag),
                     DropBehavior(self.ai, unit.tag),
                     # HideBehavior(self.ai, unit.tag),
-                    FightBehavior(self.ai, unit.tag),
+                    CombatBehavior(self.ai, unit.tag),
                     SearchBehavior(self.ai, unit.tag),
                 ]),
         }
@@ -174,11 +173,11 @@ class UnitManager(AIModule):
         
         if (
             0 == self.ai.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False)
-            and 2/3 < self.ai.threat_level
+            and 2/3 < self.ai.combat.threat_level
         ):
             if worker := self.ai.bases.try_remove_any():
                 self.drafted_civilians.add(worker)
-        elif self.ai.threat_level < 1/2:
+        elif self.ai.combat.threat_level < 1/2:
             if self.drafted_civilians:
                 worker = min(self.drafted_civilians, key = lambda tag : self.ai.unit_by_tag[tag].shield_health_percentage, default = None)
                 self.drafted_civilians.remove(worker)
@@ -214,9 +213,9 @@ class UnitManager(AIModule):
         a = self.ai.game_info.playable_area
         target = Point2(np.clip(target, (a.x, a.y), (a.right, a.top)))
         if unit.is_flying:
-            enemy_map = self.ai.enemy_vs_air_map
+            enemy_map = self.ai.combat.enemy_vs_air_map
         else:
-            enemy_map = self.ai.enemy_vs_ground_map
+            enemy_map = self.ai.combat.enemy_vs_ground_map
 
         path = self.ai.map_analyzer.pathfind(
             start = unit.position,
@@ -264,7 +263,7 @@ class UnitManager(AIModule):
         self.draft_civilians()
 
         inject_queen_max = min(5, len(queens))
-        inject_queen_count = min(math.ceil((1 - self.ai.threat_level) * inject_queen_max), self.ai.townhalls.amount)
+        inject_queen_count = min(math.ceil((1 - self.ai.combat.threat_level) * inject_queen_max), self.ai.townhalls.amount)
         inject_queens = queens[0:inject_queen_count]
 
         bases = [
@@ -285,14 +284,7 @@ class UnitManager(AIModule):
                 behavior = self.create_behavior(unit)
                 self.behaviors[unit.tag] = behavior
             if command := behavior.execute():
-                target_matches = False
-                if command.target == unit.order_target == None:
-                    target_matches = True
-                elif isinstance(command.target, Unit) and isinstance(unit.order_target, int):
-                    target_matches = command.target.tag == unit.order_target
-                elif isinstance(command.target, Point2) and isinstance(unit.order_target, Point2):
-                    target_matches = command.target.distance_to(unit.order_target) < 1e-3
-                if any(unit.orders) and unit.orders[0].ability.exact_id == command.ability and target_matches:
+                if any(unit.orders) and self.ai.order_matches_command(unit.orders[0], command):
                     continue
                 if not self.ai.do(command, subtract_cost=True, subtract_supply=True):
                     raise Exception()

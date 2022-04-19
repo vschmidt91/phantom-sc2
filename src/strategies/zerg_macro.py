@@ -12,7 +12,6 @@ from sc2.data import Race
 from ..unit_counters import UNIT_COUNTER_DICT
 from ..constants import BUILD_ORDER_PRIORITY, ZERG_ARMOR_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES
 from ..cost import Cost
-from ..macro_plan import MacroPlan
 from ..utils import unitValue
 from .zerg_strategy import ZergStrategy
 
@@ -32,7 +31,7 @@ class ZergMacro(ZergStrategy):
         worker_target = max(1, min(100, self.ai.get_max_harvester()))
         
         ratio = max(
-            self.ai.threat_level,
+            self.ai.combat.threat_level,
             # 1 if worker_count == worker_target else 0,
             worker_count / worker_target,
         )

@@ -29,14 +29,14 @@ class ValueMap(AIComponent):
         range_vs_ground = unit.radius + self.ai.get_unit_range(unit, True, False) + bonus_distance
         range_vs_air = unit.radius + self.ai.get_unit_range(unit, False, True) + bonus_distance
         if unit.is_flying:
-            if unit.can_attack_ground:
+            if self.ai.techtree.units[unit.type_id].can_attack_ground:
                 self.air_vs_ground = self.ai.map_analyzer.add_cost(unit.position, range_vs_ground, self.air_vs_ground, weight)
-            if unit.can_attack_air:
+            if self.ai.techtree.units[unit.type_id].can_attack_air:
                 self.air_vs_air = self.ai.map_analyzer.add_cost(unit.position, range_vs_air, self.air_vs_air, weight)
         else:
-            if unit.can_attack_ground:
+            if self.ai.techtree.units[unit.type_id].can_attack_ground:
                 self.ground_vs_ground = self.ai.map_analyzer.add_cost(unit.position, range_vs_ground, self.ground_vs_ground, weight)
-            if unit.can_attack_air:
+            if self.ai.techtree.units[unit.type_id].can_attack_air:
                 self.ground_vs_air = self.ai.map_analyzer.add_cost(unit.position, range_vs_air, self.ground_vs_air, weight)
 
     def get_map_vs_ground(self) -> np.ndarray:

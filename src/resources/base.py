@@ -15,13 +15,13 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
-from ..macro_plan import MacroPlan
 from ..utils import dot
 
 from .mineral_patch import MineralPatch
 from .vespene_geyser import VespeneGeyser
 from .resource_base import ResourceBase
 from .resource_group import BalancingMode, ResourceGroup
+from ..modules.macro import MacroPlan
 
 from ..ai_component import AIComponent
 if TYPE_CHECKING:
