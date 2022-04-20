@@ -63,7 +63,7 @@ class DodgeManager(AIModule):
         delayed_positions = { e.position for e in self.elements_delayed }
         for effect in self.ai.state.effects:
             if effect.id in DODGE_DELAYED_EFFECTS:
-                dodge_effect = DodgeEffectDelayed(effect, self.time)
+                dodge_effect = DodgeEffectDelayed(effect, self.ai.time)
                 if dodge_effect.position in delayed_positions:
                     continue
                 self.elements_delayed.append(dodge_effect)

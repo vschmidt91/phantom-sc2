@@ -201,6 +201,7 @@ class AIBase(ABC, BotAI):
 
     def handle_errors(self):
         for error in self.state.action_errors:
+            print(self.time, error)
             if error.result == ActionResult.CantBuildLocationInvalid.value:
                 if unit := self.unit_by_tag.get(error.unit_tag):
                     self.scout_manager.blocked_positions[unit.position] = self.time
@@ -261,9 +262,11 @@ class AIBase(ABC, BotAI):
         pass
 
     async def on_building_construction_started(self, unit: Unit):
+        print(self.time, 'construction_started', unit)
         pass
 
     async def on_building_construction_complete(self, unit: Unit):
+        print(self.time, 'construction_complete', unit)
         pass
 
     async def on_enemy_unit_entered_vision(self, unit: Unit):
@@ -273,11 +276,13 @@ class AIBase(ABC, BotAI):
         pass
 
     async def on_unit_created(self, unit: Unit):
+        print(self.time, 'created', unit)
         if 0 < self.state.game_loop and unit.type_id == race_worker[self.race]:
             self.bases.try_add(unit.tag)
         pass
 
     async def on_unit_destroyed(self, unit_tag: int):
+        print(self.time, 'destroyed', unit_tag)
         self.enemies.pop(unit_tag, None)
         self.bases.try_remove(unit_tag)
         pass
@@ -293,6 +298,7 @@ class AIBase(ABC, BotAI):
         pass
         
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
+        print(self.time, 'type_changed', previous_type, unit)
         pass
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):

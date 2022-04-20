@@ -283,8 +283,11 @@ class UnitManager(AIModule):
             if not behavior:
                 behavior = self.create_behavior(unit)
                 self.behaviors[unit.tag] = behavior
-            if command := behavior.execute():
-                if any(unit.orders) and self.ai.order_matches_command(unit.orders[0], command):
-                    continue
-                if not self.ai.do(command, subtract_cost=True, subtract_supply=True):
-                    raise Exception()
+            try:
+                if command := behavior.execute():
+                    if any(unit.orders) and self.ai.order_matches_command(unit.orders[0], command):
+                        continue
+                    if not self.ai.do(command, subtract_cost=True, subtract_supply=True):
+                        raise Exception()
+            except Exception as e:
+                print(e)

@@ -33,21 +33,19 @@ class GatherBehavior(Behavior):
         
         resource, base = self.ai.bases.get_resource_and_item(unit.tag)
         if not resource:
-            if unit.is_idle:
-                raise Exception()
             return None
             # if not self.ai.bases.try_add(unit.tag):
             #     raise Exception()
             # resource, base = self.ai.bases.get_resource_and_item(unit.tag)
 
         if not resource:
-            raise Exception()
+            return None
         if not resource.remaining:
             return None
 
         target = self.ai.gas_building_by_position.get(resource.position) or self.ai.resource_by_position.get(resource.position)
         if not target:
-            raise Exception()
+            return None
 
             
         if base.townhall and self.ai.is_speedmining_enabled and resource.harvester_count < 3:

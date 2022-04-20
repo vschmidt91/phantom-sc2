@@ -1,7 +1,7 @@
 
 
 from __future__ import annotations
-from typing import Callable, DefaultDict, Optional, Set, Union, Iterable, Tuple, List, TYPE_CHECKING
+from typing import Callable, Coroutine, DefaultDict, Optional, Set, Union, Iterable, Tuple, List, TYPE_CHECKING
 import random
 
 from sc2.position import Point2
@@ -313,8 +313,8 @@ class MacroBehavior(Behavior):
             return None
         elif plan.ability == None:
             return None
-        elif any(unit.orders) and ITEM_BY_ABILITY.get(unit.orders[0].ability.exact_id) == plan.item:
-            return self.ai.order_to_command(unit, unit.orders[0])
+        # elif any(unit.orders) and ITEM_BY_ABILITY.get(unit.orders[0].ability.exact_id) == plan.item:
+        #     return self.ai.order_to_command(unit, unit.orders[0])
         elif plan.eta == None:
             return None
         elif not plan.condition(self.ai):
