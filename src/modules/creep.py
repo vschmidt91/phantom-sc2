@@ -12,6 +12,7 @@ from sc2.unit import Unit, UnitCommand
 from sc2.position import Point2
 from src.behaviors.behavior import Behavior
 from src.constants import COOLDOWN, ENERGY_COST
+from src.units.unit import AIUnit
 
 from .module import AIModule
 if TYPE_CHECKING:
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
 
 TUMOR_RANGE = 10
     
-class Creep(AIModule):
+class CreepModule(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
@@ -37,32 +38,32 @@ class Creep(AIModule):
 
         self.coverage = np.sum(self.ai.state.creep.data_numpy) / self.tile_count
     
-class SpreadCreep(Behavior):
+class CreepBehavior(AIUnit):
 
-    def __init__(self, ai: AIBase, unit_tag: int):
-        super().__init__(ai, unit_tag)
+    def __init__(self, ai: AIBase, tag: int):
+        super().__init__(ai, tag)
         self.creation_step = self.ai.state.game_loop
 
-    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
+    def spread_creep(self) -> Optional[UnitCommand]:
 
         a = self.ai.game_info.playable_area
 
         if .99 < self.ai.creep.coverage:
             return None
 
-        if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
+        if self.unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
             age = self.ai.state.game_loop - self.creation_step
             if age < 240:
                 return None
-        elif unit.type_id == UnitTypeId.QUEEN:
+        elif self.unit.type_id == UnitTypeId.QUEEN:
             if 10 <= len(self.ai.creep.tumor_front):
                 return None
-            elif 1 < self.ai.combat.enemy_vs_ground_map[unit.position.rounded]:
+            elif 1 < self.ai.combat.enemy_vs_ground_map[self.unit.position.rounded]:
                 return None
-            elif unit.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
+            elif self.unit.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
                 return None
-            elif any(unit.orders) and unit.orders[0].ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN:
-                return unit(AbilityId.BUILD_CREEPTUMOR_QUEEN, target=unit.order_target)
+            elif any(self.unit.orders) and self.unit.orders[0].ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN:
+                return self.unit(AbilityId.BUILD_CREEPTUMOR_QUEEN, target=self.unit.order_target)
             # elif not self.ai.has_creep(unit.position) and self.ai.townhalls.ready:
             #     if unit.is_moving:
             #         return unit.move(unit.order_target)
@@ -71,8 +72,8 @@ class SpreadCreep(Behavior):
         else:
             return None
 
-        start_position = unit.position
-        if unit.type_id == UnitTypeId.QUEEN:
+        start_position = self.unit.position
+        if self.unit.type_id == UnitTypeId.QUEEN:
             if self.ai.townhalls.ready:
                 start_position = self.ai.townhalls.ready.random.position
 
@@ -94,14 +95,14 @@ class SpreadCreep(Behavior):
         if not target:
             return None
 
-        if unit.type_id == UnitTypeId.QUEEN:
+        if self.unit.type_id == UnitTypeId.QUEEN:
             max_range = 3 * TUMOR_RANGE
         else:
             max_range = TUMOR_RANGE
-        max_range = min(max_range, int(unit.position.distance_to(target)))
+        max_range = min(max_range, int(self.unit.position.distance_to(target)))
 
         for i in range(max_range, 0, -1):
-            position = unit.position.towards(target, i)
+            position = self.unit.position.towards(target, i)
             if not self.ai.has_creep(position):
                 continue
             if not self.ai.is_visible(position):
@@ -111,7 +112,7 @@ class SpreadCreep(Behavior):
             if any(self.ai.blocked_bases(position, 1.0)):
                 continue
 
-            # if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
-            #     del self.ai.unit_manager.behaviors[unit.tag]
+            # if self.unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
+            #     self.ai.unit_manager.remove_unit(self.unit)
 
-            return unit.build(UnitTypeId.CREEPTUMOR, position)
+            return self.unit.build(UnitTypeId.CREEPTUMOR, position)

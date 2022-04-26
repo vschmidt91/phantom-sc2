@@ -1,4 +1,5 @@
 - fix blocked and taken bases 1095281
 
 games for stream
-https://aiarena.net/matches/1124166/
+1124166
+1136898

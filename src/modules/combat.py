@@ -13,6 +13,8 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
+from src.units.unit import AIUnit
+
 from ..value_map import ValueMap
 from ..utils import *
 from ..constants import *
@@ -22,7 +24,7 @@ from .module import AIModule
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class CombatManager(AIModule):
+class CombatModule(AIModule):
     
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
@@ -150,32 +152,32 @@ class CombatStance(Enum):
     FIGHT = 3
     ADVANCE = 4
 
-class CombatBehavior(Behavior):
+class CombatBehavior(AIUnit):
 
-    def __init__(self, ai: AIBase, unit_tag: int):
-        super().__init__(ai, unit_tag)
+    def __init__(self, ai: AIBase, tag: int):
+        super().__init__(ai, tag)
         self.stance: CombatStance = CombatStance.FIGHT
 
-    def target_priority(self, unit: Unit, target: Unit) -> float:
-        if not self.ai.can_attack(unit, target) and not unit.is_detector:
+    def target_priority(self, target: Unit) -> float:
+        if not self.ai.can_attack(self.unit, target) and not self.unit.is_detector:
             return 0
         priority = self.ai.unit_manager.enemy_priorities[target.tag]
-        priority /= 30 + target.position.distance_to(unit.position)
-        if unit.is_detector:
+        priority /= 30 + target.position.distance_to(self.unit.position)
+        if self.unit.is_detector:
             priority *= 10 if target.is_cloaked else 1
             priority *= 10 if not target.is_revealed else 1
         return priority
 
 
-    def get_stance(self, unit: Unit, target: Unit) -> CombatStance:
+    def get_stance(self, target: Unit) -> CombatStance:
 
-        halfway = .5 * (unit.position + target.position)
+        halfway = .5 * (self.unit.position + target.position)
         eps = 1e-3
         army = max(2 * eps, self.ai.combat.army_projection[target.position.rounded])
-        enemy = max(eps, self.ai.combat.enemy_projection[unit.position.rounded])
+        enemy = max(eps, self.ai.combat.enemy_projection[self.unit.position.rounded])
         advantage = army / enemy
 
-        if unit.ground_range < 2:
+        if self.unit.ground_range < 2:
 
             if advantage < 1:
                 return CombatStance.FLEE
@@ -193,51 +195,51 @@ class CombatBehavior(Behavior):
             else:
                 return CombatStance.ADVANCE
 
-    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
+    def fight(self) -> Optional[UnitCommand]:
 
-        target = self.ai.unit_manager.targets.get(unit.tag)
+        target = self.ai.unit_manager.targets.get(self.tag)
         
         if not target:
             return None
 
-        attack_path = self.ai.unit_manager.attack_paths[unit.tag]
-        retreat_path = self.ai.unit_manager.retreat_paths[unit.tag]
+        attack_path = self.ai.unit_manager.attack_paths[self.tag]
+        retreat_path = self.ai.unit_manager.retreat_paths[self.tag]
 
         attack_point = attack_path[min(len(attack_path) - 1, 3)]
         retreat_point = retreat_path[min(len(retreat_path) - 1, 3)]
 
         # advantage = self.get_advantage(unit, target)
-        self.stance = self.get_stance(unit, target)
+        self.stance = self.get_stance(target)
 
         if self.stance == CombatStance.FLEE:
 
-            return unit.move(retreat_point)
+            return self.unit.move(retreat_point)
 
         elif self.stance == CombatStance.RETREAT:
 
             if (
-                (unit.weapon_cooldown or unit.is_burrowed)
-                and unit.position.distance_to(target.position) <= unit.radius + self.ai.get_unit_range(unit) + target.radius + unit.distance_to_weapon_ready
+                (self.unit.weapon_cooldown or self.unit.is_burrowed)
+                and self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(self.unit) + target.radius + self.unit.distance_to_weapon_ready
             ):
-                return unit.move(retreat_point)
-            elif unit.position.distance_to(target.position) <= unit.radius + self.ai.get_unit_range(unit) + target.radius:
-                return unit.attack(target)
+                return self.unit.move(retreat_point)
+            elif self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(self.unit) + target.radius:
+                return self.unit.attack(target)
             else:
-                return unit.attack(target.position)
+                return self.unit.attack(target.position)
             
         elif self.stance == CombatStance.FIGHT:
 
-            if unit.position.distance_to(target.position) <= unit.radius + self.ai.get_unit_range(unit) + target.radius:
-                return unit.attack(target)
+            if self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(self.unit) + target.radius:
+                return self.unit.attack(target)
             else:
-                return unit.attack(attack_point)
+                return self.unit.attack(attack_point)
 
         elif self.stance == CombatStance.ADVANCE:
 
-            distance = unit.position.distance_to(target.position) - unit.radius - target.radius
-            if unit.weapon_cooldown and 1 < distance:
-                return unit.move(attack_point)
-            elif unit.position.distance_to(target.position) <= unit.radius + self.ai.get_unit_range(unit) + target.radius:
-                return unit.attack(target)
+            distance = self.unit.position.distance_to(target.position) - self.unit.radius - target.radius
+            if self.unit.weapon_cooldown and 1 < distance:
+                return self.unit.move(attack_point)
+            elif self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(self.unit) + target.radius:
+                return self.unit.attack(target)
             else:
-                return unit.attack(attack_point)
+                return self.unit.attack(attack_point)

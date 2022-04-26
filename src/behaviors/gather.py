@@ -13,6 +13,8 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
+from src.units.unit import AIUnit
+
 from ..resources.vespene_geyser import VespeneGeyser
 
 from ..resources.mineral_patch import MineralPatch
@@ -23,15 +25,15 @@ from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class GatherBehavior(Behavior):
+class GatherBehavior(AIUnit):
 
-    def __init__(self, ai: AIBase, unit_tag: int):
-        super().__init__(ai, unit_tag)
+    def __init__(self, ai: AIBase, tag: int):
+        super().__init__(ai, tag)
         self.target: Optional[Unit] = None
 
-    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
+    def gather(self) -> Optional[UnitCommand]:
         
-        resource, base = self.ai.bases.get_resource_and_item(unit.tag)
+        resource, base = self.ai.bases.get_resource_and_item(self.tag)
         if not resource:
             return None
             # if not self.ai.bases.try_add(unit.tag):
@@ -50,37 +52,37 @@ class GatherBehavior(Behavior):
             
         if base.townhall and self.ai.is_speedmining_enabled and resource.harvester_count < 3:
 
-            if unit.is_gathering and unit.order_target != target.tag:
-                return unit.smart(target)
-            elif unit.is_idle or unit.is_attacking:
-                return unit.smart(target)
-            elif unit.is_moving and self.target:
+            if self.unit.is_gathering and self.unit.order_target != target.tag:
+                return self.unit.smart(target)
+            elif self.unit.is_idle or self.unit.is_attacking:
+                return self.unit.smart(target)
+            elif self.unit.is_moving and self.target:
                 self.target, target = None, self.target
-                return unit.smart(target, queue=True)
-            elif len(unit.orders) == 1:
-                if unit.is_returning:
-                    townhall = self.ai.townhalls.ready.closest_to(unit)
-                    move_target = townhall.position.towards(unit, townhall.radius + unit.radius)
-                    if 0.75 < unit.position.distance_to(move_target) < 1.5:
+                return self.unit.smart(target, queue=True)
+            elif len(self.unit.orders) == 1:
+                if self.unit.is_returning:
+                    townhall = self.ai.townhalls.ready.closest_to(self.unit)
+                    move_target = townhall.position.towards(self.unit, townhall.radius + self.unit.radius)
+                    if 0.75 < self.unit.position.distance_to(move_target) < 1.5:
                         self.target = townhall
-                        return unit.move(move_target)
+                        return self.unit.move(move_target)
                         # 
-                        # unit(AbilityId.SMART, townhall, True)
+                        # self.unit(AbilityId.SMART, townhall, True)
                 else:
                     move_target = None
                     if isinstance(resource, MineralPatch):
                         move_target = resource.speedmining_target
                     if not move_target:
-                        move_target = target.position.towards(unit, target.radius + unit.radius)
-                    if 0.75 < unit.position.distance_to(move_target) < 1.75:
+                        move_target = target.position.towards(self.unit, target.radius + self.unit.radius)
+                    if 0.75 < self.unit.position.distance_to(move_target) < 1.75:
                         self.target = target
-                        return unit.move(move_target)
-                        # unit.move(move_target)
-                        # unit(AbilityId.SMART, target, True)
+                        return self.unit.move(move_target)
+                        # self.unit.move(move_target)
+                        # self.unit(AbilityId.SMART, target, True)
 
         else:
 
-            if not unit.is_carrying_resource:
-                return unit.gather(target)
+            if not self.unit.is_carrying_resource:
+                return self.unit.gather(target)
             elif self.ai.townhalls.ready.exists:
-                return unit.return_resource()
+                return self.unit.return_resource()

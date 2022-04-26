@@ -16,6 +16,7 @@ from sc2.ids.effect_id import EffectId
 from sc2.unit import Unit
 from sc2.game_state import EffectData
 from sc2.unit_command import UnitCommand
+from src.units.unit import AIUnit
 
 from ..utils import *
 from ..behaviors.behavior import Behavior
@@ -44,7 +45,7 @@ class DamageCircle:
     radius: float
     damage: float
 
-class DodgeManager(AIModule):
+class DodgeModule(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
@@ -124,28 +125,28 @@ class DodgeEffectDelayed(DodgeEffect):
     #         radius_adjusted = radius - movement_speed * time_remaining
     #         yield DamageCircle(self.position, radius_adjusted, damage)
 
-class DodgeBehavior(Behavior):
-
-    def __init__(self, ai: AIBase, unit_tag: int):
-        super().__init__(ai, unit_tag)
+class DodgeBehavior(AIUnit):
+    
+    def __init__(self, ai: AIBase, tag: int):
+        super().__init__(ai, tag)
         self.safety_distance: float = 0.5
 
-    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
+    def dodge(self) -> Optional[UnitCommand]:
 
         for dodge in self.ai.dodge.elements:
             distance_bonus = 0.0
             if isinstance(dodge, DodgeEffectDelayed):
                 delay = (2 * self.ai.client.game_step) / 22.4
                 time_remaining = max(0, dodge.time_of_impact - self.ai.time - delay)
-                distance_bonus = 1.4 * unit.movement_speed * time_remaining
-            distance_have = unit.distance_to(dodge.position)
+                distance_bonus = 1.4 * self.unit.movement_speed * time_remaining
+            distance_have = self.unit.distance_to(dodge.position)
             for circle in dodge.circles:
-                distance_want = circle.radius + unit.radius
+                distance_want = circle.radius + self.unit.radius
                 if distance_have + distance_bonus < distance_want + self.safety_distance:
                     dodge_from = dodge.position + Point2(np.random.normal(loc=0.0, scale=0.001, size=2))
-                    target = dodge_from.towards(unit, distance_want + 2 * self.safety_distance)
-                    if unit.is_burrowed and not can_move(unit):
-                        unit(AbilityId.BURROWUP)
-                        return unit.move(target, queue=True)
+                    target = dodge_from.towards(self.unit, distance_want + 2 * self.safety_distance)
+                    if self.unit.is_burrowed and not can_move(self.unit):
+                        self.unit(AbilityId.BURROWUP)
+                        return self.unit.move(target, queue=True)
                     else:
-                        return unit.move(target)
+                        return self.unit.move(target)

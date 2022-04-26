@@ -13,6 +13,8 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
+from src.units.unit import AIUnit
+
 from ..utils import *
 from ..constants import *
 from ..behaviors.behavior import Behavior
@@ -23,7 +25,7 @@ if TYPE_CHECKING:
 
 BILE_ABILITY = AbilityId.EFFECT_CORROSIVEBILE
 
-class BileManager(AIModule):
+class BileModule(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
@@ -45,16 +47,16 @@ class BileManager(AIModule):
             return dx / dt
         return Point2((0, 0))
 
-class BileBehavior(Behavior):
-
-    def __init__(self, ai: AIBase, unit_tag: int):
-        super().__init__(ai, unit_tag)
+class BileBehavior(AIUnit):
+    
+    def __init__(self, ai: AIBase, tag: int):
+        super().__init__(ai, tag)
         self.last_used = 0
 
-    def target_priority(self, unit: Unit, target: Unit):
+    def target_priority(self, target: Unit):
         if not self.ai.is_visible(target.position):
             return 0
-        if not unit.in_ability_cast_range(BILE_ABILITY, target.position):
+        if not self.unit.in_ability_cast_range(BILE_ABILITY, target.position):
             return 0
         if target.is_hallucination:
             return 0
@@ -65,9 +67,9 @@ class BileBehavior(Behavior):
         priority /= 2 + target.movement_speed
         return priority
 
-    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
+    def bile(self) -> Optional[UnitCommand]:
 
-        if unit.type_id != UnitTypeId.RAVAGER:
+        if self.unit.type_id != UnitTypeId.RAVAGER:
             return None
 
         if self.ai.state.game_loop < self.last_used + COOLDOWN[AbilityId.EFFECT_CORROSIVEBILE]:
@@ -78,16 +80,16 @@ class BileBehavior(Behavior):
             for target in self.ai.enumerate_enemies()
         )
         target: Unit = max(targets,
-            key = lambda t : self.target_priority(unit, t),
+            key = lambda t : self.target_priority(t),
             default = None
         )
         if not target:
             return None
-        if self.target_priority(unit, target) <= 0:
+        if self.target_priority(target) <= 0:
             return None
         velocity = self.ai.biles.estimate_enemy_velocity(target)
         if 2 < velocity.length:
             velocity = Point2((0, 0))
         predicted_position = target.position + velocity * 50 / 22.4
         self.last_used = self.ai.state.game_loop
-        return unit(BILE_ABILITY, target=predicted_position)
+        return self.unit(BILE_ABILITY, target=predicted_position)

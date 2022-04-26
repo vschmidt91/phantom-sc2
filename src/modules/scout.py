@@ -8,6 +8,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2
 from sc2.unit_command import UnitCommand
+from src.units.unit import AIUnit
 
 from ..constants import CHANGELINGS
 from ..resources.base import Base
@@ -17,7 +18,7 @@ from .module import AIModule
 if TYPE_CHECKING:
     from ..ai_base import AIBase
     
-class ScoutManager(AIModule):
+class ScoutModule(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
@@ -125,10 +126,10 @@ class ScoutManager(AIModule):
         self.send_detectors()
         self.send_scouts()
 
-class ScoutBehavior(Behavior):
-
-    def __init__(self, ai: AIBase, unit_tag: int):
-        super().__init__(ai, unit_tag)
+class ScoutBehavior(AIUnit):
+    
+    def __init__(self, ai: AIBase, tag: int):
+        super().__init__(ai, tag)
 
     def scout_priority(self, base: Base) -> float:
         if base.townhall:
@@ -138,26 +139,26 @@ class ScoutBehavior(Behavior):
             return 1e-5
         return d
         
-    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
+    def scout(self) -> Optional[UnitCommand]:
 
         target = next((
             pos
             for pos, tag in self.ai.scout_manager.scouts.items()
-            if tag == unit.tag
+            if tag == self.tag
             ), None)
 
         if not target:
             return None
 
-        if unit.position.distance_to(target) < 1e-3:
-            return unit.hold_position()
+        if self.unit.position.distance_to(target) < 1e-3:
+            return self.unit.hold_position()
 
-        return unit.move(target)
+        return self.unit.move(target)
 
-class DetectBehavior(Behavior):
-
-    def __init__(self, ai: AIBase, unit_tag: int):
-        super().__init__(ai, unit_tag)
+class DetectBehavior(AIUnit):
+    
+    def __init__(self, ai: AIBase, tag: int):
+        super().__init__(ai, tag)
 
     def scout_priority(self, base: Base) -> float:
         if base.townhall:
@@ -167,17 +168,17 @@ class DetectBehavior(Behavior):
             return 1e-5
         return d
         
-    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
+    def detect(self) -> Optional[UnitCommand]:
 
         base_position = next((
             pos
             for pos, tag in self.ai.scout_manager.detectors.items()
-            if tag == unit.tag
+            if tag == self.tag
             ), None)
 
         if not base_position:
             return None
 
-        target_distance = unit.detect_range - 3
-        if target_distance < unit.position.distance_to(base_position):
-            return unit.move(base_position.towards(unit, target_distance))
+        target_distance = self.unit.detect_range - 3
+        if target_distance < self.unit.position.distance_to(base_position):
+            return self.unit.move(base_position.towards(self.unit, target_distance))

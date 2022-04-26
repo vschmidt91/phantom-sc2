@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Iterator, Dict, Iterable, Set, List, Optional, TypeVar, Generic, Tuple, TYPE_CHECKING
 from itertools import chain
 import math
+import logging
 
 from google.protobuf.descriptor import Error
 
@@ -129,4 +130,5 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         
         if self.balancing_mode != BalancingMode.NONE:
             if harvester := self.try_remove_any():
-                self.try_add(harvester)
+                if not self.try_add(harvester):
+                    logging.error('balancing failed')

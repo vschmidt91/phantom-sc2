@@ -14,6 +14,8 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
+from src.units.unit import AIUnit
+
 from ..utils import *
 from ..constants import *
 from .behavior import Behavior
@@ -21,17 +23,17 @@ from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class TransfuseBehavior(Behavior):
+class TransfuseBehavior(AIUnit):
 
     ABILITY = AbilityId.TRANSFUSION_TRANSFUSION
+    
+    def __init__(self, ai: AIBase, tag: int):
+        super().__init__(ai, tag)
 
-    def __init__(self, ai: AIBase, unit_tag: int):
-        super().__init__(ai, unit_tag)
-
-    def priority(self, queen: Unit, target: Unit) -> float:
-        if queen.tag == target.tag:
+    def priority(self, target: Unit) -> float:
+        if self.tag == target.tag:
             return 0
-        if not queen.in_ability_cast_range(self.ABILITY, target):
+        if not self.unit.in_ability_cast_range(self.ABILITY, target):
             return 0
         if BuffId.TRANSFUSION in target.buffs:
             return 0
@@ -39,20 +41,21 @@ class TransfuseBehavior(Behavior):
             return 0
         priority = 1
         priority *= 10 + self.ai.get_unit_value(target)
+        priority /= .1 + target.health_percentage
         return priority
 
-    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
+    def transfuse(self) -> Optional[UnitCommand]:
 
-        if unit.energy < ENERGY_COST[self.ABILITY]:
+        if self.unit.energy < ENERGY_COST[self.ABILITY]:
             return None
 
         target = max(self.ai.all_own_units,
-            key = lambda t : self.priority(unit, t),
+            key = lambda t : self.priority(t),
             default = None
         )
         if not target:
             return None
-        if self.priority(unit, target) <= 0:
+        if self.priority(target) <= 0:
             return None
 
-        return unit(self.ABILITY, target=target)
+        return self.unit(self.ABILITY, target=target)

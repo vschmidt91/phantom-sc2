@@ -137,6 +137,6 @@ class Base(ResourceGroup[ResourceBase]):
                     plan.target = plan.target.rounded.offset((.5, .5))
                     plan.max_distance = 4
                     plan.priority = 0
-                    self.ai.add_macro_plan(plan)
+                    self.ai.macro.add_plan(plan)
 
         super().update()

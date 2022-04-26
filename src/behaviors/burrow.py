@@ -1,7 +1,8 @@
 from __future__ import annotations
-from typing import Optional, Set, Union, Iterable, Tuple, TYPE_CHECKING
+from typing import Any, Optional, Set, Union, Iterable, Tuple, TYPE_CHECKING
 import numpy as np
 import random
+from abc import ABC
 from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT
 
 from sc2.position import Point2
@@ -17,14 +18,11 @@ from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class BurrowBehavior(Behavior):
+class BurrowBehavior(ABC, Behavior):
 
-    def __init__(self, ai: AIBase, unit_tag: int):
-        super().__init__(ai, unit_tag)
+    def burrow(self) -> Optional[UnitCommand]:
 
-    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
-
-        if unit.type_id not in { UnitTypeId.ROACH, UnitTypeId.ROACHBURROWED }:
+        if self.unit.type_id not in { UnitTypeId.ROACH, UnitTypeId.ROACHBURROWED }:
             return None
 
         if UpgradeId.BURROW not in self.ai.state.upgrades:
@@ -33,13 +31,13 @@ class BurrowBehavior(Behavior):
         if UpgradeId.TUNNELINGCLAWS in self.ai.state.upgrades:
             return None
 
-        if unit.is_burrowed:
-            if unit.health_percentage == 1 or unit.is_revealed:
-                return unit(AbilityId.BURROWUP)
+        if self.unit.is_burrowed:
+            if self.unit.health_percentage == 1 or self.unit.is_revealed:
+                return self.unit(AbilityId.BURROWUP)
         else:
             if (
-                unit.health_percentage < 1/3
-                and unit.weapon_cooldown
-                and not unit.is_revealed
+                self.unit.health_percentage < 1/3
+                and self.unit.weapon_cooldown
+                and not self.unit.is_revealed
             ):
                 return unit(AbilityId.BURROWDOWN)

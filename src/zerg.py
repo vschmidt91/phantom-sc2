@@ -25,7 +25,7 @@ from .utils import armyValue, center, sample, unitValue, run_timed
 from .constants import BUILD_ORDER_PRIORITY, WITH_TECH_EQUIVALENTS, REQUIREMENTS, ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
 from .cost import Cost
 from .modules.macro import MacroPlan
-from .modules.creep import Creep
+from .modules.creep import CreepModule
 
 import cProfile
 import pstats
@@ -103,7 +103,7 @@ class ZergAI(AIBase):
                 plan = MacroPlan(step)
             plan.priority = plan.priority or BUILD_ORDER_PRIORITY
             if step in race_townhalls[self.race]:
-                plan.max_distance = 0
+                plan.max_distance = 1
             self.macro.add_plan(plan)
 
     async def on_before_start(self):

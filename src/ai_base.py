@@ -6,6 +6,7 @@ from collections import defaultdict
 from enum import Enum
 from dataclasses import dataclass
 from functools import cache, cmp_to_key
+import logging
 from importlib.resources import Resource
 import math
 from pickle import BUILD
@@ -13,6 +14,7 @@ import re
 import random
 from re import S
 from typing import Any, DefaultDict, Iterable, Optional, Tuple, Type, Union, Coroutine, Set, List, Callable, Dict
+from loguru import logger
 from matplotlib.colors import Normalize
 import numpy as np
 import os
@@ -49,14 +51,14 @@ from src.techtree import TechTree, TechTreeWeaponType
 
 from .modules.chat import Chat
 from .modules.module import AIModule
-from .modules.creep import Creep
-from .modules.combat import CombatBehavior, CombatManager
-from .modules.drop_manager import DropManager
-from .modules.macro import MacroId, MacroManager, MacroPlan
-from .modules.bile import BileManager
+from .modules.creep import CreepModule
+from .modules.combat import CombatBehavior, CombatModule
+from .modules.drop import DropModule
+from .modules.macro import MacroBehavior, MacroId, MacroModule, MacroPlan
+from .modules.bile import BileModule
 from .resources.mineral_patch import MineralPatch
 from .resources.vespene_geyser import VespeneGeyser
-from .modules.scout_manager import ScoutManager
+from .modules.scout import ScoutModule
 from .modules.unit_manager import IGNORED_UNIT_TYPES, UnitManager
 from .simulation.simulation import Simulation
 from .value_map import ValueMap
@@ -130,9 +132,12 @@ class AIBase(ABC, BotAI):
     async def on_before_start(self):
 
         if self.debug:
+            logging.basicConfig(level=logging.INFO)
             plt.ion()
             self.plot, self.plot_axes = plt.subplots(1, 2)
             self.plot_images = None
+        else:
+            logging.basicConfig(level=logging.ERROR)
 
         with open(VERSION_PATH, 'r') as file:
             self.version = file.readline().replace('\n', '')
@@ -168,20 +173,22 @@ class AIBase(ABC, BotAI):
 
     async def on_start(self):
 
+        self.townhalls.first(AbilityId.RALLY_WORKERS, target=self.townhalls.first.position)
+
         self.map_analyzer = MapData(self)
         self.map_data = await self.load_map_data()
         
         await self.initialize_bases()
 
-        self.scout_manager = ScoutManager(self)
-        self.drop_manager = DropManager(self)
+        self.scout_manager = ScoutModule(self)
+        self.drop_manager = DropModule(self)
         self.unit_manager = UnitManager(self)
-        self.macro = MacroManager(self)
+        self.macro = MacroModule(self)
         self.chat = Chat(self)
-        self.creep = Creep(self)
-        self.biles = BileManager(self)
-        self.combat = CombatManager(self)
-        self.dodge = DodgeManager(self)
+        self.creep = CreepModule(self)
+        self.biles = BileModule(self)
+        self.combat = CombatModule(self)
+        self.dodge = DodgeModule(self)
 
         self.modules: List[AIModule] = [
             self.dodge,
@@ -189,11 +196,14 @@ class AIBase(ABC, BotAI):
             self.scout_manager,
             self.drop_manager,
             self.macro,
+            self.unit_manager,
             self.chat,
             self.creep,
             self.biles,
-            self.unit_manager,
         ]
+
+        for structure in self.structures:
+            self.unit_manager.add_unit(structure)
 
         # await self.client.debug_create_unit([
         #     [UnitTypeId.ZERGLINGBURROWED, 1, self.bases[1].position, 2],
@@ -201,7 +211,6 @@ class AIBase(ABC, BotAI):
 
     def handle_errors(self):
         for error in self.state.action_errors:
-            print(self.time, error)
             if error.result == ActionResult.CantBuildLocationInvalid.value:
                 if unit := self.unit_by_tag.get(error.unit_tag):
                     self.scout_manager.blocked_positions[unit.position] = self.time
@@ -248,7 +257,6 @@ class AIBase(ABC, BotAI):
             await module.on_step()
 
         if profiler:
-            print(f'Iteration {iteration}')
             profiler.disable()
             stats = pstats.Stats(profiler)
             stats.strip_dirs().sort_stats(pstats.SortKey.TIME).print_stats(32)
@@ -262,11 +270,10 @@ class AIBase(ABC, BotAI):
         pass
 
     async def on_building_construction_started(self, unit: Unit):
-        print(self.time, 'construction_started', unit)
+        self.unit_manager.add_unit(unit)
         pass
 
     async def on_building_construction_complete(self, unit: Unit):
-        print(self.time, 'construction_complete', unit)
         pass
 
     async def on_enemy_unit_entered_vision(self, unit: Unit):
@@ -276,15 +283,22 @@ class AIBase(ABC, BotAI):
         pass
 
     async def on_unit_created(self, unit: Unit):
-        print(self.time, 'created', unit)
+        self.unit_manager.add_unit(unit)
         if 0 < self.state.game_loop and unit.type_id == race_worker[self.race]:
             self.bases.try_add(unit.tag)
         pass
 
     async def on_unit_destroyed(self, unit_tag: int):
-        print(self.time, 'destroyed', unit_tag)
-        self.enemies.pop(unit_tag, None)
-        self.bases.try_remove(unit_tag)
+        unit = self.unit_by_tag[unit_tag]
+        if unit.is_mine:
+            self.unit_manager.remove_unit(unit)
+        else:
+            self.enemies.pop(unit_tag, None)
+        if self.bases.try_remove(unit_tag):
+            logging.info(f'harvester destroyed: {unit_tag}')
+        pass
+        
+    async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         pass
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
@@ -292,13 +306,11 @@ class AIBase(ABC, BotAI):
             should_cancel = False
             if unit.shield_health_percentage < 0.1:
                 should_cancel = True
+            # elif unit.type_id == UnitTypeId.CREEPTUMOR:
+            #     should_cancel = True
             if should_cancel:
                 unit(AbilityId.CANCEL)
         self.damage_taken[unit.tag] = self.time
-        pass
-        
-    async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
-        print(self.time, 'type_changed', previous_type, unit)
         pass
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
@@ -555,10 +567,12 @@ class AIBase(ABC, BotAI):
                 z = self.get_terrain_z_height(target.target)
                 positions.append(Point3((target.target.x, target.target.y, z)))
 
-            if target.unit:
-                unit = self.unit_by_tag.get(target.unit)
-                if unit:
-                    positions.append(unit)
+            unit_tag = next(
+                (tag
+                for tag, behavior in self.unit_manager.behaviors.items()
+                if isinstance(behavior, MacroBehavior) and behavior.plan==target), None)
+            if unit := self.unit_by_tag.get(unit_tag):
+                positions.append(unit)
 
             text = f"{str(i+1)} {str(target.item.name)}"
 

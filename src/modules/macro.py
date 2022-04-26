@@ -3,11 +3,16 @@
 from __future__ import annotations
 from typing import Callable, Coroutine, DefaultDict, Optional, Set, Union, Iterable, Tuple, List, TYPE_CHECKING
 import random
+import logging
+
+from numpy import isin
 
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.data import race_worker, race_townhalls
+from src.ai_component import AIComponent
+from src.units.unit import AIUnit
 
 from ..cost import Cost
 from ..utils import *
@@ -24,27 +29,24 @@ class MacroPlan:
     def __init__(self, item: MacroId, **kwargs):
         self.item: MacroId = item
         self.ability: Optional[AbilityId] = None
-        self.unit: Optional[int] = None
         self.target: Union[Unit, Point2] = None
         self.priority: float = 0
         self.max_distance: Optional[float] = None
         self.eta: Optional[float] = None
-        self.condition: Callable[[AIBase], bool] = lambda b : True
         self.__dict__.update(**kwargs)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.item}, {self.ability}, {self.unit}, {self.target}, {self.priority})"
+        return f"{self.__class__.__name__}({self.item}, {self.ability}, {self.target}, {self.priority})"
 
     def __hash__(self) -> int:
         return id(self)
 
-class MacroManager(AIModule):
+class MacroModule(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
         self.plans: List[MacroPlan] = list()
         self.planned_by_type: DefaultDict[MacroId, Set[MacroPlan]] = defaultdict(lambda:set())
-        self.plan_by_unit: Dict[int, MacroPlan] = dict()
 
     def remove_plan_by_item(self, item: MacroId):
         for i in range(len(self.plans)):
@@ -91,10 +93,16 @@ class MacroManager(AIModule):
         self.make_composition()
 
         reserve = Cost(0, 0, 0)
-        exclude = { o.unit for o in self.plans }
+        exclude = { tag for tag, behavior in self.ai.unit_manager.behaviors.items() if isinstance(behavior, MacroBehavior) and behavior.plan }
         exclude.update(unit.tag for units in self.ai.pending_by_type.values() for unit in units)
         exclude.update(self.ai.unit_manager.drafted_civilians)
         self.plans.sort(key = lambda t : t.priority, reverse=True)
+
+        unit_by_plan = {
+            behavior.plan: tag
+            for tag, behavior in self.ai.unit_manager.behaviors.items()
+            if isinstance(behavior, MacroBehavior)
+        }
 
         for i, plan in enumerate(list(self.plans)):
 
@@ -107,9 +115,12 @@ class MacroManager(AIModule):
             if (2 if self.ai.extractor_trick_enabled else 1) <= i and plan.priority == BUILD_ORDER_PRIORITY:
                 break
 
-            unit = None
-            if plan.unit:
-                unit = self.ai.unit_by_tag.get(plan.unit)
+            
+            if unit_tag := unit_by_plan.get(plan):
+                unit = self.ai.unit_by_tag.get(unit_tag)
+            else:
+                unit = None
+
             if unit == None or unit.type_id == UnitTypeId.EGG:
                 unit, plan.ability = self.search_trainer(plan.item, exclude=exclude)
             if unit and plan.ability and unit.is_using_ability(plan.ability['ability']):
@@ -122,8 +133,8 @@ class MacroManager(AIModule):
             cost = self.ai.cost[plan.item]
             reserve += cost
 
-            plan.unit = unit.tag
-            exclude.add(plan.unit)
+            self.ai.unit_manager.behaviors[unit.tag].plan = plan
+            exclude.add(unit.tag)
 
             if plan.target == None:
                 try:
@@ -149,12 +160,6 @@ class MacroManager(AIModule):
                 if self.ai.supply_left < cost.food:
                     eta = None
             plan.eta = eta
-
-        self.plan_by_unit = {
-            plan.unit: plan
-            for plan in self.plans
-            if plan.unit
-        }
 
     async def get_target(self, unit: Unit, objective: MacroPlan) -> Coroutine[any, any, Union[Unit, Point2]]:
         gas_type = GAS_BY_RACE[self.ai.race]
@@ -300,41 +305,42 @@ class MacroManager(AIModule):
             return position
         raise PlacementNotFoundException()
 
-class MacroBehavior(Behavior):
+class MacroBehavior(AIUnit):
+    
+    def __init__(self, ai: AIBase, tag: int):
+        super().__init__(ai, tag)
+        self.plan: Optional[MacroPlan] = None
 
-    def __init__(self, ai: AIBase, unit_tag: int):
-        super().__init__(ai, unit_tag)
+    def macro(self) -> Optional[UnitCommand]:
 
-    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
-
-        plan = self.ai.macro.plan_by_unit.get(unit.tag)
-
-        if plan == None:
+        if self.plan == None:
             return None
-        elif plan.ability == None:
+        elif self.plan.ability == None:
             return None
-        # elif any(unit.orders) and ITEM_BY_ABILITY.get(unit.orders[0].ability.exact_id) == plan.item:
-        #     return self.ai.order_to_command(unit, unit.orders[0])
-        elif plan.eta == None:
+        elif self.plan.eta == None:
             return None
-        elif not plan.condition(self.ai):
-            return None
-        elif plan.eta == 0.0:
-            if unit.is_carrying_resource:
-                return unit.return_resource()
+        elif self.plan.eta == 0.0:
+            if self.unit.is_carrying_resource:
+                return self.unit.return_resource()
             else:
-                if unit.type_id == race_worker[self.ai.race]:
-                    self.ai.bases.try_remove(unit.tag)
-                    self.ai.unit_manager.drafted_civilians.difference_update([unit.tag])
-                return unit(plan.ability['ability'], target=plan.target)
-        elif not plan.target:
+                if self.unit.type_id == race_worker[self.ai.race]:
+                    logging.info(f'removing: {self.unit.tag}')
+                    if self.ai.bases.try_remove(self.unit.tag):
+                        logging.info('success')
+                    else:
+                        logging.info('fail')
+                    self.ai.unit_manager.drafted_civilians.difference_update([self.unit.tag])
+                command = self.unit(self.plan.ability['ability'], target=self.plan.target)
+                self.plan = None
+                return command
+        elif not self.plan.target:
             return None
 
-        movement_eta = 2 + time_to_reach(unit, plan.target.position)
-        if plan.eta < movement_eta:
-            if unit.is_carrying_resource:
-                return unit.return_resource()
-            elif 1e-3 < unit.position.distance_to(plan.target.position):
-                return unit.move(plan.target.position)
+        movement_eta = 1 + time_to_reach(self.unit, self.plan.target.position)
+        if self.plan.eta < movement_eta:
+            if self.unit.is_carrying_resource:
+                return self.unit.return_resource()
+            elif 1e-3 < self.unit.distance_to(self.plan.target.position):
+                return self.unit.move(self.plan.target.position)
             else:
-                return unit.hold_position()
+                return self.unit.hold_position()

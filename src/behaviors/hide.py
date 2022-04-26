@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 
 class HideBehavior(Behavior):
 
-    def __init__(self, ai: AIBase, unit_tag: int):
-        super().__init__(ai, unit_tag)
+    def __init__(self, ai: AIBase):
+        super().__init__(ai)
         w, h = ai.game_info.map_size
         corner_candidates: List[Point2] = [
             Point2((0, 0)),
@@ -30,7 +30,7 @@ class HideBehavior(Behavior):
         ]
         self.corner = ai.start_location
 
-    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
+    def get_command(self, unit: Unit) -> Optional[UnitCommand]:
 
         if unit.type_id is not UnitTypeId.MUTALISK:
             return None

@@ -11,6 +11,8 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
+from src.units.unit import AIUnit
+
 from ..utils import *
 from ..constants import *
 from .behavior import Behavior
@@ -18,12 +20,12 @@ from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class SurviveBehavior(Behavior):
+class SurviveBehavior(AIUnit):
+    
+    def __init__(self, ai: AIBase, tag: int):
+        super().__init__(ai, tag)
 
-    def __init__(self, ai: AIBase, unit_tag: int):
-        super().__init__(ai, unit_tag)
-
-    def execute_single(self, unit: Unit) -> Optional[UnitCommand]:
+    def survive(self) -> Optional[UnitCommand]:
 
         # if unit.type_id == UnitTypeId.OVERLORD:
         #     return unit(AbilityId.BEHAVIOR_GENERATECREEPON)
@@ -31,23 +33,23 @@ class SurviveBehavior(Behavior):
         # if unit.type_id != race_worker[self.ai.race]:
         #     return BehaviorResult.SUCCESS
 
-        last_attacked = self.ai.damage_taken.get(unit.tag)
+        last_attacked = self.ai.damage_taken.get(self.tag)
         if not last_attacked:
             return None
         if last_attacked + 5 < self.ai.time:
             return None
         
         if self.ai.townhalls:
-            retreat_goal = self.ai.townhalls.closest_to(unit.position).position
+            retreat_goal = self.ai.townhalls.closest_to(self.unit.position).position
         else:
             retreat_goal = self.ai.start_location
 
-        if unit.is_flying:
+        if self.unit.is_flying:
             enemy_map = self.ai.combat.enemy_vs_air_map
         else:
             enemy_map = self.ai.combat.enemy_vs_ground_map
         retreat_path = self.ai.map_analyzer.pathfind(
-            start = unit.position,
+            start = self.unit.position,
             goal = retreat_goal,
             grid = enemy_map,
             large = False,
@@ -59,4 +61,4 @@ class SurviveBehavior(Behavior):
         else:
             target = retreat_goal
 
-        return unit.move(target)
+        return self.unit.move(target)

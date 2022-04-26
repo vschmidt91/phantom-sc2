@@ -1,11 +1,13 @@
 
 
 from __future__ import annotations
+from re import I
 from typing import DefaultDict, Optional, Set, Union, Iterable, Tuple, List, TYPE_CHECKING
 from enum import Enum
 import numpy as np
 import traceback
 import random
+import logging
 from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT
 
 from sc2.position import Point2
@@ -13,29 +15,39 @@ from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.data import Target, race_worker
 from abc import ABC, abstractmethod
-from src.modules.creep import SpreadCreep
 
 from src.simulation.unit import SimulationUnit, SimulationUnitWithTarget
+from src.units.army import Army
+from src.units.changeling import Changeling
+from src.units.creep_tumor import CreepTumor
+from src.units.extractor import Extractor
+from src.units.overlord import Overlord
+from src.units.unit import AIUnit
+from src.units.queen import Queen
+from src.units.worker import Worker
+from ..units.extractor import Extractor
+from ..units.structure import Structure
 
-from ..behaviors.changeling_scout import SpawnChangeling
+from ..behaviors.changeling_scout import SpawnChangelingBehavior
 from ..behaviors.burrow import BurrowBehavior
 from .dodge import DodgeBehavior
 from .combat import CombatBehavior
 from .bile import BileBehavior
 from ..behaviors.search import SearchBehavior
-from .scout_manager import ScoutBehavior
+from .scout import ScoutBehavior
 from ..simulation.simulation import Simulation
 from ..behaviors.transfuse import TransfuseBehavior
 from ..behaviors.survive import SurviveBehavior
 from .macro import MacroBehavior
-from .drop_manager import DropBehavior
+from ..modules.creep import CreepBehavior
+from .drop import DropBehavior
 from ..behaviors.inject import InjectBehavior
 from ..behaviors.gather import GatherBehavior
 from ..behaviors.extractor_trick import ExtractorTrickBehavior
-from .scout_manager import DetectBehavior
+from .scout import DetectBehavior
 from ..utils import *
 from ..constants import *
-from ..behaviors.behavior import Behavior, LambdaBehavior, BehaviorSequence, SwitchBehavior
+from ..behaviors.behavior import Behavior
 from .module import AIModule
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -58,7 +70,7 @@ class UnitManager(AIModule):
         self.inject_queens: Dict[int, int] = dict()
         self.drafted_civilians: Set[int] = set()
         self.enemy_priorities: Dict[int, float] = dict()
-        self.behaviors: Dict[int, Behavior] = dict()
+        self.behaviors: Dict[int, AIUnit] = dict()
         self.targets: Dict[int, Unit] = dict()
         self.attack_paths: Dict[int, List[Point2]] = dict()
         self.retreat_paths: Dict[int, List[Point2]] = dict()
@@ -74,98 +86,32 @@ class UnitManager(AIModule):
         else:
             return False
 
-    def create_behavior(self, unit: Unit) -> Behavior:
+    def add_unit(self, unit: Unit) -> None:
+        self.behaviors[unit.tag] = self.create_behavior(unit)
 
-        if unit.type_id in {
-            UnitTypeId.QUEEN,
-            UnitTypeId.QUEENBURROWED,
-        }:
-            return BehaviorSequence(self.ai, unit.tag, [
-                DodgeBehavior(self.ai, unit.tag),
-                InjectBehavior(self.ai, unit.tag),
-                # LambdaBehavior(lambda:self.ai.creep.spread(self.ai.unit_by_tag[unit.tag])),
-                SpreadCreep(self.ai, unit.tag),
-                TransfuseBehavior(self.ai, unit.tag),
-                CombatBehavior(self.ai, unit.tag),
-                SearchBehavior(self.ai, unit.tag),
-            ])
-        elif unit.type_id in CHANGELINGS:
-            return SearchBehavior(self.ai, unit.tag)
-        elif unit.type_id == UnitTypeId.EXTRACTOR:
-            return ExtractorTrickBehavior(self.ai, unit.tag)
-        elif unit.type_id in {
-            UnitTypeId.CREEPTUMORBURROWED,
-            UnitTypeId.CREEPTUMORQUEEN
-        }:
-            return SpreadCreep(self.ai, unit.tag)
-        elif unit.is_structure or unit.type_id == UnitTypeId.LARVA:
-            return MacroBehavior(self.ai, unit.tag)
+    def remove_unit(self, unit: Unit) -> None:
+        del self.behaviors[unit.tag]
 
-        def selector(unit: Unit) -> str:
-            if unit.type_id in {
-                UnitTypeId.OVERLORD,
-                UnitTypeId.OVERLORDTRANSPORT,
-            }:
-                return 'overlord'
-            elif unit.type_id in {
-                UnitTypeId.OVERSEER,
-                UnitTypeId.OVERSEERSIEGEMODE
-            }:
-                return 'overseer'
-            elif unit.type_id in {
-                UnitTypeId.SCV,
-                UnitTypeId.DRONE,
-                UnitTypeId.DRONEBURROWED,
-                UnitTypeId.PROBE,
-                UnitTypeId.MULE,
-            }:
-                if unit.tag in self.drafted_civilians:
-                    return 'army'
-                elif 1 < self.ai.combat.enemy_vs_ground_map[unit.position.rounded] < np.inf:
-                    return 'army'
-                elif (
-                    (last_attacked := self.ai.damage_taken.get(unit.tag))
-                    and self.ai.time < last_attacked + 5
-                ):
-                    return 'army'
-                else:
-                    return 'worker'
-            else:
-                return 'army'
-        behaviors = {
-            'overlord': BehaviorSequence(self.ai, unit.tag, [
-                    MacroBehavior(self.ai, unit.tag),
-                    DodgeBehavior(self.ai, unit.tag),
-                    DropBehavior(self.ai, unit.tag),
-                    SurviveBehavior(self.ai, unit.tag),
-                    ScoutBehavior(self.ai, unit.tag),
-                ]),
-            'overseer': BehaviorSequence(self.ai, unit.tag, [
-                    DodgeBehavior(self.ai, unit.tag),
-                    SpawnChangeling(self.ai, unit.tag),
-                    DetectBehavior(self.ai, unit.tag),
-                    CombatBehavior(self.ai, unit.tag),
-                    SearchBehavior(self.ai, unit.tag),
-                ]),
-            'worker': BehaviorSequence(self.ai, unit.tag, [
-                    DodgeBehavior(self.ai, unit.tag),
-                    MacroBehavior(self.ai, unit.tag),
-                    # SurviveBehavior(self.ai, unit.tag),
-                    GatherBehavior(self.ai, unit.tag),
-                    # FightBehavior(self.ai, unit.tag),
-                ]),
-            'army': BehaviorSequence(self.ai, unit.tag, [
-                    MacroBehavior(self.ai, unit.tag),
-                    DodgeBehavior(self.ai, unit.tag),
-                    BurrowBehavior(self.ai, unit.tag),
-                    BileBehavior(self.ai, unit.tag),
-                    DropBehavior(self.ai, unit.tag),
-                    # HideBehavior(self.ai, unit.tag),
-                    CombatBehavior(self.ai, unit.tag),
-                    SearchBehavior(self.ai, unit.tag),
-                ]),
-        }
-        return SwitchBehavior(self.ai, unit.tag, selector, behaviors)
+    def create_behavior(self, unit: Unit) -> AIUnit:
+        
+        if unit.type_id in CHANGELINGS:
+            return Changeling(self.ai)
+        elif unit.is_vespene_geyser:
+            return Extractor(self.ai, unit.tag)
+        elif unit.type_id in { UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN }:
+            return CreepTumor(self.ai, unit.tag)
+        elif unit.type_id == UnitTypeId.LARVA:
+            return Structure(self.ai, unit.tag)
+        elif unit.type_id in WORKERS:
+            return Worker(self.ai, unit.tag)
+        elif unit.type_id == UnitTypeId.OVERLORD:
+            return Overlord(self.ai, unit.tag)
+        elif unit.type_id == UnitTypeId.QUEEN:
+            return Queen(self.ai, unit.tag)
+        elif unit.is_structure:
+            return Structure(self.ai, unit.tag)
+        else:
+            return Army(self.ai, unit.tag)
 
     def draft_civilians(self) -> None:
 
@@ -277,17 +223,15 @@ class UnitManager(AIModule):
             self.inject_queens[queen.tag] = townhall.tag
 
         for unit in self.ai.all_own_units:
+
             if unit.type_id in IGNORED_UNIT_TYPES:
                 continue
-            behavior = self.behaviors.get(unit.tag)
-            if not behavior:
-                behavior = self.create_behavior(unit)
-                self.behaviors[unit.tag] = behavior
-            try:
-                if command := behavior.execute():
-                    if any(unit.orders) and self.ai.order_matches_command(unit.orders[0], command):
-                        continue
-                    if not self.ai.do(command, subtract_cost=True, subtract_supply=True):
-                        raise Exception()
-            except Exception as e:
-                print(e)
+
+            if not unit.is_ready:
+                continue
+
+            # behavior = self.behaviors.get(unit.tag)
+            # if not behavior:
+            #     behavior = self.behaviors[unit.tag] = self.create_behavior(unit)
+            behavior = self.behaviors[unit.tag]
+            behavior.on_step()
