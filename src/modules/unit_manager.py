@@ -121,13 +121,13 @@ class UnitManager(AIModule):
             0 == self.ai.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False)
             and 2/3 < self.ai.combat.threat_level
         ):
-            if worker := self.ai.bases.try_remove_any():
+            if worker := self.ai.resource_manager.bases.try_remove_any():
                 self.drafted_civilians.add(worker)
         elif self.ai.combat.threat_level < 1/2:
             if self.drafted_civilians:
                 worker = min(self.drafted_civilians, key = lambda tag : self.ai.unit_by_tag[tag].shield_health_percentage, default = None)
                 self.drafted_civilians.remove(worker)
-                self.ai.bases.try_add(worker)
+                self.ai.resource_manager.bases.try_add(worker)
 
     def target_priority_apriori(self, target: Unit) -> float:
         if target.is_hallucination:
@@ -214,7 +214,7 @@ class UnitManager(AIModule):
 
         bases = [
             b
-            for b in self.ai.bases
+            for b in self.ai.resource_manager.bases
             if b.position in self.ai.townhall_by_position
         ]
         self.inject_queens.clear()

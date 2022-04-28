@@ -12,6 +12,7 @@ from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.data import race_worker, race_townhalls
 from src.ai_component import AIComponent
+from src.behaviors.gather import GatherBehavior
 from src.units.unit import AIUnit
 
 from ..cost import Cost
@@ -31,7 +32,7 @@ class MacroPlan:
         self.ability: Optional[AbilityId] = None
         self.target: Union[Unit, Point2] = None
         self.priority: float = 0
-        self.max_distance: Optional[float] = None
+        self.max_distance: Optional[int] = 4
         self.eta: Optional[float] = None
         self.__dict__.update(**kwargs)
 
@@ -196,11 +197,9 @@ class MacroModule(AIModule):
             position = await self.get_target_position(objective.item, unit)
             withAddon = objective in { UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT }
             
-            if objective.max_distance is None:
-                max_distance = 4
-            else:
+            if objective.max_distance != None:
                 max_distance = objective.max_distance
-            position = await self.ai.find_placement(objective.ability["ability"], position, max_distance=max_distance, placement_step=1, addon_place=withAddon)
+                position = await self.ai.find_placement(objective.ability["ability"], position, max_distance=max_distance, placement_step=1, addon_place=withAddon)
             if position is None:
                 raise PlacementNotFoundException()
             else:
@@ -222,9 +221,12 @@ class MacroModule(AIModule):
         def enumerate_trainers(trainer_type: UnitTypeId) -> Iterable[Unit]:
             if trainer_type == race_worker[self.ai.race]:
                 return (
-                    self.ai.unit_by_tag[t]
-                    for t in self.ai.bases.harvesters
-                    if t in self.ai.unit_by_tag
+                    w
+                    for w in self.ai.workers
+                    if (b := self.ai.unit_manager.behaviors.get(w.tag)) and b.target
+                    # self.ai.unit_by_tag[t]
+                    # for t in self.ai.resource_manager.bases.harvesters
+                    # if t in self.ai.unit_by_tag
                 )
             else:
                 return self.ai.actual_by_type[trainer_type]
@@ -282,7 +284,7 @@ class MacroModule(AIModule):
     async def get_target_position(self, target: UnitTypeId, trainer: Unit) -> Point2:
         data = self.ai.game_data.units[target.value]
         if target in race_townhalls[self.ai.race]:
-            for b in self.ai.bases:
+            for b in self.ai.resource_manager.bases:
                 if b.townhall:
                     continue
                 if b.position in self.ai.scout_manager.blocked_positions:
@@ -292,7 +294,7 @@ class MacroModule(AIModule):
                 return b.position
             raise PlacementNotFoundException()
 
-        bases = list(self.ai.bases)
+        bases = list(self.ai.resource_manager.bases)
         random.shuffle(bases)
         for base in bases:
             if not base.townhall:
@@ -325,10 +327,12 @@ class MacroBehavior(AIUnit):
             else:
                 if self.unit.type_id == race_worker[self.ai.race]:
                     logging.info(f'removing: {self.unit.tag}')
-                    if self.ai.bases.try_remove(self.unit.tag):
-                        logging.info('success')
-                    else:
-                        logging.info('fail')
+                    if isinstance(self, GatherBehavior):
+                        self.target = None
+                    # if self.ai.resource_manager.bases.try_remove(self.unit.tag):
+                    #     logging.info('success')
+                    # else:
+                    #     logging.info('fail')
                     self.ai.unit_manager.drafted_civilians.difference_update([self.unit.tag])
                 command = self.unit(self.plan.ability['ability'], target=self.plan.target)
                 self.plan = None

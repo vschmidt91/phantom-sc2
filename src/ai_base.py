@@ -47,6 +47,7 @@ from sc2.data import Result, race_townhalls, race_worker, ActionResult
 from sc2.unit import Unit, UnitOrder
 from sc2.unit_command import UnitCommand
 from sc2.units import Units
+from src.resources.resource_manager import ResourceManager
 from src.techtree import TechTree, TechTreeWeaponType
 
 from .modules.chat import Chat
@@ -54,6 +55,7 @@ from .modules.module import AIModule
 from .modules.creep import CreepModule
 from .modules.combat import CombatBehavior, CombatModule
 from .modules.drop import DropModule
+from .behaviors.gather import GatherBehavior
 from .modules.macro import MacroBehavior, MacroId, MacroModule, MacroPlan
 from .modules.bile import BileModule
 from .resources.mineral_patch import MineralPatch
@@ -63,7 +65,7 @@ from .modules.unit_manager import IGNORED_UNIT_TYPES, UnitManager
 from .simulation.simulation import Simulation
 from .value_map import ValueMap
 from .resources.base import Base
-from .resources.resource_group import BalancingMode, ResourceGroup
+from .resources.resource_group import ResourceGroup
 from .modules.dodge import *
 from .constants import *
 from .cost import Cost
@@ -132,7 +134,7 @@ class AIBase(ABC, BotAI):
     async def on_before_start(self):
 
         if self.debug:
-            logging.basicConfig(level=logging.INFO)
+            logging.basicConfig(level=logging.DEBUG)
             plt.ion()
             self.plot, self.plot_axes = plt.subplots(1, 2)
             self.plot_images = None
@@ -177,9 +179,8 @@ class AIBase(ABC, BotAI):
 
         self.map_analyzer = MapData(self)
         self.map_data = await self.load_map_data()
-        
-        await self.initialize_bases()
-
+        bases = await self.initialize_bases()
+        self.resource_manager = ResourceManager(self, bases)
         self.scout_manager = ScoutModule(self)
         self.drop_manager = DropModule(self)
         self.unit_manager = UnitManager(self)
@@ -193,6 +194,7 @@ class AIBase(ABC, BotAI):
         self.modules: List[AIModule] = [
             self.dodge,
             self.combat,
+            self.resource_manager,
             self.scout_manager,
             self.drop_manager,
             self.macro,
@@ -250,7 +252,6 @@ class AIBase(ABC, BotAI):
         self.update_tables()
         self.handle_errors()
         self.handle_actions()
-        self.update_bases()
         self.update_gas()
 
         for module in self.modules:
@@ -284,8 +285,9 @@ class AIBase(ABC, BotAI):
 
     async def on_unit_created(self, unit: Unit):
         self.unit_manager.add_unit(unit)
-        if 0 < self.state.game_loop and unit.type_id == race_worker[self.race]:
-            self.bases.try_add(unit.tag)
+        behavior = self.unit_manager.behaviors[unit.tag]
+        if isinstance(behavior, GatherBehavior):
+            self.resource_manager.add_harvester(behavior)
         pass
 
     async def on_unit_destroyed(self, unit_tag: int):
@@ -294,8 +296,6 @@ class AIBase(ABC, BotAI):
             self.unit_manager.remove_unit(unit)
         else:
             self.enemies.pop(unit_tag, None)
-        if self.bases.try_remove(unit_tag):
-            logging.info(f'harvester destroyed: {unit_tag}')
         pass
         
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
@@ -403,7 +403,7 @@ class AIBase(ABC, BotAI):
 
     def update_gas(self):
         gas_target = self.get_gas_target()
-        self.transfer_to_and_from_gas(gas_target)
+        # self.transfer_to_and_from_gas(gas_target)
         self.build_gasses(gas_target)
 
     def build_gasses(self, gas_target: float):
@@ -433,8 +433,8 @@ class AIBase(ABC, BotAI):
         minerals = max(0, cost_sum.minerals - self.minerals)
         vespene = max(0, cost_sum.vespene - self.vespene)
         if minerals + vespene == 0:
-            minerals = sum(b.mineral_patches.remaining for b in self.bases if b.townhall)
-            vespene = sum(b.vespene_geysers.remaining for b in self.bases if b.townhall)
+            minerals = sum(b.mineral_patches.remaining for b in self.resource_manager.bases if b.townhall)
+            vespene = sum(b.vespene_geysers.remaining for b in self.resource_manager.bases if b.townhall)
 
         gas_ratio = vespene / max(1, vespene + minerals)
         worker_type = race_worker[self.race]
@@ -442,42 +442,22 @@ class AIBase(ABC, BotAI):
 
         return gas_target
 
-    def transfer_to_and_from_gas(self, gas_target: float):
+    # def transfer_to_and_from_gas(self, gas_target: float):
 
-        effective_gas_target = min(self.vespene_geysers.harvester_target, gas_target)
-        effective_gas_balance = self.vespene_geysers.harvester_count - effective_gas_target
+    #     effective_gas_target = min(self.resource_manager.vespene_geysers.harvester_target, gas_target)
+    #     effective_gas_balance = self.vespene_geysers.harvester_count - effective_gas_target
 
-        # if self.gas_harvester_count + 1 <= gas_target and self.vespene_geysers.harvester_balance < 0:
-        if 0 < self.mineral_patches.harvester_count and (effective_gas_balance < 0 or 0 < self.mineral_patches.harvester_balance):
+    #     # if self.gas_harvester_count + 1 <= gas_target and self.vespene_geysers.harvester_balance < 0:
+    #     if 0 < self.mineral_patches.harvester_count and (effective_gas_balance < 0 or 0 < self.mineral_patches.harvester_balance):
 
-            if not self.mineral_patches.try_transfer_to(self.vespene_geysers):
-                print('transfer to gas failure')
+    #         if not self.mineral_patches.try_transfer_to(self.vespene_geysers):
+    #             print('transfer to gas failure')
 
-        # elif gas_target <= self.gas_harvester_count - 1 or 0 < self.vespene_geysers.harvester_balance:
-        elif 0 < self.vespene_geysers.harvester_count and (1 <= effective_gas_balance and self.mineral_patches.harvester_balance < 0):
+    #     # elif gas_target <= self.gas_harvester_count - 1 or 0 < self.vespene_geysers.harvester_balance:
+    #     elif 0 < self.vespene_geysers.harvester_count and (1 <= effective_gas_balance and self.mineral_patches.harvester_balance < 0):
 
-            if not self.vespene_geysers.try_transfer_to(self.mineral_patches):
-                print('transfer from gas failure')
-        
-    def update_bases(self):
-
-        for base in self.bases:
-            base.defensive_units.clear()
-            base.defensive_units_planned.clear()
-
-        for unit_type in STATIC_DEFENSE[self.race]:
-            for unit in chain(self.actual_by_type[unit_type], self.pending_by_type[unit_type]):
-                base = min(self.bases, key=lambda b:b.position.distance_to(unit.position))
-                base.defensive_units.append(unit)
-            for plan in self.macro.planned_by_type[unit_type]:
-                if not isinstance(plan.target, Point2):
-                    continue
-                base = min(self.bases, key=lambda b:b.position.distance_to(plan.target))
-                base.defensive_units_planned.append(plan)
-
-        self.bases.update()
-        self.mineral_patches.update()
-        self.vespene_geysers.update()
+    #         if not self.vespene_geysers.try_transfer_to(self.mineral_patches):
+    #             print('transfer from gas failure')
 
     async def initialize_bases(self):
 
@@ -493,18 +473,12 @@ class AIBase(ABC, BotAI):
                 continue
             positions_fixed[b] = await self.find_placement(UnitTypeId.HATCHERY, b, placement_step=1)
 
-
         bases = sorted((
             Base(self, positions_fixed.get(position, position), (m.position for m in resources.mineral_field), (g.position for g in resources.vespene_geyser))
             for position, resources in self.expansion_locations_dict.items()
         ), key = lambda b : self.map_data.distance[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
-        self.bases = ResourceGroup(self, bases)
-        self.bases.balancing_mode = BalancingMode.NONE
-        self.bases[0].split_initial_workers(set(self.workers))
-
-        self.vespene_geysers = ResourceGroup(self, [b.vespene_geysers for b in self.bases])
-        self.mineral_patches = ResourceGroup(self, [b.mineral_patches for b in self.bases])
+        return bases
 
     async def load_map_data(self) -> Coroutine[Any, Any, MapStaticData]:
 
@@ -643,7 +617,7 @@ class AIBase(ABC, BotAI):
         return missing
 
     def get_owned_geysers(self):
-        for base in self.bases:
+        for base in self.resource_manager.bases:
             if base.position not in self.townhall_by_position.keys():
                 continue
             for gas in base.vespene_geysers:
@@ -722,7 +696,7 @@ class AIBase(ABC, BotAI):
 
     def get_max_harvester(self) -> int:
         workers = 0
-        workers += sum((b.harvester_target for b in self.bases))
+        workers += sum((b.harvester_target for b in self.resource_manager.bases))
         workers += 16 * self.count(UnitTypeId.HATCHERY, include_actual=False, include_planned=False)
         workers += 3 * self.count(GAS_BY_RACE[self.race], include_actual=False, include_planned=False)
         return workers
@@ -730,7 +704,7 @@ class AIBase(ABC, BotAI):
     def blocked_bases(self, position: Point2, margin: float = 0.0) -> Iterable[Base]:
         px, py = position
         radius = 3
-        for base in self.bases:
+        for base in self.resource_manager.bases:
             bx, by = base.position
             if abs(px - bx) < margin + radius and abs(py - by) < margin + radius:
                 yield base

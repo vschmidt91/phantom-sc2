@@ -31,7 +31,7 @@ class ScoutModule(AIModule):
         self.enemy_bases: Dict[Point2, float] = dict()
         self.static_targets: List[Point2] = list()
 
-        for base in self.ai.bases[1:len(self.ai.bases)//2]:
+        for base in self.ai.resource_manager.bases[1:len(self.ai.resource_manager.bases)//2]:
             self.static_targets.append(base.position)
 
         # ramps = sorted(self.ai.game_info.map_ramps, key=lambda r:r.bottom_center.distance_to(self.ai.start_location))
@@ -58,7 +58,7 @@ class ScoutModule(AIModule):
             if building.is_structure
         }
 
-        for base in self.ai.bases:
+        for base in self.ai.resource_manager.bases:
             if self.ai.is_visible(base.position):
                 if base.position in enemy_building_positions:
                     if base.position not in self.enemy_bases:
@@ -97,7 +97,7 @@ class ScoutModule(AIModule):
 
         targets = list(self.static_targets)
         if self.scout_enemy_natural and len(self.enemy_bases) < 2:
-            target = self.ai.bases[-2].position.towards(self.ai.game_info.map_center, 11)
+            target = self.ai.resource_manager.bases[-2].position.towards(self.ai.game_info.map_center, 11)
             targets.insert(0, target)
 
         for target in targets:

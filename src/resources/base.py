@@ -20,8 +20,7 @@ from ..utils import dot
 from .mineral_patch import MineralPatch
 from .vespene_geyser import VespeneGeyser
 from .resource_base import ResourceBase
-from .resource_group import BalancingMode, ResourceGroup
-from ..modules.macro import MacroPlan
+from .resource_group import ResourceGroup
 
 from ..ai_component import AIComponent
 if TYPE_CHECKING:
@@ -59,24 +58,17 @@ class Base(ResourceGroup[ResourceBase]):
         self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(
             ai,
             sorted(
-                (MineralPatch(ai, m, townhall_position) for m in minerals),
+                (MineralPatch(ai, m) for m in minerals),
                 key = lambda m : m.position.distance_to(townhall_position)
             ))
         self.vespene_geysers: ResourceGroup[VespeneGeyser] = ResourceGroup(
             ai,
             sorted(
-                (VespeneGeyser(ai, g, townhall_position) for g in gasses),
+                (VespeneGeyser(ai, g) for g in gasses),
                 key = lambda g : g.position.distance_to(townhall_position)
             ))
-        self.mineral_patches.balancing_mode = BalancingMode.MINIMIZE_TRANSFERS
-        self.vespene_geysers.balancing_mode = BalancingMode.NONE
         super().__init__(ai, [self.mineral_patches, self.vespene_geysers], townhall_position)
-        self.balancing_mode = BalancingMode.NONE
-        self.defensive_units: List[Unit] = list()
-        self.defensive_units_planned: List[MacroPlan] = list()
-        self.defensive_targets: DefaultDict[UnitTypeId, int] = DefaultDict(lambda:0)
-        self.fix_speedmining_positions()
-        self.townhall: Optional[Unit] = None
+        self.speedmining_positions = self.get_speedmining_positions()
 
     def split_initial_workers(self, harvesters: Set[Unit]):
         for _ in range(len(harvesters)):
@@ -91,7 +83,8 @@ class Base(ResourceGroup[ResourceBase]):
                 harvesters.remove(harvester)
                 patch.try_add(harvester.tag)
 
-    def fix_speedmining_positions(self):
+    def get_speedmining_positions(self) -> Dict[MineralPatch, Point2]:
+        positions = dict()
         for patch in self.mineral_patches:
             target = patch.position.towards(self.position, MINING_RADIUS)
             for patch2 in self.mineral_patches:
@@ -107,36 +100,18 @@ class Base(ResourceGroup[ResourceBase]):
                     key = lambda p : p.distance_to(self.position),
                     default = None):
                     break
-            patch.speedmining_target = target
-
-    @property
-    def harvester_target(self) -> int:
-        if not self.townhall:
-            return 0
-        return super().harvester_target
+            positions[patch] = target
+        return positions
 
     def update(self):
 
         self.townhall = self.ai.townhall_by_position.get(self.position)
-        if self.townhall and self.defensive_targets:
-            defenses = Counter()
-            defenses.update(u.type_id for u in self.defensive_units)
-            defenses.update(p.item for p in self.defensive_units_planned)
-            for unit_type, want in self.defensive_targets.items():
-                if defenses[unit_type] < want:
-                    plan = MacroPlan(unit_type)
-                    if unit_type == UnitTypeId.SPORECRAWLER:
-                        if defenses[unit_type] == 0:
-                            plan.target = self.position.towards(self.mineral_patches.position, 4.5)
-                        else:
-                            plan.target = self.position.towards(self.mineral_patches.position, -6)
-                    elif unit_type == UnitTypeId.SPINECRAWLER:
-                        plan.target = self.position.towards(self.mineral_patches.position, -5)
-                    else:
-                        plan.target = self.position
-                    plan.target = plan.target.rounded.offset((.5, .5))
-                    plan.max_distance = 4
-                    plan.priority = 0
-                    self.ai.macro.add_plan(plan)
 
         super().update()
+
+        if not self.townhall:
+            for m in self.mineral_patches:
+                m.harvester_target = 0
+            for g in self.vespene_geysers:
+                g.harvester_target = 0
+            self.harvester_target = 0

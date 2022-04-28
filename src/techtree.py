@@ -125,7 +125,7 @@ class TechTreeCost:
 
 @dataclass
 class TechTreeUpgrade:
-    id: int
+    id: UpgradeId
     name: str
     cost: TechTreeCost
 
@@ -135,7 +135,7 @@ class TechTree:
         with open(path) as file:
             data = json.load(file)
 
-        self.abilities: Dict[int, TechTreeAbility] = dict()
+        self.abilities: Dict[AbilityId, TechTreeAbility] = dict()
         for item in data['Ability']:
 
             item['id'] = AbilityId(item['id'])
@@ -154,7 +154,7 @@ class TechTree:
             ability = TechTreeAbility(**item)
             self.abilities[ability.id] = ability
 
-        self.units: Dict[int, TechTreeUnit] = dict()
+        self.units: Dict[UnitTypeId, TechTreeUnit] = dict()
         for item in data['Unit']:
 
             item['id'] = UnitTypeId(item['id'])
@@ -176,7 +176,7 @@ class TechTree:
             unit = TechTreeUnit(**item)
             self.units[unit.id] = unit
             
-        self.upgrades: Dict[int, TechTreeUpgrade] = dict() 
+        self.upgrades: Dict[UpgradeId, TechTreeUpgrade] = dict() 
         for item in data['Upgrade']:
 
             item['id'] = UpgradeId(item['id'])

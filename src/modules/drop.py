@@ -29,7 +29,7 @@ class DropModule(AIModule):
         enemy_start = self.ai.enemy_start_locations[0]
         enemy_ramp = min(self.ai.game_info.map_ramps, key = lambda r : r.top_center.distance_to(enemy_start))
         drop_from_priorities = dict()
-        for base in self.ai.bases:
+        for base in self.ai.resource_manager.bases:
             start_distance = base.position.distance_to(enemy_start)
             if start_distance == 0.0:
                 continue

@@ -48,7 +48,7 @@ class InjectBehavior(AIUnit):
         if not townhall:
             return None
             
-        base = next(b for b in self.ai.bases if b.position == townhall.position)
+        base = next(b for b in self.ai.resource_manager.bases if b.position == townhall.position)
         if base:
             target = base.position.towards(base.mineral_patches.position, -(townhall.radius + self.unit.radius))
         else:

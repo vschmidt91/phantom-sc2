@@ -21,6 +21,9 @@ class AIUnit(ABC, AIComponent):
         #     super(cls, self).__init__(ai, tag)
         self.tag = tag
         self.unit: Unit = None
+
+    def __hash__(self) -> int:
+        return hash(self.tag)
         
     def on_step(self) -> None:
         self.unit = self.ai.unit_by_tag.get(self.tag)

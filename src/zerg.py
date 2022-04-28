@@ -103,7 +103,7 @@ class ZergAI(AIBase):
                 plan = MacroPlan(step)
             plan.priority = plan.priority or BUILD_ORDER_PRIORITY
             if step in race_townhalls[self.race]:
-                plan.max_distance = 1
+                plan.max_distance = None
             self.macro.add_plan(plan)
 
     async def on_before_start(self):
@@ -142,7 +142,7 @@ class ZergAI(AIBase):
 
         self.strategy.update()
         self.morph_overlords()
-        self.make_defenses()
+        # self.make_defenses()
         self.make_tech()
         self.expand()
 
@@ -289,5 +289,5 @@ class ZergAI(AIBase):
         if -1 < priority and self.count(UnitTypeId.HATCHERY, include_actual=False) < 1:
             plan = MacroPlan(UnitTypeId.HATCHERY)
             plan.priority = priority
-            plan.max_distance = 0
+            plan.max_distance = None
             self.macro.add_plan(plan)

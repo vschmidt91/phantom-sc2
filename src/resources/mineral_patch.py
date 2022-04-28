@@ -3,55 +3,42 @@ from __future__ import annotations
 from typing import Set, Union, Iterable, Optional, TYPE_CHECKING
 
 from sc2.position import Point2
+from sc2.unit import Unit
 from sc2.ids.ability_id import AbilityId
 from ..constants import RICH_MINERALS
 
 from .resource_base import ResourceBase
-from .resource_single import ResourceSingle
+from .resource_unit import ResourceUnit
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class MineralPatch(ResourceSingle):
+class MineralPatch(ResourceUnit):
 
-    def __init__(self, ai: AIBase, position: Point2, base_position: Point2):
-        super().__init__(ai, position, base_position)
-        self.is_rich = False
+
+    def __init__(self, ai: AIBase, position: Point2) -> None:
+        super().__init__(ai, position)
         self.speedmining_target: Optional[Point2] = None
 
     @property
-    def harvester_target(self):
-        if self.base_position not in self.ai.townhall_by_position:
-            return 0
-        elif self.remaining:
-            return 2
+    def is_rich(self) -> bool:
+        if not self.unit:
+            return False
         else:
-            return 0
-
-    def update(self):
-
-        super().update()
-        
-        patch = self.ai.resource_by_position.get(self.position)
-
-        if not patch:
-            self.remaining = 0
-        elif not patch.is_visible:
-            self.remaining = 1000
-        else:
-            self.remaining = patch.mineral_contents
-            self.is_rich = patch.type_id in RICH_MINERALS
+            return self.unit.type_id in RICH_MINERALS
 
     @property
-    def income(self):
-        income_per_trip = 7 if self.is_rich else 5
-        if not self.remaining:
+    def gather_target(self) -> Optional[Unit]:
+        return self.unit
+
+    @property
+    def remaining(self) -> int:
+        if not self.unit:
             return 0
-        elif self.harvester_count == 0:
-            return 0
-        elif self.harvester_count == 1:
-            return income_per_trip * 11 / 60
-        elif self.harvester_count == 2:
-            return income_per_trip * 22 / 60
+        elif not self.unit.is_visible:
+            return 1350
         else:
-            return income_per_trip * 29 / 60
+            return self.unit.mineral_contents
+
+    def update(self) -> None:
+        self.harvester_target = 2 if self.remaining else 0
