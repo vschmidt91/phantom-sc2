@@ -36,6 +36,8 @@ class VespeneGeyser(ResourceUnit):
     def remaining(self) -> int:
         if not self.structure:
             return 0
+        elif not self.structure.is_ready:
+            return 0
         else:
             return self.structure.vespene_contents
 

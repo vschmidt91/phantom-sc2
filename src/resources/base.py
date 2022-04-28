@@ -17,6 +17,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
 from ..utils import dot
 
+from ..behaviors.gather import GatherBehavior
 from .mineral_patch import MineralPatch
 from .vespene_geyser import VespeneGeyser
 from .resource_base import ResourceBase
@@ -25,27 +26,6 @@ from .resource_group import ResourceGroup
 from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
-
-MINING_RADIUS = 1.325
-# MINING_RADIUS = 1.4
-
-MINERAL_RADIUS = 1.125
-HARVESTER_RADIUS = 0.375
-
-def project_point_onto_line(p: Point2, d: Point2, x: Point2) -> float:
-    n = Point2((d[1], -d[0]))
-    return x - dot(x - p, n) / dot(n, n) * n
-
-def get_intersections(p0: Point2, r0: float, p1: Point2, r1: float) -> Iterable[Point2]:
-    p01 = p1 - p0
-    d = np.linalg.norm(p01)
-    if 0 < d and abs(r0 - r1) <= d <= r0 + r1:
-        a = (r0 ** 2 - r1 ** 2 + d ** 2) / (2 * d)
-        h = math.sqrt(r0 ** 2 - a ** 2)
-        pm = p0 + (a / d) * p01
-        po = (h / d) * np.array([p01.y, -p01.x])
-        yield pm + po
-        yield pm - po
 
 class Base(ResourceGroup[ResourceBase]):
 
@@ -68,40 +48,20 @@ class Base(ResourceGroup[ResourceBase]):
                 key = lambda g : g.position.distance_to(townhall_position)
             ))
         super().__init__(ai, [self.mineral_patches, self.vespene_geysers], townhall_position)
-        self.speedmining_positions = self.get_speedmining_positions()
 
-    def split_initial_workers(self, harvesters: Set[Unit]):
+    def split_initial_workers(self, harvesters: Iterable[GatherBehavior]):
+        assigned = set()
         for _ in range(len(harvesters)):
             for patch in self.mineral_patches:
                 harvester = min(
-                    harvesters,
-                    key = lambda h : h.position.distance_to(patch.position),
+                    (h for h in harvesters if h.tag not in assigned),
+                    key = lambda h : h.unit.distance_to(patch.unit),
                     default = None
                 )
                 if not harvester:
                     return
-                harvesters.remove(harvester)
-                patch.try_add(harvester.tag)
-
-    def get_speedmining_positions(self) -> Dict[MineralPatch, Point2]:
-        positions = dict()
-        for patch in self.mineral_patches:
-            target = patch.position.towards(self.position, MINING_RADIUS)
-            for patch2 in self.mineral_patches:
-                if patch.position == patch2.position:
-                    continue
-                p = project_point_onto_line(target, target - self.position, patch2.position)
-                if patch.position.distance_to(self.position) < p.distance_to(self.position):
-                    continue
-                if MINING_RADIUS <= patch2.position.distance_to(p):
-                    continue
-                if target := min(
-                    get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS),
-                    key = lambda p : p.distance_to(self.position),
-                    default = None):
-                    break
-            positions[patch] = target
-        return positions
+                harvester.target = patch
+                assigned.add(harvester.tag)
 
     def update(self):
 
@@ -109,9 +69,9 @@ class Base(ResourceGroup[ResourceBase]):
 
         super().update()
 
-        if not self.townhall:
-            for m in self.mineral_patches:
-                m.harvester_target = 0
-            for g in self.vespene_geysers:
-                g.harvester_target = 0
+        if not self.townhall or not self.townhall.is_ready:
+            self.mineral_patches.harvester_target = 0
+            self.vespene_geysers.harvester_target = 0
+            for resource in self.flatten():
+                resource.harvester_target = 0
             self.harvester_target = 0

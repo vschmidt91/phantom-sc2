@@ -325,15 +325,9 @@ class MacroBehavior(AIUnit):
             if self.unit.is_carrying_resource:
                 return self.unit.return_resource()
             else:
-                if self.unit.type_id == race_worker[self.ai.race]:
-                    logging.info(f'removing: {self.unit.tag}')
-                    if isinstance(self, GatherBehavior):
-                        self.target = None
-                    # if self.ai.resource_manager.bases.try_remove(self.unit.tag):
-                    #     logging.info('success')
-                    # else:
-                    #     logging.info('fail')
-                    self.ai.unit_manager.drafted_civilians.difference_update([self.unit.tag])
+                if isinstance(self, GatherBehavior):
+                    self.target = None
+                self.ai.unit_manager.drafted_civilians.difference_update([self.unit.tag])
                 command = self.unit(self.plan.ability['ability'], target=self.plan.target)
                 self.plan = None
                 return command

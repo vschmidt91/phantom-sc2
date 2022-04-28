@@ -175,7 +175,8 @@ class AIBase(ABC, BotAI):
 
     async def on_start(self):
 
-        self.townhalls.first(AbilityId.RALLY_WORKERS, target=self.townhalls.first.position)
+        for th in self.townhalls:
+            self.do(th(AbilityId.RALLY_WORKERS, target=th.position))
 
         self.map_analyzer = MapData(self)
         self.map_data = await self.load_map_data()
@@ -194,11 +195,11 @@ class AIBase(ABC, BotAI):
         self.modules: List[AIModule] = [
             self.dodge,
             self.combat,
-            self.resource_manager,
             self.scout_manager,
             self.drop_manager,
             self.macro,
             self.unit_manager,
+            self.resource_manager,
             self.chat,
             self.creep,
             self.biles,
@@ -252,10 +253,10 @@ class AIBase(ABC, BotAI):
         self.update_tables()
         self.handle_errors()
         self.handle_actions()
-        self.update_gas()
 
         for module in self.modules:
             await module.on_step()
+        self.update_gas()
 
         if profiler:
             profiler.disable()
@@ -403,7 +404,7 @@ class AIBase(ABC, BotAI):
 
     def update_gas(self):
         gas_target = self.get_gas_target()
-        # self.transfer_to_and_from_gas(gas_target)
+        self.transfer_to_and_from_gas(gas_target)
         self.build_gasses(gas_target)
 
     def build_gasses(self, gas_target: float):
@@ -442,22 +443,68 @@ class AIBase(ABC, BotAI):
 
         return gas_target
 
-    # def transfer_to_and_from_gas(self, gas_target: float):
+    @property
+    def gas_harvester_count(self) -> int:
+        return sum(1
+        for b in self.unit_manager.behaviors.values()
+        if isinstance(b, GatherBehavior) and isinstance(b.target, VespeneGeyser))
 
-    #     effective_gas_target = min(self.resource_manager.vespene_geysers.harvester_target, gas_target)
-    #     effective_gas_balance = self.vespene_geysers.harvester_count - effective_gas_target
+    @property
+    def mineral_harvester_count(self) -> int:
+        return sum(1
+        for b in self.unit_manager.behaviors.values()
+        if isinstance(b, GatherBehavior) and isinstance(b.target, MineralPatch))
 
-    #     # if self.gas_harvester_count + 1 <= gas_target and self.vespene_geysers.harvester_balance < 0:
-    #     if 0 < self.mineral_patches.harvester_count and (effective_gas_balance < 0 or 0 < self.mineral_patches.harvester_balance):
+    def transfer_to_and_from_gas(self, gas_target: float):
 
-    #         if not self.mineral_patches.try_transfer_to(self.vespene_geysers):
-    #             print('transfer to gas failure')
+        effective_gas_target = min(self.resource_manager.vespene_geysers.harvester_target, gas_target)
+        effective_gas_balance = self.gas_harvester_count - effective_gas_target
+        mineral_balance = self.mineral_harvester_count - sum(b.mineral_patches.harvester_target for b in self.resource_manager.bases)
 
-    #     # elif gas_target <= self.gas_harvester_count - 1 or 0 < self.vespene_geysers.harvester_balance:
-    #     elif 0 < self.vespene_geysers.harvester_count and (1 <= effective_gas_balance and self.mineral_patches.harvester_balance < 0):
+        # if self.gas_harvester_count + 1 <= gas_target and self.vespene_geysers.harvester_balance < 0:
+        if 0 < self.mineral_harvester_count and (effective_gas_balance < 0 or 0 < mineral_balance):
 
-    #         if not self.vespene_geysers.try_transfer_to(self.mineral_patches):
-    #             print('transfer from gas failure')
+            geyser = min(
+                (g
+                for g in self.resource_manager.vespene_geysers
+                if g.harvester_balance < 0),
+                key = lambda g : g.harvester_balance,
+                default = None)
+            if not geyser:
+                return
+
+            harvester = min(
+                (b
+                for b in self.unit_manager.behaviors.values()
+                if isinstance(b, GatherBehavior) and isinstance(b.target, MineralPatch)),
+                key = lambda h : h.unit.distance_to(geyser.unit),
+                default = None)
+            if not harvester:
+                return
+
+            harvester.target = geyser
+
+        elif 0 < self.gas_harvester_count and (1 <= effective_gas_balance and mineral_balance < 0):
+
+            patch = min(
+                (m
+                for m in self.resource_manager.mineral_patches
+                if m.harvester_balance < 0),
+                key = lambda g : g.harvester_balance,
+                default = None)
+            if not patch:
+                return
+
+            harvester = min(
+                (b
+                for b in self.unit_manager.behaviors.values()
+                if isinstance(b, GatherBehavior) and isinstance(b.target, VespeneGeyser)),
+                key = lambda h : h.unit.distance_to(patch.unit),
+                default = None)
+            if not harvester:
+                return
+
+            harvester.target = patch
 
     async def initialize_bases(self):
 

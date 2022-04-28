@@ -37,7 +37,7 @@ class ZergMacro(ZergStrategy):
         )
         # ratio = self.ai.threat_level
 
-        queen_target = min(8, 2 * self.ai.townhalls.amount)
+        queen_target = min(8, 1 + self.ai.townhalls.amount)
 
         composition = {
             UnitTypeId.DRONE: worker_target,
