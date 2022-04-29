@@ -89,6 +89,20 @@ WORKERS = {
     *WITH_TECH_EQUIVALENTS[UnitTypeId.MULE],
 }
 
+LARVA_COST = {
+    UnitTypeId.ZERGLING: 0.5,
+    UnitTypeId.ROACH: 1.0,
+    UnitTypeId.DRONE: 1.0,
+    UnitTypeId.OVERLORD: 1.0,
+    UnitTypeId.HYDRALISK: 1.0,
+    UnitTypeId.INFESTOR: 1.0,
+    UnitTypeId.SWARMHOSTMP: 1.0,
+    UnitTypeId.ULTRALISK: 1.0,
+    UnitTypeId.MUTALISK: 1.0,
+    UnitTypeId.CORRUPTOR: 1.0,
+    UnitTypeId.VIPER: 1.0,
+}
+
 RICH_MINERALS = {
     UnitTypeId.RICHMINERALFIELD,
     UnitTypeId.RICHMINERALFIELD750,

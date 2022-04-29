@@ -7,6 +7,7 @@ import numpy as np
 import math
 
 from sc2.position import Point2
+from src.resources.resource_unit import ResourceUnit
 
 from ..utils import dot
 from .resource_base import ResourceBase
@@ -69,6 +70,29 @@ class ResourceManager(AIModule):
             (unit.target
             for unit in self.ai.unit_manager.behaviors.values()
             if isinstance(unit, GatherBehavior) and unit.target))
+
+        harvesters = [
+            b
+            for b in self.ai.unit_manager.behaviors.values()
+            if isinstance(b, GatherBehavior) and b.target and isinstance(b.target, MineralPatch)
+        ]
+
+        transfer = next((
+            h
+            for h in harvesters
+            if 0 < h.target.harvester_balance
+        ), None)
+        if transfer:
+            transfer_to = next((
+                p
+                for p in self.mineral_patches
+                if p.harvester_balance < 0
+            ), None)
+            if transfer_to:
+                transfer.target = transfer_to
+
+        # if transfer_to.harvester_balance < 0 < transfer.target.harvester_balance:
+
 
     def get_speedmining_positions(self) -> Dict[MineralPatch, Point2]:
         positions = dict()

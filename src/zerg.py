@@ -23,7 +23,6 @@ from .constants import SUPPLY_PROVIDED
 from .ai_base import AIBase
 from .utils import armyValue, center, sample, unitValue, run_timed
 from .constants import BUILD_ORDER_PRIORITY, WITH_TECH_EQUIVALENTS, REQUIREMENTS, ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
-from .cost import Cost
 from .modules.macro import MacroPlan
 from .modules.creep import CreepModule
 
@@ -131,7 +130,7 @@ class ZergAI(AIBase):
 
     async def on_step(self, iteration):
 
-        if iteration == 0:
+        if iteration == 0 and self.debug:
             return
 
         if 1 < self.time:

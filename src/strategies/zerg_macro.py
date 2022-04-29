@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 import math
+import numpy as np
 from typing import Counter, Union, Iterable, Dict, TYPE_CHECKING
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.game_data import UpgradeData
@@ -11,8 +12,6 @@ from sc2.data import Race
 
 from ..unit_counters import UNIT_COUNTER_DICT
 from ..constants import BUILD_ORDER_PRIORITY, ZERG_ARMOR_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES
-from ..cost import Cost
-from ..utils import unitValue
 from .zerg_strategy import ZergStrategy
 
 from ..ai_base import AIBase
@@ -37,7 +36,18 @@ class ZergMacro(ZergStrategy):
         )
         # ratio = self.ai.threat_level
 
-        queen_target = min(8, 1 + self.ai.townhalls.amount)
+        future_timeframe = 1.0
+        if 0 < self.ai.future_spending.minerals:
+            future_timeframe = max(future_timeframe, 60 * self.ai.future_spending.minerals / max(1, self.ai.state.score.collection_rate_minerals))
+        if 0 < self.ai.future_spending.vespene:
+            future_timeframe = max(future_timeframe, 60 * self.ai.future_spending.vespene / max(1, self.ai.state.score.collection_rate_vespene))
+        larva_rate = self.ai.future_spending.larva / max(1, future_timeframe)
+        larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
+        queen_target = math.ceil(larva_rate / (3/29))
+        queen_target = np.clip(queen_target, 0, 8)
+        # print(queen_target)
+
+        # queen_target = min(8, 1 + self.ai.townhalls.amount)
 
         composition = {
             UnitTypeId.DRONE: worker_target,

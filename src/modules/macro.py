@@ -47,23 +47,11 @@ class MacroModule(AIModule):
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
         self.plans: List[MacroPlan] = list()
-        self.planned_by_type: DefaultDict[MacroId, Set[MacroPlan]] = defaultdict(lambda:set())
-
-    def remove_plan_by_item(self, item: MacroId):
-        for i in range(len(self.plans)):
-            plan = self.plans[i]
-            if plan.item == item:
-                del self.plans[i]
-                self.planned_by_type[plan.item].remove(plan)
-                return
+        self.planned_by_type: DefaultDict[MacroId, Set[MacroPlan]] = defaultdict(set)
 
     def add_plan(self, plan: MacroPlan):
         self.plans.append(plan)
         self.planned_by_type[plan.item].add(plan)
-
-    def remove_plan(self, plan: MacroPlan):
-        self.plans.remove(plan)
-        self.planned_by_type[plan.item].remove(plan)
 
     def make_composition(self):
         if 200 <= self.ai.supply_used:
@@ -93,11 +81,18 @@ class MacroModule(AIModule):
 
         self.make_composition()
 
-        reserve = Cost(0, 0, 0)
+        reserve = Cost(0, 0, 0, 0)
         exclude = { tag for tag, behavior in self.ai.unit_manager.behaviors.items() if isinstance(behavior, MacroBehavior) and behavior.plan }
         exclude.update(unit.tag for units in self.ai.pending_by_type.values() for unit in units)
         exclude.update(self.ai.unit_manager.drafted_civilians)
-        self.plans.sort(key = lambda t : t.priority, reverse=True)
+
+        plans = []
+        plans.extend(b.plan
+            for b in self.ai.unit_manager.behaviors.values()
+            if isinstance(b, MacroBehavior) and b.plan
+        )
+        plans.extend(self.plans)
+        plans.sort(key = lambda t : t.priority, reverse=True)
 
         unit_by_plan = {
             behavior.plan: tag
@@ -105,7 +100,7 @@ class MacroModule(AIModule):
             if isinstance(behavior, MacroBehavior)
         }
 
-        for i, plan in enumerate(list(self.plans)):
+        for i, plan in enumerate(plans):
 
             if (
                 any(self.ai.get_missing_requirements(plan.item, include_pending=False, include_planned=False))
@@ -134,6 +129,8 @@ class MacroModule(AIModule):
             cost = self.ai.cost[plan.item]
             reserve += cost
 
+            if plan not in unit_by_plan:
+                self.plans.remove(plan)
             self.ai.unit_manager.behaviors[unit.tag].plan = plan
             exclude.add(unit.tag)
 
@@ -143,14 +140,14 @@ class MacroModule(AIModule):
                 except PlacementNotFoundException as p: 
                     continue
 
-            if (
-                plan.priority < BUILD_ORDER_PRIORITY
-                and self.ai.is_structure(plan.item)
-                and isinstance(plan.target, Point2)
-                and not await self.ai.can_place_single(plan.item, plan.target)
-            ):
-                self.remove_plan(plan)
-                continue
+            # if (
+            #     plan.priority < BUILD_ORDER_PRIORITY
+            #     and self.ai.is_structure(plan.item)
+            #     and isinstance(plan.target, Point2)
+            #     and not await self.ai.can_place_single(plan.item, plan.target)
+            # ):
+            #     self.remove_plan(plan)
+            #     continue
 
             eta = 0
             if 0 < cost.minerals:
@@ -329,7 +326,7 @@ class MacroBehavior(AIUnit):
                     self.target = None
                 self.ai.unit_manager.drafted_civilians.difference_update([self.unit.tag])
                 command = self.unit(self.plan.ability['ability'], target=self.plan.target)
-                self.plan = None
+                # self.plan = None
                 return command
         elif not self.plan.target:
             return None

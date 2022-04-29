@@ -66,8 +66,8 @@ def create_bot():
     # ai = QueenBot()
 
     ai = ZergAI(strategy_cls=HatchFirst)
-    ai.debug = True
-    ai.game_step = 1
+    ai.debug = False
+    ai.game_step = 4
 
     # ai = Pool12AllIn()
 

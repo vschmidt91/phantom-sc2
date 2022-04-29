@@ -163,20 +163,21 @@ class AIBase(ABC, BotAI):
             try:
                 cost = self.calculate_cost(unit)
                 food = int(self.calculate_supply_cost(unit))
-                self.cost[unit] = Cost(cost.minerals, cost.vespene, food)
+                larva = LARVA_COST.get(unit, 0.0)
+                self.cost[unit] = Cost(cost.minerals, cost.vespene, food, larva)
             except:
                 pass
         for upgrade in UpgradeId:
             try:
                 cost = self.calculate_cost(upgrade)
-                self.cost[upgrade] = Cost(cost.minerals, cost.vespene, 0)
+                self.cost[upgrade] = Cost(cost.minerals, cost.vespene, 0, 0)
             except:
                 pass
 
     async def on_start(self):
 
         for th in self.townhalls:
-            self.do(th(AbilityId.RALLY_WORKERS, target=th.position))
+            self.do(th(AbilityId.RALLY_WORKERS, target=th))
 
         self.map_analyzer = MapData(self)
         self.map_data = await self.load_map_data()
@@ -238,8 +239,17 @@ class AIBase(ABC, BotAI):
 
     def handle_actions(self):
         for action in self.state.actions_unit_commands:
-            if item := ITEM_BY_ABILITY.get(action.exact_id):
-                self.macro.remove_plan_by_item(item)
+            for tag in action.unit_tags:
+                if behavior := self.unit_manager.behaviors.get(tag):
+                    if (
+                        isinstance(behavior, MacroBehavior)
+                        and behavior.plan
+                        and behavior.plan.ability['ability'] == action.exact_id
+                    ):
+                        self.macro.planned_by_type[behavior.plan.item].discard(behavior.plan)
+                        behavior.plan = None
+            # if item := ITEM_BY_ABILITY.get(action.exact_id):
+            #     self.macro.remove_plan_by_item(item)
 
     async def on_step(self, iteration: int):
         
@@ -261,7 +271,7 @@ class AIBase(ABC, BotAI):
         if profiler:
             profiler.disable()
             stats = pstats.Stats(profiler)
-            stats.strip_dirs().sort_stats(pstats.SortKey.TIME).print_stats(32)
+            stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE).print_stats(100)
             if self.debug:
                 stats.dump_stats(filename='profiling.prof')
 
@@ -415,22 +425,31 @@ class AIBase(ABC, BotAI):
         gas_want = min(gas_max, gas_depleted + math.ceil(gas_target / 3))
         if gas_have + gas_pending < gas_want:
             self.macro.add_plan(MacroPlan(UnitTypeId.EXTRACTOR))
-        else:
-            for _, plan in zip(range(gas_have + gas_pending - gas_want), list(self.macro.planned_by_type[UnitTypeId.EXTRACTOR])):
-                if plan.priority < BUILD_ORDER_PRIORITY:
-                    self.macro.remove_plan(plan)
+        # else:
+        #     for _, plan in zip(range(gas_have + gas_pending - gas_want), list(self.macro.planned_by_type[UnitTypeId.EXTRACTOR])):
+        #         if plan.priority < BUILD_ORDER_PRIORITY:
+        #             self.macro.remove_plan(plan)
 
     def get_gas_target(self) -> float:
 
         if self.max_gas:
             return sum(g.ideal_harvesters for g in self.gas_buildings.ready)
 
-        cost_zero = Cost(0, 0, 0)
-        cost_sum = sum((self.cost[plan.item] for plan in self.macro.plans), cost_zero)
-        cost_sum += sum(
-            (self.cost[unit] * max(0, count - self.count(unit))
-            for unit, count in self.composition.items()),
-            cost_zero)
+        cost_zero = Cost(0, 0, 0, 0)
+        cost_sum = sum((
+            self.cost[plan.item]
+            for plan in self.macro.plans
+        ), cost_zero)
+        cost_sum = sum((
+            self.cost[b.plan.item]
+            for b in self.unit_manager.behaviors.values()
+            if isinstance(b, MacroBehavior) and b.plan
+        ), cost_zero)
+        cost_sum += sum((
+            self.cost[unit] * max(0, count - self.count(unit))
+            for unit, count in self.composition.items()
+        ), cost_zero)
+        self.future_spending = cost_sum
         minerals = max(0, cost_sum.minerals - self.minerals)
         vespene = max(0, cost_sum.vespene - self.vespene)
         if minerals + vespene == 0:
@@ -737,6 +756,8 @@ class AIBase(ABC, BotAI):
         elif max(0, self.vespene - reserve.vespene) < cost.vespene:
             return False
         elif max(0, self.supply_left - reserve.food) < cost.food:
+            return False
+        elif max(0, self.larva.amount - reserve.larva) < cost.larva:
             return False
         else:
             return True
