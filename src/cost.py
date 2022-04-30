@@ -16,4 +16,4 @@ class Cost:
         return Cost(self.minerals * factor, self.vespene * factor, self.food * factor, self.larva * factor)
 
     def __repr__(self) -> str:
-        return f"Cost({self.minerals}M, {self.vespene}G, {self.food}F)"
+        return f"Cost({self.minerals}M, {self.vespene}G, {self.food}F, {self.larva}L)"

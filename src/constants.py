@@ -188,7 +188,7 @@ ITEM_BY_ABILITY = {
     **UPGRADE_BY_RESEARCH_ABILITY
 }
 
-GAS_BY_RACE = {
+GAS_BY_RACE: Dict[Race, UnitTypeId] = {
     Race.Zerg: UnitTypeId.EXTRACTOR,
     Race.Protoss: UnitTypeId.ASSIMILATOR,
     Race.Terran: UnitTypeId.REFINERY,

@@ -117,7 +117,6 @@ class AIBase(ABC, BotAI):
         self.map_analyzer: MapData = None
         
         self.extractor_trick_enabled: bool = False
-        self.max_gas: bool = False
         self.iteration: int = 0
         self.techtree: TechTree = TechTree('data/techtree.json')
 
@@ -135,9 +134,9 @@ class AIBase(ABC, BotAI):
 
         if self.debug:
             logging.basicConfig(level=logging.DEBUG)
-            plt.ion()
-            self.plot, self.plot_axes = plt.subplots(1, 2)
-            self.plot_images = None
+            # plt.ion()
+            # self.plot, self.plot_axes = plt.subplots(1, 2)
+            # self.plot_images = None
         else:
             logging.basicConfig(level=logging.ERROR)
 
@@ -244,7 +243,7 @@ class AIBase(ABC, BotAI):
                     if (
                         isinstance(behavior, MacroBehavior)
                         and behavior.plan
-                        and behavior.plan.ability['ability'] == action.exact_id
+                        and behavior.plan.ability == action.exact_id
                     ):
                         self.macro.planned_by_type[behavior.plan.item].discard(behavior.plan)
                         behavior.plan = None
@@ -260,12 +259,30 @@ class AIBase(ABC, BotAI):
             profiler = cProfile.Profile()
             profiler.enable()
 
+        larva_per_second = 0.0
+        for hatchery in self.townhalls:
+            if hatchery.is_ready:
+                larva_per_second += 1/11
+                if hatchery.has_buff(BuffId.QUEENSPAWNLARVATIMER):
+                    larva_per_second += 3/29
+        self.larva_generation_rate = 60.0 * larva_per_second
+
+        if self.extractor_trick_enabled and self.supply_left <= 0:
+            for gas in self.gas_buildings.not_ready:
+                self.do(gas(AbilityId.CANCEL))
+                self.extractor_trick_enabled = False
+                break
+
+        for worker in self.workers.idle:
+            self.resource_manager.add_harvester(self.unit_manager.behaviors[worker.tag])
+
         self.update_tables()
         self.handle_errors()
         self.handle_actions()
 
         for module in self.modules:
             await module.on_step()
+
         self.update_gas()
 
         if profiler:
@@ -418,29 +435,28 @@ class AIBase(ABC, BotAI):
         self.build_gasses(gas_target)
 
     def build_gasses(self, gas_target: float):
+        gas_type = GAS_BY_RACE[self.race]
         gas_depleted = self.gas_buildings.filter(lambda g : not g.has_vespene).amount
-        gas_pending = self.count(UnitTypeId.EXTRACTOR, include_actual=False)
-        gas_have = self.count(UnitTypeId.EXTRACTOR, include_pending=False, include_planned=False)
+        gas_pending = self.count(gas_type, include_actual=False)
+        gas_have = self.count(gas_type, include_pending=False, include_planned=False)
         gas_max = sum(1 for g in self.get_owned_geysers())
-        gas_want = min(gas_max, gas_depleted + math.ceil(gas_target / 3))
+        gas_want = min(gas_max, gas_depleted + math.ceil((gas_target - 1) / 3))
         if gas_have + gas_pending < gas_want:
-            self.macro.add_plan(MacroPlan(UnitTypeId.EXTRACTOR))
+            self.macro.add_plan(MacroPlan(gas_type))
         # else:
-        #     for _, plan in zip(range(gas_have + gas_pending - gas_want), list(self.macro.planned_by_type[UnitTypeId.EXTRACTOR])):
+        #     for _, plan in zip(range(gas_have + gas_pending - gas_want), list(self.macro.planned_by_type[gas_type])):
         #         if plan.priority < BUILD_ORDER_PRIORITY:
         #             self.macro.remove_plan(plan)
 
     def get_gas_target(self) -> float:
 
-        if self.max_gas:
-            return sum(g.ideal_harvesters for g in self.gas_buildings.ready)
-
         cost_zero = Cost(0, 0, 0, 0)
-        cost_sum = sum((
+        cost_sum = cost_zero
+        cost_sum += sum((
             self.cost[plan.item]
             for plan in self.macro.plans
         ), cost_zero)
-        cost_sum = sum((
+        cost_sum += sum((
             self.cost[b.plan.item]
             for b in self.unit_manager.behaviors.values()
             if isinstance(b, MacroBehavior) and b.plan
@@ -496,7 +512,7 @@ class AIBase(ABC, BotAI):
                 (b
                 for b in self.unit_manager.behaviors.values()
                 if isinstance(b, GatherBehavior) and isinstance(b.target, MineralPatch)),
-                key = lambda h : h.unit.distance_to(geyser.unit),
+                key = lambda h : h.unit.position.distance_to(geyser.unit.position),
                 default = None)
             if not harvester:
                 return
@@ -518,7 +534,7 @@ class AIBase(ABC, BotAI):
                 (b
                 for b in self.unit_manager.behaviors.values()
                 if isinstance(b, GatherBehavior) and isinstance(b.target, VespeneGeyser)),
-                key = lambda h : h.unit.distance_to(patch.unit),
+                key = lambda h : h.unit.position.distance_to(patch.unit.position),
                 default = None)
             if not harvester:
                 return
@@ -593,7 +609,15 @@ class AIBase(ABC, BotAI):
         font_color = (255, 255, 255)
         font_size = 12
 
-        for i, target in enumerate(self.macro.plans):
+        plans = []
+        plans.extend(b.plan
+            for b in self.unit_manager.behaviors.values()
+            if isinstance(b, MacroBehavior) and b.plan
+        )
+        plans.extend(self.macro.plans)
+        plans.sort(key = lambda t : t.priority, reverse=True)
+
+        for i, target in enumerate(plans):
 
             positions = []
 
@@ -614,28 +638,19 @@ class AIBase(ABC, BotAI):
             if unit := self.unit_by_tag.get(unit_tag):
                 positions.append(unit)
 
-            text = f"{str(i+1)} {str(target.item.name)}"
+            text = f"{str(i+1)} {target.item.name}"
 
             for position in positions:
                 self.client.debug_text_world(text, position, color=font_color, size=font_size)
-
-        # for unit in chain(self.unit_manager.simulation.units_lost.keys(), self.unit_manager.simulation.enemies_killed.keys()):
-        #     u = self.unit_by_tag.get(unit.tag) or self.enemies.get(unit.tag)
-        #     if not u:
-        #         continue
-        #     pos = u.position
-        #     z = self.get_terrain_z_height(pos)
-        #     position = Point3((*pos, z))
-        #     text = f"{str(unit.tag)}"
-        #     self.client.debug_text_world(text, position, color=font_color, size=font_size)
 
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.combat.threat_level)}%', (0.01, 0.01))
         self.client.debug_text_screen(f'Enemy Bases: {len(self.scout_manager.enemy_bases)}', (0.01, 0.02))
         self.client.debug_text_screen(f'Gas Target: {round(self.get_gas_target(), 3)}', (0.01, 0.03))
         # self.client.debug_text_screen(f'Simulation Resullt: {round(self.unit_manager.simulation_result, 3)}', (0.01, 0.04))
         self.client.debug_text_screen(f'Creep Coverage: {round(100 * self.creep.coverage)}%', (0.01, 0.06))
-        for i, plan in enumerate(self.macro.plans):
-            self.client.debug_text_screen(f'{1+i} {plan.item.name}', (0.01, 0.1 + 0.01 * i))
+        
+        for i, plan in enumerate(plans):
+            self.client.debug_text_screen(f'{1+i} {round(plan.eta or 0, 1)} {plan.item.name}', (0.01, 0.1 + 0.01 * i))
 
         # self.map_analyzer.draw_influence_in_game(self.unit_manager.simulation_map)
 

@@ -35,6 +35,7 @@ class Base(ResourceGroup[ResourceBase]):
         minerals: Iterable[Point2],
         gasses: Iterable[Point2],
     ):
+        self.townhall: Optional[Unit] = None
         self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(
             ai,
             sorted(
@@ -55,7 +56,7 @@ class Base(ResourceGroup[ResourceBase]):
             for patch in self.mineral_patches:
                 harvester = min(
                     (h for h in harvesters if h.tag not in assigned),
-                    key = lambda h : h.unit.distance_to(patch.unit),
+                    key = lambda h : h.unit.position.distance_to(patch.unit.position),
                     default = None
                 )
                 if not harvester:

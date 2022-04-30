@@ -67,7 +67,6 @@ class UnitManager(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
-        self.inject_queens: Dict[int, int] = dict()
         self.drafted_civilians: Set[int] = set()
         self.enemy_priorities: Dict[int, float] = dict()
         self.behaviors: Dict[int, AIUnit] = dict()
@@ -201,12 +200,14 @@ class UnitManager(AIModule):
             self.attack_paths[unit.tag] = self.get_path_towards(unit, target.position)
             self.retreat_paths[unit.tag] = self.get_path_towards(unit, unit.position.towards(target.position, -12))
 
-        queens = sorted(
-            self.ai.actual_by_type[UnitTypeId.QUEEN],
+        queens = sorted((
+            b
+            for b in self.ai.unit_manager.behaviors.values()
+            if isinstance(b, InjectBehavior)),
             key = lambda q : q.tag
         )
 
-        self.draft_civilians()
+        # self.draft_civilians()
 
         inject_queen_max = min(5, len(queens))
         inject_queen_count = min(math.ceil((1 - self.ai.combat.threat_level) * inject_queen_max), self.ai.townhalls.amount)
@@ -217,10 +218,9 @@ class UnitManager(AIModule):
             for b in self.ai.resource_manager.bases
             if b.position in self.ai.townhall_by_position
         ]
-        self.inject_queens.clear()
+
         for queen, base in zip(inject_queens, bases):
-            townhall = self.ai.townhall_by_position[base.position]
-            self.inject_queens[queen.tag] = townhall.tag
+            queen.inject_target = self.ai.townhall_by_position[base.position]
 
         for unit in self.ai.all_own_units:
 
@@ -230,8 +230,4 @@ class UnitManager(AIModule):
             if not unit.is_ready:
                 continue
 
-            # behavior = self.behaviors.get(unit.tag)
-            # if not behavior:
-            #     behavior = self.behaviors[unit.tag] = self.create_behavior(unit)
-            behavior = self.behaviors[unit.tag]
-            behavior.on_step()
+            self.behaviors[unit.tag].on_step()

@@ -233,7 +233,7 @@ class ZergAI(AIBase):
             if any(self.enemies_by_type[unit_type]):
                 self.build_spores = True
 
-        for i, base in enumerate(self.bases):
+        for i, base in enumerate(self.resource_manager.bases):
             targets: Dict[UnitTypeId, int] = dict()
             if self.build_spores:
                 targets[UnitTypeId.SPORECRAWLER] = 1
@@ -261,9 +261,11 @@ class ZergAI(AIBase):
         # income = self.state.score.collection_rate_minerals + self.state.score.collection_rate_vespene
         # supply_buffer = income / 300
 
-        supply_buffer = 6
-        supply_buffer += 2 * self.townhalls.amount
-        supply_buffer += 2 * len(self.unit_manager.inject_queens)
+        # supply_buffer = 4
+        # supply_buffer += 2 * self.townhalls.amount
+        # supply_buffer += 2 * self.count(UnitTypeId.QUEEN, include_planned=False)
+
+        supply_buffer = self.larva_generation_rate / 1.5
         
         if self.supply_left + supply_pending < supply_buffer:
             self.macro.add_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
@@ -279,7 +281,7 @@ class ZergAI(AIBase):
         worker_max = self.get_max_harvester()
         saturation = self.state.score.food_used_economy / max(1, worker_max)
         saturation = max(0, min(1, saturation))
-        priority = 3 * (saturation - 1)
+        priority = 4 * (saturation - 1)
 
         for plan in self.macro.planned_by_type[UnitTypeId.HATCHERY]:
             if plan.priority < BUILD_ORDER_PRIORITY:

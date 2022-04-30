@@ -49,7 +49,7 @@ class GatherBehavior(AIUnit):
             if self.unit.is_returning:
                 townhall = self.ai.townhalls.ready.closest_to(self.unit)
                 move_target = townhall.position.towards(self.unit, townhall.radius + self.unit.radius)
-                if 0.75 < self.unit.distance_to(move_target) < 1.5:
+                if 0.75 < self.unit.position.distance_to(move_target) < 1.5:
                     self.command_queue = townhall
                     return self.unit.move(move_target)
                     # 
@@ -58,7 +58,7 @@ class GatherBehavior(AIUnit):
                 move_target = self.ai.resource_manager.speedmining_positions.get(self.target)
                 if not move_target:
                     move_target = target.position.towards(self.unit, target.radius + self.unit.radius)
-                if 0.75 < self.unit.distance_to(move_target) < 1.75:
+                if 0.75 < self.unit.position.distance_to(move_target) < 1.75:
                     self.command_queue = target
                     return self.unit.move(move_target)
                     # self.unit.move(move_target)

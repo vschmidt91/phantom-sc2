@@ -25,6 +25,7 @@ class InjectBehavior(AIUnit):
     def __init__(self, ai: AIBase, tag: int):
         super().__init__(ai, tag)
         self.did_first_inject: bool = False
+        self.inject_target: Optional[Unit] = None
 
     def inject(self) -> Optional[UnitCommand]:
 
@@ -40,23 +41,18 @@ class InjectBehavior(AIUnit):
         if 1 < self.ai.combat.enemy_vs_ground_map[self.unit.position.rounded]:
             return None
 
-        townhall_tag = self.ai.unit_manager.inject_queens.get(self.unit.tag)
-        if not townhall_tag:
-            return None
-
-        townhall = self.ai.unit_by_tag.get(townhall_tag)
-        if not townhall:
+        if not self.inject_target:
             return None
             
-        base = next(b for b in self.ai.resource_manager.bases if b.position == townhall.position)
+        base = next(b for b in self.ai.resource_manager.bases if b.position == self.inject_target.position)
         if base:
-            target = base.position.towards(base.mineral_patches.position, -(townhall.radius + self.unit.radius))
+            target = base.position.towards(base.mineral_patches.position, -(self.inject_target.radius + self.unit.radius))
         else:
-            target = townhall.position
+            target = self.inject_target.position
 
         if 7 < self.unit.position.distance_to(target):
             return self.unit.attack(target)
         elif ENERGY_COST[AbilityId.EFFECT_INJECTLARVA] <= self.unit.energy:
-            return self.unit(AbilityId.EFFECT_INJECTLARVA, target=townhall)
+            return self.unit(AbilityId.EFFECT_INJECTLARVA, target=self.inject_target)
             
         return None

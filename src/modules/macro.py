@@ -13,6 +13,7 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker, race_townhalls
 from src.ai_component import AIComponent
 from src.behaviors.gather import GatherBehavior
+from src.techtree import TechTreeAbilityTarget, TechTreeAbilityTargetUnit, TechTreeAbilityTargetUnitType
 from src.units.unit import AIUnit
 
 from ..cost import Cost
@@ -37,7 +38,7 @@ class MacroPlan:
         self.__dict__.update(**kwargs)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.item}, {self.ability}, {self.target}, {self.priority})"
+        return f"{self.__class__.__name__}({self.item}, {self.ability}, {self.target}, {self.priority}, {self.eta})"
 
     def __hash__(self) -> int:
         return id(self)
@@ -111,7 +112,6 @@ class MacroModule(AIModule):
             if (2 if self.ai.extractor_trick_enabled else 1) <= i and plan.priority == BUILD_ORDER_PRIORITY:
                 break
 
-            
             if unit_tag := unit_by_plan.get(plan):
                 unit = self.ai.unit_by_tag.get(unit_tag)
             else:
@@ -119,7 +119,7 @@ class MacroModule(AIModule):
 
             if unit == None or unit.type_id == UnitTypeId.EGG:
                 unit, plan.ability = self.search_trainer(plan.item, exclude=exclude)
-            if unit and plan.ability and unit.is_using_ability(plan.ability['ability']):
+            if unit and plan.ability and unit.is_using_ability(plan.ability):
                 continue
             if unit == None:
                 continue
@@ -129,7 +129,7 @@ class MacroModule(AIModule):
             cost = self.ai.cost[plan.item]
             reserve += cost
 
-            if plan not in unit_by_plan:
+            if plan in self.plans:
                 self.plans.remove(plan)
             self.ai.unit_manager.behaviors[unit.tag].plan = plan
             exclude.add(unit.tag)
@@ -149,14 +149,18 @@ class MacroModule(AIModule):
             #     self.remove_plan(plan)
             #     continue
 
-            eta = 0
-            if 0 < cost.minerals:
-                eta = max(eta, 60 * (reserve.minerals - self.ai.minerals) / max(1, self.ai.state.score.collection_rate_minerals))
-            if 0 < cost.vespene:
-                eta = max(eta, 60 * (reserve.vespene - self.ai.vespene) / max(1, self.ai.state.score.collection_rate_vespene))
-            if 0 < cost.food:
-                if self.ai.supply_left < cost.food:
-                    eta = None
+            eta = None
+            if not any(self.ai.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
+                eta = 0
+                if 0 < cost.minerals:
+                    eta = max(eta, 60 * (reserve.minerals - self.ai.minerals) / max(1, self.ai.state.score.collection_rate_minerals))
+                if 0 < cost.vespene:
+                    eta = max(eta, 60 * (reserve.vespene - self.ai.vespene) / max(1, self.ai.state.score.collection_rate_vespene))
+                if 0 < cost.larva:
+                    eta = max(eta, 60 * (reserve.larva - self.ai.larva.amount) / max(1, self.ai.larva_generation_rate))
+                if 0 < cost.food:
+                    if self.ai.supply_left < cost.food:
+                        eta = None
             plan.eta = eta
 
     async def get_target(self, unit: Unit, objective: MacroPlan) -> Coroutine[any, any, Union[Unit, Point2]]:
@@ -189,14 +193,23 @@ class MacroModule(AIModule):
                 raise PlacementNotFoundException()
             else:
                 return random.choice(geysers)
+
+        if type(objective.item) is UnitTypeId:
+            table = TRAIN_INFO
+        elif type(objective.item) is UpgradeId:
+            table = RESEARCH_INFO
+        else:
+            table = {}
+        data = table[unit.type_id][objective.item]
                 
-        elif "requires_placement_position" in objective.ability:
+        # if isinstance(data.target, TechTreeAbilityTargetUnit) and data.target.type == TechTreeAbilityTargetUnitType.Build:
+        if "requires_placement_position" in data:
             position = await self.get_target_position(objective.item, unit)
             withAddon = objective in { UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT }
             
             if objective.max_distance != None:
                 max_distance = objective.max_distance
-                position = await self.ai.find_placement(objective.ability["ability"], position, max_distance=max_distance, placement_step=1, addon_place=withAddon)
+                position = await self.ai.find_placement(objective.ability, position, max_distance=max_distance, placement_step=1, addon_place=withAddon)
             if position is None:
                 raise PlacementNotFoundException()
             else:
@@ -204,7 +217,7 @@ class MacroModule(AIModule):
         else:
             return None
 
-    def search_trainer(self, item: Union[UnitTypeId, UpgradeId], exclude: Set[int]) -> Tuple[Unit, any]:
+    def search_trainer(self, item: Union[UnitTypeId, UpgradeId], exclude: Set[int]) -> Tuple[Unit, AbilityId]:
 
         if type(item) == UnitTypeId:
             trainer_types = {
@@ -274,7 +287,7 @@ class MacroModule(AIModule):
             if "requires_techlab" in ability and not trainer.has_techlab:
                 continue
                 
-            return trainer, ability
+            return trainer, ability['ability']
 
         return None, None
 
@@ -325,17 +338,19 @@ class MacroBehavior(AIUnit):
                 if isinstance(self, GatherBehavior):
                     self.target = None
                 self.ai.unit_manager.drafted_civilians.difference_update([self.unit.tag])
-                command = self.unit(self.plan.ability['ability'], target=self.plan.target)
+                command = self.unit(self.plan.ability, target=self.plan.target)
                 # self.plan = None
                 return command
         elif not self.plan.target:
             return None
 
-        movement_eta = 1 + time_to_reach(self.unit, self.plan.target.position)
+        movement_eta = 1.0 + time_to_reach(self.unit, self.plan.target.position)
+        if self.unit.is_carrying_resource:
+            movement_eta += 3.0
         if self.plan.eta < movement_eta:
             if self.unit.is_carrying_resource:
                 return self.unit.return_resource()
             elif 1e-3 < self.unit.distance_to(self.plan.target.position):
-                return self.unit.move(self.plan.target.position)
+                return self.unit.move(self.plan.target)
             else:
                 return self.unit.hold_position()
