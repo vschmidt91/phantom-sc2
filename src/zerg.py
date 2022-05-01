@@ -265,7 +265,7 @@ class ZergAI(AIBase):
         # supply_buffer += 2 * self.townhalls.amount
         # supply_buffer += 2 * self.count(UnitTypeId.QUEEN, include_planned=False)
 
-        supply_buffer = self.larva_generation_rate / 1.5
+        supply_buffer = self.income.larva / 1.5
         
         if self.supply_left + supply_pending < supply_buffer:
             self.macro.add_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
@@ -281,7 +281,7 @@ class ZergAI(AIBase):
         worker_max = self.get_max_harvester()
         saturation = self.state.score.food_used_economy / max(1, worker_max)
         saturation = max(0, min(1, saturation))
-        priority = 4 * (saturation - 1)
+        priority = 2.5 * (saturation - 1)
 
         for plan in self.macro.planned_by_type[UnitTypeId.HATCHERY]:
             if plan.priority < BUILD_ORDER_PRIORITY:

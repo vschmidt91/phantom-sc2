@@ -47,11 +47,19 @@ class MacroModule(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
-        self.plans: List[MacroPlan] = list()
+        self.unassigned_plans: List[MacroPlan] = list()
         self.planned_by_type: DefaultDict[MacroId, Set[MacroPlan]] = defaultdict(set)
 
+    def enumerate_plans(self) -> Iterable[MacroPlan]:
+        for plan in self.unassigned_plans:
+            yield plan
+        for behavior in self.ai.unit_manager.behaviors.values():
+            if isinstance(behavior, MacroBehavior):
+                if behavior.plan:
+                    yield behavior.plan
+
     def add_plan(self, plan: MacroPlan):
-        self.plans.append(plan)
+        self.unassigned_plans.append(plan)
         self.planned_by_type[plan.item].add(plan)
 
     def make_composition(self):
@@ -83,16 +91,21 @@ class MacroModule(AIModule):
         self.make_composition()
 
         reserve = Cost(0, 0, 0, 0)
-        exclude = { tag for tag, behavior in self.ai.unit_manager.behaviors.items() if isinstance(behavior, MacroBehavior) and behavior.plan }
+        exclude = {
+            tag
+            for tag, behavior in self.ai.unit_manager.behaviors.items()
+            if isinstance(behavior, MacroBehavior) and behavior.plan
+        }
         exclude.update(unit.tag for units in self.ai.pending_by_type.values() for unit in units)
         exclude.update(self.ai.unit_manager.drafted_civilians)
 
         plans = []
-        plans.extend(b.plan
+        plans.extend(
+            b.plan
             for b in self.ai.unit_manager.behaviors.values()
             if isinstance(b, MacroBehavior) and b.plan
         )
-        plans.extend(self.plans)
+        plans.extend(self.unassigned_plans)
         plans.sort(key = lambda t : t.priority, reverse=True)
 
         unit_by_plan = {
@@ -129,8 +142,8 @@ class MacroModule(AIModule):
             cost = self.ai.cost[plan.item]
             reserve += cost
 
-            if plan in self.plans:
-                self.plans.remove(plan)
+            if plan in self.unassigned_plans:
+                self.unassigned_plans.remove(plan)
             self.ai.unit_manager.behaviors[unit.tag].plan = plan
             exclude.add(unit.tag)
 
@@ -153,11 +166,11 @@ class MacroModule(AIModule):
             if not any(self.ai.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
                 eta = 0
                 if 0 < cost.minerals:
-                    eta = max(eta, 60 * (reserve.minerals - self.ai.minerals) / max(1, self.ai.state.score.collection_rate_minerals))
+                    eta = max(eta, 60 * (reserve.minerals - self.ai.minerals) / max(1, self.ai.income.minerals))
                 if 0 < cost.vespene:
-                    eta = max(eta, 60 * (reserve.vespene - self.ai.vespene) / max(1, self.ai.state.score.collection_rate_vespene))
+                    eta = max(eta, 60 * (reserve.vespene - self.ai.vespene) / max(1, self.ai.income.vespene))
                 if 0 < cost.larva:
-                    eta = max(eta, 60 * (reserve.larva - self.ai.larva.amount) / max(1, self.ai.larva_generation_rate))
+                    eta = max(eta, 60 * (reserve.larva - self.ai.larva.amount) / max(1, self.ai.income.larva))
                 if 0 < cost.food:
                     if self.ai.supply_left < cost.food:
                         eta = None
@@ -233,7 +246,7 @@ class MacroModule(AIModule):
                 return (
                     w
                     for w in self.ai.workers
-                    if (b := self.ai.unit_manager.behaviors.get(w.tag)) and b.target
+                    if (b := self.ai.unit_manager.behaviors.get(w.tag)) and b.gather_target
                     # self.ai.unit_by_tag[t]
                     # for t in self.ai.resource_manager.bases.harvesters
                     # if t in self.ai.unit_by_tag
@@ -336,7 +349,7 @@ class MacroBehavior(AIUnit):
                 return self.unit.return_resource()
             else:
                 if isinstance(self, GatherBehavior):
-                    self.target = None
+                    self.gather_target = None
                 self.ai.unit_manager.drafted_civilians.difference_update([self.unit.tag])
                 command = self.unit(self.plan.ability, target=self.plan.target)
                 # self.plan = None

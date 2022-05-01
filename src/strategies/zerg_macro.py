@@ -36,12 +36,12 @@ class ZergMacro(ZergStrategy):
         )
         # ratio = self.ai.threat_level
 
-        future_timeframe = 1.0
+        future_timeframe = 3/60
         if 0 < self.ai.future_spending.minerals:
-            future_timeframe = max(future_timeframe, 60 * self.ai.future_spending.minerals / max(1, self.ai.state.score.collection_rate_minerals))
+            future_timeframe = max(future_timeframe, self.ai.future_spending.minerals / max(1, self.ai.income.minerals))
         if 0 < self.ai.future_spending.vespene:
-            future_timeframe = max(future_timeframe, 60 * self.ai.future_spending.vespene / max(1, self.ai.state.score.collection_rate_vespene))
-        larva_rate = self.ai.future_spending.larva / max(1, future_timeframe)
+            future_timeframe = max(future_timeframe, self.ai.future_spending.vespene / max(1, self.ai.income.vespene))
+        larva_rate = self.ai.future_spending.larva / (60 * future_timeframe)
         larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
         queen_target = math.ceil(larva_rate / (3/29))
         queen_target = np.clip(1 + queen_target, 2, 8)

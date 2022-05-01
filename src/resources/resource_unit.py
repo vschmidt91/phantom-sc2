@@ -26,10 +26,6 @@ class ResourceUnit(ResourceBase):
     def harvester_balance(self) -> int:
         return self.harvester_count - self.harvester_target
 
-    @abstractproperty
-    def gather_target(self) -> Optional[Unit]:
-        raise NotImplementedError()
-
     @property
     def unit(self) -> Optional[Unit]:
         return self.ai.resource_by_position.get(self.position)

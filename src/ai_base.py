@@ -265,7 +265,7 @@ class AIBase(ABC, BotAI):
                 larva_per_second += 1/11
                 if hatchery.has_buff(BuffId.QUEENSPAWNLARVATIMER):
                     larva_per_second += 3/29
-        self.larva_generation_rate = 60.0 * larva_per_second
+        self.income = Cost(self.state.score.collection_rate_minerals, self.state.score.collection_rate_vespene, 0, 60.0 * larva_per_second)
 
         if self.extractor_trick_enabled and self.supply_left <= 0:
             for gas in self.gas_buildings.not_ready:
@@ -454,7 +454,7 @@ class AIBase(ABC, BotAI):
         cost_sum = cost_zero
         cost_sum += sum((
             self.cost[plan.item]
-            for plan in self.macro.plans
+            for plan in self.macro.unassigned_plans
         ), cost_zero)
         cost_sum += sum((
             self.cost[b.plan.item]
@@ -482,13 +482,13 @@ class AIBase(ABC, BotAI):
     def gas_harvester_count(self) -> int:
         return sum(1
         for b in self.unit_manager.behaviors.values()
-        if isinstance(b, GatherBehavior) and isinstance(b.target, VespeneGeyser))
+        if isinstance(b, GatherBehavior) and isinstance(b.gather_target, VespeneGeyser))
 
     @property
     def mineral_harvester_count(self) -> int:
         return sum(1
         for b in self.unit_manager.behaviors.values()
-        if isinstance(b, GatherBehavior) and isinstance(b.target, MineralPatch))
+        if isinstance(b, GatherBehavior) and isinstance(b.gather_target, MineralPatch))
 
     def transfer_to_and_from_gas(self, gas_target: float):
 
@@ -511,13 +511,13 @@ class AIBase(ABC, BotAI):
             harvester = min(
                 (b
                 for b in self.unit_manager.behaviors.values()
-                if isinstance(b, GatherBehavior) and isinstance(b.target, MineralPatch)),
+                if isinstance(b, GatherBehavior) and isinstance(b.gather_target, MineralPatch)),
                 key = lambda h : h.unit.position.distance_to(geyser.unit.position),
                 default = None)
             if not harvester:
                 return
 
-            harvester.target = geyser
+            harvester.gather_target = geyser
 
         elif 0 < self.gas_harvester_count and (1 <= effective_gas_balance and mineral_balance < 0):
 
@@ -533,13 +533,13 @@ class AIBase(ABC, BotAI):
             harvester = min(
                 (b
                 for b in self.unit_manager.behaviors.values()
-                if isinstance(b, GatherBehavior) and isinstance(b.target, VespeneGeyser)),
+                if isinstance(b, GatherBehavior) and isinstance(b.gather_target, VespeneGeyser)),
                 key = lambda h : h.unit.position.distance_to(patch.unit.position),
                 default = None)
             if not harvester:
                 return
 
-            harvester.target = patch
+            harvester.gather_target = patch
 
     async def initialize_bases(self):
 
@@ -614,7 +614,7 @@ class AIBase(ABC, BotAI):
             for b in self.unit_manager.behaviors.values()
             if isinstance(b, MacroBehavior) and b.plan
         )
-        plans.extend(self.macro.plans)
+        plans.extend(self.macro.unassigned_plans)
         plans.sort(key = lambda t : t.priority, reverse=True)
 
         for i, target in enumerate(plans):

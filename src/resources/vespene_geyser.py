@@ -25,10 +25,6 @@ class VespeneGeyser(ResourceUnit):
             return self.unit.type_id in RICH_GAS
 
     @property
-    def gather_target(self) -> Optional[Unit]:
-        return self.structure
-
-    @property
     def structure(self) -> Optional[Unit]:
         return self.ai.gas_building_by_position.get(self.position)
 

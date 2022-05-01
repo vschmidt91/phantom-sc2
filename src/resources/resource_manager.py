@@ -53,7 +53,7 @@ class ResourceManager(AIModule):
         self.harvesters_by_resource: Counter[ResourceUnit] = Counter()
 
     def add_harvester(self, harvester: GatherBehavior) -> None:
-        harvester.target = min(self.bases.flatten(), key = lambda r : r.harvester_balance)
+        harvester.gather_target = min(self.bases.flatten(), key = lambda r : r.harvester_balance)
 
     async def on_step(self) -> None:
 
@@ -67,20 +67,20 @@ class ResourceManager(AIModule):
         self.bases.update()
 
         self.harvesters_by_resource = Counter(
-            (unit.target
+            (unit.gather_target
             for unit in self.ai.unit_manager.behaviors.values()
-            if isinstance(unit, GatherBehavior) and unit.target))
+            if isinstance(unit, GatherBehavior) and unit.gather_target))
 
         harvesters = [
             b
             for b in self.ai.unit_manager.behaviors.values()
-            if isinstance(b, GatherBehavior) and b.target and isinstance(b.target, MineralPatch)
+            if isinstance(b, GatherBehavior) and b.gather_target and isinstance(b.gather_target, MineralPatch)
         ]
 
         transfer = next((
             h
             for h in harvesters
-            if 0 < h.target.harvester_balance
+            if 0 < h.gather_target.harvester_balance
         ), None)
         if transfer:
             transfer_to = next((
@@ -89,7 +89,7 @@ class ResourceManager(AIModule):
                 if p.harvester_balance < 0
             ), None)
             if transfer_to:
-                transfer.target = transfer_to
+                transfer.gather_target = transfer_to
 
         # if transfer_to.harvester_balance < 0 < transfer.target.harvester_balance:
 

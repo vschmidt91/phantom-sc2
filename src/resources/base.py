@@ -61,7 +61,7 @@ class Base(ResourceGroup[ResourceBase]):
                 )
                 if not harvester:
                     return
-                harvester.target = patch
+                harvester.gather_target = patch
                 assigned.add(harvester.tag)
 
     def update(self):

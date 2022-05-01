@@ -28,10 +28,6 @@ class MineralPatch(ResourceUnit):
             return self.unit.type_id in RICH_MINERALS
 
     @property
-    def gather_target(self) -> Optional[Unit]:
-        return self.unit
-
-    @property
     def remaining(self) -> int:
         if not self.unit:
             return 0
