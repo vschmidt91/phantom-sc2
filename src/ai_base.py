@@ -363,7 +363,7 @@ class AIBase(ABC, BotAI):
             if unit.type_id not in IGNORED_UNIT_TYPES:
                 self.unit_manager.remove_unit(unit)
         else:
-            self.enemies.pop(unit_tag)
+            self.enemies.pop(unit_tag, None)
         pass
         
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
