@@ -17,10 +17,13 @@ if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 class SpawnChangelingBehavior(AIUnit):
+
+    def __init__(self, ai: AIBase, tag: int):
+        super().__init__(ai, tag)
         
-    def spawn_changeling(self, unit: Unit) -> Optional[UnitCommand]:
+    def spawn_changeling(self) -> Optional[UnitCommand]:
 
-        ability = AbilityId.SPAWNCHANGELING_SPAWNCHANGELING
-
-        if ENERGY_COST[ability] <= unit.energy:
-            return unit(ability)
+        if self.unit.type_id in { UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE }:
+            ability = AbilityId.SPAWNCHANGELING_SPAWNCHANGELING
+            if ENERGY_COST[ability] <= self.unit.energy:
+                return self.unit(ability)

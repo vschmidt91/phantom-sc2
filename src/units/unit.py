@@ -2,6 +2,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 import logging
 from abc import ABC, abstractmethod
+from sc2.game_data import UnitTypeData
+from sc2.ids.unit_typeid import UnitTypeId
 
 from sc2.unit import Unit, UnitCommand
 
@@ -20,18 +22,24 @@ class AIUnit(ABC, AIComponent):
         #         continue
         #     super(cls, self).__init__(ai, tag)
         self.tag = tag
-        self.unit: Unit = None
+        # self.unit: Unit = None
 
     def __hash__(self) -> int:
         return hash(self.tag)
+
+    @property
+    def unit(self) -> Unit:
+        return self.ai.unit_by_tag.get(self.tag)
         
     def on_step(self) -> None:
-        self.unit = self.ai.unit_by_tag.get(self.tag)
-        if self.unit:
-            if command := self.get_command():
-                if not any(self.unit.orders) or not self.ai.order_matches_command(self.unit.orders[0], command):
-                    if not self.ai.do(command, subtract_cost=False, subtract_supply=False):
-                        logging.error(f"command failed: {command}")
+        # self.unit = self.ai.unit_by_tag.get(self.tag)
+        # if self.unit:
+        if command := self.get_command():
+            # if command.unit.type_id == UnitTypeId.LARVA:
+            #     command.unit = self.ai.larva.random
+            if not any(command.unit.orders) or not self.ai.order_matches_command(command.unit.orders[0], command):
+                if not self.ai.do(command, subtract_cost=False, subtract_supply=False):
+                    logging.error(f"command failed: {command}")
 
     @abstractmethod
     def get_command(self) -> Optional[UnitCommand]:

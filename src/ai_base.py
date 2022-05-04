@@ -1,18 +1,10 @@
 
 from abc import ABC
-from asyncio import gather
 import cProfile, pstats
 from collections import defaultdict
-from enum import Enum
 from dataclasses import dataclass
-from functools import cache, cmp_to_key
 import logging
-from importlib.resources import Resource
 import math
-from pickle import BUILD
-import re
-import random
-from re import S
 from typing import Any, DefaultDict, Iterable, Optional, Tuple, Type, Union, Coroutine, Set, List, Callable, Dict
 from loguru import logger
 from matplotlib.colors import Normalize
@@ -68,6 +60,7 @@ from .resources.base import Base
 from .resources.resource_group import ResourceGroup
 from .modules.dodge import *
 from .constants import *
+from .units.worker import Worker
 from .cost import Cost
 from .utils import *
 from .modules.dodge import *
@@ -241,11 +234,25 @@ class AIBase(ABC, BotAI):
             for tag in action.unit_tags:
                 if behavior := self.unit_manager.behaviors.get(tag):
                     if (
+                        behavior.unit
+                        and behavior.unit.type_id in { UnitTypeId.LARVA, UnitTypeId.EGG }
+                    ):
+                        for larva in chain(self.actual_by_type[UnitTypeId.LARVA], self.actual_by_type[UnitTypeId.EGG]):
+                            if b2 := self.unit_manager.behaviors.get(larva.tag):
+                                if b2.plan and b2.plan.ability == action.exact_id:
+                                    behavior = b2
+                                    break
+                        else:
+                            print('egg not found')
+                        # self.unit_manager.remove_unit(behavior.unit)
+                    if (
                         isinstance(behavior, MacroBehavior)
                         and behavior.plan
                         and behavior.plan.ability == action.exact_id
                     ):
-                        self.macro.planned_by_type[behavior.plan.item].discard(behavior.plan)
+                        if behavior.plan not in self.macro.planned_by_type[behavior.plan.item]:
+                            print('plan not found')
+                        self.macro.planned_by_type[behavior.plan.item].remove(behavior.plan)
                         behavior.plan = None
             # if item := ITEM_BY_ABILITY.get(action.exact_id):
             #     self.macro.remove_plan_by_item(item)
@@ -273,8 +280,8 @@ class AIBase(ABC, BotAI):
                 self.extractor_trick_enabled = False
                 break
 
-        for worker in self.workers.idle:
-            self.resource_manager.add_harvester(self.unit_manager.behaviors[worker.tag])
+        # for worker in self.workers.idle:
+        #     self.resource_manager.add_harvester(self.unit_manager.behaviors[worker.tag])
 
         self.update_tables()
         self.handle_errors()
@@ -288,18 +295,50 @@ class AIBase(ABC, BotAI):
         if profiler:
             profiler.disable()
             stats = pstats.Stats(profiler)
-            stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE).print_stats(100)
+            stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
+            # stats.print_stats(100)
             if self.debug:
                 stats.dump_stats(filename='profiling.prof')
 
         if self.debug:
             await self.draw_debug()
+            
+        worker_count = sum(1 if isinstance(b, Worker) else 0 for b in self.unit_manager.behaviors.values())
+        if worker_count != self.supply_workers:
+            print('supply mismatch')
 
     async def on_end(self, game_result: Result):
         pass
 
     async def on_building_construction_started(self, unit: Unit):
+
         self.unit_manager.add_unit(unit)
+        self.pending_by_type[unit.type_id].add(unit.tag)
+
+        if self.race == Race.Zerg:
+            if unit.type_id in { UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMORBURROWED }:
+                # print('tumor')
+                pass
+            else:
+                geyser = self.resource_by_position.get(unit.position)
+                geyser_tag = geyser.tag if geyser else None
+                for trainer_type in UNIT_TRAINED_FROM.get(unit.type_id, []):
+                    for trainer in self.actual_by_type[trainer_type]:
+                        if trainer.position == unit.position:
+                            if behavior := self.unit_manager.behaviors.get(trainer.tag):
+                                self.macro.planned_by_type[unit.type_id].discard(behavior.plan)
+                                behavior.plan = None
+                            self.unit_manager.remove_unit(trainer)
+                            break
+                        elif (
+                            not trainer.is_idle
+                            and trainer.order_target in {unit.position, geyser_tag}
+                            # and ITEM_BY_ABILITY.get(trainer.orders[0].ability.exact_id) == unit.type_id
+                        ):
+                            self.unit_manager.remove_unit(trainer)
+                            break
+                    else:
+                        print('trainer not found')
         pass
 
     async def on_building_construction_complete(self, unit: Unit):
@@ -313,7 +352,7 @@ class AIBase(ABC, BotAI):
 
     async def on_unit_created(self, unit: Unit):
         self.unit_manager.add_unit(unit)
-        behavior = self.unit_manager.behaviors[unit.tag]
+        behavior = self.unit_manager.behaviors.get(unit.tag)
         if isinstance(behavior, GatherBehavior):
             self.resource_manager.add_harvester(behavior)
         pass
@@ -321,9 +360,10 @@ class AIBase(ABC, BotAI):
     async def on_unit_destroyed(self, unit_tag: int):
         unit = self.unit_by_tag[unit_tag]
         if unit.is_mine:
-            self.unit_manager.remove_unit(unit)
+            if unit.type_id not in IGNORED_UNIT_TYPES:
+                self.unit_manager.remove_unit(unit)
         else:
-            self.enemies.pop(unit_tag, None)
+            self.enemies.pop(unit_tag)
         pass
         
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
@@ -334,10 +374,10 @@ class AIBase(ABC, BotAI):
             should_cancel = False
             if unit.shield_health_percentage < 0.1:
                 should_cancel = True
-            # elif unit.type_id == UnitTypeId.CREEPTUMOR:
-            #     should_cancel = True
+            elif unit.type_id in CREEP_TUMORS:
+                should_cancel = True
             if should_cancel:
-                unit(AbilityId.CANCEL)
+                self.do(unit(AbilityId.CANCEL))
         self.damage_taken[unit.tag] = self.time
         pass
 
@@ -512,7 +552,7 @@ class AIBase(ABC, BotAI):
                 (b
                 for b in self.unit_manager.behaviors.values()
                 if isinstance(b, GatherBehavior) and isinstance(b.gather_target, MineralPatch)),
-                key = lambda h : h.unit.position.distance_to(geyser.unit.position),
+                key = lambda h : 100 if not h.unit else h.unit.position.distance_to(geyser.unit.position),
                 default = None)
             if not harvester:
                 return
@@ -534,7 +574,7 @@ class AIBase(ABC, BotAI):
                 (b
                 for b in self.unit_manager.behaviors.values()
                 if isinstance(b, GatherBehavior) and isinstance(b.gather_target, VespeneGeyser)),
-                key = lambda h : h.unit.position.distance_to(patch.unit.position),
+                key = lambda h : 100 if not h.unit else h.unit.position.distance_to(patch.unit.position),
                 default = None)
             if not harvester:
                 return
@@ -764,18 +804,6 @@ class AIBase(ABC, BotAI):
     def get_unit_cost(self, unit_type: UnitTypeId) -> int:
         cost = self.calculate_unit_value(unit_type)
         return cost.minerals + cost.vespene
-
-    def can_afford_with_reserve(self, cost: Cost, reserve: Cost) -> bool:
-        if max(0, self.minerals - reserve.minerals) < cost.minerals:
-            return False
-        elif max(0, self.vespene - reserve.vespene) < cost.vespene:
-            return False
-        elif max(0, self.supply_left - reserve.food) < cost.food:
-            return False
-        elif max(0, self.larva.amount - reserve.larva) < cost.larva:
-            return False
-        else:
-            return True
 
     def get_max_harvester(self) -> int:
         workers = 0

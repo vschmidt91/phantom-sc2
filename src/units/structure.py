@@ -17,3 +17,8 @@ class Structure(MacroBehavior):
 
     def get_command(self) -> Optional[UnitCommand]:
         return self.macro()
+
+class Larva(Structure):
+    
+    def __init__(self, ai: AIBase, tag: int):
+        super().__init__(ai, tag)

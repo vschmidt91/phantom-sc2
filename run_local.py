@@ -43,9 +43,9 @@ MAPS = [
 ]
 
 RACES = [
-    Race.Protoss,
+    # Race.Protoss,
     # Race.Terran,
-    # Race.Zerg,
+    Race.Zerg,
     # Race.Random,
 ]
 
@@ -60,6 +60,7 @@ BUILDS = [
 DIFFICULTY = Difficulty.CheatInsane
 REAL_TIME = False
 RESULT_PATH = 'results.json'
+SEED = 1
 
 def create_bot():
 
@@ -67,7 +68,7 @@ def create_bot():
 
     ai = ZergAI(strategy_cls=HatchFirst)
     ai.debug = True
-    ai.game_step = 2
+    ai.game_step = 4
 
     # ai = Pool12AllIn()
 
@@ -86,7 +87,7 @@ if __name__ == "__main__":
 
     for i in itertools.count():
         games = [
-            GameMatch(sc2.maps.get(map), [create_bot(), opponent], realtime=REAL_TIME)
+            GameMatch(sc2.maps.get(map), [create_bot(), opponent], realtime=REAL_TIME, random_seed=SEED)
             for map in MAPS
             for opponent in create_opponents(DIFFICULTY)
         ]

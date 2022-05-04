@@ -21,4 +21,4 @@ class Overlord(DodgeBehavior, MacroBehavior, SpawnChangelingBehavior, DetectBeha
         super().__init__(ai, tag)
 
     def get_command(self) -> Optional[UnitCommand]:
-        return self.dodge() or self.macro() or self.drop() or self.survive() or self.scout()
+        return self.dodge() or self.macro() or self.spawn_changeling() or self.detect() or self.drop() or self.survive() or self.scout()

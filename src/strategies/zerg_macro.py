@@ -44,7 +44,8 @@ class ZergMacro(ZergStrategy):
         larva_rate = self.ai.future_spending.larva / (60 * future_timeframe)
         larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
         queen_target = math.ceil(larva_rate / (3/29))
-        queen_target = np.clip(1 + queen_target, 2, 8)
+        queen_target = min(queen_target, self.ai.townhalls.amount)
+        queen_target = np.clip(queen_target, 2, 8)
         # print(queen_target)
 
         # queen_target = min(8, 1 + self.ai.townhalls.amount)
@@ -95,11 +96,12 @@ class ZergMacro(ZergStrategy):
         self.ai.composition = { k: math.ceil(v) for k, v in composition.items() if 0 < v}
 
     def filter_upgrade(self, upgrade) -> bool:
-        if upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
-            return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False)
-        elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
-            return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False)
-        elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
+        # if upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
+        #     return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False)
+        # elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
+        #     return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False)
+        # el
+        if upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
             return 0 < self.ai.count(UnitTypeId.GREATERSPIRE, include_planned=False)
         elif upgrade == UpgradeId.OVERLORDSPEED:
             return 8 * 60 < self.ai.time

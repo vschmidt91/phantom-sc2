@@ -1,6 +1,7 @@
 
 
 from __future__ import annotations
+from ctypes.wintypes import tagMSG
 from typing import Callable, Coroutine, DefaultDict, Optional, Set, Union, Iterable, Tuple, List, TYPE_CHECKING
 import random
 import logging
@@ -99,6 +100,12 @@ class MacroModule(AIModule):
         exclude.update(unit.tag for units in self.ai.pending_by_type.values() for unit in units)
         exclude.update(self.ai.unit_manager.drafted_civilians)
 
+        trainers = {
+            tag
+            for tag, behavior in self.ai.unit_manager.behaviors.items()
+            if isinstance(behavior, MacroBehavior) and not behavior.plan
+        }
+
         plans = []
         plans.extend(
             b.plan
@@ -130,8 +137,8 @@ class MacroModule(AIModule):
             else:
                 unit = None
 
-            if unit == None or unit.type_id == UnitTypeId.EGG:
-                unit, plan.ability = self.search_trainer(plan.item, exclude=exclude)
+            if unit == None:
+                unit, plan.ability = self.search_trainer(plan.item, include=trainers)
             if unit and plan.ability and unit.is_using_ability(plan.ability):
                 continue
             if unit == None:
@@ -142,10 +149,17 @@ class MacroModule(AIModule):
             cost = self.ai.cost[plan.item]
             reserve += cost
 
-            if plan in self.unassigned_plans:
-                self.unassigned_plans.remove(plan)
-            self.ai.unit_manager.behaviors[unit.tag].plan = plan
-            exclude.add(unit.tag)
+            behavior = self.ai.unit_manager.behaviors.get(unit.tag)
+            if not behavior.plan:
+                if plan in self.unassigned_plans:
+                    self.unassigned_plans.remove(plan)
+                behavior.plan = plan
+                exclude.add(unit.tag)
+
+            if unit.type_id == UnitTypeId.EGG:
+                behavior.plan = None
+                self.unassigned_plans.append(plan)
+                continue
 
             if plan.target == None:
                 try:
@@ -230,7 +244,7 @@ class MacroModule(AIModule):
         else:
             return None
 
-    def search_trainer(self, item: Union[UnitTypeId, UpgradeId], exclude: Set[int]) -> Tuple[Unit, AbilityId]:
+    def search_trainer(self, item: Union[UnitTypeId, UpgradeId], include: Set[int]) -> Tuple[Unit, AbilityId]:
 
         if type(item) == UnitTypeId:
             trainer_types = {
@@ -241,23 +255,11 @@ class MacroModule(AIModule):
         elif type(item) == UpgradeId:
             trainer_types = WITH_TECH_EQUIVALENTS[UPGRADE_RESEARCHED_FROM[item]]
 
-        def enumerate_trainers(trainer_type: UnitTypeId) -> Iterable[Unit]:
-            if trainer_type == race_worker[self.ai.race]:
-                return (
-                    w
-                    for w in self.ai.workers
-                    if (b := self.ai.unit_manager.behaviors.get(w.tag)) and b.gather_target
-                    # self.ai.unit_by_tag[t]
-                    # for t in self.ai.resource_manager.bases.harvesters
-                    # if t in self.ai.unit_by_tag
-                )
-            else:
-                return self.ai.actual_by_type[trainer_type]
-
         trainers = sorted((
             trainer
             for trainer_type in trainer_types
-            for trainer in enumerate_trainers(trainer_type)
+            for trainer in self.ai.actual_by_type[trainer_type]
+            if trainer.type_id != UnitTypeId.EGG
         ), key=lambda t:t.tag)
             
         for trainer in trainers:
@@ -268,8 +270,11 @@ class MacroModule(AIModule):
             if not trainer.is_ready:
                 continue
 
-            if trainer.tag in exclude:
+            if trainer.tag not in include:
                 continue
+
+            # if trainer.tag in exclude:
+            #     continue
 
             if not has_capacity(trainer):
                 continue
@@ -357,13 +362,13 @@ class MacroBehavior(AIUnit):
         elif not self.plan.target:
             return None
 
-        movement_eta = 1.0 + time_to_reach(self.unit, self.plan.target.position)
+        movement_eta = 1.5 + time_to_reach(self.unit, self.plan.target.position)
         if self.unit.is_carrying_resource:
             movement_eta += 3.0
         if self.plan.eta < movement_eta:
             if self.unit.is_carrying_resource:
                 return self.unit.return_resource()
             elif 1e-3 < self.unit.distance_to(self.plan.target.position):
-                return self.unit.move(self.plan.target)
+                return self.unit.move(self.plan.target.position)
             else:
                 return self.unit.hold_position()

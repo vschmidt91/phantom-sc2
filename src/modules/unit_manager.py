@@ -26,7 +26,7 @@ from src.units.unit import AIUnit
 from src.units.queen import Queen
 from src.units.worker import Worker
 from ..units.extractor import Extractor
-from ..units.structure import Structure
+from ..units.structure import Larva, Structure
 
 from ..behaviors.changeling_scout import SpawnChangelingBehavior
 from ..behaviors.burrow import BurrowBehavior
@@ -54,11 +54,11 @@ if TYPE_CHECKING:
 
 IGNORED_UNIT_TYPES = {
     # UnitTypeId.LARVA,
-    UnitTypeId.EGG,
+    # UnitTypeId.EGG,
     UnitTypeId.BROODLING,
     UnitTypeId.LOCUSTMP,
     UnitTypeId.LOCUSTMPFLYING,
-    UnitTypeId.CREEPTUMOR,
+    # UnitTypeId.CREEPTUMOR,
     # UnitTypeId.CREEPTUMORBURROWED,
     # UnitTypeId.CREEPTUMORQUEEN,
 }
@@ -94,13 +94,13 @@ class UnitManager(AIModule):
     def create_behavior(self, unit: Unit) -> AIUnit:
         
         if unit.type_id in CHANGELINGS:
-            return Changeling(self.ai)
+            return Changeling(self.ai, unit.tag)
         elif unit.is_vespene_geyser:
             return Extractor(self.ai, unit.tag)
         elif unit.type_id in { UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN }:
             return CreepTumor(self.ai, unit.tag)
         elif unit.type_id == UnitTypeId.LARVA:
-            return Structure(self.ai, unit.tag)
+            return Larva(self.ai, unit.tag)
         elif unit.type_id in WORKERS:
             return Worker(self.ai, unit.tag)
         elif unit.type_id == UnitTypeId.OVERLORD:
@@ -230,4 +230,11 @@ class UnitManager(AIModule):
             if not unit.is_ready:
                 continue
 
-            self.behaviors[unit.tag].on_step()
+            if behavior := self.behaviors.get(unit.tag):
+                behavior.on_step()
+            else:
+                print('behavior missing')
+
+        # for tag in set(self.behaviors.keys()):
+        #     if tag not in self.ai.unit_by_tag:
+        #         del self.behaviors[tag]

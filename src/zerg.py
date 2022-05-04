@@ -1,6 +1,7 @@
 
 from collections import defaultdict
 import datetime
+from doctest import Example
 import inspect
 import math
 import itertools, random
@@ -266,8 +267,10 @@ class ZergAI(AIBase):
         # supply_buffer += 2 * self.count(UnitTypeId.QUEEN, include_planned=False)
 
         supply_buffer = self.income.larva / 1.5
+        # if self.townhalls.amount == self.townhalls.ready.amount == 2:
+        #     supply_buffer = 7
         
-        if self.supply_left + supply_pending < supply_buffer:
+        if self.supply_left + supply_pending <= supply_buffer:
             self.macro.add_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
 
     def expand(self):
@@ -281,13 +284,19 @@ class ZergAI(AIBase):
         worker_max = self.get_max_harvester()
         saturation = self.state.score.food_used_economy / max(1, worker_max)
         saturation = max(0, min(1, saturation))
-        priority = 2.5 * (saturation - 1)
+        priority = 5 * (saturation - 1)
+
+        expand = True
+        if self.townhalls.amount == 2:
+            expand = 21 <= self.state.score.food_used_economy
+        elif 2 < self.townhalls.amount:
+            expand = .8 < saturation
 
         for plan in self.macro.planned_by_type[UnitTypeId.HATCHERY]:
             if plan.priority < BUILD_ORDER_PRIORITY:
                 plan.priority = priority
 
-        if -1 < priority and self.count(UnitTypeId.HATCHERY, include_actual=False) < 1:
+        if expand and self.count(UnitTypeId.HATCHERY, include_actual=False) < 1:
             plan = MacroPlan(UnitTypeId.HATCHERY)
             plan.priority = priority
             plan.max_distance = None
