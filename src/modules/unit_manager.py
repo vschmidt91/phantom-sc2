@@ -89,10 +89,9 @@ class UnitManager(AIModule):
         self.behaviors[unit.tag] = self.create_behavior(unit)
 
     def remove_unit(self, unit: Unit) -> None:
-        if self.ai.debug:
-            del self.behaviors[unit.tag]
-        else:
-            self.behaviors.pop(unit.tag, None)
+        if behavior := self.behaviors.pop(unit.tag, None):
+            if isinstance(behavior, MacroBehavior) and behavior.plan:
+                self.ai.macro.planned_by_type[behavior.plan.item].discard(behavior.plan)
 
     def create_behavior(self, unit: Unit) -> AIUnit:
         

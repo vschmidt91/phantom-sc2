@@ -51,17 +51,17 @@ class MacroModule(AIModule):
         self.unassigned_plans: List[MacroPlan] = list()
         self.planned_by_type: DefaultDict[MacroId, Set[MacroPlan]] = defaultdict(set)
 
-    def enumerate_plans(self) -> Iterable[MacroPlan]:
-        for plan in self.unassigned_plans:
-            yield plan
-        for behavior in self.ai.unit_manager.behaviors.values():
-            if isinstance(behavior, MacroBehavior):
-                if behavior.plan:
-                    yield behavior.plan
-
     def add_plan(self, plan: MacroPlan):
         self.unassigned_plans.append(plan)
         self.planned_by_type[plan.item].add(plan)
+
+    def enumerate_plans(self) -> Iterable[MacroPlan]:
+        unit_plans = (
+            behavior.plan
+            for behavior in self.ai.unit_manager.behaviors.values()
+            if isinstance(behavior, MacroBehavior) and behavior.plan
+        )
+        return chain(unit_plans, self.unassigned_plans)
 
     def make_composition(self):
         if 200 <= self.ai.supply_used:
@@ -106,14 +106,7 @@ class MacroModule(AIModule):
             if isinstance(behavior, MacroBehavior) and not behavior.plan
         }
 
-        plans = []
-        plans.extend(
-            b.plan
-            for b in self.ai.unit_manager.behaviors.values()
-            if isinstance(b, MacroBehavior) and b.plan
-        )
-        plans.extend(self.unassigned_plans)
-        plans.sort(key = lambda t : t.priority, reverse=True)
+        plans = sorted(self.enumerate_plans(), key = lambda t : t.priority, reverse=True)
 
         unit_by_plan = {
             behavior.plan: tag
@@ -189,6 +182,10 @@ class MacroModule(AIModule):
                     if self.ai.supply_left < cost.food:
                         eta = None
             plan.eta = eta
+
+        self.planned_by_type = DefaultDict(set)
+        for plan in self.enumerate_plans():
+            self.planned_by_type[plan.item].add(plan)
 
     async def get_target(self, unit: Unit, objective: MacroPlan) -> Coroutine[any, any, Union[Unit, Point2]]:
         gas_type = GAS_BY_RACE[self.ai.race]
