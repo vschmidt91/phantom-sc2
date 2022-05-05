@@ -5,6 +5,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 import logging
 import math
+from random import random
 from typing import Any, DefaultDict, Iterable, Optional, Tuple, Type, Union, Coroutine, Set, List, Callable, Dict
 from loguru import logger
 from matplotlib.colors import Normalize
@@ -243,7 +244,7 @@ class AIBase(ABC, BotAI):
                                     behavior = b2
                                     break
                         else:
-                            print('egg not found')
+                            logging.info(f'{self.ai.time_formatted}: egg not found for {action}')
                         # self.unit_manager.remove_unit(behavior.unit)
                     if (
                         isinstance(behavior, MacroBehavior)
@@ -251,11 +252,21 @@ class AIBase(ABC, BotAI):
                         and behavior.plan.ability == action.exact_id
                     ):
                         if behavior.plan not in self.macro.planned_by_type[behavior.plan.item]:
-                            print('plan not found')
+                            logging.info(f'{self.ai.time_formatted}: plan {behavior.plan} was not in table')
                         self.macro.planned_by_type[behavior.plan.item].remove(behavior.plan)
                         behavior.plan = None
             # if item := ITEM_BY_ABILITY.get(action.exact_id):
             #     self.macro.remove_plan_by_item(item)
+
+    async def kill_random_units(self, chance: float = 3e-4) -> None:
+        tags = [
+            unit.tag
+            for unit in self.all_own_units
+            if random() < chance
+        ]
+        if tags:
+            await self.client.debug_kill_unit(tags)
+
 
     async def on_step(self, iteration: int):
         
@@ -302,10 +313,13 @@ class AIBase(ABC, BotAI):
 
         if self.debug:
             await self.draw_debug()
-            
-        worker_count = sum(1 if isinstance(b, Worker) else 0 for b in self.unit_manager.behaviors.values())
-        if worker_count != self.supply_workers:
-            print('supply mismatch')
+
+        if self.debug:
+            if 90 < self.time:
+                await self.kill_random_units()
+            worker_count = sum(1 for b in self.unit_manager.behaviors.values() if isinstance(b, Worker))
+            if worker_count != self.supply_workers:
+                logging.error('worker supply mismatch')
 
     async def on_end(self, game_result: Result):
         pass

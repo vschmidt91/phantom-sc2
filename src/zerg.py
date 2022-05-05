@@ -4,6 +4,7 @@ import datetime
 from doctest import Example
 import inspect
 import math
+import logging
 import itertools, random
 import numpy as np
 from typing import Counter, Iterable, List, Coroutine, Dict, Set, Union, Tuple, Optional, Type
@@ -297,6 +298,7 @@ class ZergAI(AIBase):
                 plan.priority = priority
 
         if expand and self.count(UnitTypeId.HATCHERY, include_actual=False) < 1:
+            logging.info(f'{self.time_formatted}: expanding')
             plan = MacroPlan(UnitTypeId.HATCHERY)
             plan.priority = priority
             plan.max_distance = None

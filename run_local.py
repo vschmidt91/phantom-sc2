@@ -57,7 +57,7 @@ BUILDS = [
     # AIBuild.Air,
 ]
 
-DIFFICULTY = Difficulty.CheatInsane
+DIFFICULTY = Difficulty.VeryEasy
 REAL_TIME = False
 RESULT_PATH = 'results.json'
 SEED = 1

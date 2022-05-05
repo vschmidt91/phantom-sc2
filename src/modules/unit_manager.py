@@ -235,7 +235,7 @@ class UnitManager(AIModule):
             if behavior := self.behaviors.get(unit.tag):
                 behavior.on_step()
             else:
-                print('behavior missing')
+                logging.info(f'{self.ai.time_formatted}: behavior missing for {unit}')
 
         # for tag in set(self.behaviors.keys()):
         #     if tag not in self.ai.unit_by_tag:
