@@ -312,8 +312,8 @@ class MacroModule(AIModule):
             for b in self.ai.resource_manager.bases:
                 if b.townhall:
                     continue
-                if b.position in self.ai.scout_manager.blocked_positions:
-                    continue
+                # if b.position in self.ai.scout_manager.blocked_positions:
+                #     continue
                 if not b.remaining:
                     continue
                 return b.position

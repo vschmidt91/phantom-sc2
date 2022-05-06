@@ -87,7 +87,7 @@ class AIBase(ABC, BotAI):
         self.version: str = ''
         self.game_step: int = 2
         self.performance: PerformanceMode = PerformanceMode.DEFAULT
-        self.debug: bool = False
+        self.debug: bool = True
         self.destroy_destructables: bool = False
         self.unit_command_uses_self_do = True
 
@@ -315,8 +315,8 @@ class AIBase(ABC, BotAI):
             await self.draw_debug()
 
         if self.debug:
-            if 90 < self.time:
-                await self.kill_random_units()
+            # if 90 < self.time:
+            #     await self.kill_random_units()
             worker_count = sum(1 for b in self.unit_manager.behaviors.values() if isinstance(b, Worker))
             if worker_count != self.supply_workers:
                 logging.error('worker supply mismatch')
