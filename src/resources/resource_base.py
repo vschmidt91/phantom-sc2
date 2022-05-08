@@ -4,14 +4,16 @@ from typing import Iterable, Optional, TYPE_CHECKING
 from abc import abstractmethod, abstractproperty
 
 from sc2.position import Point2
+from sc2.unit import Unit
 from ..ai_component import AIComponent
+from ..units.unit import AIUnit
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class ResourceBase(AIComponent):
+class ResourceBase(AIUnit):
 
-    def __init__(self, ai: AIBase, position: Point2) -> None:
+    def __init__(self, ai: AIBase, position: Point2):
         super().__init__(ai)
         self.position = position
         self.harvester_target = 0
@@ -19,10 +21,15 @@ class ResourceBase(AIComponent):
     def __hash__(self) -> int:
         return hash(self.position)
 
+    @property
+    def unit(self) -> Unit:
+        return self.ai.unit_manager.resource_by_position.get(self.position)
+
     @abstractproperty
     def remaining(self) -> int:
         raise NotImplementedError()
 
+    @abstractmethod
     def update(self) -> None:
         raise NotImplementedError()
 

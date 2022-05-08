@@ -8,7 +8,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2
 from sc2.unit_command import UnitCommand
-from src.units.unit import AIUnit
+from src.units.unit import CommandableUnit
 
 from ..constants import CHANGELINGS
 from ..resources.base import Base
@@ -53,9 +53,9 @@ class ScoutModule(AIModule):
     def find_taken_bases(self) -> None:
 
         enemy_building_positions = {
-            building.position
-            for building in self.ai.enemies.values()
-            if building.is_structure
+            enemy.unit.position
+            for enemy in self.ai.unit_manager.enemies.values()
+            if enemy.unit and enemy.unit.is_structure
         }
 
         for base in self.ai.resource_manager.bases:
@@ -77,7 +77,7 @@ class ScoutModule(AIModule):
         ]
         for position in self.blocked_positions.keys():
             detector_tag = self.detectors.get(position)
-            detector = self.ai.unit_by_tag.get(detector_tag)
+            detector = self.ai.unit_manager.unit_by_tag.get(detector_tag)
             if not detector:
                 detector = min(
                     (d for d in detectors if d.tag not in self.detectors.values()),
@@ -88,7 +88,7 @@ class ScoutModule(AIModule):
                 self.detectors[position] = detector.tag
 
         for pos, tag in list(self.detectors.items()):
-            if tag not in self.ai.unit_by_tag:
+            if tag not in self.ai.unit_manager.unit_by_tag:
                 del self.detectors[pos]
             if pos not in self.blocked_positions:
                 del self.detectors[pos]
@@ -117,7 +117,7 @@ class ScoutModule(AIModule):
         for pos, tag in list(self.scouts.items()):
             if pos not in targets:
                 del self.scouts[pos]
-            elif tag not in self.ai.unit_by_tag:
+            elif tag not in self.ai.unit_manager.unit_by_tag:
                 del self.scouts[pos]
 
     async def on_step(self) -> None:
@@ -126,7 +126,7 @@ class ScoutModule(AIModule):
         self.send_detectors()
         self.send_scouts()
 
-class ScoutBehavior(AIUnit):
+class ScoutBehavior(CommandableUnit):
     
     def __init__(self, ai: AIBase, tag: int):
         super().__init__(ai, tag)
@@ -143,7 +143,7 @@ class ScoutBehavior(AIUnit):
 
         target = next((
             pos
-            for pos, tag in self.ai.scout_manager.scouts.items()
+            for pos, tag in self.ai.scout.scouts.items()
             if tag == self.tag
             ), None)
 
@@ -155,7 +155,7 @@ class ScoutBehavior(AIUnit):
 
         return self.unit.move(target)
 
-class DetectBehavior(AIUnit):
+class DetectBehavior(CommandableUnit):
     
     def __init__(self, ai: AIBase, tag: int):
         super().__init__(ai, tag)
@@ -172,7 +172,7 @@ class DetectBehavior(AIUnit):
 
         base_position = next((
             pos
-            for pos, tag in self.ai.scout_manager.detectors.items()
+            for pos, tag in self.ai.scout.detectors.items()
             if tag == self.tag
             ), None)
 

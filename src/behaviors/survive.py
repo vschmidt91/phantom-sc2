@@ -11,7 +11,7 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
-from src.units.unit import AIUnit
+from src.units.unit import CommandableUnit
 
 from ..utils import *
 from ..constants import *
@@ -20,10 +20,11 @@ from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class SurviveBehavior(AIUnit):
+class SurviveBehavior(CommandableUnit):
     
     def __init__(self, ai: AIBase, tag: int):
         super().__init__(ai, tag)
+        self.last_damage_taken: float = -math.inf
 
     def survive(self) -> Optional[UnitCommand]:
 
@@ -33,10 +34,7 @@ class SurviveBehavior(AIUnit):
         # if unit.type_id != race_worker[self.ai.race]:
         #     return BehaviorResult.SUCCESS
 
-        last_attacked = self.ai.damage_taken.get(self.tag)
-        if not last_attacked:
-            return None
-        if last_attacked + 5 < self.ai.time:
+        if self.last_damage_taken + 5 < self.ai.time:
             return None
         
         if self.ai.townhalls:

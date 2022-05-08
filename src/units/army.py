@@ -3,8 +3,10 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 
 from sc2.unit import Unit, UnitCommand
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 
-from .unit import AIUnit
+from .unit import CommandableUnit
 from ..modules.dodge import DodgeBehavior
 from ..modules.combat import CombatBehavior
 from ..modules.drop import DropBehavior
@@ -22,4 +24,24 @@ class Army(DodgeBehavior, MacroBehavior, BurrowBehavior, BileBehavior, DropBehav
         super().__init__(ai, tag)
 
     def get_command(self) -> Optional[UnitCommand]:
-        return self.dodge() or self.macro() or self.burrow() or self.bile() or self.drop() or self.fight() or self.search()
+        if command := self.dodge():
+            return command
+        elif command := self.macro():
+            return command
+        elif (
+            UpgradeId.BURROW in self.ai.state.upgrades
+            and (command := self.burrow())
+        ):
+            return command
+        elif (
+            self.unit
+            and self.unit.type_id == UnitTypeId.RAVAGER
+            and (command := self.bile())
+        ):
+            return command
+        elif command := self.drop():
+            return command
+        elif command := self.fight():
+            return command
+        elif command := self.search():
+            return command

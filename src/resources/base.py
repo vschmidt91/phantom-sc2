@@ -11,6 +11,7 @@ from matplotlib.pyplot import jet
 from s2clientprotocol.sc2api_pb2 import Observation
 from sc2.ids.ability_id import AbilityId
 
+from sc2.data import race_townhalls
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
@@ -66,7 +67,11 @@ class Base(ResourceGroup[ResourceBase]):
 
     def update(self):
 
-        self.townhall = self.ai.townhall_by_position.get(self.position)
+        if (
+            (structure := self.ai.unit_manager.structure_by_position.get(self.position))
+            and structure.type_id in race_townhalls[self.ai.race]
+        ):
+            self.townhall = structure
 
         super().update()
 

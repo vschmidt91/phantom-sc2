@@ -13,7 +13,7 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
-from src.units.unit import AIUnit
+from src.units.unit import CommandableUnit
 
 from ..utils import *
 from ..constants import *
@@ -34,8 +34,9 @@ class BileModule(AIModule):
 
     async def on_step(self):
         self.enemy_positions = {
-            unit.tag: unit.position
-            for unit in self.ai.enemies.values()
+            enemy.tag: enemy.unit.position
+            for enemy in self.ai.unit_manager.enemies.values()
+            if enemy.unit
         }
         self.time = self.ai.time
 
@@ -47,13 +48,13 @@ class BileModule(AIModule):
             return dx / dt
         return Point2((0, 0))
 
-class BileBehavior(AIUnit):
+class BileBehavior(CommandableUnit):
     
     def __init__(self, ai: AIBase, tag: int):
         super().__init__(ai, tag)
         self.last_used = 0
 
-    def target_priority(self, target: Unit):
+    def bile_priority(self, target: Unit):
         if not self.ai.is_visible(target.position):
             return 0
         if not self.unit.in_ability_cast_range(BILE_ABILITY, target.position):
@@ -76,16 +77,18 @@ class BileBehavior(AIUnit):
             return None
 
         targets = (
-            target
+            target.unit
             for target in self.ai.enumerate_enemies()
+            if target.unit
         )
-        target: Unit = max(targets,
-            key = lambda t : self.target_priority(t),
+        target: Unit = max(
+            targets,
+            key = lambda t : self.bile_priority(t),
             default = None
         )
         if not target:
             return None
-        if self.target_priority(target) <= 0:
+        if self.bile_priority(target) <= 0:
             return None
         velocity = self.ai.biles.estimate_enemy_velocity(target)
         if 2 < velocity.length:

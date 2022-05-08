@@ -7,7 +7,7 @@ from sc2.unit_command import UnitCommand
 from src.resources.mineral_patch import MineralPatch
 from src.resources.vespene_geyser import VespeneGeyser
 
-from src.units.unit import AIUnit
+from src.units.unit import CommandableUnit
 
 from ..resources.resource_unit import ResourceUnit
 from ..utils import *
@@ -15,7 +15,7 @@ from ..constants import *
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class GatherBehavior(AIUnit):
+class GatherBehavior(CommandableUnit):
 
     def __init__(self, ai: AIBase, tag: int):
         super().__init__(ai, tag)
@@ -27,6 +27,8 @@ class GatherBehavior(AIUnit):
         if not self.gather_target:
             return None
         elif not self.gather_target.remaining:
+            return None
+        elif not self.unit:
             return None
 
         # elif not self.unit.is_carrying_resource:
@@ -45,9 +47,9 @@ class GatherBehavior(AIUnit):
         else:
             raise TypeError()
 
-        if self.unit.is_gathering and self.unit.order_target != target.tag:
+        if self.unit.is_idle:
             return self.unit.smart(target)
-        elif self.unit.is_idle or self.unit.is_attacking:
+        elif self.unit.is_gathering and self.unit.order_target != target.tag:
             return self.unit.smart(target)
         elif self.unit.is_moving and self.command_queue:
             self.command_queue, target = None, self.command_queue

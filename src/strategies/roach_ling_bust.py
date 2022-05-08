@@ -87,7 +87,7 @@ class RoachLingBust(ZergMacro):
         ]
 
     def update(self) -> None:
-        self.ai.scout_manager.scout_enemy_natural = False
+        self.ai.scout.scout_enemy_natural = False
 
         if 1 <= self.ai.count(UnitTypeId.ROACHWARREN, include_planned=False, include_pending=False):
             self.ai.composition = { UnitTypeId.ZERGLING: 32 }

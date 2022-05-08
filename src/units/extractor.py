@@ -4,7 +4,7 @@ from typing import Optional, TYPE_CHECKING
 
 from sc2.unit import Unit, UnitCommand
 
-from .unit import AIUnit
+from .unit import CommandableUnit
 from ..behaviors.extractor_trick import ExtractorTrickBehavior
 
 if TYPE_CHECKING:

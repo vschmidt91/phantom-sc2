@@ -12,7 +12,7 @@ from sc2.unit import Unit, UnitCommand
 from sc2.position import Point2
 from src.behaviors.behavior import Behavior
 from src.constants import COOLDOWN, ENERGY_COST
-from src.units.unit import AIUnit
+from src.units.unit import CommandableUnit
 
 from .module import AIModule
 if TYPE_CHECKING:
@@ -38,7 +38,7 @@ class CreepModule(AIModule):
 
         self.coverage = np.sum(self.ai.state.creep.data_numpy) / self.tile_count
     
-class CreepBehavior(AIUnit):
+class CreepBehavior(CommandableUnit):
 
     def __init__(self, ai: AIBase, tag: int):
         super().__init__(ai, tag)

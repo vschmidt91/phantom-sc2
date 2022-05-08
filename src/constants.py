@@ -19,7 +19,7 @@ from .utils import get_requirements
 
 PHI = .5 * (1 + math.sqrt(5))
 
-BUILD_ORDER_PRIORITY = 10
+BUILD_ORDER_PRIORITY = math.inf
 
 WITH_TECH_EQUIVALENTS = {
     unit: { unit } | EQUIVALENTS_FOR_TECH_PROGRESS.get(unit, set())

@@ -44,20 +44,20 @@ MAPS = [
 
 RACES = [
     # Race.Protoss,
-    # Race.Terran,
-    Race.Zerg,
+    Race.Terran,
+    # Race.Zerg,
     # Race.Random,
 ]
 
 BUILDS = [
     # AIBuild.Rush,
-    # AIBuild.Timing,
+    AIBuild.Timing,
     # AIBuild.Power,
-    AIBuild.Macro,
+    # AIBuild.Macro,
     # AIBuild.Air,
 ]
 
-DIFFICULTY = Difficulty.VeryEasy
+DIFFICULTY = Difficulty.CheatInsane
 REAL_TIME = False
 RESULT_PATH = 'results.json'
 SEED = 1

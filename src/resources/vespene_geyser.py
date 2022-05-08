@@ -1,5 +1,6 @@
 
 from __future__ import annotations
+import struct
 from typing import Optional, Set, TYPE_CHECKING
 
 from sc2.position import Point2
@@ -26,7 +27,13 @@ class VespeneGeyser(ResourceUnit):
 
     @property
     def structure(self) -> Optional[Unit]:
-        return self.ai.gas_building_by_position.get(self.position)
+        if (
+            (structure := self.ai.unit_manager.structure_by_position.get(self.position))
+            and structure.is_vespene_geyser
+        ):
+            return structure
+        else:
+            return None
 
     @property
     def remaining(self) -> int:

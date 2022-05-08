@@ -15,7 +15,7 @@ from sc2.data import race_worker, race_townhalls
 from src.ai_component import AIComponent
 from src.behaviors.gather import GatherBehavior
 from src.techtree import TechTreeAbilityTarget, TechTreeAbilityTargetUnit, TechTreeAbilityTargetUnitType
-from src.units.unit import AIUnit
+from src.units.unit import CommandableUnit
 
 from ..cost import Cost
 from ..utils import *
@@ -33,7 +33,7 @@ class MacroPlan:
         self.item: MacroId = item
         self.ability: Optional[AbilityId] = None
         self.target: Union[Unit, Point2] = None
-        self.priority: float = 0
+        self.priority: float = 0.0
         self.max_distance: Optional[int] = 4
         self.eta: Optional[float] = None
         self.__dict__.update(**kwargs)
@@ -49,19 +49,34 @@ class MacroModule(AIModule):
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
         self.unassigned_plans: List[MacroPlan] = list()
-        self.planned_by_type: DefaultDict[MacroId, Set[MacroPlan]] = defaultdict(set)
 
-    def add_plan(self, plan: MacroPlan):
+    def add_plan(self, plan: MacroPlan) -> None:
         self.unassigned_plans.append(plan)
-        self.planned_by_type[plan.item].add(plan)
+        
+    def try_remove_plan(self, plan: MacroPlan) -> bool:
+        if plan in self.unassigned_plans:
+            self.unassigned_plans.remove(plan)
+            return True
+        for behavior in self.ai.unit_manager.units.values():
+            if isinstance(behavior, MacroBehavior) and behavior.plan == plan:
+                behavior.plan = None
+                return True
+        return False
 
     def enumerate_plans(self) -> Iterable[MacroPlan]:
         unit_plans = (
             behavior.plan
-            for behavior in self.ai.unit_manager.behaviors.values()
+            for behavior in self.ai.unit_manager.units.values()
             if isinstance(behavior, MacroBehavior) and behavior.plan
         )
         return chain(unit_plans, self.unassigned_plans)
+
+    def planned_by_type(self, item: MacroId) -> Iterable[MacroPlan]:
+        return (
+            plan
+            for plan in self.enumerate_plans()
+            if plan.item == item
+        )
 
     def make_composition(self):
         if 200 <= self.ai.supply_used:
@@ -78,14 +93,13 @@ class MacroModule(AIModule):
             if any(self.ai.get_missing_requirements(unit, include_pending=False, include_planned=False)):
                 continue
             priority = -self.ai.count(unit, include_planned=False) /  count
-            plans = self.planned_by_type[unit]
-            if not plans:
-                self.add_plan(MacroPlan(unit, priority=priority))
+            for plan in self.planned_by_type(unit):
+                if BUILD_ORDER_PRIORITY <= plan.priority:
+                    continue
+                plan.priority = priority
+                break
             else:
-                for plan in plans:
-                    if BUILD_ORDER_PRIORITY <= plan.priority:
-                        continue
-                    plan.priority = priority
+                self.add_plan(MacroPlan(unit, priority=priority))
 
     async def on_step(self) -> None:
 
@@ -94,15 +108,14 @@ class MacroModule(AIModule):
         reserve = Cost(0, 0, 0, 0)
         exclude = {
             tag
-            for tag, behavior in self.ai.unit_manager.behaviors.items()
+            for tag, behavior in self.ai.unit_manager.units.items()
             if isinstance(behavior, MacroBehavior) and behavior.plan
         }
         exclude.update(unit.tag for units in self.ai.pending_by_type.values() for unit in units)
-        exclude.update(self.ai.unit_manager.drafted_civilians)
 
         trainers = {
             tag
-            for tag, behavior in self.ai.unit_manager.behaviors.items()
+            for tag, behavior in self.ai.unit_manager.units.items()
             if isinstance(behavior, MacroBehavior) and not behavior.plan
         }
 
@@ -110,7 +123,7 @@ class MacroModule(AIModule):
 
         unit_by_plan = {
             behavior.plan: tag
-            for tag, behavior in self.ai.unit_manager.behaviors.items()
+            for tag, behavior in self.ai.unit_manager.units.items()
             if isinstance(behavior, MacroBehavior)
         }
 
@@ -126,7 +139,7 @@ class MacroModule(AIModule):
                 break
 
             if unit_tag := unit_by_plan.get(plan):
-                unit = self.ai.unit_by_tag.get(unit_tag)
+                unit = self.ai.unit_manager.unit_by_tag.get(unit_tag)
             else:
                 unit = None
 
@@ -142,7 +155,7 @@ class MacroModule(AIModule):
             cost = self.ai.cost[plan.item]
             reserve += cost
 
-            behavior = self.ai.unit_manager.behaviors.get(unit.tag)
+            behavior = self.ai.unit_manager.units.get(unit.tag)
             if not behavior.plan:
                 if plan in self.unassigned_plans:
                     self.unassigned_plans.remove(plan)
@@ -183,10 +196,6 @@ class MacroModule(AIModule):
                         eta = None
             plan.eta = eta
 
-        self.planned_by_type = DefaultDict(set)
-        for plan in self.enumerate_plans():
-            self.planned_by_type[plan.item].add(plan)
-
     async def get_target(self, unit: Unit, objective: MacroPlan) -> Coroutine[any, any, Union[Unit, Point2]]:
         gas_type = GAS_BY_RACE[self.ai.race]
         if objective.item == gas_type:
@@ -202,8 +211,8 @@ class MacroModule(AIModule):
             }
             exclude_tags.update({
                 step.target.tag
-                for step in self.planned_by_type[gas_type]
-                if step.target
+                for step in self.planned_by_type(gas_type)
+                if isinstance(step.target, Unit)
             })
             geysers = [
                 geyser
@@ -332,7 +341,7 @@ class MacroModule(AIModule):
             return position
         raise PlacementNotFoundException()
 
-class MacroBehavior(AIUnit):
+class MacroBehavior(CommandableUnit):
     
     def __init__(self, ai: AIBase, tag: int):
         super().__init__(ai, tag)
@@ -352,7 +361,6 @@ class MacroBehavior(AIUnit):
             else:
                 if isinstance(self, GatherBehavior):
                     self.gather_target = None
-                self.ai.unit_manager.drafted_civilians.difference_update([self.unit.tag])
                 command = self.unit(self.plan.ability, target=self.plan.target)
                 # self.plan = None
                 return command

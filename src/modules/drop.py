@@ -10,7 +10,7 @@ from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2
 from sc2.data import race_townhalls
 from sc2.unit_command import UnitCommand
-from src.units.unit import AIUnit
+from src.units.unit import CommandableUnit
 
 from ..constants import CHANGELINGS
 from ..resources.base import Base
@@ -58,7 +58,7 @@ class DropModule(AIModule):
     async def on_step(self) -> None:                 
         pass
 
-class DropBehavior(AIUnit):
+class DropBehavior(CommandableUnit):
     
     def __init__(self, ai: AIBase, tag: int):
         super().__init__(ai, tag)
@@ -68,10 +68,10 @@ class DropBehavior(AIUnit):
         if self.unit.type_id == UnitTypeId.OVERLORDTRANSPORT:
             # if len(unit.passengers_tags) < 4:
             #     unit.move(self.ai.drop_manager.drop_from)
-            if self.unit.distance_to(self.ai.drop_manager.drop_to) < 1:
-                return self.unit.move(self.ai.drop_manager.drop_from)
+            if self.unit.distance_to(self.ai.drop.drop_to) < 1:
+                return self.unit.move(self.ai.drop.drop_from)
                 # unit(AbilityId.UNLOADALL, self.ai.drop_manager.drop_to)
-            elif self.unit.distance_to(self.ai.drop_manager.drop_from) < 1:
-                return self.unit.move(self.ai.drop_manager.drop_to)
+            elif self.unit.distance_to(self.ai.drop.drop_from) < 1:
+                return self.unit.move(self.ai.drop.drop_to)
             elif self.unit.is_idle:
-                return self.unit.move(self.ai.drop_manager.drop_from)
+                return self.unit.move(self.ai.drop.drop_from)

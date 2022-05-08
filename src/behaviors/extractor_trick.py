@@ -14,7 +14,7 @@ from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
 
-from src.units.unit import AIUnit
+from src.units.unit import CommandableUnit
 
 from ..utils import *
 from ..constants import *
@@ -23,7 +23,7 @@ from ..ai_component import AIComponent
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class ExtractorTrickBehavior(AIUnit):
+class ExtractorTrickBehavior(CommandableUnit):
     
     def __init__(self, ai: AIBase, tag: int):
         super().__init__(ai, tag)

@@ -58,7 +58,7 @@ class ResourceManager(AIModule):
     async def on_step(self) -> None:
 
         if self.do_split:
-            harvesters = [self.ai.unit_manager.behaviors[w.tag] for w in self.ai.workers]
+            harvesters = [self.ai.unit_manager.units[w.tag] for w in self.ai.workers]
             self.bases[0].split_initial_workers(harvesters)
             self.do_split = False
 
@@ -68,12 +68,12 @@ class ResourceManager(AIModule):
 
         self.harvesters_by_resource = Counter(
             (unit.gather_target
-            for unit in self.ai.unit_manager.behaviors.values()
+            for unit in self.ai.unit_manager.units.values()
             if isinstance(unit, GatherBehavior) and unit.gather_target))
 
         harvesters = [
             b
-            for b in self.ai.unit_manager.behaviors.values()
+            for b in self.ai.unit_manager.units.values()
             if isinstance(b, GatherBehavior) and b.gather_target and isinstance(b.gather_target, MineralPatch)
         ]
 

@@ -17,6 +17,7 @@ import skimage.draw
 import matplotlib.pyplot as plt
 
 from MapAnalyzer import MapData
+from sc2 import unit
 from sc2.game_data import GameData
 
 from sc2.data import Alliance
@@ -42,6 +43,7 @@ from sc2.unit_command import UnitCommand
 from sc2.units import Units
 from src.resources.resource_manager import ResourceManager
 from src.techtree import TechTree, TechTreeWeaponType
+from src.units.structure import Structure
 
 from .modules.chat import Chat
 from .modules.module import AIModule
@@ -49,6 +51,7 @@ from .modules.creep import CreepModule
 from .modules.combat import CombatBehavior, CombatModule
 from .modules.drop import DropModule
 from .behaviors.gather import GatherBehavior
+from .behaviors.survive import SurviveBehavior
 from .modules.macro import MacroBehavior, MacroId, MacroModule, MacroPlan
 from .modules.bile import BileModule
 from .resources.mineral_patch import MineralPatch
@@ -85,7 +88,7 @@ class AIBase(ABC, BotAI):
         self.raw_affects_selection = True
 
         self.version: str = ''
-        self.game_step: int = 2
+        self.game_step: int = 4
         self.performance: PerformanceMode = PerformanceMode.DEFAULT
         self.debug: bool = True
         self.destroy_destructables: bool = False
@@ -95,18 +98,12 @@ class AIBase(ABC, BotAI):
         self.cost: Dict[MacroId, Cost] = dict()
         self.weapons: Dict[UnitTypeId, List] = dict()
         self.dps: Dict[UnitTypeId, float] = dict()
-        self.resource_by_position: Dict[Point2, Unit] = dict()
-        self.townhall_by_position: Dict[Point2, Unit] = dict()
-        self.gas_building_by_position: Dict[Point2, Unit] = dict()
-        self.unit_by_tag: Dict[int, Unit] = dict()
-        self.enemies: Dict[int, Unit] = dict()
-        self.enemies_by_type: DefaultDict[UnitTypeId, Set[Unit]] = defaultdict(lambda:set())
-        self.actual_by_type: DefaultDict[MacroId, Set[Unit]] = defaultdict(lambda:set())
-        self.pending_by_type: DefaultDict[MacroId, Set[Unit]] = defaultdict(lambda:set())
-        self.damage_taken: Dict[int] = dict()
-        self.army: List[Unit] = list()
 
-        self.opponent_name: Optional[str] = None
+        self.enemies: Dict[int, Unit] = dict()
+
+        self.actual_by_type: DefaultDict[MacroId, Set[Unit]] = defaultdict(set)
+        self.pending_by_type: DefaultDict[MacroId, Set[Unit]] = defaultdict(set)
+
         self.map_data: MapStaticData = None
         self.map_analyzer: MapData = None
         
@@ -176,8 +173,8 @@ class AIBase(ABC, BotAI):
         self.map_data = await self.load_map_data()
         bases = await self.initialize_bases()
         self.resource_manager = ResourceManager(self, bases)
-        self.scout_manager = ScoutModule(self)
-        self.drop_manager = DropModule(self)
+        self.scout = ScoutModule(self)
+        self.drop = DropModule(self)
         self.unit_manager = UnitManager(self)
         self.macro = MacroModule(self)
         self.chat = Chat(self)
@@ -187,13 +184,13 @@ class AIBase(ABC, BotAI):
         self.dodge = DodgeModule(self)
 
         self.modules: List[AIModule] = [
-            self.dodge,
-            self.combat,
-            self.scout_manager,
-            self.drop_manager,
-            self.macro,
             self.unit_manager,
             self.resource_manager,
+            self.scout,
+            self.drop,
+            self.macro,
+            self.dodge,
+            self.combat,
             self.chat,
             self.creep,
             self.biles,
@@ -209,8 +206,8 @@ class AIBase(ABC, BotAI):
     def handle_errors(self):
         for error in self.state.action_errors:
             if error.result == ActionResult.CantBuildLocationInvalid.value:
-                if unit := self.unit_by_tag.get(error.unit_tag):
-                    self.scout_manager.blocked_positions[unit.position] = self.time
+                if unit := self.unit_manager.unit_by_tag.get(error.unit_tag):
+                    self.scout.blocked_positions[unit.position] = self.time
 
     def units_detecting(self, unit: Unit) -> Iterable[Unit]:
         for detector_type in IS_DETECTOR:
@@ -233,27 +230,24 @@ class AIBase(ABC, BotAI):
     def handle_actions(self):
         for action in self.state.actions_unit_commands:
             for tag in action.unit_tags:
-                if behavior := self.unit_manager.behaviors.get(tag):
+                if behavior := self.unit_manager.units.get(tag):
                     if (
                         behavior.unit
                         and behavior.unit.type_id in { UnitTypeId.LARVA, UnitTypeId.EGG }
                     ):
                         for larva in chain(self.actual_by_type[UnitTypeId.LARVA], self.actual_by_type[UnitTypeId.EGG]):
-                            if b2 := self.unit_manager.behaviors.get(larva.tag):
+                            if b2 := self.unit_manager.units.get(larva.tag):
                                 if b2.plan and b2.plan.ability == action.exact_id:
                                     behavior = b2
                                     break
                         else:
-                            logging.info(f'{self.ai.time_formatted}: egg not found for {action}')
+                            logging.info(f'{self.time_formatted}: egg not found for {action}')
                         # self.unit_manager.remove_unit(behavior.unit)
                     if (
                         isinstance(behavior, MacroBehavior)
                         and behavior.plan
                         and behavior.plan.ability == action.exact_id
                     ):
-                        if behavior.plan not in self.macro.planned_by_type[behavior.plan.item]:
-                            logging.info(f'{self.ai.time_formatted}: plan {behavior.plan} was not in table')
-                        self.macro.planned_by_type[behavior.plan.item].remove(behavior.plan)
                         behavior.plan = None
             # if item := ITEM_BY_ABILITY.get(action.exact_id):
             #     self.macro.remove_plan_by_item(item)
@@ -317,7 +311,7 @@ class AIBase(ABC, BotAI):
         if self.debug:
             # if 90 < self.time:
             #     await self.kill_random_units()
-            worker_count = sum(1 for b in self.unit_manager.behaviors.values() if isinstance(b, Worker))
+            worker_count = sum(1 for b in self.unit_manager.units.values() if isinstance(b, Worker))
             if worker_count != self.supply_workers:
                 logging.error('worker supply mismatch')
 
@@ -334,22 +328,22 @@ class AIBase(ABC, BotAI):
                 # print('tumor')
                 pass
             else:
-                geyser = self.resource_by_position.get(unit.position)
-                geyser_tag = geyser.tag if geyser else None
+                geyser = self.unit_manager.resource_by_position.get(unit.position)
+                geyser_tag = geyser.tag if geyser and geyser.is_vespene_geyser else None
                 for trainer_type in UNIT_TRAINED_FROM.get(unit.type_id, []):
                     for trainer in self.actual_by_type[trainer_type]:
                         if trainer.position == unit.position:
-                            if behavior := self.unit_manager.behaviors.get(trainer.tag):
-                                self.macro.planned_by_type[unit.type_id].discard(behavior.plan)
-                                behavior.plan = None
-                            self.unit_manager.remove_unit(trainer)
+                            if behavior := self.unit_manager.units.get(trainer.tag):
+                                if isinstance(behavior, MacroBehavior):
+                                    behavior.plan = None
+                            assert self.unit_manager.try_remove_unit(trainer.tag)
                             break
                         elif (
                             not trainer.is_idle
                             and trainer.order_target in {unit.position, geyser_tag}
                             # and ITEM_BY_ABILITY.get(trainer.orders[0].ability.exact_id) == unit.type_id
                         ):
-                            self.unit_manager.remove_unit(trainer)
+                            assert self.unit_manager.try_remove_unit(trainer.tag)
                             break
                     else:
                         print('trainer not found')
@@ -359,41 +353,34 @@ class AIBase(ABC, BotAI):
         pass
 
     async def on_enemy_unit_entered_vision(self, unit: Unit):
+        if unit.tag not in self.unit_manager.enemies:
+            self.unit_manager.add_unit(unit)
         pass
 
     async def on_enemy_unit_left_vision(self, unit_tag: int):
         pass
 
     async def on_unit_created(self, unit: Unit):
-        self.unit_manager.add_unit(unit)
-        behavior = self.unit_manager.behaviors.get(unit.tag)
+        behavior = self.unit_manager.add_unit(unit)
         if isinstance(behavior, GatherBehavior):
             self.resource_manager.add_harvester(behavior)
         pass
 
     async def on_unit_destroyed(self, unit_tag: int):
-        unit = self.unit_by_tag[unit_tag]
-        if unit.is_mine:
-            if unit.type_id not in IGNORED_UNIT_TYPES:
-                self.unit_manager.remove_unit(unit)
-        else:
-            self.enemies.pop(unit_tag, None)
-        pass
+        self.unit_manager.try_remove_unit(unit_tag)
         
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         pass
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
-        if unit.is_structure and not unit.is_ready:
-            should_cancel = False
-            if unit.shield_health_percentage < 0.1:
-                should_cancel = True
-            elif unit.type_id in CREEP_TUMORS:
-                should_cancel = True
-            if should_cancel:
-                self.do(unit(AbilityId.CANCEL))
-        self.damage_taken[unit.tag] = self.time
-        pass
+        if behavior := self.unit_manager.units.get(unit.tag):
+            if isinstance(behavior, SurviveBehavior):
+                behavior.last_damage_taken = self.time
+            # elif isinstance(behavior, Structure) and not behavior.is_ready:
+            #     if unit.shield_health_percentage < 0.1:
+            #         behavior.cancel = True
+            #     elif unit.type_id in CREEP_TUMORS:
+            #         behavior.cancel = True
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         pass
@@ -407,49 +394,20 @@ class AIBase(ABC, BotAI):
 
         factor = 2 if item == UnitTypeId.ZERGLING else 1
         
-        sum = 0
+        count = 0
         if include_actual:
             if item in WORKERS:
-                sum += self.state.score.food_used_economy
+                count += self.state.score.food_used_economy
             else:
-                sum += len(self.actual_by_type[item])
+                count += len(self.actual_by_type[item])
         if include_pending:
-            sum += factor * len(self.pending_by_type[item])
+            count += factor * len(self.pending_by_type[item])
         if include_planned:
-            sum += factor * len(self.macro.planned_by_type[item])
+            count += factor * sum(1 for _ in self.macro.planned_by_type(item))
 
-        return sum
+        return count
 
     def update_tables(self):
-
-        self.army = [
-            unit
-            for unit in self.units
-            if unit.type_id not in CIVILIANS or unit.tag in self.unit_manager.drafted_civilians
-        ]
-
-        enemies_remembered = self.enemies.copy()
-        self.enemies = {
-            enemy.tag: enemy
-            for enemy in self.all_enemy_units
-            if not enemy.is_snapshot
-        }
-        for tag, enemy in enemies_remembered.items():
-            if tag in self.enemies:
-                # can see
-                continue
-            visible = True
-            for offset in {(0, 0), (0, 1), (0, -1), (1, 0), (-1, 0)}:
-                if not self.is_visible(enemy.position.offset(offset)):
-                    visible = False
-            if visible:
-                continue
-            # cannot see, maybe still there
-            self.enemies[tag] = enemy
-
-        self.enemies_by_type.clear()
-        for enemy in self.enemies.values():
-            self.enemies_by_type[enemy.type_id].add(enemy)
         
         self.actual_by_type.clear()
         self.pending_by_type.clear()
@@ -497,10 +455,11 @@ class AIBase(ABC, BotAI):
         gas_want = min(gas_max, gas_depleted + math.ceil((gas_target - 1) / 3))
         if gas_have + gas_pending < gas_want:
             self.macro.add_plan(MacroPlan(gas_type))
-        # else:
-        #     for _, plan in zip(range(gas_have + gas_pending - gas_want), list(self.macro.planned_by_type[gas_type])):
-        #         if plan.priority < BUILD_ORDER_PRIORITY:
-        #             self.macro.remove_plan(plan)
+        else:
+            gas_plans = sorted(self.macro.planned_by_type(gas_type), key = lambda p : p.priority)
+            for i, plan in zip(range(gas_have + gas_pending - gas_want), gas_plans):
+                if plan.priority < BUILD_ORDER_PRIORITY:
+                    self.macro.try_remove_plan(plan)
 
     def get_gas_target(self) -> float:
 
@@ -512,7 +471,7 @@ class AIBase(ABC, BotAI):
         ), cost_zero)
         cost_sum += sum((
             self.cost[b.plan.item]
-            for b in self.unit_manager.behaviors.values()
+            for b in self.unit_manager.units.values()
             if isinstance(b, MacroBehavior) and b.plan
         ), cost_zero)
         cost_sum += sum((
@@ -535,13 +494,13 @@ class AIBase(ABC, BotAI):
     @property
     def gas_harvester_count(self) -> int:
         return sum(1
-        for b in self.unit_manager.behaviors.values()
+        for b in self.unit_manager.units.values()
         if isinstance(b, GatherBehavior) and isinstance(b.gather_target, VespeneGeyser))
 
     @property
     def mineral_harvester_count(self) -> int:
         return sum(1
-        for b in self.unit_manager.behaviors.values()
+        for b in self.unit_manager.units.values()
         if isinstance(b, GatherBehavior) and isinstance(b.gather_target, MineralPatch))
 
     def transfer_to_and_from_gas(self, gas_target: float):
@@ -564,7 +523,7 @@ class AIBase(ABC, BotAI):
 
             harvester = min(
                 (b
-                for b in self.unit_manager.behaviors.values()
+                for b in self.unit_manager.units.values()
                 if isinstance(b, GatherBehavior) and isinstance(b.gather_target, MineralPatch)),
                 key = lambda h : 100 if not h.unit else h.unit.position.distance_to(geyser.unit.position),
                 default = None)
@@ -586,7 +545,7 @@ class AIBase(ABC, BotAI):
 
             harvester = min(
                 (b
-                for b in self.unit_manager.behaviors.values()
+                for b in self.unit_manager.units.values()
                 if isinstance(b, GatherBehavior) and isinstance(b.gather_target, VespeneGeyser)),
                 key = lambda h : 100 if not h.unit else h.unit.position.distance_to(patch.unit.position),
                 default = None)
@@ -665,7 +624,7 @@ class AIBase(ABC, BotAI):
 
         plans = []
         plans.extend(b.plan
-            for b in self.unit_manager.behaviors.values()
+            for b in self.unit_manager.units.values()
             if isinstance(b, MacroBehavior) and b.plan
         )
         plans.extend(self.macro.unassigned_plans)
@@ -687,9 +646,9 @@ class AIBase(ABC, BotAI):
 
             unit_tag = next(
                 (tag
-                for tag, behavior in self.unit_manager.behaviors.items()
+                for tag, behavior in self.unit_manager.units.items()
                 if isinstance(behavior, MacroBehavior) and behavior.plan==target), None)
-            if unit := self.unit_by_tag.get(unit_tag):
+            if unit := self.unit_manager.unit_by_tag.get(unit_tag):
                 positions.append(unit)
 
             text = f"{str(i+1)} {target.item.name}"
@@ -698,7 +657,7 @@ class AIBase(ABC, BotAI):
                 self.client.debug_text_world(text, position, color=font_color, size=font_size)
 
         self.client.debug_text_screen(f'Threat Level: {round(100 * self.combat.threat_level)}%', (0.01, 0.01))
-        self.client.debug_text_screen(f'Enemy Bases: {len(self.scout_manager.enemy_bases)}', (0.01, 0.02))
+        self.client.debug_text_screen(f'Enemy Bases: {len(self.scout.enemy_bases)}', (0.01, 0.02))
         self.client.debug_text_screen(f'Gas Target: {round(self.get_gas_target(), 3)}', (0.01, 0.03))
         # self.client.debug_text_screen(f'Simulation Resullt: {round(self.unit_manager.simulation_result, 3)}', (0.01, 0.04))
         self.client.debug_text_screen(f'Creep Coverage: {round(100 * self.creep.coverage)}%', (0.01, 0.06))
@@ -753,10 +712,15 @@ class AIBase(ABC, BotAI):
 
     def get_owned_geysers(self):
         for base in self.resource_manager.bases:
-            if base.position not in self.townhall_by_position.keys():
+            townhall = self.unit_manager.structure_by_position.get(base.position)
+            if not townhall:
+                continue
+            if not townhall.is_ready:
+                continue
+            if townhall.type_id not in race_townhalls[self.race]:
                 continue
             for gas in base.vespene_geysers:
-                geyser = self.resource_by_position.get(gas.position)
+                geyser = self.unit_manager.resource_by_position.get(gas.position)
                 if not geyser:
                     continue
                 yield geyser
@@ -767,7 +731,7 @@ class AIBase(ABC, BotAI):
         if isinstance(order.target, Point2):
             target = order.target
         elif isinstance(order.target, int):
-            target = self.unit_by_tag.get(order.target)
+            target = self.unit_manager.unit_by_tag.get(order.target)
         return UnitCommand(ability, unit, target)
 
     def order_matches_command(self, order: UnitOrder, command: UnitCommand) -> bool:
@@ -795,20 +759,20 @@ class AIBase(ABC, BotAI):
         return unit_range
 
     def enumerate_enemies(self) -> Iterable[Unit]:
-        for unit in self.enemies.values():
-            if unit.type_id in IGNORED_UNIT_TYPES:
-                continue
-            yield unit
+        enemies = (
+            unit
+            for unit in self.enemies.values()
+            if unit.type_id not in IGNORED_UNIT_TYPES
+        )
+        destructables = (
+            unit
+            for unit in self.destructables
+            if 0 < unit.armor
+        )
         if self.destroy_destructables:
-            for unit in self.destructables:
-                if unit.armor == 0:
-                    continue
-                yield unit
-
-    def is_structure(self, unit: UnitTypeId) -> bool:
-        if data := self.game_data.units.get(unit.value):
-            return IS_STRUCTURE in data.attributes
-        return False
+            return chain(enemies, destructables)
+        else:
+            return enemies
 
     def get_unit_value(self, unit: Unit) -> float:
         health = unit.health + unit.shield

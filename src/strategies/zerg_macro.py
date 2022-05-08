@@ -66,7 +66,11 @@ class ZergMacro(ZergStrategy):
             for t in composition
         }
 
-        enemy_counts = Counter(enemy.type_id for enemy in self.ai.enumerate_enemies())
+        enemy_counts = Counter(
+            enemy.unit.type_id
+            for enemy in self.ai.unit_manager.enemies.values()
+            if enemy.unit
+        )
 
         for enemy_type, count in enemy_counts.items():
             if counters := UNIT_COUNTER_DICT.get(enemy_type):

@@ -47,7 +47,7 @@ class RoachRush(ZergMacro):
         return super().filter_upgrade(upgrade)
 
     def update(self):
-        self.ai.scout_manager.scout_enemy_natural = False
+        self.ai.scout.scout_enemy_natural = False
         if self.ai.time < 200 and UnitTypeId.ZERGLING in self.ai.composition:
             del self.ai.composition[UnitTypeId.ZERGLING]
         return super().update()

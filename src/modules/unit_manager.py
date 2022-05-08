@@ -10,11 +10,13 @@ import random
 import logging
 from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT
 
+from sc2.data import race_townhalls
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.data import Target, race_worker
 from abc import ABC, abstractmethod
+from src.resources.resource_unit import ResourceUnit
 
 from src.simulation.unit import SimulationUnit, SimulationUnitWithTarget
 from src.units.army import Army
@@ -22,7 +24,7 @@ from src.units.changeling import Changeling
 from src.units.creep_tumor import CreepTumor
 from src.units.extractor import Extractor
 from src.units.overlord import Overlord
-from src.units.unit import AIUnit
+from src.units.unit import AIUnit, CommandableUnit, EnemyUnit, UnitByTag
 from src.units.queen import Queen
 from src.units.worker import Worker
 from ..units.extractor import Extractor
@@ -67,176 +69,128 @@ class UnitManager(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
-        self.drafted_civilians: Set[int] = set()
-        self.enemy_priorities: Dict[int, float] = dict()
-        self.behaviors: Dict[int, AIUnit] = dict()
-        self.targets: Dict[int, Unit] = dict()
-        self.attack_paths: Dict[int, List[Point2]] = dict()
-        self.retreat_paths: Dict[int, List[Point2]] = dict()
-        self.path_modulus: int = 4
 
-    def is_civilian(self, unit: Unit) -> bool:
-        if unit.tag in self.drafted_civilians:
-            return False
-        elif unit.type_id in CIVILIANS:
-            return True
-        elif unit.is_structure:
-            return True
+        self.units: Dict[int, CommandableUnit] = dict()
+        self.enemies: Dict[int, EnemyUnit] = dict()
+        self.resources: Dict[Point2, ResourceUnit] = dict()
+        self.neutrals: Dict[int, UnitByTag] = dict()
+
+        self.resource_by_position: Dict[Point2, Unit] = dict()
+        self.structure_by_position: Dict[Point2, Unit] = dict()
+        self.unit_by_tag: Dict[int, Unit] = dict()
+
+    def add_unit(self, unit: Unit) -> AIUnit:
+        if unit.is_mine:
+            behavior = self.create_unit(unit.tag, unit.type_id)
+            self.units[unit.tag] = behavior
+        elif unit.is_enemy:
+            behavior = EnemyUnit(self.ai, unit.tag)
+            self.enemies[unit.tag] = behavior
+        elif unit.is_mineral_field or unit.is_vespene_geyser:
+            behavior = ResourceUnit(self.ai, unit.position)
+            self.resources[unit.position] = behavior
         else:
-            return False
+            behavior = UnitByTag(self.ai, unit.tag)
+            self.neutrals[unit.tag] = behavior
+        return behavior
 
-    def add_unit(self, unit: Unit) -> None:
-        self.behaviors[unit.tag] = self.create_behavior(unit)
+    def try_remove_unit(self, tag: int) -> bool:
+        return any((
+            self.units.pop(tag, None),
+            self.enemies.pop(tag, None),
+            self.neutrals.pop(tag, None),
+        ))
 
-    def remove_unit(self, unit: Unit) -> None:
-        if behavior := self.behaviors.pop(unit.tag, None):
-            if isinstance(behavior, MacroBehavior) and behavior.plan:
-                self.ai.macro.planned_by_type[behavior.plan.item].discard(behavior.plan)
-
-    def create_behavior(self, unit: Unit) -> AIUnit:
+    def create_unit(self, tag: int, unit_type: UnitTypeId) -> CommandableUnit:
         
-        if unit.type_id in CHANGELINGS:
-            return Changeling(self.ai, unit.tag)
-        elif unit.is_vespene_geyser:
-            return Extractor(self.ai, unit.tag)
-        elif unit.type_id in { UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN }:
-            return CreepTumor(self.ai, unit.tag)
-        elif unit.type_id == UnitTypeId.LARVA:
-            return Larva(self.ai, unit.tag)
-        elif unit.type_id in WORKERS:
-            return Worker(self.ai, unit.tag)
-        elif unit.type_id == UnitTypeId.OVERLORD:
-            return Overlord(self.ai, unit.tag)
-        elif unit.type_id == UnitTypeId.QUEEN:
-            return Queen(self.ai, unit.tag)
-        elif unit.is_structure:
-            return Structure(self.ai, unit.tag)
+        if unit_type in CHANGELINGS:
+            return Changeling(self.ai, tag)
+        elif unit_type in { UnitTypeId.EXTRACTOR, UnitTypeId.EXTRACTORRICH }:
+            return Extractor(self.ai, tag)
+        elif unit_type in { UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN }:
+            return CreepTumor(self.ai, tag)
+        elif unit_type == UnitTypeId.LARVA:
+            return Larva(self.ai, tag)
+        elif unit_type in WORKERS:
+            return Worker(self.ai, tag)
+        elif unit_type == UnitTypeId.OVERLORD:
+            return Overlord(self.ai, tag)
+        elif unit_type == UnitTypeId.QUEEN:
+            return Queen(self.ai, tag)
+        elif self.ai.techtree.units[unit_type].is_structure:
+            return Structure(self.ai, tag)
         else:
-            return Army(self.ai, unit.tag)
+            return Army(self.ai, tag)
 
     def draft_civilians(self) -> None:
-
-        self.drafted_civilians.intersection_update(self.ai.unit_by_tag.keys())
         
         if (
             0 == self.ai.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False)
             and 2/3 < self.ai.combat.threat_level
         ):
-            if worker := self.ai.resource_manager.bases.try_remove_any():
-                self.drafted_civilians.add(worker)
+            worker = next(
+                (w
+                    for w in self.units.values()
+                    if isinstance(w, Worker) and not w.fight_enabled
+                ),
+                None
+            )
+            if worker:
+                worker.fight_enabled = True
         elif self.ai.combat.threat_level < 1/2:
-            if self.drafted_civilians:
-                worker = min(self.drafted_civilians, key = lambda tag : self.ai.unit_by_tag[tag].shield_health_percentage, default = None)
-                self.drafted_civilians.remove(worker)
-                self.ai.resource_manager.bases.try_add(worker)
-
-    def target_priority_apriori(self, target: Unit) -> float:
-        if target.is_hallucination:
-            return 0
-        if target.type_id in CHANGELINGS:
-            return 0
-        priority = 1e8
-        priority /= 150 + target.position.distance_to(self.ai.start_location)
-        priority /= 3 if target.is_structure else 1
-        if target.is_enemy:
-            priority /= 100 + target.shield + target.health
-        else:
-            priority /= 500
-        priority *= 3 if target.type_id in WORKERS else 1
-        priority /= 10 if target.type_id in CIVILIANS else 1
-        return priority
-
-    def target_priority(self, unit: Unit, target: Unit) -> float:
-        if not self.ai.can_attack(unit, target) and not unit.is_detector:
-            return 0
-        priority = self.enemy_priorities[target.tag]
-        priority /= 30 + target.position.distance_to(unit.position)
-        if unit.is_detector:
-            priority *= 10 if target.is_cloaked else 1
-            priority *= 10 if not target.is_revealed else 1
-        return priority
-
-    def get_path_towards(self, unit: Unit, target: Point2) -> List[Point2]:
-        a = self.ai.game_info.playable_area
-        target = Point2(np.clip(target, (a.x, a.y), (a.right, a.top)))
-        if unit.is_flying:
-            enemy_map = self.ai.combat.enemy_vs_air_map
-        else:
-            enemy_map = self.ai.combat.enemy_vs_ground_map
-
-        path = self.ai.map_analyzer.pathfind(
-            start = unit.position,
-            goal = target,
-            grid = enemy_map,
-            large = is_large(unit),
-            smoothing = False,
-            sensitivity = 1)
-
-        if not path:
-            d = unit.distance_to(target)
-            return [
-                unit.position.towards(target, d)
-                for i in np.arange(d)
-            ]
-        return path
+            worker = min(
+                (w
+                    for w in self.units.values()
+                    if isinstance(w, Worker) and w.fight_enabled
+                ),
+                key = lambda w : w.unit.shield_health_percentage,
+                default = None
+            )
+            if worker:
+                worker.fight_enabled = False
 
     async def on_step(self) -> None:
 
-        self.enemy_priorities = {
-            e.tag: self.target_priority_apriori(e)
-            for e in self.ai.enumerate_enemies()
+        self.unit_by_tag = {
+            unit.tag: unit
+            for unit in self.ai.all_units
         }
 
-        self.targets = dict()
-        for unit in self.ai.army:
-            if (unit.tag % self.path_modulus) != (self.ai.iteration % self.path_modulus):
-                continue
-            target, priority = max(
-                ((t, self.target_priority(unit, t))
-                for t in self.ai.enumerate_enemies()),
-                key = lambda p : p[1],
-                default = (None, 0))
-            if priority <= 0:
-                continue
-            self.targets[unit.tag] = target
-            self.attack_paths[unit.tag] = self.get_path_towards(unit, target.position)
-            self.retreat_paths[unit.tag] = self.get_path_towards(unit, unit.position.towards(target.position, -12))
+        self.resource_by_position = {
+            unit.position: unit
+            for unit in self.ai.resources
+        }
+
+        self.structure_by_position = {
+            structure.position: structure
+            for structure in self.ai.structures
+        }
 
         queens = sorted((
             b
-            for b in self.ai.unit_manager.behaviors.values()
+            for b in self.ai.unit_manager.units.values()
             if isinstance(b, InjectBehavior)),
             key = lambda q : q.tag
         )
 
-        # self.draft_civilians()
+        self.draft_civilians()
 
         inject_queen_max = min(5, len(queens))
         inject_queen_count = min(math.ceil((1 - self.ai.combat.threat_level) * inject_queen_max), self.ai.townhalls.amount)
         inject_queens = queens[0:inject_queen_count]
 
-        bases = [
-            b
+        bases = {
+            b: structure
             for b in self.ai.resource_manager.bases
-            if b.position in self.ai.townhall_by_position
-        ]
+            if (
+                (structure := self.ai.unit_manager.structure_by_position.get(b.position))
+                and structure.is_ready
+                and structure.type_id in race_townhalls[self.ai.race]
+            )
+        }
 
-        for queen, base in zip(inject_queens, bases):
-            queen.inject_target = self.ai.townhall_by_position[base.position]
+        for queen, (base, townhall) in zip(inject_queens, bases.items()):
+            queen.inject_target = townhall
 
-        for unit in self.ai.all_own_units:
-
-            if unit.type_id in IGNORED_UNIT_TYPES:
-                continue
-
-            if not unit.is_ready:
-                continue
-
-            if behavior := self.behaviors.get(unit.tag):
-                behavior.on_step()
-            else:
-                logging.info(f'{self.ai.time_formatted}: behavior missing for {unit}')
-
-        # for tag in set(self.behaviors.keys()):
-        #     if tag not in self.ai.unit_by_tag:
-        #         del self.behaviors[tag]
+        for unit in self.units.values():
+            unit.on_step()

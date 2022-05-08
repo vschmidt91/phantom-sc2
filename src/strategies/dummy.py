@@ -40,7 +40,7 @@ class DummyStrategy(ZergStrategy):
 
 
     def update(self):
-        self.ai.scout_manager.scout_enemy_natural = False
+        self.ai.scout.scout_enemy_natural = False
         if 6720 <= self.ai.state.game_loop:
             print(self.ai.state.score.collected_vespene)
         return super().update()

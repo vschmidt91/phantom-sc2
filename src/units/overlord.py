@@ -5,7 +5,7 @@ from typing import Optional, TYPE_CHECKING
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit, UnitCommand
 
-from .unit import AIUnit
+from .unit import CommandableUnit
 from ..modules.dodge import DodgeBehavior
 from ..modules.scout import ScoutBehavior, DetectBehavior
 from ..modules.macro import MacroBehavior
