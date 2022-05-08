@@ -82,9 +82,6 @@ class ZergAI(AIBase):
         self.strategy_cls: Optional[Type[ZergStrategy]] = strategy_cls
         self.composition: Dict[UnitTypeId, int] = dict()
 
-        self.build_spores: bool = False
-        self.build_spines: bool = False
-
     async def on_start(self):
 
         await super().on_start()
@@ -231,25 +228,16 @@ class ZergAI(AIBase):
 
     def make_defenses(self):
 
-        for unit_type in SPORE_TRIGGERS[self.enemy_race]:
-            if any(self.enemies_by_type[unit_type]):
-                self.build_spores = True
+        build_spores = any(
+            enemy.unit.type_id in SPORE_TRIGGERS[self.enemy_race]
+            for enemy in self.unit_manager.enemies.values()
+            if enemy.unit
+        )
 
         for i, base in enumerate(self.resource_manager.bases):
             targets: Dict[UnitTypeId, int] = dict()
-            if self.build_spores:
+            if build_spores:
                 targets[UnitTypeId.SPORECRAWLER] = 1
-                # if self.enemy_race == Race.Terran:
-                #     targets[UnitTypeId.SPORECRAWLER] += 1
-            if (
-                1 <= i
-                and base.townhall
-                and self.build_spines
-                # and 1 <= self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False)
-                # and self.block_manager.enemy_base_count <= 1
-            ):
-                targets[UnitTypeId.SPINECRAWLER] = 1
-            base.defensive_targets = targets
 
     def morph_overlords(self):
         if 200 <= self.supply_cap:
@@ -268,8 +256,8 @@ class ZergAI(AIBase):
         # supply_buffer += 2 * self.count(UnitTypeId.QUEEN, include_planned=False)
 
         supply_buffer = self.income.larva / 1.5
-        # if self.townhalls.amount == self.townhalls.ready.amount == 2:
-        #     supply_buffer = 7
+        if self.townhalls.amount == self.townhalls.ready.amount == 2:
+            supply_buffer = 6
         
         if self.supply_left + supply_pending <= supply_buffer:
             self.macro.add_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
@@ -293,7 +281,7 @@ class ZergAI(AIBase):
         elif 2 < self.townhalls.amount:
             expand = .8 < saturation
 
-        for plan in self.macro.planned_by_type[UnitTypeId.HATCHERY]:
+        for plan in self.macro.planned_by_type(UnitTypeId.HATCHERY):
             if plan.priority < BUILD_ORDER_PRIORITY:
                 plan.priority = priority
 
