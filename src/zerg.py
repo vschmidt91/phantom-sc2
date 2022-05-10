@@ -14,19 +14,15 @@ from sc2.unit import Unit
 from sc2.data import Race, race_townhalls
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from src.strategies.fast_lair import FastLair
-from src.strategies.muta import Muta
-from src.strategies.pool_first import PoolFirst
+from sc2.ids.buff_id import BuffId
 
-from .unit_counters import UNIT_COUNTER_MATRIX
-from .strategies.hatch_first import HatchFirst
-from .strategies.zerg_strategy import ZergStrategy
 from .constants import SUPPLY_PROVIDED
 from .ai_base import AIBase
 from .utils import armyValue, center, sample, unitValue, run_timed
-from .constants import BUILD_ORDER_PRIORITY, WITH_TECH_EQUIVALENTS, REQUIREMENTS, ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
+from .constants import WITH_TECH_EQUIVALENTS, REQUIREMENTS, ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
 from .modules.macro import MacroPlan
 from .modules.creep import CreepModule
+from .strategies.strategy import Strategy
 
 import cProfile
 import pstats
@@ -76,71 +72,22 @@ TIMING_INTERVAL = 64
 
 class ZergAI(AIBase):
 
-    def __init__(self, strategy_cls: Type[ZergStrategy] = None):
-        super().__init__()
-
-        self.strategy_cls: Optional[Type[ZergStrategy]] = strategy_cls
-        self.composition: Dict[UnitTypeId, int] = dict()
-
-    async def on_start(self):
-
-        await super().on_start()
-
-        if not self.strategy_cls:
-            # if self.enemy_race == Race.Terran:
-            #     self.strategy_cls = FastLair
-            # else:
-            #     self.strategy_cls = HatchFirst
-            self.strategy_cls = HatchFirst
-        self.strategy: ZergStrategy = self.strategy_cls(self)
-
-        for step in self.strategy.build_order():
-            if isinstance(step, MacroPlan):
-                plan = step
-            else:
-                plan = MacroPlan(step)
-            plan.priority = plan.priority or BUILD_ORDER_PRIORITY
-            if step in race_townhalls[self.race]:
-                plan.max_distance = None
-            self.macro.add_plan(plan)
-
-    async def on_before_start(self):
-        return await super().on_before_start()
-
-    async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
-        if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
-            self.creep.tumor_front[unit.tag] = self.state.game_loop
-        return await super().on_unit_type_changed(unit, previous_type)
-
-    async def on_building_construction_started(self, unit: Unit):
-        return await super().on_building_construction_started(unit)
-
-    async def on_building_construction_complete(self, unit: Unit):
-        return await super().on_building_construction_complete(unit)
-
-    async def on_unit_destroyed(self, unit_tag: int):
-        return await super().on_unit_destroyed(unit_tag)
-
-    async def on_unit_created(self, unit: Unit):
-        return await super().on_unit_created(unit)
-
-    async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
-        return await super().on_unit_took_damage(unit, amount_damage_taken)
+    def __init__(self, strategy_cls: Optional[Type[Strategy]] = None):
+        super().__init__(strategy_cls)
 
     async def on_step(self, iteration):
-
-        if iteration == 0 and self.debug:
-            return
-
-        if 1 < self.time:
-            await self.chat.add_tag(self.version, False)
-            await self.chat.add_tag(self.strategy.name, False)
+        
+        larva_per_second = 0.0
+        for hatchery in self.townhalls:
+            if hatchery.is_ready:
+                larva_per_second += 1/11
+                if hatchery.has_buff(BuffId.QUEENSPAWNLARVATIMER):
+                    larva_per_second += 3/29
+        self.income.larva = 60.0 * larva_per_second
 
         await super().on_step(iteration)
 
-        self.strategy.update()
         self.morph_overlords()
-        # self.make_defenses()
         self.make_tech()
         self.expand()
 
@@ -206,19 +153,24 @@ class ZergAI(AIBase):
             return []
 
     def make_tech(self):
-        upgrades = chain(*(self.upgrades_by_unit(unit) for unit in self.composition))
-        upgrades = list(dict.fromkeys(upgrades))
-        upgrades = [u for u in upgrades if self.strategy.filter_upgrade(u)]
-        targets = (
-            *upgrades,
-            *chain(*(REQUIREMENTS[unit] for unit in self.composition)),
-            *chain(*(REQUIREMENTS[upgrade] for upgrade in upgrades)),
+        upgrades = {
+            u
+            for unit in self.composition
+            for u in self.upgrades_by_unit(unit)
+            if self.strategy.filter_upgrade(u)
+        }
+        targets = set(upgrades)
+        targets.update(
+            r
+            for item in chain(self.composition, upgrades)
+            for r in REQUIREMENTS[item]
         )
-        targets = list(dict.fromkeys(targets))
         for target in targets:
             equivalents =  WITH_TECH_EQUIVALENTS.get(target, { target })
             if sum(self.count(t) for t in equivalents) == 0:
-                self.macro.add_plan(MacroPlan(target, priority=-1/3))
+                plan = MacroPlan(target)
+                plan.priority = -1/3
+                self.macro.add_plan(plan)
 
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
@@ -226,46 +178,25 @@ class ZergAI(AIBase):
                 return (upgrade,)
         return tuple()
 
-    def make_defenses(self):
-
-        build_spores = any(
-            enemy.unit.type_id in SPORE_TRIGGERS[self.enemy_race]
-            for enemy in self.unit_manager.enemies.values()
-            if enemy.unit
-        )
-
-        for i, base in enumerate(self.resource_manager.bases):
-            targets: Dict[UnitTypeId, int] = dict()
-            if build_spores:
-                targets[UnitTypeId.SPORECRAWLER] = 1
-
-    def morph_overlords(self):
-        if 200 <= self.supply_cap:
-            return
+    def morph_overlords(self) -> None:
         supply_pending = sum(
             provided * self.count(unit, include_actual=False)
             for unit, provided in SUPPLY_PROVIDED.items()
         )
+
         if 200 <= self.supply_cap + supply_pending:
             return
-        # income = self.state.score.collection_rate_minerals + self.state.score.collection_rate_vespene
-        # supply_buffer = income / 300
-
-        # supply_buffer = 4
-        # supply_buffer += 2 * self.townhalls.amount
-        # supply_buffer += 2 * self.count(UnitTypeId.QUEEN, include_planned=False)
 
         supply_buffer = self.income.larva / 1.5
         if self.townhalls.amount == self.townhalls.ready.amount == 2:
             supply_buffer = 6
         
         if self.supply_left + supply_pending <= supply_buffer:
-            self.macro.add_plan(MacroPlan(UnitTypeId.OVERLORD, priority=1))
+            plan = MacroPlan(UnitTypeId.OVERLORD)
+            plan.priority = 1
+            self.macro.add_plan(plan)
 
-    def expand(self):
-
-        # if self.scout_manager.enemy_base_count + 1 <= self.townhalls.amount:
-        #     return
+    def expand(self) -> None:
 
         if self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False) < 1:
             return
@@ -282,7 +213,7 @@ class ZergAI(AIBase):
             expand = .8 < saturation
 
         for plan in self.macro.planned_by_type(UnitTypeId.HATCHERY):
-            if plan.priority < BUILD_ORDER_PRIORITY:
+            if plan.priority < math.inf:
                 plan.priority = priority
 
         if expand and self.count(UnitTypeId.HATCHERY, include_actual=False) < 1:

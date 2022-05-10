@@ -71,7 +71,8 @@ class CommandableUnit(UnitByTag):
         
     def on_step(self) -> None:
         if (
-            (command := self.get_command())
+            self.unit
+            and (command := self.get_command())
             and not any(self.ai.order_matches_command(o, command) for o in command.unit.orders)
             and not self.ai.do(command, subtract_cost=False, subtract_supply=False)
         ):
@@ -80,3 +81,11 @@ class CommandableUnit(UnitByTag):
     @abstractmethod
     def get_command(self) -> Optional[UnitCommand]:
         raise NotImplementedError()
+
+class IdleBehavior(CommandableUnit):
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def get_command(self) -> Optional[UnitCommand]:
+        return None

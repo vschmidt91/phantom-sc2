@@ -13,18 +13,8 @@ from sc2.data import Race, Difficulty, AIBuild, Result
 from sc2.player import Bot, Computer
 
 from src.pool12_allin import Pool12AllIn
-from src.lingflood import LingFlood
-from src.strategies.dummy import DummyStrategy
-from src.strategies.fast_lair import FastLair
-from src.strategies.muta import Muta
-from src.strategies.bane_bust import BaneBust
-from src.strategies.pool_first import PoolFirst
-from src.strategies.roach_ling_bust import RoachLingBust
 from src.strategies.hatch_first import HatchFirst
-from src.strategies.pool12 import Pool12
-from src.strategies.roach_rush import RoachRush
 from src.zerg import ZergAI
-from src.enums import PerformanceMode
 from src.dummy import DummyAI, DummyAI2
 
 from test import CompetitiveBot
@@ -43,8 +33,8 @@ MAPS = [
 ]
 
 RACES = [
-    # Race.Protoss,
-    Race.Terran,
+    Race.Protoss,
+    # Race.Terran,
     # Race.Zerg,
     # Race.Random,
 ]

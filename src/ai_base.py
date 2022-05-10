@@ -1,6 +1,7 @@
 
 from abc import ABC
 import cProfile, pstats
+import itertools
 from collections import defaultdict
 from dataclasses import dataclass
 import logging
@@ -42,10 +43,14 @@ from sc2.unit import Unit, UnitOrder
 from sc2.unit_command import UnitCommand
 from sc2.units import Units
 from src.resources.resource_manager import ResourceManager
+from src.resources.resource_unit import ResourceUnit
+
+from src.strategies.hatch_first import HatchFirst
 from src.techtree import TechTree, TechTreeWeaponType
 from src.units.structure import Structure
 
 from .modules.chat import Chat
+from .behaviors.inject import InjectManager
 from .modules.module import AIModule
 from .modules.creep import CreepModule
 from .modules.combat import CombatBehavior, CombatModule
@@ -58,6 +63,7 @@ from .resources.mineral_patch import MineralPatch
 from .resources.vespene_geyser import VespeneGeyser
 from .modules.scout import ScoutModule
 from .modules.unit_manager import IGNORED_UNIT_TYPES, UnitManager
+from .strategies.strategy import Strategy
 from .simulation.simulation import Simulation
 from .value_map import ValueMap
 from .resources.base import Base
@@ -68,7 +74,6 @@ from .units.worker import Worker
 from .cost import Cost
 from .utils import *
 from .modules.dodge import *
-from .enums import PerformanceMode
 
 VERSION_PATH = 'version.txt'
 
@@ -83,16 +88,19 @@ class MapStaticData:
 
 class AIBase(ABC, BotAI):
 
-    def __init__(self):
+    def __init__(self, strategy_cls: Optional[Type[Strategy]] = None):
 
         self.raw_affects_selection = True
+        self.game_step: int = 2
 
+        self.strategy_cls: Optional[Type[Strategy]] = strategy_cls or HatchFirst
         self.version: str = ''
-        self.game_step: int = 4
-        self.performance: PerformanceMode = PerformanceMode.DEFAULT
         self.debug: bool = True
         self.destroy_destructables: bool = False
         self.unit_command_uses_self_do = True
+
+        self.income = Cost(0, 0, 0, 0)
+        self.future_spending = Cost(0, 0, 0, 0)
 
         self.composition: Dict[UnitTypeId, int] = dict()
         self.cost: Dict[MacroId, Cost] = dict()
@@ -101,8 +109,8 @@ class AIBase(ABC, BotAI):
 
         self.enemies: Dict[int, Unit] = dict()
 
-        self.actual_by_type: DefaultDict[MacroId, Set[Unit]] = defaultdict(set)
-        self.pending_by_type: DefaultDict[MacroId, Set[Unit]] = defaultdict(set)
+        self.actual_by_type: DefaultDict[MacroId, List[Unit]] = defaultdict(list)
+        self.pending_by_type: DefaultDict[MacroId, List[Unit]] = defaultdict(list)
 
         self.map_data: MapStaticData = None
         self.map_analyzer: MapData = None
@@ -112,14 +120,6 @@ class AIBase(ABC, BotAI):
         self.techtree: TechTree = TechTree('data/techtree.json')
 
         super().__init__()
-
-    @property
-    def is_speedmining_enabled(self) -> bool:
-        if self.performance is PerformanceMode.DEFAULT:
-            return True
-        elif self.performance is PerformanceMode.HIGH_PERFORMANCE:
-            return False
-        raise Exception
 
     async def on_before_start(self):
 
@@ -182,6 +182,8 @@ class AIBase(ABC, BotAI):
         self.biles = BileModule(self)
         self.combat = CombatModule(self)
         self.dodge = DodgeModule(self)
+        self.inject = InjectManager(self)
+        self.strategy: Strategy = self.strategy_cls(self)
 
         self.modules: List[AIModule] = [
             self.unit_manager,
@@ -194,6 +196,8 @@ class AIBase(ABC, BotAI):
             self.chat,
             self.creep,
             self.biles,
+            self.inject,
+            self.strategy
         ]
 
         for structure in self.structures:
@@ -206,8 +210,8 @@ class AIBase(ABC, BotAI):
     def handle_errors(self):
         for error in self.state.action_errors:
             if error.result == ActionResult.CantBuildLocationInvalid.value:
-                if unit := self.unit_manager.unit_by_tag.get(error.unit_tag):
-                    self.scout.blocked_positions[unit.position] = self.time
+                if behavior := self.unit_manager.units.get(error.unit_tag):
+                    self.scout.blocked_positions[behavior.unit.position] = self.time
 
     def units_detecting(self, unit: Unit) -> Iterable[Unit]:
         for detector_type in IS_DETECTOR:
@@ -237,7 +241,7 @@ class AIBase(ABC, BotAI):
                     ):
                         for larva in chain(self.actual_by_type[UnitTypeId.LARVA], self.actual_by_type[UnitTypeId.EGG]):
                             if b2 := self.unit_manager.units.get(larva.tag):
-                                if b2.plan and b2.plan.ability == action.exact_id:
+                                if isinstance(b2, MacroBehavior) and b2.plan and b2.macro_ability == action.exact_id:
                                     behavior = b2
                                     break
                         else:
@@ -246,7 +250,7 @@ class AIBase(ABC, BotAI):
                     if (
                         isinstance(behavior, MacroBehavior)
                         and behavior.plan
-                        and behavior.plan.ability == action.exact_id
+                        and behavior.macro_ability == action.exact_id
                     ):
                         behavior.plan = None
             # if item := ITEM_BY_ABILITY.get(action.exact_id):
@@ -263,30 +267,30 @@ class AIBase(ABC, BotAI):
 
 
     async def on_step(self, iteration: int):
+
+        if iteration == 0 and self.debug:
+            return
         
         self.iteration = iteration
+
+        if 1 < self.time:
+            await self.chat.add_tag(self.version, False)
+            await self.chat.add_tag(self.strategy.name, False)
         
-        profiler = None
         if iteration % 1000 == 0:
             profiler = cProfile.Profile()
             profiler.enable()
+        else:
+            profiler = None
 
-        larva_per_second = 0.0
-        for hatchery in self.townhalls:
-            if hatchery.is_ready:
-                larva_per_second += 1/11
-                if hatchery.has_buff(BuffId.QUEENSPAWNLARVATIMER):
-                    larva_per_second += 3/29
-        self.income = Cost(self.state.score.collection_rate_minerals, self.state.score.collection_rate_vespene, 0, 60.0 * larva_per_second)
+        self.income.minerals = self.state.score.collection_rate_minerals
+        self.income.vespene = self.state.score.collection_rate_vespene
 
         if self.extractor_trick_enabled and self.supply_left <= 0:
             for gas in self.gas_buildings.not_ready:
                 self.do(gas(AbilityId.CANCEL))
                 self.extractor_trick_enabled = False
                 break
-
-        # for worker in self.workers.idle:
-        #     self.resource_manager.add_harvester(self.unit_manager.behaviors[worker.tag])
 
         self.update_tables()
         self.handle_errors()
@@ -301,7 +305,7 @@ class AIBase(ABC, BotAI):
             profiler.disable()
             stats = pstats.Stats(profiler)
             stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
-            # stats.print_stats(100)
+            stats.print_stats(100)
             if self.debug:
                 stats.dump_stats(filename='profiling.prof')
 
@@ -321,7 +325,7 @@ class AIBase(ABC, BotAI):
     async def on_building_construction_started(self, unit: Unit):
 
         self.unit_manager.add_unit(unit)
-        self.pending_by_type[unit.type_id].add(unit.tag)
+        self.pending_by_type[unit.type_id].append(unit.tag)
 
         if self.race == Race.Zerg:
             if unit.type_id in { UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMORBURROWED }:
@@ -346,7 +350,7 @@ class AIBase(ABC, BotAI):
                             assert self.unit_manager.try_remove_unit(trainer.tag)
                             break
                     else:
-                        print('trainer not found')
+                        logging.error('trainer not found')
         pass
 
     async def on_building_construction_complete(self, unit: Unit):
@@ -414,32 +418,14 @@ class AIBase(ABC, BotAI):
         
         for unit in self.all_own_units:
             if unit.is_ready:
-                self.actual_by_type[unit.type_id].add(unit)
+                self.actual_by_type[unit.type_id].append(unit)
             else:
-                self.pending_by_type[unit.type_id].add(unit)
+                self.pending_by_type[unit.type_id].append(unit)
             for order in unit.orders:
-                ability = order.ability.exact_id
-                if item := ITEM_BY_ABILITY.get(ability):
-                    self.pending_by_type[item].add(unit)
+                if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
+                    self.pending_by_type[item].append(unit)
             
-        self.resource_by_position = {
-            resource.position: resource
-            for resource in self.resources
-        }
-        self.gas_building_by_position = {
-            gas.position: gas
-            for gas in self.gas_buildings
-        }
-        self.townhall_by_position = {
-            townhall.position: townhall
-            for townhall in self.townhalls
-            if townhall.is_ready
-        }
-        self.unit_by_tag = {
-            unit.tag: unit
-            for unit in self.all_units
-        }
-        self.actual_by_type.update((upgrade, {upgrade}) for upgrade in self.state.upgrades)
+        self.actual_by_type.update((upgrade, [upgrade]) for upgrade in self.state.upgrades)
 
     def update_gas(self):
         gas_target = self.get_gas_target()
@@ -458,7 +444,7 @@ class AIBase(ABC, BotAI):
         else:
             gas_plans = sorted(self.macro.planned_by_type(gas_type), key = lambda p : p.priority)
             for i, plan in zip(range(gas_have + gas_pending - gas_want), gas_plans):
-                if plan.priority < BUILD_ORDER_PRIORITY:
+                if plan.priority < math.inf:
                     self.macro.try_remove_plan(plan)
 
     def get_gas_target(self) -> float:
@@ -491,67 +477,58 @@ class AIBase(ABC, BotAI):
 
         return gas_target
 
-    @property
-    def gas_harvester_count(self) -> int:
-        return sum(1
-        for b in self.unit_manager.units.values()
-        if isinstance(b, GatherBehavior) and isinstance(b.gather_target, VespeneGeyser))
+    def harvester_count(self, of_type: Type[ResourceUnit]) -> int:
+        return sum(
+            1
+            for b in self.unit_manager.units.values()
+            if isinstance(b, GatherBehavior) and isinstance(b.gather_target, of_type)
+        )
 
-    @property
-    def mineral_harvester_count(self) -> int:
-        return sum(1
-        for b in self.unit_manager.units.values()
-        if isinstance(b, GatherBehavior) and isinstance(b.gather_target, MineralPatch))
+    def pick_resource(self, resources: ResourceGroup) -> Optional[ResourceUnit]:
+        return min(
+            (
+                r
+                for r in resources
+                if r.harvester_balance < 0
+            ),
+            key = lambda r: r.harvester_balance,
+            default = None
+        )
+
+    def pick_harvester(self, from_type: Type[ResourceUnit], close_to: Point2) -> Optional[GatherBehavior]:
+        return min(
+            (
+                b
+                for b in self.unit_manager.units.values()
+                if isinstance(b, GatherBehavior) and isinstance(b.gather_target, from_type)
+            ),
+            key = lambda h : math.inf if not h.unit else h.unit.position.distance_to(close_to),
+            default = None
+        )
 
     def transfer_to_and_from_gas(self, gas_target: float):
 
+
+        gas_harvester_count = self.harvester_count(VespeneGeyser)
+        mineral_harvester_count = self.harvester_count(MineralPatch)
         effective_gas_target = min(self.resource_manager.vespene_geysers.harvester_target, gas_target)
-        effective_gas_balance = self.gas_harvester_count - effective_gas_target
-        mineral_balance = self.mineral_harvester_count - sum(b.mineral_patches.harvester_target for b in self.resource_manager.bases)
+        effective_gas_balance = gas_harvester_count - effective_gas_target
+        mineral_balance = mineral_harvester_count - sum(b.mineral_patches.harvester_target for b in self.resource_manager.bases)
 
-        # if self.gas_harvester_count + 1 <= gas_target and self.vespene_geysers.harvester_balance < 0:
-        if 0 < self.mineral_harvester_count and (effective_gas_balance < 0 or 0 < mineral_balance):
 
-            geyser = min(
-                (g
-                for g in self.resource_manager.vespene_geysers
-                if g.harvester_balance < 0),
-                key = lambda g : g.harvester_balance,
-                default = None)
-            if not geyser:
-                return
-
-            harvester = min(
-                (b
-                for b in self.unit_manager.units.values()
-                if isinstance(b, GatherBehavior) and isinstance(b.gather_target, MineralPatch)),
-                key = lambda h : 100 if not h.unit else h.unit.position.distance_to(geyser.unit.position),
-                default = None)
-            if not harvester:
-                return
-
+        if (
+            0 < mineral_harvester_count
+            and (effective_gas_balance < 0 or 0 < mineral_balance)
+            and (geyser := self.pick_resource(self.resource_manager.vespene_geysers))
+            and (harvester := self.pick_harvester(MineralPatch, geyser.position))
+        ):
             harvester.gather_target = geyser
-
-        elif 0 < self.gas_harvester_count and (1 <= effective_gas_balance and mineral_balance < 0):
-
-            patch = min(
-                (m
-                for m in self.resource_manager.mineral_patches
-                if m.harvester_balance < 0),
-                key = lambda g : g.harvester_balance,
-                default = None)
-            if not patch:
-                return
-
-            harvester = min(
-                (b
-                for b in self.unit_manager.units.values()
-                if isinstance(b, GatherBehavior) and isinstance(b.gather_target, VespeneGeyser)),
-                key = lambda h : 100 if not h.unit else h.unit.position.distance_to(patch.unit.position),
-                default = None)
-            if not harvester:
-                return
-
+        elif (
+            0 < gas_harvester_count
+            and (1 <= effective_gas_balance and mineral_balance < 0)
+            and (patch := self.pick_resource(self.resource_manager.mineral_patches))
+            and (harvester := self.pick_harvester(VespeneGeyser, patch.position))
+        ):
             harvester.gather_target = patch
 
     async def initialize_bases(self):
@@ -648,8 +625,8 @@ class AIBase(ABC, BotAI):
                 (tag
                 for tag, behavior in self.unit_manager.units.items()
                 if isinstance(behavior, MacroBehavior) and behavior.plan==target), None)
-            if unit := self.unit_manager.unit_by_tag.get(unit_tag):
-                positions.append(unit)
+            if behavior := self.unit_manager.units.get(unit_tag):
+                positions.append(behavior.unit)
 
             text = f"{str(i+1)} {target.item.name}"
 
@@ -724,15 +701,6 @@ class AIBase(ABC, BotAI):
                 if not geyser:
                     continue
                 yield geyser
-
-    def order_to_command(self, unit: Unit, order: UnitOrder) -> UnitCommand:
-        ability = order.ability.exact_id
-        target = None
-        if isinstance(order.target, Point2):
-            target = order.target
-        elif isinstance(order.target, int):
-            target = self.unit_manager.unit_by_tag.get(order.target)
-        return UnitCommand(ability, unit, target)
 
     def order_matches_command(self, order: UnitOrder, command: UnitCommand) -> bool:
         if order.ability.exact_id != command.ability:

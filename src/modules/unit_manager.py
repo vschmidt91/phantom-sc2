@@ -8,8 +8,9 @@ import numpy as np
 import traceback
 import random
 import logging
-from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT
+from scipy.spatial.kdtree import KDTree
 
+from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT
 from sc2.data import race_townhalls
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -24,7 +25,7 @@ from src.units.changeling import Changeling
 from src.units.creep_tumor import CreepTumor
 from src.units.extractor import Extractor
 from src.units.overlord import Overlord
-from src.units.unit import AIUnit, CommandableUnit, EnemyUnit, UnitByTag
+from src.units.unit import AIUnit, CommandableUnit, EnemyUnit, IdleBehavior, UnitByTag
 from src.units.queen import Queen
 from src.units.worker import Worker
 from ..units.extractor import Extractor
@@ -46,7 +47,6 @@ from .drop import DropBehavior
 from ..behaviors.inject import InjectBehavior
 from ..behaviors.gather import GatherBehavior
 from ..behaviors.extractor_trick import ExtractorTrickBehavior
-from .scout import DetectBehavior
 from ..utils import *
 from ..constants import *
 from ..behaviors.behavior import Behavior
@@ -79,7 +79,7 @@ class UnitManager(AIModule):
         self.structure_by_position: Dict[Point2, Unit] = dict()
         self.unit_by_tag: Dict[int, Unit] = dict()
 
-    def add_unit(self, unit: Unit) -> AIUnit:
+    def add_unit(self, unit: Unit) -> Optional[AIUnit]:
         if unit.is_mine:
             behavior = self.create_unit(unit.tag, unit.type_id)
             self.units[unit.tag] = behavior
@@ -103,6 +103,8 @@ class UnitManager(AIModule):
 
     def create_unit(self, tag: int, unit_type: UnitTypeId) -> CommandableUnit:
         
+        if unit_type in IGNORED_UNIT_TYPES:
+            return IdleBehavior(self.ai, tag)
         if unit_type in CHANGELINGS:
             return Changeling(self.ai, tag)
         elif unit_type in { UnitTypeId.EXTRACTOR, UnitTypeId.EXTRACTORRICH }:
@@ -166,31 +168,14 @@ class UnitManager(AIModule):
             for structure in self.ai.structures
         }
 
+        self.draft_civilians()
+
         queens = sorted((
             b
             for b in self.ai.unit_manager.units.values()
             if isinstance(b, InjectBehavior)),
             key = lambda q : q.tag
         )
-
-        self.draft_civilians()
-
-        inject_queen_max = min(5, len(queens))
-        inject_queen_count = min(math.ceil((1 - self.ai.combat.threat_level) * inject_queen_max), self.ai.townhalls.amount)
-        inject_queens = queens[0:inject_queen_count]
-
-        bases = {
-            b: structure
-            for b in self.ai.resource_manager.bases
-            if (
-                (structure := self.ai.unit_manager.structure_by_position.get(b.position))
-                and structure.is_ready
-                and structure.type_id in race_townhalls[self.ai.race]
-            )
-        }
-
-        for queen, (base, townhall) in zip(inject_queens, bases.items()):
-            queen.inject_target = townhall
 
         for unit in self.units.values():
             unit.on_step()

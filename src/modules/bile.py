@@ -73,7 +73,7 @@ class BileBehavior(CommandableUnit):
         if self.unit.type_id != UnitTypeId.RAVAGER:
             return None
 
-        if self.ai.state.game_loop < self.last_used + COOLDOWN[AbilityId.EFFECT_CORROSIVEBILE]:
+        if self.ai.state.game_loop < self.last_used + self.ai.techtree.abilities[AbilityId.EFFECT_CORROSIVEBILE].cooldown:
             return None
 
         targets = (

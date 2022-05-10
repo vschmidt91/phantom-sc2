@@ -11,17 +11,18 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.data import Race
 
 from ..unit_counters import UNIT_COUNTER_DICT
-from ..constants import BUILD_ORDER_PRIORITY, ZERG_ARMOR_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES
-from .zerg_strategy import ZergStrategy
+from ..constants import ZERG_ARMOR_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES
+from .strategy import Strategy
 
-from ..ai_base import AIBase
+if TYPE_CHECKING:
+    from ..ai_base import AIBase
 
-class ZergMacro(ZergStrategy):
+class ZergMacro(Strategy):
 
     def __init__(self, ai: AIBase):
         super().__init__(ai)
 
-    def update(self) -> None:
+    async def on_step(self) -> None:
 
         self.ai.destroy_destructables = 5 * 60 < self.ai.time
         self.ai.destroy_destructables = False
@@ -53,7 +54,7 @@ class ZergMacro(ZergStrategy):
         composition = {
             UnitTypeId.DRONE: worker_target,
             UnitTypeId.QUEEN: queen_target,
-            UnitTypeId.ZERGLING: 1.0,
+            UnitTypeId.ZERGLING: 0.0,
             UnitTypeId.ROACH: 0.0,
             UnitTypeId.RAVAGER: 0.0,
             UnitTypeId.HYDRALISK: 0.0,
@@ -72,12 +73,16 @@ class ZergMacro(ZergStrategy):
             if enemy.unit
         )
 
-        for enemy_type, count in enemy_counts.items():
-            if counters := UNIT_COUNTER_DICT.get(enemy_type):
-                for t in counters:
-                    if can_build[t]:
-                        composition[t] += 2 * ratio * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(t)
-                        break
+        if any(enemy_counts):
+            for enemy_type, count in enemy_counts.items():
+                if counters := UNIT_COUNTER_DICT.get(enemy_type):
+                    for t in counters:
+                        if can_build[t]:
+                            composition[t] += 2 * ratio * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(t)
+                            break
+        else:
+            composition[UnitTypeId.ZERGLING] = 1.0
+
 
         composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] // 7
         composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 3
@@ -100,17 +105,11 @@ class ZergMacro(ZergStrategy):
         self.ai.composition = { k: math.ceil(v) for k, v in composition.items() if 0 < v}
 
     def filter_upgrade(self, upgrade) -> bool:
-        # if upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
-        #     return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False)
-        # elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
-        #     return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False)
-        # el
         if upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
             return 0 < self.ai.count(UnitTypeId.GREATERSPIRE, include_planned=False)
         elif upgrade == UpgradeId.OVERLORDSPEED:
             return 8 * 60 < self.ai.time
         elif upgrade in { UpgradeId.BURROW, UpgradeId.TUNNELINGCLAWS }:
-            # return 10 * 60 < self.ai.time
             return False
         else:
             return super().filter_upgrade(upgrade)

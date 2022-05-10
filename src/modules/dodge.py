@@ -66,7 +66,7 @@ class DodgeModule(AIModule):
             for effect in self.ai.state.effects
             if (
                 effect.id in DODGE_DELAYED_EFFECTS
-                and effect.positions[0] not in delayed_positions
+                and next(iter(effect.positions)) not in delayed_positions
             )
         )
         self.elements_delayed = list(chain(delayed_old, delayed_new))

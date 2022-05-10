@@ -10,6 +10,9 @@ from sc2.ids.buff_id import BuffId
 from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
 from abc import ABC, abstractmethod
+from src.resources import base
+from src.resources.base import Base
+from src.units.structure import Structure
 
 from src.units.unit import CommandableUnit
 
@@ -17,42 +20,69 @@ from ..utils import *
 from ..constants import *
 from .behavior import Behavior
 from ..ai_component import AIComponent
+from ..modules.module import AIModule
 if TYPE_CHECKING:
     from ..ai_base import AIBase
+
+class InjectManager(AIModule):
+
+    def __init__(self, ai: AIBase) -> None:
+        super().__init__(ai)
+
+    async def on_step(self) -> None:
+        self.assign_queen()
+
+    def assign_queen(self) -> None:
+
+        queens = [
+            behavior
+            for behavior in self.ai.unit_manager.units.values()
+            if isinstance(behavior, InjectBehavior)
+        ]
+        injected_bases = { q.inject_base for q in queens }
+
+        if unassigned_queen := next(
+            (
+                queen
+                for queen in queens
+                if not queen.inject_base
+            ),
+            None
+        ):
+            unassigned_queen.inject_base = min(
+                (
+                    base
+                    for base in self.ai.resource_manager.bases
+                    if (
+                        base.townhall
+                        and base not in injected_bases
+                        and BuffId.QUEENSPAWNLARVATIMER not in base.townhall.buffs
+                    )
+                ),
+                key = lambda b : b.position.distance_to(unassigned_queen.unit.position),
+                default = None
+            )
 
 class InjectBehavior(CommandableUnit):
     
     def __init__(self, ai: AIBase, tag: int):
         super().__init__(ai, tag)
-        self.did_first_inject: bool = False
-        self.inject_target: Optional[Unit] = None
+        self.inject_base: Optional[Base] = None
 
     def inject(self) -> Optional[UnitCommand]:
 
-        if not self.did_first_inject:
-            townhall = min(
-                (th for th in self.ai.townhalls.ready if BuffId.QUEENSPAWNLARVATIMER not in th.buffs),
-                key = lambda th : th.position.distance_to(self.unit.position),
-                default = None)
-            if townhall:
-                self.did_first_inject = True
-                return self.unit(AbilityId.EFFECT_INJECTLARVA, target=townhall)
-
-        if 1 < self.ai.combat.enemy_vs_ground_map[self.unit.position.rounded]:
+        if not self.inject_base:
             return None
 
-        if not self.inject_target:
+        if not self.inject_base.townhall:
+            self.inject_base = None
             return None
             
-        base = next(b for b in self.ai.resource_manager.bases if b.position == self.inject_target.position)
-        if base:
-            target = base.position.towards(base.mineral_patches.position, -(self.inject_target.radius + self.unit.radius))
-        else:
-            target = self.inject_target.position
+        target = self.inject_base.position.towards(self.inject_base.mineral_patches.position, -(self.inject_base.townhall.radius + self.unit.radius))
 
         if 7 < self.unit.position.distance_to(target):
             return self.unit.attack(target)
         elif ENERGY_COST[AbilityId.EFFECT_INJECTLARVA] <= self.unit.energy:
-            return self.unit(AbilityId.EFFECT_INJECTLARVA, target=self.inject_target)
+            return self.unit(AbilityId.EFFECT_INJECTLARVA, target=self.inject_base.townhall)
             
         return None

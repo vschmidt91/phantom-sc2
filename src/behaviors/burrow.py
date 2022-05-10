@@ -9,6 +9,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.data import race_worker
+from sc2.ids.ability_id import AbilityId
 from abc import ABC, abstractmethod
 
 from ..utils import *

@@ -17,25 +17,9 @@ from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 
 from .utils import get_requirements
 
-PHI = .5 * (1 + math.sqrt(5))
-
-BUILD_ORDER_PRIORITY = math.inf
-
 WITH_TECH_EQUIVALENTS = {
     unit: { unit } | EQUIVALENTS_FOR_TECH_PROGRESS.get(unit, set())
     for unit in UnitTypeId
-}
-
-SUPPLY = {
-    Race.Protoss: UnitTypeId.PYLON,
-    Race.Terran: UnitTypeId.SUPPLYDEPOT,
-    Race.Zerg: UnitTypeId.OVERLORD,
-}
-
-TOWNHALL_ABILITY_BY_RACE: Dict[Race, AbilityId] = {
-    Race.Protoss: AbilityId.PROTOSSBUILD_NEXUS,
-    Race.Terran: AbilityId.TERRANBUILD_COMMANDCENTER,
-    Race.Zerg: AbilityId.ZERGBUILD_HATCHERY,
 }
 
 RANGE_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, int]] = {
@@ -47,21 +31,15 @@ RANGE_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, int]] = {
     UnitTypeId.AUTOTURRET: { UpgradeId.HISECAUTOTRACKING: 1 },
 }
 
+MACRO_INFO = {
+    unit_type: { **TRAIN_INFO.get(unit_type, {}), **RESEARCH_INFO.get(unit_type, {}) }
+    for unit_type in set(chain(TRAIN_INFO, RESEARCH_INFO))
+}
+
 SPEED_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, float]] = {
     unit_type: { upgrade: SPEED_INCREASE_DICT[unit_type] }
     for unit_type, upgrade in SPEED_UPGRADE_DICT.items()
     
-}
-
-CREEP_ABILITIES = {
-    UnitTypeId.QUEEN: AbilityId.BUILD_CREEPTUMOR_QUEEN,
-    UnitTypeId.CREEPTUMORBURROWED: AbilityId.BUILD_CREEPTUMOR_TUMOR,
-}
-
-CREEP_TUMORS = {
-    UnitTypeId.CREEPTUMOR,
-    UnitTypeId.CREEPTUMORQUEEN,
-    UnitTypeId.CREEPTUMORBURROWED
 }
 
 COOLDOWN = {
@@ -74,18 +52,6 @@ ENERGY_COST = {
     AbilityId.EFFECT_INJECTLARVA: 25.0,
     AbilityId.BUILD_CREEPTUMOR_QUEEN: 25.0,
     AbilityId.TRANSFUSION_TRANSFUSION: 50.0,
-}
-
-TOWNHALL = {
-    Race.Protoss: UnitTypeId.NEXUS,
-    Race.Terran: UnitTypeId.COMMANDCENTER,
-    Race.Zerg: UnitTypeId.HATCHERY,
-}
-
-STATIC_DEFENSE = {
-    Race.Protoss: { UnitTypeId.PHOTONCANNON },
-    Race.Terran: { UnitTypeId.MISSILETURRET },
-    Race.Zerg: { UnitTypeId.SPINECRAWLER, UnitTypeId.SPORECRAWLER },
 }
 
 WORKERS = {
@@ -155,7 +121,6 @@ CHANGELINGS = {
     UnitTypeId.CHANGELINGZEALOT,
 }
 
-CIVILIANS = set()
 CIVILIANS = {
     UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.PROBE,
     UnitTypeId.LARVA, UnitTypeId.EGG,
@@ -166,15 +131,6 @@ CIVILIANS = {
     *WITH_TECH_EQUIVALENTS[UnitTypeId.BROODLING],
     *WITH_TECH_EQUIVALENTS[UnitTypeId.OBSERVER],
     *CHANGELINGS
-}
-
-TRAIN_ABILITIES = {
-    u: {
-        e[u]["ability"]
-        for e in TRAIN_INFO.values()
-        if u in e
-    }
-    for u in UnitTypeId
 }
 
 UNIT_BY_TRAIN_ABILITY: Dict[AbilityId, UnitTypeId] = {

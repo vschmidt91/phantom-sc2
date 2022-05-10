@@ -11,6 +11,9 @@ from sc2.data import Race, Attribute
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
+from src.constants import LARVA_COST
+
+from .cost import Cost
 
 class TechTreeAbilityTarget(Flag):
     Point = auto()
@@ -117,6 +120,10 @@ class TechTreeUnit:
             return True
         return any(weapon.target_type & TechTreeWeaponType.Air for weapon in self.weapons)
 
+    @cached_property
+    def cost(self) -> Cost:
+        return Cost(self.minerals, self.gas, self.supply, LARVA_COST.get(self.id, 0))
+
 @dataclass
 class TechTreeCost:
     minerals: int
@@ -128,6 +135,10 @@ class TechTreeUpgrade:
     id: UpgradeId
     name: str
     cost: TechTreeCost
+
+    @cached_property
+    def cost2(self) -> Cost:
+        return Cost(self.cost.minerals, self.cost.gas, 0, 0)
 
 class TechTree:
 

@@ -28,4 +28,4 @@ class ResourceUnit(ResourceBase):
 
     @property
     def unit(self) -> Optional[Unit]:
-        return self.ai.resource_by_position.get(self.position)
+        return self.ai.unit_manager.resource_by_position.get(self.position)

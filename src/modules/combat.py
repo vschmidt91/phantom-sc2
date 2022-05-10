@@ -253,17 +253,19 @@ class CombatBehavior(CommandableUnit):
         if priority <= 0.0:
             return None
 
-        attack_path = self.get_path_towards(target.unit.position)
-        retreat_path = self.get_path_towards(self.unit.position.towards(target.unit.position, -12))
+        # attack_path = self.get_path_towards(target.unit.position)
+        # attack_point = attack_path[min(len(attack_path) - 1, 3)]
 
-        attack_point = attack_path[min(len(attack_path) - 1, 3)]
-        retreat_point = retreat_path[min(len(retreat_path) - 1, 3)]
+        # retreat_path = self.get_path_towards(self.unit.position.towards(target.unit.position, -12))
+        # retreat_point = retreat_path[min(len(retreat_path) - 1, 3)]
 
         # advantage = self.get_advantage(unit, target)
         self.fight_stance = self.get_stance(target.unit)
 
         if self.fight_stance == CombatStance.FLEE:
 
+            retreat_path = self.get_path_towards(self.unit.position.towards(target.unit.position, -12))
+            retreat_point = retreat_path[min(len(retreat_path) - 1, 3)]
             return self.unit.move(retreat_point)
 
         elif self.fight_stance == CombatStance.RETREAT:
@@ -272,6 +274,8 @@ class CombatBehavior(CommandableUnit):
                 (self.unit.weapon_cooldown or self.unit.is_burrowed)
                 and self.unit.position.distance_to(target.unit.position) <= self.unit.radius + self.ai.get_unit_range(self.unit) + target.unit.radius + self.unit.distance_to_weapon_ready
             ):
+                retreat_path = self.get_path_towards(self.unit.position.towards(target.unit.position, -12))
+                retreat_point = retreat_path[min(len(retreat_path) - 1, 3)]
                 return self.unit.move(retreat_point)
             elif self.unit.position.distance_to(target.unit.position) <= self.unit.radius + self.ai.get_unit_range(self.unit) + target.unit.radius:
                 return self.unit.attack(target.unit)
@@ -283,10 +287,14 @@ class CombatBehavior(CommandableUnit):
             if self.unit.position.distance_to(target.unit.position) <= self.unit.radius + self.ai.get_unit_range(self.unit) + target.unit.radius:
                 return self.unit.attack(target.unit)
             else:
+                attack_path = self.get_path_towards(target.unit.position)
+                attack_point = attack_path[min(len(attack_path) - 1, 3)]
                 return self.unit.attack(attack_point)
 
         elif self.fight_stance == CombatStance.ADVANCE:
 
+            attack_path = self.get_path_towards(target.unit.position)
+            attack_point = attack_path[min(len(attack_path) - 1, 3)]
             distance = self.unit.position.distance_to(target.unit.position) - self.unit.radius - target.unit.radius
             if self.unit.weapon_cooldown and 1 < distance:
                 return self.unit.move(attack_point)

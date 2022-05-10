@@ -1,5 +1,4 @@
 from __future__ import annotations
-from optparse import Option
 
 from typing import Dict, TYPE_CHECKING, Optional
 

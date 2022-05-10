@@ -11,8 +11,8 @@ from sc2.ids.ability_id import AbilityId
 from sc2.unit import Unit, UnitCommand
 from sc2.position import Point2
 from src.behaviors.behavior import Behavior
-from src.constants import COOLDOWN, ENERGY_COST
 from src.units.unit import CommandableUnit
+from ..constants import ENERGY_COST
 
 from .module import AIModule
 if TYPE_CHECKING:
@@ -32,7 +32,6 @@ class CreepModule(AIModule):
             self.area_max = np.maximum(self.area_max, base)
         self.tile_count: int = np.sum(self.ai.game_info.pathing_grid.data_numpy)
         self.coverage: float = 0.0
-        self.tumor_front: Dict[int] = dict()
 
     async def on_step(self) -> None:
 
@@ -56,9 +55,7 @@ class CreepBehavior(CommandableUnit):
             if age < 240:
                 return None
         elif self.unit.type_id == UnitTypeId.QUEEN:
-            if 10 <= len(self.ai.creep.tumor_front):
-                return None
-            elif 1 < self.ai.combat.enemy_vs_ground_map[self.unit.position.rounded]:
+            if 1 < self.ai.combat.enemy_vs_ground_map[self.unit.position.rounded]:
                 return None
             elif self.unit.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
                 return None

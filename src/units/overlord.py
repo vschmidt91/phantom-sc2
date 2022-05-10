@@ -7,7 +7,7 @@ from sc2.unit import Unit, UnitCommand
 
 from .unit import CommandableUnit
 from ..modules.dodge import DodgeBehavior
-from ..modules.scout import ScoutBehavior, DetectBehavior
+from ..modules.scout import ScoutBehavior
 from ..modules.macro import MacroBehavior
 from ..modules.drop import DropBehavior
 from ..behaviors.survive import SurviveBehavior
@@ -17,7 +17,7 @@ from ..modules.combat import CombatBehavior
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class Overlord(DodgeBehavior, MacroBehavior, SpawnChangelingBehavior, DetectBehavior, DropBehavior, SurviveBehavior, ScoutBehavior, CombatBehavior):
+class Overlord(DodgeBehavior, MacroBehavior, SpawnChangelingBehavior, ScoutBehavior, DropBehavior, SurviveBehavior, CombatBehavior):
 
     def __init__(self, ai: AIBase, tag: int):
         super().__init__(ai, tag)

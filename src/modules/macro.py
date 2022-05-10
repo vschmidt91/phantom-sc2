@@ -29,17 +29,15 @@ MacroId = Union[UnitTypeId, UpgradeId]
 
 class MacroPlan:
 
-    def __init__(self, item: MacroId, **kwargs):
+    def __init__(self, item: MacroId):
         self.item: MacroId = item
-        self.ability: Optional[AbilityId] = None
         self.target: Union[Unit, Point2] = None
         self.priority: float = 0.0
         self.max_distance: Optional[int] = 4
         self.eta: Optional[float] = None
-        self.__dict__.update(**kwargs)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.item}, {self.ability}, {self.target}, {self.priority}, {self.eta})"
+        return f"{self.__class__.__name__}({self.item}, {self.target}, {self.priority}, {self.eta})"
 
     def __hash__(self) -> int:
         return id(self)
@@ -94,87 +92,82 @@ class MacroModule(AIModule):
                 continue
             priority = -self.ai.count(unit, include_planned=False) /  count
             for plan in self.planned_by_type(unit):
-                if BUILD_ORDER_PRIORITY <= plan.priority:
+                if plan.priority == math.inf:
                     continue
                 plan.priority = priority
                 break
             else:
-                self.add_plan(MacroPlan(unit, priority=priority))
+                plan = MacroPlan(unit)
+                plan.priority = priority
+                self.add_plan(plan)
 
     async def on_step(self) -> None:
 
         self.make_composition()
 
         reserve = Cost(0, 0, 0, 0)
-        exclude = {
-            tag
-            for tag, behavior in self.ai.unit_manager.units.items()
-            if isinstance(behavior, MacroBehavior) and behavior.plan
-        }
-        exclude.update(unit.tag for units in self.ai.pending_by_type.values() for unit in units)
 
         trainers = {
-            tag
-            for tag, behavior in self.ai.unit_manager.units.items()
-            if isinstance(behavior, MacroBehavior) and not behavior.plan
+            behavior
+            for behavior in self.ai.unit_manager.units.values()
+            if (
+                isinstance(behavior, MacroBehavior)
+                and not behavior.plan
+                and behavior.unit
+            )
         }
 
-        plans = sorted(self.enumerate_plans(), key = lambda t : t.priority, reverse=True)
+        plans = sorted(
+            self.enumerate_plans(),
+            key = lambda t : t.priority,
+            reverse=True
+        )
 
-        unit_by_plan = {
-            behavior.plan: tag
-            for tag, behavior in self.ai.unit_manager.units.items()
-            if isinstance(behavior, MacroBehavior)
+        trainer_by_plan = {
+            behavior.plan: behavior
+            for behavior in self.ai.unit_manager.units.values()
+            if isinstance(behavior, MacroBehavior) and behavior.plan
         }
 
         for i, plan in enumerate(plans):
 
             if (
                 any(self.ai.get_missing_requirements(plan.item, include_pending=False, include_planned=False))
-                and plan.priority == BUILD_ORDER_PRIORITY
+                and plan.priority == math.inf
             ):
                 break
 
-            if (2 if self.ai.extractor_trick_enabled else 1) <= i and plan.priority == BUILD_ORDER_PRIORITY:
+            if (2 if self.ai.extractor_trick_enabled else 1) <= i and plan.priority == math.inf:
                 break
 
-            if unit_tag := unit_by_plan.get(plan):
-                unit = self.ai.unit_manager.unit_by_tag.get(unit_tag)
-            else:
-                unit = None
-
-            if unit == None:
-                unit, plan.ability = self.search_trainer(plan.item, include=trainers)
-            if unit and plan.ability and unit.is_using_ability(plan.ability):
-                continue
-            if unit == None:
-                continue
+            if not (trainer := trainer_by_plan.get(plan)):
+                if trainer := self.search_trainer(trainers, plan):
+                    self.unassigned_plans.remove(plan)
+                    trainer.plan = plan
+                    trainers.remove(trainer)
+                else:
+                    continue
+                
             if any(self.ai.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
                 continue
 
+            # if type(plan.item) == UnitTypeId:
+            #     cost = self.ai.techtree.units[plan.item].cost
+            # elif type(plan.item) == UpgradeId:
+            #     cost = self.ai.techtree.upgrades[plan.item].cost2
+            # else:
+            #     raise TypeError()
             cost = self.ai.cost[plan.item]
             reserve += cost
 
-            behavior = self.ai.unit_manager.units.get(unit.tag)
-            if not behavior.plan:
-                if plan in self.unassigned_plans:
-                    self.unassigned_plans.remove(plan)
-                behavior.plan = plan
-                exclude.add(unit.tag)
-
-            if unit.type_id == UnitTypeId.EGG:
-                behavior.plan = None
-                self.unassigned_plans.append(plan)
-                continue
-
             if plan.target == None:
                 try:
-                    plan.target = await self.get_target(unit, plan)
+                    plan.target = await self.get_target(trainer, plan)
                 except PlacementNotFoundException as p: 
                     continue
 
             # if (
-            #     plan.priority < BUILD_ORDER_PRIORITY
+            #     plan.priority < math.inf
             #     and self.ai.is_structure(plan.item)
             #     and isinstance(plan.target, Point2)
             #     and not await self.ai.can_place_single(plan.item, plan.target)
@@ -196,7 +189,7 @@ class MacroModule(AIModule):
                         eta = None
             plan.eta = eta
 
-    async def get_target(self, unit: Unit, objective: MacroPlan) -> Coroutine[any, any, Union[Unit, Point2]]:
+    async def get_target(self, trainer: MacroBehavior, objective: MacroPlan) -> Coroutine[any, any, Union[Unit, Point2]]:
         gas_type = GAS_BY_RACE[self.ai.race]
         if objective.item == gas_type:
             exclude_positions = {
@@ -205,8 +198,8 @@ class MacroModule(AIModule):
             }
             exclude_tags = {
                 order.target
-                for trainer in self.ai.pending_by_type[gas_type]
-                for order in trainer.orders
+                for unit in self.ai.pending_by_type[gas_type]
+                for order in unit.orders
                 if isinstance(order.target, int)
             }
             exclude_tags.update({
@@ -227,22 +220,20 @@ class MacroModule(AIModule):
             else:
                 return random.choice(geysers)
 
-        if type(objective.item) is UnitTypeId:
-            table = TRAIN_INFO
-        elif type(objective.item) is UpgradeId:
-            table = RESEARCH_INFO
-        else:
-            table = {}
-        data = table[unit.type_id][objective.item]
+        if not (entry := MACRO_INFO.get(trainer.unit.type_id)):
+            return None
+        if not (data := entry.get(objective.item)):
+            return None
+        # data = MACRO_INFO[trainer.unit.type_id][objective.item]
                 
         # if isinstance(data.target, TechTreeAbilityTargetUnit) and data.target.type == TechTreeAbilityTargetUnitType.Build:
         if "requires_placement_position" in data:
-            position = await self.get_target_position(objective.item, unit)
+            position = await self.get_target_position(objective.item)
             withAddon = objective in { UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT }
             
             if objective.max_distance != None:
                 max_distance = objective.max_distance
-                position = await self.ai.find_placement(objective.ability, position, max_distance=max_distance, placement_step=1, addon_place=withAddon)
+                position = await self.ai.find_placement(trainer.macro_ability, position, max_distance=max_distance, placement_step=1, addon_place=withAddon)
             if position is None:
                 raise PlacementNotFoundException()
             else:
@@ -250,79 +241,37 @@ class MacroModule(AIModule):
         else:
             return None
 
-    def search_trainer(self, item: Union[UnitTypeId, UpgradeId], include: Set[int]) -> Tuple[Unit, AbilityId]:
+    def search_trainer(self, trainers: Iterable[MacroBehavior], plan: MacroPlan) -> Optional[MacroBehavior]:
 
-        if type(item) == UnitTypeId:
+        if type(plan.item) == UnitTypeId:
             trainer_types = {
                 equivalent
-                for trainer in UNIT_TRAINED_FROM[item]
+                for trainer in UNIT_TRAINED_FROM[plan.item]
                 for equivalent in WITH_TECH_EQUIVALENTS[trainer]
             }
-        elif type(item) == UpgradeId:
-            trainer_types = WITH_TECH_EQUIVALENTS[UPGRADE_RESEARCHED_FROM[item]]
+        elif type(plan.item) == UpgradeId:
+            trainer_types = WITH_TECH_EQUIVALENTS[UPGRADE_RESEARCHED_FROM[plan.item]]
 
-        trainers = sorted((
+        trainers_filtered = (
             trainer
-            for trainer_type in trainer_types
-            for trainer in self.ai.actual_by_type[trainer_type]
-            if trainer.type_id != UnitTypeId.EGG
-        ), key=lambda t:t.tag)
-            
-        for trainer in trainers:
+            for trainer in trainers
+            if (
+                trainer.unit.type_id in trainer_types
+                and trainer.unit.is_ready
+                and (trainer.unit.is_idle or not trainer.unit.is_structure)
+            )
+        )
+        
+        return next(trainers_filtered, None)
 
-            if not trainer:
-                continue
-
-            if not trainer.is_ready:
-                continue
-
-            if trainer.tag not in include:
-                continue
-
-            # if trainer.tag in exclude:
-            #     continue
-
-            if not has_capacity(trainer):
-                continue
-
-            already_training = False
-            for order in trainer.orders:
-                order_unit = UNIT_BY_TRAIN_ABILITY.get(order.ability.id)
-                if order_unit:
-                    already_training = True
-                    break
-            if already_training:
-                continue
-
-            if type(item) is UnitTypeId:
-                table = TRAIN_INFO
-            elif type(item) is UpgradeId:
-                table = RESEARCH_INFO
-
-            element = table.get(trainer.type_id)
-            if not element:
-                continue
-
-            ability = element.get(item)
-
-            if not ability:
-                continue
-
-            if "requires_techlab" in ability and not trainer.has_techlab:
-                continue
-                
-            return trainer, ability['ability']
-
-        return None, None
-
-    async def get_target_position(self, target: UnitTypeId, trainer: Unit) -> Point2:
+    async def get_target_position(self, target: UnitTypeId) -> Point2:
         data = self.ai.game_data.units[target.value]
         if target in race_townhalls[self.ai.race]:
             for b in self.ai.resource_manager.bases:
                 if b.townhall:
                     continue
-                # if b.position in self.ai.scout_manager.blocked_positions:
-                #     continue
+                if b.position in self.ai.scout.blocked_positions:
+                    continue
                 if not b.remaining:
                     continue
                 return b.position
@@ -347,11 +296,25 @@ class MacroBehavior(CommandableUnit):
         super().__init__(ai, tag)
         self.plan: Optional[MacroPlan] = None
 
+    @property
+    def macro_ability(self) -> Optional[AbilityId]:
+        if (
+            self.unit
+            and self.plan
+            and (element := MACRO_INFO.get(self.unit.type_id))
+            and (ability := element.get(self.plan.item))
+        ):
+            return ability.get('ability')
+        else:
+            return None
+
     def macro(self) -> Optional[UnitCommand]:
 
         if self.plan == None:
             return None
-        elif self.plan.ability == None:
+        elif not self.macro_ability:
+            self.ai.macro.add_plan(self.plan)
+            self.plan = None
             return None
         elif self.plan.eta == None:
             return None
@@ -361,9 +324,7 @@ class MacroBehavior(CommandableUnit):
             else:
                 if isinstance(self, GatherBehavior):
                     self.gather_target = None
-                command = self.unit(self.plan.ability, target=self.plan.target)
-                # self.plan = None
-                return command
+                return self.unit(self.macro_ability, target=self.plan.target)
         elif not self.plan.target:
             return None
 
