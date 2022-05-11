@@ -110,7 +110,11 @@ class ZergMacro(Strategy):
         # self.ai.composition = { UnitTypeId.LAIR: 1 }
 
     def filter_upgrade(self, upgrade) -> bool:
-        if upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
+        if upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
+            return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False)
+        elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
+            return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False)
+        elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
             return 0 < self.ai.count(UnitTypeId.GREATERSPIRE, include_planned=False)
         elif upgrade == UpgradeId.OVERLORDSPEED:
             return 8 * 60 < self.ai.time
