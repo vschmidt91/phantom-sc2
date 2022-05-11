@@ -86,12 +86,8 @@ class CombatModule(AIModule):
         t = 3.0
         sigma = movement_speed * t
 
-        army = transport(army0, sigma)
-        enemy = transport(enemy0, sigma)   
-
-        self.army_projection = army
-        self.enemy_projection = enemy
-
+        self.army_projection = transport(army0, sigma)
+        self.enemy_projection = transport(enemy0, sigma)
         self.threat_level = value_enemy_threats / max(1, value_army + value_enemy_threats)
 
 class CombatStance(Enum):
