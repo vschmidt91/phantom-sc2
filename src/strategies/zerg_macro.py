@@ -28,7 +28,7 @@ class ZergMacro(Strategy):
         self.ai.destroy_destructables = False
 
         worker_count = self.ai.state.score.food_used_economy
-        worker_target = max(1, min(100, self.ai.get_max_harvester()))
+        worker_target = np.clip(self.ai.get_max_harvester(), 1, 200)
         
         ratio = max(
             self.ai.combat.threat_level,
@@ -78,13 +78,13 @@ class ZergMacro(Strategy):
                 if counters := UNIT_COUNTER_DICT.get(enemy_type):
                     for t in counters:
                         if can_build[t]:
-                            composition[t] += max(1, 2 * ratio) * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(t)
+                            composition[t] += max(1, 3 * ratio) * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(t)
                             break
         else:
             composition[UnitTypeId.ZERGLING] = 1.0
 
 
-        composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] // 7
+        composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 7
         composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 3
 
         tech_up = 32 <= worker_count and 3 <= self.ai.townhalls.amount
