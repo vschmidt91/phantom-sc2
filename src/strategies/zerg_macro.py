@@ -45,8 +45,8 @@ class ZergMacro(Strategy):
         larva_rate = self.ai.future_spending.larva / (60 * future_timeframe)
         larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
         queen_target = math.ceil(larva_rate / (3/29))
-        queen_target = min(1 + queen_target, self.ai.townhalls.amount)
-        queen_target = np.clip(queen_target, 2, 8)
+        queen_target = min(queen_target, self.ai.townhalls.amount)
+        queen_target = np.clip(1 + queen_target, 2, 8)
         # print(queen_target)
 
         # queen_target = min(8, 1 + self.ai.townhalls.amount)
@@ -78,7 +78,7 @@ class ZergMacro(Strategy):
                 if counters := UNIT_COUNTER_DICT.get(enemy_type):
                     for t in counters:
                         if can_build[t]:
-                            composition[t] += 3 * ratio * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(t)
+                            composition[t] += max(1, 2 * ratio) * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(t)
                             break
         else:
             composition[UnitTypeId.ZERGLING] = 1.0
@@ -96,7 +96,7 @@ class ZergMacro(Strategy):
         if tech_up and self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False) + self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
             composition[UnitTypeId.HYDRALISKDEN] = 1
             composition[UnitTypeId.OVERSEER] = 2
-            # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
+            composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
 
         if tech_up and self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
             composition[UnitTypeId.GREATERSPIRE] = 1

@@ -28,7 +28,7 @@ class AIUnit(ABC, AIComponent):
     def value(self) -> float:
         health = self.unit.health + self.unit.shield
         dps =  max(self.unit.ground_dps, self.unit.air_dps)
-        return math.sqrt(health * dps)
+        return health * dps
 
 class UnitByTag(AIUnit):
     
