@@ -47,6 +47,9 @@ class GatherBehavior(CommandableUnit):
         else:
             raise TypeError()
 
+        if not target:
+            self.gather_target = None
+            return None
         if self.unit.is_idle:
             return self.unit.smart(target)
         elif self.unit.is_gathering and self.unit.order_target != target.tag:
