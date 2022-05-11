@@ -4,6 +4,7 @@ from typing import Dict, Iterable, List, Optional, Set
 from itertools import chain
 
 import numpy as np
+import logging
 import math
 import random
 
@@ -43,7 +44,25 @@ class Pool12AllIn(BotAI):
         self.gas_harvester_target: int = 2
         self.game_step: int = 2
         self.speedmining_enabled: bool = True
+        self.enemy_tags: Set[int] = set()
+        logging.basicConfig(level=logging.INFO)
         super().__init__()
+
+    async def on_enemy_unit_entered_vision(self, unit: Unit):
+        logging.info(f'enemy_unit_entered_vision: {unit.tag}')
+        if unit.is_enemy:
+            self.enemy_tags.add(unit.tag)
+
+    async def on_enemy_unit_left_vision(self, unit_tag: int):
+        logging.info(f'enemy_unit_left_vision: {unit_tag}')
+        self.enemy_tags.discard(unit_tag)
+
+    async def on_unit_destroyed(self, unit_tag: int):
+        logging.info(f'unit_destroyed: {unit_tag}')
+        if unit_tag in self._enemy_units_previous_map or unit_tag in self._enemy_units_previous_map:
+            if unit_tag not in self.enemy_tags:
+                raise Exception('huh?')
+            self.enemy_tags.discard(unit_tag)
 
     async def on_before_start(self) -> None:
         self.client.game_step = self.game_step

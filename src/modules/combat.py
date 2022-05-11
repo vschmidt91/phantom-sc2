@@ -22,6 +22,7 @@ from ..behaviors.behavior import Behavior
 from ..ai_component import AIComponent
 from .module import AIModule
 if TYPE_CHECKING:
+    from ..units.worker import Worker
     from ..ai_base import AIBase
 
 class CombatModule(AIModule):
@@ -86,59 +87,7 @@ class CombatModule(AIModule):
         sigma = movement_speed * t
 
         army = transport(army0, sigma)
-        enemy = transport(enemy0, sigma)
-
-        army_health = np.maximum(0, army - t * enemy)
-        enemy_health = np.maximum(0, enemy - t * army)
-
-
-        # movement_speed = 3.5
-        # dt = 0.3
-        # for i, t in enumerate(np.arange(0, 3, dt)):
-
-        #     sigma2 = movement_speed * dt
-        #     sigma = math.sqrt(sigma2)
-
-        #     army_health = transport(army_health, sigma)
-        #     army_dps = transport(army_dps, sigma)
-        #     enemy_health = transport(enemy_health, sigma)
-        #     enemy_dps = transport(enemy_dps, sigma)
-
-            # army_damage = np.minimum(army_health, enemy_dps * dt)
-            # enemy_damage = np.minimum(enemy_health, army_dps * dt)
-
-            # army_health2 = army_health - army_damage
-            # enemy_health2 = enemy_health - enemy_damage
-
-            # army_dps *= army_health2 / np.maximum(1, army_health)
-            # enemy_dps *= enemy_health2 / np.maximum(1, enemy_health)
-
-            # army_health = army_health2
-            # enemy_health = enemy_health2
-
-            # army_losses += army_damage
-            # enemy_losses += enemy_damage        
-
-        def orient_image(img: np.ndarray) -> np.ndarray:
-            return np.transpose(np.fliplr(img), (1, 0, 2))
-
-        # if self.debug:
-
-        #     health_map = np.stack((enemy_health, army_health, np.zeros_like(army_health)), axis=-1)
-        #     dps_map = np.stack((enemy_dps, army_dps, np.zeros_like(army_dps)), axis=-1)
-        #     maps = [health_map, dps_map]
-
-        #     if not self.plot_images:
-        #         self.plot_images = [self.plot_axes[i].imshow(maps[i]) for i in range(len(maps))]
-        #         self.plot_axes[0].set_title("Health")
-        #         self.plot_axes[1].set_title("DPS")
-        #         plt.show()
-
-        #     for i, data in enumerate(maps):
-        #         plot = self.plot_images[i]
-        #         plot.set_data(orient_image(data / np.max(data)))
-                
-        #     self.plot.canvas.flush_events()
+        enemy = transport(enemy0, sigma)   
 
         self.army_projection = army
         self.enemy_projection = enemy
@@ -157,6 +106,7 @@ class CombatBehavior(CommandableUnit):
         super().__init__(ai, tag)
         self.fight_enabled: bool = True
         self.fight_stance: CombatStance = CombatStance.FIGHT
+        self.fight_target: Optional[EnemyUnit] = None
 
     def target_priority(self, target: EnemyUnit) -> float:
         if not target.unit:
@@ -242,24 +192,24 @@ class CombatBehavior(CommandableUnit):
         if not self.fight_enabled:
             return None
 
-        target, priority = max((
-                (enemy, self.target_priority(enemy))
-                for enemy in self.ai.unit_manager.enemies.values()
-            ),
-            key = lambda p : p[1],
-            default = (None, 0)
-        )
+        m = 16
+        if not self.fight_target or (self.tag % m) == (self.ai.iteration % m):
+            self.fight_target, _ = max((
+                    (enemy, priority)
+                    for enemy in self.ai.unit_manager.enemies.values()
+                    if 0 < (priority := self.target_priority(enemy))
+                ),
+                key = lambda p : p[1],
+                default = (None, 0)
+            )
 
-        if priority <= 0.0:
+        target = self.fight_target
+        if not target:
+            return None
+        if not target.unit:
+            self.fight_target = None
             return None
 
-        # attack_path = self.get_path_towards(target.unit.position)
-        # attack_point = attack_path[min(len(attack_path) - 1, 3)]
-
-        # retreat_path = self.get_path_towards(self.unit.position.towards(target.unit.position, -12))
-        # retreat_point = retreat_path[min(len(retreat_path) - 1, 3)]
-
-        # advantage = self.get_advantage(unit, target)
         self.fight_stance = self.get_stance(target.unit)
 
         if self.fight_stance == CombatStance.FLEE:

@@ -335,6 +335,6 @@ class MacroBehavior(CommandableUnit):
             if self.unit.is_carrying_resource:
                 return self.unit.return_resource()
             elif 1e-3 < self.unit.distance_to(self.plan.target.position):
-                return self.unit.move(self.plan.target.position)
+                return self.unit.move(self.plan.target)
             else:
                 return self.unit.hold_position()

@@ -47,8 +47,8 @@ class ResourceManager(AIModule):
         super().__init__(ai)
         self.do_split = True
         self.bases = ResourceGroup(ai, list(bases))
-        self.vespene_geysers: ResourceGroup[VespeneGeyser] = ResourceGroup(self, [g for b in self.bases for g in b.vespene_geysers])
-        self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(self, [m for b in self.bases for m in b.mineral_patches])
+        self.vespene_geysers: ResourceGroup[VespeneGeyser] = ResourceGroup(ai, [g for b in self.bases for g in b.vespene_geysers])
+        self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(ai, [m for b in self.bases for m in b.mineral_patches])
         self.speedmining_positions = self.get_speedmining_positions()
         self.harvesters_by_resource: Counter[ResourceUnit] = Counter()
 

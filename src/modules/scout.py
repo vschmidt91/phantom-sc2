@@ -87,6 +87,11 @@ class ScoutModule(AIModule):
             for behavior in scouts
             if behavior.unit.is_detector
         ]
+        nondetectors = [
+            behavior
+            for behavior in scouts
+            if not behavior.unit.is_detector
+        ]
         scout_targets = []
         if self.scout_enemy_natural and len(self.enemy_bases) < 2:
             target = self.ai.resource_manager.bases[-2].position.towards(self.ai.game_info.map_center, 11)
@@ -96,7 +101,7 @@ class ScoutModule(AIModule):
         self.reset_blocked_bases()
         self.find_taken_bases()
         self.send_units(detectors, self.blocked_positions.keys())
-        self.send_units(scouts, scout_targets)
+        self.send_units(nondetectors, scout_targets)
 
 class ScoutBehavior(CommandableUnit):
     

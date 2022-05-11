@@ -28,4 +28,4 @@ class Overlord(DodgeBehavior, MacroBehavior, SpawnChangelingBehavior, ScoutBehav
         elif self.unit.type_id == UnitTypeId.OVERLORDTRANSPORT:
             return self.dodge() or self.survive() or self.drop()
         elif self.unit.type_id in { UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE }:
-            return self.dodge() or self.spawn_changeling() or self.detect() or self.fight()
+            return self.dodge() or self.spawn_changeling() or self.scout() or self.fight()

@@ -55,14 +55,16 @@ class EnemyUnit(UnitByTag):
     def unit(self) -> Unit:
         unit = super().unit
         if unit and not unit.is_snapshot:
-            self.snapshot = unit
-        elif (
-            self.snapshot
-            and all(self.ai.is_visible(self.snapshot.position.offset(o)) for o in self.SAMPLE_OFFSETS)
-        ):
-            self.snapshot = None
+            return unit
+        else:
+            return self.snapshot
+        # elif (
+        #     self.snapshot
+        #     and all(self.ai.is_visible(self.snapshot.position.offset(o)) for o in self.SAMPLE_OFFSETS)
+        # ):
+        #     self.snapshot = None
 
-        return self.snapshot
+        # return self.snapshot
 
 class CommandableUnit(UnitByTag):
     

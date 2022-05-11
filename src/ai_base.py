@@ -48,6 +48,7 @@ from src.resources.resource_unit import ResourceUnit
 from src.strategies.hatch_first import HatchFirst
 from src.techtree import TechTree, TechTreeWeaponType
 from src.units.structure import Structure
+from src.units.unit import EnemyUnit
 
 from .modules.chat import Chat
 from .behaviors.inject import InjectManager
@@ -70,7 +71,7 @@ from .resources.base import Base
 from .resources.resource_group import ResourceGroup
 from .modules.dodge import *
 from .constants import *
-from .units.worker import Worker
+from .units.worker import Worker, WorkerManager
 from .cost import Cost
 from .utils import *
 from .modules.dodge import *
@@ -131,6 +132,8 @@ class AIBase(ABC, BotAI):
         else:
             logging.basicConfig(level=logging.ERROR)
 
+        logging.debug(f'before_start')
+
         with open(VERSION_PATH, 'r') as file:
             self.version = file.readline().replace('\n', '')
 
@@ -166,6 +169,8 @@ class AIBase(ABC, BotAI):
 
     async def on_start(self):
 
+        logging.debug(f'start')
+
         for th in self.townhalls:
             self.do(th(AbilityId.RALLY_WORKERS, target=th))
 
@@ -184,6 +189,7 @@ class AIBase(ABC, BotAI):
         self.dodge = DodgeModule(self)
         self.inject = InjectManager(self)
         self.strategy: Strategy = self.strategy_cls(self)
+        self.worker_manager: WorkerManager = WorkerManager(self)
 
         self.modules: List[AIModule] = [
             self.unit_manager,
@@ -197,7 +203,8 @@ class AIBase(ABC, BotAI):
             self.creep,
             self.biles,
             self.inject,
-            self.strategy
+            self.strategy,
+            self.worker_manager
         ]
 
         for structure in self.structures:
@@ -234,6 +241,7 @@ class AIBase(ABC, BotAI):
     def handle_actions(self):
         for action in self.state.actions_unit_commands:
             for tag in action.unit_tags:
+                # logging.debug(f'action: {tag} {action.exact_id}')
                 if behavior := self.unit_manager.units.get(tag):
                     if (
                         behavior.unit
@@ -267,6 +275,7 @@ class AIBase(ABC, BotAI):
 
 
     async def on_step(self, iteration: int):
+        logging.debug(f'step: {iteration}')
 
         if iteration == 0 and self.debug:
             return
@@ -277,11 +286,10 @@ class AIBase(ABC, BotAI):
             await self.chat.add_tag(self.version, False)
             await self.chat.add_tag(self.strategy.name, False)
         
+        profiler = None
         if iteration % 1000 == 0:
             profiler = cProfile.Profile()
             profiler.enable()
-        else:
-            profiler = None
 
         self.income.minerals = self.state.score.collection_rate_minerals
         self.income.vespene = self.state.score.collection_rate_vespene
@@ -305,7 +313,7 @@ class AIBase(ABC, BotAI):
             profiler.disable()
             stats = pstats.Stats(profiler)
             stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
-            stats.print_stats(100)
+            # stats.print_stats(100)
             if self.debug:
                 stats.dump_stats(filename='profiling.prof')
 
@@ -320,12 +328,13 @@ class AIBase(ABC, BotAI):
                 logging.error('worker supply mismatch')
 
     async def on_end(self, game_result: Result):
-        pass
+        logging.debug(f'end: {game_result}')
 
     async def on_building_construction_started(self, unit: Unit):
+        logging.debug(f'building_construction_started: {unit}')
 
         self.unit_manager.add_unit(unit)
-        self.pending_by_type[unit.type_id].append(unit.tag)
+        self.pending_by_type[unit.type_id].append(unit)
 
         if self.race == Race.Zerg:
             if unit.type_id in { UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMORBURROWED }:
@@ -354,29 +363,39 @@ class AIBase(ABC, BotAI):
         pass
 
     async def on_building_construction_complete(self, unit: Unit):
-        pass
+        logging.debug(f'building_construction_complete: {unit}')
 
     async def on_enemy_unit_entered_vision(self, unit: Unit):
+        logging.debug(f'enemy_unit_entered_vision: {unit}')
         if unit.tag not in self.unit_manager.enemies:
-            self.unit_manager.add_unit(unit)
-        pass
+            enemy = self.unit_manager.add_unit(unit)
+            assert isinstance(enemy, EnemyUnit)
 
     async def on_enemy_unit_left_vision(self, unit_tag: int):
-        pass
+        logging.debug(f'enemy_unit_left_vision: {unit_tag}')
+        if enemy := self.unit_manager.enemies.get(unit_tag):
+            enemy.snapshot = enemy.unit
+        else:
+            logging.error('enemy not found')
+
+    async def on_unit_destroyed(self, unit_tag: int):
+        logging.debug(f'unit_destroyed: {unit_tag}')
+        if unit_tag in self._enemy_units_previous_map or unit_tag in self._enemy_structures_previous_map:
+            del self.unit_manager.enemies[unit_tag]
+        elif not self.unit_manager.try_remove_unit(unit_tag):
+            logging.error('destroyed unit not found')
 
     async def on_unit_created(self, unit: Unit):
+        logging.debug(f'unit_created: {unit}')
         behavior = self.unit_manager.add_unit(unit)
         if isinstance(behavior, GatherBehavior):
             self.resource_manager.add_harvester(behavior)
-        pass
-
-    async def on_unit_destroyed(self, unit_tag: int):
-        self.unit_manager.try_remove_unit(unit_tag)
         
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
-        pass
+        logging.debug(f'unit_type_changed: {previous_type} -> {unit}')
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
+        logging.debug(f'unit_took_damage: {amount_damage_taken} @ {unit}')
         if behavior := self.unit_manager.units.get(unit.tag):
             if isinstance(behavior, SurviveBehavior):
                 behavior.last_damage_taken = self.time
@@ -387,7 +406,7 @@ class AIBase(ABC, BotAI):
             #         behavior.cancel = True
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
-        pass
+        logging.info(f'upgrade_complete: {upgrade}')
 
     def count(self,
         item: MacroId,
@@ -471,9 +490,14 @@ class AIBase(ABC, BotAI):
             minerals = sum(b.mineral_patches.remaining for b in self.resource_manager.bases if b.townhall)
             vespene = sum(b.vespene_geysers.remaining for b in self.resource_manager.bases if b.townhall)
 
-        gas_ratio = vespene / max(1, vespene + minerals)
-        worker_type = race_worker[self.race]
-        gas_target = gas_ratio * self.count(worker_type, include_pending=False)
+        # gas_ratio = vespene / max(1, vespene + minerals)
+        # worker_type = race_worker[self.race]
+        # gas_target = gas_ratio * self.count(worker_type, include_pending=False)
+
+        gas_ratio = 1 - 1 / (1 + vespene / max(1, minerals))
+        gas_target = self.state.score.food_used_economy * gas_ratio
+
+        # print(minerals, vespene)
 
         return gas_target
 
@@ -625,7 +649,7 @@ class AIBase(ABC, BotAI):
                 (tag
                 for tag, behavior in self.unit_manager.units.items()
                 if isinstance(behavior, MacroBehavior) and behavior.plan==target), None)
-            if behavior := self.unit_manager.units.get(unit_tag):
+            if (behavior := self.unit_manager.units.get(unit_tag)) and behavior.unit:
                 positions.append(behavior.unit)
 
             text = f"{str(i+1)} {target.item.name}"

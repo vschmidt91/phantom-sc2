@@ -45,7 +45,7 @@ class ZergMacro(Strategy):
         larva_rate = self.ai.future_spending.larva / (60 * future_timeframe)
         larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
         queen_target = math.ceil(larva_rate / (3/29))
-        queen_target = min(queen_target, self.ai.townhalls.amount)
+        queen_target = min(1 + queen_target, self.ai.townhalls.amount)
         queen_target = np.clip(queen_target, 2, 8)
         # print(queen_target)
 
@@ -96,13 +96,18 @@ class ZergMacro(Strategy):
         if tech_up and self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False) + self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
             composition[UnitTypeId.HYDRALISKDEN] = 1
             composition[UnitTypeId.OVERSEER] = 2
-            composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
+            # composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
 
         if tech_up and self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
             composition[UnitTypeId.GREATERSPIRE] = 1
             composition[UnitTypeId.OVERSEER] = 3
 
-        self.ai.composition = { k: math.ceil(v) for k, v in composition.items() if 0 < v}
+        self.ai.composition = {
+            k: math.ceil(v)
+            for k, v in composition.items()
+            if 0 < v
+        }
+        # self.ai.composition = { UnitTypeId.LAIR: 1 }
 
     def filter_upgrade(self, upgrade) -> bool:
         if upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:

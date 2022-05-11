@@ -188,8 +188,6 @@ class ZergAI(AIBase):
             return
 
         supply_buffer = self.income.larva / 1.5
-        if self.townhalls.amount == self.townhalls.ready.amount == 2:
-            supply_buffer = 6
         
         if self.supply_left + supply_pending <= supply_buffer:
             plan = MacroPlan(UnitTypeId.OVERLORD)

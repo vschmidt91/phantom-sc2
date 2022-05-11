@@ -62,6 +62,8 @@ def create_bot():
 
     # ai = Pool12AllIn()
 
+    # ai = DummyAI()
+
     return Bot(Race.Zerg, ai)  
 
 def create_opponents(difficulty) -> Iterable[Computer]:

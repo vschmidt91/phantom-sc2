@@ -37,12 +37,16 @@ class VespeneGeyser(ResourceUnit):
 
     @property
     def remaining(self) -> int:
-        if not self.structure:
-            return 0
-        elif not self.structure.is_ready:
-            return 0
+        if not self.unit.is_visible:
+            return 2250
         else:
-            return self.structure.vespene_contents
+            return self.unit.vespene_contents
+        # if not self.structure:
+        #     return 0
+        # elif not self.structure.is_ready:
+        #     return 0
+        # else:
+        #     return self.structure.vespene_contents
 
     def update(self) -> None:
-        self.harvester_target = 3 if self.remaining else 0
+        self.harvester_target = 3 if self.structure and self.structure.is_ready and self.remaining else 0

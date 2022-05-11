@@ -124,33 +124,6 @@ class UnitManager(AIModule):
         else:
             return Army(self.ai, tag)
 
-    def draft_civilians(self) -> None:
-        
-        if (
-            0 == self.ai.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False)
-            and 2/3 < self.ai.combat.threat_level
-        ):
-            worker = next(
-                (w
-                    for w in self.units.values()
-                    if isinstance(w, Worker) and not w.fight_enabled
-                ),
-                None
-            )
-            if worker:
-                worker.fight_enabled = True
-        elif self.ai.combat.threat_level < 1/2:
-            worker = min(
-                (w
-                    for w in self.units.values()
-                    if isinstance(w, Worker) and w.fight_enabled
-                ),
-                key = lambda w : w.unit.shield_health_percentage,
-                default = None
-            )
-            if worker:
-                worker.fight_enabled = False
-
     async def on_step(self) -> None:
 
         self.unit_by_tag = {
@@ -167,15 +140,17 @@ class UnitManager(AIModule):
             structure.position: structure
             for structure in self.ai.structures
         }
-
-        self.draft_civilians()
-
-        queens = sorted((
-            b
-            for b in self.ai.unit_manager.units.values()
-            if isinstance(b, InjectBehavior)),
-            key = lambda q : q.tag
-        )
+        
+        self.unit_list = list(self.units.values())
+        self.unit_tree = KDTree([
+            behavior.unit.position
+            for behavior in self.unit_list
+            if behavior.unit
+        ])
 
         for unit in self.units.values():
             unit.on_step()
+
+    def ball_query(self, position: Point2, radius: float) -> Iterable[CommandableUnit]:
+        query = self.unit_tree.query_ball_point(position, radius)
+        return (self.unit_list[i] for i in query)
