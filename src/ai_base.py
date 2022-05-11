@@ -370,6 +370,7 @@ class AIBase(ABC, BotAI):
         if unit.tag not in self.unit_manager.enemies:
             enemy = self.unit_manager.add_unit(unit)
             assert isinstance(enemy, EnemyUnit)
+            enemy.snapshot = None
 
     async def on_enemy_unit_left_vision(self, unit_tag: int):
         logging.debug(f'enemy_unit_left_vision: {unit_tag}')

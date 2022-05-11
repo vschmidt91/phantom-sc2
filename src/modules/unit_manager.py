@@ -151,6 +151,10 @@ class UnitManager(AIModule):
         for unit in self.units.values():
             unit.on_step()
 
+        for enemy in self.enemies.values():
+            if enemy.snapshot and self.ai.is_visible(enemy.snapshot.position):
+                enemy.snapshot = None
+
     def ball_query(self, position: Point2, radius: float) -> Iterable[CommandableUnit]:
         query = self.unit_tree.query_ball_point(position, radius)
         return (self.unit_list[i] for i in query)
