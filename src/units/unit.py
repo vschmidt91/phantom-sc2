@@ -85,9 +85,9 @@ class CommandableUnit(UnitByTag):
         raise NotImplementedError()
 
 class IdleBehavior(CommandableUnit):
-
-    def __init__(self) -> None:
-        super().__init__()
+    
+    def __init__(self, ai: AIBase, tag: int):
+        super().__init__(ai, tag)
 
     def get_command(self) -> Optional[UnitCommand]:
         return None
