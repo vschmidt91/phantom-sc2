@@ -1,4 +1,3 @@
-from collections import defaultdict
 import itertools
 from typing import Dict, List, Tuple, Iterable
 import sc2, os

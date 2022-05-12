@@ -1,7 +1,6 @@
 
 from abc import ABC
 import cProfile, pstats
-from msilib.schema import Upgrade
 import itertools
 from collections import defaultdict
 from dataclasses import dataclass
@@ -24,16 +23,10 @@ from MapAnalyzer import MapData
 from sc2 import unit
 from sc2.game_data import GameData
 
-from sc2.data import Alliance
-from sc2.game_state import ActionRawUnitCommand
-from sc2.ids.effect_id import EffectId
-from sc2 import game_info, game_state
 from sc2.position import Point2, Point3
 from sc2.bot_ai import BotAI
-from sc2.constants import IS_DETECTOR, SPEED_INCREASE_ON_CREEP_DICT, IS_STRUCTURE, TARGET_AIR, TARGET_GROUND
-from sc2.ids.buff_id import BuffId
+from sc2.constants import IS_DETECTOR
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.effect_id import EffectId
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
@@ -99,7 +92,7 @@ class AIBase(ABC, BotAI):
 
         self.strategy_cls: Optional[Type[Strategy]] = strategy_cls or HatchFirst
         self.version: str = ''
-        self.debug: bool = True
+        self.debug: bool = False
         self.destroy_destructables: bool = False
         self.unit_command_uses_self_do = True
 
@@ -119,7 +112,7 @@ class AIBase(ABC, BotAI):
         self.extractor_trick_enabled: bool = False
         self.iteration: int = 0
         self.techtree: TechTree = TechTree('data/techtree.json')
-        self.profiler: cProfile.Profile = cProfile.Profile()
+        self.profiler: Optional[cProfile.Profile] = None
 
         super().__init__()
 
@@ -127,6 +120,7 @@ class AIBase(ABC, BotAI):
 
         if self.debug:
             logging.basicConfig(level=logging.DEBUG)
+            self.profiler = cProfile.Profile()
             # plt.ion()
             # self.plot, self.plot_axes = plt.subplots(1, 2)
             # self.plot_images = None
@@ -172,7 +166,7 @@ class AIBase(ABC, BotAI):
 
         logging.debug(f'start')
 
-        if self.debug:
+        if self.profiler:
             self.profiler.enable()
 
         for th in self.townhalls:
@@ -230,7 +224,6 @@ class AIBase(ABC, BotAI):
                 distance = detector.unit.position.distance_to(unit.position)
                 if distance <= detector.unit.radius + detector.unit.detect_range + unit.radius:
                     yield detector
-        pass
 
     def can_attack(self, unit: Unit, target: Unit) -> bool:
         if target.is_cloaked and not target.is_revealed:
@@ -316,7 +309,7 @@ class AIBase(ABC, BotAI):
 
         self.update_gas()
 
-        if iteration % 100 == 0:
+        if self.profiler and (iteration % 100 == 0):
             # profiler.disable()
             stats = pstats.Stats(self.profiler)
             stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)

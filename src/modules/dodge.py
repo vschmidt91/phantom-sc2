@@ -141,6 +141,9 @@ class DodgeBehavior(CommandableUnit):
 
     def dodge(self) -> Optional[UnitCommand]:
 
+        if not self.unit:
+            return None
+
         for dodge in self.ai.dodge.elements:
             distance_bonus = 0.0
             if isinstance(dodge, DodgeEffectDelayed):

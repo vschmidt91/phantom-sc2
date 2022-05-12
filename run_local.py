@@ -1,23 +1,17 @@
 
-import itertools
-import sc2
-import json
-import cProfile
-import pstats
-
 from collections import defaultdict
 from typing import Dict, Iterable, List, Tuple
+import itertools
+import sc2
+
 from sc2.main import GameMatch, run_multiple_games
 
 from sc2.data import Race, Difficulty, AIBuild, Result
 from sc2.player import Bot, Computer
 
-from src.pool12_allin import Pool12AllIn
 from src.strategies.hatch_first import HatchFirst
 from src.zerg import ZergAI
-from src.dummy import DummyAI, DummyAI2
 
-from test import CompetitiveBot
 
 MAPS = [
     # 'BerlingradAIE',
@@ -75,7 +69,7 @@ def create_opponents(difficulty) -> Iterable[Computer]:
 
 if __name__ == "__main__":
 
-    result_dict: Dict[Tuple[str, Race, AIBuild], List[Result]] = defaultdict(lambda:list())
+    result_dict: Dict[Tuple[str, Race, AIBuild], List[Result]] = defaultdict(list)
 
     for i in itertools.count():
         games = [
