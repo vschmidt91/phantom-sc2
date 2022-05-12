@@ -14,16 +14,12 @@ if TYPE_CHECKING:
 class ResourceBase(AIUnit):
 
     def __init__(self, ai: AIBase, position: Point2):
-        super().__init__(ai)
+        super().__init__(ai, None)
         self.position = position
         self.harvester_target = 0
 
     def __hash__(self) -> int:
         return hash(self.position)
-
-    @property
-    def unit(self) -> Unit:
-        return self.ai.unit_manager.resource_by_position.get(self.position)
 
     @abstractproperty
     def remaining(self) -> int:

@@ -15,8 +15,9 @@ if TYPE_CHECKING:
 
 class ResourceUnit(ResourceBase):
     
-    def __init__(self, ai: AIBase, position: Point2) -> None:
-        super().__init__(ai, position)
+    def __init__(self, ai: AIBase, unit: Unit) -> None:
+        super().__init__(ai, unit.position)
+        self.unit: Optional[Unit] = unit
 
     @property
     def harvester_count(self) -> int:
@@ -25,7 +26,3 @@ class ResourceUnit(ResourceBase):
     @property
     def harvester_balance(self) -> int:
         return self.harvester_count - self.harvester_target
-
-    @property
-    def unit(self) -> Optional[Unit]:
-        return self.ai.unit_manager.resource_by_position.get(self.position)

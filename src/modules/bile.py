@@ -34,7 +34,7 @@ class BileModule(AIModule):
 
     async def on_step(self):
         self.enemy_positions = {
-            enemy.tag: enemy.unit.position
+            enemy.unit.tag: enemy.unit.position
             for enemy in self.ai.unit_manager.enemies.values()
             if enemy.unit
         }

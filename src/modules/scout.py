@@ -94,7 +94,7 @@ class ScoutModule(AIModule):
         ]
         scout_targets = []
         if self.scout_enemy_natural and len(self.enemy_bases) < 2:
-            target = self.ai.resource_manager.bases[-2].position.towards(self.ai.game_info.map_center, 11)
+            target = self.ai.resource_manager.bases[-2].position
             scout_targets.append(target)
         scout_targets.extend(self.static_targets)
 

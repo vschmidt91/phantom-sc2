@@ -1,6 +1,7 @@
 
 from abc import ABC
 import cProfile, pstats
+from msilib.schema import Upgrade
 import itertools
 from collections import defaultdict
 from dataclasses import dataclass
@@ -13,6 +14,8 @@ from matplotlib.colors import Normalize
 import numpy as np
 import os
 import json
+
+from pkg_resources import require
 import MapAnalyzer
 import skimage.draw
 import matplotlib.pyplot as plt
@@ -110,15 +113,13 @@ class AIBase(ABC, BotAI):
 
         self.enemies: Dict[int, Unit] = dict()
 
-        self.actual_by_type: DefaultDict[MacroId, List[Unit]] = defaultdict(list)
-        self.pending_by_type: DefaultDict[MacroId, List[Unit]] = defaultdict(list)
-
         self.map_data: MapStaticData = None
         self.map_analyzer: MapData = None
         
         self.extractor_trick_enabled: bool = False
         self.iteration: int = 0
         self.techtree: TechTree = TechTree('data/techtree.json')
+        self.profiler: cProfile.Profile = cProfile.Profile()
 
         super().__init__()
 
@@ -171,6 +172,9 @@ class AIBase(ABC, BotAI):
 
         logging.debug(f'start')
 
+        if self.debug:
+            self.profiler.enable()
+
         for th in self.townhalls:
             self.do(th(AbilityId.RALLY_WORKERS, target=th))
 
@@ -220,11 +224,11 @@ class AIBase(ABC, BotAI):
                 if behavior := self.unit_manager.units.get(error.unit_tag):
                     self.scout.blocked_positions[behavior.unit.position] = self.time
 
-    def units_detecting(self, unit: Unit) -> Iterable[Unit]:
+    def units_detecting(self, unit: Unit) -> Iterable[CommandableUnit]:
         for detector_type in IS_DETECTOR:
-            for detector in self.actual_by_type[detector_type]:
-                distance = detector.position.distance_to(unit.position)
-                if distance <= detector.radius + detector.detect_range + unit.radius:
+            for detector in self.unit_manager.actual_by_type[detector_type]:
+                distance = detector.unit.position.distance_to(unit.position)
+                if distance <= detector.unit.radius + detector.unit.detect_range + unit.radius:
                     yield detector
         pass
 
@@ -240,29 +244,38 @@ class AIBase(ABC, BotAI):
 
     def handle_actions(self):
         for action in self.state.actions_unit_commands:
+
             for tag in action.unit_tags:
-                # logging.debug(f'action: {tag} {action.exact_id}')
-                if behavior := self.unit_manager.units.get(tag):
-                    if (
-                        behavior.unit
-                        and behavior.unit.type_id in { UnitTypeId.LARVA, UnitTypeId.EGG }
-                    ):
-                        for larva in chain(self.actual_by_type[UnitTypeId.LARVA], self.actual_by_type[UnitTypeId.EGG]):
-                            if b2 := self.unit_manager.units.get(larva.tag):
-                                if isinstance(b2, MacroBehavior) and b2.plan and b2.macro_ability == action.exact_id:
-                                    behavior = b2
-                                    break
-                        else:
-                            logging.info(f'{self.time_formatted}: egg not found for {action}')
-                        # self.unit_manager.remove_unit(behavior.unit)
-                    if (
-                        isinstance(behavior, MacroBehavior)
-                        and behavior.plan
-                        and behavior.macro_ability == action.exact_id
-                    ):
-                        behavior.plan = None
-            # if item := ITEM_BY_ABILITY.get(action.exact_id):
-            #     self.macro.remove_plan_by_item(item)
+
+                if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
+                    if not self.unit_manager.try_remove_unit(tag):
+                        logging.error(f'creep tumor not found')
+
+                behavior = self.unit_manager.units.get(tag)
+                if not behavior:
+                    continue
+                if not behavior.unit:
+                    continue
+                elif behavior.unit.type_id in { UnitTypeId.LARVA, UnitTypeId.EGG }:
+                    candidates = chain(self.unit_manager.actual_by_type[UnitTypeId.LARVA], self.unit_manager.actual_by_type[UnitTypeId.EGG])
+                else:
+                    candidates = (behavior,)
+                behavior = next((
+                        b
+                        for b in candidates
+                        if (
+                            isinstance(b, MacroBehavior)
+                            and b.plan
+                            and b.macro_ability == action.exact_id
+                        )
+                    ),
+                    None)
+                if behavior:
+                    behavior.plan = None
+                    # if isinstance(behavior, GatherBehavior):
+                    #     behavior.gather_target = None
+                # else:
+                #     logging.info(f'{self.time_formatted}: egg not found for {action}')
 
     async def kill_random_units(self, chance: float = 3e-4) -> None:
         tags = [
@@ -285,11 +298,6 @@ class AIBase(ABC, BotAI):
         if 1 < self.time:
             await self.chat.add_tag(self.version, False)
             await self.chat.add_tag(self.strategy.name, False)
-        
-        profiler = None
-        if iteration % 1000 == 0:
-            profiler = cProfile.Profile()
-            profiler.enable()
 
         self.income.minerals = self.state.score.collection_rate_minerals
         self.income.vespene = self.state.score.collection_rate_vespene
@@ -300,7 +308,6 @@ class AIBase(ABC, BotAI):
                 self.extractor_trick_enabled = False
                 break
 
-        self.update_tables()
         self.handle_errors()
         self.handle_actions()
 
@@ -309,13 +316,14 @@ class AIBase(ABC, BotAI):
 
         self.update_gas()
 
-        if profiler:
-            profiler.disable()
-            stats = pstats.Stats(profiler)
+        if iteration % 100 == 0:
+            # profiler.disable()
+            stats = pstats.Stats(self.profiler)
             stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
             # stats.print_stats(100)
             if self.debug:
                 stats.dump_stats(filename='profiling.prof')
+            self.profiler.enable()
 
         if self.debug:
             await self.draw_debug()
@@ -333,30 +341,32 @@ class AIBase(ABC, BotAI):
     async def on_building_construction_started(self, unit: Unit):
         logging.debug(f'building_construction_started: {unit}')
 
-        self.unit_manager.add_unit(unit)
-        self.pending_by_type[unit.type_id].append(unit)
+        behavior = self.unit_manager.add_unit(unit)
+        # self.unit_manager.pending_by_type[unit.type_id].append(behavior)
 
         if self.race == Race.Zerg:
             if unit.type_id in { UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMORBURROWED }:
                 # print('tumor')
                 pass
             else:
-                geyser = self.unit_manager.resource_by_position.get(unit.position)
-                geyser_tag = geyser.tag if geyser and geyser.is_vespene_geyser else None
+                geyser = self.resource_manager.resource_by_position.get(unit.position)
+                geyser_tag = geyser.unit.tag if isinstance(geyser, VespeneGeyser) else None
                 for trainer_type in UNIT_TRAINED_FROM.get(unit.type_id, []):
-                    for trainer in self.actual_by_type[trainer_type]:
-                        if trainer.position == unit.position:
-                            if behavior := self.unit_manager.units.get(trainer.tag):
+                    for trainer in self.unit_manager.actual_by_type[trainer_type]:
+                        if not trainer.unit:
+                            pass
+                        elif trainer.unit.position == unit.position:
+                            if behavior := self.unit_manager.units.get(trainer.unit.tag):
                                 if isinstance(behavior, MacroBehavior):
                                     behavior.plan = None
-                            assert self.unit_manager.try_remove_unit(trainer.tag)
+                            assert self.unit_manager.try_remove_unit(trainer.unit.tag)
                             break
                         elif (
-                            not trainer.is_idle
-                            and trainer.order_target in {unit.position, geyser_tag}
+                            not trainer.unit.is_idle
+                            and trainer.unit.order_target in {unit.position, geyser_tag}
                             # and ITEM_BY_ABILITY.get(trainer.orders[0].ability.exact_id) == unit.type_id
                         ):
-                            assert self.unit_manager.try_remove_unit(trainer.tag)
+                            assert self.unit_manager.try_remove_unit(trainer.unit.tag)
                             break
                     else:
                         logging.error('trainer not found')
@@ -389,12 +399,10 @@ class AIBase(ABC, BotAI):
     async def on_unit_created(self, unit: Unit):
         logging.debug(f'unit_created: {unit}')
         behavior = self.unit_manager.add_unit(unit)
-        if isinstance(behavior, GatherBehavior):
-            self.resource_manager.add_harvester(behavior)
         
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         logging.debug(f'unit_type_changed: {previous_type} -> {unit}')
-
+                
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         logging.debug(f'unit_took_damage: {amount_damage_taken} @ {unit}')
         if behavior := self.unit_manager.units.get(unit.tag):
@@ -423,29 +431,13 @@ class AIBase(ABC, BotAI):
             if item in WORKERS:
                 count += self.state.score.food_used_economy
             else:
-                count += len(self.actual_by_type[item])
+                count += len(self.unit_manager.actual_by_type[item])
         if include_pending:
-            count += factor * len(self.pending_by_type[item])
+            count += factor * len(self.unit_manager.pending_by_type[item])
         if include_planned:
             count += factor * sum(1 for _ in self.macro.planned_by_type(item))
 
         return count
-
-    def update_tables(self):
-        
-        self.actual_by_type.clear()
-        self.pending_by_type.clear()
-        
-        for unit in self.all_own_units:
-            if unit.is_ready:
-                self.actual_by_type[unit.type_id].append(unit)
-            else:
-                self.pending_by_type[unit.type_id].append(unit)
-            for order in unit.orders:
-                if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
-                    self.pending_by_type[item].append(unit)
-            
-        self.actual_by_type.update((upgrade, [upgrade]) for upgrade in self.state.upgrades)
 
     def update_gas(self):
         gas_target = self.get_gas_target()
@@ -547,14 +539,14 @@ class AIBase(ABC, BotAI):
             and (geyser := self.pick_resource(self.resource_manager.vespene_geysers))
             and (harvester := self.pick_harvester(MineralPatch, geyser.position))
         ):
-            harvester.gather_target = geyser
+            harvester.set_gather_target(geyser)
         elif (
             0 < gas_harvester_count
             and (1 <= effective_gas_balance and mineral_balance < 0)
             and (patch := self.pick_resource(self.resource_manager.mineral_patches))
             and (harvester := self.pick_harvester(VespeneGeyser, patch.position))
         ):
-            harvester.gather_target = patch
+            harvester.set_gather_target(patch)
 
     async def initialize_bases(self):
 
@@ -571,7 +563,7 @@ class AIBase(ABC, BotAI):
             positions_fixed[b] = await self.find_placement(UnitTypeId.HATCHERY, b, placement_step=1)
 
         bases = sorted((
-            Base(self, positions_fixed.get(position, position), (m.position for m in resources.mineral_field), (g.position for g in resources.vespene_geyser))
+            Base(self,positions_fixed.get(position, position), (MineralPatch(self, m) for m in resources.mineral_field), (VespeneGeyser(self, g) for g in resources.vespene_geyser))
             for position, resources in self.expansion_locations_dict.items()
         ), key = lambda b : self.map_data.distance[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
@@ -669,63 +661,84 @@ class AIBase(ABC, BotAI):
 
         # self.map_analyzer.draw_influence_in_game(self.unit_manager.simulation_map)
 
-    def get_missing_requirements(self, item: Union[UnitTypeId, UpgradeId], **kwargs) -> Set[Union[UnitTypeId, UpgradeId]]:
+    def get_missing_requirements(self, item: MacroId) -> Iterable[MacroId]:
+
+        def is_unit_missing(unit: UnitTypeId) -> bool:
+            if unit in {
+                UnitTypeId.LARVA,
+                # UnitTypeId.CORRUPTOR,
+                # UnitTypeId.ROACH,
+                # UnitTypeId.HYDRALISK,
+                # UnitTypeId.ZERGLING,
+            }:
+                return False
+            return all(
+                self.count(e, include_pending=False, include_planned=False) == 0
+                for e in WITH_TECH_EQUIVALENTS[unit]
+            )
+
+        def is_upgrade_missing(upgrade: UpgradeId) -> bool:
+            return upgrade not in self.state.upgrades[upgrade]
 
         if item not in REQUIREMENTS_KEYS:
-            return set()
+            return
 
-        requirements = list()
-
-        if type(item) is UnitTypeId:
+        if type(item) == UnitTypeId:
             trainers = UNIT_TRAINED_FROM[item]
             trainer = min(trainers, key=lambda v:v.value)
-            requirements.append(trainer)
             info = TRAIN_INFO[trainer][item]
-        elif type(item) is UpgradeId:
-            researcher = UPGRADE_RESEARCHED_FROM[item]
-            requirements.append(researcher)
-            info = RESEARCH_INFO[researcher][item]
-        else:
-            raise TypeError()
+        elif type(item) == UpgradeId:
+            trainer = UPGRADE_RESEARCHED_FROM[item]
+            info = RESEARCH_INFO[trainer][item]
 
-        requirements.append(info.get('required_building'))
-        requirements.append(info.get('required_upgrade'))
-        requirements = [r for r in requirements if r not in { UnitTypeId.LARVA, UnitTypeId.CORRUPTOR, UnitTypeId.ROACH, UnitTypeId.ZERGLING }]
+        if is_unit_missing(trainer):
+            yield trainer
+        if (
+            (required_building := info.get('required_building'))
+            and is_unit_missing(required_building)
+        ):
+            yield required_building
+        if (
+            (required_upgrade := info.get('required_upgrade'))
+            and is_upgrade_missing(required_upgrade)
+        ):
+            yield required_upgrade
+
+
+        # requirements.append(info.get('required_building'))
+        # requirements.append(info.get('required_upgrade'))
+        # requirements = [r for r in requirements if r not in { UnitTypeId.LARVA, UnitTypeId.CORRUPTOR, UnitTypeId.ROACH, UnitTypeId.ZERGLING }]
         
-        missing = set()
-        i = 0
-        while i < len(requirements):
-            requirement = requirements[i]
-            i += 1
-            if not requirement:
-                continue
-            if type(requirement) is UnitTypeId:
-                equivalents = WITH_TECH_EQUIVALENTS[requirement]
-            elif type(requirement) is UpgradeId:
-                equivalents = { requirement }
-            else:
-                raise TypeError()
-            if any(self.count(e, **kwargs) for e in equivalents):
-                continue
-            missing.add(requirement)
-            requirements.extend(self.get_missing_requirements(requirement, **kwargs))
+        # missing = set()
+        # i = 0
+        # while i < len(requirements):
+        #     requirement = requirements[i]
+        #     i += 1
+        #     if not requirement:
+        #         continue
+        #     if type(requirement) is UnitTypeId:
+        #         equivalents = WITH_TECH_EQUIVALENTS[requirement]
+        #     elif type(requirement) is UpgradeId:
+        #         equivalents = { requirement }
+        #     else:
+        #         raise TypeError()
+        #     if any(self.count(e, include_pending=False, include_planned=False) for e in equivalents):
+        #         continue
+        #     missing.add(requirement)
+        #     requirements.extend(self.get_missing_requirements(requirement))
 
-        return missing
+        # return missing
 
     def get_owned_geysers(self):
         for base in self.resource_manager.bases:
-            townhall = self.unit_manager.structure_by_position.get(base.position)
-            if not townhall:
+            if not base.townhall:
                 continue
-            if not townhall.is_ready:
+            if not base.townhall.unit.is_ready:
                 continue
-            if townhall.type_id not in race_townhalls[self.race]:
+            if base.townhall.unit.type_id not in race_townhalls[self.race]:
                 continue
-            for gas in base.vespene_geysers:
-                geyser = self.unit_manager.resource_by_position.get(gas.position)
-                if not geyser:
-                    continue
-                yield geyser
+            for geyser in base.vespene_geysers:
+                yield geyser.unit
 
     def order_matches_command(self, order: UnitOrder, command: UnitCommand) -> bool:
         if order.ability.exact_id != command.ability:

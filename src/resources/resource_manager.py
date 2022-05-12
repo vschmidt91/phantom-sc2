@@ -3,11 +3,13 @@
 from __future__ import annotations
 from collections import defaultdict
 from typing import TYPE_CHECKING, Counter, DefaultDict, Dict, Iterable, Set
+from itertools import chain
 import numpy as np
 import math
 
 from sc2.position import Point2
 from src.resources.resource_unit import ResourceUnit
+from sc2.data import race_townhalls, race_gas
 
 from ..utils import dot
 from .resource_base import ResourceBase
@@ -50,6 +52,10 @@ class ResourceManager(AIModule):
         self.vespene_geysers: ResourceGroup[VespeneGeyser] = ResourceGroup(ai, [g for b in self.bases for g in b.vespene_geysers])
         self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(ai, [m for b in self.bases for m in b.mineral_patches])
         self.speedmining_positions = self.get_speedmining_positions()
+        self.resource_by_position: Dict[Point2, ResourceUnit] = {
+            resource.position: resource
+            for resource in chain(self.mineral_patches, self.vespene_geysers)
+        }
         self.harvesters_by_resource: Counter[ResourceUnit] = Counter()
 
     def add_harvester(self, harvester: GatherBehavior) -> None:
@@ -57,39 +63,63 @@ class ResourceManager(AIModule):
 
     async def on_step(self) -> None:
 
+        townhalls_by_position = {
+            townhall.unit.position: townhall
+            for townhall_type in race_townhalls[self.ai.race]
+            for townhall in self.ai.unit_manager.actual_by_type[townhall_type]
+        }
+        for base in self.bases:
+            base.townhall = townhalls_by_position.get(base.position)
+
+        gas_buildings_by_position = {
+            gas.unit.position: gas
+            for gas in self.ai.unit_manager.actual_by_type[race_gas[self.ai.race]]
+        }
+
+        resource_by_position = {
+            unit.position: unit
+            for unit in self.ai.resources
+        }
+        for patch in self.mineral_patches:
+            patch.unit = resource_by_position.get(patch.position)
+        for geyser in self.vespene_geysers:
+            geyser.unit = resource_by_position.get(geyser.position)
+            geyser.structure = gas_buildings_by_position.get(geyser.position)
+
         if self.do_split:
             harvesters = [self.ai.unit_manager.units[w.tag] for w in self.ai.workers]
             self.bases[0].split_initial_workers(harvesters)
             self.do_split = False
 
-        self.mineral_patches.update()
-        self.vespene_geysers.update()
-        self.bases.update()
+        if self.ai.iteration % 64 == 0:
+            self.mineral_patches.update()
+            self.vespene_geysers.update()
+            self.bases.update()
 
         self.harvesters_by_resource = Counter(
             (unit.gather_target
             for unit in self.ai.unit_manager.units.values()
             if isinstance(unit, GatherBehavior) and unit.gather_target))
 
-        harvesters = [
-            b
-            for b in self.ai.unit_manager.units.values()
-            if isinstance(b, GatherBehavior) and b.gather_target and isinstance(b.gather_target, MineralPatch)
-        ]
-
-        transfer = next((
-            h
-            for h in harvesters
-            if 0 < h.gather_target.harvester_balance
-        ), None)
-        if transfer:
-            transfer_to = next((
-                p
-                for p in self.mineral_patches
-                if p.harvester_balance < 0
+        if self.ai.iteration % 8 == 0:
+            harvesters = [
+                b
+                for b in self.ai.unit_manager.units.values()
+                if isinstance(b, GatherBehavior) and b.gather_target and isinstance(b.gather_target, MineralPatch)
+            ]
+            transfer = next((
+                h
+                for h in harvesters
+                if 0 < h.gather_target.harvester_balance
             ), None)
-            if transfer_to:
-                transfer.gather_target = transfer_to
+            if transfer:
+                transfer_to = next((
+                    p
+                    for p in self.mineral_patches
+                    if p.harvester_balance < 0
+                ), None)
+                if transfer_to:
+                    transfer.gather_target = transfer_to
 
         # if transfer_to.harvester_balance < 0 < transfer.target.harvester_balance:
 

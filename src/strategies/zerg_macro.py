@@ -23,9 +23,10 @@ class ZergMacro(Strategy):
         super().__init__(ai)
 
     async def on_step(self) -> None:
+        if self.ai.iteration % 10 == 0:
+            self.update_composition()
 
-        self.ai.destroy_destructables = 5 * 60 < self.ai.time
-        self.ai.destroy_destructables = False
+    def update_composition(self) -> None:
 
         worker_count = self.ai.state.score.food_used_economy
         worker_target = np.clip(self.ai.get_max_harvester(), 1, 200)
@@ -63,7 +64,7 @@ class ZergMacro(Strategy):
         }
 
         can_build = {
-            t: not any(self.ai.get_missing_requirements(t, include_pending=False, include_planned=False))
+            t: not any(self.ai.get_missing_requirements(t))
             for t in composition
         }
 
@@ -108,6 +109,7 @@ class ZergMacro(Strategy):
             if 0 < v
         }
         # self.ai.composition = { UnitTypeId.LAIR: 1 }
+
 
     def filter_upgrade(self, upgrade) -> bool:
         if upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:

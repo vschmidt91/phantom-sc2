@@ -32,50 +32,44 @@ class Base(ResourceGroup[ResourceBase]):
 
     def __init__(self,
         ai: AIBase,
-        townhall_position: Point2,
-        minerals: Iterable[Point2],
-        gasses: Iterable[Point2],
+        position: Point2,
+        mineral_patches: Iterable[MineralPatch],
+        vespene_geysers: Iterable[VespeneGeyser],
     ):
         self.townhall: Optional[Unit] = None
         self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(
             ai,
             sorted(
-                (MineralPatch(ai, m) for m in minerals),
-                key = lambda m : m.position.distance_to(townhall_position)
+                mineral_patches,
+                key = lambda m : m.position.distance_to(position)
             ))
         self.vespene_geysers: ResourceGroup[VespeneGeyser] = ResourceGroup(
             ai,
             sorted(
-                (VespeneGeyser(ai, g) for g in gasses),
-                key = lambda g : g.position.distance_to(townhall_position)
+                vespene_geysers,
+                key = lambda g : g.position.distance_to(position)
             ))
-        super().__init__(ai, [self.mineral_patches, self.vespene_geysers], townhall_position)
+        super().__init__(ai, [self.mineral_patches, self.vespene_geysers], position)
 
     def split_initial_workers(self, harvesters: Iterable[GatherBehavior]):
         assigned = set()
         for _ in range(len(harvesters)):
             for patch in self.mineral_patches:
                 harvester = min(
-                    (h for h in harvesters if h.tag not in assigned),
+                    (h for h in harvesters if h.unit.tag not in assigned),
                     key = lambda h : h.unit.position.distance_to(patch.unit.position),
                     default = None
                 )
                 if not harvester:
                     return
                 harvester.gather_target = patch
-                assigned.add(harvester.tag)
+                assigned.add(harvester.unit.tag)
 
     def update(self):
 
-        if (
-            (structure := self.ai.unit_manager.structure_by_position.get(self.position))
-            and structure.type_id in race_townhalls[self.ai.race]
-        ):
-            self.townhall = structure
-
         super().update()
 
-        if not self.townhall or not self.townhall.is_ready:
+        if not self.townhall or not self.townhall.unit.is_ready:
             self.mineral_patches.harvester_target = 0
             self.vespene_geysers.harvester_target = 0
             for resource in self.flatten():

@@ -15,9 +15,8 @@ if TYPE_CHECKING:
 
 class MineralPatch(ResourceUnit):
 
-
-    def __init__(self, ai: AIBase, position: Point2) -> None:
-        super().__init__(ai, position)
+    def __init__(self, ai: AIBase, unit: Unit) -> None:
+        super().__init__(ai, unit)
         self.speedmining_target: Optional[Point2] = None
 
     @property

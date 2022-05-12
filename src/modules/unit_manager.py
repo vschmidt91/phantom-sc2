@@ -15,7 +15,7 @@ from sc2.data import race_townhalls
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
-from sc2.data import Target, race_worker
+from sc2.data import Target, race_worker, Alliance
 from abc import ABC, abstractmethod
 from src.resources.resource_unit import ResourceUnit
 
@@ -25,7 +25,7 @@ from src.units.changeling import Changeling
 from src.units.creep_tumor import CreepTumor
 from src.units.extractor import Extractor
 from src.units.overlord import Overlord
-from src.units.unit import AIUnit, CommandableUnit, EnemyUnit, IdleBehavior, UnitByTag
+from src.units.unit import AIUnit, CommandableUnit, EnemyUnit, IdleBehavior
 from src.units.queen import Queen
 from src.units.worker import Worker
 from ..units.extractor import Extractor
@@ -41,7 +41,7 @@ from .scout import ScoutBehavior
 from ..simulation.simulation import Simulation
 from ..behaviors.transfuse import TransfuseBehavior
 from ..behaviors.survive import SurviveBehavior
-from .macro import MacroBehavior
+from .macro import MacroBehavior, MacroId
 from ..modules.creep import CreepBehavior
 from .drop import DropBehavior
 from ..behaviors.inject import InjectBehavior
@@ -72,27 +72,60 @@ class UnitManager(AIModule):
 
         self.units: Dict[int, CommandableUnit] = dict()
         self.enemies: Dict[int, EnemyUnit] = dict()
-        self.resources: Dict[Point2, ResourceUnit] = dict()
-        self.neutrals: Dict[int, UnitByTag] = dict()
+        self.neutrals: Dict[int, AIUnit] = dict()
 
-        self.resource_by_position: Dict[Point2, Unit] = dict()
-        self.structure_by_position: Dict[Point2, Unit] = dict()
-        self.unit_by_tag: Dict[int, Unit] = dict()
+        self.actual_by_type: DefaultDict[MacroId, List[CommandableUnit]] = defaultdict(list)
+        self.pending_by_type: DefaultDict[MacroId, List[CommandableUnit]] = defaultdict(list)
+
+    @property
+    def townhalls(self) -> Iterable[Structure]:
+        return (
+            townhall
+            for townhall_type in race_townhalls[self.ai.race]
+            for townhall in self.actual_by_type[townhall_type]
+        )
+
+    def update_tables(self):
+        
+        self.actual_by_type.clear()
+        self.pending_by_type.clear()
+        
+        for behavior in self.units.values():
+            self.add_unit_to_tables(behavior)
+            
+        self.actual_by_type.update((upgrade, [None]) for upgrade in self.ai.state.upgrades)
+
+    def add_unit_to_tables(self, behavior: CommandableUnit) -> None:
+            if not behavior.unit:
+                pass
+            elif behavior.unit.is_ready:
+                self.actual_by_type[behavior.unit.type_id].append(behavior)
+                for order in behavior.unit.orders:
+                    if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
+                        self.pending_by_type[item].append(behavior)
+            else:
+                self.pending_by_type[behavior.unit.type_id].append(behavior)
 
     def add_unit(self, unit: Unit) -> Optional[AIUnit]:
-        if unit.is_mine:
-            behavior = self.create_unit(unit.tag, unit.type_id)
+        if unit.type_id in IGNORED_UNIT_TYPES:
+            return None
+        elif unit.is_mine:
+            behavior = self.create_unit(unit)
+            self.add_unit_to_tables(behavior)
             self.units[unit.tag] = behavior
+            return behavior
         elif unit.is_enemy:
             behavior = EnemyUnit(self.ai, unit.tag)
             self.enemies[unit.tag] = behavior
-        elif unit.is_mineral_field or unit.is_vespene_geyser:
-            behavior = ResourceUnit(self.ai, unit.position)
-            self.resources[unit.position] = behavior
+            return behavior
         else:
-            behavior = UnitByTag(self.ai, unit.tag)
-            self.neutrals[unit.tag] = behavior
-        return behavior
+            return None
+        # elif unit.is_mineral_field or unit.is_vespene_geyser:
+        #     behavior = ResourceUnit(self.ai, unit.position)
+        #     self.resources[unit.position] = behavior
+        # else:
+        #     behavior = AIUnit(self.ai, unit)
+        #     self.neutrals[unit.tag] = behavior
 
     def try_remove_unit(self, tag: int) -> bool:
         return any((
@@ -101,59 +134,64 @@ class UnitManager(AIModule):
             self.neutrals.pop(tag, None),
         ))
 
-    def create_unit(self, tag: int, unit_type: UnitTypeId) -> CommandableUnit:
+    def create_unit(self, unit: Unit) -> CommandableUnit:
         
-        if unit_type in IGNORED_UNIT_TYPES:
-            return IdleBehavior(self.ai, tag)
-        if unit_type in CHANGELINGS:
-            return Changeling(self.ai, tag)
-        elif unit_type in { UnitTypeId.EXTRACTOR, UnitTypeId.EXTRACTORRICH }:
-            return Extractor(self.ai, tag)
-        elif unit_type in { UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN }:
-            return CreepTumor(self.ai, tag)
-        elif unit_type == UnitTypeId.LARVA:
-            return Larva(self.ai, tag)
-        elif unit_type in WORKERS:
-            return Worker(self.ai, tag)
-        elif unit_type == UnitTypeId.OVERLORD:
-            return Overlord(self.ai, tag)
-        elif unit_type == UnitTypeId.QUEEN:
-            return Queen(self.ai, tag)
-        elif self.ai.techtree.units[unit_type].is_structure:
-            return Structure(self.ai, tag)
+        if unit.type_id in IGNORED_UNIT_TYPES:
+            return IdleBehavior(self.ai, unit)
+        if unit.type_id in CHANGELINGS:
+            return Changeling(self.ai, unit)
+        elif unit.type_id in { UnitTypeId.EXTRACTOR, UnitTypeId.EXTRACTORRICH }:
+            return Extractor(self.ai, unit)
+        elif unit.type_id in { UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN }:
+            return CreepTumor(self.ai, unit)
+        elif unit.type_id == UnitTypeId.LARVA:
+            return Larva(self.ai, unit)
+        elif unit.type_id in WORKERS:
+            return Worker(self.ai, unit)
+        elif unit.type_id == UnitTypeId.OVERLORD:
+            return Overlord(self.ai, unit)
+        elif unit.type_id == UnitTypeId.QUEEN:
+            return Queen(self.ai, unit)
+        elif self.ai.techtree.units[unit.type_id].is_structure:
+            return Structure(self.ai, unit)
         else:
-            return Army(self.ai, tag)
+            return Army(self.ai, unit)
 
-    async def on_step(self) -> None:
+    def update_tags(self) -> None:
 
-        self.unit_by_tag = {
+        unit_by_tag = {
+            unit.tag: unit
+            for unit in self.ai.all_own_units
+        }
+        for tag, unit in self.units.items():
+            unit.unit = unit_by_tag.get(tag)
+            
+        neutral_by_tag = {
             unit.tag: unit
             for unit in self.ai.all_units
+            if unit.alliance == Alliance.Neutral
         }
+        for tag, unit in self.neutrals.items():
+            unit.unit = neutral_by_tag.get(tag)
 
-        self.resource_by_position = {
-            unit.position: unit
-            for unit in self.ai.resources
+        enemy_by_tag = {
+            unit.tag: unit
+            for unit in self.ai.all_enemy_units
         }
+        for tag, unit in list(self.enemies.items()):
+            if new_unit := enemy_by_tag.get(tag):
+                unit.unit = new_unit
+                unit.is_snapshot = False
+            elif self.ai.is_visible(unit.unit.position):
+                del self.enemies[tag]
+            else:
+                unit.is_snapshot = True
 
-        self.structure_by_position = {
-            structure.position: structure
-            for structure in self.ai.structures
-        }
-        
-        self.unit_list = list(self.units.values())
-        self.unit_tree = KDTree([
-            behavior.unit.position
-            for behavior in self.unit_list
-            if behavior.unit
-        ])
-
+    async def on_step(self) -> None:
+        self.update_tags()
+        self.update_tables()
         for unit in self.units.values():
             unit.on_step()
-
-        for enemy in self.enemies.values():
-            if enemy.snapshot and self.ai.is_visible(enemy.snapshot.position):
-                enemy.snapshot = None
 
     def ball_query(self, position: Point2, radius: float) -> Iterable[CommandableUnit]:
         query = self.unit_tree.query_ball_point(position, radius)

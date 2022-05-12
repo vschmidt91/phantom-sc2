@@ -56,7 +56,7 @@ class InjectManager(AIModule):
                     if (
                         base.townhall
                         and base not in injected_bases
-                        and BuffId.QUEENSPAWNLARVATIMER not in base.townhall.buffs
+                        and BuffId.QUEENSPAWNLARVATIMER not in base.townhall.unit.buffs
                     )
                 ),
                 key = lambda b : b.position.distance_to(unassigned_queen.unit.position),
@@ -78,11 +78,11 @@ class InjectBehavior(CommandableUnit):
             self.inject_base = None
             return None
             
-        target = self.inject_base.position.towards(self.inject_base.mineral_patches.position, -(self.inject_base.townhall.radius + self.unit.radius))
+        target = self.inject_base.position.towards(self.inject_base.mineral_patches.position, -(self.inject_base.townhall.unit.radius + self.unit.radius))
 
         if 7 < self.unit.position.distance_to(target):
             return self.unit.attack(target)
         elif ENERGY_COST[AbilityId.EFFECT_INJECTLARVA] <= self.unit.energy:
-            return self.unit(AbilityId.EFFECT_INJECTLARVA, target=self.inject_base.townhall)
+            return self.unit(AbilityId.EFFECT_INJECTLARVA, target=self.inject_base.townhall.unit)
             
         return None

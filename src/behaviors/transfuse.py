@@ -31,7 +31,7 @@ class TransfuseBehavior(CommandableUnit):
         super().__init__(ai, tag)
 
     def priority(self, target: Unit) -> float:
-        if self.tag == target.tag:
+        if self.unit.tag == target.tag:
             return 0
         if not self.unit.in_ability_cast_range(self.ABILITY, target):
             return 0

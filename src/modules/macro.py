@@ -13,8 +13,6 @@ from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 from sc2.data import race_worker, race_townhalls
 from src.ai_component import AIComponent
-from src.behaviors.gather import GatherBehavior
-from src.techtree import TechTreeAbilityTarget, TechTreeAbilityTargetUnit, TechTreeAbilityTargetUnitType
 from src.units.unit import CommandableUnit
 
 from ..cost import Cost
@@ -88,7 +86,7 @@ class MacroModule(AIModule):
                 continue
             elif count <= composition_have[unit]:
                 continue
-            if any(self.ai.get_missing_requirements(unit, include_pending=False, include_planned=False)):
+            if any(self.ai.get_missing_requirements(unit)):
                 continue
             priority = -self.ai.count(unit, include_planned=False) /  count
             for plan in self.planned_by_type(unit):
@@ -132,7 +130,7 @@ class MacroModule(AIModule):
         for i, plan in enumerate(plans):
 
             if (
-                any(self.ai.get_missing_requirements(plan.item, include_pending=False, include_planned=False))
+                any(self.ai.get_missing_requirements(plan.item))
                 and plan.priority == math.inf
             ):
                 break
@@ -148,7 +146,7 @@ class MacroModule(AIModule):
                 else:
                     continue
                 
-            if any(self.ai.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
+            if any(self.ai.get_missing_requirements(plan.item)):
                 continue
 
             # if type(plan.item) == UnitTypeId:
@@ -176,7 +174,7 @@ class MacroModule(AIModule):
             #     continue
 
             eta = None
-            if not any(self.ai.get_missing_requirements(plan.item, include_pending=False, include_planned=False)):
+            if not any(self.ai.get_missing_requirements(plan.item)):
                 eta = 0
                 if 0 < cost.minerals:
                     eta = max(eta, 60 * (reserve.minerals - self.ai.minerals) / max(1, self.ai.income.minerals))
@@ -198,8 +196,9 @@ class MacroModule(AIModule):
             }
             exclude_tags = {
                 order.target
-                for unit in self.ai.pending_by_type[gas_type]
-                for order in unit.orders
+                for unit in self.ai.unit_manager.pending_by_type[gas_type]
+                if unit.unit
+                for order in unit.unit.orders
                 if isinstance(order.target, int)
             }
             exclude_tags.update({
@@ -282,7 +281,7 @@ class MacroModule(AIModule):
         for base in bases:
             if not base.townhall:
                 continue
-            elif not base.townhall.is_ready:
+            elif not base.townhall.unit.is_ready:
                 continue
             position = base.position.towards_with_random_angle(base.mineral_patches.position, 10)
             offset = data.footprint_radius % 1
@@ -322,8 +321,8 @@ class MacroBehavior(CommandableUnit):
             if self.unit.is_carrying_resource:
                 return self.unit.return_resource()
             else:
-                if isinstance(self, GatherBehavior):
-                    self.gather_target = None
+                # if isinstance(self, GatherBehavior):
+                #     self.gather_target = None
                 return self.unit(self.macro_ability, target=self.plan.target)
         elif not self.plan.target:
             return None
