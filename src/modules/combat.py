@@ -188,7 +188,7 @@ class CombatBehavior(CommandableUnit):
         if not self.fight_enabled:
             return None
 
-        m = 16
+        m = 4
         if not self.fight_target or (self.unit.tag % m) == (self.ai.iteration % m):
             self.fight_target, _ = max((
                     (enemy, priority)
