@@ -671,7 +671,7 @@ class AIBase(ABC, BotAI):
             )
 
         def is_upgrade_missing(upgrade: UpgradeId) -> bool:
-            return upgrade not in self.state.upgrades[upgrade]
+            return upgrade not in self.state.upgrades
 
         if item not in REQUIREMENTS_KEYS:
             return
