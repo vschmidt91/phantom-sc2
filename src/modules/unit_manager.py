@@ -72,7 +72,7 @@ class UnitManager(AIModule):
 
         self.units: Dict[int, CommandableUnit] = dict()
         self.enemies: Dict[int, EnemyUnit] = dict()
-        self.neutrals: Dict[int, AIUnit] = dict()
+        # self.neutrals: Dict[int, AIUnit] = dict()
 
         self.actual_by_type: DefaultDict[MacroId, List[CommandableUnit]] = defaultdict(list)
         self.pending_by_type: DefaultDict[MacroId, List[CommandableUnit]] = defaultdict(list)
@@ -96,15 +96,15 @@ class UnitManager(AIModule):
         self.actual_by_type.update((upgrade, [None]) for upgrade in self.ai.state.upgrades)
 
     def add_unit_to_tables(self, behavior: CommandableUnit) -> None:
-            if not behavior.unit:
-                pass
-            elif behavior.unit.is_ready:
-                self.actual_by_type[behavior.unit.type_id].append(behavior)
-                for order in behavior.unit.orders:
-                    if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
-                        self.pending_by_type[item].append(behavior)
-            else:
-                self.pending_by_type[behavior.unit.type_id].append(behavior)
+        if not behavior.unit:
+            pass
+        elif behavior.unit.is_ready:
+            self.actual_by_type[behavior.unit.type_id].append(behavior)
+            for order in behavior.unit.orders:
+                if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
+                    self.pending_by_type[item].append(behavior)
+        else:
+            self.pending_by_type[behavior.unit.type_id].append(behavior)
 
     def add_unit(self, unit: Unit) -> Optional[AIUnit]:
         if unit.type_id in IGNORED_UNIT_TYPES:
@@ -131,7 +131,7 @@ class UnitManager(AIModule):
         return any((
             self.units.pop(tag, None),
             self.enemies.pop(tag, None),
-            self.neutrals.pop(tag, None),
+            # self.neutrals.pop(tag, None),
         ))
 
     def create_unit(self, unit: Unit) -> CommandableUnit:
@@ -166,13 +166,13 @@ class UnitManager(AIModule):
         for tag, unit in self.units.items():
             unit.unit = unit_by_tag.get(tag)
             
-        neutral_by_tag = {
-            unit.tag: unit
-            for unit in self.ai.all_units
-            if unit.alliance == Alliance.Neutral
-        }
-        for tag, unit in self.neutrals.items():
-            unit.unit = neutral_by_tag.get(tag)
+        # neutral_by_tag = {
+        #     unit.tag: unit
+        #     for unit in self.ai.all_units
+        #     if unit.alliance == Alliance.Neutral
+        # }
+        # for tag, unit in self.neutrals.items():
+        #     unit.unit = neutral_by_tag.get(tag)
 
         enemy_by_tag = {
             unit.tag: unit

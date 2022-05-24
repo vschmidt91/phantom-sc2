@@ -79,10 +79,11 @@ class InjectBehavior(CommandableUnit):
             return None
             
         target = self.inject_base.position.towards(self.inject_base.mineral_patches.position, -(self.inject_base.townhall.unit.radius + self.unit.radius))
-
-        if 7 < self.unit.position.distance_to(target):
-            return self.unit.attack(target)
-        elif ENERGY_COST[AbilityId.EFFECT_INJECTLARVA] <= self.unit.energy:
+        if ENERGY_COST[AbilityId.EFFECT_INJECTLARVA] <= self.unit.energy:
             return self.unit(AbilityId.EFFECT_INJECTLARVA, target=self.inject_base.townhall.unit)
+        elif not self.inject_base.townhall.unit.has_buff(BuffId.QUEENSPAWNLARVATIMER):
+            return self.unit.move(target)
+        elif 7 < self.unit.position.distance_to(target):
+            return self.unit.move(target)
             
         return None

@@ -7,10 +7,12 @@ import sc2
 from sc2.main import GameMatch, run_multiple_games
 
 from sc2.data import Race, Difficulty, AIBuild, Result
-from sc2.player import Bot, Computer
+from sc2.player import AbstractPlayer, Bot, Computer
 
 from src.strategies.hatch_first import HatchFirst
 from src.zerg import ZergAI
+
+from Rasputin.src.zerg import ZergAI as Rasputin
 
 
 MAPS = [
@@ -48,21 +50,18 @@ SEED = 1
 
 def create_bot():
 
-    # ai = QueenBot()
-
-    ai = ZergAI(strategy_cls=HatchFirst)
+    ai = ZergAI()
     ai.debug = True
-    ai.game_step = 4
+    # ai.game_step = 5
 
-    # ai = Pool12AllIn()
+    return Bot(Race.Zerg, ai, 'PhantomBot')  
 
-    # ai = DummyAI()
+def create_opponents(difficulty) -> Iterable[AbstractPlayer]:
 
-    return Bot(Race.Zerg, ai)  
-
-def create_opponents(difficulty) -> Iterable[Computer]:
-    # return [Bot(Race.Zerg, DummyAI())]
-    # yield Bot(Race.Zerg, Pool12AllIn())
+    # ai = Rasputin()
+    # ai.game_step = 5
+    # yield Bot(Race.Zerg, ai, 'Rasputin')  
+    
     for race in RACES:
         for build in BUILDS:
             yield Computer(race, difficulty, ai_build=build)

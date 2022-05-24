@@ -4,10 +4,10 @@ from __future__ import annotations
 from ctypes.wintypes import tagMSG
 from typing import Callable, Coroutine, DefaultDict, Optional, Set, Union, Iterable, Tuple, List, TYPE_CHECKING
 import random
+import math
 import logging
 
-from numpy import isin
-
+from sc2.ids.buff_id import BuffId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
@@ -44,7 +44,9 @@ class MacroModule(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
+        self.future_spending = Cost(0, 0, 0, 0)
         self.unassigned_plans: List[MacroPlan] = list()
+        self.composition: Dict[UnitTypeId, int] = dict()
 
     def add_plan(self, plan: MacroPlan) -> None:
         self.unassigned_plans.append(plan)
@@ -79,9 +81,9 @@ class MacroModule(AIModule):
             return
         composition_have = {
             unit: self.ai.count(unit)
-            for unit in self.ai.composition.keys()
+            for unit in self.composition.keys()
         }
-        for unit, count in self.ai.composition.items():
+        for unit, count in self.composition.items():
             if count < 1:
                 continue
             elif count <= composition_have[unit]:
@@ -102,6 +104,9 @@ class MacroModule(AIModule):
     async def on_step(self) -> None:
 
         self.make_composition()
+
+        if self.ai.iteration % 8 == 0:
+            self.make_tech()
 
         reserve = Cost(0, 0, 0, 0)
 
@@ -177,15 +182,32 @@ class MacroModule(AIModule):
             if not any(self.ai.get_missing_requirements(plan.item)):
                 eta = 0
                 if 0 < cost.minerals:
-                    eta = max(eta, 60 * (reserve.minerals - self.ai.minerals) / max(1, self.ai.income.minerals))
+                    eta = max(eta, 60 * (reserve.minerals - self.ai.minerals) / max(1, self.ai.resource_manager.income.minerals))
                 if 0 < cost.vespene:
-                    eta = max(eta, 60 * (reserve.vespene - self.ai.vespene) / max(1, self.ai.income.vespene))
+                    eta = max(eta, 60 * (reserve.vespene - self.ai.vespene) / max(1, self.ai.resource_manager.income.vespene))
                 if 0 < cost.larva:
-                    eta = max(eta, 60 * (reserve.larva - self.ai.larva.amount) / max(1, self.ai.income.larva))
+                    eta = max(eta, 60 * (reserve.larva - self.ai.larva.amount) / max(1, self.ai.resource_manager.income.larva))
                 if 0 < cost.food:
                     if self.ai.supply_left < cost.food:
                         eta = None
             plan.eta = eta
+
+        cost_zero = Cost(0, 0, 0, 0)
+        cost_sum = cost_zero
+        cost_sum += sum((
+            self.ai.cost[plan.item]
+            for plan in self.ai.macro.unassigned_plans
+        ), cost_zero)
+        cost_sum += sum((
+            self.ai.cost[b.plan.item]
+            for b in self.ai.unit_manager.units.values()
+            if isinstance(b, MacroBehavior) and b.plan
+        ), cost_zero)
+        cost_sum += sum((
+            self.ai.cost[unit] * max(0, count - self.ai.count(unit))
+            for unit, count in self.composition.items()
+        ), cost_zero)
+        self.future_spending = cost_sum
 
     async def get_target(self, trainer: MacroBehavior, objective: MacroPlan) -> Coroutine[any, any, Union[Unit, Point2]]:
         gas_type = GAS_BY_RACE[self.ai.race]
@@ -288,6 +310,29 @@ class MacroModule(AIModule):
             position = position.rounded.offset((offset, offset))
             return position
         raise PlacementNotFoundException()
+
+    def make_tech(self):
+        upgrades = {
+            u
+            for unit in self.composition
+            for u in self.ai.upgrades_by_unit(unit)
+            if self.ai.strategy.filter_upgrade(u)
+        }
+        targets = set(upgrades)
+        targets.update(
+            r
+            for item in chain(self.composition, upgrades)
+            for r in REQUIREMENTS[item]
+        )
+        for target in targets:
+            if equivalents := WITH_TECH_EQUIVALENTS.get(target):
+                target_met = any(self.ai.count(t) for t in equivalents)
+            else:
+                target_met = bool(self.ai.count(target))
+            if not target_met:
+                plan = MacroPlan(target)
+                plan.priority = -1/3
+                self.add_plan(plan)
 
 class MacroBehavior(CommandableUnit):
     

@@ -21,7 +21,7 @@ class BotPackage:
     libs: List[str]
 
 BOTS: List[BotPackage] = [
-    BotPackage('Rasputin', 'Zerg', 'src.zerg', 'ZergAI',
+    BotPackage('PhantomBot', 'Zerg', 'src.zerg', 'ZergAI',
     [
         'ladder.py',
         'requirements.txt',

@@ -34,5 +34,6 @@ class VespeneGeyser(ResourceUnit):
         else:
             return self.unit.vespene_contents
 
-    def update(self) -> None:
-        self.harvester_target = 3 if self.structure and self.structure.unit.is_ready and self.remaining else 0
+    @property
+    def harvester_target(self) -> int:
+        return 3 if self.structure and self.structure.unit.is_ready and self.remaining else 0

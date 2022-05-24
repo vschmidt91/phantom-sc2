@@ -39,11 +39,11 @@ class ZergMacro(Strategy):
         # ratio = self.ai.threat_level
 
         future_timeframe = 3/60
-        if 0 < self.ai.future_spending.minerals:
-            future_timeframe = max(future_timeframe, self.ai.future_spending.minerals / max(1, self.ai.income.minerals))
-        if 0 < self.ai.future_spending.vespene:
-            future_timeframe = max(future_timeframe, self.ai.future_spending.vespene / max(1, self.ai.income.vespene))
-        larva_rate = self.ai.future_spending.larva / (60 * future_timeframe)
+        if 0 < self.ai.macro.future_spending.minerals:
+            future_timeframe = max(future_timeframe, self.ai.macro.future_spending.minerals / max(1, self.ai.resource_manager.income.minerals))
+        if 0 < self.ai.macro.future_spending.vespene:
+            future_timeframe = max(future_timeframe, self.ai.macro.future_spending.vespene / max(1, self.ai.resource_manager.income.vespene))
+        larva_rate = self.ai.macro.future_spending.larva / (60 * future_timeframe)
         larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
         queen_target = math.ceil(larva_rate / (3/29))
         queen_target = min(queen_target, self.ai.townhalls.amount)
@@ -103,7 +103,7 @@ class ZergMacro(Strategy):
             composition[UnitTypeId.GREATERSPIRE] = 1
             composition[UnitTypeId.OVERSEER] = 3
 
-        self.ai.composition = {
+        self.ai.macro.composition = {
             k: math.ceil(v)
             for k, v in composition.items()
             if 0 < v

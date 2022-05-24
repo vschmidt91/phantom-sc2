@@ -16,17 +16,16 @@ class ResourceBase(AIUnit):
     def __init__(self, ai: AIBase, position: Point2):
         super().__init__(ai, None)
         self.position = position
-        self.harvester_target = 0
+
+    @abstractproperty
+    def harvester_target(self) -> int:
+        raise NotImplementedError()
 
     def __hash__(self) -> int:
         return hash(self.position)
 
     @abstractproperty
     def remaining(self) -> int:
-        raise NotImplementedError()
-
-    @abstractmethod
-    def update(self) -> None:
         raise NotImplementedError()
 
     def flatten(self) -> Iterable['ResourceBase']:

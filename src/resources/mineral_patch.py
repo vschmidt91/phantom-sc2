@@ -35,5 +35,6 @@ class MineralPatch(ResourceUnit):
         else:
             return self.unit.mineral_contents
 
-    def update(self) -> None:
-        self.harvester_target = 2 if self.remaining else 0
+    @property
+    def harvester_target(self) -> int:
+        return 2 if self.remaining else 0

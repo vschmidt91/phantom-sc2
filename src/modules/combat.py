@@ -49,18 +49,18 @@ class CombatModule(AIModule):
 
         # EXPERIMENTAL FIGHTING
 
-        def add_unit_to_map(map: np.ndarray, unit: Unit) -> None:
+        def add_unit_to_map(grid: np.ndarray, unit: Unit) -> None:
             radius = unit.radius + max(unit.ground_range, unit.air_range)
             if radius == 0:
-                return map
+                return grid
             dps = max(unit.ground_dps, unit.air_dps)
             weight = (unit.health + unit.shield) * dps / (math.pi * radius**2)
             
             disk = skimage.draw.disk(unit.position, radius)
-            map[disk] += weight
+            grid[disk] += weight
 
-        def transport(map: np.ndarray, sigma: float) -> np.ndarray:
-            return gaussian_filter(map, sigma=sigma)
+        def transport(grid: np.ndarray, sigma: float) -> np.ndarray:
+            return gaussian_filter(grid, sigma=sigma, truncate=2.0)
 
         army0 = np.zeros(self.ai.game_info.map_size)
         enemy0 = np.zeros(self.ai.game_info.map_size)
@@ -88,6 +88,7 @@ class CombatModule(AIModule):
 
         self.army_projection = transport(army0, sigma)
         self.enemy_projection = transport(enemy0, sigma)
+
         self.threat_level = value_enemy_threats / max(1, value_army + value_enemy_threats)
 
 class CombatStance(Enum):

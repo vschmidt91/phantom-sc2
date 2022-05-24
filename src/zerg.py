@@ -76,19 +76,10 @@ class ZergAI(AIBase):
         super().__init__(strategy_cls)
 
     async def on_step(self, iteration):
-        
-        larva_per_second = 0.0
-        for hatchery in self.townhalls:
-            if hatchery.is_ready:
-                larva_per_second += 1/11
-                if hatchery.has_buff(BuffId.QUEENSPAWNLARVATIMER):
-                    larva_per_second += 3/29
-        self.income.larva = 60.0 * larva_per_second
 
         await super().on_step(iteration)
 
         self.morph_overlords()
-        self.make_tech()
         self.expand()
 
     def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
@@ -152,26 +143,6 @@ class ZergAI(AIBase):
         else:
             return []
 
-    def make_tech(self):
-        upgrades = {
-            u
-            for unit in self.composition
-            for u in self.upgrades_by_unit(unit)
-            if self.strategy.filter_upgrade(u)
-        }
-        targets = set(upgrades)
-        targets.update(
-            r
-            for item in chain(self.composition, upgrades)
-            for r in REQUIREMENTS[item]
-        )
-        for target in targets:
-            equivalents =  WITH_TECH_EQUIVALENTS.get(target, { target })
-            if sum(self.count(t) for t in equivalents) == 0:
-                plan = MacroPlan(target)
-                plan.priority = -1/3
-                self.macro.add_plan(plan)
-
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
             if not self.count(upgrade, include_planned=False):
@@ -187,7 +158,7 @@ class ZergAI(AIBase):
         if 200 <= self.supply_cap + supply_pending:
             return
 
-        supply_buffer = self.income.larva / 1.5
+        supply_buffer = self.resource_manager.income.larva
         
         if self.supply_left + supply_pending <= supply_buffer:
             plan = MacroPlan(UnitTypeId.OVERLORD)

@@ -40,7 +40,6 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
     def flatten(self) -> Iterable[ResourceBase]:
         return (x for item in self.items for x in item.flatten())
 
-    def update(self) -> None:
-        for resource in self.items:
-            resource.update()
-        self.harvester_target = sum(r.harvester_target for r in self.items)
+    @property
+    def harvester_target(self) -> int:
+        return sum(r.harvester_target for r in self.items)

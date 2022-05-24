@@ -25,11 +25,7 @@ class GatherBehavior(CommandableUnit):
         self.command_queue: Optional[Unit] = None
         self.return_target: Optional[Structure] = None
 
-        gather_target = min(
-            self.ai.resource_manager.bases.flatten(),
-            key = lambda r : r.harvester_balance
-        )
-        self.set_gather_target(gather_target)
+        self.ai.resource_manager.add_harvester(self)
 
     def set_gather_target(self, gather_target: ResourceUnit) -> None:
         self.gather_target = gather_target
@@ -52,21 +48,20 @@ class GatherBehavior(CommandableUnit):
         elif not self.unit:
             return None
         
+        target = None
         if isinstance(self.gather_target, MineralPatch):
             target = self.gather_target.unit
         elif isinstance(self.gather_target, VespeneGeyser):
-            target = self.gather_target.structure.unit
-        else:
-            raise TypeError()
+            if self.gather_target.structure:
+                target = self.gather_target.structure.unit
 
         if not target:
             self.gather_target = None
             return None
-        if self.unit.is_idle:
-            return self.unit.smart(target)
-        elif self.unit.is_gathering and self.unit.order_target != target.tag:
-            return self.unit.smart(target)
-        elif self.unit.is_moving and self.command_queue:
+        # elif self.unit.is_moving and self.command_queue:
+        #     self.command_queue, target = None, self.command_queue
+        #     return self.unit.smart(target, queue=True)
+        elif self.command_queue:
             self.command_queue, target = None, self.command_queue
             return self.unit.smart(target, queue=True)
         elif len(self.unit.orders) == 1:
@@ -77,14 +72,18 @@ class GatherBehavior(CommandableUnit):
                 if 0.75 < self.unit.position.distance_to(move_target) < 1.5:
                     self.command_queue = townhall
                     return self.unit.move(move_target)
-                    # 
                     # self.unit(AbilityId.SMART, townhall, True)
-            else:
-                move_target = self.ai.resource_manager.speedmining_positions.get(self.gather_target)
-                if not move_target:
-                    move_target = target.position.towards(self.unit, target.radius + self.unit.radius)
-                if 0.75 < self.unit.position.distance_to(move_target) < 1.75:
-                    self.command_queue = target
-                    return self.unit.move(move_target)
-                    # self.unit.move(move_target)
-                    # self.unit(AbilityId.SMART, target, True)
+            elif self.unit.is_gathering:
+                if self.unit.order_target != target.tag:
+                    return self.unit.smart(target)
+                else:
+                    move_target = self.ai.resource_manager.speedmining_positions.get(self.gather_target)
+                    if not move_target:
+                        move_target = target.position.towards(self.unit, target.radius + self.unit.radius)
+                    if 0.75 < self.unit.position.distance_to(move_target) < 1.75:
+                        self.command_queue = target
+                        return self.unit.move(move_target)
+                        # self.unit.move(move_target)
+                        # self.unit(AbilityId.SMART, target, True)
+        elif self.unit.is_idle:
+            return self.unit.smart(target)

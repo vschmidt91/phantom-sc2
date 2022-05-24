@@ -16,6 +16,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
+from src.units.structure import Structure
 from ..utils import dot
 
 from ..behaviors.gather import GatherBehavior
@@ -36,7 +37,7 @@ class Base(ResourceGroup[ResourceBase]):
         mineral_patches: Iterable[MineralPatch],
         vespene_geysers: Iterable[VespeneGeyser],
     ):
-        self.townhall: Optional[Unit] = None
+        self.townhall: Optional[Structure] = None
         self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(
             ai,
             sorted(
@@ -52,26 +53,15 @@ class Base(ResourceGroup[ResourceBase]):
         super().__init__(ai, [self.mineral_patches, self.vespene_geysers], position)
 
     def split_initial_workers(self, harvesters: Iterable[GatherBehavior]):
-        assigned = set()
+        harvesters = set(harvesters)
         for _ in range(len(harvesters)):
             for patch in self.mineral_patches:
                 harvester = min(
-                    (h for h in harvesters if h.unit.tag not in assigned),
+                    harvesters,
                     key = lambda h : h.unit.position.distance_to(patch.unit.position),
                     default = None
                 )
                 if not harvester:
                     return
-                harvester.gather_target = patch
-                assigned.add(harvester.unit.tag)
-
-    def update(self):
-
-        super().update()
-
-        if not self.townhall or not self.townhall.unit.is_ready:
-            self.mineral_patches.harvester_target = 0
-            self.vespene_geysers.harvester_target = 0
-            for resource in self.flatten():
-                resource.harvester_target = 0
-            self.harvester_target = 0
+                harvesters.remove(harvester)
+                harvester.set_gather_target(patch)
