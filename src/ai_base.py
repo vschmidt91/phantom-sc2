@@ -381,7 +381,8 @@ class AIBase(ABC, BotAI):
     async def on_unit_destroyed(self, unit_tag: int):
         logging.debug(f'unit_destroyed: {unit_tag}')
         if unit_tag in self._enemy_units_previous_map or unit_tag in self._enemy_structures_previous_map:
-            del self.unit_manager.enemies[unit_tag]
+            self.unit_manager.enemies.pop(unit_tag, None)
+            # del self.unit_manager.enemies[unit_tag]
         elif not self.unit_manager.try_remove_unit(unit_tag):
             logging.error('destroyed unit not found')
 

@@ -3,8 +3,11 @@ from typing import DefaultDict, Optional, Set, Union, Iterable, Tuple, TYPE_CHEC
 from enum import Enum
 import numpy as np
 import random
+import math
 from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT
 from scipy.ndimage import gaussian_filter
+from scipy.spatial.kdtree import KDTree
+from scipy.cluster.vq import kmeans
 import skimage.draw
 
 from sc2.position import Point2
@@ -60,10 +63,10 @@ class CombatModule(AIModule):
             grid[disk] += weight
 
         def transport(grid: np.ndarray, sigma: float) -> np.ndarray:
-            return gaussian_filter(grid, sigma=sigma, truncate=2.0)
+            return gaussian_filter(grid, sigma=sigma, truncate=4.0)
 
-        army0 = np.zeros(self.ai.game_info.map_size)
-        enemy0 = np.zeros(self.ai.game_info.map_size)
+        army_map = np.zeros(self.ai.game_info.map_size)
+        enemy_map = np.zeros(self.ai.game_info.map_size)
 
         value_army = 0.0
         value_enemy_threats = 0.0
@@ -75,21 +78,42 @@ class CombatModule(AIModule):
                 and unit.unit
             ):
                 value_army += unit.value
-                add_unit_to_map(army0, unit.unit)
+                add_unit_to_map(army_map, unit.unit)
 
         for enemy in self.ai.unit_manager.enemies.values():
             if enemy.unit:
                 value_enemy_threats += 2 * (1 - self.ai.map_data.distance[enemy.unit.position.rounded]) * enemy.value
-                add_unit_to_map(enemy0, enemy.unit)
+                add_unit_to_map(enemy_map, enemy.unit)
 
         movement_speed = 3.5
-        t = 3.0
+        t = 1.0
         sigma = movement_speed * t
 
-        self.army_projection = transport(army0, sigma)
-        self.enemy_projection = transport(enemy0, sigma)
+        army_map = transport(army_map, sigma)
+        enemy_map = transport(enemy_map, sigma)
+
+        tmp = np.maximum(0.0, army_map - enemy_map)
+        enemy_map = np.maximum(0.0, enemy_map - army_map)
+        army_map = tmp
+
+        self.army_projection = transport(army_map, sigma)
+        self.enemy_projection = transport(enemy_map, sigma)
 
         self.threat_level = value_enemy_threats / max(1, value_army + value_enemy_threats)
+
+        # unit_positions = [
+        #     u.unit.position
+        #     for u in self.ai.unit_manager.units.values()
+        #     if isinstance(u, CombatBehavior) and u.unit
+        # ]
+        # distortion = math.inf
+        # k = 0
+        # means = []
+        # while 10 < distortion and k < len(unit_positions):
+        #     k += 1
+        #     means, distortion = kmeans(np.array(unit_positions), k)
+        # print(len(means))
+
 
 class CombatStance(Enum):
     FLEE = 1
@@ -138,8 +162,9 @@ class CombatBehavior(CommandableUnit):
     def get_stance(self, target: Unit) -> CombatStance:
 
         eps = 1e-3
-        army = max(2 * eps, self.ai.combat.army_projection[target.position.rounded])
-        enemy = max(eps, self.ai.combat.enemy_projection[self.unit.position.rounded])
+        halfway = 0.5 * (target.position + self.unit.position)
+        army = max(2 * eps, self.ai.combat.army_projection[halfway.rounded])
+        enemy = max(eps, self.ai.combat.enemy_projection[halfway.rounded])
         advantage = army / enemy
 
         if self.unit.ground_range < 2:

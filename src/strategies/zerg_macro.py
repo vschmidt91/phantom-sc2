@@ -29,7 +29,7 @@ class ZergMacro(Strategy):
     def update_composition(self) -> None:
 
         worker_count = self.ai.state.score.food_used_economy
-        worker_target = np.clip(self.ai.get_max_harvester(), 1, 200)
+        worker_target = np.clip(self.ai.get_max_harvester(), 1, 88)
         
         ratio = max(
             self.ai.combat.threat_level,
