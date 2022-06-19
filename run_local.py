@@ -10,9 +10,11 @@ from sc2.data import Race, Difficulty, AIBuild, Result
 from sc2.player import AbstractPlayer, Bot, Computer
 
 from src.strategies.hatch_first import HatchFirst
+from src.strategies.pool_first import PoolFirst
 from src.zerg import ZergAI
 
 from Rasputin.src.zerg import ZergAI as Rasputin
+from src.pool12_allin import Pool12AllIn
 
 
 MAPS = [
@@ -36,8 +38,8 @@ RACES = [
 ]
 
 BUILDS = [
-    # AIBuild.Rush,
-    AIBuild.Timing,
+    AIBuild.Rush,
+    # AIBuild.Timing,
     # AIBuild.Power,
     # AIBuild.Macro,
     # AIBuild.Air,
@@ -46,29 +48,27 @@ BUILDS = [
 DIFFICULTY = Difficulty.CheatInsane
 REAL_TIME = False
 RESULT_PATH = 'results.json'
-SEED = 1
+SEED = 123
 
 def create_bot():
 
-    ai = ZergAI()
+    ai = ZergAI(PoolFirst)
     ai.debug = True
-    # ai.game_step = 5
+    ai.game_step = 1
+
+    # ai = Pool12AllIn()
 
     return Bot(Race.Zerg, ai, 'PhantomBot')  
 
 def create_opponents(difficulty) -> Iterable[AbstractPlayer]:
 
-    # ai = Rasputin()
-    # ai.game_step = 5
-    # yield Bot(Race.Zerg, ai, 'Rasputin')  
+    # yield Bot(Race.Zerg, Pool12AllIn(), '12PoolBot')  
     
     for race in RACES:
         for build in BUILDS:
             yield Computer(race, difficulty, ai_build=build)
 
 if __name__ == "__main__":
-
-    result_dict: Dict[Tuple[str, Race, AIBuild], List[Result]] = defaultdict(list)
 
     for i in itertools.count():
         games = [

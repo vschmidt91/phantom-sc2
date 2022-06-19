@@ -16,10 +16,10 @@ class Strategy(ABC, AIModule):
 
     def __init__(self, ai: AIBase):
         super().__init__(ai)
-        for step in self.build_order():
-            plan = MacroPlan(step)
+        for i, step in enumerate(self.build_order()):
+            plan = self.ai.macro.add_plan(step)
             plan.priority = math.inf
-            self.ai.macro.add_plan(plan)
+            
 
     @abstractproperty
     def build_order(self) -> Iterable[MacroId]:

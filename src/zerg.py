@@ -27,8 +27,6 @@ from .strategies.strategy import Strategy
 import cProfile
 import pstats
 
-import matplotlib.pyplot as plt
-
 SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
     Race.Zerg: {
         UnitTypeId.DRONEBURROWED,
@@ -152,18 +150,17 @@ class ZergAI(AIBase):
     def morph_overlords(self) -> None:
         supply_pending = sum(
             provided * self.count(unit, include_actual=False)
-            for unit, provided in SUPPLY_PROVIDED.items()
+            for unit, provided in SUPPLY_PROVIDED[self.race].items()
         )
 
         if 200 <= self.supply_cap + supply_pending:
             return
 
-        supply_buffer = self.resource_manager.income.larva
+        supply_buffer = self.resource_manager.income.larva / 2.0
         
         if self.supply_left + supply_pending <= supply_buffer:
-            plan = MacroPlan(UnitTypeId.OVERLORD)
+            plan = self.macro.add_plan(UnitTypeId.OVERLORD)
             plan.priority = 1
-            self.macro.add_plan(plan)
 
     def expand(self) -> None:
 
@@ -187,7 +184,6 @@ class ZergAI(AIBase):
 
         if expand and self.count(UnitTypeId.HATCHERY, include_actual=False) < 1:
             logging.info(f'{self.time_formatted}: expanding')
-            plan = MacroPlan(UnitTypeId.HATCHERY)
+            plan = self.macro.add_plan(UnitTypeId.HATCHERY)
             plan.priority = priority
             plan.max_distance = None
-            self.macro.add_plan(plan)

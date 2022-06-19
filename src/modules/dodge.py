@@ -77,7 +77,7 @@ class DodgeModule(AIModule):
             if effect.id in DODGE_EFFECTS
         )
         dodge_unit = (
-            DodgeUnit(enemy)
+            DodgeUnit(enemy.unit)
             for enemy in self.ai.unit_manager.enemies.values()
             if enemy.unit and enemy.unit.type_id in DODGE_UNITS
         )
@@ -137,7 +137,7 @@ class DodgeBehavior(CommandableUnit):
     
     def __init__(self, ai: AIBase, tag: int):
         super().__init__(ai, tag)
-        self.safety_distance: float = 0.5
+        self.safety_distance: float = 2.0
 
     def dodge(self) -> Optional[UnitCommand]:
 

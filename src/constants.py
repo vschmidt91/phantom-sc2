@@ -6,7 +6,6 @@ from typing import Dict
 
 from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS, SPEED_INCREASE_DICT, SPEED_UPGRADE_DICT
 from sc2.data import Race
-from sc2.helpers.devtools import time_this
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
@@ -20,6 +19,25 @@ from .utils import get_requirements
 WITH_TECH_EQUIVALENTS = {
     unit: { unit } | EQUIVALENTS_FOR_TECH_PROGRESS.get(unit, set())
     for unit in UnitTypeId
+}
+
+UNIT_TRAINED_FROM_WITH_EQUIVALENTS = {
+    item: { 
+        equivalent
+        for trainer in UNIT_TRAINED_FROM.get(item, [])
+        for equivalent in WITH_TECH_EQUIVALENTS[trainer]
+    }
+    for item in UnitTypeId
+}
+
+UPGRADE_RESEARCHED_FROM_WITH_EQUIVALENTS = {
+    item: WITH_TECH_EQUIVALENTS.get(UPGRADE_RESEARCHED_FROM.get(item), set())
+    for item in UpgradeId
+}
+
+ITEM_TRAINED_FROM_WITH_EQUIVALENTS = {
+    **UNIT_TRAINED_FROM_WITH_EQUIVALENTS,
+    **UPGRADE_RESEARCHED_FROM_WITH_EQUIVALENTS
 }
 
 RANGE_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, int]] = {
@@ -98,18 +116,24 @@ TRAINERS = {
 }
 
 SUPPLY_PROVIDED = {
-    UnitTypeId.PYLON: 8,
-    UnitTypeId.SUPPLYDEPOT: 8,
-    UnitTypeId.OVERLORD: 8,
-    UnitTypeId.NEXUS: 15,
-    UnitTypeId.HATCHERY: 6,
-    UnitTypeId.LAIR: 6,
-    UnitTypeId.HIVE: 6,
-    UnitTypeId.COMMANDCENTER: 15,
-    UnitTypeId.COMMANDCENTERFLYING: 15,
-    UnitTypeId.ORBITALCOMMAND: 15,
-    UnitTypeId.ORBITALCOMMANDFLYING: 15,
-    UnitTypeId.PLANETARYFORTRESS: 15,
+    Race.Zerg: {
+        UnitTypeId.OVERLORD: 8,
+        # UnitTypeId.HATCHERY: 6,
+        # UnitTypeId.LAIR: 6,
+        # UnitTypeId.HIVE: 6,
+    },
+    Race.Protoss: {
+        UnitTypeId.PYLON: 8,
+        # UnitTypeId.NEXUS: 15,
+    },
+    Race.Terran: {
+        UnitTypeId.SUPPLYDEPOT: 8,
+        # UnitTypeId.COMMANDCENTER: 15,
+        # UnitTypeId.COMMANDCENTERFLYING: 15,
+        # UnitTypeId.ORBITALCOMMAND: 15,
+        # UnitTypeId.ORBITALCOMMANDFLYING: 15,
+        # UnitTypeId.PLANETARYFORTRESS: 15,
+    }
 }
 
 CHANGELINGS = {

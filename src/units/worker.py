@@ -23,11 +23,12 @@ class WorkerManager(AIModule):
 
     async def on_step(self) -> None:
         self.draft_civilians()
+        pass
         
     def draft_civilians(self) -> None:
         
         if (
-            0 == self.ai.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False)
+            1 == self.ai.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False)
             and 2/3 < self.ai.combat.threat_level
         ):
             worker = next(
@@ -45,7 +46,7 @@ class WorkerManager(AIModule):
                     for w in self.ai.unit_manager.units.values()
                     if isinstance(w, Worker) and w.fight_enabled
                 ),
-                key = lambda w : w.unit.shield_health_percentage,
+                key = lambda w : w.unit.shield_health_percentage if w.unit else 1,
                 default = None
             )
             if worker:

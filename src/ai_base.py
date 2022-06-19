@@ -1,6 +1,7 @@
 
 from abc import ABC
 import cProfile, pstats
+from functools import cmp_to_key
 import mailcap
 import itertools
 from collections import defaultdict
@@ -12,7 +13,6 @@ import math
 from random import random
 from typing import Any, DefaultDict, Iterable, Optional, Tuple, Type, Union, Coroutine, Set, List, Callable, Dict
 from loguru import logger
-from matplotlib.colors import Normalize
 import numpy as np
 import os
 import json
@@ -20,7 +20,6 @@ import json
 from pkg_resources import require
 import MapAnalyzer
 import skimage.draw
-import matplotlib.pyplot as plt
 
 from MapAnalyzer import MapData
 from sc2 import unit
@@ -46,6 +45,7 @@ from src.resources.resource_manager import ResourceManager
 from src.resources.resource_unit import ResourceUnit
 
 from src.strategies.hatch_first import HatchFirst
+from src.strategies.pool_first import PoolFirst
 from src.techtree import TechTree, TechTreeWeaponType
 from src.units.structure import Structure
 from src.units.unit import EnemyUnit
@@ -58,7 +58,7 @@ from .modules.combat import CombatBehavior, CombatModule
 from .modules.drop import DropModule
 from .behaviors.gather import GatherBehavior
 from .behaviors.survive import SurviveBehavior
-from .modules.macro import MacroBehavior, MacroId, MacroModule, MacroPlan
+from .modules.macro import MacroBehavior, MacroId, MacroModule, MacroPlan, compare_plans
 from .modules.bile import BileModule
 from .resources.mineral_patch import MineralPatch
 from .resources.vespene_geyser import VespeneGeyser
@@ -87,14 +87,14 @@ class MapStaticData:
     def flip(self):
         self.distance = 1 - self.distance
 
-class AIBase(ABC, BotAI):
+class AIBase(BotAI):
 
     def __init__(self, strategy_cls: Optional[Type[Strategy]] = None):
 
         self.raw_affects_selection = True
         self.game_step: int = 2
 
-        self.strategy_cls: Type[Strategy] = strategy_cls or HatchFirst
+        self.strategy_cls: Type[Strategy] = strategy_cls or PoolFirst
         self.version: str = ''
         self.debug: bool = False
         self.destroy_destructables: bool = False
@@ -202,7 +202,7 @@ class AIBase(ABC, BotAI):
             self.worker_manager
         ]
 
-        for structure in self.structures:
+        for structure in self.all_own_units:
             self.unit_manager.add_unit(structure)
 
         # await self.client.debug_create_unit([
@@ -266,6 +266,8 @@ class AIBase(ABC, BotAI):
             None)
         if behavior:
             behavior.plan = None
+        # else:
+        #     logging.error(f'trainer not found: {action}')
 
     async def kill_random_units(self, chance: float = 3e-4) -> None:
         tags = [
@@ -344,7 +346,7 @@ class AIBase(ABC, BotAI):
                     for trainer in self.unit_manager.actual_by_type[trainer_type]:
                         if not trainer.unit:
                             pass
-                        elif trainer.unit.position == unit.position:
+                        elif trainer.unit.position.distance_to(unit.position) < 0.1:
                             if behavior := self.unit_manager.units.get(trainer.unit.tag):
                                 if isinstance(behavior, MacroBehavior):
                                     behavior.plan = None
@@ -503,7 +505,7 @@ class AIBase(ABC, BotAI):
             if isinstance(b, MacroBehavior) and b.plan
         )
         plans.extend(self.macro.unassigned_plans)
-        plans.sort(key = lambda t : t.priority, reverse=True)
+        plans.sort(key = cmp_to_key(compare_plans), reverse=True)
 
         for i, target in enumerate(plans):
 
@@ -530,6 +532,10 @@ class AIBase(ABC, BotAI):
 
             for position in positions:
                 self.client.debug_text_world(text, position, color=font_color, size=font_size)
+
+            if len(positions) == 2:
+                a, b = positions
+                self.client.debug_line_out(a, b, color=font_color)
 
         font_color = (255, 0, 0)
 

@@ -6,7 +6,6 @@ from email.policy import default
 from typing import Counter, DefaultDict, Dict, Iterable, Set, List, Optional, TYPE_CHECKING
 from itertools import chain
 import math
-from matplotlib.pyplot import jet
 
 from s2clientprotocol.sc2api_pb2 import Observation
 from sc2.ids.ability_id import AbilityId

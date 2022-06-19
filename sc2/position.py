@@ -3,6 +3,7 @@ from __future__ import annotations
 import itertools
 import math
 import random
+import warnings
 from typing import TYPE_CHECKING, Iterable, List, Set, Tuple, Union
 
 from s2clientprotocol import common_pb2 as common_pb
@@ -50,6 +51,9 @@ class Pointlike(tuple):
 
         :param distance:
         :param p:"""
+        warnings.warn(
+            'position.is_closer_than is deprecated and will be deleted soon', DeprecationWarning, stacklevel=2
+        )
         p = p.position
         return self.distance_to_point2(p) < distance
 
@@ -58,6 +62,9 @@ class Pointlike(tuple):
 
         :param distance:
         :param p:"""
+        warnings.warn(
+            'position.is_further_than is deprecated and will be deleted soon', DeprecationWarning, stacklevel=2
+        )
         p = p.position
         return self.distance_to_point2(p) > distance
 
@@ -73,13 +80,14 @@ class Pointlike(tuple):
         """This function assumes the 2d distance is meant
 
         :param ps:"""
-        assert ps, f"ps is empty"
+        assert ps, "ps is empty"
+        # pylint: disable=W0108
         return min(ps, key=lambda p: self.distance_to(p))
 
     def distance_to_closest(self, ps: Union[Units, Iterable[Point2]]) -> float:
         """This function assumes the 2d distance is meant
         :param ps:"""
-        assert ps, f"ps is empty"
+        assert ps, "ps is empty"
         closest_distance = math.inf
         for p2 in ps:
             p2 = p2.position
@@ -92,14 +100,15 @@ class Pointlike(tuple):
         """This function assumes the 2d distance is meant
 
         :param ps: Units object, or iterable of Unit or Point2"""
-        assert ps, f"ps is empty"
+        assert ps, "ps is empty"
+        # pylint: disable=W0108
         return max(ps, key=lambda p: self.distance_to(p))
 
     def distance_to_furthest(self, ps: Union[Units, Iterable[Point2]]) -> float:
         """This function assumes the 2d distance is meant
 
         :param ps:"""
-        assert ps, f"ps is empty"
+        assert ps, "ps is empty"
         furthest_distance = -math.inf
         for p2 in ps:
             p2 = p2.position
@@ -145,13 +154,14 @@ class Pointlike(tuple):
     def __eq__(self, other):
         try:
             return all(abs(a - b) <= EPSILON for a, b in itertools.zip_longest(self, other, fillvalue=0))
-        except:
+        except TypeError:
             return False
 
     def __hash__(self):
         return hash(tuple(self))
 
 
+# pylint: disable=R0904
 class Point2(Pointlike):
 
     @classmethod
@@ -203,14 +213,14 @@ class Point2(Pointlike):
     def to3(self) -> Point3:
         return Point3((*self, 0))
 
-    def offset(self, off):
-        return Point2((self[0] + off[0], self[1] + off[1]))
+    def offset(self, p: Point2):
+        return Point2((self[0] + p[0], self[1] + p[1]))
 
     def random_on_distance(self, distance):
         if isinstance(distance, (tuple, list)):  # interval
             distance = distance[0] + random.random() * (distance[1] - distance[0])
 
-        assert distance > 0, f"Distance is not greater than 0"
+        assert distance > 0, "Distance is not greater than 0"
         angle = random.random() * 2 * math.pi
 
         dx, dy = math.cos(angle), math.sin(angle)
@@ -233,7 +243,7 @@ class Point2(Pointlike):
 
         :param p:
         :param r:"""
-        assert self != p, f"self is equal to p"
+        assert self != p, "self is equal to p"
         distanceBetweenPoints = self.distance_to(p)
         assert r >= distanceBetweenPoints / 2
         # remaining distance from center towards the intersection, using pythagoras
@@ -333,7 +343,7 @@ class Point2(Pointlike):
 class Point3(Point2):
 
     @classmethod
-    def from_proto(cls, data):
+    def from_proto(cls, data) -> Point3:
         """
         :param data:
         """

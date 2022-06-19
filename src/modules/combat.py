@@ -57,62 +57,71 @@ class CombatModule(AIModule):
             if radius == 0:
                 return grid
             dps = max(unit.ground_dps, unit.air_dps)
-            weight = (unit.health + unit.shield) * dps / (math.pi * radius**2)
+            weight = math.sqrt((unit.health + unit.shield) * dps) / (math.pi * radius**2)
             
             disk = skimage.draw.disk(unit.position, radius)
             grid[disk] += weight
 
         def transport(grid: np.ndarray, sigma: float) -> np.ndarray:
-            return gaussian_filter(grid, sigma=sigma, truncate=4.0)
+            return gaussian_filter(grid, sigma=sigma, truncate=3.0)
 
-        army_map = np.zeros(self.ai.game_info.map_size)
-        enemy_map = np.zeros(self.ai.game_info.map_size)
+        if self.ai.iteration % 8 == 0:
 
-        value_army = 0.0
-        value_enemy_threats = 0.0
+            army_map = np.zeros(self.ai.game_info.map_size)
+            enemy_map = np.zeros(self.ai.game_info.map_size)
 
-        for unit in self.ai.unit_manager.units.values():
-            if (
-                isinstance(unit, CombatBehavior)
-                and unit.fight_enabled
-                and unit.unit
-            ):
-                value_army += unit.value
-                add_unit_to_map(army_map, unit.unit)
+            value_army = 0.0
+            value_enemy_threats = 0.0
 
-        for enemy in self.ai.unit_manager.enemies.values():
-            if enemy.unit:
-                value_enemy_threats += 2 * (1 - self.ai.map_data.distance[enemy.unit.position.rounded]) * enemy.value
-                add_unit_to_map(enemy_map, enemy.unit)
+            for unit in self.ai.unit_manager.units.values():
+                if (
+                    isinstance(unit, CombatBehavior)
+                    and unit.fight_enabled
+                    and unit.unit
+                ):
+                    value_army += unit.value
+                    add_unit_to_map(army_map, unit.unit)
 
-        movement_speed = 3.5
-        t = 1.0
-        sigma = movement_speed * t
+            for enemy in self.ai.unit_manager.enemies.values():
+                if enemy.unit:
+                    value_enemy_threats += 2 * (1 - self.ai.map_data.distance[enemy.unit.position.rounded]) * enemy.value
+                    add_unit_to_map(enemy_map, enemy.unit)
 
-        army_map = transport(army_map, sigma)
-        enemy_map = transport(enemy_map, sigma)
+            movement_speed = 3.5
+            tmax = 3.0
+            dt = 0.5
+            sigma = math.sqrt(movement_speed * dt)
+            a = dt / tmax
+        
+            sigma = math.sqrt(movement_speed * tmax)
+            army_map = transport(army_map, sigma)
+            enemy_map = transport(enemy_map, sigma)
 
-        tmp = np.maximum(0.0, army_map - enemy_map)
-        enemy_map = np.maximum(0.0, enemy_map - army_map)
-        army_map = tmp
+            # for t in np.arange(0, tmax, dt):
 
-        self.army_projection = transport(army_map, sigma)
-        self.enemy_projection = transport(enemy_map, sigma)
 
-        self.threat_level = value_enemy_threats / max(1, value_army + value_enemy_threats)
+            #     army_map = transport(army_map, sigma)
+            #     enemy_map = transport(enemy_map, sigma)
 
-        # unit_positions = [
-        #     u.unit.position
-        #     for u in self.ai.unit_manager.units.values()
-        #     if isinstance(u, CombatBehavior) and u.unit
-        # ]
-        # distortion = math.inf
-        # k = 0
-        # means = []
-        # while 10 < distortion and k < len(unit_positions):
-        #     k += 1
-        #     means, distortion = kmeans(np.array(unit_positions), k)
-        # print(len(means))
+            #     enemy_map, army_map = np.maximum(0.0, enemy_map - a * army_map), np.maximum(0.0, army_map - a * enemy_map)
+
+            self.army_projection = army_map
+            self.enemy_projection = enemy_map
+
+            self.threat_level = value_enemy_threats / max(1, value_army + value_enemy_threats)
+
+            # unit_positions = [
+            #     u.unit.position
+            #     for u in self.ai.unit_manager.units.values()
+            #     if isinstance(u, CombatBehavior) and u.unit
+            # ]
+            # distortion = math.inf
+            # k = 0
+            # means = []
+            # while 10 < distortion and k < len(unit_positions):
+            #     k += 1
+            #     means, distortion = kmeans(np.array(unit_positions), k)
+            # print(len(means))
 
 
 class CombatStance(Enum):
@@ -131,6 +140,8 @@ class CombatBehavior(CommandableUnit):
 
     def target_priority(self, target: EnemyUnit) -> float:
         if not target.unit:
+            return 0.0
+        if not self.unit:
             return 0.0
         if not self.ai.can_attack(self.unit, target.unit) and not self.unit.is_detector:
             return 0.0
@@ -212,6 +223,8 @@ class CombatBehavior(CommandableUnit):
     def fight(self) -> Optional[UnitCommand]:
 
         if not self.fight_enabled:
+            return None
+        if not self.unit:
             return None
 
         m = 4

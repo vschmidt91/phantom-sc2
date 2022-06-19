@@ -4,7 +4,6 @@ from typing import Dict, Iterable, List, Optional, Set
 from itertools import chain
 
 import numpy as np
-import logging
 import math
 import random
 
@@ -18,6 +17,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 SPEEDMINING_DISTANCE = 1.8
+GREETING = '(glhf) 12PoolBot v220609'
 
 def get_intersections(p0: Point2, r0: float, p1: Point2, r1: float) -> Iterable[Point2]:
     """yield the intersection points of two circles at points p0, p1 with radii r0, r1"""
@@ -44,25 +44,8 @@ class Pool12AllIn(BotAI):
         self.gas_harvester_target: int = 2
         self.game_step: int = 2
         self.speedmining_enabled: bool = True
-        self.enemy_tags: Set[int] = set()
-        logging.basicConfig(level=logging.INFO)
+        self.greeting_sent: bool = False
         super().__init__()
-
-    async def on_enemy_unit_entered_vision(self, unit: Unit):
-        logging.info(f'enemy_unit_entered_vision: {unit.tag}')
-        if unit.is_enemy:
-            self.enemy_tags.add(unit.tag)
-
-    async def on_enemy_unit_left_vision(self, unit_tag: int):
-        logging.info(f'enemy_unit_left_vision: {unit_tag}')
-        self.enemy_tags.discard(unit_tag)
-
-    async def on_unit_destroyed(self, unit_tag: int):
-        logging.info(f'unit_destroyed: {unit_tag}')
-        if unit_tag in self._enemy_units_previous_map or unit_tag in self._enemy_units_previous_map:
-            if unit_tag not in self.enemy_tags:
-                raise Exception('huh?')
-            self.enemy_tags.discard(unit_tag)
 
     async def on_before_start(self) -> None:
         self.client.game_step = self.game_step
@@ -106,6 +89,10 @@ class Pool12AllIn(BotAI):
         self.spire: Optional[Unit] = None
         self.abilities: Counter[AbilityId] = Counter(o.ability.exact_id for u in self.all_own_units for o in u.orders)
         self.invisible_enemy_start_locations: List[Point2] = [p for p in self.enemy_start_locations if not self.is_visible(p)]
+
+        if 3 < self.time and not self.greeting_sent:
+            await self.client.chat_send(GREETING, False)
+            self.greeting_sent = True
 
         if 100 < self.time and AbilityId.RESEARCH_ZERGLINGMETABOLICBOOST not in self.abilities and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
             await self.add_tag('latespeed')

@@ -29,7 +29,7 @@ class ZergMacro(Strategy):
     def update_composition(self) -> None:
 
         worker_count = self.ai.state.score.food_used_economy
-        worker_target = np.clip(self.ai.get_max_harvester(), 1, 88)
+        worker_target = np.clip(self.ai.get_max_harvester(), 1, 100)
         
         ratio = max(
             self.ai.combat.threat_level,
@@ -38,12 +38,7 @@ class ZergMacro(Strategy):
         )
         # ratio = self.ai.threat_level
 
-        future_timeframe = 3/60
-        if 0 < self.ai.macro.future_spending.minerals:
-            future_timeframe = max(future_timeframe, self.ai.macro.future_spending.minerals / max(1, self.ai.resource_manager.income.minerals))
-        if 0 < self.ai.macro.future_spending.vespene:
-            future_timeframe = max(future_timeframe, self.ai.macro.future_spending.vespene / max(1, self.ai.resource_manager.income.vespene))
-        larva_rate = self.ai.macro.future_spending.larva / (60 * future_timeframe)
+        larva_rate = self.ai.macro.future_spending.larva / (60 * max(1, self.ai.macro.future_timeframe))
         larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
         queen_target = math.ceil(larva_rate / (3/29))
         queen_target = min(queen_target, self.ai.townhalls.amount)
@@ -79,7 +74,7 @@ class ZergMacro(Strategy):
                 if counters := UNIT_COUNTER_DICT.get(enemy_type):
                     for t in counters:
                         if can_build[t]:
-                            composition[t] += max(1, 2.5 * ratio) * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(t)
+                            composition[t] += max(1, 2 * ratio) * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(t)
                             break
         else:
             composition[UnitTypeId.ZERGLING] = 1.0
@@ -88,7 +83,7 @@ class ZergMacro(Strategy):
         composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 7
         composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 3
 
-        tech_up = 32 <= worker_count and 3 <= self.ai.townhalls.amount
+        tech_up = 30 <= worker_count and 3 <= self.ai.townhalls.amount
 
         if tech_up and UpgradeId.ZERGLINGMOVEMENTSPEED in self.ai.state.upgrades:
             composition[UnitTypeId.ROACHWARREN] = 1

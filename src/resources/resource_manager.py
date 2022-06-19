@@ -234,7 +234,7 @@ class ResourceManager(AIModule):
         gas_max = sum(1 for g in self.ai.get_owned_geysers())
         gas_want = min(gas_max, gas_depleted + math.ceil((gas_target - 1) / 3))
         if gas_have + gas_pending < gas_want:
-            self.ai.macro.add_plan(MacroPlan(gas_type))
+            self.ai.macro.add_plan(gas_type)
         elif gas_want < gas_have + gas_pending:
             gas_plans = sorted(self.ai.macro.planned_by_type(gas_type), key = lambda p : p.priority)
             for i, plan in zip(range(gas_have + gas_pending - gas_want), gas_plans):

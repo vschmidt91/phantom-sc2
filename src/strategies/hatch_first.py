@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING, Union, Iterable, Dict
+from typing import TYPE_CHECKING, Iterable
 
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -23,8 +23,8 @@ class HatchFirst(ZergMacro):
             UnitTypeId.DRONE,
             UnitTypeId.HATCHERY,
             UnitTypeId.DRONE,
-            UnitTypeId.EXTRACTOR,
             UnitTypeId.DRONE,
+            UnitTypeId.EXTRACTOR,
             UnitTypeId.DRONE,
             UnitTypeId.SPAWNINGPOOL,
         ]

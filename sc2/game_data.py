@@ -1,8 +1,9 @@
+# pylint: disable=W0212
 from __future__ import annotations
 
 from bisect import bisect_left
 from functools import lru_cache
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from sc2.data import Attribute, Race
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -23,20 +24,22 @@ class GameData:
         :param data:
         """
         ids = set(a.value for a in AbilityId if a.value != 0)
-        self.abilities = {a.ability_id: AbilityData(self, a) for a in data.abilities if a.ability_id in ids}
-        self.units = {u.unit_id: UnitTypeData(self, u) for u in data.units if u.available}
-        self.upgrades = {u.upgrade_id: UpgradeData(self, u) for u in data.upgrades}
+        self.abilities: Dict[int, AbilityData] = {
+            a.ability_id: AbilityData(self, a)
+            for a in data.abilities if a.ability_id in ids
+        }
+        self.units: Dict[int, UnitTypeData] = {u.unit_id: UnitTypeData(self, u) for u in data.units if u.available}
+        self.upgrades: Dict[int, UpgradeData] = {u.upgrade_id: UpgradeData(self, u) for u in data.upgrades}
         # Cached UnitTypeIds so that conversion does not take long. This needs to be moved elsewhere if a new GameData object is created multiple times per game
-        self.unit_types: Dict[int, UnitTypeId] = {}
 
     @lru_cache(maxsize=256)
-    def calculate_ability_cost(self, ability) -> Cost:
+    def calculate_ability_cost(self, ability: Union[AbilityData, AbilityId, UnitCommand]) -> Cost:
         if isinstance(ability, AbilityId):
             ability = self.abilities[ability.value]
         elif isinstance(ability, UnitCommand):
             ability = self.abilities[ability.ability.value]
 
-        assert isinstance(ability, AbilityData), f"C: {ability}"
+        assert isinstance(ability, AbilityData), f"Ability is not of type 'AbilityData', but was {type(ability)}"
 
         for unit in self.units.values():
             if unit.creation_ability is None:
@@ -231,12 +234,8 @@ class UnitTypeData:
     def cost_zerg_corrected(self) -> Cost:
         """ This returns 25 for extractor and 200 for spawning pool instead of 75 and 250 respectively """
         if self.race == Race.Zerg and Attribute.Structure.value in self.attributes:
-            # a = self._game_data.units(UnitTypeId.ZERGLING)
-            # print(a)
-            # print(vars(a))
             return Cost(self._proto.mineral_cost - 50, self._proto.vespene_cost, self._proto.build_time)
-        else:
-            return self.cost
+        return self.cost
 
     @property
     def morph_cost(self) -> Optional[Cost]:
