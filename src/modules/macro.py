@@ -153,11 +153,11 @@ class MacroModule(AIModule):
 
             cost = self.ai.cost[plan.item]
 
-            # if (
-            #     any(self.ai.get_missing_requirements(plan.item))
-            #     and plan.priority == math.inf
-            # ):
-            #     break
+            if (
+                any(self.ai.get_missing_requirements(plan.item))
+                and plan.priority == math.inf
+            ):
+                break
 
             if (2 if self.ai.extractor_trick_enabled else 1) <= i and plan.priority == math.inf:
                 break

@@ -19,8 +19,8 @@ from src.pool12_allin import Pool12AllIn
 
 MAPS = [
     # 'BerlingradAIE',
-    # 'CuriousMindsAIE',
-    'HardwireAIE',
+    'CuriousMindsAIE',
+    # 'HardwireAIE',
     # 'GlitteringAshesAIE',
     # 'OxideAIE',
     # 'RomanticideAIE',
@@ -54,7 +54,7 @@ def create_bot():
 
     ai = ZergAI(PoolFirst)
     ai.debug = True
-    ai.game_step = 1
+    ai.game_step = 2
 
     # ai = Pool12AllIn()
 

@@ -23,10 +23,10 @@ class PoolFirst(ZergMacro):
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
+            UnitTypeId.HATCHERY,
             UnitTypeId.DRONE,
             UnitTypeId.EXTRACTOR,
             UnitTypeId.DRONE,
-            UnitTypeId.HATCHERY,
             UnitTypeId.QUEEN,
             UnitTypeId.DRONE,
             UnitTypeId.ROACHWARREN,
@@ -38,16 +38,29 @@ class PoolFirst(ZergMacro):
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
-            UnitTypeId.ROACH,
         ]
+        # return [
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.OVERLORD,
+        #     UnitTypeId.SPAWNINGPOOL,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.HATCHERY,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.EXTRACTOR,
+        #     UnitTypeId.QUEEN,
+        # ]
 
-    async def on_step(self) -> None:
-        await super().on_step()
-        if self.ai.time < 220:
-            self.ai.macro.composition.pop(UnitTypeId.RAVAGER, 0)
+    # async def on_step(self) -> None:
+    #     await super().on_step()
+    #     if self.ai.time < 220:
+    #         self.ai.macro.composition.pop(UnitTypeId.RAVAGER, 0)
 
-    def filter_upgrade(self, upgrade) -> bool:
-        if self.ai.time < 220:
-            return False
-        else:
-            return super().filter_upgrade(upgrade)
+    # def filter_upgrade(self, upgrade) -> bool:
+    #     if self.ai.time < 220:
+    #         return False
+    #     else:
+    #         return super().filter_upgrade(upgrade)

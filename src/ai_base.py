@@ -514,7 +514,7 @@ class AIBase(BotAI):
             if not target.target:
                 pass
             elif isinstance(target.target, Unit):
-                positions.append(target.target)
+                positions.append(target.target.position3d)
             elif isinstance(target.target, Point3):
                 positions.append(target.target)
             elif isinstance(target.target, Point2):
@@ -526,7 +526,7 @@ class AIBase(BotAI):
                 for tag, behavior in self.unit_manager.units.items()
                 if isinstance(behavior, MacroBehavior) and behavior.plan==target), None)
             if (behavior := self.unit_manager.units.get(unit_tag)) and behavior.unit:
-                positions.append(behavior.unit)
+                positions.append(behavior.unit.position3d)
 
             text = f"{str(i+1)} {target.item.name}"
 
@@ -535,6 +535,8 @@ class AIBase(BotAI):
 
             if len(positions) == 2:
                 a, b = positions
+                a += Point3((0.0, 0.0, 0.1))
+                b += Point3((0.0, 0.0, 0.1))
                 self.client.debug_line_out(a, b, color=font_color)
 
         font_color = (255, 0, 0)

@@ -12,6 +12,9 @@ class Cost:
     def __add__(self, other: 'Cost'):
         return Cost(self.minerals + other.minerals, self.vespene + other.vespene, self.food + other.food, self.larva + other.larva)
 
+    def __sub__(self, other: 'Cost'):
+        return Cost(self.minerals - other.minerals, self.vespene - other.vespene, self.food - other.food, self.larva - other.larva)
+
     def __mul__(self, factor: float):
         return Cost(self.minerals * factor, self.vespene * factor, self.food * factor, self.larva * factor)
 
