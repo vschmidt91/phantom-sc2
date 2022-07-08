@@ -1,5 +1,0 @@
-- fix blocked and taken bases 1095281
-
-games for stream
-1124166
-1136898
