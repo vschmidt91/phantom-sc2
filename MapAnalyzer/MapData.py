@@ -1,6 +1,6 @@
 import math
-from itertools import chain
 from functools import lru_cache
+from itertools import chain
 from typing import Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
@@ -15,14 +15,12 @@ from scipy.spatial import distance
 from MapAnalyzer.Debugger import MapAnalyzerDebugger
 from MapAnalyzer.Pather import MapAnalyzerPather
 from MapAnalyzer.Region import Region
+from MapAnalyzer.constructs import ChokeArea, MDRamp, VisionBlockerArea, RawChoke
 from MapAnalyzer.utils import get_sets_with_mutual_elements, fix_map_ramps
-
+from .cext import CMapInfo, CMapChoke
 from .constants import BINARY_STRUCTURE, CORNER_MIN_DISTANCE, MAX_REGION_AREA, MIN_REGION_AREA
-
 from .decorators import progress_wrapped
 from .exceptions import CustomDeprecationWarning
-from MapAnalyzer.constructs import ChokeArea, MDRamp, VisionBlockerArea, RawChoke
-from .cext import CMapInfo, CMapChoke
 
 try:
     __version__ = get_distribution('sc2mapanalyzer')
@@ -310,8 +308,8 @@ class MapData:
                                     sensitivity=sensitivity)
 
     def pathfind_with_nyduses(self, start: Union[Tuple[float, float], Point2], goal: Union[Tuple[float, float], Point2],
-                 grid: Optional[ndarray] = None, large: bool = False, smoothing: bool = False,
-                 sensitivity: int = 1) -> Optional[Tuple[List[List[Point2]], Optional[List[int]]]]:
+                              grid: Optional[ndarray] = None, large: bool = False, smoothing: bool = False,
+                              sensitivity: int = 1) -> Optional[Tuple[List[List[Point2]], Optional[List[int]]]]:
         """
         :rtype: Union[List[List[:class:`sc2.position.Point2`]], None]
         Will return the path with lowest cost (sum) given a weighted array (``grid``), ``start`` , and ``goal``.
@@ -380,13 +378,13 @@ class MapData:
                                     initial_default_weights=initial_default_weights)
 
     def add_cost_to_multiple_grids(
-        self,
-        position: Tuple[float, float],
-        radius: float,
-        grids: List[ndarray],
-        weight: float = 100,
-        safe: bool = True,
-        initial_default_weights: float = 0,
+            self,
+            position: Tuple[float, float],
+            radius: float,
+            grids: List[ndarray],
+            weight: float = 100,
+            safe: bool = True,
+            initial_default_weights: float = 0,
     ) -> List[ndarray]:
         """
         :rtype: List[numpy.ndarray]
@@ -427,7 +425,6 @@ class MapData:
             safe=safe,
             initial_default_weights=initial_default_weights,
         )
-
 
     """Utility methods"""
 
@@ -853,7 +850,7 @@ class MapData:
                 areas = self.where_all(cm)
 
                 new_choke = RawChoke(
-                        map_data=self, array=new_choke_array, raw_choke=choke
+                    map_data=self, array=new_choke_array, raw_choke=choke
                 )
                 for area in areas:
 
@@ -881,10 +878,10 @@ class MapData:
         pre_regions = {}
         for i in range(len(self.regions_labels)):
             region = Region(
-                    array=np.where(self.region_grid == i, 1, 0).T,
-                    label=i,
-                    map_data=self,
-                    map_expansions=self.base_locations,
+                array=np.where(self.region_grid == i, 1, 0).T,
+                label=i,
+                map_data=self,
+                map_expansions=self.base_locations,
             )
             pre_regions[i] = region
             # gather the regions that are bigger than self.min_region_area
@@ -967,13 +964,13 @@ class MapData:
                                            fontdict=fontdict)
 
     def plot_influenced_path_nydus(self,
-                             start: Union[Tuple[float, float], Point2],
-                             goal: Union[Tuple[float, float], Point2],
-                             weight_array: ndarray,
-                             large: bool = False,
-                             smoothing: bool = False,
-                             name: Optional[str] = None,
-                             fontdict: dict = None) -> None:
+                                   start: Union[Tuple[float, float], Point2],
+                                   goal: Union[Tuple[float, float], Point2],
+                                   weight_array: ndarray,
+                                   large: bool = False,
+                                   smoothing: bool = False,
+                                   name: Optional[str] = None,
+                                   fontdict: dict = None) -> None:
         """
 
         A useful debug utility method for experimenting with the :mod:`.Pather` module
@@ -981,12 +978,12 @@ class MapData:
         """
 
         self.debugger.plot_influenced_path_nydus(start=start,
-                                           goal=goal,
-                                           weight_array=weight_array,
-                                           large=large,
-                                           smoothing=smoothing,
-                                           name=name,
-                                           fontdict=fontdict)
+                                                 goal=goal,
+                                                 weight_array=weight_array,
+                                                 large=large,
+                                                 smoothing=smoothing,
+                                                 name=name,
+                                                 fontdict=fontdict)
 
     def _plot_regions(self, fontdict: Dict[str, Union[str, int]]) -> None:
         return self.debugger.plot_regions(fontdict=fontdict)

@@ -1,22 +1,21 @@
 from typing import List, Optional, Tuple, TYPE_CHECKING
 
 import numpy as np
-
 from loguru import logger
 from numpy import ndarray
 from sc2.ids.unit_typeid import UnitTypeId as UnitID
 from sc2.position import Point2
 
-from MapAnalyzer.exceptions import OutOfBoundsException, PatherNoPointsException
 from MapAnalyzer.Region import Region
+from MapAnalyzer.exceptions import PatherNoPointsException
 from MapAnalyzer.utils import change_destructable_status_in_grid
 from .cext import astar_path, astar_path_with_nyduses
 from .destructibles import *
 
 if TYPE_CHECKING:
     from MapAnalyzer.MapData import MapData
-    
-    
+
+
 def _bounded_circle(center, radius, shape):
     xx, yy = np.ogrid[:shape[0], :shape[1]]
     circle = (xx - center[0]) ** 2 + (yy - center[1]) ** 2
@@ -48,7 +47,7 @@ class MapAnalyzerPather:
 
         nonpathable_indices = np.where(self.map_data.bot.game_info.pathing_grid.data_numpy == 0)
         self.nonpathable_indices_stacked = np.column_stack(
-                (nonpathable_indices[1], nonpathable_indices[0])
+            (nonpathable_indices[1], nonpathable_indices[0])
         )
         self.connectivity_graph = None  # set later by MapData
 
@@ -197,7 +196,8 @@ class MapAnalyzerPather:
 
         return ret_grid
 
-    def find_eligible_point(self, point: Tuple[float, float], grid: np.ndarray, terrain_height: np.ndarray, max_distance: float) -> Optional[Tuple[int, int]]:
+    def find_eligible_point(self, point: Tuple[float, float], grid: np.ndarray, terrain_height: np.ndarray,
+                            max_distance: float) -> Optional[Tuple[int, int]]:
         """
         User may give a point that is in a nonpathable grid cell, for example inside a building or
         inside rocks. The desired behavior is to move the point a bit so for example we can start or finish
@@ -236,7 +236,7 @@ class MapAnalyzerPather:
                         lowest_points[(distances[0] - distances[1]).argmin()]
             - 140 µs per loop
         """
-        
+
         disk = tuple(draw_circle(from_pos, radius, shape=grid.shape))
         if len(disk[0]) == 0:
             return None
@@ -395,13 +395,13 @@ class MapAnalyzerPather:
             return None
 
     def add_cost(
-        self,
-        position: Tuple[float, float],
-        radius: float,
-        arr: ndarray,
-        weight: float = 100,
-        safe: bool = True,
-        initial_default_weights: float = 0,
+            self,
+            position: Tuple[float, float],
+            radius: float,
+            arr: ndarray,
+            weight: float = 100,
+            safe: bool = True,
+            initial_default_weights: float = 0,
     ) -> ndarray:
         disk = tuple(draw_circle(position, radius, arr.shape))
 
@@ -412,13 +412,13 @@ class MapAnalyzerPather:
         return arr
 
     def add_cost_to_multiple_grids(
-        self,
-        position: Tuple[float, float],
-        radius: float,
-        arrays: List[ndarray],
-        weight: float = 100,
-        safe: bool = True,
-        initial_default_weights: float = 0,
+            self,
+            position: Tuple[float, float],
+            radius: float,
+            arrays: List[ndarray],
+            weight: float = 100,
+            safe: bool = True,
+            initial_default_weights: float = 0,
     ) -> List[ndarray]:
         """
         Add the same cost to multiple grids, this is so the disk is only calculated once
@@ -434,19 +434,19 @@ class MapAnalyzerPather:
 
     @staticmethod
     def _add_disk_to_grid(
-        position: Tuple[float, float],
-        arr: ndarray,
-        disk: Tuple,
-        weight: float = 100,
-        safe: bool = True,
-        initial_default_weights: float = 0,
+            position: Tuple[float, float],
+            arr: ndarray,
+            disk: Tuple,
+            weight: float = 100,
+            safe: bool = True,
+            initial_default_weights: float = 0,
     ) -> ndarray:
         # if we don't touch any cell origins due to a small radius, add at least the cell
         # the given position is in
         if (
-            len(disk[0]) == 0
-            and 0 <= position[0] < arr.shape[0]
-            and 0 <= position[1] < arr.shape[1]
+                len(disk[0]) == 0
+                and 0 <= position[0] < arr.shape[0]
+                and 0 <= position[1] < arr.shape[1]
         ):
             disk = (int(position[0]), int(position[1]))
 

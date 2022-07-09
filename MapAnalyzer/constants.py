@@ -7,27 +7,27 @@ NONPATHABLE_RADIUS_FACTOR = 0.8
 CORNER_MIN_DISTANCE = 3
 LOG_MODULE = "MapAnalyzer"
 COLORS = {
-        0 : "azure",
-        1 : 'black',
-        2 : 'red',
-        3 : 'green',
-        4 : 'blue',
-        5 : 'orange',
-        6 : 'saddlebrown',
-        7 : 'lime',
-        8 : 'navy',
-        9 : 'purple',
-        10: 'olive',
-        11: 'aquamarine',
-        12: 'indigo',
-        13: 'tan',
-        14: 'skyblue',
-        15: "wheat",
-        16: "azure",
-        17: "azure",
-        18: "azure",
-        19: "azure",
-        20: "azure"
+    0: "azure",
+    1: 'black',
+    2: 'red',
+    3: 'green',
+    4: 'blue',
+    5: 'orange',
+    6: 'saddlebrown',
+    7: 'lime',
+    8: 'navy',
+    9: 'purple',
+    10: 'olive',
+    11: 'aquamarine',
+    12: 'indigo',
+    13: 'tan',
+    14: 'skyblue',
+    15: "wheat",
+    16: "azure",
+    17: "azure",
+    18: "azure",
+    19: "azure",
+    20: "azure"
 }
 LOG_FORMAT = "<w><bold>{time:YY:MM:DD:HH:mm:ss}|" \
              "<level>{level: <8}</level>|<green>{name: ^15}</green>|" \

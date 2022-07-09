@@ -1,37 +1,48 @@
-
-
-from enum import Enum, Flag, auto
 import json
 from dataclasses import dataclass
-from typing import List, Set, Union, Optional, Dict
+from enum import Enum, Flag, auto
 from functools import cached_property
+from typing import List, Set, Union, Optional, Dict
 
 from sc2.data import Race, Attribute
-
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from src.constants import LARVA_COST
 
+
+from .modules.macro import MacroId
+from .constants import LARVA_COST
 from .cost import Cost
 
+def camel_to_upper_case(camel: str) -> str:
+    upper = ""
+    for char in camel:
+        if char.isupper() and upper:
+            upper += "_" + char
+        else:
+            upper += char.upper()
+    return upper
+
 class TechTreeAbilityTarget(Flag):
-    Point = auto()
-    Unit = auto()
-    PointOrUnit = Point | Unit
+    POINT = auto()
+    UNIT = auto()
+    POINT_OR_UNIT = POINT | UNIT
+
 
 @dataclass
 class TechTreeAbilityTargetResearch:
     upgrade: UpgradeId
 
+
 class TechTreeAbilityTargetUnitType(Enum):
-    Build = auto()
-    BuildOnUnit = auto()
-    BuildInstant = auto()
-    Train = auto()
-    TrainPlace = auto()
-    Morph = auto()
-    MorphPlace = auto()
+    BUILD = auto()
+    BUILD_ON_UNIT = auto()
+    BUILD_INSTANT = auto()
+    TRAIN = auto()
+    TRAIN_PLACE = auto()
+    MORPH = auto()
+    MORPH_PLACE = auto()
+
 
 @dataclass
 class TechTreeAbilityTargetUnit:
@@ -51,15 +62,18 @@ class TechTreeAbility:
     cooldown: int
     target: Union[TechTreeAbilityTarget, TechTreeAbilityTargetResearch, TechTreeAbilityTargetUnit]
 
+
 @dataclass
 class TechTreeWeaponBonus:
     against: Attribute
     damage: float
 
+
 class TechTreeWeaponType(Flag):
-    Ground = auto()
-    Air = auto()
-    Any = Ground | Air
+    GROUND = auto()
+    AIR = auto()
+    ANY = GROUND | AIR
+
 
 @dataclass
 class TechTreeWeapon:
@@ -70,6 +84,7 @@ class TechTreeWeapon:
     range: float
     cooldown: float
     bonuses: List[TechTreeWeaponBonus]
+
 
 @dataclass
 class TechTreeUnit:
@@ -110,25 +125,27 @@ class TechTreeUnit:
 
     @cached_property
     def can_attack_ground(self) -> bool:
-        if self.id in { UnitTypeId.BATTLECRUISER, UnitTypeId.ORACLE }:
+        if self.id in {UnitTypeId.BATTLECRUISER, UnitTypeId.ORACLE}:
             return True
-        return any(weapon.target_type & TechTreeWeaponType.Ground for weapon in self.weapons)
+        return any(weapon.target_type & TechTreeWeaponType.GROUND for weapon in self.weapons)
 
     @cached_property
     def can_attack_air(self) -> bool:
-        if self.id in { UnitTypeId.BATTLECRUISER }:
+        if self.id in {UnitTypeId.BATTLECRUISER}:
             return True
-        return any(weapon.target_type & TechTreeWeaponType.Air for weapon in self.weapons)
+        return any(weapon.target_type & TechTreeWeaponType.AIR for weapon in self.weapons)
 
     @cached_property
     def cost(self) -> Cost:
         return Cost(self.minerals, self.gas, self.supply, LARVA_COST.get(self.id, 0))
+
 
 @dataclass
 class TechTreeCost:
     minerals: int
     gas: int
     time: float
+
 
 @dataclass
 class TechTreeUpgrade:
@@ -140,10 +157,11 @@ class TechTreeUpgrade:
     def cost2(self) -> Cost:
         return Cost(self.cost.minerals, self.cost.gas, 0, 0)
 
+
 class TechTree:
 
     def __init__(self, path: str) -> None:
-        with open(path) as file:
+        with open(path, encoding="UTF-8") as file:
             data = json.load(file)
 
         self.abilities: Dict[AbilityId, TechTreeAbility] = dict()
@@ -153,14 +171,17 @@ class TechTree:
 
             if isinstance(item['target'], dict):
                 [(key, value)] = item['target'].items()
-                if key =='Research':
+                if key == 'Research':
                     item['target'] = TechTreeAbilityTargetResearch(UpgradeId(value['upgrade']))
                 else:
-                    item['target'] = TechTreeAbilityTargetUnit(TechTreeAbilityTargetUnitType[key], UnitTypeId(value['produces']))
+                    item['target'] = TechTreeAbilityTargetUnit(
+                        TechTreeAbilityTargetUnitType[camel_to_upper_case(key)],
+                        UnitTypeId(value['produces'])
+                    )
             elif item['target'] == 'None':
                 item['target'] = TechTreeAbilityTarget(0)
             else:
-                item['target'] = TechTreeAbilityTarget[item['target']]
+                item['target'] = TechTreeAbilityTarget[camel_to_upper_case(item['target'])]
 
             ability = TechTreeAbility(**item)
             self.abilities[ability.id] = ability
@@ -175,7 +196,8 @@ class TechTree:
 
             weapons = []
             for weapon in item['weapons']:
-                weapon['target_type'] = TechTreeWeaponType[weapon['target_type']]
+                target_type = camel_to_upper_case(weapon['target_type'])
+                weapon['target_type'] = TechTreeWeaponType[target_type]
                 bonuses = []
                 for bonus in weapon['bonuses']:
                     bonus['against'] = Attribute[bonus['against']]
@@ -183,16 +205,21 @@ class TechTree:
                 weapon['bonuses'] = bonuses
                 weapons.append(TechTreeWeapon(**weapon))
             item['weapons'] = weapons
-                
+
             unit = TechTreeUnit(**item)
             self.units[unit.id] = unit
-            
-        self.upgrades: Dict[UpgradeId, TechTreeUpgrade] = dict() 
-        for item in data['Upgrade']:
 
+        self.upgrades: Dict[UpgradeId, TechTreeUpgrade] = dict()
+        for item in data['Upgrade']:
             item['id'] = UpgradeId(item['id'])
 
             item['cost'] = TechTreeCost(**item['cost'])
 
             upgrade = TechTreeUpgrade(**item)
             self.upgrades[upgrade.id] = upgrade
+
+    def get_cost(self, item: MacroId) -> Cost:
+        if isinstance(item, UnitTypeId):
+            return self.units[item].cost
+        elif isinstance(item, UpgradeId):
+            return self.upgrades[item].cost2

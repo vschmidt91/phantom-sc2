@@ -1,30 +1,25 @@
-
-
 from __future__ import annotations
-from collections import defaultdict
-from typing import TYPE_CHECKING, Counter, DefaultDict, Dict, Iterable, Set, Type, Optional, List
-from itertools import chain
-import numpy as np
+
 import math
+from itertools import chain
+from typing import TYPE_CHECKING, Counter, Dict, Iterable, Type, Optional
 
-from functools import cached_property
-
-from sc2.position import Point2
-from src.cost import Cost
-from src.resources.resource_unit import ResourceUnit
+import numpy as np
 from sc2.data import race_townhalls, race_gas
 from sc2.ids.buff_id import BuffId
+from sc2.position import Point2
 
-from ..utils import dot
-from .resource_base import ResourceBase
-from .mineral_patch import MineralPatch
-from .vespene_geyser import VespeneGeyser
+from ..cost import Cost
+from ..resources.resource_unit import ResourceUnit
 from .base import Base
-from ..behaviors.gather import GatherBehavior
-from ..modules.macro import MacroBehavior, MacroPlan
-from ..constants import GAS_BY_RACE
+from .mineral_patch import MineralPatch
+from .resource_base import ResourceBase
 from .resource_group import ResourceGroup
+from .vespene_geyser import VespeneGeyser
+from ..behaviors.gather import GatherBehavior
+from ..constants import GAS_BY_RACE
 from ..modules.module import AIModule
+
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
@@ -34,20 +29,31 @@ MINING_RADIUS = 1.325
 MINERAL_RADIUS = 1.125
 HARVESTER_RADIUS = 0.375
 
-def project_point_onto_line(p: Point2, d: Point2, x: Point2) -> float:
-    n = Point2((d[1], -d[0]))
-    return x - dot(x - p, n) / dot(n, n) * n
 
-def get_intersections(p0: Point2, r0: float, p1: Point2, r1: float) -> Iterable[Point2]:
-    p01 = p1 - p0
-    d = np.linalg.norm(p01)
-    if 0 < d and abs(r0 - r1) <= d <= r0 + r1:
-        a = (r0 ** 2 - r1 ** 2 + d ** 2) / (2 * d)
-        h = math.sqrt(r0 ** 2 - a ** 2)
-        pm = p0 + (a / d) * p01
-        po = (h / d) * np.array([p01.y, -p01.x])
-        yield pm + po
-        yield pm - po
+def project_point_onto_line(origin: Point2, direction: Point2, position: Point2) -> Point2:
+    orthogonal_direction = Point2((direction[1], -direction[0]))
+    return position -\
+        np.dot(position - origin, orthogonal_direction) /\
+        np.dot(orthogonal_direction, orthogonal_direction) *\
+        orthogonal_direction
+
+
+def get_intersections(
+    position1: Point2,
+    radius1: float,
+    position2: Point2,
+    radius2: float
+) -> Iterable[Point2]:
+    p01 = position2 - position1
+    distance = np.linalg.norm(p01)
+    if 0 < distance and abs(radius1 - radius2) <= distance <= radius1 + radius2:
+        disc = (radius1 ** 2 - radius2 ** 2 + distance ** 2) / (2 * distance)
+        height = math.sqrt(radius1 ** 2 - disc ** 2)
+        middle = position1 + (disc / distance) * p01
+        orthogonal = (height / distance) * np.array([p01.y, -p01.x])
+        yield middle + orthogonal
+        yield middle - orthogonal
+
 
 class ResourceManager(AIModule):
 
@@ -60,7 +66,7 @@ class ResourceManager(AIModule):
             resource.position: resource
             for resource in self.bases.flatten()
         }
-        self.harvesters_by_resource: Counter[ResourceUnit] = Counter()
+        self.harvesters_by_resource: Counter[ResourceUnit] = Counter[ResourceUnit]()
         self.income = Cost(0, 0, 0, 0)
 
     @property
@@ -88,11 +94,12 @@ class ResourceManager(AIModule):
         )
 
     def add_harvester(self, harvester: GatherBehavior) -> None:
-        if gather_target := min(
+        gather_target = min(
             (x for b in self.bases_taken for x in b.flatten()),
-            key = lambda r : r.harvester_balance,
-            default = None
-        ):
+            key=lambda r: r.harvester_balance,
+            default=None
+        )
+        if gather_target:
             harvester.set_gather_target(gather_target)
 
     def update_bases(self) -> None:
@@ -100,7 +107,8 @@ class ResourceManager(AIModule):
         townhalls_by_position = {
             townhall.unit.position: townhall
             for townhall_type in race_townhalls[self.ai.race]
-            for townhall in chain(self.ai.unit_manager.actual_by_type[townhall_type], self.ai.unit_manager.pending_by_type[townhall_type])
+            for townhall in chain(self.ai.unit_manager.actual_by_type[townhall_type],
+                                  self.ai.unit_manager.pending_by_type[townhall_type])
         }
         for base in self.bases:
             base.townhall = townhalls_by_position.get(base.position)
@@ -150,11 +158,10 @@ class ResourceManager(AIModule):
         ), None)
         if not transfer_to:
             return
-            
+
         harvester.gather_target = transfer_to
 
     async def on_step(self) -> None:
-
 
         if self.ai.iteration % 16 == 0:
             self.update_patches_and_geysers()
@@ -175,10 +182,10 @@ class ResourceManager(AIModule):
             self.bases[0].split_initial_workers(harvesters)
             self.do_split = False
 
-        self.harvesters_by_resource = Counter(
+        self.harvesters_by_resource = Counter[ResourceBase](
             (unit.gather_target
-            for unit in self.ai.unit_manager.units.values()
-            if isinstance(unit, GatherBehavior) and unit.gather_target))
+             for unit in self.ai.unit_manager.units.values()
+             if isinstance(unit, GatherBehavior) and unit.gather_target))
 
         self.balance_harvesters()
 
@@ -190,15 +197,25 @@ class ResourceManager(AIModule):
                 for patch2 in base.mineral_patches:
                     if patch.position == patch2.position:
                         continue
-                    p = project_point_onto_line(target, target - base.position, patch2.position)
-                    if patch.position.distance_to(base.position) < patch2.position.distance_to(base.position):
+                    position = project_point_onto_line(target, target - base.position, patch2.position)
+                    distance1 = patch.position.distance_to(base.position)
+                    distance2 = patch2.position.distance_to(base.position)
+                    if distance1 < distance2:
                         continue
-                    if MINING_RADIUS <= patch2.position.distance_to(p):
+                    if MINING_RADIUS <= patch2.position.distance_to(position):
                         continue
-                    if target := min(
-                        get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS),
-                        key = lambda p : p.distance_to(base.position),
-                        default = None):
+                    intersections = list(get_intersections(
+                        patch.position,
+                        MINING_RADIUS,
+                        patch2.position,
+                        MINING_RADIUS
+                    ))
+                    if intersections:
+                        intersection1, intersection2 = intersections
+                        if intersection1.distance_to(base.position) < intersection2.distance_to(base.position):
+                            target = intersection1
+                        else:
+                            target = intersection2
                         break
                 positions[patch] = target
         return positions
@@ -228,7 +245,7 @@ class ResourceManager(AIModule):
 
     def build_gasses(self, gas_target: float):
         gas_type = GAS_BY_RACE[self.ai.race]
-        gas_depleted = self.ai.gas_buildings.filter(lambda g : not g.has_vespene).amount
+        gas_depleted = self.ai.gas_buildings.filter(lambda g: not g.has_vespene).amount
         gas_pending = self.ai.count(gas_type, include_actual=False)
         gas_have = self.ai.count(gas_type, include_pending=False, include_planned=False)
         gas_max = sum(1 for g in self.ai.get_owned_geysers())
@@ -236,33 +253,35 @@ class ResourceManager(AIModule):
         if gas_have + gas_pending < gas_want:
             self.ai.macro.add_plan(gas_type)
         elif gas_want < gas_have + gas_pending:
-            gas_plans = sorted(self.ai.macro.planned_by_type(gas_type), key = lambda p : p.priority)
-            for i, plan in zip(range(gas_have + gas_pending - gas_want), gas_plans):
+            gas_plans = sorted(self.ai.macro.planned_by_type(gas_type), key=lambda p: p.priority)
+            for _, plan in zip(range(gas_have + gas_pending - gas_want), gas_plans):
                 if plan.priority < math.inf:
                     self.ai.macro.try_remove_plan(plan)
 
     def transfer_to_and_from_gas(self, gas_target: float):
 
-
         gas_harvester_count = self.harvester_count(VespeneGeyser)
         mineral_harvester_count = self.harvester_count(MineralPatch)
         gas_max = sum(g.harvester_target for g in self.vespene_geysers)
-        effective_gas_target = min(gas_max, gas_target)
+        effective_gas_target = min(float(gas_max), gas_target)
         effective_gas_balance = gas_harvester_count - effective_gas_target
-        mineral_balance = mineral_harvester_count - sum(b.mineral_patches.harvester_target for b in self.bases)
+        mineral_balance = mineral_harvester_count - sum(
+            b.mineral_patches.harvester_target
+            for b in self.bases
+        )
 
         if (
-            0 < mineral_harvester_count
-            and (effective_gas_balance < 0 or 0 < mineral_balance)
-            and (geyser := self.pick_resource(self.vespene_geysers))
-            and (harvester := self.pick_harvester(MineralPatch, geyser.position))
+                0 < mineral_harvester_count
+                and (effective_gas_balance < 0 or 0 < mineral_balance)
+                and (geyser := self.pick_resource(self.vespene_geysers))
+                and (harvester := self.pick_harvester(MineralPatch, geyser.position))
         ):
             harvester.set_gather_target(geyser)
         elif (
-            0 < gas_harvester_count
-            and (1 <= effective_gas_balance and mineral_balance < 0)
-            and (patch := self.pick_resource(self.mineral_patches))
-            and (harvester := self.pick_harvester(VespeneGeyser, patch.position))
+                0 < gas_harvester_count
+                and (1 <= effective_gas_balance and mineral_balance < 0)
+                and (patch := self.pick_resource(self.mineral_patches))
+                and (harvester := self.pick_harvester(VespeneGeyser, patch.position))
         ):
             harvester.set_gather_target(patch)
 
@@ -280,8 +299,8 @@ class ResourceManager(AIModule):
                 for r in resources
                 if r.harvester_balance < 0
             ),
-            key = lambda r: r.harvester_balance,
-            default = None
+            key=lambda r: r.harvester_balance,
+            default=None
         )
 
     def pick_harvester(self, from_type: Type[ResourceUnit], close_to: Point2) -> Optional[GatherBehavior]:
@@ -291,19 +310,19 @@ class ResourceManager(AIModule):
                 for b in self.ai.unit_manager.units.values()
                 if isinstance(b, GatherBehavior) and isinstance(b.gather_target, from_type)
             ),
-            key = lambda h : math.inf if not h.unit else h.unit.position.distance_to(close_to),
-            default = None
+            key=lambda h: h.unit.position.distance_to(close_to) if h.unit else math.inf,
+            default=None
         )
 
     def update_income(self) -> None:
 
         self.income.minerals = self.ai.state.score.collection_rate_minerals
         self.income.vespene = self.ai.state.score.collection_rate_vespene
-        
+
         larva_per_second = 0.0
         for hatchery in self.ai.townhalls:
             if hatchery.is_ready:
-                larva_per_second += 1/11
+                larva_per_second += 1 / 11
                 if hatchery.has_buff(BuffId.QUEENSPAWNLARVATIMER):
-                    larva_per_second += 3/29
+                    larva_per_second += 3 / 29
         self.income.larva = 60.0 * larva_per_second

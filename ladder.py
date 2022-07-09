@@ -4,20 +4,15 @@
 import argparse
 import asyncio
 import logging
-import os
-import random
-from datetime import datetime
 
 import aiohttp
-
 from sc2.client import Client
+from sc2.main import _play_game
 from sc2.portconfig import Portconfig
 from sc2.protocol import ConnectionAlreadyClosed
-from sc2.main import _play_game
 
 
 def run_ladder_game(bot):
-
     # Load command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--GamePort", type=int, nargs="?", help="Game port")
@@ -61,7 +56,7 @@ def run_ladder_game(bot):
 
 # Modified version of sc2.main._join_game to allow custom host and port, and to not spawn an additional sc2process (thanks to alkurbatov for fix)
 async def join_ladder_game(
-    host, port, players, realtime, portconfig, save_replay_as=None, step_time_limit=None, game_time_limit=None
+        host, port, players, realtime, portconfig, save_replay_as=None, step_time_limit=None, game_time_limit=None
 ):
     ws_url = f"ws://{host}:{port}/sc2api"
     ws_connection = await aiohttp.ClientSession().ws_connect(ws_url, timeout=120)

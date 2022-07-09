@@ -1,20 +1,17 @@
-
 from __future__ import annotations
-from enum import Enum
-from typing import Iterator, Dict, Iterable, Set, List, Optional, TypeVar, Generic, Tuple, TYPE_CHECKING
-from itertools import chain
-import math
-import logging
 
-from sc2.unit import Unit
+from typing import Iterator, Iterable, List, Optional, TypeVar, Generic, TYPE_CHECKING
+
 from sc2.position import Point2
 
 from .resource_base import ResourceBase
 from ..utils import center
+
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 T = TypeVar('T', bound=ResourceBase)
+
 
 class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
 
@@ -37,7 +34,7 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
     def remaining(self) -> Iterable[int]:
         return sum(r.remaining for r in self.items)
 
-    def flatten(self) -> Iterable[ResourceBase]:
+    def flatten(self) -> Iterable[T]:
         return (x for item in self.items for x in item.flatten())
 
     @property

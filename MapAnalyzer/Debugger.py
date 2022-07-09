@@ -93,11 +93,11 @@ class MapAnalyzerDebugger:
             # if c == 'black':
             #     fontdict["backgroundcolor"] = 'white'
             plt.text(
-                    reg.center[0],
-                    reg.center[1],
-                    reg.label,
-                    bbox=dict(fill=True, alpha=0.9, edgecolor=fontdict["backgroundcolor"], linewidth=2),
-                    fontdict=fontdict,
+                reg.center[0],
+                reg.center[1],
+                reg.label,
+                bbox=dict(fill=True, alpha=0.9, edgecolor=fontdict["backgroundcolor"], linewidth=2),
+                fontdict=fontdict,
             )
             # random color for each perimeter
             x, y = zip(*reg.perimeter_points)
@@ -126,12 +126,12 @@ class MapAnalyzerDebugger:
             plt.scatter(mfield.position[0], mfield.position[1], color="blue")
         for gasgeyser in self.map_data.normal_geysers:
             plt.scatter(
-                    gasgeyser.position[0],
-                    gasgeyser.position[1],
-                    color="yellow",
-                    marker=r"$\spadesuit$",
-                    s=500,
-                    edgecolors="g",
+                gasgeyser.position[0],
+                gasgeyser.position[1],
+                color="yellow",
+                marker=r"$\spadesuit$",
+                s=500,
+                edgecolors="g",
             )
 
     def plot_chokes(self) -> None:
@@ -214,14 +214,13 @@ class MapAnalyzerDebugger:
             tick.label1.set_fontweight("bold")
         plt.grid()
 
-
     def plot_influenced_path(self, start: Union[Tuple[float, float], Point2],
-                               goal: Union[Tuple[float, float], Point2],
-                               weight_array: ndarray,
-                               large: bool = False,
-                               smoothing: bool = False,
-                               name: Optional[str] = None,
-                               fontdict: dict = None) -> None:
+                             goal: Union[Tuple[float, float], Point2],
+                             weight_array: ndarray,
+                             large: bool = False,
+                             smoothing: bool = False,
+                             name: Optional[str] = None,
+                             fontdict: dict = None) -> None:
         import matplotlib.pyplot as plt
         from mpl_toolkits.axes_grid1 import make_axes_locatable
         from matplotlib.cm import ScalarMappable
@@ -233,10 +232,10 @@ class MapAnalyzerDebugger:
             name = self.map_data.map_name
         arr = weight_array.copy()
         path = self.map_data.pathfind(start, goal,
-                                        grid=arr,
-                                        large=large,
-                                        smoothing=smoothing,
-                                        sensitivity=1)
+                                      grid=arr,
+                                      large=large,
+                                      smoothing=smoothing,
+                                      sensitivity=1)
         ax: plt.Axes = plt.subplot(1, 1, 1)
         if path is not None:
             path = np.flipud(path)  # for plot align

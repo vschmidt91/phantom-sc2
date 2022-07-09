@@ -1,26 +1,21 @@
-
 from __future__ import annotations
+
 import math
+from typing import Counter, TYPE_CHECKING
+
 import numpy as np
-from typing import Counter, Union, Iterable, Dict, TYPE_CHECKING
-from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
-from sc2.game_data import UpgradeData
-
-from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.data import Race
+from sc2.ids.upgrade_id import UpgradeId
 
-from ..unit_counters import UNIT_COUNTER_DICT
-from ..constants import ZERG_ARMOR_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES
 from .strategy import Strategy
+from ..constants import ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES
+from ..unit_counters import UNIT_COUNTER_DICT
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-class ZergMacro(Strategy):
 
-    def __init__(self, ai: AIBase):
-        super().__init__(ai)
+class ZergMacro(Strategy):
 
     async def on_step(self) -> None:
         if self.ai.iteration % 10 == 0:
@@ -30,7 +25,7 @@ class ZergMacro(Strategy):
 
         worker_count = self.ai.state.score.food_used_economy
         worker_target = np.clip(self.ai.get_max_harvester(), 1, 100)
-        
+
         ratio = max(
             self.ai.combat.threat_level,
             # 1 if worker_count == worker_target else 0,
@@ -40,8 +35,9 @@ class ZergMacro(Strategy):
 
         larva_rate = self.ai.macro.future_spending.larva / (60 * max(1, self.ai.macro.future_timeframe))
         larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
-        queen_target = math.ceil(larva_rate / (3/29))
+        queen_target = math.ceil(larva_rate / (3 / 29))
         queen_target = min(queen_target, self.ai.townhalls.amount)
+        queen_target += 1
         queen_target = np.clip(queen_target, 2, 8)
         # print(queen_target)
 
@@ -63,7 +59,7 @@ class ZergMacro(Strategy):
             for t in composition
         }
 
-        enemy_counts = Counter(
+        enemy_counts = Counter[UnitTypeId](
             enemy.unit.type_id
             for enemy in self.ai.unit_manager.enemies.values()
             if enemy.unit
@@ -72,13 +68,13 @@ class ZergMacro(Strategy):
         if any(enemy_counts):
             for enemy_type, count in enemy_counts.items():
                 if counters := UNIT_COUNTER_DICT.get(enemy_type):
-                    for t in counters:
-                        if can_build[t]:
-                            composition[t] += max(1, 2 * ratio) * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(t)
+                    for counter in counters:
+                        if can_build[counter]:
+                            composition[counter] += max(1, 3 * ratio) * count * self.ai.get_unit_cost(
+                                enemy_type) / self.ai.get_unit_cost(counter)
                             break
         else:
             composition[UnitTypeId.ZERGLING] = 1.0
-
 
         composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 7
         composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 3
@@ -89,7 +85,8 @@ class ZergMacro(Strategy):
             composition[UnitTypeId.ROACHWARREN] = 1
             composition[UnitTypeId.OVERSEER] = 1
 
-        if tech_up and 0 < self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False) + self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
+        if tech_up and 0 < self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False) + self.ai.count(
+                UnitTypeId.HIVE, include_pending=False, include_planned=False):
             composition[UnitTypeId.HYDRALISKDEN] = 1
             composition[UnitTypeId.OVERSEER] = 2
             composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
@@ -105,7 +102,6 @@ class ZergMacro(Strategy):
         }
         # self.ai.composition = { UnitTypeId.LAIR: 1 }
 
-
     def filter_upgrade(self, upgrade) -> bool:
         if upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
             return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False)
@@ -115,7 +111,7 @@ class ZergMacro(Strategy):
             return 0 < self.ai.count(UnitTypeId.GREATERSPIRE, include_planned=False)
         elif upgrade == UpgradeId.OVERLORDSPEED:
             return 8 * 60 < self.ai.time
-        elif upgrade in { UpgradeId.BURROW, UpgradeId.TUNNELINGCLAWS }:
+        elif upgrade in {UpgradeId.BURROW, UpgradeId.TUNNELINGCLAWS}:
             return False
         else:
             return super().filter_upgrade(upgrade)

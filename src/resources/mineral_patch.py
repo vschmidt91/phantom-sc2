@@ -1,17 +1,16 @@
-
 from __future__ import annotations
-from typing import Set, Union, Iterable, Optional, TYPE_CHECKING
+
+from typing import Optional, TYPE_CHECKING
 
 from sc2.position import Point2
 from sc2.unit import Unit
-from sc2.ids.ability_id import AbilityId
-from ..constants import RICH_MINERALS
 
-from .resource_base import ResourceBase
 from .resource_unit import ResourceUnit
+from ..constants import RICH_MINERALS
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
+
 
 class MineralPatch(ResourceUnit):
 

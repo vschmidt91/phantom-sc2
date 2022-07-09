@@ -1,24 +1,19 @@
 from __future__ import annotations
 
-from typing import Dict, TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional
 
-from sc2.constants import IS_DETECTOR
-from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2
-from sc2.data import race_townhalls
+from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
-from src.units.unit import CommandableUnit
 
-from ..constants import CHANGELINGS
-from ..resources.base import Base
-from ..behaviors.behavior import Behavior
-from ..ai_component import AIComponent
+from ..units.unit import CommandableUnit
 from .module import AIModule
+
 if TYPE_CHECKING:
     from ..ai_base import AIBase
-    
+
+
 class DropModule(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
@@ -26,7 +21,7 @@ class DropModule(AIModule):
         self.ai: AIBase = ai
 
         enemy_start = self.ai.enemy_start_locations[0]
-        enemy_ramp = min(self.ai.game_info.map_ramps, key = lambda r : r.top_center.distance_to(enemy_start))
+        enemy_ramp = min(self.ai.game_info.map_ramps, key=lambda r: r.top_center.distance_to(enemy_start))
         drop_from_priorities = dict()
         for base in self.ai.resource_manager.bases:
             start_distance = base.position.distance_to(enemy_start)
@@ -35,7 +30,7 @@ class DropModule(AIModule):
             ramp_distance = base.position.distance_to(enemy_ramp.top_center)
             drop_from_priorities[base.position] = ramp_distance - start_distance
 
-        drop_base, priority = max(drop_from_priorities.items(), key = lambda p : p[1])
+        drop_base, priority = max(drop_from_priorities.items(), key=lambda p: p[1])
         self.drop_base = drop_base
 
         drop_from = None
@@ -54,14 +49,15 @@ class DropModule(AIModule):
         self.drop_from: Point2 = drop_from or drop_base
         self.drop_to: Point2 = drop_to or enemy_start
 
-    async def on_step(self) -> None:                 
+    async def on_step(self) -> None:
         pass
 
+
 class DropBehavior(CommandableUnit):
-    
-    def __init__(self, ai: AIBase, tag: int):
-        super().__init__(ai, tag)
-        
+
+    def __init__(self, ai: AIBase, unit: Unit):
+        super().__init__(ai, unit)
+
     def drop(self) -> Optional[UnitCommand]:
 
         if self.unit.type_id == UnitTypeId.OVERLORDTRANSPORT:
@@ -74,3 +70,5 @@ class DropBehavior(CommandableUnit):
                 return self.unit.move(self.ai.drop.drop_to)
             elif self.unit.is_idle:
                 return self.unit.move(self.ai.drop.drop_from)
+
+        return None

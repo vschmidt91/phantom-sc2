@@ -1,91 +1,61 @@
-
-from abc import ABC
-import cProfile, pstats
+import cProfile
+import pstats
 from functools import cmp_to_key
-import mailcap
-import itertools
-from collections import defaultdict
-from dataclasses import dataclass
+from itertools import chain
 import logging
-import uuid
-import asyncio
+from dataclasses import dataclass
+import os
 import math
 from random import random
-from typing import Any, DefaultDict, Iterable, Optional, Tuple, Type, Union, Coroutine, Set, List, Callable, Dict
-from loguru import logger
+from typing import Optional, Type, Dict, Iterable
 import numpy as np
-import os
-import json
 
-from pkg_resources import require
-import MapAnalyzer
-import skimage.draw
-
-from MapAnalyzer import MapData
-from sc2 import unit
-from sc2.game_data import GameData
-from sc2.game_state import ActionRawUnitCommand
-
-from sc2.position import Point2, Point3
 from sc2.bot_ai import BotAI
 from sc2.constants import IS_DETECTOR
+from sc2.data import Result, race_townhalls, ActionResult, Race
+from sc2.game_state import ActionRawUnitCommand
+from sc2.position import Point2, Point3
+from sc2.unit import Unit, UnitOrder, UnitCommand
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
-from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
-from sc2.dicts.unit_research_abilities import RESEARCH_INFO
-from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
-from sc2.dicts.unit_tech_alias import UNIT_TECH_ALIAS
-from sc2.data import Result, race_townhalls, race_worker, ActionResult
-from sc2.unit import Unit, UnitOrder
-from sc2.unit_command import UnitCommand
-from sc2.units import Units
-from src.resources.resource_manager import ResourceManager
-from src.resources.resource_unit import ResourceUnit
 
-from src.strategies.hatch_first import HatchFirst
-from src.strategies.pool_first import PoolFirst
-from src.techtree import TechTree, TechTreeWeaponType
-from src.units.structure import Structure
-from src.units.unit import EnemyUnit
+from MapAnalyzer import MapData
 
-from .modules.chat import Chat
+from .utils import VersionConflictException, flood_fill
+from .constants import WORKERS, UNIT_TRAINED_FROM, WITH_TECH_EQUIVALENTS
+from .constants import GAS_BY_RACE, REQUIREMENTS_KEYS
+from .constants import TRAIN_INFO, UPGRADE_RESEARCHED_FROM, RESEARCH_INFO, RANGE_UPGRADES
+from .resources.resource_manager import ResourceManager
+from .strategies.hatch_first import HatchFirst
+from .techtree import TechTree
 from .behaviors.inject import InjectManager
-from .modules.module import AIModule
-from .modules.creep import CreepModule
-from .modules.combat import CombatBehavior, CombatModule
-from .modules.drop import DropModule
-from .behaviors.gather import GatherBehavior
 from .behaviors.survive import SurviveBehavior
-from .modules.macro import MacroBehavior, MacroId, MacroModule, MacroPlan, compare_plans
+from .units.unit import CommandableUnit
 from .modules.bile import BileModule
-from .resources.mineral_patch import MineralPatch
-from .resources.vespene_geyser import VespeneGeyser
+from .modules.chat import Chat
+from .modules.combat import CombatModule
+from .modules.creep import CreepModule
+from .modules.dodge import DodgeModule
+from .modules.drop import DropModule
+from .modules.macro import MacroBehavior, MacroId, MacroModule, compare_plans
 from .modules.scout import ScoutModule
 from .modules.unit_manager import IGNORED_UNIT_TYPES, UnitManager
-from .strategies.strategy import Strategy
-from .simulation.simulation import Simulation
-from .value_map import ValueMap
 from .resources.base import Base
-from .resources.resource_group import ResourceGroup
-from .modules.dodge import *
-from .constants import *
+from .resources.mineral_patch import MineralPatch
+from .resources.vespene_geyser import VespeneGeyser
+from .strategies.strategy import Strategy
 from .units.worker import Worker, WorkerManager
-from .cost import Cost
-from .utils import *
-from .modules.dodge import *
 
 VERSION_PATH = 'version.txt'
 
 @dataclass
 class MapStaticData:
-
-    version: np.ndarray
+    version: str
     distance: np.ndarray
-
     def flip(self):
         self.distance = 1 - self.distance
+
 
 class AIBase(BotAI):
 
@@ -94,27 +64,45 @@ class AIBase(BotAI):
         self.raw_affects_selection = True
         self.game_step: int = 2
 
-        self.strategy_cls: Type[Strategy] = strategy_cls or PoolFirst
+        self.strategy_cls: Type[Strategy] = strategy_cls or HatchFirst
         self.version: str = ''
         self.debug: bool = False
         self.destroy_destructables: bool = False
         self.unit_command_uses_self_do = True
 
-        self.cost: Dict[MacroId, Cost] = dict()
-        self.weapons: Dict[UnitTypeId, List] = dict()
-        self.dps: Dict[UnitTypeId, float] = dict()
-
         self.enemies: Dict[int, Unit] = dict()
 
-        self.map_data: MapStaticData = None
-        self.map_analyzer: MapData = None
-        
         self.extractor_trick_enabled: bool = False
         self.iteration: int = 0
         self.techtree: TechTree = TechTree('data/techtree.json')
         self.profiler: Optional[cProfile.Profile] = None
 
+        self.map_analyzer: MapData
+        self.map_data: MapStaticData
+        self.resource_manager: ResourceManager
+        self.scout: ScoutModule
+        self.drop: DropModule
+        self.unit_manager: UnitManager
+        self.macro: MacroModule
+        self.chat: Chat
+        self.creep: CreepModule
+        self.biles: BileModule
+        self.combat: CombatModule
+        self.dodge: DodgeModule
+        self.inject: InjectManager
+        self.strategy: Strategy
+        self.worker_manager: WorkerManager
+
         super().__init__()
+
+    def can_move(self, unit: Unit) -> bool:
+        if unit.is_burrowed:
+            if unit.type_id == UnitTypeId.INFESTORBURROWED:
+                return True
+            elif unit.type_id == UnitTypeId.ROACHBURROWED:
+                return UpgradeId.TUNNELINGCLAWS in self.state.upgrades
+            return False
+        return 0 < unit.movement_speed
 
     async def on_before_start(self):
 
@@ -127,47 +115,19 @@ class AIBase(BotAI):
         else:
             logging.basicConfig(level=logging.ERROR)
 
-        logging.debug(f'before_start')
+        logging.debug('before_start')
 
-        with open(VERSION_PATH, 'r') as file:
+        with open(VERSION_PATH, 'r', encoding="UTF-8") as file:
             self.version = file.readline().replace('\n', '')
 
-        for unit in UnitTypeId:
-            data = self.game_data.units.get(unit.value)
-            if not data:
-                continue
-            weapons = list(data._proto.weapons)
-            self.weapons[unit] = weapons
-            dps = 0
-            for weapon in weapons:
-                damage = weapon.damage
-                speed = weapon.speed
-                dps = max(dps, damage / speed)
-            self.dps[unit] = dps
-
         self.client.game_step = self.game_step
-        self.cost = dict()
-        for unit in UnitTypeId:
-            try:
-                cost = self.calculate_cost(unit)
-                food = int(self.calculate_supply_cost(unit))
-                larva = LARVA_COST.get(unit, 0.0)
-                self.cost[unit] = Cost(cost.minerals, cost.vespene, food, larva)
-            except:
-                pass
-        for upgrade in UpgradeId:
-            try:
-                cost = self.calculate_cost(upgrade)
-                self.cost[upgrade] = Cost(cost.minerals, cost.vespene, 0, 0)
-            except:
-                pass
 
     async def on_start(self):
 
-        logging.debug(f'start')
+        logging.debug('start')
 
-        for th in self.townhalls:
-            self.do(th(AbilityId.RALLY_WORKERS, target=th))
+        for townhall in self.townhalls:
+            self.do(townhall(AbilityId.RALLY_WORKERS, target=townhall))
 
         self.map_analyzer = MapData(self)
         self.map_data = await self.load_map_data()
@@ -185,22 +145,6 @@ class AIBase(BotAI):
         self.inject = InjectManager(self)
         self.strategy: Strategy = self.strategy_cls(self)
         self.worker_manager: WorkerManager = WorkerManager(self)
-
-        self.modules: List[AIModule] = [
-            self.unit_manager,
-            self.resource_manager,
-            self.scout,
-            self.drop,
-            self.macro,
-            self.dodge,
-            self.combat,
-            self.chat,
-            self.creep,
-            self.biles,
-            self.inject,
-            self.strategy,
-            self.worker_manager
-        ]
 
         for structure in self.all_own_units:
             self.unit_manager.add_unit(structure)
@@ -236,12 +180,12 @@ class AIBase(BotAI):
         for action in self.state.actions_unit_commands:
             for tag in action.unit_tags:
                 self.handle_action(action, tag)
-                    
+
     def handle_action(self, action: ActionRawUnitCommand, tag: int) -> None:
 
         if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
             if not self.unit_manager.try_remove_unit(tag):
-                logging.error(f'creep tumor not found')
+                logging.error("creep tumor not found")
 
         behavior = self.unit_manager.units.get(tag)
         if not behavior:
@@ -250,22 +194,23 @@ class AIBase(BotAI):
             return
         elif behavior.unit.type_id == UnitTypeId.DRONE:
             return
-        elif behavior.unit.type_id in { UnitTypeId.LARVA, UnitTypeId.EGG }:
-            candidates = chain(self.unit_manager.actual_by_type[UnitTypeId.LARVA], self.unit_manager.actual_by_type[UnitTypeId.EGG])
+        elif behavior.unit.type_id in {UnitTypeId.LARVA, UnitTypeId.EGG}:
+            candidates = list(chain(self.unit_manager.actual_by_type[UnitTypeId.LARVA],
+                               self.unit_manager.actual_by_type[UnitTypeId.EGG]))
         else:
-            candidates = (behavior,)
-        behavior = next((
-                b
-                for b in candidates
-                if (
-                    isinstance(b, MacroBehavior)
-                    and b.plan
-                    and b.macro_ability == action.exact_id
-                )
-            ),
+            candidates = [behavior]
+        actual_behavior = next((
+            b
+            for b in candidates
+            if (
+                isinstance(b, MacroBehavior)
+                and b.plan
+                and b.macro_ability == action.exact_id
+            )
+        ),
             None)
-        if behavior:
-            behavior.plan = None
+        if actual_behavior:
+            actual_behavior.plan = None
         # else:
         #     logging.error(f'trainer not found: {action}')
 
@@ -278,14 +223,13 @@ class AIBase(BotAI):
         if tags:
             await self.client.debug_kill_unit(tags)
 
-
     async def on_step(self, iteration: int):
 
         # logging.debug(f'step: {iteration}')
 
         if iteration == 0 and self.debug:
             return
-        
+
         self.iteration = iteration
 
         if 1 < self.time:
@@ -304,9 +248,23 @@ class AIBase(BotAI):
         self.handle_errors()
         self.handle_actions()
 
-        # for module in self.modules:
-        #     await module.on_step()
-        await asyncio.gather(*[m.on_step() for m in self.modules])
+        modules = [
+            self.unit_manager,
+            self.resource_manager,
+            self.scout,
+            self.drop,
+            self.macro,
+            self.dodge,
+            self.combat,
+            self.chat,
+            self.creep,
+            self.biles,
+            self.inject,
+            self.strategy,
+            self.worker_manager
+        ]
+        for module in modules:
+            await module.on_step()
 
         if self.profiler:
             self.profiler.disable()
@@ -327,21 +285,25 @@ class AIBase(BotAI):
                 logging.error('worker supply mismatch')
 
     async def on_end(self, game_result: Result):
-        logging.debug(f'end: {game_result}')
+        logging.debug("end: %s", game_result)
 
     async def on_building_construction_started(self, unit: Unit):
-        logging.debug(f'building_construction_started: {unit}')
+        logging.debug("building_construction_started: %s", unit)
 
         behavior = self.unit_manager.add_unit(unit)
         # self.unit_manager.pending_by_type[unit.type_id].append(behavior)
 
         if self.race == Race.Zerg:
-            if unit.type_id in { UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMORBURROWED }:
+            if unit.type_id in {
+                UnitTypeId.CREEPTUMOR,
+                UnitTypeId.CREEPTUMORQUEEN,
+                UnitTypeId.CREEPTUMORBURROWED
+            }:
                 # print('tumor')
                 pass
             else:
                 geyser = self.resource_manager.resource_by_position.get(unit.position)
-                geyser_tag = geyser.unit.tag if isinstance(geyser, VespeneGeyser) else None
+                geyser_tag = geyser.unit.tag if isinstance(geyser, VespeneGeyser) and geyser.unit else None
                 for trainer_type in UNIT_TRAINED_FROM.get(unit.type_id, []):
                     for trainer in self.unit_manager.actual_by_type[trainer_type]:
                         if not trainer.unit:
@@ -353,50 +315,51 @@ class AIBase(BotAI):
                             assert self.unit_manager.try_remove_unit(trainer.unit.tag)
                             break
                         elif (
-                            not trainer.unit.is_idle
-                            and trainer.unit.order_target in {unit.position, geyser_tag}
-                            # and ITEM_BY_ABILITY.get(trainer.orders[0].ability.exact_id) == unit.type_id
+                                not trainer.unit.is_idle
+                                and trainer.unit.order_target in {unit.position, geyser_tag}
                         ):
                             assert self.unit_manager.try_remove_unit(trainer.unit.tag)
                             break
                     else:
                         logging.error('trainer not found')
-        pass
 
     async def on_building_construction_complete(self, unit: Unit):
-        logging.debug(f'building_construction_complete: {unit}')
+        logging.debug("building_construction_complete: %s", unit)
 
     async def on_enemy_unit_entered_vision(self, unit: Unit):
-        logging.debug(f'enemy_unit_entered_vision: {unit}')
+        logging.debug("enemy_unit_entered_vision: %s", unit)
         if unit.is_snapshot:
             return
         if unit.tag not in self.unit_manager.enemies:
             self.unit_manager.add_unit(unit)
 
     async def on_enemy_unit_left_vision(self, unit_tag: int):
-        logging.debug(f'enemy_unit_left_vision: {unit_tag}')
+        logging.debug("enemy_unit_left_vision: %i", unit_tag)
         if enemy := self.unit_manager.enemies.get(unit_tag):
-            enemy.snapshot = enemy.unit
+            enemy.is_snapshot = True
         else:
             logging.error('enemy not found')
 
     async def on_unit_destroyed(self, unit_tag: int):
-        logging.debug(f'unit_destroyed: {unit_tag}')
-        if unit_tag in self._enemy_units_previous_map or unit_tag in self._enemy_structures_previous_map:
+        logging.debug("unit_destroyed: %i", unit_tag)
+        if (
+            unit_tag in self._enemy_units_previous_map
+            or unit_tag in self._enemy_structures_previous_map
+        ):
             self.unit_manager.enemies.pop(unit_tag, None)
             # del self.unit_manager.enemies[unit_tag]
         elif not self.unit_manager.try_remove_unit(unit_tag):
-            logging.error('destroyed unit not found')
+            logging.error("destroyed unit not found")
 
     async def on_unit_created(self, unit: Unit):
-        logging.debug(f'unit_created: {unit}')
-        behavior = self.unit_manager.add_unit(unit)
-        
+        logging.debug("unit_created: %s", unit)
+        self.unit_manager.add_unit(unit)
+
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
-        logging.debug(f'unit_type_changed: {previous_type} -> {unit}')
-                
+        logging.debug("unit_type_changed: %s -> %s", previous_type, unit)
+
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
-        logging.debug(f'unit_took_damage: {amount_damage_taken} @ {unit}')
+        logging.debug("unit_took_damage: %f @ %s", amount_damage_taken, unit)
         if behavior := self.unit_manager.units.get(unit.tag):
             if isinstance(behavior, SurviveBehavior):
                 behavior.last_damage_taken = self.time
@@ -407,17 +370,17 @@ class AIBase(BotAI):
             #         behavior.cancel = True
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
-        logging.info(f'upgrade_complete: {upgrade}')
+        logging.info("upgrade_complete: %s", upgrade)
 
     def count(self,
-        item: MacroId,
-        include_pending: bool = True,
-        include_planned: bool = True,
-        include_actual: bool = True
-    ) -> int:
+            item: MacroId,
+            include_pending: bool = True,
+            include_planned: bool = True,
+            include_actual: bool = True
+        ) -> int:
 
         factor = 2 if item == UnitTypeId.ZERGLING else 1
-        
+
         count = 0
         if include_actual:
             if item in WORKERS:
@@ -438,21 +401,28 @@ class AIBase(BotAI):
             *self.enemy_start_locations
         }
         positions_fixed = dict()
-        for b in self.expansion_locations_list:
-            if b in exclude_bases:
+        for expansion in self.expansion_locations_list:
+            if expansion in exclude_bases:
                 continue
-            if await self.can_place_single(UnitTypeId.HATCHERY, b):
+            if await self.can_place_single(UnitTypeId.HATCHERY, expansion):
                 continue
-            positions_fixed[b] = await self.find_placement(UnitTypeId.HATCHERY, b, placement_step=1)
+            positions_fixed[expansion] = await self.find_placement(
+                UnitTypeId.HATCHERY,
+                expansion,
+                placement_step=1
+            )
 
         bases = sorted((
-            Base(self,positions_fixed.get(position, position), (MineralPatch(self, m) for m in resources.mineral_field), (VespeneGeyser(self, g) for g in resources.vespene_geyser))
+            Base(self, positions_fixed.get(position, position),
+                 (MineralPatch(self, m) for m in resources.mineral_field),
+                 (VespeneGeyser(self, g) for g in resources.vespene_geyser))
             for position, resources in self.expansion_locations_dict.items()
-        ), key = lambda b : self.map_data.distance[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
+        ), key=lambda b: self.map_data.distance[b.position.rounded] - .5 * b.position.distance_to(
+            self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
         return bases
 
-    async def load_map_data(self) -> Coroutine[Any, Any, MapStaticData]:
+    async def load_map_data(self) -> MapStaticData:
 
         path = os.path.join('data', f'{self.game_info.map_name}.npz')
         try:
@@ -468,30 +438,36 @@ class AIBase(BotAI):
             np.savez_compressed(path, **map_data.__dict__)
         return map_data
 
-    async def create_map_data(self) -> Coroutine[Any, Any, MapStaticData]:
+    async def create_map_data(self) -> MapStaticData:
         print('creating map data ...')
-        distance_map = await self.create_distance_map()
+        distance_map: np.ndarray = await self.create_distance_map()
         return MapStaticData(self.version, distance_map)
 
-    async def create_distance_map(self) -> Coroutine[Any, Any, np.ndarray]:
+    async def create_distance_map(self) -> np.ndarray:
 
         boundary = np.transpose(self.game_info.pathing_grid.data_numpy == 0)
-        for dx in range(-2, 3):
-            for dy in range(-2, 3):
-                p = self.start_location + Point2((dx, dy))
-                boundary[p.rounded] = False
+        for x_offset in range(-2, 3):
+            for y_offset in range(-2, 3):
+                position = self.start_location + Point2((x_offset, y_offset))
+                boundary[position.rounded] = False
 
-        distance_ground_self = flood_fill(boundary, [self.start_location.rounded])
-        distance_ground_enemy = flood_fill(boundary, [p.rounded for p in self.enemy_start_locations])
+        distance_ground_self = flood_fill(
+            boundary,
+            [self.start_location.rounded]
+        )
+        distance_ground_enemy = flood_fill(
+            boundary,
+            [p.rounded for p in self.enemy_start_locations]
+        )
         distance_ground = distance_ground_self / (distance_ground_self + distance_ground_enemy)
         distance_air = np.zeros_like(distance_ground)
-        for p, _ in np.ndenumerate(distance_ground):
-            position = Point2(p)
+        for position, _ in np.ndenumerate(distance_ground):
+            position = Point2(position)
             distance_self = position.distance_to(self.start_location)
             distance_enemy = min(position.distance_to(p) for p in self.enemy_start_locations)
-            distance_air[p] = distance_self / (distance_self + distance_enemy)
+            distance_air[position] = distance_self / (distance_self + distance_enemy)
         distance_map = np.where(np.isnan(distance_ground), distance_air, distance_ground)
-        
+
         return distance_map
 
     async def draw_debug(self):
@@ -501,11 +477,11 @@ class AIBase(BotAI):
 
         plans = []
         plans.extend(b.plan
-            for b in self.unit_manager.units.values()
-            if isinstance(b, MacroBehavior) and b.plan
-        )
+                     for b in self.unit_manager.units.values()
+                     if isinstance(b, MacroBehavior) and b.plan
+                     )
         plans.extend(self.macro.unassigned_plans)
-        plans.sort(key = cmp_to_key(compare_plans), reverse=True)
+        plans.sort(key=cmp_to_key(compare_plans), reverse=True)
 
         for i, target in enumerate(plans):
 
@@ -518,26 +494,26 @@ class AIBase(BotAI):
             elif isinstance(target.target, Point3):
                 positions.append(target.target)
             elif isinstance(target.target, Point2):
-                z = self.get_terrain_z_height(target.target)
-                positions.append(Point3((target.target.x, target.target.y, z)))
+                height = self.get_terrain_z_height(target.target)
+                positions.append(Point3((target.target.x, target.target.y, height)))
 
             unit_tag = next(
                 (tag
-                for tag, behavior in self.unit_manager.units.items()
-                if isinstance(behavior, MacroBehavior) and behavior.plan==target), None)
+                 for tag, behavior in self.unit_manager.units.items()
+                 if isinstance(behavior, MacroBehavior) and behavior.plan == target), None)
             if (behavior := self.unit_manager.units.get(unit_tag)) and behavior.unit:
                 positions.append(behavior.unit.position3d)
 
-            text = f"{str(i+1)} {target.item.name}"
+            text = f"{str(i + 1)} {target.item.name}"
 
             for position in positions:
                 self.client.debug_text_world(text, position, color=font_color, size=font_size)
 
             if len(positions) == 2:
-                a, b = positions
-                a += Point3((0.0, 0.0, 0.1))
-                b += Point3((0.0, 0.0, 0.1))
-                self.client.debug_line_out(a, b, color=font_color)
+                position_from, position_to = positions
+                position_from += Point3((0.0, 0.0, 0.1))
+                position_to += Point3((0.0, 0.0, 0.1))
+                self.client.debug_line_out(position_from, position_to, color=font_color)
 
         font_color = (255, 0, 0)
 
@@ -549,13 +525,28 @@ class AIBase(BotAI):
                 text = f"{enemy.unit.name}"
                 self.client.debug_text_world(text, position, color=font_color, size=font_size)
 
-        self.client.debug_text_screen(f'Threat Level: {round(100 * self.combat.threat_level)}%', (0.01, 0.01))
-        self.client.debug_text_screen(f'Enemy Bases: {len(self.scout.enemy_bases)}', (0.01, 0.02))
-        self.client.debug_text_screen(f'Gas Target: {round(self.resource_manager.get_gas_target(), 3)}', (0.01, 0.03))
-        self.client.debug_text_screen(f'Creep Coverage: {round(100 * self.creep.coverage)}%', (0.01, 0.06))
-        
+        self.client.debug_text_screen(
+            f'Threat Level: {round(100 * self.combat.threat_level)}%',
+            (0.01, 0.01)
+        )
+        self.client.debug_text_screen(
+            f'Enemy Bases: {len(self.scout.enemy_bases)}',
+            (0.01, 0.02)
+        )
+        self.client.debug_text_screen(
+            f'Gas Target: {round(self.resource_manager.get_gas_target(), 3)}',
+            (0.01, 0.03)
+        )
+        self.client.debug_text_screen(
+            f'Creep Coverage: {round(100 * self.creep.coverage)}%',
+            (0.01, 0.06)
+        )
+
         for i, plan in enumerate(plans):
-            self.client.debug_text_screen(f'{1+i} {round(plan.eta or 0, 1)} {plan.item.name}', (0.01, 0.1 + 0.01 * i))
+            self.client.debug_text_screen(
+                f'{1 + i} {round(plan.eta or 0, 1)} {plan.item.name}',
+                (0.01, 0.1 + 0.01 * i)
+            )
 
     def is_unit_missing(self, unit: UnitTypeId) -> bool:
         if unit in {
@@ -579,51 +570,26 @@ class AIBase(BotAI):
         if item not in REQUIREMENTS_KEYS:
             return
 
-        if type(item) == UnitTypeId:
+        if isinstance(item, UnitTypeId):
             trainers = UNIT_TRAINED_FROM[item]
-            trainer = min(trainers, key=lambda v:v.value)
+            trainer = min(trainers, key=lambda v: v.value)
             info = TRAIN_INFO[trainer][item]
-        elif type(item) == UpgradeId:
+        elif isinstance(item, UpgradeId):
             trainer = UPGRADE_RESEARCHED_FROM[item]
             info = RESEARCH_INFO[trainer][item]
 
         if self.is_unit_missing(trainer):
             yield trainer
         if (
-            (required_building := info.get('required_building'))
-            and self.is_unit_missing(required_building)
+                (required_building := info.get('required_building'))
+                and self.is_unit_missing(required_building)
         ):
             yield required_building
         if (
-            (required_upgrade := info.get('required_upgrade'))
-            and self.is_upgrade_missing(required_upgrade)
+                (required_upgrade := info.get('required_upgrade'))
+                and self.is_upgrade_missing(required_upgrade)
         ):
             yield required_upgrade
-
-
-        # requirements.append(info.get('required_building'))
-        # requirements.append(info.get('required_upgrade'))
-        # requirements = [r for r in requirements if r not in { UnitTypeId.LARVA, UnitTypeId.CORRUPTOR, UnitTypeId.ROACH, UnitTypeId.ZERGLING }]
-        
-        # missing = set()
-        # i = 0
-        # while i < len(requirements):
-        #     requirement = requirements[i]
-        #     i += 1
-        #     if not requirement:
-        #         continue
-        #     if type(requirement) is UnitTypeId:
-        #         equivalents = WITH_TECH_EQUIVALENTS[requirement]
-        #     elif type(requirement) is UpgradeId:
-        #         equivalents = { requirement }
-        #     else:
-        #         raise TypeError()
-        #     if any(self.count(e, include_pending=False, include_planned=False) for e in equivalents):
-        #         continue
-        #     missing.add(requirement)
-        #     requirements.extend(self.get_missing_requirements(requirement))
-
-        # return missing
 
     def get_owned_geysers(self):
         for base in self.resource_manager.bases:
@@ -652,12 +618,17 @@ class AIBase(BotAI):
         return True
 
     def get_unit_range(self, unit: Unit, ground: bool = True, air: bool = True) -> float:
-        unit_range = 0
+        unit_range = 0.0
         if ground:
             unit_range = max(unit_range, unit.ground_range)
         if air:
             unit_range = max(unit_range, unit.air_range)
-        unit_range += unit_boni(unit, RANGE_UPGRADES)
+
+        if unit.is_mine and (boni := RANGE_UPGRADES.get(unit.type_id)):
+            for upgrade, bonus in boni.items():
+                if upgrade in self.state.upgrades:
+                    unit_range += bonus
+
         return unit_range
 
     def enumerate_enemies(self) -> Iterable[Unit]:
@@ -678,7 +649,7 @@ class AIBase(BotAI):
 
     def get_unit_value(self, unit: Unit) -> float:
         health = unit.health + unit.shield
-        dps =  max(unit.ground_dps, unit.air_dps)
+        dps = max(unit.ground_dps, unit.air_dps)
         return math.sqrt(health * dps)
 
     def get_unit_cost(self, unit_type: UnitTypeId) -> int:
@@ -689,13 +660,18 @@ class AIBase(BotAI):
         workers = 0
         workers += sum((b.harvester_target for b in self.resource_manager.bases_taken))
         workers += 16 * self.count(UnitTypeId.HATCHERY, include_actual=False, include_planned=False)
-        workers += 3 * self.count(GAS_BY_RACE[self.race], include_actual=False, include_planned=False)
+        workers += 3 * self.count(
+            GAS_BY_RACE[self.race],
+            include_actual=False,
+            include_planned=False
+        )
         return workers
 
     def blocked_bases(self, position: Point2, margin: float = 0.0) -> Iterable[Base]:
-        px, py = position
-        radius = 3
-        for base in self.resource_manager.bases:
-            bx, by = base.position
-            if abs(px - bx) < margin + radius and abs(py - by) < margin + radius:
-                yield base
+        townhall_type = next(iter(race_townhalls[self.race]))
+        radius = self.techtree.units[townhall_type].radius or 0.0
+        return (
+            base
+            for base in self.resource_manager.bases
+            if np.linalg.norm(position - base.position, ord=1) < margin + radius
+        )

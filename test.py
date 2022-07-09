@@ -1,14 +1,7 @@
-import sc2
 import random
+
 from sc2.bot_ai import BotAI, Race
 from sc2.ids.unit_typeid import UnitTypeId
-from typing import Set
-from sc2.ids.ability_id import AbilityId
-from sc2.ids.upgrade_id import UpgradeId
-from sc2.unit import Unit
-from sc2.units import Units
-from sc2.position import Point2
-from sc2.player import Bot, Computer
 
 
 class CompetitiveBot(BotAI):
@@ -17,7 +10,7 @@ class CompetitiveBot(BotAI):
 
     def request_build_order(self):
         self.build_orders = {Race.Protoss: {
-            'Widowmine-Drop' : [
+            'Widowmine-Drop': [
                 self.build_worker,
                 self.build_depot,
                 self.build_worker,
@@ -33,7 +26,7 @@ class CompetitiveBot(BotAI):
                 self.build_worker,
             ]
         }, Race.Zerg: {
-            'The-Brick' : [
+            'The-Brick': [
                 self.build_worker,
                 self.build_depot,
                 self.build_worker,
@@ -42,7 +35,7 @@ class CompetitiveBot(BotAI):
             ]
         },
             Race.Random: {
-                'Fast-Reaper-Expand' : [
+                'Fast-Reaper-Expand': [
                     self.build_worker,
                     self.build_depot,
                     self.build_worker,
@@ -56,11 +49,11 @@ class CompetitiveBot(BotAI):
         CommandCenter = self.townhalls.ready.random
         Position = CommandCenter.position.towards(self.enemy_start_locations[0], 8)
         if (
-            self.can_afford(UnitTypeId.SUPPLYDEPOT) and
-            self.supply_left <= 3 and
-            self.already_pending(UnitTypeId.SUPPLYDEPOT) == 0
+                self.can_afford(UnitTypeId.SUPPLYDEPOT) and
+                self.supply_left <= 3 and
+                self.already_pending(UnitTypeId.SUPPLYDEPOT) == 0
         ):
-            await self.build(UnitTypeId.SUPPLYDEPOT, near = Position)
+            await self.build(UnitTypeId.SUPPLYDEPOT, near=Position)
             return True
         return False
 
@@ -82,7 +75,7 @@ class CompetitiveBot(BotAI):
                 self.already_pending(UnitTypeId.BARRACKS) == 0 and
                 self.structures(UnitTypeId.BARRACKS).amount < 12
         ):
-            await self.build(UnitTypeId.BARRACKS, near = Position)
+            await self.build(UnitTypeId.BARRACKS, near=Position)
             return True
         return False
 
@@ -94,7 +87,7 @@ class CompetitiveBot(BotAI):
         self.action_list = self.request_build_order()
         print("ended")
 
-    def has_more_actions(self) :
+    def has_more_actions(self):
         return self.current_action_index < len(self.action_list) - 1
 
     async def on_step(self, iteration):

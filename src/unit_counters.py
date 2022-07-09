@@ -1,4 +1,3 @@
-
 from sc2.ids.unit_typeid import UnitTypeId
 
 UNIT_COUNTER_DICT = {
@@ -11,8 +10,9 @@ UNIT_COUNTER_DICT = {
     UnitTypeId.DARKTEMPLAR: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
     UnitTypeId.ARCHON: [UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
     UnitTypeId.IMMORTAL: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.COLOSSUS: [UnitTypeId.BROODLORD, UnitTypeId.CORRUPTOR, UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
-    UnitTypeId.DISRUPTOR: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH], 
+    UnitTypeId.COLOSSUS: [UnitTypeId.BROODLORD, UnitTypeId.CORRUPTOR, UnitTypeId.ROACH, UnitTypeId.HYDRALISK,
+                          UnitTypeId.ZERGLING],
+    UnitTypeId.DISRUPTOR: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.PHOENIX: [UnitTypeId.CORRUPTOR, UnitTypeId.HYDRALISK, UnitTypeId.QUEEN],
     UnitTypeId.VOIDRAY: [UnitTypeId.HYDRALISK, UnitTypeId.QUEEN],
     UnitTypeId.ORACLE: [UnitTypeId.CORRUPTOR, UnitTypeId.HYDRALISK, UnitTypeId.QUEEN],

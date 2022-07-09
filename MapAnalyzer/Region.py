@@ -1,5 +1,4 @@
 from functools import lru_cache
-
 from typing import List, TYPE_CHECKING
 
 import numpy as np
@@ -24,6 +23,7 @@ class Region(Polygon):
         But it will never share a point with another :class:`.Region`
 
     """
+
     def __init__(
             self,
             map_data: 'MapData',
@@ -35,13 +35,12 @@ class Region(Polygon):
         self.label = label
         self.is_region = True
         self.bases = [
-                base
-                for base in map_expansions
-                if self.is_inside_point((base.rounded[0], base.rounded[1]))
+            base
+            for base in map_expansions
+            if self.is_inside_point((base.rounded[0], base.rounded[1]))
         ]  # will be set later by mapdata
         self.region_vision_blockers = []  # will be set later by mapdata
         self.region_vb = []
-
 
     @property
     def region_ramps(self) -> List[MDRamp]:
@@ -103,11 +102,11 @@ class Region(Polygon):
         plt.style.use("ggplot")
         for ramp in self.region_ramps:
             plt.text(
-                    # fixme make ramp attr compatible and not reversed
-                    ramp.top_center[0],
-                    ramp.top_center[1],
-                    f"R<{[r.label for r in ramp.regions]}>",
-                    bbox=dict(fill=True, alpha=0.3, edgecolor="cyan", linewidth=8),
+                # fixme make ramp attr compatible and not reversed
+                ramp.top_center[0],
+                ramp.top_center[1],
+                f"R<{[r.label for r in ramp.regions]}>",
+                bbox=dict(fill=True, alpha=0.3, edgecolor="cyan", linewidth=8),
             )
             # ramp.plot(testing=True)
             x, y = zip(*ramp.points)
@@ -128,7 +127,7 @@ class Region(Polygon):
         for mineral_field in self.map_data.mineral_fields:
             if self.is_inside_point(mineral_field.position.rounded):
                 plt.scatter(
-                        mineral_field.position[0], mineral_field.position[1], color="blue"
+                    mineral_field.position[0], mineral_field.position[1], color="blue"
                 )
 
     def _plot_geysers(self) -> None:
@@ -138,12 +137,12 @@ class Region(Polygon):
         for gasgeyser in self.map_data.normal_geysers:
             if self.is_inside_point(gasgeyser.position.rounded):
                 plt.scatter(
-                        gasgeyser.position[0],
-                        gasgeyser.position[1],
-                        color="yellow",
-                        marker=r"$\spadesuit$",
-                        s=500,
-                        edgecolors="g",
+                    gasgeyser.position[0],
+                    gasgeyser.position[1],
+                    color="yellow",
+                    marker=r"$\spadesuit$",
+                    s=500,
+                    edgecolors="g",
                 )
 
     def plot(self, self_only: bool = True, testing: bool = False) -> None:

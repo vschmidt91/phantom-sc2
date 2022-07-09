@@ -1,10 +1,9 @@
 import lzma
 import os
 import pickle
-import numpy as np
-
 from typing import List, Optional, TYPE_CHECKING, Union
 
+import numpy as np
 from s2clientprotocol.sc2api_pb2 import Response, ResponseObservation
 from sc2.bot_ai import BotAI
 from sc2.game_data import GameData
@@ -39,8 +38,8 @@ def change_destructable_status_in_grid(grid: np.ndarray, unit: Unit, status: int
     elif type_id in destructable_2x2:
         w = 2
         h = 2
-        x = int(pos[0] - w/2)
-        y = int(pos[1] - h/2)
+        x = int(pos[0] - w / 2)
+        y = int(pos[1] - h / 2)
         grid[x:(x + w), y:(y + h)] = status
     elif type_id in destructable_2x4:
         w = 2
@@ -124,6 +123,7 @@ def change_destructable_status_in_grid(grid: np.ndarray, unit: Unit, status: int
         grid[(x_ref + 1):(x_ref + 1 + 4), y_pos + 3] = status
         grid[(x_ref + 2):(x_ref + 2 + 2), y_pos + 4] = status
 
+
 def fix_map_ramps(bot: BotAI):
     """
     following https://github.com/BurnySc2/python-sc2/blob/ffb9bd43dcbeb923d848558945a8c59c9662f435/sc2/game_info.py#L246
@@ -165,7 +165,7 @@ def get_sets_with_mutual_elements(list_mdchokes: List[CMapChoke],
     for c in list_mdchokes:
         s2 = c.pixels
         s3 = s1 ^ s2
-        if len(s3) <= 0.95*(len(s1) + len(s2)):
+        if len(s3) <= 0.95 * (len(s1) + len(s2)):
             li.append(c.id)
     return li
 
@@ -195,7 +195,7 @@ def import_bot_instance(
     bot._initialize_variables()
     # noinspection PyProtectedMember
     bot._prepare_start(
-            client=None, player_id=1, game_info=game_info, game_data=game_data
+        client=None, player_id=1, game_info=game_info, game_data=game_data
     )
     # noinspection PyProtectedMember
     bot._prepare_first_step()

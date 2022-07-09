@@ -1,36 +1,30 @@
 from __future__ import annotations
-from datetime import time
+
+from abc import ABC
 from dataclasses import dataclass
-from typing import Optional, Union, List, Iterable, Dict, TYPE_CHECKING
-from abc import ABC, abstractmethod, abstractproperty
-from numpy.lib.arraysetops import isin
 from itertools import chain
-from s2clientprotocol.common_pb2 import Point
+from typing import List, TYPE_CHECKING, Optional, Dict
+import numpy as np
 
-from s2clientprotocol.data_pb2 import AbilityData
-from s2clientprotocol.raw_pb2 import Effect
-
-from sc2.position import Point2
-from sc2.ids.unit_typeid import UnitTypeId
+from sc2.game_state import EffectData
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.effect_id import EffectId
-from sc2.unit import Unit
-from sc2.game_state import EffectData
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit_command import UnitCommand
-from src.units.unit import CommandableUnit
+from sc2.position import Point2
+from sc2.unit import Unit
 
-from ..utils import *
-from ..behaviors.behavior import Behavior
-from ..ai_component import AIComponent
+from ..units.unit import CommandableUnit
 from .module import AIModule
+
 if TYPE_CHECKING:
     from ..ai_base import AIBase
- 
+
 DODGE_DELAYED_EFFECTS = {
     EffectId.RAVAGERCORROSIVEBILECP,
     EffectId.NUKEPERSISTENT,
 }
- 
+
 DODGE_EFFECTS = {
     EffectId.LURKERMP,
     EffectId.PSISTORMPERSISTENT,
@@ -41,10 +35,12 @@ DODGE_UNITS = {
     UnitTypeId.BANELING,
 }
 
+
 @dataclass
 class DamageCircle:
     radius: float
     damage: float
+
 
 class DodgeModule(AIModule):
 
@@ -54,8 +50,7 @@ class DodgeModule(AIModule):
         self.elements_delayed: List[DodgeEffectDelayed] = list()
 
     async def on_step(self):
-
-        delayed_positions = { e.position for e in self.elements_delayed }
+        delayed_positions = {e.position for e in self.elements_delayed}
         delayed_old = (
             element
             for element in self.elements_delayed
@@ -67,7 +62,7 @@ class DodgeModule(AIModule):
             if (
                 effect.id in DODGE_DELAYED_EFFECTS
                 and next(iter(effect.positions)) not in delayed_positions
-            )
+        )
         )
         self.elements_delayed = list(chain(delayed_old, delayed_new))
 
@@ -83,15 +78,16 @@ class DodgeModule(AIModule):
         )
         self.elements = list(chain(dodge_effects, dodge_unit, self.elements_delayed))
 
+
 class DodgeElement(ABC):
 
     def __init__(self, position: Point2, circles: List[DamageCircle]):
         self.position: Point2 = position
         self.circles: List[DamageCircle] = circles
 
-class DodgeUnit(DodgeElement):
 
-    CIRCLES: Dict[EffectId, List[Tuple[float, float]]] = {
+class DodgeUnit(DodgeElement):
+    CIRCLES: Dict[UnitTypeId, List[DamageCircle]] = {
         UnitTypeId.DISRUPTORPHASED: [DamageCircle(1.5, 145.0)],
         UnitTypeId.BANELING: [DamageCircle(2.2, 19.0)],
     }
@@ -101,9 +97,9 @@ class DodgeUnit(DodgeElement):
         circles = self.CIRCLES[unit.type_id]
         super().__init__(position, circles)
 
-class DodgeEffect(DodgeElement):
 
-    CIRCLES: Dict[EffectId, List[Tuple[float, float]]] = {
+class DodgeEffect(DodgeElement):
+    CIRCLES: Dict[EffectId, List[DamageCircle]] = {
         EffectId.LURKERMP: [DamageCircle(0.5, 20.0)],
         EffectId.PSISTORMPERSISTENT: [DamageCircle(1.5, 80.0)],
         EffectId.RAVAGERCORROSIVEBILECP: [DamageCircle(1.0, 60)],
@@ -115,8 +111,8 @@ class DodgeEffect(DodgeElement):
         circles = self.CIRCLES[effect.id]
         super().__init__(position, circles)
 
-class DodgeEffectDelayed(DodgeEffect):
 
+class DodgeEffectDelayed(DodgeEffect):
     DELAY: Dict[EffectId, float] = {
         EffectId.RAVAGERCORROSIVEBILECP: 50 / 22.4,
         EffectId.NUKEPERSISTENT: 320 / 22.4,
@@ -125,7 +121,7 @@ class DodgeEffectDelayed(DodgeEffect):
     def __init__(self, effect: EffectData, time: float):
         self.time_of_impact: float = time + self.DELAY[effect.id]
         super().__init__(effect)
-        
+
     # def get_circles(self, time: float) -> Iterable[DamageCircle]:
     #     time_remaining = self.time + self.delay - time
     #     movement_speed = 1.0
@@ -133,10 +129,11 @@ class DodgeEffectDelayed(DodgeEffect):
     #         radius_adjusted = radius - movement_speed * time_remaining
     #         yield DamageCircle(self.position, radius_adjusted, damage)
 
+
 class DodgeBehavior(CommandableUnit):
-    
-    def __init__(self, ai: AIBase, tag: int):
-        super().__init__(ai, tag)
+
+    def __init__(self, ai: AIBase, unit: Unit):
+        super().__init__(ai, unit)
         self.safety_distance: float = 2.0
 
     def dodge(self) -> Optional[UnitCommand]:
@@ -148,15 +145,18 @@ class DodgeBehavior(CommandableUnit):
             distance_bonus = 0.0
             if isinstance(dodge, DodgeEffectDelayed):
                 delay = (2 * self.ai.client.game_step) / 22.4
-                time_remaining = max(0, dodge.time_of_impact - self.ai.time - delay)
+                time_remaining = max(0.0, dodge.time_of_impact - self.ai.time - delay)
                 distance_bonus = 1.4 * self.unit.movement_speed * time_remaining
             distance_have = self.unit.distance_to(dodge.position)
             for circle in dodge.circles:
                 distance_want = circle.radius + self.unit.radius
                 if distance_have + distance_bonus < distance_want + self.safety_distance:
-                    dodge_from = dodge.position + Point2(np.random.normal(loc=0.0, scale=0.001, size=2))
+                    random_offset =  Point2(np.random.normal(loc=0.0, scale=0.001, size=2))
+                    dodge_from = dodge.position
+                    if dodge_from == self.unit.position:
+                        dodge_from += random_offset
                     target = dodge_from.towards(self.unit, distance_want + 2 * self.safety_distance)
-                    if self.unit.is_burrowed and not can_move(self.unit):
+                    if self.unit.is_burrowed and not self.ai.can_move(self.unit):
                         self.unit(AbilityId.BURROWUP)
                         return self.unit.move(target, queue=True)
                     else:

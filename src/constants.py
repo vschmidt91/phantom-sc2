@@ -1,28 +1,25 @@
-
-from collections import defaultdict
-import math
 from itertools import chain
 from typing import Dict
 
 from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS, SPEED_INCREASE_DICT, SPEED_UPGRADE_DICT
 from sc2.data import Race
-from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.ability_id import AbilityId
-from sc2.ids.upgrade_id import UpgradeId
-from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
-from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
-from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
+from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
+from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
+from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
+from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 
 from .utils import get_requirements
 
 WITH_TECH_EQUIVALENTS = {
-    unit: { unit } | EQUIVALENTS_FOR_TECH_PROGRESS.get(unit, set())
+    unit: {unit} | EQUIVALENTS_FOR_TECH_PROGRESS.get(unit, set())
     for unit in UnitTypeId
 }
 
 UNIT_TRAINED_FROM_WITH_EQUIVALENTS = {
-    item: { 
+    item: {
         equivalent
         for trainer in UNIT_TRAINED_FROM.get(item, [])
         for equivalent in WITH_TECH_EQUIVALENTS[trainer]
@@ -41,23 +38,23 @@ ITEM_TRAINED_FROM_WITH_EQUIVALENTS = {
 }
 
 RANGE_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, int]] = {
-    UnitTypeId.COLOSSUS: { UpgradeId.EXTENDEDTHERMALLANCE: 2 },
-    UnitTypeId.HYDRALISK: { UpgradeId.EVOLVEGROOVEDSPINES: 1 },
-    UnitTypeId.PHOENIX: { UpgradeId.PHOENIXRANGEUPGRADE: 2 },
-    UnitTypeId.PLANETARYFORTRESS: { UpgradeId.HISECAUTOTRACKING: 1 },
-    UnitTypeId.MISSILETURRET: { UpgradeId.HISECAUTOTRACKING: 1 },
-    UnitTypeId.AUTOTURRET: { UpgradeId.HISECAUTOTRACKING: 1 },
+    UnitTypeId.COLOSSUS: {UpgradeId.EXTENDEDTHERMALLANCE: 2},
+    UnitTypeId.HYDRALISK: {UpgradeId.EVOLVEGROOVEDSPINES: 1},
+    UnitTypeId.PHOENIX: {UpgradeId.PHOENIXRANGEUPGRADE: 2},
+    UnitTypeId.PLANETARYFORTRESS: {UpgradeId.HISECAUTOTRACKING: 1},
+    UnitTypeId.MISSILETURRET: {UpgradeId.HISECAUTOTRACKING: 1},
+    UnitTypeId.AUTOTURRET: {UpgradeId.HISECAUTOTRACKING: 1},
 }
 
 MACRO_INFO = {
-    unit_type: { **TRAIN_INFO.get(unit_type, {}), **RESEARCH_INFO.get(unit_type, {}) }
+    unit_type: {**TRAIN_INFO.get(unit_type, {}), **RESEARCH_INFO.get(unit_type, {})}
     for unit_type in set(chain(TRAIN_INFO, RESEARCH_INFO))
 }
 
 SPEED_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, float]] = {
-    unit_type: { upgrade: SPEED_INCREASE_DICT[unit_type] }
+    unit_type: {upgrade: SPEED_INCREASE_DICT[unit_type]}
     for unit_type, upgrade in SPEED_UPGRADE_DICT.items()
-    
+
 }
 
 COOLDOWN = {
@@ -105,15 +102,15 @@ RICH_GAS = {
 }
 
 TRAINERS = {
-    ttt
-    for t in UNIT_TRAINED_FROM.values()
-    for tt in t
-    for ttt in WITH_TECH_EQUIVALENTS[tt]
-} | {
-    tt
-    for t in UPGRADE_RESEARCHED_FROM.values()
-    for tt in WITH_TECH_EQUIVALENTS[t]
-}
+               ttt
+               for t in UNIT_TRAINED_FROM.values()
+               for tt in t
+               for ttt in WITH_TECH_EQUIVALENTS[tt]
+           } | {
+               tt
+               for t in UPGRADE_RESEARCHED_FROM.values()
+               for tt in WITH_TECH_EQUIVALENTS[t]
+           }
 
 SUPPLY_PROVIDED = {
     Race.Zerg: {
@@ -158,13 +155,13 @@ CIVILIANS = {
 }
 
 UNIT_BY_TRAIN_ABILITY: Dict[AbilityId, UnitTypeId] = {
-    unit_element["ability"] : unit
+    unit_element["ability"]: unit
     for trainer_element in TRAIN_INFO.values()
     for unit, unit_element in trainer_element.items()
 }
 
 UPGRADE_BY_RESEARCH_ABILITY: Dict[AbilityId, UpgradeId] = {
-    upgrade_element["ability"] : upgrade
+    upgrade_element["ability"]: upgrade
     for research_element in RESEARCH_INFO.values()
     for upgrade, upgrade_element in research_element.items()
 }

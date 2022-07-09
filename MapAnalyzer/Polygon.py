@@ -194,7 +194,7 @@ class Polygon:
         from skimage.feature import corner_harris, corner_peaks
 
         array = corner_peaks(
-                corner_harris(self.array), min_distance=self.map_data.corner_distance, threshold_rel=0.01)
+            corner_harris(self.array), min_distance=self.map_data.corner_distance, threshold_rel=0.01)
         return array
 
     @property

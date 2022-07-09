@@ -1,31 +1,16 @@
-
-from collections import defaultdict
-import datetime
-from doctest import Example
-import inspect
 import math
 import logging
-import itertools, random
-import numpy as np
-from typing import Counter, Iterable, List, Coroutine, Dict, Set, Union, Tuple, Optional, Type
 from itertools import chain
+from typing import Iterable, Dict, Set
 
-from sc2.unit import Unit
-from sc2.data import Race, race_townhalls
+from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.ids.buff_id import BuffId
 
-from .constants import SUPPLY_PROVIDED
 from .ai_base import AIBase
-from .utils import armyValue, center, sample, unitValue, run_timed
-from .constants import WITH_TECH_EQUIVALENTS, REQUIREMENTS, ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
-from .modules.macro import MacroPlan
-from .modules.creep import CreepModule
-from .strategies.strategy import Strategy
-
-import cProfile
-import pstats
+from .constants import SUPPLY_PROVIDED
+from .constants import ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, \
+    ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
 
 SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
     Race.Zerg: {
@@ -68,10 +53,8 @@ SPORE_TRIGGERS[Race.Random] = set((v for vs in SPORE_TRIGGERS.values() for v in 
 
 TIMING_INTERVAL = 64
 
-class ZergAI(AIBase):
 
-    def __init__(self, strategy_cls: Optional[Type[Strategy]] = None):
-        super().__init__(strategy_cls)
+class ZergAI(AIBase):
 
     async def on_step(self, iteration):
 
@@ -103,8 +86,8 @@ class ZergAI(AIBase):
         elif unit == UnitTypeId.ROACH:
             return chain(
                 (UpgradeId.GLIALRECONSTITUTION,
-                UpgradeId.BURROW,
-                UpgradeId.TUNNELINGCLAWS),
+                 UpgradeId.BURROW,
+                 UpgradeId.TUNNELINGCLAWS),
                 # (UpgradeId.GLIALRECONSTITUTION,),
                 self.upgrade_sequence(ZERG_RANGED_UPGRADES),
                 self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
@@ -157,7 +140,7 @@ class ZergAI(AIBase):
             return
 
         supply_buffer = self.resource_manager.income.larva / 2.0
-        
+
         if self.supply_left + supply_pending <= supply_buffer:
             plan = self.macro.add_plan(UnitTypeId.OVERLORD)
             plan.priority = 1
@@ -166,7 +149,7 @@ class ZergAI(AIBase):
 
         if self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False) < 1:
             return
-        
+
         worker_max = self.get_max_harvester()
         saturation = self.state.score.food_used_economy / max(1, worker_max)
         saturation = max(0, min(1, saturation))
@@ -176,14 +159,14 @@ class ZergAI(AIBase):
         if self.townhalls.amount == 2:
             expand = 21 <= self.state.score.food_used_economy
         elif 2 < self.townhalls.amount:
-            expand = .8 < saturation
+            expand = .5 < saturation
 
         for plan in self.macro.planned_by_type(UnitTypeId.HATCHERY):
             if plan.priority < math.inf:
                 plan.priority = priority
 
         if expand and self.count(UnitTypeId.HATCHERY, include_actual=False) < 1:
-            logging.info(f'{self.time_formatted}: expanding')
+            logging.info("%s: expanding", self.time_formatted)
             plan = self.macro.add_plan(UnitTypeId.HATCHERY)
             plan.priority = priority
             plan.max_distance = None

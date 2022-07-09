@@ -1,9 +1,7 @@
-
 from sc2.bot_ai import BotAI
-from sc2.data import Alliance
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.ability_id import AbilityId
 from sc2.unit import Unit
+
 
 class DummyAI(BotAI):
 
@@ -27,9 +25,8 @@ class DummyAI(BotAI):
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         print(f'unit_type_changed: {previous_type} -> {unit}')
-    
-    async def on_step(self, iteration: int):
 
+    async def on_step(self, iteration: int):
         await self.expand_now()
 
         # if iteration == 0:
@@ -77,11 +74,12 @@ class DummyAI(BotAI):
         # elif iteration == 150:
         #     self.larva.first.train(UnitTypeId.CORRUPTOR)
 
+
 class DummyAI2(BotAI):
 
     async def on_start(self):
         self.client.game_step = 1
         pass
-    
+
     async def on_step(self, iteration: int):
         pass

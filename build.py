@@ -1,16 +1,16 @@
-
-from string import Template
+import os
+import subprocess
+import zipfile
 from dataclasses import dataclass
+from string import Template
 from typing import List, Any
 from zipfile import ZipFile
-import os
-import zipfile
-import subprocess
 
 OUTPUT_PATH = 'publish'
 VERSION_PATH = 'version.txt'
-EXTENSIONS = { '.py', '.txt', '.json', '.npy' }
+EXTENSIONS = {'.py', '.txt', '.json', '.npy'}
 TEMPLATES_PATH = 'templates'
+
 
 @dataclass
 class BotPackage:
@@ -20,18 +20,23 @@ class BotPackage:
     cls: str
     libs: List[str]
 
+
 BOTS: List[BotPackage] = [
-    BotPackage('PhantomBot', 'Zerg', 'src.zerg', 'ZergAI',
-    [
-        'ladder.py',
-        'requirements.txt',
-        VERSION_PATH,
-        'src\\',
-        'sc2\\',
-        'MapAnalyzer\\',
-        'data\\'
-    ]),
-    # BotPackage('PhantomBot', 'Zerg', 'src.zerg', 'ZergAI',
+    BotPackage(
+        'PhantomBot',
+        'Zerg',
+        'src.zerg',
+        'ZergAI',
+        [
+            'ladder.py',
+            'requirements.txt',
+            VERSION_PATH,
+            'src\\',
+            'MapAnalyzer\\',
+            'sc2_helper\\',
+            'data\\'
+        ]),
+    # BotPackage('PhantomBot', 'Zerg', '.zerg', 'ZergAI',
     # [
     #     'ladder.py',
     #     'requirements.txt',
@@ -41,14 +46,17 @@ BOTS: List[BotPackage] = [
     #     'MapAnalyzer\\',
     #     'data\\'
     # ]),
-    BotPackage('12PoolBot', 'Zerg', 'src.pool12_allin', 'Pool12AllIn',
-    [
-        'ladder.py',
-        'requirements.txt',
-        'src\\pool12_allin.py',
-        'sc2\\'
-    ]),
-    # BotPackage('LingFlood', 'Zerg', 'src.lingflood', 'LingFlood',
+    BotPackage(
+        '12PoolBot',
+        'Zerg',
+        'src.pool12_allin',
+        'Pool12AllIn',
+        [
+            'ladder.py',
+            'requirements.txt',
+            'src\\pool12_allin.py',
+        ]),
+    # BotPackage('LingFlood', 'Zerg', '.lingflood', 'LingFlood',
     # [
     #     'ladder.py',
     #     'requirements.txt',
@@ -56,6 +64,7 @@ BOTS: List[BotPackage] = [
     #     'sc2\\'
     # ]),
 ]
+
 
 def zip_templates(zip_file: ZipFile, args: Any):
     for root, dirs, files in os.walk(TEMPLATES_PATH):
@@ -65,7 +74,8 @@ def zip_templates(zip_file: ZipFile, args: Any):
             path_abs = os.path.join(root, path)
             with open(path_abs, 'r') as file:
                 template = Template(file.read())
-            zip_file.writestr(path, template.substitute(args))
+            zip_file.writestr(path.replace('.template', ''), template.substitute(args))
+
 
 def zip_libs(zip_file: ZipFile, libs: List[str]):
     cwd = os.getcwd()
@@ -79,6 +89,7 @@ def zip_libs(zip_file: ZipFile, libs: List[str]):
                 continue
             # path_rel = os.path.join(dir_name, os.path.relpath(path_abs, dir_name))
             zip_file.write(path_abs, path_rel)
+
 
 if __name__ == '__main__':
 

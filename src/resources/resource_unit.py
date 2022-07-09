@@ -1,20 +1,17 @@
-
 from __future__ import annotations
-from optparse import Option
-from typing import Optional, TYPE_CHECKING, Set
-from abc import abstractproperty
 
-from sc2.position import Point2
+from typing import Optional, TYPE_CHECKING
+
 from sc2.unit import Unit
-from src.units.unit import AIUnit
-from ..ai_component import AIComponent
+
 from .resource_base import ResourceBase
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
+
 class ResourceUnit(ResourceBase):
-    
+
     def __init__(self, ai: AIBase, unit: Unit) -> None:
         super().__init__(ai, unit.position)
         self.unit: Optional[Unit] = unit

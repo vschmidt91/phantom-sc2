@@ -1,23 +1,18 @@
 from __future__ import annotations
-import math
 
 from typing import Dict, List, TYPE_CHECKING, Optional, Iterable
-from sc2.constants import IS_DETECTOR
-from sc2.unit import Unit
-from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.ability_id import AbilityId
-from sc2.position import Point2
-from sc2.unit_command import UnitCommand
-from src.units.unit import CommandableUnit
 
-from ..constants import CHANGELINGS
-from ..resources.base import Base
-from ..behaviors.behavior import Behavior
+from sc2.position import Point2
+from sc2.unit import Unit
+from sc2.unit_command import UnitCommand
+
+from ..units.unit import CommandableUnit
 from .module import AIModule
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
-    
+
+
 class ScoutModule(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
@@ -28,10 +23,10 @@ class ScoutModule(AIModule):
         self.enemy_bases: Dict[Point2, float] = dict()
         self.static_targets: List[Point2] = list()
 
-        for base in self.ai.resource_manager.bases[1:len(self.ai.resource_manager.bases)//2]:
+        for base in self.ai.resource_manager.bases[1:len(self.ai.resource_manager.bases) // 2]:
             self.static_targets.append(base.position)
-            
-        self.static_targets.sort(key=lambda t:t.distance_to(self.ai.start_location))
+
+        self.static_targets.sort(key=lambda t: t.distance_to(self.ai.start_location))
 
         for pos in self.ai.enemy_start_locations:
             self.enemy_bases[pos] = 0
@@ -60,20 +55,19 @@ class ScoutModule(AIModule):
                     if base.position in self.enemy_bases:
                         del self.enemy_bases[base.position]
 
-    def send_units(self, units: List[ScoutBehavior], targets: List[Point2]) -> None:
+    def send_units(self, units: Iterable[ScoutBehavior], targets: Iterable[Point2]) -> None:
 
         targets_set = set(targets)
         for scout in units:
             if scout.scout_position not in targets_set:
                 scout.scout_position = None
 
-        scouted_positions = { scout.scout_position for scout in units }
+        scouted_positions = {scout.scout_position for scout in units}
         if (
-            (unscouted_target := next((t for t in targets if t not in scouted_positions), None))
-            and (scout := next((s for s in units if not s.scout_position), None))
+                (unscouted_target := next((t for t in targets if t not in scouted_positions), None))
+                and (scout := next((s for s in units if not s.scout_position), None))
         ):
             scout.scout_position = unscouted_target
-
 
     async def on_step(self) -> None:
 
@@ -103,16 +97,18 @@ class ScoutModule(AIModule):
         self.send_units(detectors, self.blocked_positions.keys())
         self.send_units(nondetectors, scout_targets)
 
+
 class ScoutBehavior(CommandableUnit):
-    
-    def __init__(self, ai: AIBase, tag: int):
-        super().__init__(ai, tag)
+
+    def __init__(self, ai: AIBase, unit: Unit):
+        super().__init__(ai, unit)
         self.scout_position: Optional[Point2] = None
-        
+
     def scout(self) -> Optional[UnitCommand]:
 
         if self.scout_position:
-            if self.scout_position.distance_to(self.unit) < self.unit.radius + self.unit.sight_range:
+            max_distance = self.unit.radius + self.unit.sight_range
+            if self.scout_position.distance_to(self.unit) < max_distance:
                 return self.unit.hold_position()
             else:
                 return self.unit.move(self.scout_position)

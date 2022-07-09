@@ -1,29 +1,19 @@
 from __future__ import annotations
-from typing import Optional, Set, Union, Iterable, Tuple, TYPE_CHECKING
-import numpy as np
-import random
 
-from s2clientprotocol.common_pb2 import Point
-from torch import NoneType
-from sc2.constants import SPEED_INCREASE_ON_CREEP_DICT
+from typing import TYPE_CHECKING, Optional
 
-from sc2.position import Point2
-from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
-from sc2.data import race_worker
-from abc import ABC, abstractmethod
 
-from src.units.unit import CommandableUnit
-
-from ..utils import *
-from ..constants import *
-from ..behaviors.behavior import Behavior
-from ..ai_component import AIComponent
+from ..units.unit import CommandableUnit
 from .module import AIModule
+from ..constants import *
+from ..utils import *
+
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 BILE_ABILITY = AbilityId.EFFECT_CORROSIVEBILE
+
 
 class BileModule(AIModule):
 
@@ -48,10 +38,11 @@ class BileModule(AIModule):
             return dx / dt
         return Point2((0, 0))
 
+
 class BileBehavior(CommandableUnit):
-    
-    def __init__(self, ai: AIBase, tag: int):
-        super().__init__(ai, tag)
+
+    def __init__(self, ai: AIBase, unit: Unit):
+        super().__init__(ai, unit)
         self.last_used = 0
 
     def bile_priority(self, target: Unit):
@@ -73,7 +64,8 @@ class BileBehavior(CommandableUnit):
         if self.unit.type_id != UnitTypeId.RAVAGER:
             return None
 
-        if self.ai.state.game_loop < self.last_used + self.ai.techtree.abilities[AbilityId.EFFECT_CORROSIVEBILE].cooldown:
+        if self.ai.state.game_loop < self.last_used + self.ai.techtree.abilities[
+            AbilityId.EFFECT_CORROSIVEBILE].cooldown:
             return None
 
         targets = (
@@ -83,8 +75,8 @@ class BileBehavior(CommandableUnit):
         )
         target: Unit = max(
             targets,
-            key = lambda t : self.bile_priority(t),
-            default = None
+            key=lambda t: self.bile_priority(t),
+            default=None
         )
         if not target:
             return None

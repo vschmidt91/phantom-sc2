@@ -1,7 +1,8 @@
 import numpy as np
 
 try:
-    from .mapanalyzerext import astar as ext_astar, astar_with_nydus as ext_astar_nydus, get_map_data as ext_get_map_data
+    from .mapanalyzerext import astar as ext_astar, astar_with_nydus as ext_astar_nydus, \
+        get_map_data as ext_get_map_data
 except ImportError:
     from mapanalyzerext import astar as ext_astar, astar_with_nydus as ext_astar_nydus, get_map_data as ext_get_map_data
 
@@ -85,12 +86,13 @@ def astar_path(
 
     return path
 
+
 def astar_path_with_nyduses(weights: np.ndarray,
-        start: Tuple[int, int],
-        goal: Tuple[int, int],
-        nydus_positions: List[Point2],
-        large: bool = False,
-        smoothing: bool = False) -> Union[List[np.ndarray], None]:
+                            start: Tuple[int, int],
+                            goal: Tuple[int, int],
+                            nydus_positions: List[Point2],
+                            large: bool = False,
+                            smoothing: bool = False) -> Union[List[np.ndarray], None]:
     # For the heuristic to be valid, each move must have a positive cost.
     # Demand costs above 1 so floating point inaccuracies aren't a problem
     # when comparing costs
@@ -167,5 +169,4 @@ class CMapInfo:
                       end_x: int):
         height, width = walkable_grid.shape
         return ext_get_map_data(walkable_grid.flatten(), height_map.flatten(), height, width,
-                            start_y, end_y, start_x, end_x)
-
+                                start_y, end_y, start_x, end_x)

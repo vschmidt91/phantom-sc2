@@ -1,41 +1,42 @@
 from __future__ import annotations
-from sre_constants import SUCCESS
-from typing import Optional, Set, Union, Iterable, Tuple, TYPE_CHECKING
 
-from sc2.unit import Unit
+from typing import Optional, TYPE_CHECKING
+
 from sc2.unit_command import UnitCommand
-from src.units.structure import Structure
+from sc2.unit import Union
 
+from ..units.structure import Structure
+from ..resources.resource_base import ResourceBase
 from ..resources.mineral_patch import MineralPatch
 from ..resources.vespene_geyser import VespeneGeyser
 from ..units.unit import CommandableUnit
-from ..resources.resource_unit import ResourceUnit
 from ..utils import *
-from ..constants import *
+
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
+
 class GatherBehavior(CommandableUnit):
 
-    def __init__(self, ai: AIBase, tag: int):
+    def __init__(self, ai: AIBase, unit: Unit):
 
-        super().__init__(ai, tag)
+        super().__init__(ai, unit)
 
-        self.gather_target: Optional[ResourceUnit] = None
+        self.gather_target: Optional[ResourceBase] = None
         self.command_queue: Optional[Unit] = None
         self.return_target: Optional[Structure] = None
 
         self.ai.resource_manager.add_harvester(self)
 
-    def set_gather_target(self, gather_target: ResourceUnit) -> None:
+    def set_gather_target(self, gather_target: ResourceBase) -> None:
         self.gather_target = gather_target
         self.return_target = min(
             self.ai.unit_manager.townhalls,
-            key = lambda th : th.unit.distance_to(gather_target.position)
+            key=lambda th: th.unit.distance_to(gather_target.position)
         )
 
     def gather(self) -> Optional[UnitCommand]:
-        
+
         if not self.gather_target:
             return None
         elif not self.return_target:
@@ -47,7 +48,7 @@ class GatherBehavior(CommandableUnit):
             return None
         elif not self.unit:
             return None
-        
+
         target = None
         if isinstance(self.gather_target, MineralPatch):
             target = self.gather_target.unit
@@ -77,7 +78,9 @@ class GatherBehavior(CommandableUnit):
                 if self.unit.order_target != target.tag:
                     return self.unit.smart(target)
                 else:
-                    move_target = self.ai.resource_manager.speedmining_positions.get(self.gather_target)
+                    move_target = None
+                    if isinstance(self.gather_target, MineralPatch):
+                        move_target = self.ai.resource_manager.speedmining_positions.get(self.gather_target)
                     if not move_target:
                         move_target = target.position.towards(self.unit, target.radius + self.unit.radius)
                     if 0.75 < self.unit.position.distance_to(move_target) < 1.75:
@@ -87,3 +90,5 @@ class GatherBehavior(CommandableUnit):
                         # self.unit(AbilityId.SMART, target, True)
         elif self.unit.is_idle:
             return self.unit.smart(target)
+            
+        return None

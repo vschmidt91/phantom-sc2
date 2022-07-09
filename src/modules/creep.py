@@ -1,25 +1,24 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Optional, Set
-
-import random
 import math
-import numpy as np
+from typing import TYPE_CHECKING, Optional
 
-from sc2.ids.unit_typeid import UnitTypeId
+import numpy as np
 from sc2.ids.ability_id import AbilityId
-from sc2.unit import Unit, UnitCommand
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
-from src.behaviors.behavior import Behavior
-from src.units.unit import CommandableUnit
+from sc2.unit import Unit, UnitCommand
+
+from ..units.unit import CommandableUnit
+from .module import AIModule
 from ..constants import ENERGY_COST
 
-from .module import AIModule
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 TUMOR_RANGE = 10
-    
+
+
 class CreepModule(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
@@ -30,17 +29,16 @@ class CreepModule(AIModule):
         for base in self.ai.expansion_locations_list:
             self.area_min = np.minimum(self.area_min, base)
             self.area_max = np.maximum(self.area_max, base)
-        self.tile_count: int = np.sum(self.ai.game_info.pathing_grid.data_numpy)
+        self.tile_count: int = np.sum(self.ai.game_info.pathing_grid.data_numpy.astype(int)).item()
         self.coverage: float = 0.0
 
-    async def on_step(self) -> None:
+        def on_step(self) -> None:
+            self.coverage = np.sum(self.ai.state.creep.data_numpy) / self.tile_count
 
-        self.coverage = np.sum(self.ai.state.creep.data_numpy) / self.tile_count
-    
 class CreepBehavior(CommandableUnit):
 
-    def __init__(self, ai: AIBase, tag: int):
-        super().__init__(ai, tag)
+    def __init__(self, ai: AIBase, unit: Unit):
+        super().__init__(ai, unit)
         self.creation_step = self.ai.state.game_loop
 
     def spread_creep(self) -> Optional[UnitCommand]:
@@ -55,9 +53,7 @@ class CreepBehavior(CommandableUnit):
             if age < 240:
                 return None
         elif self.unit.type_id == UnitTypeId.QUEEN:
-            if 1 < self.ai.combat.enemy_vs_ground_map[self.unit.position.rounded]:
-                return None
-            elif self.unit.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
+            if self.unit.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
                 return None
             elif any(self.unit.orders) and self.unit.orders[0].ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN:
                 return self.unit(AbilityId.BUILD_CREEPTUMOR_QUEEN, target=self.unit.order_target)
@@ -65,7 +61,7 @@ class CreepBehavior(CommandableUnit):
             #     if unit.is_moving:
             #         return unit.move(unit.order_target)
             #     else:
-            #         return unit.move(self.ai.townhalls.ready.closest_to(unit)) 
+            #         return unit.move(self.ai.townhalls.ready.closest_to(unit))
         else:
             return None
 
@@ -81,7 +77,7 @@ class CreepBehavior(CommandableUnit):
             target_test = start_position + distance * Point2((math.cos(angle), math.sin(angle)))
             target_test = np.clip(target_test, self.ai.creep.area_min, self.ai.creep.area_max)
             target_test = Point2(target_test).rounded
-            
+
             if self.ai.has_creep(target_test):
                 continue
             if not self.ai.in_pathing_grid(target_test):
@@ -113,3 +109,5 @@ class CreepBehavior(CommandableUnit):
             #     self.ai.unit_manager.remove_unit(self.unit)
 
             return self.unit.build(UnitTypeId.CREEPTUMOR, position)
+
+        return None

@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import numpy as np
 from loguru import logger
@@ -54,7 +54,6 @@ class RawChoke(ChokeArea):
         self.id = raw_choke.id
         self.md_pl_choke = raw_choke
 
-
         self.side_a = Point2((int(round(self.main_line[0][0])), int(round(self.main_line[0][1]))))
         self.side_b = Point2((int(round(self.main_line[1][0])), int(round(self.main_line[1][1]))))
 
@@ -92,7 +91,7 @@ class MDRamp(ChokeArea):
         next_point = current.rounded
         while next_point in self.points:
             side_a = next_point
-            current = current.offset(perpendicular_dir*step_size)
+            current = current.offset(perpendicular_dir * step_size)
             next_point = current.rounded
 
         self.side_a = side_a

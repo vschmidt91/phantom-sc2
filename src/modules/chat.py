@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Set
-import random
 
 from .module import AIModule
+
 if TYPE_CHECKING:
     from ..ai_base import AIBase
-    
+
+
 class Chat(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
@@ -23,7 +24,7 @@ class Chat(AIModule):
 
     async def add_tag(self, tag: str, include_time: bool = True) -> None:
         if include_time:
-            message = f'Tag:{tag}@{self.time_formatted}'
+            message = f'Tag:{tag}@{self.ai.time_formatted}'
         else:
             message = f'Tag:{tag}'
         await self.add_message(message, True)

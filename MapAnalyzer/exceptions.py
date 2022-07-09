@@ -19,8 +19,8 @@ class PatherNoPointsException(BaseException):
 
     def __str__(self) -> str:
         return f"[PatherNoPointsException]" \
-            f"\nExpected: Start (pointlike), Goal (pointlike)," \
-            f"\nGot: Start {self.start}, Goal {self.goal}."
+               f"\nExpected: Start (pointlike), Goal (pointlike)," \
+               f"\nGot: Start {self.start}, Goal {self.goal}."
 
 
 class OutOfBoundsException(BaseException):

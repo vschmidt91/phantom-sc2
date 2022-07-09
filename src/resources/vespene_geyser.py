@@ -1,18 +1,16 @@
-
 from __future__ import annotations
-import struct
-from typing import Optional, Set, TYPE_CHECKING
 
-from sc2.position import Point2
+from typing import Optional, TYPE_CHECKING
+
 from sc2.unit import Unit
-from sc2.constants import ALL_GAS
-from ..constants import RICH_GAS
 
 from .resource_unit import ResourceUnit
-from .resource_base import ResourceBase
+from ..constants import RICH_GAS
+
 if TYPE_CHECKING:
     from ..units.structure import Structure
     from ..ai_base import AIBase
+
 
 class VespeneGeyser(ResourceUnit):
 

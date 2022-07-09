@@ -12,6 +12,8 @@ Rasputin/
 *.png
 *.txt
 *.prof
+*.pyd
+*.so
 
 replays/
 replays-hof/
