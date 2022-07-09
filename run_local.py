@@ -18,9 +18,9 @@ MAPS = [
 ]
 
 RACES = [
-    Race.Protoss,
+    # Race.Protoss,
     # Race.Terran,
-    # Race.Zerg,
+    Race.Zerg,
     # Race.Random,
 ]
 
@@ -32,7 +32,7 @@ BUILDS = [
     # AIBuild.Air,
 ]
 
-DIFFICULTY = Difficulty.VeryHard
+DIFFICULTY = Difficulty.CheatInsane
 REAL_TIME = False
 RESULT_PATH = 'results.json'
 SEED = 123

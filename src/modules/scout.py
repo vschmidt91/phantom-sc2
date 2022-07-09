@@ -20,7 +20,6 @@ class ScoutModule(AIModule):
 
         self.scout_enemy_natural: bool = True
         self.blocked_positions: Dict[Point2, float] = dict()
-        self.enemy_bases: Dict[Point2, float] = dict()
         self.static_targets: List[Point2] = list()
 
         for base in self.ai.resource_manager.bases[1:len(self.ai.resource_manager.bases) // 2]:
@@ -29,7 +28,6 @@ class ScoutModule(AIModule):
         self.static_targets.sort(key=lambda t: t.distance_to(self.ai.start_location))
 
         for pos in self.ai.enemy_start_locations:
-            self.enemy_bases[pos] = 0
             if path := self.ai.map_analyzer.pathfind(self.ai.start_location, pos):
                 self.static_targets.insert(1, path[len(path) // 2])
 
@@ -37,23 +35,6 @@ class ScoutModule(AIModule):
         for position, blocked_since in list(self.blocked_positions.items()):
             if blocked_since + 60 < self.ai.time:
                 del self.blocked_positions[position]
-
-    def find_taken_bases(self) -> None:
-
-        enemy_building_positions = {
-            enemy.unit.position
-            for enemy in self.ai.unit_manager.enemies.values()
-            if enemy.unit and enemy.unit.is_structure
-        }
-
-        for base in self.ai.resource_manager.bases:
-            if self.ai.is_visible(base.position):
-                if base.position in enemy_building_positions:
-                    if base.position not in self.enemy_bases:
-                        self.enemy_bases[base.position] = self.ai.time
-                else:
-                    if base.position in self.enemy_bases:
-                        del self.enemy_bases[base.position]
 
     def send_units(self, units: Iterable[ScoutBehavior], targets: Iterable[Point2]) -> None:
 
@@ -64,8 +45,8 @@ class ScoutModule(AIModule):
 
         scouted_positions = {scout.scout_position for scout in units}
         if (
-                (unscouted_target := next((t for t in targets if t not in scouted_positions), None))
-                and (scout := next((s for s in units if not s.scout_position), None))
+            (unscouted_target := next((t for t in targets if t not in scouted_positions), None))
+            and (scout := next((s for s in units if not s.scout_position), None))
         ):
             scout.scout_position = unscouted_target
 
@@ -87,13 +68,12 @@ class ScoutModule(AIModule):
             if not behavior.unit.is_detector
         ]
         scout_targets = []
-        if self.scout_enemy_natural and len(self.enemy_bases) < 2:
+        if self.scout_enemy_natural:
             target = self.ai.resource_manager.bases[-2].position
             scout_targets.append(target)
         scout_targets.extend(self.static_targets)
 
         self.reset_blocked_bases()
-        self.find_taken_bases()
         self.send_units(detectors, self.blocked_positions.keys())
         self.send_units(nondetectors, scout_targets)
 

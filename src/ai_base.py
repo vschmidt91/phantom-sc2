@@ -32,12 +32,9 @@ from .techtree import TechTree
 from .behaviors.inject import InjectManager
 from .behaviors.survive import SurviveBehavior
 from .units.unit import CommandableUnit
-from .modules.bile import BileModule
 from .modules.chat import Chat
 from .modules.combat import CombatModule
-from .modules.creep import CreepModule
 from .modules.dodge import DodgeModule
-from .modules.drop import DropModule
 from .modules.macro import MacroBehavior, MacroId, MacroModule, compare_plans
 from .modules.scout import ScoutModule
 from .modules.unit_manager import IGNORED_UNIT_TYPES, UnitManager
@@ -47,25 +44,19 @@ from .resources.vespene_geyser import VespeneGeyser
 from .strategies.strategy import Strategy
 from .units.worker import Worker, WorkerManager
 
-VERSION_PATH = 'version.txt'
-
-@dataclass
-class MapStaticData:
-    version: str
-    distance: np.ndarray
-    def flip(self):
-        self.distance = 1 - self.distance
-
-
 class AIBase(BotAI):
 
-    def __init__(self, strategy_cls: Optional[Type[Strategy]] = None):
+    def __init__(self,
+        strategy_cls: Optional[Type[Strategy]] = None,
+        version_path = "version.txt"
+    ):
 
         self.raw_affects_selection = True
         self.game_step: int = 2
 
         self.strategy_cls: Type[Strategy] = strategy_cls or HatchFirst
-        self.version: str = ''
+        with open(version_path, 'r', encoding="UTF-8") as file:
+            self.version = file.readline().replace('\n', '')
         self.debug: bool = False
         self.destroy_destructables: bool = False
         self.unit_command_uses_self_do = True
@@ -76,22 +67,6 @@ class AIBase(BotAI):
         self.iteration: int = 0
         self.techtree: TechTree = TechTree('data/techtree.json')
         self.profiler: Optional[cProfile.Profile] = None
-
-        self.map_analyzer: MapData
-        self.map_data: MapStaticData
-        self.resource_manager: ResourceManager
-        self.scout: ScoutModule
-        self.drop: DropModule
-        self.unit_manager: UnitManager
-        self.macro: MacroModule
-        self.chat: Chat
-        self.creep: CreepModule
-        self.biles: BileModule
-        self.combat: CombatModule
-        self.dodge: DodgeModule
-        self.inject: InjectManager
-        self.strategy: Strategy
-        self.worker_manager: WorkerManager
 
         super().__init__()
 
@@ -117,9 +92,6 @@ class AIBase(BotAI):
 
         logging.debug('before_start')
 
-        with open(VERSION_PATH, 'r', encoding="UTF-8") as file:
-            self.version = file.readline().replace('\n', '')
-
         self.client.game_step = self.game_step
 
     async def on_start(self):
@@ -130,16 +102,13 @@ class AIBase(BotAI):
             self.do(townhall(AbilityId.RALLY_WORKERS, target=townhall))
 
         self.map_analyzer = MapData(self)
-        self.map_data = await self.load_map_data()
+        self.distance_map = self.create_distance_map()
         bases = await self.initialize_bases()
         self.resource_manager = ResourceManager(self, bases)
         self.scout = ScoutModule(self)
-        self.drop = DropModule(self)
         self.unit_manager = UnitManager(self)
         self.macro = MacroModule(self)
         self.chat = Chat(self)
-        self.creep = CreepModule(self)
-        self.biles = BileModule(self)
         self.combat = CombatModule(self)
         self.dodge = DodgeModule(self)
         self.inject = InjectManager(self)
@@ -252,13 +221,10 @@ class AIBase(BotAI):
             self.unit_manager,
             self.resource_manager,
             self.scout,
-            self.drop,
             self.macro,
             self.dodge,
             self.combat,
             self.chat,
-            self.creep,
-            self.biles,
             self.inject,
             self.strategy,
             self.worker_manager
@@ -335,21 +301,11 @@ class AIBase(BotAI):
 
     async def on_enemy_unit_left_vision(self, unit_tag: int):
         logging.debug("enemy_unit_left_vision: %i", unit_tag)
-        if enemy := self.unit_manager.enemies.get(unit_tag):
-            enemy.is_snapshot = True
-        else:
-            logging.error('enemy not found')
 
     async def on_unit_destroyed(self, unit_tag: int):
         logging.debug("unit_destroyed: %i", unit_tag)
-        if (
-            unit_tag in self._enemy_units_previous_map
-            or unit_tag in self._enemy_structures_previous_map
-        ):
-            self.unit_manager.enemies.pop(unit_tag, None)
-            # del self.unit_manager.enemies[unit_tag]
-        elif not self.unit_manager.try_remove_unit(unit_tag):
-            logging.error("destroyed unit not found")
+        self.unit_manager.enemies.pop(unit_tag, None)
+        self.unit_manager.try_remove_unit(unit_tag)
 
     async def on_unit_created(self, unit: Unit):
         logging.debug("unit_created: %s", unit)
@@ -360,14 +316,6 @@ class AIBase(BotAI):
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         logging.debug("unit_took_damage: %f @ %s", amount_damage_taken, unit)
-        if behavior := self.unit_manager.units.get(unit.tag):
-            if isinstance(behavior, SurviveBehavior):
-                behavior.last_damage_taken = self.time
-            # elif isinstance(behavior, Structure) and not behavior.is_ready:
-            #     if unit.shield_health_percentage < 0.1:
-            #         behavior.cancel = True
-            #     elif unit.type_id in CREEP_TUMORS:
-            #         behavior.cancel = True
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         logging.info("upgrade_complete: %s", upgrade)
@@ -412,43 +360,33 @@ class AIBase(BotAI):
                 placement_step=1
             )
 
-        bases = sorted((
-            Base(self, positions_fixed.get(position, position),
-                 (MineralPatch(self, m) for m in resources.mineral_field),
-                 (VespeneGeyser(self, g) for g in resources.vespene_geyser))
+        bases = sorted(
+            (
+                Base(
+                    self,
+                    positions_fixed.get(position, position),
+                    (MineralPatch(self, m) for m in resources.mineral_field),
+                    (VespeneGeyser(self, g) for g in resources.vespene_geyser)
+                )
             for position, resources in self.expansion_locations_dict.items()
-        ), key=lambda b: self.map_data.distance[b.position.rounded] - .5 * b.position.distance_to(
-            self.enemy_start_locations[0]) / self.game_info.map_size.length)
+        ),
+        key=lambda b: self.distance_map[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
 
         return bases
 
-    async def load_map_data(self) -> MapStaticData:
+    def enumerate_positions(self, structure: Unit) -> Iterable[Point2]:
+        radius = structure.footprint_radius
+        return (
+            structure.position + Point2((x_offset, y_offset))
+            for x_offset in np.arange(-radius, +radius + 1)
+            for y_offset in np.arange(-radius, +radius + 1)
+        )
 
-        path = os.path.join('data', f'{self.game_info.map_name}.npz')
-        try:
-            map_data_files = np.load(path)
-            map_data = MapStaticData(**map_data_files)
-            map_data_version = str(map_data.version)
-            if map_data_version != self.version:
-                raise VersionConflictException()
-            if 0.5 < map_data.distance[self.start_location.rounded]:
-                map_data.flip()
-        except (FileNotFoundError, VersionConflictException, TypeError):
-            map_data = await self.create_map_data()
-            np.savez_compressed(path, **map_data.__dict__)
-        return map_data
-
-    async def create_map_data(self) -> MapStaticData:
-        print('creating map data ...')
-        distance_map: np.ndarray = await self.create_distance_map()
-        return MapStaticData(self.version, distance_map)
-
-    async def create_distance_map(self) -> np.ndarray:
+    def create_distance_map(self) -> np.ndarray:
 
         boundary = np.transpose(self.game_info.pathing_grid.data_numpy == 0)
-        for x_offset in range(-2, 3):
-            for y_offset in range(-2, 3):
-                position = self.start_location + Point2((x_offset, y_offset))
+        for townhall in self.townhalls:
+            for position in self.enumerate_positions(townhall):
                 boundary[position.rounded] = False
 
         distance_ground_self = flood_fill(
@@ -530,16 +468,8 @@ class AIBase(BotAI):
             (0.01, 0.01)
         )
         self.client.debug_text_screen(
-            f'Enemy Bases: {len(self.scout.enemy_bases)}',
-            (0.01, 0.02)
-        )
-        self.client.debug_text_screen(
             f'Gas Target: {round(self.resource_manager.get_gas_target(), 3)}',
             (0.01, 0.03)
-        )
-        self.client.debug_text_screen(
-            f'Creep Coverage: {round(100 * self.creep.coverage)}%',
-            (0.01, 0.06)
         )
 
         for i, plan in enumerate(plans):

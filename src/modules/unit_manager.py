@@ -23,14 +23,9 @@ if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 IGNORED_UNIT_TYPES = {
-    # UnitTypeId.LARVA,
-    # UnitTypeId.EGG,
     UnitTypeId.BROODLING,
     UnitTypeId.LOCUSTMP,
     UnitTypeId.LOCUSTMPFLYING,
-    # UnitTypeId.CREEPTUMOR,
-    # UnitTypeId.CREEPTUMORBURROWED,
-    # UnitTypeId.CREEPTUMORQUEEN,
 }
 
 
@@ -156,14 +151,13 @@ class UnitManager(AIModule):
         for tag, enemy in list(self.enemies.items()):
             if new_unit := enemy_by_tag.get(tag):
                 enemy.unit = new_unit
-                enemy.is_snapshot = False
             elif self.ai.is_visible(enemy.unit.position):
                 del self.enemies[tag]
-            else:
-                enemy.is_snapshot = True
 
     async def on_step(self) -> None:
         self.update_tags()
         self.update_tables()
         for unit in self.units.values():
             unit.on_step()
+        for enemy in self.enemies.values():
+            enemy.on_step()

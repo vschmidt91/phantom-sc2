@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional
-from numpy import isin
 from sc2_helper.combat_simulator import CombatSimulator
 
-import skimage.draw
 from sc2.unit_command import UnitCommand
 from sc2.units import Units
 from scipy.ndimage import gaussian_filter
@@ -14,8 +12,6 @@ from ..units.unit import CommandableUnit, EnemyUnit
 from .module import AIModule
 from ..constants import *
 from ..utils import *
-from ..value_map import ValueMap
-from src.units import unit
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -28,7 +24,7 @@ class CombatModule(AIModule):
         self.threat_level: float = 0.0
         self.combat_simulator = CombatSimulator()    
         
-    def simulate_fight(self, own_behaviors: Iterable[CommandableUnit], enemy_behaviors: Iterable[EnemyUnit]) -> float:
+    def simulate_fight(self, own_units: Units, enemy_units: Units) -> float:
         """
         rasper: This is a method Paul wrote, it works pretty well most of the time
 
@@ -47,18 +43,6 @@ class CombatModule(AIModule):
             in, so anything involving spell casters is probably a bad idea.
             - IDPTG/Paul
         """
-
-        own_units = Units((
-            unit.unit
-            for unit in own_behaviors
-            if unit.unit
-        ), self.ai)
-
-        enemy_units = Units((
-            unit.unit
-            for unit in enemy_behaviors
-            if unit.unit
-        ), self.ai)
         
         won_fight, health_remaining = self.combat_simulator.predict_engage(own_units, enemy_units)
 
@@ -80,7 +64,7 @@ class CombatModule(AIModule):
                 isinstance(behavior, CombatBehavior)
                 and behavior.fight_enabled
                 and behavior.unit
-                and behavior.unit.type_id not in { UnitTypeId.OVERLORD, UnitTypeId.QUEEN }
+                and behavior.unit.type_id not in { UnitTypeId.OVERLORD, UnitTypeId.QUEEN, UnitTypeId.DRONE }
             )
         )
 
@@ -94,7 +78,9 @@ class CombatModule(AIModule):
 
     async def on_step(self):
 
-        self.threat_level = 1.0 - self.simulate_fight(self.army, self.enemy_army)
+        army = Units((behavior.unit for behavior in self.army), self.ai)
+        enemy_army = Units((enemy.unit for enemy in self.enemy_army), self.ai)
+        self.threat_level = 1.0 - self.simulate_fight(army, enemy_army)
 
 class CombatStance(Enum):
     FLEE = 1
@@ -197,7 +183,7 @@ class CombatBehavior(CommandableUnit):
                 return self.unit.move(retreat_point)
             elif self.unit.position.distance_to(target.unit.position) <= self.unit.radius + self.ai.get_unit_range(
                     self.unit) + target.unit.radius:
-                return self.unit.attack(target.unit)
+                return self.unit.attack(target.unit.position)
             else:
                 return self.unit.attack(target.unit.position)
 
@@ -205,7 +191,7 @@ class CombatBehavior(CommandableUnit):
 
             if self.unit.position.distance_to(target.unit.position) <= self.unit.radius + self.ai.get_unit_range(
                     self.unit) + target.unit.radius:
-                return self.unit.attack(target.unit)
+                return self.unit.attack(target.unit.position)
             else:
                 attack_point = target.unit.position
                 return self.unit.attack(attack_point)
@@ -217,8 +203,8 @@ class CombatBehavior(CommandableUnit):
                 return self.unit.move(target.unit)
             elif self.unit.position.distance_to(target.unit.position) <= self.unit.radius + self.ai.get_unit_range(
                     self.unit) + target.unit.radius:
-                return self.unit.attack(target.unit)
+                return self.unit.attack(target.unit.position)
             else:
-                return self.unit.attack(target.unit)
+                return self.unit.attack(target.unit.position)
 
         return None

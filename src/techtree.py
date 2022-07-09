@@ -8,10 +8,11 @@ from sc2.data import Race, Attribute
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
+from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 
 
 from .modules.macro import MacroId
-from .constants import LARVA_COST
+from .constants import LARVA_COST, UNIT_TRAINED_FROM_WITH_EQUIVALENTS
 from .cost import Cost
 
 def camel_to_upper_case(camel: str) -> str:
@@ -220,6 +221,11 @@ class TechTree:
 
     def get_cost(self, item: MacroId) -> Cost:
         if isinstance(item, UnitTypeId):
-            return self.units[item].cost
+            if self.units[item].race == Race.Zerg and UnitTypeId.DRONE in UNIT_TRAINED_FROM[item]:
+                return self.units[item].cost - Cost(50.0, 0.0, 0.0, 0.0)
+            else:
+                return self.units[item].cost
         elif isinstance(item, UpgradeId):
             return self.upgrades[item].cost2
+        else:
+            raise TypeError()

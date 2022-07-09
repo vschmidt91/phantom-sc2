@@ -141,7 +141,7 @@ class Pool12AllIn(BotAI):
         if not self.pool and self.abilities[AbilityId.ZERGBUILD_SPAWNINGPOOL] < 1:
             if 200 <= self.minerals and self.pool_drone:
                 self.pool_drone.build(UnitTypeId.SPAWNINGPOOL, self.pool_position)
-            elif 170 <= self.minerals and not self.pool_drone:
+            elif 170 <= self.minerals and not self.pool_drone and self.drone:
                 self.pool_drone = self.drone
                 self.pool_drone.move(self.pool_position)
         elif self.supply_used < 13:
@@ -151,10 +151,10 @@ class Pool12AllIn(BotAI):
                 self.drone.build_gas(self.geyser)
         elif self.supply_cap == 14 and self.abilities[AbilityId.LARVATRAIN_OVERLORD] < 1:
             self.train(UnitTypeId.OVERLORD)
-        return self.pool and self.pool.is_ready
+        return self.pool is not None and self.pool.is_ready
 
     def macro(self, build_army: bool) -> None:
-        larva_per_second = 0
+        larva_per_second = 0.0
         for hatchery in self.townhalls:
             if hatchery.is_ready:
                 larva_per_second += 1 / 11
@@ -174,7 +174,7 @@ class Pool12AllIn(BotAI):
         elif queen_missing and 2 <= self.supply_left:
             for hatch in self.idle_hatches[:queen_missing]:
                 hatch.train(UnitTypeId.QUEEN)
-        elif self.pool.is_idle and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
+        elif self.pool and self.pool.is_idle and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
             self.pool.research(UpgradeId.ZERGLINGMOVEMENTSPEED)
         elif self.can_afford(UnitTypeId.HATCHERY) and self.abilities[
             AbilityId.ZERGBUILD_HATCHERY] < 1 and not self.hatch_morphing:
@@ -320,7 +320,7 @@ class Pool12AllIn(BotAI):
         minerals = self.expansion_locations_dict[self.start_location].mineral_field.sorted_by_distance_to(
             self.start_location)
         self.close_minerals = {m.tag for m in minerals[0:4]}
-        assigned = set()
+        assigned: Set[int] = set()
         for i in range(self.workers.amount):
             patch = minerals[i % len(minerals)]
             if i < len(minerals):

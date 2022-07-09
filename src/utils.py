@@ -35,8 +35,8 @@ async def run_timed(steps, **args):
 
 
 def center(points: Iterable[Point2]) -> Point2:
-    x_sum = 0
-    y_sum = 0
+    x_sum = 0.0
+    y_sum = 0.0
     num_points = 0
     for point in points:
         x_sum += point.position[0]

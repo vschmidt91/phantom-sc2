@@ -41,11 +41,12 @@ class WorkerManager(AIModule):
                 worker.fight_enabled = True
         elif self.ai.combat.threat_level < 1 / 2:
             worker = min(
-                (w
+                (
+                    w
                     for w in self.ai.unit_manager.units.values()
                     if isinstance(w, Worker) and w.fight_enabled
                 ),
-                key=lambda w: w.unit.shield_health_percentage if w.unit else 1,
+                key=lambda w : w.unit.shield_health_percentage if w.unit else 1,
                 default=None
             )
             if worker:

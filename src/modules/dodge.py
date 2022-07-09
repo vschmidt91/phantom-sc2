@@ -161,3 +161,5 @@ class DodgeBehavior(CommandableUnit):
                         return self.unit.move(target, queue=True)
                     else:
                         return self.unit.move(target)
+
+        return None

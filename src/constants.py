@@ -46,15 +46,14 @@ RANGE_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, int]] = {
     UnitTypeId.AUTOTURRET: {UpgradeId.HISECAUTOTRACKING: 1},
 }
 
-MACRO_INFO = {
-    unit_type: {**TRAIN_INFO.get(unit_type, {}), **RESEARCH_INFO.get(unit_type, {})}
-    for unit_type in set(chain(TRAIN_INFO, RESEARCH_INFO))
-}
-
 SPEED_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, float]] = {
     unit_type: {upgrade: SPEED_INCREASE_DICT[unit_type]}
     for unit_type, upgrade in SPEED_UPGRADE_DICT.items()
+}
 
+MACRO_INFO = {
+    unit_type: {**TRAIN_INFO.get(unit_type, {}), **RESEARCH_INFO.get(unit_type, {})}
+    for unit_type in set(chain(TRAIN_INFO, RESEARCH_INFO))
 }
 
 COOLDOWN = {
@@ -101,31 +100,20 @@ RICH_GAS = {
     UnitTypeId.RICHVESPENEGEYSER,
 }
 
-TRAINERS = {
-               ttt
-               for t in UNIT_TRAINED_FROM.values()
-               for tt in t
-               for ttt in WITH_TECH_EQUIVALENTS[tt]
-           } | {
-               tt
-               for t in UPGRADE_RESEARCHED_FROM.values()
-               for tt in WITH_TECH_EQUIVALENTS[t]
-           }
-
 SUPPLY_PROVIDED = {
     Race.Zerg: {
         UnitTypeId.OVERLORD: 8,
-        # UnitTypeId.HATCHERY: 6,
+        UnitTypeId.HATCHERY: 6,
         # UnitTypeId.LAIR: 6,
         # UnitTypeId.HIVE: 6,
     },
     Race.Protoss: {
         UnitTypeId.PYLON: 8,
-        # UnitTypeId.NEXUS: 15,
+        UnitTypeId.NEXUS: 15,
     },
     Race.Terran: {
         UnitTypeId.SUPPLYDEPOT: 8,
-        # UnitTypeId.COMMANDCENTER: 15,
+        UnitTypeId.COMMANDCENTER: 15,
         # UnitTypeId.COMMANDCENTERFLYING: 15,
         # UnitTypeId.ORBITALCOMMAND: 15,
         # UnitTypeId.ORBITALCOMMANDFLYING: 15,

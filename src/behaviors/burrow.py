@@ -5,14 +5,14 @@ from typing import Optional, TYPE_CHECKING
 
 from sc2.unit_command import UnitCommand
 
-from .behavior import Behavior
+from ..units.unit import CommandableUnit
 from ..constants import *
 
 if TYPE_CHECKING:
     pass
 
 
-class BurrowBehavior(ABC, Behavior):
+class BurrowBehavior(CommandableUnit):
 
     def burrow(self) -> Optional[UnitCommand]:
 
@@ -28,10 +28,11 @@ class BurrowBehavior(ABC, Behavior):
         if self.unit.is_burrowed:
             if self.unit.health_percentage == 1 or self.unit.is_revealed:
                 return self.unit(AbilityId.BURROWUP)
-        else:
-            if (
-                    self.unit.health_percentage < 1 / 3
-                    and self.unit.weapon_cooldown
-                    and not self.unit.is_revealed
-            ):
-                return self.unit(AbilityId.BURROWDOWN)
+        elif (
+            self.unit.health_percentage < 1 / 3
+            and self.unit.weapon_cooldown
+            and not self.unit.is_revealed
+        ):
+            return self.unit(AbilityId.BURROWDOWN)
+
+        return None

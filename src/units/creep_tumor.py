@@ -4,7 +4,7 @@ from typing import Optional, TYPE_CHECKING
 
 from sc2.unit import Unit, UnitCommand
 
-from ..modules.creep import CreepBehavior
+from ..behaviors.creep import CreepBehavior
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase

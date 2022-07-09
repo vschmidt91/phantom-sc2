@@ -7,6 +7,8 @@ from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
+from src.modules import unit_manager
+
 from .ai_base import AIBase
 from .constants import SUPPLY_PROVIDED
 from .constants import ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, \
@@ -132,16 +134,23 @@ class ZergAI(AIBase):
 
     def morph_overlords(self) -> None:
         supply_pending = sum(
-            provided * self.count(unit, include_actual=False)
-            for unit, provided in SUPPLY_PROVIDED[self.race].items()
+            provided
+            for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
+            for unit in self.unit_manager.pending_by_type[unit_type]
+            if unit.unit
+        )
+        supply_planned = sum(
+            provided
+            for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
+            for plan in self.macro.planned_by_type(unit_type)
         )
 
-        if 200 <= self.supply_cap + supply_pending:
+        if 200 <= self.supply_cap + supply_pending + supply_planned:
             return
 
-        supply_buffer = self.resource_manager.income.larva / 2.0
+        supply_buffer = 4.0 + self.resource_manager.income.larva / 1.0
 
-        if self.supply_left + supply_pending <= supply_buffer:
+        if self.supply_left + supply_pending + supply_planned <= supply_buffer:
             plan = self.macro.add_plan(UnitTypeId.OVERLORD)
             plan.priority = 1
 
@@ -159,7 +168,7 @@ class ZergAI(AIBase):
         if self.townhalls.amount == 2:
             expand = 21 <= self.state.score.food_used_economy
         elif 2 < self.townhalls.amount:
-            expand = .5 < saturation
+            expand = 2/3 < saturation
 
         for plan in self.macro.planned_by_type(UnitTypeId.HATCHERY):
             if plan.priority < math.inf:

@@ -8,8 +8,6 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 
 from ..units.unit import CommandableUnit
-from ..constants import *
-from ..utils import *
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -21,9 +19,6 @@ class ExtractorTrickBehavior(CommandableUnit):
         super().__init__(ai, unit)
 
     def do_extractor_trick(self) -> Optional[UnitCommand]:
-
-        if self.unit.type_id != UnitTypeId.EXTRACTOR:
-            return None
 
         if self.unit.is_ready:
             return None

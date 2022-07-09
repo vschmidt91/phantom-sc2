@@ -158,8 +158,8 @@ class MacroModule(AIModule):
             cost = self.ai.techtree.get_cost(plan.item)
 
             if (
-                    any(self.ai.get_missing_requirements(plan.item))
-                    and plan.priority == math.inf
+                any(self.ai.get_missing_requirements(plan.item))
+                and plan.priority == math.inf
             ):
                 break
 
@@ -187,7 +187,7 @@ class MacroModule(AIModule):
             # else:
             #     raise TypeError()
 
-            if not (trainer.unit and trainer.unit.is_using_ability(trainer.macro_ability)):
+            if not (trainer.unit and trainer.macro_ability and trainer.unit.is_using_ability(trainer.macro_ability)):
                 reserve += cost
 
             if plan.target is None:
@@ -434,7 +434,7 @@ class MacroBehavior(CommandableUnit):
         elif not self.plan.target:
             return None
 
-        movement_eta = 1.5 + time_to_reach(self.unit, self.plan.target.position)
+        movement_eta = 4/3 * time_to_reach(self.unit, self.plan.target.position)
         if self.unit.is_carrying_resource:
             movement_eta += 3.0
         if self.plan.eta < movement_eta:
@@ -444,3 +444,4 @@ class MacroBehavior(CommandableUnit):
                 return self.unit.move(self.plan.target)
             else:
                 return self.unit.hold_position()
+        return None

@@ -8,7 +8,7 @@ from ..behaviors.inject import InjectBehavior
 from ..behaviors.search import SearchBehavior
 from ..behaviors.transfuse import TransfuseBehavior
 from ..modules.combat import CombatBehavior
-from ..modules.creep import CreepBehavior
+from ..behaviors.creep import CreepBehavior
 from ..modules.dodge import DodgeBehavior
 
 if TYPE_CHECKING:

@@ -8,17 +8,16 @@ from sc2.unit import Unit, UnitCommand
 
 from ..behaviors.burrow import BurrowBehavior
 from ..behaviors.search import SearchBehavior
-from ..modules.bile import BileBehavior
+from ..behaviors.bile import BileBehavior
 from ..modules.combat import CombatBehavior
 from ..modules.dodge import DodgeBehavior
-from ..modules.drop import DropBehavior
 from ..modules.macro import MacroBehavior
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
-class Army(DodgeBehavior, MacroBehavior, BurrowBehavior, BileBehavior, DropBehavior, CombatBehavior, SearchBehavior):
+class Army(DodgeBehavior, MacroBehavior, BurrowBehavior, BileBehavior, CombatBehavior, SearchBehavior):
 
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
@@ -38,8 +37,6 @@ class Army(DodgeBehavior, MacroBehavior, BurrowBehavior, BileBehavior, DropBehav
                 and self.unit.type_id == UnitTypeId.RAVAGER
                 and (command := self.bile())
         ):
-            return command
-        elif command := self.drop():
             return command
         elif command := self.fight():
             return command
