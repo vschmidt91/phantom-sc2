@@ -1,21 +1,32 @@
 from __future__ import annotations
+from email.policy import default
 
 from enum import Enum
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, Iterable
 from sc2_helper.combat_simulator import CombatSimulator
+import numpy as np
 
-from sc2.unit_command import UnitCommand
+from scipy.cluster.vq import kmeans
+
+from sc2.unit import UnitCommand, Unit, Point2
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
-from scipy.ndimage import gaussian_filter
 
 from ..units.unit import CommandableUnit, EnemyUnit
 from .module import AIModule
-from ..constants import *
-from ..utils import *
+from ..constants import WORKERS, CIVILIANS, CHANGELINGS
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
+
+class CombatCluster:
+
+    def __init__(self, center: Point2) -> None:
+        self.center: Point2 = center
+        self.confidence: float = 1.0
+        self.units: List[Unit] = []
+        self.enemy_units: List[Unit] = []
 
 class CombatModule(AIModule):
 
@@ -64,7 +75,7 @@ class CombatModule(AIModule):
                 isinstance(behavior, CombatBehavior)
                 and behavior.fight_enabled
                 and behavior.unit
-                and behavior.unit.type_id not in { UnitTypeId.OVERLORD, UnitTypeId.QUEEN, UnitTypeId.DRONE }
+                and behavior.unit.type_id not in { UnitTypeId.DRONE, UnitTypeId.OVERLORD }
             )
         )
 
@@ -81,6 +92,38 @@ class CombatModule(AIModule):
         army = Units((behavior.unit for behavior in self.army), self.ai)
         enemy_army = Units((enemy.unit for enemy in self.enemy_army), self.ai)
         self.threat_level = 1.0 - self.simulate_fight(army, enemy_army)
+
+        all_units = Units([*army, *enemy_army], self.ai)
+        if not any(all_units):
+            return
+
+        positions = np.stack([unit.position for unit in all_units])
+        num_clusters = 1
+        max_clusters = 10
+        while num_clusters < max_clusters:
+            centroids, distance = kmeans(positions, num_clusters)
+            if distance < 10:
+                break
+            num_clusters += 1
+
+        if num_clusters == max_clusters:
+            return
+
+        self.clusters: List[CombatCluster] = [
+            CombatCluster(centroid)
+            for centroid in centroids
+        ]
+
+        for unit in all_units:
+            cluster = min(self.clusters, key = lambda c : np.linalg.norm(c.center - unit.position))
+            if unit.is_mine:
+                cluster.units.append(unit)
+            else:
+                cluster.enemy_units.append(unit)
+                
+        for cluster in self.clusters:
+            cluster.confidence = self.simulate_fight(cluster.units, cluster.enemy_units)
+            
 
 class CombatStance(Enum):
     FLEE = 1
@@ -130,14 +173,23 @@ class CombatBehavior(CommandableUnit):
 
     def get_stance(self, target: Unit) -> CombatStance:
 
-        if self.ai.combat.threat_level < 1/4:
-            return CombatStance.ADVANCE
-        elif self.ai.combat.threat_level < 2/4:
+        cluster = next((
+            cluster
+            for cluster in self.ai.combat.clusters
+            if self.unit in cluster.units
+        ), None)
+
+        if not cluster:
             return CombatStance.FIGHT
-        elif self.ai.combat.threat_level < 3/4:
-            return CombatStance.RETREAT
-        else:
+
+        if cluster.confidence < 1/4:
             return CombatStance.FLEE
+        elif cluster.confidence < 2/4:
+            return CombatStance.RETREAT
+        elif cluster.confidence < 3/4:
+            return CombatStance.FIGHT
+        else:
+            return CombatStance.ADVANCE
 
     def fight(self) -> Optional[UnitCommand]:
 

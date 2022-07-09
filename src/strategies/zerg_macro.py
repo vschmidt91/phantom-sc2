@@ -70,7 +70,7 @@ class ZergMacro(Strategy):
                 if counters := UNIT_COUNTER_DICT.get(enemy_type):
                     for counter in counters:
                         if can_build[counter]:
-                            composition[counter] += (1 + ratio) * count * self.ai.get_unit_cost(
+                            composition[counter] += (1 + 2 * ratio) * count * self.ai.get_unit_cost(
                                 enemy_type) / self.ai.get_unit_cost(counter)
                             break
         else:

@@ -22,7 +22,7 @@ from sc2.ids.upgrade_id import UpgradeId
 
 from MapAnalyzer import MapData
 
-from .utils import VersionConflictException, flood_fill
+from .utils import flood_fill
 from .constants import WORKERS, UNIT_TRAINED_FROM, WITH_TECH_EQUIVALENTS
 from .constants import GAS_BY_RACE, REQUIREMENTS_KEYS
 from .constants import TRAIN_INFO, UPGRADE_RESEARCHED_FROM, RESEARCH_INFO, RANGE_UPGRADES

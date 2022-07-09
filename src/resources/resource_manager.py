@@ -236,6 +236,8 @@ class ResourceManager(AIModule):
         # worker_type = race_worker[self.race]
         # gas_target = gas_ratio * self.count(worker_type, include_pending=False)
 
+        vespene *= 1.2
+
         gas_ratio = 1 - 1 / (1 + vespene / max(1, minerals))
         gas_target = self.ai.state.score.food_used_economy * gas_ratio
 

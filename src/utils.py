@@ -18,22 +18,6 @@ class PlacementNotFoundException(Exception):
     pass
 
 
-class VersionConflictException(Exception):
-    pass
-
-
-async def run_timed(steps, **args):
-    timings = {}
-    for step in steps:
-        start = time.perf_counter()
-        result = step(**args)
-        if inspect.isawaitable(result):
-            result = await result
-        end = time.perf_counter()
-        timings[step.__name__] = end - start
-    return timings
-
-
 def center(points: Iterable[Point2]) -> Point2:
     x_sum = 0.0
     y_sum = 0.0
@@ -45,35 +29,6 @@ def center(points: Iterable[Point2]) -> Point2:
     x_sum /= num_points
     y_sum /= num_points
     return Point2((x_sum, y_sum))
-
-def is_large(unit: Unit) -> bool:
-    return 2 <= unit.radius
-
-def has_capacity(unit: Unit) -> bool:
-    if unit.is_structure:
-        if unit.has_reactor:
-            return len(unit.orders) < 2
-        else:
-            return unit.is_idle
-    else:
-        return True
-
-
-def unit_value(unit: Unit, target=None):
-    if unit.is_hallucination:
-        return 0
-    # assume bunkers have 4 marines in them
-    # if unit.type_id == UnitTypeId.BUNKER and unit.is_ready:
-    #     dps = 4 * 10
-    # el
-    # HACK: ignore Planetary Fortresses for now
-    if unit.type_id == UnitTypeId.PLANETARYFORTRESS:
-        return 100
-    if target is None:
-        dps = max(unit.air_dps, unit.ground_dps)
-    else:
-        dps = unit.calculate_dps_vs_target(target)
-    return dps * (unit.health + unit.shield)
 
 
 def time_to_reach(unit: Unit, target: Point2) -> float:
