@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from sklearn.cluster import DBSCAN, KMeans
 from enum import Enum
+from itertools import chain
 from typing import TYPE_CHECKING, List, Optional, Iterable, Set, Dict
 from sc2_helper.combat_simulator import CombatSimulator
 import numpy as np
 import math
 
 from scipy.cluster.vq import kmeans
+
+from ..utils import center
 
 from sc2.unit import UnitCommand, Unit, Point2
 from sc2.ids.unit_typeid import UnitTypeId
@@ -23,11 +26,10 @@ if TYPE_CHECKING:
 
 class CombatCluster:
 
-    def __init__(self, center: Point2) -> None:
-        self.center: Point2 = center
+    def __init__(self) -> None:
+        self.center = Point2((0.0, 0.0))
+        self.tags: Set[int] = set()
         self.confidence: float = 1.0
-        self.units: List[Unit] = []
-        self.enemy_units: List[Unit] = []
 
 class CombatModule(AIModule):
 
@@ -96,33 +98,44 @@ class CombatModule(AIModule):
 
         all_units = Units([*army, *enemy_army], self.ai)
         if not any(all_units):
+            self.clusters = []
             return
 
         positions = np.stack([unit.position for unit in all_units])
-        num_clusters = 1
-        max_clusters = 5
-        while num_clusters < max_clusters:
-            centroids, distance = kmeans(positions, num_clusters, iter=100)
-            if distance < 12.0:
-                break
-            num_clusters += 1
 
-        clusters = [
-            CombatCluster(centroid)
-            for centroid in centroids
+        clustering = DBSCAN(eps=10.0, min_samples=1, algorithm='kd_tree').fit(positions)
+
+        self.cluster_by_tag = {
+            unit.tag: clustering.labels_[i]
+            for i, unit in enumerate(all_units)
+        }
+
+        self.clusters = [
+            CombatCluster()
+            for i in range(1 + max(clustering.labels_))
         ]
-
-        self.cluster_by_tag: Dict[int, CombatCluster] = dict()
-        for unit in all_units:
-            cluster = min(clusters, key = lambda c : np.linalg.norm(c.center - unit.position))
-            if unit.is_mine:
-                cluster.units.append(unit)
-            else:
-                cluster.enemy_units.append(unit)
-            self.cluster_by_tag[unit.tag] = cluster
                 
-        for cluster in clusters:
-            cluster.confidence = self.simulate_fight(cluster.units, cluster.enemy_units)
+        for i, cluster in enumerate(self.clusters):
+            units_in_cluster = [
+                unit
+                for unit in all_units
+                if self.cluster_by_tag[unit.tag] == i
+            ]
+            army = Units((
+                unit
+                for unit in units_in_cluster
+                if unit.is_mine
+            ), self.ai)
+            enemy_army = Units((
+                unit
+                for unit in units_in_cluster
+                if unit.is_enemy
+            ), self.ai)
+            cluster.confidence = self.simulate_fight(army, enemy_army)
+            cluster.center = center(
+                unit.position
+                for unit in chain(army, enemy_army)
+            )
             
 
 class CombatStance(Enum):
@@ -173,10 +186,12 @@ class CombatBehavior(CommandableUnit):
 
     def get_stance(self, target: Unit) -> CombatStance:
 
-        cluster = self.ai.combat.cluster_by_tag.get(self.unit.tag)
+        cluster_index = self.ai.combat.cluster_by_tag.get(self.unit.tag)
 
-        if cluster is None:
-            return CombatStance.RETREAT
+        if cluster_index == -1 or cluster_index is None:
+            return CombatStance.FIGHT
+
+        cluster = self.ai.combat.clusters[cluster_index]
 
         if self.unit.ground_range < 2:
 

@@ -429,6 +429,12 @@ class AIBase(BotAI):
         plans.extend(self.macro.unassigned_plans)
         plans.sort(key=cmp_to_key(compare_plans), reverse=True)
 
+        for cluster in self.combat.clusters:
+
+            position = cluster.center
+            height = self.get_terrain_z_height(position)
+            self.client.debug_sphere_out(Point3((position.x, position.y, height)), 1.0)
+
         for i, target in enumerate(plans):
 
             positions = []
