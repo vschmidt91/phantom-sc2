@@ -22,8 +22,9 @@ from sc2.ids.upgrade_id import UpgradeId
 
 from MapAnalyzer import MapData
 
+from .cost import Cost
 from .utils import flood_fill
-from .constants import WORKERS, UNIT_TRAINED_FROM, WITH_TECH_EQUIVALENTS
+from .constants import LARVA_COST, WORKERS, UNIT_TRAINED_FROM, WITH_TECH_EQUIVALENTS
 from .constants import GAS_BY_RACE, REQUIREMENTS_KEYS
 from .constants import TRAIN_INFO, UPGRADE_RESEARCHED_FROM, RESEARCH_INFO, RANGE_UPGRADES
 from .resources.resource_manager import ResourceManager
@@ -191,6 +192,13 @@ class AIBase(BotAI):
         ]
         if tags:
             await self.client.debug_kill_unit(tags)
+
+            
+    def get_cost(self, item: MacroId) -> Cost:
+        minerals_vespene = self.calculate_cost(item)
+        food = self.calculate_supply_cost(item)
+        larva = LARVA_COST.get(item, 0.0)
+        return Cost(float(minerals_vespene.minerals), float(minerals_vespene.vespene), food, larva)
 
     async def on_step(self, iteration: int):
 

@@ -148,7 +148,7 @@ class ZergAI(AIBase):
         if 200 <= self.supply_cap + supply_pending + supply_planned:
             return
 
-        supply_buffer = 2.0 + self.resource_manager.income.larva / 2.0
+        supply_buffer = 4.0 + self.resource_manager.income.larva / 2.0
 
         if self.supply_left + supply_pending + supply_planned <= supply_buffer:
             plan = self.macro.add_plan(UnitTypeId.OVERLORD)
@@ -168,7 +168,7 @@ class ZergAI(AIBase):
         if self.townhalls.amount == 2:
             expand = 21 <= self.state.score.food_used_economy
         elif 2 < self.townhalls.amount:
-            expand = 2/3 < saturation
+            expand = 1/2 < saturation
 
         for plan in self.macro.planned_by_type(UnitTypeId.HATCHERY):
             if plan.priority < math.inf:

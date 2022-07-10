@@ -124,9 +124,7 @@ class MacroModule(AIModule):
     async def on_step(self) -> None:
 
         self.make_composition()
-
-        if self.ai.iteration % 8 == 0:
-            self.make_tech()
+        self.make_tech()
 
         reserve = Cost(0, 0, 0, 0)
 
@@ -155,7 +153,7 @@ class MacroModule(AIModule):
 
         for i, plan in enumerate(plans):
 
-            cost = self.ai.techtree.get_cost(plan.item)
+            cost = self.ai.get_cost(plan.item)
 
             if (
                 any(self.ai.get_missing_requirements(plan.item))
@@ -226,16 +224,16 @@ class MacroModule(AIModule):
         cost_zero = Cost(0, 0, 0, 0)
         future_spending = cost_zero
         future_spending += sum((
-            self.ai.techtree.get_cost(plan.item)
+            self.ai.get_cost(plan.item)
             for plan in self.ai.macro.unassigned_plans
         ), cost_zero)
         future_spending += sum((
-            self.ai.techtree.get_cost(b.plan.item)
+            self.ai.get_cost(b.plan.item)
             for b in self.ai.unit_manager.units.values()
             if isinstance(b, MacroBehavior) and b.plan
         ), cost_zero)
         future_spending += sum((
-            self.ai.techtree.get_cost(unit) * max(0, count - self.ai.count(unit))
+            self.ai.get_cost(unit) * max(0, count - self.ai.count(unit))
             for unit, count in self.composition.items()
         ), cost_zero)
         self.future_spending = future_spending

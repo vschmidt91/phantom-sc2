@@ -163,14 +163,9 @@ class ResourceManager(AIModule):
 
     async def on_step(self) -> None:
 
-        if self.ai.iteration % 16 == 0:
-            self.update_patches_and_geysers()
-
+        self.update_patches_and_geysers()
         self.update_bases()
-
-        if self.ai.iteration % 4 == 0:
-            self.update_gas()
-
+        self.update_gas()
         self.update_income()
 
         if self.do_split:

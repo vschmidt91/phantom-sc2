@@ -218,14 +218,3 @@ class TechTree:
 
             upgrade = TechTreeUpgrade(**item)
             self.upgrades[upgrade.id] = upgrade
-
-    def get_cost(self, item: MacroId) -> Cost:
-        if isinstance(item, UnitTypeId):
-            if self.units[item].race == Race.Zerg and UnitTypeId.DRONE in UNIT_TRAINED_FROM[item]:
-                return self.units[item].cost - Cost(50.0, 0.0, 0.0, 0.0)
-            else:
-                return self.units[item].cost
-        elif isinstance(item, UpgradeId):
-            return self.upgrades[item].cost2
-        else:
-            raise TypeError()
