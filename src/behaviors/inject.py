@@ -72,7 +72,7 @@ class InjectBehavior(CommandableUnit):
             return self.unit(AbilityId.EFFECT_INJECTLARVA, target=self.inject_base.townhall.unit)
         elif not self.inject_base.townhall.unit.has_buff(BuffId.QUEENSPAWNLARVATIMER):
             return self.unit.move(target)
-        elif 7 < self.unit.position.distance_to(target):
-            return self.unit.move(target)
+        # elif 7 < self.unit.position.distance_to(target):
+        #     return self.unit.move(target)
 
         return None

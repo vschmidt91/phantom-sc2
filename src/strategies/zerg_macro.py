@@ -68,7 +68,7 @@ class ZergMacro(Strategy):
                 if counters := UNIT_COUNTER_DICT.get(enemy_type):
                     for counter in counters:
                         if can_build[counter]:
-                            composition[counter] += (1 + 2 * ratio) * count * self.ai.get_unit_cost(
+                            composition[counter] += 3 * ratio * count * self.ai.get_unit_cost(
                                 enemy_type) / self.ai.get_unit_cost(counter)
                             break
         else:
@@ -77,7 +77,7 @@ class ZergMacro(Strategy):
         composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 7
         composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 3
 
-        tech_up = 32 <= worker_count and 3 <= self.ai.townhalls.amount
+        tech_up = 40 <= worker_count and 3 <= self.ai.townhalls.amount
 
         lair_count = self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
         hive_count = self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False)
