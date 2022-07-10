@@ -74,7 +74,7 @@ class CombatModule(AIModule):
                 isinstance(behavior, CombatBehavior)
                 and behavior.fight_enabled
                 and behavior.unit
-                and behavior.unit.type_id not in { UnitTypeId.DRONE, UnitTypeId.OVERLORD }
+                and behavior.unit.type_id not in { UnitTypeId.DRONE, UnitTypeId.OVERLORD, UnitTypeId.QUEEN }
             )
         )
 

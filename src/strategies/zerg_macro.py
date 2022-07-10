@@ -32,10 +32,11 @@ class ZergMacro(Strategy):
         )
         # ratio = self.ai.threat_level
 
-        larva_rate = self.ai.macro.future_spending.larva / (60 * max(1, self.ai.macro.future_timeframe))
-        larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
-        queen_target = math.ceil(larva_rate / (3 / 29))
-        queen_target = min(queen_target, self.ai.townhalls.amount)
+        # larva_rate = self.ai.macro.future_spending.larva / (60 * max(1, self.ai.macro.future_timeframe))
+        # larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
+        # queen_target = math.ceil(larva_rate / (3 / 29))
+        # queen_target = min(queen_target, self.ai.townhalls.amount)
+        queen_target = 1 + self.ai.townhalls.amount
         queen_target = np.clip(queen_target, 2, 8)
         # print(queen_target)
 
