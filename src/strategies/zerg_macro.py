@@ -36,8 +36,8 @@ class ZergMacro(Strategy):
         # larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
         # queen_target = math.ceil(larva_rate / (3 / 29))
         # queen_target = min(queen_target, self.ai.townhalls.amount)
-        queen_target = 1 + self.ai.townhalls.amount
-        queen_target = np.clip(queen_target, 2, 8)
+        queen_target = self.ai.townhalls.amount
+        queen_target = np.clip(queen_target, 0, 5)
         # print(queen_target)
 
         # queen_target = min(8, 1 + self.ai.townhalls.amount)
@@ -75,10 +75,10 @@ class ZergMacro(Strategy):
         else:
             composition[UnitTypeId.ZERGLING] = 1.0
 
-        composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 7
-        composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 3
+        composition[UnitTypeId.RAVAGER] += max(0.0, composition[UnitTypeId.ROACH] / 5 - 3)
+        composition[UnitTypeId.CORRUPTOR] += max(0.0, composition[UnitTypeId.BROODLORD] / 3)
 
-        tech_up = 40 <= worker_count and 3 <= self.ai.townhalls.amount
+        tech_up = 32 <= worker_count and 3 <= self.ai.townhalls.amount
 
         lair_count = self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
         hive_count = self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False)
