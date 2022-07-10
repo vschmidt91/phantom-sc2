@@ -1,10 +1,11 @@
 from __future__ import annotations
-from email.policy import default
 
+from sklearn.cluster import DBSCAN
 from enum import Enum
-from typing import TYPE_CHECKING, List, Optional, Iterable
+from typing import TYPE_CHECKING, List, Optional, Iterable, Set
 from sc2_helper.combat_simulator import CombatSimulator
 import numpy as np
+import math
 
 from scipy.cluster.vq import kmeans
 
@@ -23,10 +24,8 @@ if TYPE_CHECKING:
 class CombatCluster:
 
     def __init__(self, center: Point2) -> None:
-        self.center: Point2 = center
+        self.tags: Set[int] = set()
         self.confidence: float = 1.0
-        self.units: List[Unit] = []
-        self.enemy_units: List[Unit] = []
 
 class CombatModule(AIModule):
 
@@ -98,31 +97,36 @@ class CombatModule(AIModule):
             return
 
         positions = np.stack([unit.position for unit in all_units])
-        num_clusters = 1
-        max_clusters = 16
-        while num_clusters < max_clusters:
-            centroids, distance = kmeans(positions, num_clusters)
-            if distance < 5:
-                break
-            num_clusters += 1
 
-        if num_clusters == max_clusters:
-            return
+        clustering = DBSCAN(eps=8.0, min_samples=1, algorithm='kd_tree').fit(positions)
 
-        self.clusters: List[CombatCluster] = [
+        self.cluster_by_tag = {
+            unit.tag: clustering.labels_[i]
+            for i, unit in enumerate(all_units)
+        }
+
+        self.clusters = [
             CombatCluster(centroid)
-            for centroid in centroids
+            for centroid in range(1 + max(clustering.labels_))
         ]
-
-        for unit in all_units:
-            cluster = min(self.clusters, key = lambda c : np.linalg.norm(c.center - unit.position))
-            if unit.is_mine:
-                cluster.units.append(unit)
-            else:
-                cluster.enemy_units.append(unit)
                 
-        for cluster in self.clusters:
-            cluster.confidence = self.simulate_fight(cluster.units, cluster.enemy_units)
+        for i, cluster in enumerate(self.clusters):
+            units_in_cluster = [
+                unit
+                for unit in all_units
+                if self.cluster_by_tag[unit.tag] == i
+            ]
+            army = Units((
+                unit
+                for unit in units_in_cluster
+                if unit.is_mine
+            ), self.ai)
+            enemy_army = Units((
+                unit
+                for unit in units_in_cluster
+                if unit.is_enemy
+            ), self.ai)
+            cluster.confidence = self.simulate_fight(army, enemy_army)
             
 
 class CombatStance(Enum):
@@ -153,7 +157,7 @@ class CombatBehavior(CommandableUnit):
             return 0.0
         priority = 1e8
 
-        priority /= 150 + target.unit.position.distance_to(self.ai.start_location)
+        priority /= 100 + math.sqrt(target.unit.position.distance_to(self.ai.start_location))
         priority /= 3 if target.unit.is_structure else 1
         if target.unit.is_enemy:
             priority /= 100 + target.unit.shield + target.unit.health
@@ -173,28 +177,30 @@ class CombatBehavior(CommandableUnit):
 
     def get_stance(self, target: Unit) -> CombatStance:
 
-        cluster = next((
-            cluster
-            for cluster in self.ai.combat.clusters
-            if self.unit in cluster.units
-        ), None)
+        cluster_index = self.ai.combat.cluster_by_tag.get(self.unit.tag)
 
-        if not cluster:
+        if cluster_index == -1 or cluster_index is None:
             return CombatStance.FIGHT
 
-        if cluster.confidence < 1/2:
-            return CombatStance.FLEE
+        cluster = self.ai.combat.clusters[cluster_index]
+
+        if self.unit.ground_range < 2:
+
+            if cluster.confidence < 1/2:
+                return CombatStance.FLEE
+            else:
+                return CombatStance.FIGHT
+        
         else:
-            return CombatStance.FIGHT
 
-        # if cluster.confidence < 1/4:
-        #     return CombatStance.FLEE
-        # elif cluster.confidence < 2/4:
-        #     return CombatStance.RETREAT
-        # elif cluster.confidence < 3/4:
-        #     return CombatStance.FIGHT
-        # else:
-        #     return CombatStance.ADVANCE
+            if cluster.confidence < 1/4:
+                return CombatStance.FLEE
+            elif cluster.confidence < 2/4:
+                return CombatStance.RETREAT
+            elif cluster.confidence < 3/4:
+                return CombatStance.FIGHT
+            else:
+                return CombatStance.ADVANCE
 
     def fight(self) -> Optional[UnitCommand]:
 

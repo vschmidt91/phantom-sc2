@@ -28,8 +28,8 @@ class Army(DodgeBehavior, MacroBehavior, BurrowBehavior, BileBehavior, CombatBeh
         elif command := self.macro():
             return command
         elif (
-                UpgradeId.BURROW in self.ai.state.upgrades
-                and (command := self.burrow())
+            UpgradeId.BURROW in self.ai.state.upgrades
+            and (command := self.burrow())
         ):
             return command
         elif (

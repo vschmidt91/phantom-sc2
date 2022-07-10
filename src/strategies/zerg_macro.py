@@ -28,7 +28,6 @@ class ZergMacro(Strategy):
 
         ratio = max(
             self.ai.combat.threat_level,
-            # 1 if worker_count == worker_target else 0,
             worker_count / worker_target,
         )
         # ratio = self.ai.threat_level
@@ -37,7 +36,6 @@ class ZergMacro(Strategy):
         larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
         queen_target = math.ceil(larva_rate / (3 / 29))
         queen_target = min(queen_target, self.ai.townhalls.amount)
-        queen_target += 1
         queen_target = np.clip(queen_target, 2, 8)
         # print(queen_target)
 
@@ -79,19 +77,21 @@ class ZergMacro(Strategy):
         composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 7
         composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 3
 
-        tech_up = 48 <= worker_count and 3 <= self.ai.townhalls.amount
+        tech_up = 32 <= worker_count and 3 <= self.ai.townhalls.amount
+
+        lair_count = self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
+        hive_count = self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False)
 
         if tech_up:
             composition[UnitTypeId.ROACHWARREN] = 1
             composition[UnitTypeId.OVERSEER] = 1
 
-        if tech_up and 0 < self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False) + self.ai.count(
-                UnitTypeId.HIVE, include_pending=False, include_planned=False):
+        if tech_up and 0 < lair_count + hive_count:
             composition[UnitTypeId.HYDRALISKDEN] = 1
             composition[UnitTypeId.OVERSEER] = 2
             composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
 
-        if tech_up and 0 < self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False):
+        if tech_up and 0 < hive_count:
             composition[UnitTypeId.GREATERSPIRE] = 1
             composition[UnitTypeId.OVERSEER] = 3
 
@@ -100,7 +100,6 @@ class ZergMacro(Strategy):
             for k, v in composition.items()
             if 0 < v
         }
-        # self.ai.composition = { UnitTypeId.LAIR: 1 }
 
     def filter_upgrade(self, upgrade) -> bool:
         if upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
