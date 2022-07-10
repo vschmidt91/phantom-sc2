@@ -103,8 +103,10 @@ class ZergMacro(Strategy):
 
     def filter_upgrade(self, upgrade) -> bool:
         if upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
-            return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False)
+            return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False)
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
+            return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False)
+        elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL3:
             return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False)
         elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
             return 0 < self.ai.count(UnitTypeId.GREATERSPIRE, include_planned=False)
