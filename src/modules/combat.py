@@ -100,9 +100,9 @@ class CombatModule(AIModule):
 
         positions = np.stack([unit.position for unit in all_units])
         num_clusters = 1
-        max_clusters = 16
+        max_clusters = 5
         while num_clusters < max_clusters:
-            centroids, distance = kmeans(positions, num_clusters)
+            centroids, distance = kmeans(positions, num_clusters, iter=100)
             if distance < 12.0:
                 break
             num_clusters += 1
