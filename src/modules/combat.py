@@ -182,14 +182,19 @@ class CombatBehavior(CommandableUnit):
         if not cluster:
             return CombatStance.FIGHT
 
-        if cluster.confidence < 1/4:
+        if cluster.confidence < 1/2:
             return CombatStance.FLEE
-        elif cluster.confidence < 2/4:
-            return CombatStance.RETREAT
-        elif cluster.confidence < 3/4:
-            return CombatStance.FIGHT
         else:
-            return CombatStance.ADVANCE
+            return CombatStance.FIGHT
+
+        # if cluster.confidence < 1/4:
+        #     return CombatStance.FLEE
+        # elif cluster.confidence < 2/4:
+        #     return CombatStance.RETREAT
+        # elif cluster.confidence < 3/4:
+        #     return CombatStance.FIGHT
+        # else:
+        #     return CombatStance.ADVANCE
 
     def fight(self) -> Optional[UnitCommand]:
 
