@@ -3,7 +3,7 @@ from __future__ import annotations
 from sklearn.cluster import DBSCAN, KMeans
 from enum import Enum
 from itertools import chain
-from typing import TYPE_CHECKING, List, Optional, Iterable, Set, Dict
+from typing import TYPE_CHECKING, List, Optional, Iterable, Set, Dict, Union
 from sc2_helper.combat_simulator import CombatSimulator
 import numpy as np
 import math
@@ -30,6 +30,8 @@ class CombatCluster:
         self.center = Point2((0.0, 0.0))
         self.tags: Set[int] = set()
         self.confidence: float = 1.0
+        self.target: Optional[Unit] = None
+        self.stance: CombatStance = CombatStance.FIGHT
 
 class CombatModule(AIModule):
 
@@ -90,6 +92,28 @@ class CombatModule(AIModule):
             if behavior.unit
         )
 
+    def target_priority(self, position: Point2, target: Unit) -> float:
+        if not target:
+            return 0.0
+        if target.is_hallucination:
+            return 0.0
+        if target.type_id in CHANGELINGS:
+            return 0.0
+        priority = 1e8
+
+        priority /= 100 + math.sqrt(target.position.distance_to(self.ai.start_location))
+        priority /= 3 if target.is_structure else 1
+        if target.is_enemy:
+            priority /= 100 + target.shield + target.health
+        else:
+            priority /= 500
+        priority *= 3 if target.type_id in WORKERS else 1
+        priority /= 10 if target.type_id in CIVILIANS else 1
+
+        priority /= 30.0 + target.position.distance_to(position)
+
+        return priority
+
     async def on_step(self):
 
         army = Units((behavior.unit for behavior in self.army), self.ai)
@@ -99,6 +123,7 @@ class CombatModule(AIModule):
         all_units = Units([*army, *enemy_army], self.ai)
         if not any(all_units):
             self.clusters = []
+            self.cluster_by_tag = {}
             return
 
         positions = np.stack([unit.position for unit in all_units])
@@ -131,11 +156,41 @@ class CombatModule(AIModule):
                 for unit in units_in_cluster
                 if unit.is_enemy
             ), self.ai)
-            cluster.confidence = self.simulate_fight(army, enemy_army)
+
+
+            confidence = self.simulate_fight(army, enemy_army)
+            if confidence < 1/4:
+                cluster.stance = CombatStance.FLEE
+            elif confidence < 2/4:
+                cluster.stance = CombatStance.RETREAT
+            elif confidence < 3/4:
+                cluster.stance = CombatStance.FIGHT
+            else:
+                cluster.stance = CombatStance.ADVANCE
+
             cluster.center = center(
                 unit.position
                 for unit in chain(army, enemy_army)
             )
+
+            if any(
+                self.ai.can_attack(a, b)
+                for a in army
+                for b in enemy_army
+            ):
+                cluster.target = next(iter(enemy_army))
+            else:
+                target, _ = max(
+                    (
+                        (enemy, priority)
+                        for enemy in self.ai.unit_manager.enemies.values()
+                        if enemy.unit and 0 < (priority := self.target_priority(cluster.center, enemy.unit))
+                    ),
+                    key=lambda p: p[1],
+                    default=(None, 0)
+                )
+                if target:
+                    cluster.target = target.unit
             
 
 class CombatStance(Enum):
@@ -150,66 +205,6 @@ class CombatBehavior(CommandableUnit):
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
         self.fight_enabled: bool = True
-        self.fight_stance: CombatStance = CombatStance.FIGHT
-        self.fight_target: Optional[EnemyUnit] = None
-
-    def target_priority(self, target: EnemyUnit) -> float:
-        if not target.unit:
-            return 0.0
-        if not self.unit:
-            return 0.0
-        if not self.ai.can_attack(self.unit, target.unit) and not self.unit.is_detector:
-            return 0.0
-        if target.unit.is_hallucination:
-            return 0.0
-        if target.unit.type_id in CHANGELINGS:
-            return 0.0
-        priority = 1e8
-
-        priority /= 100 + math.sqrt(target.unit.position.distance_to(self.ai.start_location))
-        priority /= 3 if target.unit.is_structure else 1
-        if target.unit.is_enemy:
-            priority /= 100 + target.unit.shield + target.unit.health
-        else:
-            priority /= 500
-        priority *= 3 if target.unit.type_id in WORKERS else 1
-        priority /= 10 if target.unit.type_id in CIVILIANS else 1
-
-        priority /= 30.0 + target.unit.position.distance_to(self.unit.position)
-        if self.unit.is_detector:
-            if target.unit.is_cloaked:
-                priority *= 10.0
-            if not target.unit.is_revealed:
-                priority *= 10.0
-
-        return priority
-
-    def get_stance(self, target: Unit) -> CombatStance:
-
-        cluster_index = self.ai.combat.cluster_by_tag.get(self.unit.tag)
-
-        if cluster_index == -1 or cluster_index is None:
-            return CombatStance.FIGHT
-
-        cluster = self.ai.combat.clusters[cluster_index]
-
-        if self.unit.ground_range < 2:
-
-            if cluster.confidence < 1/2:
-                return CombatStance.FLEE
-            else:
-                return CombatStance.FIGHT
-        
-        else:
-
-            if cluster.confidence < 1/4:
-                return CombatStance.FLEE
-            elif cluster.confidence < 2/4:
-                return CombatStance.RETREAT
-            elif cluster.confidence < 3/4:
-                return CombatStance.FIGHT
-            else:
-                return CombatStance.ADVANCE
 
     def fight(self) -> Optional[UnitCommand]:
 
@@ -218,64 +213,57 @@ class CombatBehavior(CommandableUnit):
         if not self.unit:
             return None
 
-        self.fight_target, _ = max(
-            (
-                (enemy, priority)
-                for enemy in self.ai.unit_manager.enemies.values()
-                if 0 < (priority := self.target_priority(enemy))
-            ),
-            key=lambda p: p[1],
-            default=(None, 0)
-        )
+        cluster_index = self.ai.combat.cluster_by_tag.get(self.unit.tag)
 
-        target = self.fight_target
+        if cluster_index == -1 or cluster_index is None:
+            return None
+
+        cluster = self.ai.combat.clusters[cluster_index]
+
+        target = cluster.target
         if not target:
             return None
-        if not target.unit:
-            self.fight_target = None
-            return None
 
-        self.fight_stance = self.get_stance(target.unit)
+        stance = cluster.stance
 
-        if self.fight_stance == CombatStance.FLEE:
+        if stance == CombatStance.FLEE:
 
-            retreat_point = self.unit.position.towards(target.unit.position, -12)
+            retreat_point = self.unit.position.towards(cluster.center, -12)
             return self.unit.move(retreat_point)
 
-        elif self.fight_stance == CombatStance.RETREAT:
+        elif stance == CombatStance.RETREAT:
 
             if (
-                    (self.unit.weapon_cooldown or self.unit.is_burrowed)
-                    and self.unit.position.distance_to(
-                target.unit.position) <= self.unit.radius + self.ai.get_unit_range(
-                self.unit) + target.unit.radius + self.unit.distance_to_weapon_ready
+                (self.unit.weapon_cooldown or self.unit.is_burrowed)
+                and self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(
+                self.unit) + target.radius + self.unit.distance_to_weapon_ready
             ):
-                retreat_point = self.unit.position.towards(target.unit.position, -12)
+                retreat_point = self.unit.position.towards(cluster.center, -12)
                 return self.unit.move(retreat_point)
-            elif self.unit.position.distance_to(target.unit.position) <= self.unit.radius + self.ai.get_unit_range(
-                    self.unit) + target.unit.radius:
-                return self.unit.attack(target.unit.position)
+            elif self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(
+                    self.unit) + target.radius:
+                return self.unit.attack(target.position)
             else:
-                return self.unit.attack(target.unit.position)
+                return self.unit.attack(target.position)
 
-        elif self.fight_stance == CombatStance.FIGHT:
+        elif stance == CombatStance.FIGHT:
 
-            if self.unit.position.distance_to(target.unit.position) <= self.unit.radius + self.ai.get_unit_range(
-                    self.unit) + target.unit.radius:
-                return self.unit.attack(target.unit.position)
+            if self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(
+                    self.unit) + target.radius:
+                return self.unit.attack(target.position)
             else:
-                attack_point = target.unit.position
+                attack_point = target.position
                 return self.unit.attack(attack_point)
 
-        elif self.fight_stance == CombatStance.ADVANCE:
+        elif stance == CombatStance.ADVANCE:
 
-            distance = self.unit.position.distance_to(target.unit.position) - self.unit.radius - target.unit.radius
+            distance = self.unit.position.distance_to(target.position) - self.unit.radius - target.radius
             if self.unit.weapon_cooldown and 1 < distance:
-                return self.unit.move(target.unit)
-            elif self.unit.position.distance_to(target.unit.position) <= self.unit.radius + self.ai.get_unit_range(
-                    self.unit) + target.unit.radius:
-                return self.unit.attack(target.unit.position)
+                return self.unit.move(target)
+            elif self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(
+                    self.unit) + target.radius:
+                return self.unit.attack(target.position)
             else:
-                return self.unit.attack(target.unit.position)
+                return self.unit.attack(target.position)
 
         return None

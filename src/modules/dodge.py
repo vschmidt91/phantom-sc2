@@ -134,7 +134,7 @@ class DodgeBehavior(CommandableUnit):
 
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
-        self.safety_distance: float = 2.0
+        self.safety_distance: float = 1.0
 
     def dodge(self) -> Optional[UnitCommand]:
 

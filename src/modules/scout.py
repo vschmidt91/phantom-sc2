@@ -18,7 +18,7 @@ class ScoutModule(AIModule):
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
 
-        self.scout_enemy_natural: bool = True
+        self.scout_enemy_natural: bool = False
         self.blocked_positions: Dict[Point2, float] = dict()
         self.static_targets: List[Point2] = list()
 

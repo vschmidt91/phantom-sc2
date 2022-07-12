@@ -60,7 +60,7 @@ class ZergMacro(Strategy):
         enemy_counts = Counter[UnitTypeId](
             enemy.unit.type_id
             for enemy in self.ai.unit_manager.enemies.values()
-            if enemy.unit
+            if enemy.unit and enemy.unit.type_id in UNIT_COUNTER_DICT
         )
 
         if any(enemy_counts):
