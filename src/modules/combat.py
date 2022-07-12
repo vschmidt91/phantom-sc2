@@ -228,7 +228,7 @@ class CombatBehavior(CommandableUnit):
 
         if stance == CombatStance.FLEE:
 
-            retreat_point = self.unit.position.towards(cluster.center, -12)
+            retreat_point = self.unit.position.towards(target.position, -12)
             return self.unit.move(retreat_point)
 
         elif stance == CombatStance.RETREAT:
@@ -238,7 +238,7 @@ class CombatBehavior(CommandableUnit):
                 and self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(
                 self.unit) + target.radius + self.unit.distance_to_weapon_ready
             ):
-                retreat_point = self.unit.position.towards(cluster.center, -12)
+                retreat_point = self.unit.position.towards(target.position, -12)
                 return self.unit.move(retreat_point)
             elif self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(
                     self.unit) + target.radius:

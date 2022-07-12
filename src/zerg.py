@@ -162,7 +162,7 @@ class ZergAI(AIBase):
         worker_max = self.get_max_harvester()
         saturation = self.state.score.food_used_economy / max(1, worker_max)
         saturation = max(0, min(1, saturation))
-        priority = 5 * (saturation - 1)
+        priority = 3 * (saturation - 1)
 
         expand = True
         if self.townhalls.amount == 2:
