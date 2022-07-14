@@ -26,7 +26,7 @@ class ZergMacro(Strategy):
         worker_target = np.clip(self.ai.get_max_harvester(), 1, 100)
 
         ratio = max(
-            self.ai.combat.threat_level,
+            math.sqrt(self.ai.combat.threat_level),
             worker_count / worker_target,
         )
         # ratio = self.ai.threat_level
