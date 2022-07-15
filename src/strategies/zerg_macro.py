@@ -26,7 +26,7 @@ class ZergMacro(Strategy):
         worker_target = np.clip(self.ai.get_max_harvester(), 1, 100)
 
         ratio = max(
-            math.sqrt(self.ai.combat.threat_level),
+            self.ai.combat.threat_level,
             worker_count / worker_target,
         )
         # ratio = self.ai.threat_level
@@ -58,9 +58,9 @@ class ZergMacro(Strategy):
         }
 
         enemy_counts = Counter[UnitTypeId](
-            enemy.unit.type_id
+            enemy.type_id
             for enemy in self.ai.unit_manager.enemies.values()
-            if enemy.unit and enemy.unit.type_id in UNIT_COUNTER_DICT
+            if enemy and enemy.type_id in UNIT_COUNTER_DICT
         )
 
         if any(enemy_counts):

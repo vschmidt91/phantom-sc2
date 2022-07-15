@@ -33,22 +33,6 @@ class AIUnit(ABC, AIComponent):
         return self.unit.game_loop != self.ai.state.game_loop
 
 
-class EnemyUnit(AIUnit):
-
-    def __init__(self, ai: AIBase, unit: Unit):
-        super().__init__(ai, unit)
-        self.estimated_velocity: Point2 = Point2((0.0, 0.0))
-        self.previous_position: Point2 = self.unit.position
-        self.previous_position_time: float = self.ai.time
-
-    def on_step(self) -> None:
-        dt = self.ai.time - self.previous_position_time
-        dx = self.unit.position - self.previous_position
-        self.estimated_velocity = dx / max(1e-3, dt)
-        self.previous_position = self.unit.position
-        self.previous_position_age = self.ai.time
-
-
 class CommandableUnit(AIUnit):
 
     def __init__(self, ai: AIBase, unit: Unit):

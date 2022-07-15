@@ -304,15 +304,12 @@ class AIBase(BotAI):
         logging.debug("enemy_unit_entered_vision: %s", unit)
         if unit.is_snapshot:
             return
-        if unit.tag not in self.unit_manager.enemies:
-            self.unit_manager.add_unit(unit)
 
     async def on_enemy_unit_left_vision(self, unit_tag: int):
         logging.debug("enemy_unit_left_vision: %i", unit_tag)
 
     async def on_unit_destroyed(self, unit_tag: int):
         logging.debug("unit_destroyed: %i", unit_tag)
-        self.unit_manager.enemies.pop(unit_tag, None)
         self.unit_manager.try_remove_unit(unit_tag)
 
     async def on_unit_created(self, unit: Unit):
@@ -471,11 +468,10 @@ class AIBase(BotAI):
 
         for enemy in self.unit_manager.enemies.values():
 
-            if enemy.unit:
-                pos = enemy.unit.position
-                position = Point3((*pos, self.get_terrain_z_height(pos)))
-                text = f"{enemy.unit.name}"
-                self.client.debug_text_world(text, position, color=font_color, size=font_size)
+            pos = enemy.position
+            position = Point3((*pos, self.get_terrain_z_height(pos)))
+            text = f"{enemy.name}"
+            self.client.debug_text_world(text, position, color=font_color, size=font_size)
 
         self.client.debug_text_screen(
             f'Threat Level: {round(100 * self.combat.threat_level)}%',

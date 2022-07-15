@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Optional
 
 from sc2.unit import Unit, UnitCommand, UnitTypeId, AbilityId, Point2
 
-from ..units.unit import CommandableUnit, EnemyUnit
+from ..units.unit import CommandableUnit
 from ..modules.module import AIModule
 from ..constants import CHANGELINGS, COOLDOWN
 
@@ -34,6 +34,9 @@ class BileBehavior(CommandableUnit):
         return priority
 
     def bile(self) -> Optional[UnitCommand]:
+
+        # TODO estimate velocity
+        return None
 
         if self.unit.type_id != UnitTypeId.RAVAGER:
             return None

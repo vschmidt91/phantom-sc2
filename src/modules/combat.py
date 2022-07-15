@@ -16,7 +16,7 @@ from sc2.unit import UnitCommand, Unit, Point2
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
 
-from ..units.unit import CommandableUnit, EnemyUnit
+from ..units.unit import CommandableUnit
 from .module import AIModule
 from ..constants import WORKERS, CIVILIANS, CHANGELINGS
 
@@ -89,19 +89,11 @@ class CombatModule(AIModule):
             )
         )
 
-    @property
-    def enemy_army(self) -> Iterable[EnemyUnit]:
-        return (
-            behavior
-            for behavior in self.ai.unit_manager.enemies.values()
-            if behavior.unit
-        )
-
     async def on_step(self):
 
-        # army = Units((behavior.unit for behavior in self.army), self.ai)
-        # enemy_army = Units((enemy.unit for enemy in self.enemy_army), self.ai)
-        # self.threat_level = 1.0 - self.simulate_fight(army, enemy_army)
+        army = Units((behavior.unit for behavior in self.army), self.ai)
+        enemy_army = Units(self.ai.unit_manager.enemies.values(), self.ai)
+        self.threat_level = 1.0 - self.simulate_fight(army, enemy_army)
 
         # all_units = Units([*army, *enemy_army], self.ai)
         # if not any(all_units):
@@ -230,9 +222,9 @@ class CombatBehavior(CommandableUnit):
                 if unit.unit.position.distance_to(self.unit.position) < fight_radius
             ), self.ai)
             enemy_army_local = Units((
-                unit.unit
-                for unit in self.ai.combat.enemy_army
-                if unit.unit.position.distance_to(self.unit.position) < fight_radius
+                unit
+                for unit in self.ai.unit_manager.enemies.values()
+                if unit.position.distance_to(self.unit.position) < fight_radius
             ), self.ai)
             confidences.append(self.ai.combat.simulate_fight(army_local, enemy_army_local))
 

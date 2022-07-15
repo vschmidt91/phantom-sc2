@@ -11,7 +11,7 @@ from ..units.changeling import Changeling
 from ..units.creep_tumor import CreepTumor
 from ..units.overlord import Overlord
 from ..units.queen import Queen
-from ..units.unit import AIUnit, CommandableUnit, EnemyUnit, IdleBehavior
+from ..units.unit import AIUnit, CommandableUnit, IdleBehavior
 from ..units.worker import Worker
 from .macro import MacroId
 from .module import AIModule
@@ -35,8 +35,7 @@ class UnitManager(AIModule):
         super().__init__(ai)
 
         self.units: Dict[int, CommandableUnit] = dict()
-        self.enemies: Dict[int, EnemyUnit] = dict()
-        # self.neutrals: Dict[int, AIUnit] = dict()
+        self.enemies: Dict[int, Unit] = dict()
 
         self.actual_by_type: DefaultDict[MacroId, List[CommandableUnit]] = defaultdict(list)
         self.pending_by_type: DefaultDict[MacroId, List[CommandableUnit]] = defaultdict(list)
@@ -81,24 +80,12 @@ class UnitManager(AIModule):
             self.units[unit.tag] = behavior
             return behavior
         elif unit.is_enemy:
-            enemy = EnemyUnit(self.ai, unit)
-            self.enemies[unit.tag] = enemy
-            return enemy
+            return None
         else:
             return None
-        # elif unit.is_mineral_field or unit.is_vespene_geyser:
-        #     behavior = ResourceUnit(self.ai, unit.position)
-        #     self.resources[unit.position] = behavior
-        # else:
-        #     behavior = AIUnit(self.ai, unit)
-        #     self.neutrals[unit.tag] = behavior
 
     def try_remove_unit(self, tag: int) -> bool:
-        return any((
-            self.units.pop(tag, None),
-            self.enemies.pop(tag, None),
-            # self.neutrals.pop(tag, None),
-        ))
+        return self.units.pop(tag, None) is not None
 
     def create_unit(self, unit: Unit) -> CommandableUnit:
 
@@ -144,20 +131,17 @@ class UnitManager(AIModule):
         # for tag, unit in self.neutrals.items():
         #     unit.unit = neutral_by_tag.get(tag)
 
-        enemy_by_tag = {
-            unit.tag: unit
-            for unit in self.ai.all_enemy_units
-        }
-        for tag, enemy in list(self.enemies.items()):
-            if new_unit := enemy_by_tag.get(tag):
-                enemy.unit = new_unit
-            elif self.ai.is_visible(enemy.unit.position):
+        for tag, enemy in self.enemies.copy().items():
+            if self.ai.is_visible(enemy.position):
                 del self.enemies[tag]
+        self.enemies.update(
+            (unit.tag, unit)
+            for unit in self.ai.all_enemy_units
+            if not unit.is_snapshot
+        )
 
     async def on_step(self) -> None:
         self.update_tags()
         self.update_tables()
         for unit in self.units.values():
             unit.on_step()
-        for enemy in self.enemies.values():
-            enemy.on_step()
