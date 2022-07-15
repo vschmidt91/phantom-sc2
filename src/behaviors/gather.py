@@ -41,7 +41,7 @@ class GatherBehavior(CommandableUnit):
             return None
         elif not self.return_target:
             return None
-        elif not self.return_target.unit:
+        elif not self.return_target.unit or self.return_target.is_snapshot:
             self.set_gather_target(self.gather_target)
             return None
         elif not self.gather_target.remaining:

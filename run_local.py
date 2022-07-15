@@ -18,17 +18,17 @@ MAPS = [
 ]
 
 RACES = [
-    Race.Protoss,
+    # Race.Protoss,
     # Race.Terran,
-    # Race.Zerg,
+    Race.Zerg,
     # Race.Random,
 ]
 
 BUILDS = [
-    # AIBuild.Rush,
+    AIBuild.Rush,
     # AIBuild.Timing,
     # AIBuild.Power,
-    AIBuild.Macro,
+    # AIBuild.Macro,
     # AIBuild.Air,
 ]
 

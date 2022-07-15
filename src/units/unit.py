@@ -28,6 +28,10 @@ class AIUnit(ABC, AIComponent):
         dps = max(self.unit.ground_dps, self.unit.air_dps)
         return health * dps
 
+    @property
+    def is_snapshot(self) -> bool:
+        return self.unit.game_loop != self.ai.state.game_loop
+
 
 class EnemyUnit(AIUnit):
 
@@ -43,10 +47,6 @@ class EnemyUnit(AIUnit):
         self.estimated_velocity = dx / max(1e-3, dt)
         self.previous_position = self.unit.position
         self.previous_position_age = self.ai.time
-
-    @property
-    def is_snapshot(self) -> bool:
-        return self.unit.game_loop == self.ai.state.game_loop
 
 
 class CommandableUnit(AIUnit):

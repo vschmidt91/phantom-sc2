@@ -24,6 +24,12 @@ if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
+class CombatStance(Enum):
+    FLEE = 1
+    RETREAT = 2
+    FIGHT = 3
+    ADVANCE = 4
+
 class CombatCluster:
 
     def __init__(self) -> None:
@@ -31,7 +37,6 @@ class CombatCluster:
         self.tags: Set[int] = set()
         self.confidence: float = 1.0
         self.target: Optional[Unit] = None
-        self.stance: CombatStance = CombatStance.FIGHT
 
 class CombatModule(AIModule):
 
@@ -92,8 +97,99 @@ class CombatModule(AIModule):
             if behavior.unit
         )
 
-    def target_priority(self, position: Point2, target: Unit) -> float:
+    async def on_step(self):
+
+        # army = Units((behavior.unit for behavior in self.army), self.ai)
+        # enemy_army = Units((enemy.unit for enemy in self.enemy_army), self.ai)
+        # self.threat_level = 1.0 - self.simulate_fight(army, enemy_army)
+
+        # all_units = Units([*army, *enemy_army], self.ai)
+        # if not any(all_units):
+        #     self.clusters = []
+        #     self.cluster_by_tag = {}
+        #     return
+
+        # positions = np.stack([unit.position for unit in all_units])
+
+        # clustering = DBSCAN(eps=10.0, min_samples=1, algorithm='kd_tree').fit(positions)
+
+        # max_clusters = 8
+        # num_clusters = 1
+        # while num_clusters < max_clusters:
+        #     clustering = KMeans(num_clusters).fit(positions)
+        #     num_clusters += 1
+
+        # self.cluster_by_tag = {
+        #     unit.tag: clustering.labels_[i]
+        #     for i, unit in enumerate(all_units)
+        # }
+
+        # self.clusters = [
+        #     CombatCluster()
+        #     for i in range(1 + max(clustering.labels_))
+        # ]
+                
+        # for i, cluster in enumerate(self.clusters):
+        #     units_in_cluster = [
+        #         unit
+        #         for unit in all_units
+        #         if self.cluster_by_tag[unit.tag] == i
+        #     ]
+        #     army = Units((
+        #         unit
+        #         for unit in units_in_cluster
+        #         if unit.is_mine
+        #     ), self.ai)
+        #     enemy_army = Units((
+        #         unit
+        #         for unit in units_in_cluster
+        #         if unit.is_enemy
+        #     ), self.ai)
+
+
+        #     cluster.confidence = self.simulate_fight(army, enemy_army)
+
+        #     cluster.center = center(
+        #         unit.position
+        #         for unit in chain(army, enemy_army)
+        #     )
+
+        #     if any(
+        #         self.ai.can_attack(a, b)
+        #         for a in army
+        #         for b in enemy_army
+        #     ):
+        #         cluster.target = next(iter(enemy_army))
+        #     else:
+        #         target, _ = max(
+        #             (
+        #                 (enemy, priority)
+        #                 for enemy in self.ai.unit_manager.enemies.values()
+        #                 if enemy.unit and 0 < (priority := self.target_priority(cluster.center, enemy.unit))
+        #             ),
+        #             key=lambda p: p[1],
+        #             default=(None, 0)
+        #         )
+        #         if target:
+        #             cluster.target = target.unit
+
+        pass
+            
+
+
+class CombatBehavior(CommandableUnit):
+
+    def __init__(self, ai: AIBase, unit: Unit):
+        super().__init__(ai, unit)
+        self.fight_enabled: bool = True
+        self.stance: CombatStance = CombatStance.FIGHT
+
+        
+
+    def target_priority(self, target: Unit) -> float:
         if not target:
+            return 0.0
+        if not self.ai.can_attack(self.unit, target) and not self.unit.is_detector:
             return 0.0
         if target.is_hallucination:
             return 0.0
@@ -101,7 +197,7 @@ class CombatModule(AIModule):
             return 0.0
         priority = 1e8
 
-        priority /= 100 + math.sqrt(target.position.distance_to(self.ai.start_location))
+        priority /= 150 + target.position.distance_to(self.ai.start_location)
         priority /= 3 if target.is_structure else 1
         if target.is_enemy:
             priority /= 100 + target.shield + target.health
@@ -110,101 +206,14 @@ class CombatModule(AIModule):
         priority *= 3 if target.type_id in WORKERS else 1
         priority /= 10 if target.type_id in CIVILIANS else 1
 
-        priority /= 30.0 + target.position.distance_to(position)
+        priority /= 30.0 + target.position.distance_to(self.unit.position)
+        if self.unit.is_detector:
+            if target.is_cloaked:
+                priority *= 10.0
+            if not target.is_revealed:
+                priority *= 10.0
 
         return priority
-
-    async def on_step(self):
-
-        army = Units((behavior.unit for behavior in self.army), self.ai)
-        enemy_army = Units((enemy.unit for enemy in self.enemy_army), self.ai)
-        self.threat_level = 1.0 - self.simulate_fight(army, enemy_army)
-
-        all_units = Units([*army, *enemy_army], self.ai)
-        if not any(all_units):
-            self.clusters = []
-            self.cluster_by_tag = {}
-            return
-
-        positions = np.stack([unit.position for unit in all_units])
-
-        clustering = DBSCAN(eps=10.0, min_samples=1, algorithm='kd_tree').fit(positions)
-
-        self.cluster_by_tag = {
-            unit.tag: clustering.labels_[i]
-            for i, unit in enumerate(all_units)
-        }
-
-        self.clusters = [
-            CombatCluster()
-            for i in range(1 + max(clustering.labels_))
-        ]
-                
-        for i, cluster in enumerate(self.clusters):
-            units_in_cluster = [
-                unit
-                for unit in all_units
-                if self.cluster_by_tag[unit.tag] == i
-            ]
-            army = Units((
-                unit
-                for unit in units_in_cluster
-                if unit.is_mine
-            ), self.ai)
-            enemy_army = Units((
-                unit
-                for unit in units_in_cluster
-                if unit.is_enemy
-            ), self.ai)
-
-
-            confidence = self.simulate_fight(army, enemy_army)
-            if confidence < 1/4:
-                cluster.stance = CombatStance.FLEE
-            elif confidence < 2/4:
-                cluster.stance = CombatStance.RETREAT
-            elif confidence < 3/4:
-                cluster.stance = CombatStance.FIGHT
-            else:
-                cluster.stance = CombatStance.ADVANCE
-
-            cluster.center = center(
-                unit.position
-                for unit in chain(army, enemy_army)
-            )
-
-            if any(
-                self.ai.can_attack(a, b)
-                for a in army
-                for b in enemy_army
-            ):
-                cluster.target = next(iter(enemy_army))
-            else:
-                target, _ = max(
-                    (
-                        (enemy, priority)
-                        for enemy in self.ai.unit_manager.enemies.values()
-                        if enemy.unit and 0 < (priority := self.target_priority(cluster.center, enemy.unit))
-                    ),
-                    key=lambda p: p[1],
-                    default=(None, 0)
-                )
-                if target:
-                    cluster.target = target.unit
-            
-
-class CombatStance(Enum):
-    FLEE = 1
-    RETREAT = 2
-    FIGHT = 3
-    ADVANCE = 4
-
-
-class CombatBehavior(CommandableUnit):
-
-    def __init__(self, ai: AIBase, unit: Unit):
-        super().__init__(ai, unit)
-        self.fight_enabled: bool = True
 
     def fight(self) -> Optional[UnitCommand]:
 
@@ -212,19 +221,43 @@ class CombatBehavior(CommandableUnit):
             return None
         if not self.unit:
             return None
+            
+        confidences = []
+        for fight_radius in [20]:
+            army_local = Units((
+                unit.unit
+                for unit in self.ai.combat.army
+                if unit.unit.position.distance_to(self.unit.position) < fight_radius
+            ), self.ai)
+            enemy_army_local = Units((
+                unit.unit
+                for unit in self.ai.combat.enemy_army
+                if unit.unit.position.distance_to(self.unit.position) < fight_radius
+            ), self.ai)
+            confidences.append(self.ai.combat.simulate_fight(army_local, enemy_army_local))
 
-        cluster_index = self.ai.combat.cluster_by_tag.get(self.unit.tag)
+        confidence = np.mean(confidences)
 
-        if cluster_index == -1 or cluster_index is None:
-            return None
-
-        cluster = self.ai.combat.clusters[cluster_index]
-
-        target = cluster.target
+        target, _ = max(
+            (
+                (enemy, priority)
+                for enemy in enemy_army_local
+                if 0 < (priority := self.target_priority(enemy))
+            ),
+            key = lambda p : p[1],
+            default = (None, 0)
+        )
         if not target:
             return None
 
-        stance = cluster.stance
+        if self.stance == CombatStance.FLEE:
+            if 2/3 < confidence:
+                self.stance = CombatStance.FIGHT
+        elif self.stance == CombatStance.FIGHT:
+            if confidence < 1/3:
+                self.stance = CombatStance.FLEE
+
+        stance = self.stance
 
         if stance == CombatStance.FLEE:
 
