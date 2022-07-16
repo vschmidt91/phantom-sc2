@@ -474,7 +474,7 @@ class AIBase(BotAI):
             self.client.debug_text_world(text, position, color=font_color, size=font_size)
 
         self.client.debug_text_screen(
-            f'Threat Level: {round(100 * self.combat.threat_level)}%',
+            f'Confidence: {round(100 * self.combat.confidence)}%',
             (0.01, 0.01)
         )
         self.client.debug_text_screen(

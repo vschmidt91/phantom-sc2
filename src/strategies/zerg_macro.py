@@ -26,7 +26,7 @@ class ZergMacro(Strategy):
         worker_target = np.clip(self.ai.get_max_harvester(), 1, 100)
 
         ratio = max(
-            self.ai.combat.threat_level,
+            1 - self.ai.combat.confidence,
             worker_count / worker_target,
         )
         # ratio = self.ai.threat_level
@@ -35,7 +35,7 @@ class ZergMacro(Strategy):
         # larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
         # queen_target = math.ceil(larva_rate / (3 / 29))
         # queen_target = min(queen_target, self.ai.townhalls.amount)
-        queen_target = 1 + self.ai.townhalls.amount
+        queen_target = self.ai.townhalls.amount
         queen_target = np.clip(queen_target, 0, 8)
         # print(queen_target)
 

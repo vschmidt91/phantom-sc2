@@ -42,7 +42,7 @@ class CombatModule(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
-        self.threat_level: float = 0.0
+        self.confidence: float = 1.0
         self.combat_simulator = CombatSimulator()    
         
     def simulate_fight(self, own_units: Units, enemy_units: Units) -> float:
@@ -85,87 +85,19 @@ class CombatModule(AIModule):
                 isinstance(behavior, CombatBehavior)
                 and behavior.fight_enabled
                 and behavior.unit
-                and behavior.unit.type_id not in { UnitTypeId.DRONE, UnitTypeId.OVERLORD, UnitTypeId.QUEEN }
+                and behavior.unit.type_id not in CIVILIANS
             )
         )
 
     async def on_step(self):
 
         army = Units((behavior.unit for behavior in self.army), self.ai)
-        enemy_army = Units(self.ai.unit_manager.enemies.values(), self.ai)
-        self.threat_level = 1.0 - self.simulate_fight(army, enemy_army)
-
-        # all_units = Units([*army, *enemy_army], self.ai)
-        # if not any(all_units):
-        #     self.clusters = []
-        #     self.cluster_by_tag = {}
-        #     return
-
-        # positions = np.stack([unit.position for unit in all_units])
-
-        # clustering = DBSCAN(eps=10.0, min_samples=1, algorithm='kd_tree').fit(positions)
-
-        # max_clusters = 8
-        # num_clusters = 1
-        # while num_clusters < max_clusters:
-        #     clustering = KMeans(num_clusters).fit(positions)
-        #     num_clusters += 1
-
-        # self.cluster_by_tag = {
-        #     unit.tag: clustering.labels_[i]
-        #     for i, unit in enumerate(all_units)
-        # }
-
-        # self.clusters = [
-        #     CombatCluster()
-        #     for i in range(1 + max(clustering.labels_))
-        # ]
-                
-        # for i, cluster in enumerate(self.clusters):
-        #     units_in_cluster = [
-        #         unit
-        #         for unit in all_units
-        #         if self.cluster_by_tag[unit.tag] == i
-        #     ]
-        #     army = Units((
-        #         unit
-        #         for unit in units_in_cluster
-        #         if unit.is_mine
-        #     ), self.ai)
-        #     enemy_army = Units((
-        #         unit
-        #         for unit in units_in_cluster
-        #         if unit.is_enemy
-        #     ), self.ai)
-
-
-        #     cluster.confidence = self.simulate_fight(army, enemy_army)
-
-        #     cluster.center = center(
-        #         unit.position
-        #         for unit in chain(army, enemy_army)
-        #     )
-
-        #     if any(
-        #         self.ai.can_attack(a, b)
-        #         for a in army
-        #         for b in enemy_army
-        #     ):
-        #         cluster.target = next(iter(enemy_army))
-        #     else:
-        #         target, _ = max(
-        #             (
-        #                 (enemy, priority)
-        #                 for enemy in self.ai.unit_manager.enemies.values()
-        #                 if enemy.unit and 0 < (priority := self.target_priority(cluster.center, enemy.unit))
-        #             ),
-        #             key=lambda p: p[1],
-        #             default=(None, 0)
-        #         )
-        #         if target:
-        #             cluster.target = target.unit
-
-        pass
+        enemy_army = Units((
+            unit
+            for unit in self.ai.unit_manager.enemies.values()
+            if unit.type_id not in CIVILIANS
+        ), self.ai)
+        self.confidence = self.simulate_fight(army, enemy_army)
             
 
 
@@ -233,7 +165,7 @@ class CombatBehavior(CommandableUnit):
         target, _ = max(
             (
                 (enemy, priority)
-                for enemy in enemy_army_local
+                for enemy in self.ai.unit_manager.enemies.values()
                 if 0 < (priority := self.target_priority(enemy))
             ),
             key = lambda p : p[1],
