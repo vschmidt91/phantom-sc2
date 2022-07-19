@@ -3,8 +3,11 @@ from __future__ import annotations
 from typing import DefaultDict, List, TYPE_CHECKING, Optional, Dict, Iterable
 from collections import defaultdict
 
+import numpy as np
 from sc2.data import race_townhalls
 from sc2.unit import Unit, UnitTypeId
+
+from scipy.spatial import cKDTree
 
 from ..units.army import Army
 from ..units.changeling import Changeling
@@ -123,14 +126,6 @@ class UnitManager(AIModule):
         for tag, unit in self.units.items():
             unit.unit = unit_by_tag.get(tag)
 
-        # neutral_by_tag = {
-        #     unit.tag: unit
-        #     for unit in self.ai.all_units
-        #     if unit.alliance == Alliance.Neutral
-        # }
-        # for tag, unit in self.neutrals.items():
-        #     unit.unit = neutral_by_tag.get(tag)
-
         for tag, enemy in self.enemies.copy().items():
             if self.ai.is_visible(enemy.position):
                 del self.enemies[tag]
@@ -145,3 +140,15 @@ class UnitManager(AIModule):
         self.update_tables()
         for unit in self.units.values():
             unit.on_step()
+
+        all_units = [
+            *self.ai.all_own_units,
+            *self.ai.all_enemy_units,
+        ]
+        all_units_by_positon = {
+            unit.position: unit
+            for unit in all_units
+        }
+        all_unit_positions = np.array(list(all_units_by_positon.keys()))
+        self.kd_tree = cKDTree(all_unit_positions)
+        return

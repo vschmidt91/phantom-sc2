@@ -11,7 +11,6 @@ from ..resources.mineral_patch import MineralPatch
 from ..resources.vespene_geyser import VespeneGeyser
 from ..units.unit import CommandableUnit
 from ..utils import *
-
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
@@ -32,7 +31,8 @@ class GatherBehavior(CommandableUnit):
         self.gather_target = gather_target
         self.return_target = min(
             self.ai.unit_manager.townhalls,
-            key=lambda th: th.unit.distance_to(gather_target.position)
+            key=lambda th: th.unit.distance_to(gather_target.position),
+            default=None,
         )
 
     def gather(self) -> Optional[UnitCommand]:

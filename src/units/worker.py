@@ -21,7 +21,7 @@ class WorkerManager(AIModule):
         super().__init__(ai)
 
     async def on_step(self) -> None:
-        self.draft_civilians()
+        # self.draft_civilians()
         pass
 
     def draft_civilians(self) -> None:
