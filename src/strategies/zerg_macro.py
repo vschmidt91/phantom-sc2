@@ -67,7 +67,7 @@ class ZergMacro(Strategy):
             if enemy and enemy.type_id in UNIT_COUNTER_DICT
         )
 
-        self.tech_up = 32 <= worker_count and 3 <= self.ai.townhalls.amount
+        self.tech_up = 40 <= worker_count and 3 <= self.ai.townhalls.amount
         lair_count = self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
         hive_count = self.ai.count(UnitTypeId.HIVE, include_pending=True, include_planned=False)
 

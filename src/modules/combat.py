@@ -70,8 +70,6 @@ class CombatModule(AIModule):
         self.confidence: float = 1.0
         self.ground_dps = np.zeros((self.ai.game_info.map_size))
         self.air_dps = np.zeros((self.ai.game_info.map_size))
-        self.army_map: InfluenceMap = InfluenceMap.zeros([*self.ai.game_info.map_size, 7])
-        self.enemy_map: InfluenceMap = InfluenceMap.zeros([*self.ai.game_info.map_size, 7])
         self.army: List[CombatBehavior] = []
         self.enemies: Dict[int, Enemy] = {}
 
@@ -160,75 +158,6 @@ class CombatModule(AIModule):
             for unit in self.ai.unit_manager.enemies.values()
         }
 
-        def dps_entry(unit: Unit):
-            if unit.is_flying:
-                value = (
-                    0.0,
-                    0.0,
-                    unit.ground_dps,
-                    unit.air_dps,
-                    0.0,
-                    0.0,
-                    0.0,
-                )
-                radius = unit.radius + unit.air_range + 1
-            else:
-                value = (
-                    unit.ground_dps,
-                    unit.air_dps,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                )
-                radius = unit.radius + unit.ground_range + 1
-            return value, radius + unit.movement_speed
-
-        def hp_entry(unit: Unit):
-            if unit.is_flying:
-                value = (
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    unit.health + unit.shield,
-                    1,
-                )
-                radius = unit.radius
-            else:
-                value = (
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    unit.health + unit.shield,
-                    0.0,
-                    1,
-                )
-                radius = unit.radius
-            return value, radius + unit.movement_speed
-
-        self.army_map.clear()
-        for behavior in self.army:
-            unit = behavior.unit
-            value, radius = dps_entry(unit)
-            self.army_map.add(unit.position, radius, value)
-            value, radius = hp_entry(unit)
-            self.army_map.add(unit.position, radius, value)
-
-        self.enemy_map.clear()
-        for behavior in self.enemies.values():
-            unit = behavior.unit
-            value, radius = dps_entry(unit)
-            self.enemy_map.add(unit.position, radius, value)
-            value, radius = hp_entry(unit)
-            self.enemy_map.add(unit.position, radius, value)
-
-        self.army_map.blur(5)
-        self.enemy_map.blur(5)
-
         def unit_value(cost: Cost):
             return cost.minerals + cost.vespene
 
@@ -241,20 +170,6 @@ class CombatModule(AIModule):
             for behavior in self.enemies.values()
         )
         self.confidence = army_cost / max(1, army_cost + enemy_cost)
-
-        # retreat_ground = 2 - self.confidence_map
-        retreat_ground = 1 + self.enemy_map.data[:, :, InfluenceMapEntry.DPS_GROUND_GROUND.value] + self.enemy_map.data[:, :, InfluenceMapEntry.DPS_AIR_GROUND.value]
-        # retreat_ground = blur(retreat_ground)
-        # retreat_ground = retreat_ground * self.ai.distance_ground
-        retreat_ground = np.stack(np.gradient(retreat_ground))
-        self.retreat_ground = retreat_ground
-
-        # retreat_air = 2 - self.confidence_map
-        retreat_air = 1 + self.enemy_map.data[:, :, InfluenceMapEntry.DPS_GROUND_AIR.value] + self.enemy_map.data[:, :, InfluenceMapEntry.DPS_AIR_AIR.value]
-        # retreat_air = blur(retreat_air)
-        # retreat_air = retreat_air * self.ai.distance_air
-        retreat_air = np.stack(np.gradient(retreat_air))
-        self.retreat_air = retreat_air
             
 
 
@@ -370,17 +285,10 @@ class CombatBehavior(AIUnit):
                 elif self.unit.radius + unit_range + target.radius + self.unit.distance_to_weapon_ready < 1 + self.unit.position.distance_to(target.position):
                     return self.unit.attack(target.position)
 
-
-            if self.unit.is_flying:
-                retreat_map = self.ai.combat.retreat_air
-            else:
-                retreat_map = self.ai.combat.retreat_ground
-
-            i, j = self.unit.position.rounded
-
-            g = -retreat_map[:, i, j]
+            g = self.unit.position - target.position
             g /= max(1e-6, np.linalg.norm(g))
 
+            i, j = self.unit.position.rounded
             gb = self.ai.pathing_border[i, j, :]
             gb /= max(1e-6, np.linalg.norm(gb))
 
