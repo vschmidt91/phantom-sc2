@@ -39,7 +39,7 @@ class ZergMacro(Strategy):
         # larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
         # queen_target = math.ceil(larva_rate / (3 / 29))
         # queen_target = min(queen_target, self.ai.townhalls.amount)
-        queen_target = 1 + self.ai.townhalls.amount
+        queen_target = self.ai.townhalls.amount
         queen_target = np.clip(queen_target, 0, 8)
         # print(queen_target)
 

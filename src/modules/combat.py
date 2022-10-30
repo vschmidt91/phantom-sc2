@@ -109,7 +109,7 @@ class CombatModule(AIModule):
         self.enemies = {
             unit.tag: Enemy(unit)
             for unit in self.ai.unit_manager.enemies.values()
-            if (unit.type_id not in CIVILIANS or self.ai.time < 120)
+            if unit.type_id not in CIVILIANS
         }
 
         self.ground_dps[:, :] = 0.0
@@ -146,7 +146,7 @@ class CombatModule(AIModule):
             d = d - unit.radius - target.radius - r
             return d / max(1, unit.movement_speed)
 
-        time_scale = 0.5
+        time_scale = 1.0
         for behavior in self.army:
             behavior.targets.clear()
             behavior.threats.clear()

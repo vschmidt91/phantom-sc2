@@ -12,6 +12,7 @@ OPPONENTS = {
         RoachRush,
     ],
     '71089047-c9cc-42f9-8657-8bafa0df89a0': [ # negativeZero
+        # HatchFirst,
         RoachRush,
     ],
     '5714a116-b8c8-42f5-b8dc-93b28f4adf2d': [ # spudde

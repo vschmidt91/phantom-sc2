@@ -4,6 +4,7 @@ from typing import Optional, TYPE_CHECKING
 
 import numpy as np
 
+from sc2.bot_ai import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.ability_id import AbilityId
@@ -71,7 +72,10 @@ class Worker(DodgeBehavior, CombatBehavior, MacroBehavior, GatherBehavior):
             return command
         elif self.is_drafted:
             return self.fight()
-        elif self.estimated_survival < 3:
+        elif (
+            self.ai.enemy_race == Race.Protoss
+            and 1 < self.ai.combat.ground_dps[self.unit.position.rounded]
+        ):
             if UpgradeId.BURROW in self.ai.state.upgrades:
                 return self.unit(AbilityId.BURROWDOWN)
             else:
