@@ -16,6 +16,6 @@ OPPONENTS = {
     ],
     '5714a116-b8c8-42f5-b8dc-93b28f4adf2d': [ # spudde
         HatchFirst,
-        RoachRush,
+        # RoachRush,
     ]
 }

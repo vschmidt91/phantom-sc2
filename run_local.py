@@ -28,9 +28,9 @@ MAPS = [
 ]
 
 RACES = [
-    # Race.Protoss,
+    Race.Protoss,
     # Race.Terran,
-    Race.Zerg,
+    # Race.Zerg,
     # Race.Random,
 ]
 

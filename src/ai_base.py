@@ -247,7 +247,7 @@ class AIBase(BotAI):
         self.iteration = iteration
 
         if 1 < self.time:
-            await self.chat.add_message('glgl')
+            await self.chat.add_message('(glhf)')
 
         if self.profiler:
             self.profiler.enable()
@@ -287,6 +287,9 @@ class AIBase(BotAI):
 
         if self.debug:
             await self.draw_debug()
+
+        # if iteration % 100 == 0:
+        #     self.distance_ground, self.distance_air = self.create_distance_map()
 
         if self.debug:
             # if 90 < self.time:

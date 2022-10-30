@@ -71,7 +71,7 @@ class Worker(DodgeBehavior, CombatBehavior, MacroBehavior, GatherBehavior):
             return command
         elif self.is_drafted:
             return self.fight()
-        elif self.estimated_surival < 3:
+        elif self.estimated_survival < 3:
             if UpgradeId.BURROW in self.ai.state.upgrades:
                 return self.unit(AbilityId.BURROWDOWN)
             else:

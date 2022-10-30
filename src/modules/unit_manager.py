@@ -98,7 +98,12 @@ class UnitManager(AIModule):
             return None
 
     def try_remove_unit(self, tag: int) -> bool:
-        return self.units.pop(tag, None) is not None
+        if self.units.pop(tag, None):
+            return True
+        elif self.enemies.pop(tag, None):
+            return True
+        else:
+            return False
 
     def create_unit(self, unit: Unit) -> AIUnit:
 
@@ -146,7 +151,7 @@ class UnitManager(AIModule):
                 continue
             visibility_disk = skimage.draw.disk(
                 center=enemy.position,
-                radius=2,
+                radius=1,
                 shape=self.ai.game_info.map_size
             )
             visibility = visibility_map[visibility_disk] == 2
