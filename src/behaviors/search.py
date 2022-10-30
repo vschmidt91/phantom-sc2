@@ -7,14 +7,14 @@ from typing import Optional, TYPE_CHECKING
 from sc2.unit_command import UnitCommand
 
 from ..constants import *
-from ..units.unit import CommandableUnit
+from ..units.unit import AIUnit
 from ..utils import *
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
-class SearchBehavior(CommandableUnit):
+class SearchBehavior(AIUnit):
 
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)

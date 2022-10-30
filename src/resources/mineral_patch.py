@@ -8,15 +8,11 @@ from sc2.unit import Unit
 from .resource_unit import ResourceUnit
 from ..constants import RICH_MINERALS
 
-if TYPE_CHECKING:
-    from ..ai_base import AIBase
-
-
 class MineralPatch(ResourceUnit):
 
-    def __init__(self, ai: AIBase, unit: Unit) -> None:
-        super().__init__(ai, unit)
-        self.speedmining_target: Optional[Point2] = None
+    def __init__(self, unit: Unit) -> None:
+        super().__init__(unit)
+        self.speedmining_target: Point2 = unit.position
 
     @property
     def is_rich(self) -> bool:
@@ -30,7 +26,7 @@ class MineralPatch(ResourceUnit):
         if not self.unit:
             return 0
         elif not self.unit.is_visible:
-            return 1350
+            return 1500
         else:
             return self.unit.mineral_contents
 

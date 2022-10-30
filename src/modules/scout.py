@@ -6,7 +6,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 
-from ..units.unit import CommandableUnit
+from ..units.unit import AIUnit
 from .module import AIModule
 
 if TYPE_CHECKING:
@@ -28,8 +28,8 @@ class ScoutModule(AIModule):
         self.static_targets.sort(key=lambda t: t.distance_to(self.ai.start_location))
 
         for pos in self.ai.enemy_start_locations:
-            if path := self.ai.map_analyzer.pathfind(self.ai.start_location, pos):
-                self.static_targets.insert(1, path[len(path) // 2])
+            pos = 0.5 * (pos + self.ai.start_location)
+            self.static_targets.insert(1, pos)
 
     def reset_blocked_bases(self) -> None:
         for position, blocked_since in list(self.blocked_positions.items()):
@@ -68,7 +68,7 @@ class ScoutModule(AIModule):
             if not behavior.unit.is_detector
         ]
         scout_targets = []
-        if self.scout_enemy_natural:
+        if self.scout_enemy_natural and self.ai.time < 3 * 60:
             target = self.ai.resource_manager.bases[-2].position
             scout_targets.append(target)
         scout_targets.extend(self.static_targets)
@@ -78,7 +78,7 @@ class ScoutModule(AIModule):
         self.send_units(nondetectors, scout_targets)
 
 
-class ScoutBehavior(CommandableUnit):
+class ScoutBehavior(AIUnit):
 
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
@@ -88,6 +88,7 @@ class ScoutBehavior(CommandableUnit):
 
         if self.scout_position:
             max_distance = self.unit.radius + self.unit.sight_range
+            # max_distance = 1.0
             if self.scout_position.distance_to(self.unit) < max_distance:
                 return self.unit.hold_position()
             else:

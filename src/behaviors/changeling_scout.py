@@ -8,13 +8,13 @@ from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 
 from ..constants import ENERGY_COST
-from ..units.unit import CommandableUnit
+from ..units.unit import AIUnit
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
-class SpawnChangelingBehavior(CommandableUnit):
+class SpawnChangelingBehavior(AIUnit):
 
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)

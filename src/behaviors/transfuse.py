@@ -7,14 +7,14 @@ from sc2.ids.ability_id import AbilityId
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 
-from ..units.unit import CommandableUnit
+from ..units.unit import AIUnit
 from ..constants import ENERGY_COST
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
-class TransfuseBehavior(CommandableUnit):
+class TransfuseBehavior(AIUnit):
     ABILITY = AbilityId.TRANSFUSION_TRANSFUSION
 
     def __init__(self, ai: AIBase, unit: Unit):

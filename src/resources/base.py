@@ -18,25 +18,22 @@ if TYPE_CHECKING:
 class Base(ResourceGroup[ResourceBase]):
 
     def __init__(self,
-                 ai: AIBase,
-                 position: Point2,
-                 mineral_patches: Iterable[MineralPatch],
-                 vespene_geysers: Iterable[VespeneGeyser],
-                 ):
+        position: Point2,
+        mineral_patches: Iterable[MineralPatch],
+        vespene_geysers: Iterable[VespeneGeyser],
+    ):
         self.townhall: Optional[Structure] = None
         self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(
-            ai,
             sorted(
                 mineral_patches,
                 key=lambda m: m.position.distance_to(position)
             ))
         self.vespene_geysers: ResourceGroup[VespeneGeyser] = ResourceGroup(
-            ai,
             sorted(
                 vespene_geysers,
                 key=lambda g: g.position.distance_to(position)
             ))
-        super().__init__(ai, [self.mineral_patches, self.vespene_geysers], position)
+        super().__init__([self.mineral_patches, self.vespene_geysers], position)
 
     def split_initial_workers(self, harvesters: Iterable[GatherBehavior]):
         harvesters = set(harvesters)

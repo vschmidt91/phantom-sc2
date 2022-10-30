@@ -6,7 +6,7 @@ from sc2.ids.buff_id import BuffId
 from sc2.unit_command import UnitCommand
 
 from ..resources.base import Base
-from ..units.unit import CommandableUnit
+from ..units.unit import AIUnit
 from ..constants import *
 from ..modules.module import AIModule
 from ..utils import *
@@ -31,12 +31,14 @@ class InjectManager(AIModule):
         ]
         injected_bases = {q.inject_base for q in queens}
 
-        if unassigned_queen := next((
+        queen = next((
             queen
             for queen in queens
-            if queen.unit and not queen.inject_base
-        ), None):
-            unassigned_queen.inject_base = min(
+            if not queen.inject_base
+        ), None)
+        if queen:
+            pos = queen.unit.position
+            queen.inject_base = min(
                 (
                     base
                     for base in self.ai.resource_manager.bases
@@ -44,14 +46,14 @@ class InjectManager(AIModule):
                         base.townhall
                         and base not in injected_bases
                         and BuffId.QUEENSPAWNLARVATIMER not in base.townhall.unit.buffs
-                )
+                    )
                 ),
-                key=lambda b: b.position.distance_to(unassigned_queen.unit.position),
-                default=None
+                key = lambda b: b.position.distance_to(pos),
+                default = None
             )
 
 
-class InjectBehavior(CommandableUnit):
+class InjectBehavior(AIUnit):
 
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
@@ -72,7 +74,7 @@ class InjectBehavior(CommandableUnit):
             return self.unit(AbilityId.EFFECT_INJECTLARVA, target=self.inject_base.townhall.unit)
         elif not self.inject_base.townhall.unit.has_buff(BuffId.QUEENSPAWNLARVATIMER):
             return self.unit.move(target)
-        elif 7 < self.unit.position.distance_to(target):
-            return self.unit.move(target)
+        # elif 12 < self.unit.position.distance_to(target):
+        #     return self.unit.move(target)
 
         return None

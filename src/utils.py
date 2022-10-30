@@ -63,30 +63,37 @@ def get_requirements(item: Union[UnitTypeId, UpgradeId]) -> Iterable[Union[UnitT
         for requirement2 in get_requirements(requirement1):
             yield requirement2
 
+FLOOD_FILL_OFFSETS = {
+    Point2((-1, 0)),
+    Point2((0, -1)),
+    Point2((0, +1)),
+    Point2((+1, 0)),
+    # Point2((-1, -1)),
+    # Point2((-1, +1)),
+    # Point2((+1, -1)),
+    # Point2((+1, +1)),
+}
 
-def flood_fill(boundary: np.ndarray, origins: Iterable[Point2]):
-    front = set(origins)
-    offsets = [Point2((dx, dy)) for dx in range(-1, 2) for dy in range(-1, 2)]
-    offsets.remove((0, 0))
-    offsets.sort(key=np.linalg.norm)
+def flood_fill(weight: np.ndarray, origins: Iterable[Point2]):
 
-    distance = np.full(boundary.shape, math.inf)
+    distance = np.full(weight.shape, np.inf)
     for origin in origins:
         distance[origin] = 0
 
+    front = set(origins)
     while front:
         next_front = set()
         for point in front:
             point_distance = distance[point]
-            for offset in offsets:
+            for offset in FLOOD_FILL_OFFSETS:
                 offset_norm = np.linalg.norm(offset)
-                if not offset_norm:
+                if offset_norm == 0.0:
                     continue
                 neighbour = point + offset
-                neighbour_distance = point_distance + offset_norm
+                neighbour_distance = point_distance + offset_norm * weight[neighbour.rounded]
                 if neighbour in origins:
                     continue
-                if boundary[neighbour]:
+                if np.isinf(neighbour_distance):
                     continue
                 if distance[neighbour] <= neighbour_distance:
                     continue

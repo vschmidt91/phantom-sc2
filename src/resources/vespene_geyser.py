@@ -9,13 +9,12 @@ from ..constants import RICH_GAS
 
 if TYPE_CHECKING:
     from ..units.structure import Structure
-    from ..ai_base import AIBase
 
 
 class VespeneGeyser(ResourceUnit):
 
-    def __init__(self, ai: AIBase, unit: Unit) -> None:
-        super().__init__(ai, unit)
+    def __init__(self, unit: Unit) -> None:
+        super().__init__(unit)
         self.structure: Optional[Structure] = None
 
     @property
@@ -27,7 +26,9 @@ class VespeneGeyser(ResourceUnit):
 
     @property
     def remaining(self) -> int:
-        if not self.unit.is_visible:
+        if not self.unit:
+            return 0
+        elif not self.unit.is_visible:
             return 2250
         else:
             return self.unit.vespene_contents

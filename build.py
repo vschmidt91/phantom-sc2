@@ -18,6 +18,7 @@ class BotPackage:
     race: str
     package: str
     cls: str
+    cls_args: str
     libs: List[str]
 
 
@@ -27,42 +28,36 @@ BOTS: List[BotPackage] = [
         'Zerg',
         'src.zerg',
         'ZergAI',
+        '',
         [
             'ladder.py',
             'requirements.txt',
             VERSION_PATH,
             'src\\',
-            'MapAnalyzer\\',
-            'sc2_helper\\',
             'data\\'
         ]),
-    # BotPackage('PhantomBot', 'Zerg', '.zerg', 'ZergAI',
-    # [
-    #     'ladder.py',
-    #     'requirements.txt',
-    #     VERSION_PATH,
-    #     'src\\',
-    #     'sc2\\',
-    #     'MapAnalyzer\\',
-    #     'data\\'
-    # ]),
     BotPackage(
         '12PoolBot',
         'Zerg',
         'src.pool12_allin',
         'Pool12AllIn',
+        'greeting="(glhf) 12PoolBot v220925", research_speed=True',
         [
             'ladder.py',
             'requirements.txt',
             'src\\pool12_allin.py',
         ]),
-    # BotPackage('LingFlood', 'Zerg', '.lingflood', 'LingFlood',
-    # [
-    #     'ladder.py',
-    #     'requirements.txt',
-    #     'src\\lingflood.py',
-    #     'sc2\\'
-    # ]),
+    BotPackage(
+        '12PoolBotGasless',
+        'Zerg',
+        'src.pool12_allin',
+        'Pool12AllIn',
+        'greeting="(glhf) 12PoolBotGasless v220925", research_speed=False',
+        [
+            'ladder.py',
+            'requirements.txt',
+            'src\\pool12_allin.py',
+        ]),
 ]
 
 

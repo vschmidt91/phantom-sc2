@@ -9,7 +9,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit, UnitCommand
 
-from ..units.unit import CommandableUnit
+from ..units.unit import AIUnit
 from ..modules.module import AIModule
 from ..constants import ENERGY_COST
 
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 TUMOR_RANGE = 10
 
-class CreepBehavior(CommandableUnit):
+class CreepBehavior(AIUnit):
 
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)

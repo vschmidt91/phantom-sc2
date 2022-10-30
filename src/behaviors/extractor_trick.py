@@ -7,13 +7,13 @@ from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 
-from ..units.unit import CommandableUnit
+from ..units.unit import AIUnit
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
-class ExtractorTrickBehavior(CommandableUnit):
+class ExtractorTrickBehavior(AIUnit):
 
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)

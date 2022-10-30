@@ -14,7 +14,7 @@ from sc2.unit_command import UnitCommand
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from ..units.unit import CommandableUnit
+from ..units.unit import AIUnit
 from .module import AIModule
 
 if TYPE_CHECKING:
@@ -130,16 +130,13 @@ class DodgeEffectDelayed(DodgeEffect):
     #         yield DamageCircle(self.position, radius_adjusted, damage)
 
 
-class DodgeBehavior(CommandableUnit):
+class DodgeBehavior(AIUnit):
 
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
         self.safety_distance: float = 1.0
 
     def dodge(self) -> Optional[UnitCommand]:
-
-        if not self.unit:
-            return None
 
         for dodge in self.ai.dodge.elements:
             distance_bonus = 0.0
@@ -157,8 +154,7 @@ class DodgeBehavior(CommandableUnit):
                         dodge_from += random_offset
                     target = dodge_from.towards(self.unit, distance_want + 2 * self.safety_distance)
                     if self.unit.is_burrowed and not self.ai.can_move(self.unit):
-                        self.unit(AbilityId.BURROWUP)
-                        return self.unit.move(target, queue=True)
+                        return self.unit(AbilityId.BURROWUP)
                     else:
                         return self.unit.move(target)
 

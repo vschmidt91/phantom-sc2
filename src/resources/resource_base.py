@@ -5,16 +5,10 @@ from typing import Iterable, TYPE_CHECKING
 
 from sc2.position import Point2
 
-from ..units.unit import AIUnit
 
-if TYPE_CHECKING:
-    from ..ai_base import AIBase
+class ResourceBase:
 
-
-class ResourceBase(AIUnit):
-
-    def __init__(self, ai: AIBase, position: Point2):
-        super().__init__(ai, None)
+    def __init__(self, position: Point2):
         self.position = position
 
     @property
@@ -22,13 +16,13 @@ class ResourceBase(AIUnit):
     def harvester_target(self) -> int:
         raise NotImplementedError()
 
-    def __hash__(self) -> int:
-        return hash(self.position)
-
     @property
     @abstractmethod
     def remaining(self) -> int:
         raise NotImplementedError()
+
+    def __hash__(self) -> int:
+        return hash(self.position)
 
     def flatten(self) -> Iterable['ResourceBase']:
         yield self

@@ -2,16 +2,26 @@ import itertools
 from typing import Iterable
 
 import sc2
+from sc2.ids.buff_id import BuffId
 from sc2.data import Race, Difficulty, AIBuild
 from sc2.main import GameMatch, run_multiple_games
 from sc2.player import AbstractPlayer, Bot, Computer
+from src.strategies.pool_first import PoolFirst
+from src.strategies.hatch_first import HatchFirst
 
+from src.pool12_allin import Pool12AllIn
 from src.zerg import ZergAI
+from tools.dummy import DummyAI
+
+BuffId._missing_ = lambda _ : BuffId.NULL
 
 MAPS = [
     # 'BerlingradAIE',
-    'CuriousMindsAIE',
+    # 'MoondanceAIE',
+    # 'InsideAndOutAIE',
     # 'HardwireAIE',
+    # 'StargazersAIE',
+    'WaterfallAIE',
     # 'GlitteringAshesAIE',
     # '2000AtmospheresAIE',
     # 'BlackburnAIE',
@@ -39,16 +49,20 @@ SEED = 123
 
 
 def create_bot():
-    ai = ZergAI()
+
+    ai = ZergAI(strategy_cls=None)
     ai.debug = True
     ai.game_step = 2
 
     # ai = Pool12AllIn()
 
+    # ai = DummyAI()
+
     return Bot(Race.Zerg, ai, 'PhantomBot')
 
 
 def create_opponents(difficulty) -> Iterable[AbstractPlayer]:
+
     # yield Bot(Race.Zerg, Pool12AllIn(), '12PoolBot')
 
     for race in RACES:

@@ -5,25 +5,28 @@ from typing import Optional, TYPE_CHECKING
 
 from sc2.unit_command import UnitCommand
 
-from ..units.unit import CommandableUnit
+from ..units.unit import AIUnit
 from ..constants import *
 
 if TYPE_CHECKING:
     pass
 
 
-class BurrowBehavior(CommandableUnit):
+class BurrowBehavior(AIUnit):
 
     def burrow(self) -> Optional[UnitCommand]:
 
-        if self.unit.type_id not in {UnitTypeId.ROACH, UnitTypeId.ROACHBURROWED}:
+        if self.unit.type_id not in {
+            UnitTypeId.ROACH,
+            UnitTypeId.ROACHBURROWED,
+        }:
             return None
 
         if UpgradeId.BURROW not in self.ai.state.upgrades:
             return None
 
-        if UpgradeId.TUNNELINGCLAWS in self.ai.state.upgrades:
-            return None
+        # if UpgradeId.TUNNELINGCLAWS not in self.ai.state.upgrades:
+        #     return None
 
         if self.unit.is_burrowed:
             if self.unit.health_percentage == 1 or self.unit.is_revealed:

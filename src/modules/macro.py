@@ -14,7 +14,7 @@ from sc2.unit_command import UnitCommand
 from sc2.unit import Unit
 from sc2.position import Point2
 
-from ..units.unit import CommandableUnit
+from ..units.unit import AIUnit
 from .module import AIModule
 from ..constants import ITEM_TRAINED_FROM_WITH_EQUIVALENTS, MACRO_INFO, GAS_BY_RACE
 from ..constants import REQUIREMENTS, WITH_TECH_EQUIVALENTS
@@ -47,7 +47,7 @@ class MacroPlan:
         self.target: Union[Unit, Point2, None] = None
         self.priority: float = 0.0
         self.max_distance: Optional[int] = 4
-        self.eta: Optional[float] = None
+        self.eta: float = math.inf
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.item}, {self.target}, {self.priority}, {self.eta})"
@@ -134,7 +134,6 @@ class MacroModule(AIModule):
             if (
                     isinstance(behavior, MacroBehavior)
                     and not behavior.plan
-                    and behavior.unit
             )
         }
 
@@ -204,7 +203,7 @@ class MacroModule(AIModule):
             #     continue
 
             if any(self.ai.get_missing_requirements(plan.item)):
-                plan.eta = None
+                plan.eta = math.inf
             else:
                 eta = 0.0
                 if 0 < cost.minerals:
@@ -218,7 +217,7 @@ class MacroModule(AIModule):
                         / max(1, self.ai.resource_manager.income.larva))
                 if 0 < cost.food:
                     if self.ai.supply_left < cost.food:
-                        eta = None
+                        eta = math.inf
                 plan.eta = eta
 
         cost_zero = Cost(0, 0, 0, 0)
@@ -269,7 +268,6 @@ class MacroModule(AIModule):
             exclude_tags = {
                 order.target
                 for unit in self.ai.unit_manager.pending_by_type[gas_type]
-                if unit.unit
                 for order in unit.unit.orders
                 if isinstance(order.target, int)
             }
@@ -338,7 +336,7 @@ class MacroModule(AIModule):
 
         return min(
             trainers_filtered,
-            key=lambda t: t.unit.tag if t.unit else 0,
+            key=lambda t: t.unit.tag,
             default=None
         )
 
@@ -369,12 +367,12 @@ class MacroModule(AIModule):
         raise PlacementNotFoundException()
 
     def make_tech(self):
-        upgrades = {
+        upgrades = [
             u
             for unit in self.composition
             for u in self.ai.upgrades_by_unit(unit)
             if self.ai.strategy.filter_upgrade(u)
-        }
+        ]
         targets = set(upgrades)
         targets.update(
             r
@@ -391,7 +389,7 @@ class MacroModule(AIModule):
                 plan.priority = -1 / 3
 
 
-class MacroBehavior(CommandableUnit):
+class MacroBehavior(AIUnit):
 
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
@@ -400,8 +398,7 @@ class MacroBehavior(CommandableUnit):
     @property
     def macro_ability(self) -> Optional[AbilityId]:
         if (
-                self.unit
-                and self.plan
+                self.plan
                 and (element := MACRO_INFO.get(self.unit.type_id))
                 and (ability := element.get(self.plan.item))
         ):
@@ -420,9 +417,9 @@ class MacroBehavior(CommandableUnit):
             # plan.priority = self.plan.priority
             # self.plan = None
             return None
-        elif self.plan.eta is None:
+        elif math.isinf(self.plan.eta):
             return None
-        elif self.plan.eta == 0.0:
+        elif self.plan.eta <= 0.0:
             if self.unit.is_carrying_resource:
                 return self.unit.return_resource()
             else:
@@ -432,11 +429,13 @@ class MacroBehavior(CommandableUnit):
         elif not self.plan.target:
             return None
 
-        movement_eta = 4/3 * time_to_reach(self.unit, self.plan.target.position)
+        movement_eta = 1.2 * time_to_reach(self.unit, self.plan.target.position)
         if self.unit.is_carrying_resource:
             movement_eta += 3.0
-        if self.plan.eta < movement_eta:
-            if self.unit.is_carrying_resource:
+        if self.plan.eta <= movement_eta:
+            if self.plan.item == UnitTypeId.EXTRACTOR:
+                return None
+            elif self.unit.is_carrying_resource:
                 return self.unit.return_resource()
             elif 1e-3 < self.unit.distance_to(self.plan.target.position):
                 return self.unit.move(self.plan.target)

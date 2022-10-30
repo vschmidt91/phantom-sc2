@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 @dataclass
 class Cost:
+    
     minerals: float
     vespene: float
     food: float

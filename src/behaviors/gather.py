@@ -9,13 +9,13 @@ from ..units.structure import Structure
 from ..resources.resource_base import ResourceBase
 from ..resources.mineral_patch import MineralPatch
 from ..resources.vespene_geyser import VespeneGeyser
-from ..units.unit import CommandableUnit
+from ..units.unit import AIUnit
 from ..utils import *
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
-class GatherBehavior(CommandableUnit):
+class GatherBehavior(AIUnit):
 
     def __init__(self, ai: AIBase, unit: Unit):
 
@@ -59,16 +59,14 @@ class GatherBehavior(CommandableUnit):
         if not target:
             self.gather_target = None
             return None
-        # elif self.unit.is_moving and self.command_queue:
-        #     self.command_queue, target = None, self.command_queue
-        #     return self.unit.smart(target, queue=True)
         elif self.command_queue:
             self.command_queue, target = None, self.command_queue
             return self.unit.smart(target, queue=True)
+        # elif self.unit.is_carrying_resource:
+        #     self.unit(AbilityId.SMART, self.return_target.unit, True)
         elif len(self.unit.orders) == 1:
             if self.unit.is_returning:
                 townhall = self.return_target.unit
-                # townhall = self.ai.townhalls.ready.closest_to(self.unit)
                 move_target = townhall.position.towards(self.unit, townhall.radius + self.unit.radius)
                 if 0.75 < self.unit.position.distance_to(move_target) < 1.5:
                     self.command_queue = townhall
@@ -80,7 +78,7 @@ class GatherBehavior(CommandableUnit):
                 else:
                     move_target = None
                     if isinstance(self.gather_target, MineralPatch):
-                        move_target = self.ai.resource_manager.speedmining_positions.get(self.gather_target)
+                        move_target = self.gather_target.speedmining_target
                     if not move_target:
                         move_target = target.position.towards(self.unit, target.radius + self.unit.radius)
                     if 0.75 < self.unit.position.distance_to(move_target) < 1.75:
@@ -88,6 +86,8 @@ class GatherBehavior(CommandableUnit):
                         return self.unit.move(move_target)
                         # self.unit.move(move_target)
                         # self.unit(AbilityId.SMART, target, True)
+            else:
+                return self.unit.smart(target)
         elif self.unit.is_idle:
             return self.unit.smart(target)
             

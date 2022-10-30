@@ -7,12 +7,15 @@ from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
-from src.modules import unit_manager
+from .modules import unit_manager
 
 from .ai_base import AIBase
 from .constants import SUPPLY_PROVIDED
-from .constants import ZERG_ARMOR_UPGRADES, ZERG_MELEE_UPGRADES, \
-    ZERG_RANGED_UPGRADES, ZERG_FLYER_UPGRADES, ZERG_FLYER_ARMOR_UPGRADES
+from .constants import ZERG_ARMOR_UPGRADES
+from .constants import ZERG_MELEE_UPGRADES
+from .constants import ZERG_RANGED_UPGRADES
+from .constants import ZERG_FLYER_UPGRADES
+from .constants import ZERG_FLYER_ARMOR_UPGRADES
 
 SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
     Race.Zerg: {
@@ -51,10 +54,11 @@ SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
         UnitTypeId.WIDOWMINEBURROWED,
     },
 }
-SPORE_TRIGGERS[Race.Random] = set((v for vs in SPORE_TRIGGERS.values() for v in vs))
-
-TIMING_INTERVAL = 64
-
+SPORE_TRIGGERS[Race.Random] = {
+    *SPORE_TRIGGERS[Race.Terran],
+    *SPORE_TRIGGERS[Race.Protoss],
+    *SPORE_TRIGGERS[Race.Zerg],
+}
 
 class ZergAI(AIBase):
 
@@ -137,7 +141,6 @@ class ZergAI(AIBase):
             provided
             for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
             for unit in self.unit_manager.pending_by_type[unit_type]
-            if unit.unit
         )
         supply_planned = sum(
             provided
@@ -156,7 +159,10 @@ class ZergAI(AIBase):
 
     def expand(self) -> None:
 
-        if self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False) < 1:
+        # if self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False) < 1:
+        #     return
+
+        if self.time < 50:
             return
 
         worker_max = self.get_max_harvester()

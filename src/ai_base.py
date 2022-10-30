@@ -6,9 +6,12 @@ import logging
 from dataclasses import dataclass
 import os
 import math
-from random import random
-from typing import Optional, Type, Dict, Iterable
+import random
+from re import U
+from typing import Optional, Type, Dict, Iterable, Tuple
 import numpy as np
+from skimage.io import imsave
+from scipy.ndimage import gaussian_filter
 
 from sc2.bot_ai import BotAI
 from sc2.constants import IS_DETECTOR
@@ -20,8 +23,9 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
 
-from MapAnalyzer import MapData
+from src.behaviors.overlord_drop import OverlordDropManager
 
+from .opponents import OPPONENTS
 from .cost import Cost
 from .utils import flood_fill
 from .constants import LARVA_COST, WORKERS, UNIT_TRAINED_FROM, WITH_TECH_EQUIVALENTS
@@ -29,10 +33,12 @@ from .constants import GAS_BY_RACE, REQUIREMENTS_KEYS
 from .constants import TRAIN_INFO, UPGRADE_RESEARCHED_FROM, RESEARCH_INFO, RANGE_UPGRADES
 from .resources.resource_manager import ResourceManager
 from .strategies.hatch_first import HatchFirst
+from .strategies.pool_first import PoolFirst
+from .strategies.roach_rush import RoachRush
 from .techtree import TechTree
 from .behaviors.inject import InjectManager
 from .behaviors.survive import SurviveBehavior
-from .units.unit import CommandableUnit
+from .units.unit import AIUnit
 from .modules.chat import Chat
 from .modules.combat import CombatModule
 from .modules.dodge import DodgeModule
@@ -54,15 +60,12 @@ class AIBase(BotAI):
 
         self.raw_affects_selection = True
         self.game_step: int = 2
+        self.unit_command_uses_self_do = True
 
         self.strategy_cls: Type[Strategy] = strategy_cls or HatchFirst
         with open(version_path, 'r', encoding="UTF-8") as file:
             self.version = file.readline().replace('\n', '')
         self.debug: bool = False
-        self.destroy_destructables: bool = False
-        self.unit_command_uses_self_do = True
-
-        self.enemies: Dict[int, Unit] = dict()
 
         self.extractor_trick_enabled: bool = False
         self.iteration: int = 0
@@ -82,10 +85,21 @@ class AIBase(BotAI):
 
     async def on_before_start(self):
 
+        self.unit_cost = {
+            type_id: self.get_cost(type_id)
+            for type_id in UnitTypeId
+        }
+
         if self.debug:
             logging.basicConfig(level=logging.DEBUG)
+
+            import matplotlib.pyplot as plt
+            plt.ion()
             self.profiler = cProfile.Profile()
-            # plt.ion()
+            self.figure = plt.figure()
+            self.figure_img = plt.imshow(self.game_info.pathing_grid.data_numpy.transpose())
+            plt.show()
+
             # self.plot, self.plot_axes = plt.subplots(1, 2)
             # self.plot_images = None
         else:
@@ -98,12 +112,29 @@ class AIBase(BotAI):
     async def on_start(self):
 
         logging.debug('start')
+        
+        strategy_choices = OPPONENTS.get(self.opponent_id)
+        if strategy_choices:
+            self.strategy_cls = random.choice(strategy_choices)
+
+        # await self.client.debug_create_unit([
+        #     [UnitTypeId.OVERLORDTRANSPORT, 1, self.game_info.map_center, 1],
+        #     [UnitTypeId.ZERGLING, 8, self.game_info.map_center, 1],
+        # ])
 
         for townhall in self.townhalls:
             self.do(townhall(AbilityId.RALLY_WORKERS, target=townhall))
 
-        self.map_analyzer = MapData(self)
-        self.distance_map = self.create_distance_map()
+        pathing_grid = self.game_info.pathing_grid.data_numpy.transpose()
+        border_x, border_y = np.gradient(pathing_grid)
+        self.pathing_border = np.stack([
+            border_x,
+            border_y,
+        ], axis=-1)
+
+        self.distance_ground, self.distance_air = self.create_distance_map()
+        self.enemy_main = self.create_enemy_main_map()
+
         bases = await self.initialize_bases()
         self.resource_manager = ResourceManager(self, bases)
         self.scout = ScoutModule(self)
@@ -113,8 +144,13 @@ class AIBase(BotAI):
         self.combat = CombatModule(self)
         self.dodge = DodgeModule(self)
         self.inject = InjectManager(self)
+        self.drops = OverlordDropManager(self)
         self.strategy: Strategy = self.strategy_cls(self)
         self.worker_manager: WorkerManager = WorkerManager(self)
+
+        for step in self.strategy.build_order():
+            plan = self.macro.add_plan(step)
+            plan.priority = math.inf
 
         for structure in self.all_own_units:
             self.unit_manager.add_unit(structure)
@@ -129,7 +165,7 @@ class AIBase(BotAI):
                 if behavior := self.unit_manager.units.get(error.unit_tag):
                     self.scout.blocked_positions[behavior.unit.position] = self.time
 
-    def units_detecting(self, unit: Unit) -> Iterable[CommandableUnit]:
+    def units_detecting(self, unit: Unit) -> Iterable[AIUnit]:
         for detector_type in IS_DETECTOR:
             for detector in self.unit_manager.actual_by_type[detector_type]:
                 distance = detector.unit.position.distance_to(unit.position)
@@ -160,8 +196,6 @@ class AIBase(BotAI):
         behavior = self.unit_manager.units.get(tag)
         if not behavior:
             return
-        elif not behavior.unit:
-            return
         elif behavior.unit.type_id == UnitTypeId.DRONE:
             return
         elif behavior.unit.type_id in {UnitTypeId.LARVA, UnitTypeId.EGG}:
@@ -188,15 +222,18 @@ class AIBase(BotAI):
         tags = [
             unit.tag
             for unit in self.all_own_units
-            if random() < chance
+            if random.random() < chance
         ]
         if tags:
             await self.client.debug_kill_unit(tags)
 
             
     def get_cost(self, item: MacroId) -> Cost:
-        minerals_vespene = self.calculate_cost(item)
-        food = self.calculate_supply_cost(item)
+        try:
+            minerals_vespene = self.calculate_cost(item)
+            food = self.calculate_supply_cost(item)
+        except:
+            return Cost(0.0, 0.0, 0.0, 0.0)
         larva = LARVA_COST.get(item, 0.0)
         return Cost(float(minerals_vespene.minerals), float(minerals_vespene.vespene), food, larva)
 
@@ -210,8 +247,7 @@ class AIBase(BotAI):
         self.iteration = iteration
 
         if 1 < self.time:
-            await self.chat.add_tag(self.version, False)
-            await self.chat.add_tag(self.strategy.name, False)
+            await self.chat.add_message('glgl')
 
         if self.profiler:
             self.profiler.enable()
@@ -235,7 +271,8 @@ class AIBase(BotAI):
             self.chat,
             self.inject,
             self.strategy,
-            self.worker_manager
+            self.worker_manager,
+            self.drops,
         ]
         for module in modules:
             await module.on_step()
@@ -280,9 +317,7 @@ class AIBase(BotAI):
                 geyser_tag = geyser.unit.tag if isinstance(geyser, VespeneGeyser) and geyser.unit else None
                 for trainer_type in UNIT_TRAINED_FROM.get(unit.type_id, []):
                     for trainer in self.unit_manager.actual_by_type[trainer_type]:
-                        if not trainer.unit:
-                            pass
-                        elif trainer.unit.position.distance_to(unit.position) < 0.1:
+                        if trainer.unit.position.distance_to(unit.position) < 0.5:
                             if behavior := self.unit_manager.units.get(trainer.unit.tag):
                                 if isinstance(behavior, MacroBehavior):
                                     behavior.plan = None
@@ -321,6 +356,9 @@ class AIBase(BotAI):
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         logging.debug("unit_took_damage: %f @ %s", amount_damage_taken, unit)
+        behavior = self.unit_manager.units.get(unit.tag)
+        if behavior != None:
+            behavior.on_took_damage(amount_damage_taken)
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         logging.info("upgrade_complete: %s", upgrade)
@@ -349,33 +387,29 @@ class AIBase(BotAI):
 
     async def initialize_bases(self):
 
-        exclude_bases = {
+        start_bases = {
             self.start_location,
             *self.enemy_start_locations
         }
-        positions_fixed = dict()
-        for expansion in self.expansion_locations_list:
-            if expansion in exclude_bases:
+        
+        bases = []
+        for position, resources in self.expansion_locations_dict.items():
+            if (
+                position not in start_bases
+                and not await self.can_place_single(UnitTypeId.HATCHERY, position)
+            ):
                 continue
-            if await self.can_place_single(UnitTypeId.HATCHERY, expansion):
-                continue
-            positions_fixed[expansion] = await self.find_placement(
-                UnitTypeId.HATCHERY,
-                expansion,
-                placement_step=1
+            base = Base(
+                position,
+                (MineralPatch(m) for m in resources.mineral_field),
+                (VespeneGeyser(g) for g in resources.vespene_geyser),
             )
-
+            bases.append(base)
+            
         bases = sorted(
-            (
-                Base(
-                    self,
-                    positions_fixed.get(position, position),
-                    (MineralPatch(self, m) for m in resources.mineral_field),
-                    (VespeneGeyser(self, g) for g in resources.vespene_geyser)
-                )
-            for position, resources in self.expansion_locations_dict.items()
-        ),
-        key=lambda b: self.distance_map[b.position.rounded] - .5 * b.position.distance_to(self.enemy_start_locations[0]) / self.game_info.map_size.length)
+            bases,
+            key=lambda b: self.distance_ground[b.position.rounded] + self.distance_air[b.position.rounded],
+        )
 
         return bases
 
@@ -387,31 +421,65 @@ class AIBase(BotAI):
             for y_offset in np.arange(-radius, +radius + 1)
         )
 
-    def create_distance_map(self) -> np.ndarray:
+    def create_enemy_main_map(self) -> np.ndarray:
+        weight = np.where(
+            np.transpose(self.game_info.placement_grid.data_numpy) == 1,
+            1.0,
+            np.inf,
+        )
+        origins = [
+            p.rounded
+            for p in self.enemy_start_locations
+        ]
+        enemy_main = flood_fill(
+            weight,
+            origins,
+        )
+        enemy_main = np.isfinite(enemy_main)
+        return enemy_main
 
-        boundary = np.transpose(self.game_info.pathing_grid.data_numpy == 0)
+    def create_distance_map(self) -> Tuple[np.ndarray, np.ndarray]:
+
+        pathing = np.transpose(self.game_info.pathing_grid.data_numpy)
         for townhall in self.townhalls:
             for position in self.enumerate_positions(townhall):
-                boundary[position.rounded] = False
+                pathing[position.rounded] = 1
 
-        distance_ground_self = flood_fill(
-            boundary,
-            [self.start_location.rounded]
+        weight_ground = np.where(
+            np.transpose(self.game_info.pathing_grid.data_numpy) == 0,
+            np.inf,
+            1.0,
         )
-        distance_ground_enemy = flood_fill(
-            boundary,
-            [p.rounded for p in self.enemy_start_locations]
+        origins = [
+            th.position.rounded
+            for th in self.townhalls
+        ]
+        distance_ground = flood_fill(
+            weight_ground,
+            origins,
         )
-        distance_ground = distance_ground_self / (distance_ground_self + distance_ground_enemy)
-        distance_air = np.zeros_like(distance_ground)
-        for position, _ in np.ndenumerate(distance_ground):
-            position = Point2(position)
-            distance_self = position.distance_to(self.start_location)
-            distance_enemy = min(position.distance_to(p) for p in self.enemy_start_locations)
-            distance_air[position] = distance_self / (distance_self + distance_enemy)
-        distance_map = np.where(np.isnan(distance_ground), distance_air, distance_ground)
+        distance_ground = np.where(np.isinf(distance_ground), np.nan, distance_ground)
+        distance_ground /= np.nanmax(distance_ground)
+        distance_ground = np.where(np.isnan(distance_ground), 1, distance_ground)
 
-        return distance_map
+        weight_air = np.where(
+            np.transpose(self.game_info.pathing_grid.data_numpy) == 0,
+            1.0,
+            10.0,
+        )
+        weight_air[0:self.game_info.playable_area.x, :] = np.inf
+        weight_air[self.game_info.playable_area.right:-1, :] = np.inf
+        weight_air[:, 0:self.game_info.playable_area.y] = np.inf
+        weight_air[:, self.game_info.playable_area.top:-1] = np.inf
+        distance_air = flood_fill(
+            weight_air,
+            origins,
+        )
+        distance_air = np.where(np.isinf(distance_air), np.nan, distance_air)
+        distance_air /= np.nanmax(distance_air)
+        distance_air = np.where(np.isnan(distance_air), 1, distance_air)
+
+        return distance_ground, distance_air
 
     async def draw_debug(self):
 
@@ -419,18 +487,13 @@ class AIBase(BotAI):
         font_size = 12
 
         plans = []
-        plans.extend(b.plan
-                     for b in self.unit_manager.units.values()
-                     if isinstance(b, MacroBehavior) and b.plan
-                     )
+        plans.extend(
+            b.plan
+            for b in self.unit_manager.units.values()
+            if isinstance(b, MacroBehavior) and b.plan
+        )
         plans.extend(self.macro.unassigned_plans)
         plans.sort(key=cmp_to_key(compare_plans), reverse=True)
-
-        # for cluster in self.combat.clusters:
-
-        #     position = cluster.center
-        #     height = self.get_terrain_z_height(position)
-        #     self.client.debug_sphere_out(Point3((position.x, position.y, height)), 1.0)
 
         for i, target in enumerate(plans):
 
@@ -487,6 +550,10 @@ class AIBase(BotAI):
                 f'{1 + i} {round(plan.eta or 0, 1)} {plan.item.name}',
                 (0.01, 0.1 + 0.01 * i)
             )
+
+        # self.figure_img.set_data(self.combat.army_map.data[:, :, [0, 1, 4]])
+        # self.figure.canvas.draw()
+        # self.figure.canvas.flush_events()
 
     def is_unit_missing(self, unit: UnitTypeId) -> bool:
         if unit in {
@@ -570,22 +637,6 @@ class AIBase(BotAI):
                     unit_range += bonus
 
         return unit_range
-
-    def enumerate_enemies(self) -> Iterable[Unit]:
-        enemies = (
-            unit
-            for unit in self.enemies.values()
-            if unit.type_id not in IGNORED_UNIT_TYPES
-        )
-        destructables = (
-            unit
-            for unit in self.destructables
-            if 0 < unit.armor
-        )
-        if self.destroy_destructables:
-            return chain(enemies, destructables)
-        else:
-            return enemies
 
     def get_unit_value(self, unit: Unit) -> float:
         health = unit.health + unit.shield

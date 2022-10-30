@@ -15,7 +15,6 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 SPEEDMINING_DISTANCE = 1.8
-GREETING = '(glhf) 12PoolBot v220609'
 HALF_OFFSET = Point2((.5, .5))
 
 
@@ -39,7 +38,9 @@ def get_intersections(p0: Point2, r0: float, p1: Point2, r1: float) -> Iterable[
 
 class Pool12AllIn(BotAI):
 
-    def __init__(self) -> None:
+    def __init__(self, greeting: str = '(glhf)', research_speed: bool = True) -> None:
+        self.greeting = greeting
+        self.research_speed = research_speed
         self.pool_drone: Optional[Unit] = None
         self.tags: Set[str] = set()
         self.gas_harvester_target: int = 2
@@ -53,7 +54,7 @@ class Pool12AllIn(BotAI):
 
     async def on_start(self) -> None:
         self.geyser = self.vespene_geyser.closest_to(self.start_location)
-        self.pool_position = self.get_pool_position()
+        self.pool_position = await self.get_pool_position()
         self.spire_position = self.get_spire_position()
         self.speedmining_positions = self.get_speedmining_positions()
         self.split_workers()
@@ -67,7 +68,7 @@ class Pool12AllIn(BotAI):
             await self.client.quit()
             return
 
-        if self.enemy_structures.flying and not any(self.enemy_structures.not_flying):
+        if any(self.enemy_structures.flying) and not any(self.enemy_structures.not_flying):
             # high performance mode
             await self.add_tag('cleanup')
             self.client.game_step = 10 * self.game_step
@@ -89,17 +90,16 @@ class Pool12AllIn(BotAI):
         self.pool: Optional[Unit] = None
         self.spire: Optional[Unit] = None
         self.abilities: Counter[AbilityId] = Counter(o.ability.exact_id for u in self.all_own_units for o in u.orders)
-        self.invisible_enemy_start_locations: List[Point2] = [p for p in self.enemy_start_locations if
-                                                              not self.is_visible(p)]
+        self.invisible_enemy_start_locations: List[Point2] = [p for p in self.enemy_start_locations if not self.is_visible(p)]
+        self.resource_by_tag = {unit.tag: unit for unit in chain(self.mineral_field, self.gas_buildings)}
 
         if 3 < self.time and not self.greeting_sent:
-            await self.client.chat_send(GREETING, False)
+            await self.client.chat_send(self.greeting, False)
             self.greeting_sent = True
 
-        if 100 < self.time and AbilityId.RESEARCH_ZERGLINGMETABOLICBOOST not in self.abilities and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
+        if self.research_speed and 105 < self.time and self.abilities[AbilityId.RESEARCH_ZERGLINGMETABOLICBOOST] < 1 and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
             await self.add_tag('latespeed')
 
-        self.resource_by_tag = {unit.tag: unit for unit in chain(self.mineral_field, self.gas_buildings)}
         for structure in self.structures:
             self.micro_structure(structure)
 
@@ -119,8 +119,7 @@ class Pool12AllIn(BotAI):
             if self.army_type == UnitTypeId.MUTALISK:
                 self.gas_harvester_target = 3
                 build_army = self.build_spire()
-            elif self.vespene < 96 and self.abilities[
-                AbilityId.RESEARCH_ZERGLINGMETABOLICBOOST] < 1 and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
+            elif self.research_speed and self.vespene < 96 and self.abilities[AbilityId.RESEARCH_ZERGLINGMETABOLICBOOST] < 1 and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
                 self.gas_harvester_target = 2
             else:
                 self.gas_harvester_target = 0
@@ -146,9 +145,11 @@ class Pool12AllIn(BotAI):
                 self.pool_drone.move(self.pool_position)
         elif self.supply_used < 13:
             self.train(UnitTypeId.DRONE)
-        elif self.gas_buildings.amount < 1 and self.abilities[AbilityId.ZERGBUILD_EXTRACTOR] < 1:
+        elif self.research_speed and self.gas_buildings.amount < 1 and self.abilities[AbilityId.ZERGBUILD_EXTRACTOR] < 1:
             if self.drone:
                 self.drone.build_gas(self.geyser)
+        elif not self.research_speed and self.supply_used < 14:
+            self.train(UnitTypeId.DRONE)
         elif self.supply_cap == 14 and self.abilities[AbilityId.LARVATRAIN_OVERLORD] < 1:
             self.train(UnitTypeId.OVERLORD)
         return self.pool is not None and self.pool.is_ready
@@ -165,7 +166,7 @@ class Pool12AllIn(BotAI):
         drone_max = sum(hatch.ideal_harvesters for hatch in self.townhalls)
         queen_missing = self.townhalls.amount - (len(self.inject_queens) + self.abilities[AbilityId.TRAINQUEEN_QUEEN])
         if self.larva and 1 <= self.supply_left:
-            max_pending_drones = self.townhalls.amount
+            max_pending_drones = 1
             if self.state.score.food_used_economy < drone_max and mineral_starved and self.abilities[
                 AbilityId.LARVATRAIN_DRONE] < max_pending_drones:
                 self.train(UnitTypeId.DRONE, max_pending_drones - self.abilities[AbilityId.LARVATRAIN_DRONE])
@@ -174,7 +175,7 @@ class Pool12AllIn(BotAI):
         elif queen_missing and 2 <= self.supply_left:
             for hatch in self.idle_hatches[:queen_missing]:
                 hatch.train(UnitTypeId.QUEEN)
-        elif self.pool and self.pool.is_idle and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
+        elif self.research_speed and self.pool and self.pool.is_idle and UpgradeId.ZERGLINGMOVEMENTSPEED not in self.state.upgrades:
             self.pool.research(UpgradeId.ZERGLINGMOVEMENTSPEED)
         elif self.can_afford(UnitTypeId.HATCHERY) and self.abilities[
             AbilityId.ZERGBUILD_HATCHERY] < 1 and not self.hatch_morphing:
@@ -218,12 +219,10 @@ class Pool12AllIn(BotAI):
             patch = self.mineral_field.closest_to(self.transfer_to.pop(0))
             self.transfer_from.pop(0)
             unit.gather(patch)
-        elif any(
-                self.transfer_from_gas) and unit.order_target in self.gas_buildings.tags and not unit.is_carrying_resource:
+        elif any(self.transfer_from_gas) and unit.order_target in self.gas_buildings.tags and not unit.is_carrying_resource:
             unit.stop()
             self.transfer_from_gas.pop(0)
-        elif any(self.transfer_to_gas) and not unit.is_carrying_resource and len(
-                unit.orders) < 2 and unit.order_target not in self.close_minerals:
+        elif any(self.transfer_to_gas) and not unit.is_carrying_resource and len(unit.orders) < 2 and unit.order_target not in self.close_minerals:
             unit.gather(self.transfer_to_gas.pop(0))
         elif not unit.is_carrying_resource and len(unit.orders) == 1 and unit.order_target not in self.close_minerals:
             self.drone = unit
@@ -254,7 +253,7 @@ class Pool12AllIn(BotAI):
                     unit.attack(target)
 
     def inject_larvae(self):
-        hatches: List[Unit] = sorted(self.townhalls, key=lambda u: u.tag)
+        hatches: List[Unit] = sorted(self.townhalls.ready, key=lambda u: u.tag)
         self.inject_queens.sort(key=lambda u: u.tag)
         for hatch, queen in zip(hatches, self.inject_queens):
             if 25 <= queen.energy and hatch.is_ready:
@@ -303,11 +302,14 @@ class Pool12AllIn(BotAI):
                 targets[resource.position] = target
         return targets
 
-    def get_pool_position(self) -> Point2:
+    async def get_pool_position(self) -> Point2:
         """find position for the spawning pool"""
-        position = self.start_location.towards(self.game_info.map_center, -10)
-        position.rounded.offset(HALF_OFFSET)
-        return position
+        for i in range(100):
+            position = self.start_location.towards_with_random_angle(self.game_info.map_center, -9)
+            position.rounded.offset(HALF_OFFSET)
+            if await self.can_place_single(UnitTypeId.SPAWNINGPOOL, position):
+                return position
+        raise Exception('could not find pool position')
 
     def get_spire_position(self) -> Point2:
         """find position for the spire"""

@@ -17,6 +17,10 @@ if TYPE_CHECKING:
 
 class ZergMacro(Strategy):
 
+    def __init__(self, ai: AIBase):
+        super().__init__(ai)
+        self.tech_up = False
+
     async def on_step(self) -> None:
         self.update_composition()
 
@@ -35,7 +39,7 @@ class ZergMacro(Strategy):
         # larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
         # queen_target = math.ceil(larva_rate / (3 / 29))
         # queen_target = min(queen_target, self.ai.townhalls.amount)
-        queen_target = 1 + self.ai.townhalls.amount
+        queen_target = 2 + self.ai.townhalls.amount
         queen_target = np.clip(queen_target, 0, 8)
         # print(queen_target)
 
@@ -63,6 +67,10 @@ class ZergMacro(Strategy):
             if enemy and enemy.type_id in UNIT_COUNTER_DICT
         )
 
+        self.tech_up = 32 <= worker_count and 3 <= self.ai.townhalls.amount
+        lair_count = self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
+        hive_count = self.ai.count(UnitTypeId.HIVE, include_pending=True, include_planned=False)
+
         if any(enemy_counts):
             for enemy_type, count in enemy_counts.items():
                 if counters := UNIT_COUNTER_DICT.get(enemy_type):
@@ -74,35 +82,45 @@ class ZergMacro(Strategy):
         else:
             composition[UnitTypeId.ZERGLING] = 1.0
 
-        composition[UnitTypeId.RAVAGER] += max(0.0, composition[UnitTypeId.ROACH] / 5 - 3)
-        composition[UnitTypeId.CORRUPTOR] += max(0.0, composition[UnitTypeId.BROODLORD] / 3)
+        composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 7
+        composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 3
 
-        tech_up = 40 <= worker_count and 3 <= self.ai.townhalls.amount
-
-        lair_count = self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
-        hive_count = self.ai.count(UnitTypeId.HIVE, include_pending=False, include_planned=False)
-
-        if tech_up:
+        if self.tech_up:
+            # composition[UnitTypeId.OVERLORDTRANSPORT] = 1
             composition[UnitTypeId.ROACHWARREN] = 1
             composition[UnitTypeId.OVERSEER] = 1
 
-        if tech_up and 0 < lair_count + hive_count:
+        if self.tech_up and 0 < lair_count + hive_count:
             composition[UnitTypeId.HYDRALISKDEN] = 1
             composition[UnitTypeId.OVERSEER] = 2
             composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
 
-        if tech_up and 0 < hive_count:
+        if self.tech_up and 0 < hive_count:
             composition[UnitTypeId.GREATERSPIRE] = 1
             composition[UnitTypeId.OVERSEER] = 3
 
+        if worker_count == worker_target:
+            banking = min(self.ai.minerals, self.ai.vespene) / 500
+            if 0 < hive_count:
+                composition[UnitTypeId.BROODLORD] += banking
+                composition[UnitTypeId.CORRUPTOR] += banking
+            elif 0 < lair_count:
+                composition[UnitTypeId.HYDRALISK] += banking
+                composition[UnitTypeId.ROACH] += banking
+            else:
+                composition[UnitTypeId.ROACH] += banking
+                composition[UnitTypeId.ZERGLING] += banking
+
         self.ai.macro.composition = {
-            k: math.ceil(v)
+            k: math.floor(v)
             for k, v in composition.items()
             if 0 < v
         }
 
     def filter_upgrade(self, upgrade) -> bool:
-        if upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
+        if not self.tech_up and upgrade != UpgradeId.ZERGLINGMOVEMENTSPEED:
+            return False
+        elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
             return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False)
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
             return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False)
@@ -112,7 +130,7 @@ class ZergMacro(Strategy):
             return 0 < self.ai.count(UnitTypeId.GREATERSPIRE, include_planned=False)
         elif upgrade == UpgradeId.OVERLORDSPEED:
             return 8 * 60 < self.ai.time
-        elif upgrade in {UpgradeId.BURROW, UpgradeId.TUNNELINGCLAWS}:
-            return False
+        # elif upgrade in {UpgradeId.BURROW, UpgradeId.TUNNELINGCLAWS}:
+        #     return False
         else:
             return super().filter_upgrade(upgrade)

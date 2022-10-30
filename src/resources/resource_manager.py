@@ -60,8 +60,8 @@ class ResourceManager(AIModule):
     def __init__(self, ai: AIBase, bases: Iterable[Base]) -> None:
         super().__init__(ai)
         self.do_split = True
-        self.bases = ResourceGroup(ai, list(bases))
-        self.speedmining_positions = self.get_speedmining_positions()
+        self.bases = ResourceGroup(list(bases))
+        self.set_speedmining_positions()
         self.resource_by_position: Dict[Point2, ResourceUnit] = {
             resource.position: resource
             for resource in self.bases.flatten()
@@ -96,9 +96,19 @@ class ResourceManager(AIModule):
     def add_harvester(self, harvester: GatherBehavior) -> None:
         gather_target = min(
             (x for b in self.bases_taken for x in b.flatten()),
-            key=lambda r: r.harvester_balance,
+            key=lambda r: r.harvester_target - self.harvesters_by_resource[r],
             default=None
         )
+        # gather_target = min(
+        #     (
+        #         x
+        #         for b in self.bases_taken
+        #         for x in b.flatten()
+        #         if 0 < x.harvester_target
+        #     ),
+        #     key=lambda r: harvester.unit.position.distance_to(r.position),
+        #     default=None
+        # )
         if gather_target:
             harvester.set_gather_target(gather_target)
 
@@ -132,12 +142,8 @@ class ResourceManager(AIModule):
                 geyser.unit = resource_by_position.get(geyser.position)
                 geyser.structure = gas_buildings_by_position.get(geyser.position)
 
-        # for resource in self.bases.flatten():
-        #     resource.unit = resource_by_position.get(resource.position)
-        #     if isinstance(resource, VespeneGeyser):
-        #         resource.structure = gas_buildings_by_position.get(resource.position)
-
     def balance_harvesters(self) -> None:
+
         harvester = next((
             h
             for h in self.ai.unit_manager.units.values()
@@ -145,7 +151,7 @@ class ResourceManager(AIModule):
                 isinstance(h, GatherBehavior)
                 and h.gather_target
                 and isinstance(h.gather_target, MineralPatch)
-                and 0 < h.gather_target.harvester_balance
+                and h.gather_target.harvester_target < self.harvesters_by_resource[h.gather_target]
             )
         ), None)
         if not harvester:
@@ -154,14 +160,20 @@ class ResourceManager(AIModule):
         transfer_to = next((
             resource
             for resource in self.mineral_patches
-            if resource.harvester_balance < 0
+            if self.harvesters_by_resource[resource] < resource.harvester_target
         ), None)
         if not transfer_to:
             return
 
-        harvester.gather_target = transfer_to
+        harvester.set_gather_target(transfer_to)
 
     async def on_step(self) -> None:
+
+        self.harvesters_by_resource = Counter[ResourceBase]((
+            unit.gather_target
+             for unit in self.ai.unit_manager.units.values()
+             if isinstance(unit, GatherBehavior) and unit.gather_target
+        ))
 
         self.update_patches_and_geysers()
         self.update_bases()
@@ -177,15 +189,10 @@ class ResourceManager(AIModule):
             self.bases[0].split_initial_workers(harvesters)
             self.do_split = False
 
-        self.harvesters_by_resource = Counter[ResourceBase](
-            (unit.gather_target
-             for unit in self.ai.unit_manager.units.values()
-             if isinstance(unit, GatherBehavior) and unit.gather_target))
 
         self.balance_harvesters()
 
-    def get_speedmining_positions(self) -> Dict[MineralPatch, Point2]:
-        positions = dict()
+    def set_speedmining_positions(self) -> None:
         for base in self.bases:
             for patch in base.mineral_patches:
                 target = patch.position.towards(base.position, MINING_RADIUS)
@@ -212,8 +219,7 @@ class ResourceManager(AIModule):
                         else:
                             target = intersection2
                         break
-                positions[patch] = target
-        return positions
+                patch.speedmining_target = target
 
     def update_gas(self):
         gas_target = self.get_gas_target()
@@ -238,6 +244,9 @@ class ResourceManager(AIModule):
 
         # print(minerals, vespene)
 
+        if 0 < gas_target:
+            gas_target = max(3.0, gas_target)
+
         return gas_target
 
     def build_gasses(self, gas_target: float):
@@ -249,7 +258,7 @@ class ResourceManager(AIModule):
         gas_want = min(gas_max, gas_depleted + math.ceil((gas_target - 1) / 3))
         if gas_have + gas_pending < gas_want:
             self.ai.macro.add_plan(gas_type)
-        elif gas_want < gas_have + gas_pending:
+        elif gas_want + 1 < gas_have + gas_pending:
             gas_plans = sorted(self.ai.macro.planned_by_type(gas_type), key=lambda p: p.priority)
             for _, plan in zip(range(gas_have + gas_pending - gas_want), gas_plans):
                 if plan.priority < math.inf:
@@ -268,17 +277,17 @@ class ResourceManager(AIModule):
         )
 
         if (
-                0 < mineral_harvester_count
-                and (effective_gas_balance < 0 or 0 < mineral_balance)
-                and (geyser := self.pick_resource(self.vespene_geysers))
-                and (harvester := self.pick_harvester(MineralPatch, geyser.position))
+            0 < mineral_harvester_count
+            and (effective_gas_balance < 0 or 0 < mineral_balance)
+            and (geyser := self.pick_resource(self.vespene_geysers))
+            and (harvester := self.pick_harvester(MineralPatch, geyser.position))
         ):
             harvester.set_gather_target(geyser)
         elif (
-                0 < gas_harvester_count
-                and (1 <= effective_gas_balance and mineral_balance < 0)
-                and (patch := self.pick_resource(self.mineral_patches))
-                and (harvester := self.pick_harvester(VespeneGeyser, patch.position))
+            0 < gas_harvester_count
+            and (1 <= effective_gas_balance and mineral_balance < 0)
+            and (patch := self.pick_resource(self.mineral_patches))
+            and (harvester := self.pick_harvester(VespeneGeyser, patch.position))
         ):
             harvester.set_gather_target(patch)
 
@@ -290,14 +299,10 @@ class ResourceManager(AIModule):
         )
 
     def pick_resource(self, resources: Iterable[ResourceBase]) -> Optional[ResourceUnit]:
-        return min(
-            (
-                r
-                for r in resources
-                if r.harvester_balance < 0
-            ),
-            key=lambda r: r.harvester_balance,
-            default=None
+        return max(
+            resources,
+            key=lambda r: r.harvester_target - self.harvesters_by_resource[r],
+            default=None,
         )
 
     def pick_harvester(self, from_type: Type[ResourceUnit], close_to: Point2) -> Optional[GatherBehavior]:
@@ -307,7 +312,7 @@ class ResourceManager(AIModule):
                 for b in self.ai.unit_manager.units.values()
                 if isinstance(b, GatherBehavior) and isinstance(b.gather_target, from_type)
             ),
-            key=lambda h: h.unit.position.distance_to(close_to) if h.unit else math.inf,
+            key=lambda h: h.unit.position.distance_to(close_to),
             default=None
         )
 

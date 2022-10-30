@@ -15,10 +15,10 @@ T = TypeVar('T', bound=ResourceBase)
 
 class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
 
-    def __init__(self, ai: AIBase, items: List[T], position: Optional[Point2] = None) -> None:
+    def __init__(self, items: List[T], position: Optional[Point2] = None) -> None:
         if position == None:
             position = center((r.position for r in items))
-        super().__init__(ai, position)
+        super().__init__(position)
         self.items: List[T] = items
 
     def __iter__(self) -> Iterator[T]:
@@ -30,12 +30,12 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
     def __len__(self) -> int:
         return len(self.items)
 
+    def flatten(self) -> Iterable[T]:
+        return (x for item in self.items for x in item.flatten())
+
     @property
     def remaining(self) -> Iterable[int]:
         return sum(r.remaining for r in self.items)
-
-    def flatten(self) -> Iterable[T]:
-        return (x for item in self.items for x in item.flatten())
 
     @property
     def harvester_target(self) -> int:

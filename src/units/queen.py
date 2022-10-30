@@ -15,10 +15,28 @@ if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
-class Queen(DodgeBehavior, InjectBehavior, CreepBehavior, TransfuseBehavior, CombatBehavior, SearchBehavior):
+class Queen(DodgeBehavior, InjectBehavior, CreepBehavior, TransfuseBehavior, CombatBehavior):
 
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
 
     def get_command(self) -> Optional[UnitCommand]:
-        return self.dodge() or self.inject() or self.spread_creep() or self.transfuse() or self.fight() or self.search()
+        if command := self.dodge():
+            return command
+        elif (
+            (self.ai.supply_used + self.ai.larva.amount < 200)
+            and (0 == self.ai.combat.ground_dps[self.unit.position.rounded])
+            and (command := self.inject())
+        ):
+            return command
+        elif (
+            0 == self.ai.combat.ground_dps[self.unit.position.rounded]
+            and (command := self.spread_creep())
+        ):
+            return command
+        elif command := self.transfuse():
+            return command
+        elif command := self.fight():
+            return command
+        else:
+            return None

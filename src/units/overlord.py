@@ -7,6 +7,7 @@ from sc2.unit import Unit, UnitCommand
 
 from ..behaviors.changeling_scout import SpawnChangelingBehavior
 from ..behaviors.survive import SurviveBehavior
+from ..behaviors.overlord_drop import OverlordDropBehavior
 from ..modules.combat import CombatBehavior
 from ..modules.dodge import DodgeBehavior
 from ..modules.macro import MacroBehavior
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
-class Overlord(DodgeBehavior, MacroBehavior, SpawnChangelingBehavior, ScoutBehavior, SurviveBehavior, CombatBehavior):
+class Overlord(DodgeBehavior, MacroBehavior, SpawnChangelingBehavior, ScoutBehavior, SurviveBehavior, OverlordDropBehavior, CombatBehavior):
 
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
@@ -25,7 +26,7 @@ class Overlord(DodgeBehavior, MacroBehavior, SpawnChangelingBehavior, ScoutBehav
         if self.unit.type_id == UnitTypeId.OVERLORD:
             return self.dodge() or self.macro() or self.survive() or self.scout()
         elif self.unit.type_id == UnitTypeId.OVERLORDTRANSPORT:
-            return self.dodge() or self.survive()
+            return self.dodge() or self.survive() or self.execute_overlord_drop()
         elif self.unit.type_id in {UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE}:
             return self.dodge() or self.spawn_changeling() or self.scout() or self.fight()
         return None

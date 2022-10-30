@@ -1,135 +1,281 @@
 from __future__ import annotations
+from dataclasses import dataclass
+from os import truncate
+from random import gauss
+import copy
 
 from sklearn.cluster import DBSCAN, KMeans
-from enum import Enum
+from enum import Enum, auto
 from itertools import chain
 from typing import TYPE_CHECKING, List, Optional, Iterable, Set, Dict, Union
-from sc2_helper.combat_simulator import CombatSimulator
 import numpy as np
+from scipy.spatial.distance import cdist
 import math
 
+from scipy.ndimage.filters import gaussian_filter
 from scipy.cluster.vq import kmeans
+from skimage.draw import disk
+from skimage.transform import resize, rescale
+
+from src.behaviors.bile import BileBehavior
+from src.cost import Cost
 
 from ..utils import center
+from ..influence_map import InfluenceMap
 
 from sc2.unit import UnitCommand, Unit, Point2
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
 
-from ..units.unit import CommandableUnit
+from ..units.unit import AIUnit
+# from ..units.worker import Worker
 from .module import AIModule
 from ..constants import WORKERS, CIVILIANS, CHANGELINGS
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
+    from ..units.unit import Worker
+
+class Enemy:
+
+    def __init__(self, unit: Unit) -> None:
+        self.unit = unit
+        self.targets: List[CombatBehavior] = []
+        self.threats: List[CombatBehavior] = []
+        self.dps_incoming: float = 0.0
+        self.estimated_surival: float = np.inf
 
 
 class CombatStance(Enum):
-    FLEE = 1
-    RETREAT = 2
-    FIGHT = 3
-    ADVANCE = 4
+    FLEE = auto()
+    RETREAT = auto()
+    FIGHT = auto()
+    ADVANCE = auto()
 
-class CombatCluster:
+class InfluenceMapEntry(Enum):
+    DPS_GROUND_GROUND = 0
+    DPS_GROUND_AIR = 1
+    DPS_AIR_GROUND = 2
+    DPS_AIR_AIR = 3
+    HP_GROUND = 4
+    HP_AIR = 5
+    COUNT = 6
 
-    def __init__(self) -> None:
-        self.center = Point2((0.0, 0.0))
-        self.tags: Set[int] = set()
-        self.confidence: float = 1.0
-        self.target: Optional[Unit] = None
+CONFIDENCE_MAP_SCALE = 6
 
 class CombatModule(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
         self.confidence: float = 1.0
-        self.combat_simulator = CombatSimulator()    
-        
-    def simulate_fight(self, own_units: Units, enemy_units: Units) -> float:
-        """
-        rasper: This is a method Paul wrote, it works pretty well most of the time
-
-        Use the combat simulator to predict if our units can beat the enemy units.
-
-        Returns an Enum so that thresholds can be easily adjusted and it may be easier to read the results in other
-        code.
-
-        WARNING:
-            The combat simulator has some bugs in it that I'm not able to fix since they're in the Rust code. Notable
-            bugs include Missile Turrets shooting Hydralisks and 45 SCVs killing a Mutalisk. To get around this, you can
-            filter out units that shouldn't be included, such as not including SCVs when seeing if the Mutalisks can win
-            a fight (this creates its own problems due to the bounce, but I don't believe the bounce is included in the
-            simulation). The simulator isn't perfect, but I think it's still usable. My recommendation is to use it
-            cautiously and only when all units involved can attack each other. It definitely doesn't factor good micro
-            in, so anything involving spell casters is probably a bad idea.
-            - IDPTG/Paul
-        """
-        
-        won_fight, health_remaining = self.combat_simulator.predict_engage(own_units, enemy_units)
-
-        own_health = sum(u.health + u.shield for u in own_units)
-        enemy_health = sum(u.health + u.shield for u in enemy_units)
-        
-        MIN_HEALTH = 1.0
-        if won_fight:
-            return .5 + .5 * health_remaining / max(MIN_HEALTH, own_health)
-        else:
-            return .5 - .5 * health_remaining / max(MIN_HEALTH, enemy_health)
-
-    @property
-    def army(self) -> Iterable[CombatBehavior]:
-        return (
-            behavior
-            for behavior in self.ai.unit_manager.units.values()
-            if (
-                isinstance(behavior, CombatBehavior)
-                and behavior.fight_enabled
-                and behavior.unit
-                and behavior.unit.type_id not in CIVILIANS
-            )
-        )
-
-    async def on_step(self):
-
-        army = Units((behavior.unit for behavior in self.army), self.ai)
-        enemy_army = Units((
-            unit
-            for unit in self.ai.unit_manager.enemies.values()
-            if unit.type_id not in CIVILIANS
-        ), self.ai)
-        self.confidence = self.simulate_fight(army, enemy_army)
-            
-
-
-class CombatBehavior(CommandableUnit):
-
-    def __init__(self, ai: AIBase, unit: Unit):
-        super().__init__(ai, unit)
-        self.fight_enabled: bool = True
-        self.stance: CombatStance = CombatStance.FIGHT
-
-        
+        self.ground_dps = np.zeros((self.ai.game_info.map_size))
+        self.air_dps = np.zeros((self.ai.game_info.map_size))
+        self.army_map: InfluenceMap = InfluenceMap.zeros([*self.ai.game_info.map_size, 7])
+        self.enemy_map: InfluenceMap = InfluenceMap.zeros([*self.ai.game_info.map_size, 7])
+        self.army: List[CombatBehavior] = []
+        self.enemies: Dict[int, Enemy] = {}
 
     def target_priority(self, target: Unit) -> float:
-        if not target:
-            return 0.0
-        if not self.ai.can_attack(self.unit, target) and not self.unit.is_detector:
-            return 0.0
         if target.is_hallucination:
             return 0.0
         if target.type_id in CHANGELINGS:
             return 0.0
         priority = 1e8
 
-        priority /= 150 + target.position.distance_to(self.ai.start_location)
+        priority /= 2 + self.ai.distance_ground[target.position.rounded]
         priority /= 3 if target.is_structure else 1
         if target.is_enemy:
             priority /= 100 + target.shield + target.health
         else:
             priority /= 500
-        priority *= 3 if target.type_id in WORKERS else 1
-        priority /= 10 if target.type_id in CIVILIANS else 1
+        # priority *= 3 if target.type_id in WORKERS else 1
+        # priority /= 10 if target.type_id in CIVILIANS else 1
 
+        return priority
+
+    async def on_step(self):
+
+        self.army = [
+            behavior
+            for behavior in self.ai.unit_manager.units.values()
+            if (
+                isinstance(behavior, CombatBehavior)
+                # and (
+                #     behavior.unit.type_id not in CIVILIANS
+                #     or (hasattr(behavior, 'is_drafted') and behavior.is_drafted)
+                # )
+            )
+        ]
+
+        self.enemies = {
+            unit.tag: Enemy(unit)
+            for unit in self.ai.unit_manager.enemies.values()
+            if (unit.type_id not in CIVILIANS or self.ai.time < 120)
+        }
+
+        def time_until_in_range(unit: Unit, target: Unit) -> float:
+            if target.is_flying:
+                r = unit.air_range
+            else:
+                r = unit.ground_range
+            d = np.linalg.norm(unit.position - target.position)
+            d =d - unit.radius - target.radius - r
+            return d / max(1, unit.movement_speed)
+
+        for behavior in self.army:
+            behavior.targets.clear()
+            behavior.threats.clear()
+            unit = behavior.unit
+            for enemy_behavior in self.enemies.values():
+                enemy = enemy_behavior.unit
+                if (
+                    self.ai.can_attack(unit, enemy)
+                    and time_until_in_range(unit, enemy) < 3
+                ):
+                    behavior.targets.append(enemy_behavior)
+                    enemy_behavior.threats.append(behavior)
+                if (
+                    self.ai.can_attack(enemy, unit)
+                    and time_until_in_range(enemy, unit) < 3
+                ):
+                    enemy_behavior.targets.append(behavior)
+                    behavior.threats.append(enemy_behavior)
+
+        def dps(unit: Unit) -> float:
+            return max(unit.air_dps, unit.ground_dps)
+
+        for behavior in chain(self.army, self.enemies.values()):
+            unit = behavior.unit
+            behavior.dps_incoming = sum(
+               dps(e.unit) / len(e.targets)
+               for e in behavior.threats
+            )
+            if 0 < behavior.dps_incoming:
+                behavior.estimated_surival = (unit.health + unit.shield) / behavior.dps_incoming
+            else:
+                behavior.estimated_surival = np.inf
+
+        self.target_priority_dict = {
+            unit.tag: self.target_priority(unit)
+            for unit in self.ai.unit_manager.enemies.values()
+        }
+
+        def dps_entry(unit: Unit):
+            if unit.is_flying:
+                value = (
+                    0.0,
+                    0.0,
+                    unit.ground_dps,
+                    unit.air_dps,
+                    0.0,
+                    0.0,
+                    0.0,
+                )
+                radius = unit.radius + unit.air_range + 1
+            else:
+                value = (
+                    unit.ground_dps,
+                    unit.air_dps,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                )
+                radius = unit.radius + unit.ground_range + 1
+            return value, radius + unit.movement_speed
+
+        def hp_entry(unit: Unit):
+            if unit.is_flying:
+                value = (
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    unit.health + unit.shield,
+                    1,
+                )
+                radius = unit.radius
+            else:
+                value = (
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    unit.health + unit.shield,
+                    0.0,
+                    1,
+                )
+                radius = unit.radius
+            return value, radius + unit.movement_speed
+
+        self.army_map.clear()
+        for behavior in self.army:
+            unit = behavior.unit
+            value, radius = dps_entry(unit)
+            self.army_map.add(unit.position, radius, value)
+            value, radius = hp_entry(unit)
+            self.army_map.add(unit.position, radius, value)
+
+        self.enemy_map.clear()
+        for behavior in self.enemies.values():
+            unit = behavior.unit
+            value, radius = dps_entry(unit)
+            self.enemy_map.add(unit.position, radius, value)
+            value, radius = hp_entry(unit)
+            self.enemy_map.add(unit.position, radius, value)
+
+        self.army_map.blur(5)
+        self.enemy_map.blur(5)
+
+        def unit_value(cost: Cost):
+            return cost.minerals + cost.vespene
+
+        army_cost = sum(
+            unit_value(self.ai.unit_cost[behavior.unit.type_id])
+            for behavior in self.army
+        )
+        enemy_cost = sum(
+            unit_value(self.ai.unit_cost[behavior.unit.type_id])
+            for behavior in self.enemies.values()
+        )
+        self.confidence = army_cost / max(1, army_cost + enemy_cost)
+
+        # retreat_ground = 2 - self.confidence_map
+        retreat_ground = 1 + self.enemy_map.data[:, :, InfluenceMapEntry.DPS_GROUND_GROUND.value] + self.enemy_map.data[:, :, InfluenceMapEntry.DPS_AIR_GROUND.value]
+        # retreat_ground = blur(retreat_ground)
+        # retreat_ground = retreat_ground * self.ai.distance_ground
+        retreat_ground = np.stack(np.gradient(retreat_ground))
+        self.retreat_ground = retreat_ground
+
+        # retreat_air = 2 - self.confidence_map
+        retreat_air = 1 + self.enemy_map.data[:, :, InfluenceMapEntry.DPS_GROUND_AIR.value] + self.enemy_map.data[:, :, InfluenceMapEntry.DPS_AIR_AIR.value]
+        # retreat_air = blur(retreat_air)
+        # retreat_air = retreat_air * self.ai.distance_air
+        retreat_air = np.stack(np.gradient(retreat_air))
+        self.retreat_air = retreat_air
+            
+
+
+class CombatBehavior(AIUnit):
+
+    def __init__(self, ai: AIBase, unit: Unit):
+        super().__init__(ai, unit)
+        self.stance: CombatStance = CombatStance.FIGHT
+        self.targets: List[Enemy] = []
+        self.threats: List[Enemy] = []
+        self.dps_incoming: float = 0.0
+        self.estimated_surival: float = np.inf
+
+    def target_priority(self, target: Unit) -> float:
+        if not (
+            self.ai.can_attack(self.unit, target) 
+            or self.unit.is_detector
+            # or self.unit.is_burrowed
+        ):
+            return 0.0
+        priority = 1e8
         priority /= 30.0 + target.position.distance_to(self.unit.position)
         if self.unit.is_detector:
             if target.is_cloaked:
@@ -141,76 +287,128 @@ class CombatBehavior(CommandableUnit):
 
     def fight(self) -> Optional[UnitCommand]:
 
-        if not self.fight_enabled:
-            return None
-        if not self.unit:
-            return None
-            
-        confidences = []
-        for fight_radius in [20]:
-            army_local = Units((
-                unit.unit
-                for unit in self.ai.combat.army
-                if unit.unit.position.distance_to(self.unit.position) < fight_radius
-            ), self.ai)
-            enemy_army_local = Units((
-                unit
-                for unit in self.ai.unit_manager.enemies.values()
-                if unit.position.distance_to(self.unit.position) < fight_radius
-            ), self.ai)
-            confidences.append(self.ai.combat.simulate_fight(army_local, enemy_army_local))
-
-        confidence = np.mean(confidences)
-
-        target, _ = max(
+        target, priority = max(
             (
-                (enemy, priority)
+                (enemy, self.target_priority(enemy) * self.ai.combat.target_priority_dict.get(enemy.tag, 0))
                 for enemy in self.ai.unit_manager.enemies.values()
-                if 0 < (priority := self.target_priority(enemy))
             ),
             key = lambda p : p[1],
             default = (None, 0)
         )
+
         if not target:
             return None
+        if priority <= 0:
+            return None
 
-        if self.stance == CombatStance.FLEE:
-            if 2/3 < confidence:
+        # target_point = self.unit.position.towards(target, 24, limit=True)
+        # army_entry = self.ai.combat.army_map[target_point]
+        # enemy_entry = self.ai.combat.enemy_map[self.unit.position]
+        # if self.unit.is_flying:
+        #     enemy_dps = enemy_entry[InfluenceMapEntry.DPS_GROUND_AIR.value] + enemy_entry[InfluenceMapEntry.DPS_AIR_AIR.value]
+        # else:
+        #     enemy_dps = enemy_entry[InfluenceMapEntry.DPS_GROUND_GROUND.value] + enemy_entry[InfluenceMapEntry.DPS_AIR_GROUND.value]
+
+        # if target.is_flying:
+        #     army_dps = army_entry[InfluenceMapEntry.DPS_GROUND_AIR.value] + army_entry[InfluenceMapEntry.DPS_AIR_AIR.value]
+        # else:
+        #     army_dps = army_entry[InfluenceMapEntry.DPS_GROUND_GROUND.value] + army_entry[InfluenceMapEntry.DPS_AIR_GROUND.value]
+
+
+        # army_entry = self.ai.combat.army_map[self.unit.position]
+        # army_hp = army_entry[InfluenceMapEntry.HP_AIR.value] + army_entry[InfluenceMapEntry.HP_GROUND.value]
+
+        # enemy_entry = self.ai.combat.enemy_map[target_point]
+        # enemy_hp = enemy_entry[InfluenceMapEntry.HP_AIR.value] + enemy_entry[InfluenceMapEntry.HP_GROUND.value]
+
+        # army_value = math.sqrt(max(1, army_dps * army_hp))
+        # enemy_value = math.sqrt(max(1, enemy_dps * enemy_hp))
+
+        # confidence = army_value / (army_value + enemy_value)
+
+        enemy = self.ai.combat.enemies.get(target.tag)
+        if not enemy:
+            return None
+
+        survival_delta = self.estimated_surival - enemy.estimated_surival
+        if np.isnan(survival_delta):
+            if enemy.estimated_surival <= self.estimated_surival:
+                survival_delta = np.inf
+            else:
+                survival_delta = -np.inf
+
+
+        if self.unit.type_id == UnitTypeId.QUEEN and not self.ai.has_creep(self.unit.position):
+            self.stance = CombatStance.FLEE
+        elif self.unit.is_burrowed:
+            self.stance = CombatStance.FLEE
+        elif 1 < self.unit.ground_range:
+            if 4 <= survival_delta:
+                self.stance = CombatStance.ADVANCE
+            elif 2 <= survival_delta:
                 self.stance = CombatStance.FIGHT
-        elif self.stance == CombatStance.FIGHT:
-            if confidence < 1/3:
+            elif 0 <= survival_delta:
+                self.stance = CombatStance.RETREAT
+            else:
+                self.stance = CombatStance.FLEE
+        else:
+            if 2 <= survival_delta:
+                self.stance = CombatStance.FIGHT
+            else:
                 self.stance = CombatStance.FLEE
 
         stance = self.stance
 
-        if stance == CombatStance.FLEE:
+        if stance in { CombatStance.FLEE, CombatStance.RETREAT }:
+            
+            unit_range = self.ai.get_unit_range(self.unit, not target.is_flying, target.is_flying)
 
-            retreat_point = self.unit.position.towards(target.position, -12)
+            
+            if stance == CombatStance.RETREAT:
+                if not self.unit.weapon_cooldown:
+                    return self.unit.attack(target.position)
+                elif self.unit.radius + unit_range + target.radius + self.unit.distance_to_weapon_ready < 1 + self.unit.position.distance_to(target.position):
+                    return self.unit.attack(target.position)
+
+
+            if self.unit.is_flying:
+                retreat_map = self.ai.combat.retreat_air
+            else:
+                retreat_map = self.ai.combat.retreat_ground
+
+            i, j = self.unit.position.rounded
+
+            g = -retreat_map[:, i, j]
+            g /= max(1e-6, np.linalg.norm(g))
+
+            gb = self.ai.pathing_border[i, j, :]
+            gb /= max(1e-6, np.linalg.norm(gb))
+
+            g -= min(0, np.dot(g, gb)) * gb
+            g /= max(1e-6, np.linalg.norm(g))
+
+            retreat_point = self.unit.position + self.unit.movement_speed * g
+
             return self.unit.move(retreat_point)
 
-        elif stance == CombatStance.RETREAT:
+        # elif stance == CombatStance.RETREAT:
 
-            if (
-                (self.unit.weapon_cooldown or self.unit.is_burrowed)
-                and self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(
-                self.unit) + target.radius + self.unit.distance_to_weapon_ready
-            ):
-                retreat_point = self.unit.position.towards(target.position, -12)
-                return self.unit.move(retreat_point)
-            elif self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(
-                    self.unit) + target.radius:
-                return self.unit.attack(target.position)
-            else:
-                return self.unit.attack(target.position)
+        #     if (
+        #         (self.unit.weapon_cooldown or self.unit.is_burrowed)
+        #         and self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(
+        #         self.unit) + target.radius + self.unit.distance_to_weapon_ready
+        #     ):
+        #         retreat_point = self.unit.position.towards(target.position, -12)
+        #         return self.unit.move(retreat_point)
+        #     elif self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(
+        #             self.unit) + target.radius:
+        #         return self.unit.attack(target.position)
+        #     else:
+        #         return self.unit.attack(target.position)
 
         elif stance == CombatStance.FIGHT:
 
-            if self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(
-                    self.unit) + target.radius:
-                return self.unit.attack(target.position)
-            else:
-                attack_point = target.position
-                return self.unit.attack(attack_point)
+            return self.unit.attack(target.position)
 
         elif stance == CombatStance.ADVANCE:
 

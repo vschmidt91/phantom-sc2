@@ -20,7 +20,13 @@ class Structure(MacroBehavior):
     def get_command(self) -> Optional[UnitCommand]:
         if self.cancel:
             return self.unit(AbilityId.CANCEL)
-        return self.macro()
+        else:
+            return self.macro()
+
+    def on_took_damage(self, damage_taken: float):
+        if self.unit.health_percentage < 0.05:
+            self.cancel = True
+        return super().on_took_damage(damage_taken)
 
 
 class Larva(Structure):

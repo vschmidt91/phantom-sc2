@@ -17,9 +17,6 @@ class Strategy(ABC, AIModule):
 
     def __init__(self, ai: AIBase):
         super().__init__(ai)
-        for i, step in enumerate(self.build_order()):
-            plan = self.ai.macro.add_plan(step)
-            plan.priority = math.inf
 
     @abstractmethod
     def build_order(self) -> Iterable[MacroId]:

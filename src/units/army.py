@@ -9,6 +9,7 @@ from sc2.unit import Unit, UnitCommand
 from ..behaviors.burrow import BurrowBehavior
 from ..behaviors.search import SearchBehavior
 from ..behaviors.bile import BileBehavior
+from ..behaviors.overlord_drop import OverlordDropMemberBehavior
 from ..modules.combat import CombatBehavior
 from ..modules.dodge import DodgeBehavior
 from ..modules.macro import MacroBehavior
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
-class Army(DodgeBehavior, MacroBehavior, BurrowBehavior, BileBehavior, CombatBehavior, SearchBehavior):
+class Army(DodgeBehavior, MacroBehavior, BurrowBehavior, BileBehavior, OverlordDropMemberBehavior, CombatBehavior, SearchBehavior):
 
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
@@ -27,18 +28,15 @@ class Army(DodgeBehavior, MacroBehavior, BurrowBehavior, BileBehavior, CombatBeh
             return command
         elif command := self.macro():
             return command
-        elif (
-            UpgradeId.BURROW in self.ai.state.upgrades
-            and (command := self.burrow())
-        ):
+        elif command := self.burrow():
             return command
-        elif (
-                self.unit
-                and self.unit.type_id == UnitTypeId.RAVAGER
-                and (command := self.bile())
-        ):
+        elif command := self.bile():
+            return command
+        elif command := self.execute_overlord_drop():
             return command
         elif command := self.fight():
             return command
         elif command := self.search():
             return command
+        else:
+            return None

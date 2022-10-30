@@ -6,8 +6,10 @@ from sc2.player import Bot, Computer
 from sc2.main import run_game
 
 from ${package} import ${cls}
-bot = Bot(Race.${race}, ${cls}(), '${name}')
+bot = Bot(Race.${race}, ${cls}(${cls_args}), '${name}')
 
+from sc2.ids.buff_id import BuffId
+BuffId._missing_ = lambda id : BuffId.NULL
 
 # Start game
 if __name__ == '__main__':
