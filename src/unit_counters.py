@@ -25,7 +25,7 @@ UNIT_COUNTER_DICT = {
     UnitTypeId.REAPER: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
     UnitTypeId.GHOST: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
     UnitTypeId.HELLION: [UnitTypeId.BROODLORD, UnitTypeId.MUTALISK, UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
-    UnitTypeId.SIEGETANK: [UnitTypeId.BROODLORD, UnitTypeId.MUTALISK, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
+    UnitTypeId.SIEGETANK: [UnitTypeId.BROODLORD, UnitTypeId.MUTALISK, UnitTypeId.ZERGLING, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.THOR: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.WIDOWMINE: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.CYCLONE: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],

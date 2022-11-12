@@ -146,7 +146,7 @@ class CombatModule(AIModule):
             d = d - unit.radius - target.radius - r
             return d / max(1, unit.movement_speed)
 
-        time_scale = 0.5
+        time_scale = 1
         for behavior in self.army:
             behavior.targets.clear()
             behavior.threats.clear()

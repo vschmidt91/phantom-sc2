@@ -12,6 +12,7 @@ from typing import Optional, Type, Dict, Iterable, Tuple
 import numpy as np
 from skimage.io import imsave
 from scipy.ndimage import gaussian_filter
+from skimage.draw import disk
 
 from sc2.bot_ai import BotAI
 from sc2.constants import IS_DETECTOR
@@ -117,9 +118,9 @@ class AIBase(BotAI):
         #     [UnitTypeId.ZERGLING, 8, self.game_info.map_center, 1],
         # ])
 
-        await self.client.debug_create_unit([
-            [UnitTypeId.QUEEN, 5, self.start_location, 1],
-        ])
+        # await self.client.debug_create_unit([
+        #     [UnitTypeId.QUEEN, 8, self.start_location, 1],
+        # ])
 
         for townhall in self.townhalls:
             self.do(townhall(AbilityId.RALLY_WORKERS, target=townhall))
@@ -259,6 +260,24 @@ class AIBase(BotAI):
 
         self.handle_errors()
         self.handle_actions()
+
+        self.creep_placement_map = (
+            (self.state.creep.data_numpy == 1)
+            & (self.state.visibility.data_numpy == 2)
+            & (self.game_info.pathing_grid.data_numpy == 1)
+        ).transpose()
+        self.creep_value_map = (
+            (self.state.creep.data_numpy == 0)
+            & (self.game_info.pathing_grid.data_numpy == 1)
+        ).transpose().astype(float)
+
+        for base in self.expansion_locations_list:
+            d = disk(base, 3, shape=self.game_info.map_size)
+            self.creep_placement_map[d] = False
+            self.creep_value_map[d] *= 3
+
+        self.creep_value_map_blurred = gaussian_filter(self.creep_value_map, 3)
+
 
         modules = [
             self.unit_manager,
