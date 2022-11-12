@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from typing import TYPE_CHECKING, Optional
+from scipy.ndimage import gaussian_filter
 
 import numpy as np
 from sc2.ids.ability_id import AbilityId
@@ -26,8 +27,6 @@ class CreepBehavior(AIUnit):
 
     def spread_creep(self) -> Optional[UnitCommand]:
 
-        a = self.ai.game_info.playable_area
-
         if self.unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
             age = self.ai.state.game_loop - self.creation_step
             if age < 240:
@@ -35,13 +34,8 @@ class CreepBehavior(AIUnit):
         elif self.unit.type_id == UnitTypeId.QUEEN:
             if self.unit.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
                 return None
-            elif any(self.unit.orders) and self.unit.orders[0].ability.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN:
+            elif self.unit.is_using_ability(AbilityId.BUILD_CREEPTUMOR_QUEEN):
                 return self.unit(AbilityId.BUILD_CREEPTUMOR_QUEEN, target=self.unit.order_target)
-            # elif not self.ai.has_creep(unit.position) and self.ai.townhalls.ready:
-            #     if unit.is_moving:
-            #         return unit.move(unit.order_target)
-            #     else:
-            #         return unit.move(self.ai.townhalls.ready.closest_to(unit))
         else:
             return None
 
@@ -93,9 +87,6 @@ class CreepBehavior(AIUnit):
                 continue
             if any(self.ai.blocked_bases(position, 1.0)):
                 continue
-
-            # if self.unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
-            #     self.ai.unit_manager.remove_unit(self.unit)
 
             return self.unit.build(UnitTypeId.CREEPTUMOR, position)
 
