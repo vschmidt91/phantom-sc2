@@ -25,7 +25,6 @@ from sc2.ids.upgrade_id import UpgradeId
 
 from src.behaviors.overlord_drop import OverlordDropManager
 
-from .opponents import OPPONENTS
 from .cost import Cost
 from .utils import flood_fill
 from .constants import LARVA_COST, WORKERS, UNIT_TRAINED_FROM, WITH_TECH_EQUIVALENTS
@@ -112,15 +111,15 @@ class AIBase(BotAI):
     async def on_start(self):
 
         logging.debug('start')
-        
-        strategy_choices = OPPONENTS.get(self.opponent_id)
-        if strategy_choices:
-            self.strategy_cls = random.choice(strategy_choices)
 
         # await self.client.debug_create_unit([
         #     [UnitTypeId.OVERLORDTRANSPORT, 1, self.game_info.map_center, 1],
         #     [UnitTypeId.ZERGLING, 8, self.game_info.map_center, 1],
         # ])
+
+        await self.client.debug_create_unit([
+            [UnitTypeId.QUEEN, 5, self.start_location, 1],
+        ])
 
         for townhall in self.townhalls:
             self.do(townhall(AbilityId.RALLY_WORKERS, target=townhall))
