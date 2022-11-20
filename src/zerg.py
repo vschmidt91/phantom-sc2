@@ -11,11 +11,6 @@ from .modules import unit_manager
 
 from .ai_base import AIBase
 from .constants import SUPPLY_PROVIDED
-from .constants import ZERG_ARMOR_UPGRADES
-from .constants import ZERG_MELEE_UPGRADES
-from .constants import ZERG_RANGED_UPGRADES
-from .constants import ZERG_FLYER_UPGRADES
-from .constants import ZERG_FLYER_ARMOR_UPGRADES
 
 SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
     Race.Zerg: {
@@ -68,67 +63,6 @@ class ZergAI(AIBase):
 
         self.morph_overlords()
         self.expand()
-
-    def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
-        if unit == UnitTypeId.ZERGLING:
-            return chain(
-                (UpgradeId.ZERGLINGMOVEMENTSPEED,),
-                # (UpgradeId.ZERGLINGMOVEMENTSPEED, UpgradeId.ZERGLINGATTACKSPEED),
-                # self.upgrade_sequence(ZERG_MELEE_UPGRADES),
-                # self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.ULTRALISK:
-            return chain(
-                (UpgradeId.CHITINOUSPLATING, UpgradeId.ANABOLICSYNTHESIS),
-                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
-                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.BANELING:
-            return chain(
-                (UpgradeId.CENTRIFICALHOOKS,),
-                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
-                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.ROACH:
-            return chain(
-                (UpgradeId.GLIALRECONSTITUTION,
-                 UpgradeId.BURROW,
-                 UpgradeId.TUNNELINGCLAWS),
-                # (UpgradeId.GLIALRECONSTITUTION,),
-                self.upgrade_sequence(ZERG_RANGED_UPGRADES),
-                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.HYDRALISK:
-            return chain(
-                (UpgradeId.EVOLVEGROOVEDSPINES, UpgradeId.EVOLVEMUSCULARAUGMENTS),
-                self.upgrade_sequence(ZERG_RANGED_UPGRADES),
-                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.QUEEN:
-            return chain(
-                # self.upgradeSequence(ZERG_RANGED_UPGRADES),
-                # self.upgradeSequence(ZERG_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.MUTALISK:
-            return chain(
-                self.upgrade_sequence(ZERG_FLYER_UPGRADES),
-                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.CORRUPTOR:
-            return chain(
-                self.upgrade_sequence(ZERG_FLYER_UPGRADES),
-                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.BROODLORD:
-            return chain(
-                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
-                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
-                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.OVERSEER:
-            return (UpgradeId.OVERLORDSPEED,)
-        else:
-            return []
 
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:

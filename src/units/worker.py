@@ -73,13 +73,12 @@ class Worker(DodgeBehavior, CombatBehavior, MacroBehavior, GatherBehavior):
         elif self.is_drafted:
             return self.fight()
         elif (
-            self.ai.enemy_race == Race.Protoss
-            and 1 < self.ai.combat.ground_dps[self.unit.position.rounded]
+            1 < self.ai.combat.ground_dps[self.unit.position.rounded]
+            and UpgradeId.BURROW in self.ai.state.upgrades
         ):
-            if UpgradeId.BURROW in self.ai.state.upgrades:
-                return self.unit(AbilityId.BURROWDOWN)
-            else:
-                return self.fight()
+            return self.unit(AbilityId.BURROWDOWN)
+            # else:
+            #     return self.fight()
         elif self.unit.is_burrowed:
             return self.unit(AbilityId.BURROWUP)
         elif command := self.macro():

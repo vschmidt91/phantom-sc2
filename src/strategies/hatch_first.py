@@ -28,4 +28,8 @@ class HatchFirst(ZergMacro):
             UnitTypeId.DRONE,
             UnitTypeId.EXTRACTOR,
             UnitTypeId.SPAWNINGPOOL,
+            # UnitTypeId.DRONE,
+            # UnitTypeId.DRONE,
+            # UnitTypeId.DRONE,
+            # UnitTypeId.HATCHERY,
         ]

@@ -12,7 +12,7 @@ from typing import Optional, Type, Dict, Iterable, Tuple
 import numpy as np
 from skimage.io import imsave
 from scipy.ndimage import gaussian_filter
-from skimage.draw import disk
+from skimage.draw import disk, rectangle, rectangle_perimeter
 
 from sc2.bot_ai import BotAI
 from sc2.constants import IS_DETECTOR
@@ -23,6 +23,12 @@ from sc2.unit import Unit, UnitOrder, UnitCommand
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
+
+from .constants import ZERG_ARMOR_UPGRADES
+from .constants import ZERG_MELEE_UPGRADES
+from .constants import ZERG_RANGED_UPGRADES
+from .constants import ZERG_FLYER_UPGRADES
+from .constants import ZERG_FLYER_ARMOR_UPGRADES
 
 from src.behaviors.overlord_drop import OverlordDropManager
 
@@ -109,6 +115,67 @@ class AIBase(BotAI):
 
         self.client.game_step = self.game_step
 
+    def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
+        if unit == UnitTypeId.ZERGLING:
+            return chain(
+                (UpgradeId.ZERGLINGMOVEMENTSPEED,),
+                # (UpgradeId.ZERGLINGMOVEMENTSPEED, UpgradeId.ZERGLINGATTACKSPEED),
+                # self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                # self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.ULTRALISK:
+            return chain(
+                (UpgradeId.CHITINOUSPLATING, UpgradeId.ANABOLICSYNTHESIS),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.BANELING:
+            return chain(
+                (UpgradeId.CENTRIFICALHOOKS,),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.ROACH:
+            return chain(
+                (UpgradeId.GLIALRECONSTITUTION,
+                 UpgradeId.BURROW,
+                 UpgradeId.TUNNELINGCLAWS),
+                # (UpgradeId.GLIALRECONSTITUTION,),
+                self.upgrade_sequence(ZERG_RANGED_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.HYDRALISK:
+            return chain(
+                (UpgradeId.EVOLVEGROOVEDSPINES, UpgradeId.EVOLVEMUSCULARAUGMENTS),
+                self.upgrade_sequence(ZERG_RANGED_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.QUEEN:
+            return chain(
+                # self.upgradeSequence(ZERG_RANGED_UPGRADES),
+                # self.upgradeSequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.MUTALISK:
+            return chain(
+                self.upgrade_sequence(ZERG_FLYER_UPGRADES),
+                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.CORRUPTOR:
+            return chain(
+                self.upgrade_sequence(ZERG_FLYER_UPGRADES),
+                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.BROODLORD:
+            return chain(
+                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.OVERSEER:
+            return (UpgradeId.OVERLORDSPEED,)
+        else:
+            return []
+
     async def on_start(self):
 
         logging.debug('start')
@@ -119,7 +186,7 @@ class AIBase(BotAI):
         # ])
 
         # await self.client.debug_create_unit([
-        #     [UnitTypeId.QUEEN, 8, self.start_location, 1],
+        #     [UnitTypeId.QUEEN, 3, self.start_location, 1],
         # ])
 
         for townhall in self.townhalls:
@@ -196,7 +263,11 @@ class AIBase(BotAI):
         behavior = self.unit_manager.units.get(tag)
         if not behavior:
             return
-        elif behavior.unit.type_id == UnitTypeId.DRONE:
+        elif behavior.unit.type_id in {
+            UnitTypeId.DRONE,
+            UnitTypeId.SCV,
+            UnitTypeId.PROBE,
+        }:
             return
         elif behavior.unit.type_id in {UnitTypeId.LARVA, UnitTypeId.EGG}:
             candidates = list(chain(self.unit_manager.actual_by_type[UnitTypeId.LARVA],
@@ -213,7 +284,12 @@ class AIBase(BotAI):
             )
         ),
             None)
+
         if actual_behavior:
+            # if behavior.unit and actual_behavior.unit:
+            #     d = behavior.unit.position.distance_to(actual_behavior.unit.position)
+            #     if 1 < d:
+            #         print(d)
             actual_behavior.plan = None
         # else:
         #     logging.error(f'trainer not found: {action}')
@@ -271,24 +347,44 @@ class AIBase(BotAI):
             & (self.game_info.pathing_grid.data_numpy == 1)
         ).transpose().astype(float)
 
-        for base in self.expansion_locations_list:
-            d = disk(base, 3, shape=self.game_info.map_size)
-            self.creep_placement_map[d] = False
-            self.creep_value_map[d] *= 3
+        def convert_rect_coords(coords: np.ndarray):
+            return coords[0].astype(int).flatten(), coords[1].astype(int).flatten()
+
+        base_size = Point2((5, 5))
+        static_defense_size = Point2((2, 2))
+        for base in self.resource_manager.bases:
+            # d = disk(base, 4, shape=self.game_info.map_size)
+            # self.creep_placement_map[d] = False
+            # self.creep_value_map[d] *= 3
+
+            r = convert_rect_coords(rectangle(
+                base.position - 0.5 * base_size,
+                extent=base_size,
+                shape=self.game_info.map_size
+            ))
+            self.creep_placement_map[r] = False
+            self.creep_value_map[r] *= 3
+
+            r = convert_rect_coords(rectangle(
+                base.static_defense_position - 0.5 * static_defense_size,
+                extent=static_defense_size,
+                shape=self.game_info.map_size
+            ))
+            self.creep_placement_map[r] = False
 
         self.creep_value_map_blurred = gaussian_filter(self.creep_value_map, 3)
 
 
         modules = [
             self.unit_manager,
+            self.strategy,
+            self.macro,
             self.resource_manager,
             self.scout,
-            self.macro,
             self.dodge,
             self.combat,
             self.chat,
             self.inject,
-            self.strategy,
             self.worker_manager,
             self.drops,
         ]

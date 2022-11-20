@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Counter, Dict, Iterable, Type, Optional
 
 import numpy as np
 from sc2.data import race_townhalls, race_gas
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.buff_id import BuffId
 from sc2.position import Point2
 
@@ -17,8 +18,9 @@ from .resource_base import ResourceBase
 from .resource_group import ResourceGroup
 from .vespene_geyser import VespeneGeyser
 from ..behaviors.gather import GatherBehavior
-from ..constants import GAS_BY_RACE
+from ..constants import GAS_BY_RACE, STATIC_DEFENSE_BY_RACE
 from ..modules.module import AIModule
+from ..modules.macro import MacroPlan
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -28,6 +30,14 @@ MINING_RADIUS = 1.325
 
 MINERAL_RADIUS = 1.125
 HARVESTER_RADIUS = 0.375
+
+STATIC_DEFENSE_TRIGGERS = {
+    UnitTypeId.ROACHBURROWED: 0.5,
+    UnitTypeId.MUTALISK: 0.3,
+    UnitTypeId.PHOENIX: 0.3,
+    UnitTypeId.ORACLE: 1.0,
+    UnitTypeId.BANSHEE: 1.0,
+}
 
 
 def project_point_onto_line(origin: Point2, direction: Point2, position: Point2) -> Point2:
@@ -68,6 +78,7 @@ class ResourceManager(AIModule):
         }
         self.harvesters_by_resource: Counter[ResourceUnit] = Counter[ResourceUnit]()
         self.income = Cost(0, 0, 0, 0)
+        self.build_static_defense: bool = False
 
     @property
     def bases_taken(self) -> Iterable[Base]:
@@ -114,14 +125,57 @@ class ResourceManager(AIModule):
 
     def update_bases(self) -> None:
 
+        static_defense_priority = sum(
+            STATIC_DEFENSE_TRIGGERS.get(enemy.type_id, 0.0)
+            for enemy in self.ai.unit_manager.enemies.values()
+        )
+        self.build_static_defense = 1 < static_defense_priority
+
         townhalls_by_position = {
             townhall.unit.position: townhall
             for townhall_type in race_townhalls[self.ai.race]
             for townhall in chain(self.ai.unit_manager.actual_by_type[townhall_type],
                                   self.ai.unit_manager.pending_by_type[townhall_type])
         }
+
+        static_defense_type = STATIC_DEFENSE_BY_RACE[self.ai.race]
+        static_defense = {
+            unit.unit.position: unit
+            for unit in chain(
+                self.ai.unit_manager.actual_by_type[static_defense_type],
+                self.ai.unit_manager.pending_by_type[static_defense_type],
+            )
+            if unit.unit.type_id == static_defense_type
+        }
+        static_defense_pending = {
+            unit.unit.position: unit
+            for unit in self.ai.unit_manager.pending_by_type[static_defense_type]
+            if unit.unit.type_id != static_defense_type
+        }
+        static_defense_plans = {
+            plan.target: plan
+            for plan in self.ai.macro.planned_by_type(static_defense_type)
+        }
+
         for base in self.bases:
             base.townhall = townhalls_by_position.get(base.position)
+            base.static_defense = static_defense.get(base.static_defense_position)
+
+        if (
+            self.build_static_defense
+            and not any(static_defense_pending)
+            and not any(static_defense_plans)
+        ):
+            for base in self.bases:
+                if (
+                    base.townhall
+                    and base.townhall.unit.is_ready
+                    and not base.static_defense
+                ):
+
+                    plan = self.ai.macro.add_plan(static_defense_type)
+                    plan.target = base.static_defense_position
+                    break
 
     def update_patches_and_geysers(self) -> None:
 
@@ -258,11 +312,11 @@ class ResourceManager(AIModule):
         gas_want = min(gas_max, gas_depleted + math.ceil((gas_target - 1) / 3))
         if gas_have + gas_pending < gas_want:
             self.ai.macro.add_plan(gas_type)
-        elif gas_want + 1 < gas_have + gas_pending:
-            gas_plans = sorted(self.ai.macro.planned_by_type(gas_type), key=lambda p: p.priority)
-            for _, plan in zip(range(gas_have + gas_pending - gas_want), gas_plans):
-                if plan.priority < math.inf:
-                    self.ai.macro.try_remove_plan(plan)
+        # elif gas_want + 1 < gas_have + gas_pending:
+        #     gas_plans = sorted(self.ai.macro.planned_by_type(gas_type), key=lambda p: p.priority)
+        #     for _, plan in zip(range(gas_have + gas_pending - gas_want), gas_plans):
+        #         if plan.priority < math.inf:
+        #             self.ai.macro.try_remove_plan(plan)
 
     def transfer_to_and_from_gas(self, gas_target: float):
 

@@ -10,7 +10,9 @@ from src.strategies.pool_first import PoolFirst
 from src.strategies.hatch_first import HatchFirst
 
 from src.pool12_allin import Pool12AllIn
+from src.ai_base import AIBase
 from src.zerg import ZergAI
+from src.strategies.terran_macro import TerranMacro
 from tools.dummy import DummyAI
 
 BuffId._missing_ = lambda _ : BuffId.NULL

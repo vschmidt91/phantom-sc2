@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Iterable, Optional, TYPE_CHECKING
+import math
 
 from sc2.position import Point2
 
@@ -14,6 +15,8 @@ from ..behaviors.gather import GatherBehavior
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
+STATIC_DEFENSE_OFFSET = 4.25
+
 
 class Base(ResourceGroup[ResourceBase]):
 
@@ -23,6 +26,7 @@ class Base(ResourceGroup[ResourceBase]):
         vespene_geysers: Iterable[VespeneGeyser],
     ):
         self.townhall: Optional[Structure] = None
+        self.static_defense: Optional[Structure] = None
         self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(
             sorted(
                 mineral_patches,
@@ -34,6 +38,10 @@ class Base(ResourceGroup[ResourceBase]):
                 key=lambda g: g.position.distance_to(position)
             ))
         super().__init__([self.mineral_patches, self.vespene_geysers], position)
+
+        static_defense_position = Point2(self.position.towards(self.mineral_patches.position, STATIC_DEFENSE_OFFSET))
+        static_defense_position = static_defense_position.rounded.offset((0.0, 0.0))
+        self.static_defense_position = static_defense_position
 
     def split_initial_workers(self, harvesters: Iterable[GatherBehavior]):
         harvesters = set(harvesters)

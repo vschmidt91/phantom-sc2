@@ -146,7 +146,7 @@ class CombatModule(AIModule):
             d = d - unit.radius - target.radius - r
             return d / max(1, unit.movement_speed)
 
-        time_scale = 1
+        time_scale = 0.5
         for behavior in self.army:
             behavior.targets.clear()
             behavior.threats.clear()
@@ -285,7 +285,7 @@ class CombatBehavior(AIUnit):
                 self.stance = CombatStance.FLEE
         else:
             if 1/2 <= confidence:
-                self.stance = CombatStance.FIGHT
+                self.stance = CombatStance.RETREAT
             else:
                 self.stance = CombatStance.FLEE
 
@@ -299,7 +299,7 @@ class CombatBehavior(AIUnit):
             if stance == CombatStance.RETREAT:
                 if not self.unit.weapon_cooldown:
                     return self.unit.attack(target.position)
-                elif self.unit.radius + unit_range + target.radius + self.unit.distance_to_weapon_ready < 1 + self.unit.position.distance_to(target.position):
+                elif self.unit.radius + unit_range + target.radius + self.unit.distance_to_weapon_ready < self.unit.position.distance_to(target.position):
                     return self.unit.attack(target.position)
 
             if self.unit.is_flying:
