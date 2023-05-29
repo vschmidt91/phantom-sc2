@@ -22,7 +22,7 @@ class OverlordDropMemberBehavior(AIUnit):
     def execute_overlord_drop(self) -> Optional[UnitCommand]:
         if not self.dropper:
             return None
-        return self.unit(AbilityId.SMART, self.dropper.unit)
+        return self.state(AbilityId.SMART, self.dropper.state)
 
 
 class OverlordDropBehavior(AIUnit):
@@ -34,7 +34,7 @@ class OverlordDropBehavior(AIUnit):
 
     @property
     def can_drop(self) -> bool:
-        return self.unit.type_id == UnitTypeId.OVERLORDTRANSPORT
+        return self.state.type_id == UnitTypeId.OVERLORDTRANSPORT
 
     def execute_overlord_drop(self) -> Optional[UnitCommand]:
 
@@ -48,11 +48,11 @@ class OverlordDropBehavior(AIUnit):
         }
 
         cargo_assigned = sum(
-            u.unit.cargo_size
+            u.state.cargo_size
             for u in self.assigned_to_drop
         )
 
-        if cargo_assigned < self.unit.cargo_max:
+        if cargo_assigned < self.state.cargo_max:
             assign = next(
                 (
                     u
@@ -60,8 +60,8 @@ class OverlordDropBehavior(AIUnit):
                     if (
                         isinstance(u, OverlordDropMemberBehavior)
                         and not u.dropper
-                        and 0 < u.unit.cargo_size < self.unit.cargo_left
-                        and not self.ai.enemy_main[u.unit.position.rounded]
+                        and 0 < u.state.cargo_size < self.state.cargo_left
+                        and not self.ai.enemy_main[u.state.position.rounded]
                     )
                 ),
                 None,
@@ -69,15 +69,15 @@ class OverlordDropBehavior(AIUnit):
             if assign:
                 assign.dropper = self
 
-        if cargo_assigned <= self.unit.cargo_used:
-            if self.ai.enemy_main[self.unit.position.rounded]:
+        if cargo_assigned <= self.state.cargo_used:
+            if self.ai.enemy_main[self.state.position.rounded]:
                 for u in self.assigned_to_drop:
                     u.dropper = None
-                return self.unit(AbilityId.UNLOADALLAT_OVERLORD, self.unit.position)
+                return self.state(AbilityId.UNLOADALLAT_OVERLORD, self.state.position)
             else:
-                return self.unit.move(self.drop_target)
+                return self.state.move(self.drop_target)
         else:
-            return self.unit.move(self.ai.game_info.map_center)
+            return self.state.move(self.ai.game_info.map_center)
 
 class OverlordDropManager(AIModule):
 
@@ -89,7 +89,7 @@ class OverlordDropManager(AIModule):
     async def on_step(self) -> None:
 
         self.assigned_to_drop = {
-            u.unit.tag
+            u.state.tag
             for drop in self.active_drops
             for u in drop.assigned_to_drop
         }

@@ -85,7 +85,7 @@ class ResourceManager(AIModule):
         return (
             b
             for b in self.bases
-            if b.townhall and b.townhall.unit.is_ready
+            if b.townhall and b.townhall.state.is_ready
         )
 
     @property
@@ -132,7 +132,7 @@ class ResourceManager(AIModule):
         self.build_static_defense = 1 < static_defense_priority
 
         townhalls_by_position = {
-            townhall.unit.position: townhall
+            townhall.state.position: townhall
             for townhall_type in race_townhalls[self.ai.race]
             for townhall in chain(self.ai.unit_manager.actual_by_type[townhall_type],
                                   self.ai.unit_manager.pending_by_type[townhall_type])
@@ -140,17 +140,17 @@ class ResourceManager(AIModule):
 
         static_defense_type = STATIC_DEFENSE_BY_RACE[self.ai.race]
         static_defense = {
-            unit.unit.position: unit
+            unit.state.position: unit
             for unit in chain(
                 self.ai.unit_manager.actual_by_type[static_defense_type],
                 self.ai.unit_manager.pending_by_type[static_defense_type],
             )
-            if unit.unit.type_id == static_defense_type
+            if unit.state.type_id == static_defense_type
         }
         static_defense_pending = {
-            unit.unit.position: unit
+            unit.state.position: unit
             for unit in self.ai.unit_manager.pending_by_type[static_defense_type]
-            if unit.unit.type_id != static_defense_type
+            if unit.state.type_id != static_defense_type
         }
         static_defense_plans = {
             plan.target: plan
@@ -169,7 +169,7 @@ class ResourceManager(AIModule):
             for base in self.bases:
                 if (
                     base.townhall
-                    and base.townhall.unit.is_ready
+                    and base.townhall.state.is_ready
                     and not base.static_defense
                 ):
 
@@ -180,7 +180,7 @@ class ResourceManager(AIModule):
     def update_patches_and_geysers(self) -> None:
 
         gas_buildings_by_position = {
-            gas.unit.position: gas
+            gas.state.position: gas
             for gas in self.ai.unit_manager.actual_by_type[race_gas[self.ai.race]]
         }
 
@@ -366,7 +366,7 @@ class ResourceManager(AIModule):
                 for b in self.ai.unit_manager.units.values()
                 if isinstance(b, GatherBehavior) and isinstance(b.gather_target, from_type)
             ),
-            key=lambda h: h.unit.position.distance_to(close_to),
+            key=lambda h: h.state.position.distance_to(close_to),
             default=None
         )
 

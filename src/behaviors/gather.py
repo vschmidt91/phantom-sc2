@@ -31,7 +31,7 @@ class GatherBehavior(AIUnit):
         self.gather_target = gather_target
         self.return_target = min(
             self.ai.unit_manager.townhalls,
-            key=lambda th: th.unit.distance_to(gather_target.position),
+            key=lambda th: th.state.distance_to(gather_target.position),
             default=None,
         )
 
@@ -41,12 +41,12 @@ class GatherBehavior(AIUnit):
             return None
         elif not self.return_target:
             return None
-        elif not self.return_target.unit or self.return_target.is_snapshot:
+        elif not self.return_target.state or self.return_target.is_snapshot:
             self.set_gather_target(self.gather_target)
             return None
         elif not self.gather_target.remaining:
             return None
-        elif not self.unit:
+        elif not self.state:
             return None
 
         target = None
@@ -54,41 +54,41 @@ class GatherBehavior(AIUnit):
             target = self.gather_target.unit
         elif isinstance(self.gather_target, VespeneGeyser):
             if self.gather_target.structure:
-                target = self.gather_target.structure.unit
+                target = self.gather_target.structure.state
 
         if not target:
             self.gather_target = None
             return None
         elif self.command_queue:
             self.command_queue, target = None, self.command_queue
-            return self.unit.smart(target, queue=True)
+            return self.state.smart(target, queue=True)
         # elif self.unit.is_carrying_resource:
         #     self.unit(AbilityId.SMART, self.return_target.unit, True)
-        elif len(self.unit.orders) == 1:
-            if self.unit.is_returning:
-                townhall = self.return_target.unit
-                move_target = townhall.position.towards(self.unit, townhall.radius + self.unit.radius)
-                if 0.75 < self.unit.position.distance_to(move_target) < 1.5:
+        elif len(self.state.orders) == 1:
+            if self.state.is_returning:
+                townhall = self.return_target.state
+                move_target = townhall.position.towards(self.state, townhall.radius + self.state.radius)
+                if 0.75 < self.state.position.distance_to(move_target) < 1.5:
                     self.command_queue = townhall
-                    return self.unit.move(move_target)
+                    return self.state.move(move_target)
                     # self.unit(AbilityId.SMART, townhall, True)
-            elif self.unit.is_gathering:
-                if self.unit.order_target != target.tag:
-                    return self.unit.smart(target)
+            elif self.state.is_gathering:
+                if self.state.order_target != target.tag:
+                    return self.state.smart(target)
                 else:
                     move_target = None
                     if isinstance(self.gather_target, MineralPatch):
                         move_target = self.gather_target.speedmining_target
                     if not move_target:
-                        move_target = target.position.towards(self.unit, target.radius + self.unit.radius)
-                    if 0.75 < self.unit.position.distance_to(move_target) < 1.75:
+                        move_target = target.position.towards(self.state, target.radius + self.state.radius)
+                    if 0.75 < self.state.position.distance_to(move_target) < 1.75:
                         self.command_queue = target
-                        return self.unit.move(move_target)
+                        return self.state.move(move_target)
                         # self.unit.move(move_target)
                         # self.unit(AbilityId.SMART, target, True)
             else:
-                return self.unit.smart(target)
-        elif self.unit.is_idle:
-            return self.unit.smart(target)
+                return self.state.smart(target)
+        elif self.state.is_idle:
+            return self.state.smart(target)
             
         return None

@@ -23,10 +23,10 @@ class Overlord(DodgeBehavior, MacroBehavior, SpawnChangelingBehavior, ScoutBehav
         super().__init__(ai, unit)
 
     def get_command(self) -> Optional[UnitCommand]:
-        if self.unit.type_id == UnitTypeId.OVERLORD:
+        if self.state.type_id == UnitTypeId.OVERLORD:
             return self.dodge() or self.macro() or self.survive() or self.scout()
-        elif self.unit.type_id == UnitTypeId.OVERLORDTRANSPORT:
+        elif self.state.type_id == UnitTypeId.OVERLORDTRANSPORT:
             return self.dodge() or self.survive() or self.execute_overlord_drop()
-        elif self.unit.type_id in {UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE}:
+        elif self.state.type_id in {UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE}:
             return self.dodge() or self.spawn_changeling() or self.scout() or self.fight()
         return None

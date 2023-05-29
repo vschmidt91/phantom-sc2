@@ -143,19 +143,19 @@ class DodgeBehavior(AIUnit):
             if isinstance(dodge, DodgeEffectDelayed):
                 delay = (2 * self.ai.client.game_step) / 22.4
                 time_remaining = max(0.0, dodge.time_of_impact - self.ai.time - delay)
-                distance_bonus = 1.4 * self.unit.movement_speed * time_remaining
-            distance_have = self.unit.distance_to(dodge.position)
+                distance_bonus = 1.4 * self.state.movement_speed * time_remaining
+            distance_have = self.state.distance_to(dodge.position)
             for circle in dodge.circles:
-                distance_want = circle.radius + self.unit.radius
+                distance_want = circle.radius + self.state.radius
                 if distance_have + distance_bonus < distance_want + self.safety_distance:
                     random_offset =  Point2(np.random.normal(loc=0.0, scale=0.001, size=2))
                     dodge_from = dodge.position
-                    if dodge_from == self.unit.position:
+                    if dodge_from == self.state.position:
                         dodge_from += random_offset
-                    target = dodge_from.towards(self.unit, distance_want + 2 * self.safety_distance)
-                    if self.unit.is_burrowed and not self.ai.can_move(self.unit):
-                        return self.unit(AbilityId.BURROWUP)
+                    target = dodge_from.towards(self.state, distance_want + 2 * self.safety_distance)
+                    if self.state.is_burrowed and not self.ai.can_move(self.state):
+                        return self.state(AbilityId.BURROWUP)
                     else:
-                        return self.unit.move(target)
+                        return self.state.move(target)
 
         return None

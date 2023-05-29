@@ -37,10 +37,10 @@ RACES = [
 ]
 
 BUILDS = [
-    # AIBuild.Rush,
+    AIBuild.Rush,
     # AIBuild.Timing,
     # AIBuild.Power,
-    AIBuild.Macro,
+    # AIBuild.Macro,
     # AIBuild.Air,
 ]
 
@@ -52,11 +52,11 @@ SEED = 123
 
 def create_bot():
 
-    ai = ZergAI(strategy_cls=None)
-    ai.debug = True
-    ai.game_step = 2
+    # ai = ZergAI(strategy_cls=None)
+    # ai.debug = True
+    # ai.game_step = 2
 
-    # ai = Pool12AllIn()
+    ai = Pool12AllIn()
 
     # ai = DummyAI()
 

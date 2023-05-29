@@ -41,7 +41,7 @@ BOTS: List[BotPackage] = [
         'Zerg',
         'src.pool12_allin',
         'Pool12AllIn',
-        'greeting="(glhf) 12PoolBot v220925", research_speed=True',
+        'greeting="Long Live the Queen!", research_speed=True',
         [
             'ladder.py',
             'requirements.txt',

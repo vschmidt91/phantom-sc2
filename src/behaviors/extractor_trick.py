@@ -20,7 +20,7 @@ class ExtractorTrickBehavior(AIUnit):
 
     def do_extractor_trick(self) -> Optional[UnitCommand]:
 
-        if self.unit.is_ready:
+        if self.state.is_ready:
             return None
 
         if not self.ai.extractor_trick_enabled:
@@ -30,4 +30,4 @@ class ExtractorTrickBehavior(AIUnit):
             return None
 
         self.ai.extractor_trick_enabled = False
-        return self.unit(AbilityId.CANCEL)
+        return self.state(AbilityId.CANCEL)

@@ -31,6 +31,10 @@ from .constants import ZERG_FLYER_UPGRADES
 from .constants import ZERG_FLYER_ARMOR_UPGRADES
 
 from src.behaviors.overlord_drop import OverlordDropManager
+from src.bot_events import BotEvents
+from src.bot_events import InitEvent, StartEvent
+from src.bot_events import UnitCreatedEvent
+from src.units.unit import AIUnit
 
 from .cost import Cost
 from .utils import flood_fill
@@ -57,6 +61,8 @@ from .resources.vespene_geyser import VespeneGeyser
 from .strategies.strategy import Strategy
 from .units.worker import Worker, WorkerManager
 
+
+
 class AIBase(BotAI):
 
     def __init__(self,
@@ -64,11 +70,13 @@ class AIBase(BotAI):
         version_path = "version.txt"
     ):
 
+        self.events = BotEvents()
+
         self.raw_affects_selection = True
         self.game_step: int = 2
         self.unit_command_uses_self_do = True
 
-        self.strategy_cls: Type[Strategy] = strategy_cls or HatchFirst
+        self.strategy_cls: Type[Strategy] = strategy_cls or PoolFirst
         with open(version_path, 'r', encoding="UTF-8") as file:
             self.version = file.readline().replace('\n', '')
         self.debug: bool = False
@@ -91,6 +99,8 @@ class AIBase(BotAI):
 
     async def on_before_start(self):
 
+        self.events.on_init(InitEvent())
+
         self.unit_cost = {
             type_id: self.get_cost(type_id)
             for type_id in UnitTypeId
@@ -99,12 +109,12 @@ class AIBase(BotAI):
         if self.debug:
             logging.basicConfig(level=logging.DEBUG)
 
-            import matplotlib.pyplot as plt
-            plt.ion()
-            self.profiler = cProfile.Profile()
-            self.figure = plt.figure()
-            self.figure_img = plt.imshow(self.game_info.pathing_grid.data_numpy.transpose())
-            plt.show()
+            # import matplotlib.pyplot as plt
+            # plt.ion()
+            # self.profiler = cProfile.Profile()
+            # self.figure = plt.figure()
+            # self.figure_img = plt.imshow(self.game_info.pathing_grid.data_numpy.transpose())
+            # plt.show()
 
             # self.plot, self.plot_axes = plt.subplots(1, 2)
             # self.plot_images = None
@@ -114,6 +124,12 @@ class AIBase(BotAI):
         logging.debug('before_start')
 
         self.client.game_step = self.game_step
+
+    def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
+        for upgrade in upgrades:
+            if not self.count(upgrade, include_planned=False):
+                return (upgrade,)
+        return tuple()
 
     def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
         if unit == UnitTypeId.ZERGLING:
@@ -178,6 +194,8 @@ class AIBase(BotAI):
 
     async def on_start(self):
 
+        self.events.on_start(StartEvent())
+
         logging.debug('start')
 
         # await self.client.debug_create_unit([
@@ -230,13 +248,13 @@ class AIBase(BotAI):
         for error in self.state.action_errors:
             if error.result == ActionResult.CantBuildLocationInvalid.value:
                 if behavior := self.unit_manager.units.get(error.unit_tag):
-                    self.scout.blocked_positions[behavior.unit.position] = self.time
+                    self.scout.blocked_positions[behavior.state.position] = self.time
 
     def units_detecting(self, unit: Unit) -> Iterable[AIUnit]:
         for detector_type in IS_DETECTOR:
             for detector in self.unit_manager.actual_by_type[detector_type]:
-                distance = detector.unit.position.distance_to(unit.position)
-                if distance <= detector.unit.radius + detector.unit.detect_range + unit.radius:
+                distance = detector.state.position.distance_to(unit.position)
+                if distance <= detector.state.radius + detector.state.detect_range + unit.radius:
                     yield detector
 
     def can_attack(self, unit: Unit, target: Unit) -> bool:
@@ -256,20 +274,20 @@ class AIBase(BotAI):
 
     def handle_action(self, action: ActionRawUnitCommand, tag: int) -> None:
 
-        if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
-            if not self.unit_manager.try_remove_unit(tag):
-                logging.error("creep tumor not found")
+        # if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
+        #     if not self.unit_manager.try_remove_unit(tag):
+        #         logging.error("creep tumor not found")
 
         behavior = self.unit_manager.units.get(tag)
         if not behavior:
             return
-        elif behavior.unit.type_id in {
+        elif behavior.state.type_id in {
             UnitTypeId.DRONE,
             UnitTypeId.SCV,
             UnitTypeId.PROBE,
         }:
             return
-        elif behavior.unit.type_id in {UnitTypeId.LARVA, UnitTypeId.EGG}:
+        elif behavior.state.type_id in {UnitTypeId.LARVA, UnitTypeId.EGG}:
             candidates = list(chain(self.unit_manager.actual_by_type[UnitTypeId.LARVA],
                                self.unit_manager.actual_by_type[UnitTypeId.EGG]))
         else:
@@ -412,10 +430,9 @@ class AIBase(BotAI):
             if worker_count != self.supply_workers:
                 logging.error('worker supply mismatch')
 
-    async def on_end(self, game_result: Result):
-        logging.debug("end: %s", game_result)
-
     async def on_building_construction_started(self, unit: Unit):
+
+        self.on_building_construction_started(UnitCreatedEvent(unit))
         logging.debug("building_construction_started: %s", unit)
 
         behavior = self.unit_manager.add_unit(unit)
@@ -434,48 +451,46 @@ class AIBase(BotAI):
                 geyser_tag = geyser.unit.tag if isinstance(geyser, VespeneGeyser) and geyser.unit else None
                 for trainer_type in UNIT_TRAINED_FROM.get(unit.type_id, []):
                     for trainer in self.unit_manager.actual_by_type[trainer_type]:
-                        if trainer.unit.position.distance_to(unit.position) < 0.5:
-                            if behavior := self.unit_manager.units.get(trainer.unit.tag):
+                        if trainer.state.position.distance_to(unit.position) < 0.5:
+                            if behavior := self.unit_manager.units.get(trainer.state.tag):
                                 if isinstance(behavior, MacroBehavior):
                                     behavior.plan = None
-                            assert self.unit_manager.try_remove_unit(trainer.unit.tag)
+                            assert self.unit_manager.try_remove_unit(trainer.state.tag)
                             break
                         elif (
-                                not trainer.unit.is_idle
-                                and trainer.unit.order_target in {unit.position, geyser_tag}
+                                not trainer.state.is_idle
+                                and trainer.state.order_target in {unit.position, geyser_tag}
                         ):
-                            assert self.unit_manager.try_remove_unit(trainer.unit.tag)
+                            assert self.unit_manager.try_remove_unit(trainer.state.tag)
                             break
                     else:
                         logging.error('trainer not found')
+
+    async def on_unit_created(self, unit: Unit):
+        logging.debug("unit_created: %s", unit)
+        self.events.on_unit_created(unit)
+        self.unit_manager.add_unit(unit)
+
+    async def on_end(self, game_result: Result):
+        logging.debug("end: %s", game_result)
 
     async def on_building_construction_complete(self, unit: Unit):
         logging.debug("building_construction_complete: %s", unit)
 
     async def on_enemy_unit_entered_vision(self, unit: Unit):
         logging.debug("enemy_unit_entered_vision: %s", unit)
-        if unit.is_snapshot:
-            return
 
     async def on_enemy_unit_left_vision(self, unit_tag: int):
         logging.debug("enemy_unit_left_vision: %i", unit_tag)
 
     async def on_unit_destroyed(self, unit_tag: int):
         logging.debug("unit_destroyed: %i", unit_tag)
-        self.unit_manager.try_remove_unit(unit_tag)
-
-    async def on_unit_created(self, unit: Unit):
-        logging.debug("unit_created: %s", unit)
-        self.unit_manager.add_unit(unit)
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         logging.debug("unit_type_changed: %s -> %s", previous_type, unit)
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         logging.debug("unit_took_damage: %f @ %s", amount_damage_taken, unit)
-        behavior = self.unit_manager.units.get(unit.tag)
-        if behavior != None:
-            behavior.on_took_damage(amount_damage_taken)
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         logging.info("upgrade_complete: %s", upgrade)
@@ -630,8 +645,8 @@ class AIBase(BotAI):
                 (tag
                  for tag, behavior in self.unit_manager.units.items()
                  if isinstance(behavior, MacroBehavior) and behavior.plan == target), None)
-            if (behavior := self.unit_manager.units.get(unit_tag)) and behavior.unit:
-                positions.append(behavior.unit.position3d)
+            if (behavior := self.unit_manager.units.get(unit_tag)) and behavior.state:
+                positions.append(behavior.state.position3d)
 
             text = f"{str(i + 1)} {target.item.name}"
 
@@ -719,9 +734,9 @@ class AIBase(BotAI):
         for base in self.resource_manager.bases:
             if not base.townhall:
                 continue
-            if not base.townhall.unit.is_ready:
+            if not base.townhall.state.is_ready:
                 continue
-            if base.townhall.unit.type_id not in race_townhalls[self.race]:
+            if base.townhall.state.type_id not in race_townhalls[self.race]:
                 continue
             for geyser in base.vespene_geysers:
                 yield geyser.unit

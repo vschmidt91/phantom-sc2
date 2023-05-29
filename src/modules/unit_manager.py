@@ -26,6 +26,7 @@ from ..constants import WORKERS, CHANGELINGS, ITEM_BY_ABILITY
 from ..units.extractor import Extractor
 from ..units.structure import Larva, Structure
 from src.units import unit
+from src.units.unit import UnitChangedEvent
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -48,6 +49,8 @@ class UnitManager(AIModule):
 
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
+
+        self.unit_by_tag: Dict[int, Unit] = dict()
 
         self.units: Dict[int, AIUnit] = dict()
         self.enemies: Dict[int, Unit] = dict()
@@ -76,19 +79,21 @@ class UnitManager(AIModule):
             self.actual_by_type[upgrade] = [None]
 
     def add_unit_to_tables(self, behavior: AIUnit) -> None:
-        if behavior.unit.is_ready:
-            self.actual_by_type[behavior.unit.type_id].append(behavior)
-            for order in behavior.unit.orders:
+        if behavior.state.is_ready:
+            self.actual_by_type[behavior.state.type_id].append(behavior)
+            for order in behavior.state.orders:
                 if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
                     self.pending_by_type[item].append(behavior)
         else:
-            self.pending_by_type[behavior.unit.type_id].append(behavior)
+            self.pending_by_type[behavior.state.type_id].append(behavior)
 
     def add_unit(self, unit: Unit) -> Optional[AIUnit]:
         if unit.type_id in IGNORED_UNIT_TYPES:
             return None
         elif unit.is_mine:
             behavior = self.create_unit(unit)
+
+            behavior.on_destroyed.subscribe(self.remove_unit)
             self.add_unit_to_tables(behavior)
             self.units[unit.tag] = behavior
             return behavior
@@ -96,9 +101,12 @@ class UnitManager(AIModule):
             return None
         else:
             return None
+            
+    def remove_unit(self, event: UnitChangedEvent) -> None:
+        unit = self.units.pop(event.unit.state.tag, None)
 
     def try_remove_unit(self, tag: int) -> bool:
-        if self.units.pop(tag, None):
+        if unit := self.units.pop(tag, None):
             return True
         elif self.enemies.pop(tag, None):
             return True
@@ -137,12 +145,12 @@ class UnitManager(AIModule):
 
     def update_tags(self) -> None:
 
-        unit_by_tag = {
+        self.unit_by_tag = {
             unit.tag: unit
             for unit in self.ai.all_own_units
         }
         for tag, unit in self.units.items():
-            unit.unit = unit_by_tag.get(tag) or unit.unit
+            unit.state = self.unit_by_tag.get(tag) or unit.state
 
         visibility_map = self.ai.state.visibility.data_numpy.transpose()
         for tag, enemy in self.enemies.copy().items():
@@ -169,12 +177,13 @@ class UnitManager(AIModule):
         self.update_tags()
         self.update_tables()
         
-        for unit in self.units.values():
+        for unit in list(self.units.values()):
+            unit.on_step()
             command = unit.get_command()
             if not command:
                 continue
-            # if any(self.ai.order_matches_command(o, command) for o in command.unit.orders):
-            #     continue
+            if any(self.ai.order_matches_command(o, command) for o in command.unit.orders):
+                continue
             result = self.ai.do(command, subtract_cost=False, subtract_supply=False)
             if not result:
                 logging.error("command failed: %s", command)
@@ -185,7 +194,6 @@ class UnitManager(AIModule):
         }
         self.unit_positions = list(self.unit_by_position.keys())
         self.unit_tree = cKDTree(np.array(self.unit_positions))
-        return
 
     def units_in_circle(self, position: Point2, radius: float) -> Iterable[Unit]:
         result = self.unit_tree.query_ball_point(position, radius)

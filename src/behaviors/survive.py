@@ -24,13 +24,13 @@ class SurviveBehavior(AIUnit):
 
     def survive(self) -> Optional[UnitCommand]:
 
-        shield_health_percentage = self.unit.shield_health_percentage
+        shield_health_percentage = self.state.shield_health_percentage
         if shield_health_percentage < self.last_shield_health_percentage:
             self.last_damage_taken = self.ai.time
         self.last_shield_health_percentage = shield_health_percentage
 
         if self.ai.time < self.last_damage_taken + 5.0:
-            return self.unit.move(self.ai.start_location)
+            return self.state.move(self.ai.start_location)
 
         return None
 

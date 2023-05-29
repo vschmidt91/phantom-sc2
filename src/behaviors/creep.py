@@ -30,27 +30,27 @@ class CreepBehavior(AIUnit):
 
     def spread_creep(self) -> Optional[UnitCommand]:
 
-        if self.unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
+        if self.state.type_id == UnitTypeId.CREEPTUMORBURROWED:
             age = self.ai.state.game_loop - self.creation_step
             # if self.unit.is_ready:
             #     print(age)
             if age < 482:
                 return None
             if 100 < self.bonus_radius:
-                logging.error(f"CreepTumor {self.unit} stuck, resetting")
+                logging.error(f"CreepTumor {self.state} stuck, resetting")
                 self.bonus_radius = 0
-        elif self.unit.type_id == UnitTypeId.QUEEN:
-            if self.unit.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
+        elif self.state.type_id == UnitTypeId.QUEEN:
+            if self.state.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
                 return None
-            elif self.unit.is_using_ability(AbilityId.BUILD_CREEPTUMOR_QUEEN):
-                return self.unit(AbilityId.BUILD_CREEPTUMOR_QUEEN, target=self.unit.order_target)
+            elif self.state.is_using_ability(AbilityId.BUILD_CREEPTUMOR_QUEEN):
+                return self.state(AbilityId.BUILD_CREEPTUMOR_QUEEN, target=self.state.order_target)
         else:
             return None
 
         def target_value(t):
             return self.ai.creep_value_map_blurred[t]
 
-        origin = self.unit.position.rounded
+        origin = self.state.position.rounded
         targets = circle_perimeter(*origin, TUMOR_RANGE + self.bonus_radius, shape=self.ai.game_info.map_size)
         target = max(
             (
@@ -64,13 +64,13 @@ class CreepBehavior(AIUnit):
         
         if target:
         
-            if self.unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
+            if self.state.type_id == UnitTypeId.CREEPTUMORBURROWED:
                 target = origin.towards(Point2(target), TUMOR_RANGE).rounded
 
             for x, y in zip(*line(*target, *origin)):
                 if self.ai.creep_placement_map[x, y]:
                     target = Point2((x, y))
-                    return self.unit.build(UnitTypeId.CREEPTUMOR, target)
+                    return self.state.build(UnitTypeId.CREEPTUMOR, target)
         else:
             self.bonus_radius += 1
             return None

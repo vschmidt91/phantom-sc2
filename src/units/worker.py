@@ -54,7 +54,7 @@ class WorkerManager(AIModule):
                     for w in self.ai.unit_manager.units.values()
                     if isinstance(w, Worker) and w.is_drafted
                 ),
-                key=lambda w : w.unit.shield_health_percentage,
+                key=lambda w : w.state.shield_health_percentage,
                 default=None
             )
             if worker:
@@ -73,14 +73,14 @@ class Worker(DodgeBehavior, CombatBehavior, MacroBehavior, GatherBehavior):
         elif self.is_drafted:
             return self.fight()
         elif (
-            1 < self.ai.combat.ground_dps[self.unit.position.rounded]
+            1 < self.ai.combat.ground_dps[self.state.position.rounded]
             and UpgradeId.BURROW in self.ai.state.upgrades
         ):
-            return self.unit(AbilityId.BURROWDOWN)
+            return self.state(AbilityId.BURROWDOWN)
             # else:
             #     return self.fight()
-        elif self.unit.is_burrowed:
-            return self.unit(AbilityId.BURROWUP)
+        elif self.state.is_burrowed:
+            return self.state(AbilityId.BURROWUP)
         elif command := self.macro():
             return command
         elif command := self.gather():

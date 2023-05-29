@@ -13,9 +13,9 @@ class ScoutLocationTask(Task):
         self.target: Point2
 
     def get_command(self, unit: AIUnit) -> Optional[UnitCommand]:
-        max_distance = unit.unit.radius + unit.unit.sight_range
-        if max_distance < self.target.distance_to(unit.unit.position):
-            move_to = self.target.towards(unit.unit, max_distance)
-            return unit.unit.move(move_to)
+        max_distance = unit.state.radius + unit.state.sight_range
+        if max_distance < self.target.distance_to(unit.state.position):
+            move_to = self.target.towards(unit.state, max_distance)
+            return unit.state.move(move_to)
         else:
             return None

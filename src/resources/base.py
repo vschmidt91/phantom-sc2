@@ -51,7 +51,7 @@ class Base(ResourceGroup[ResourceBase]):
                     continue
                 harvester = min(
                     harvesters,
-                    key=lambda h: h.unit.position.distance_to(patch.unit.position),
+                    key=lambda h: h.state.position.distance_to(patch.unit.position),
                     default=None
                 )
                 if not harvester:

@@ -28,15 +28,15 @@ class Army(DodgeBehavior, MacroBehavior, BurrowBehavior, BileBehavior, OverlordD
             return command
         elif command := self.macro():
             return command
-        elif command := self.burrow():
-            return command
-        elif command := self.bile():
-            return command
-        elif command := self.execute_overlord_drop():
-            return command
-        elif command := self.fight():
-            return command
-        elif command := self.search():
-            return command
+        # elif command := self.burrow():
+        #     return command
+        # elif command := self.bile():
+        #     return command
+        # elif command := self.execute_overlord_drop():
+        #     return command
+        # elif command := self.fight():
+        #     return command
+        # elif command := self.search():
+        #     return command
         else:
             return None

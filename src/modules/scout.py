@@ -60,12 +60,12 @@ class ScoutModule(AIModule):
         detectors = [
             behavior
             for behavior in scouts
-            if behavior.unit.is_detector
+            if behavior.state.is_detector
         ]
         nondetectors = [
             behavior
             for behavior in scouts
-            if not behavior.unit.is_detector
+            if not behavior.state.is_detector
         ]
         scout_targets = []
         if self.scout_enemy_natural and self.ai.time < 3 * 60:
@@ -87,11 +87,11 @@ class ScoutBehavior(AIUnit):
     def scout(self) -> Optional[UnitCommand]:
 
         if self.scout_position:
-            max_distance = self.unit.radius + self.unit.sight_range
+            max_distance = self.state.radius + self.state.sight_range
             # max_distance = 1.0
-            if self.scout_position.distance_to(self.unit) < max_distance:
-                return self.unit.hold_position()
+            if self.scout_position.distance_to(self.state) < max_distance:
+                return self.state.hold_position()
             else:
-                return self.unit.move(self.scout_position)
+                return self.state.move(self.scout_position)
         else:
             return None

@@ -21,8 +21,8 @@ class SpawnChangelingBehavior(AIUnit):
 
     def spawn_changeling(self) -> Optional[UnitCommand]:
 
-        if self.unit.type_id in {UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE}:
-            if self.ai.in_pathing_grid(self.unit):
+        if self.state.type_id in {UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE}:
+            if self.ai.in_pathing_grid(self.state):
                 ability = AbilityId.SPAWNCHANGELING_SPAWNCHANGELING
-                if ENERGY_COST[ability] <= self.unit.energy:
-                    return self.unit(ability)
+                if ENERGY_COST[ability] <= self.state.energy:
+                    return self.state(ability)

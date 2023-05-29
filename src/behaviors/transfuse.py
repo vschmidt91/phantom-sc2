@@ -21,9 +21,9 @@ class TransfuseBehavior(AIUnit):
         super().__init__(ai, unit)
 
     def priority(self, target: Unit) -> float:
-        if self.unit.tag == target.tag:
+        if self.state.tag == target.tag:
             return 0
-        if not self.unit.in_ability_cast_range(self.ABILITY, target):
+        if not self.state.in_ability_cast_range(self.ABILITY, target):
             return 0
         if BuffId.TRANSFUSION in target.buffs:
             return 0
@@ -36,7 +36,7 @@ class TransfuseBehavior(AIUnit):
 
     def transfuse(self) -> Optional[UnitCommand]:
 
-        if self.unit.energy < ENERGY_COST[self.ABILITY]:
+        if self.state.energy < ENERGY_COST[self.ABILITY]:
             return None
 
         target = max(self.ai.all_own_units,
@@ -48,4 +48,4 @@ class TransfuseBehavior(AIUnit):
         if self.priority(target) <= 0:
             return None
 
-        return self.unit(self.ABILITY, target=target)
+        return self.state(self.ABILITY, target=target)

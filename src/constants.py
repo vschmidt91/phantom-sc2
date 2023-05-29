@@ -138,7 +138,7 @@ CHANGELINGS = {
 
 CIVILIANS = {
     UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.PROBE,
-    UnitTypeId.LARVA, UnitTypeId.EGG,
+    UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.BANELINGCOCOON,
     *WITH_TECH_EQUIVALENTS[UnitTypeId.WARPPRISM],
     *WITH_TECH_EQUIVALENTS[UnitTypeId.DRONE],
     # *WITH_TECH_EQUIVALENTS[UnitTypeId.QUEEN],

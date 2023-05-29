@@ -184,7 +184,7 @@ class MacroModule(AIModule):
             # else:
             #     raise TypeError()
 
-            if not (trainer.unit and trainer.macro_ability and trainer.unit.is_using_ability(trainer.macro_ability)):
+            if not (trainer.state and trainer.macro_ability and trainer.state.is_using_ability(trainer.macro_ability)):
                 reserve += cost
 
             if plan.target is None:
@@ -268,7 +268,7 @@ class MacroModule(AIModule):
             exclude_tags = {
                 order.target
                 for unit in self.ai.unit_manager.pending_by_type[gas_type]
-                for order in unit.unit.orders
+                for order in unit.state.orders
                 if isinstance(order.target, int)
             }
             exclude_tags.update({
@@ -289,7 +289,7 @@ class MacroModule(AIModule):
             else:
                 return random.choice(geysers)
 
-        if not (entry := MACRO_INFO.get(trainer.unit.type_id)):
+        if not (entry := MACRO_INFO.get(trainer.state.type_id)):
             return None
         if not (data := entry.get(objective.item)):
             return None
@@ -326,9 +326,9 @@ class MacroModule(AIModule):
             trainer
             for trainer in trainers
             if (
-                trainer.unit.type_id in trainer_types
-                and trainer.unit.is_ready
-                and (trainer.unit.is_idle or not trainer.unit.is_structure)
+                trainer.state.type_id in trainer_types
+                and trainer.state.is_ready
+                and (trainer.state.is_idle or not trainer.state.is_structure)
         )
         )
 
@@ -336,7 +336,7 @@ class MacroModule(AIModule):
 
         return min(
             trainers_filtered,
-            key=lambda t: t.unit.tag,
+            key=lambda t: t.state.tag,
             default=None
         )
 
@@ -358,7 +358,7 @@ class MacroModule(AIModule):
         for base in bases:
             if not base.townhall:
                 continue
-            elif not base.townhall.unit.is_ready:
+            elif not base.townhall.state.is_ready:
                 continue
             position = base.position.towards_with_random_angle(base.mineral_patches.position, 10)
             offset = data.footprint_radius % 1
@@ -399,7 +399,7 @@ class MacroBehavior(AIUnit):
     def macro_ability(self) -> Optional[AbilityId]:
         if (
                 self.plan
-                and (element := MACRO_INFO.get(self.unit.type_id))
+                and (element := MACRO_INFO.get(self.state.type_id))
                 and (ability := element.get(self.plan.item))
         ):
             return ability.get('ability')
@@ -408,9 +408,12 @@ class MacroBehavior(AIUnit):
 
     def macro(self) -> Optional[UnitCommand]:
 
+
         if self.plan is None:
             return None
-        elif not self.macro_ability:
+        if self.plan.item == UnitTypeId.BANELING:
+            print("banez")
+        if not self.macro_ability:
             self.ai.macro.unassigned_plans.append(self.plan)
             self.plan = None
             # plan = self.ai.macro.add_plan(self.plan.item)
@@ -420,25 +423,28 @@ class MacroBehavior(AIUnit):
         elif math.isinf(self.plan.eta):
             return None
         elif self.plan.eta <= 0.0:
-            if self.unit.is_carrying_resource:
-                return self.unit.return_resource()
+            if self.state.is_carrying_resource:
+                return self.state.return_resource()
             else:
                 # if isinstance(self, GatherBehavior):
                 #     self.gather_target = None
-                return self.unit(self.macro_ability, target=self.plan.target)
+                if self.plan.item == UnitTypeId.BANELING:
+                    return self.state.build(UnitTypeId.BANELING)
+                return self.state(self.macro_ability, target=self.plan.target)
         elif not self.plan.target:
             return None
+        
 
-        movement_eta = 1.2 * time_to_reach(self.unit, self.plan.target.position)
-        if self.unit.is_carrying_resource:
+        movement_eta = 1.2 * time_to_reach(self.state, self.plan.target.position)
+        if self.state.is_carrying_resource:
             movement_eta += 3.0
         if self.plan.eta <= movement_eta:
             if self.plan.item == UnitTypeId.EXTRACTOR:
                 return None
-            elif self.unit.is_carrying_resource:
-                return self.unit.return_resource()
-            elif 1e-3 < self.unit.distance_to(self.plan.target.position):
-                return self.unit.move(self.plan.target)
+            elif self.state.is_carrying_resource:
+                return self.state.return_resource()
+            elif 1e-3 < self.state.distance_to(self.plan.target.position):
+                return self.state.move(self.plan.target)
             else:
-                return self.unit.hold_position()
+                return self.state.hold_position()
         return None

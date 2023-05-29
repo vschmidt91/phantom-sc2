@@ -16,7 +16,7 @@ class BurrowBehavior(AIUnit):
 
     def burrow(self) -> Optional[UnitCommand]:
 
-        if self.unit.type_id not in {
+        if self.state.type_id not in {
             UnitTypeId.ROACH,
             UnitTypeId.ROACHBURROWED,
         }:
@@ -28,14 +28,14 @@ class BurrowBehavior(AIUnit):
         # if UpgradeId.TUNNELINGCLAWS not in self.ai.state.upgrades:
         #     return None
 
-        if self.unit.is_burrowed:
-            if self.unit.health_percentage == 1 or self.unit.is_revealed:
-                return self.unit(AbilityId.BURROWUP)
+        if self.state.is_burrowed:
+            if self.state.health_percentage == 1 or self.state.is_revealed:
+                return self.state(AbilityId.BURROWUP)
         elif (
-            self.unit.health_percentage < 1 / 3
-            and self.unit.weapon_cooldown
-            and not self.unit.is_revealed
+            self.state.health_percentage < 1 / 3
+            and self.state.weapon_cooldown
+            and not self.state.is_revealed
         ):
-            return self.unit(AbilityId.BURROWDOWN)
+            return self.state(AbilityId.BURROWDOWN)
 
         return None

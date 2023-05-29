@@ -28,7 +28,7 @@ class BileBehavior(AIUnit):
             return 0.0
         if not self.ai.is_visible(target.position):
             return 0.0
-        if not self.unit.in_ability_cast_range(BILE_ABILITY, target.position):
+        if not self.state.in_ability_cast_range(BILE_ABILITY, target.position):
             return 0.0
         if target.is_hallucination:
             return 0.0
@@ -41,14 +41,14 @@ class BileBehavior(AIUnit):
 
     def bile(self) -> Optional[UnitCommand]:
 
-        if self.unit.type_id != UnitTypeId.RAVAGER:
+        if self.state.type_id != UnitTypeId.RAVAGER:
             return None
 
         if self.ai.state.game_loop < self.last_used + COOLDOWN[AbilityId.EFFECT_CORROSIVEBILE]:
             return None
 
         target = max(
-            self.ai.unit_manager.units_in_circle(self.unit.position, 10),
+            self.ai.unit_manager.units_in_circle(self.state.position, 10),
             key=lambda t:self.bile_priority(t),
             default=None
         )
@@ -61,4 +61,4 @@ class BileBehavior(AIUnit):
 
         self.last_used = self.ai.state.game_loop
 
-        return self.unit(BILE_ABILITY, target=target.position)
+        return self.state(BILE_ABILITY, target=target.position)

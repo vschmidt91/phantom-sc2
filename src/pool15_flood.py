@@ -88,7 +88,6 @@ class Pool12AllIn(BotAI):
         self.hatch_morphing: Optional[Unit] = None
         self.pool: Optional[Unit] = None
         self.spire: Optional[Unit] = None
-        self.micro_units: List[Unit] = list()
         self.abilities: Counter[AbilityId] = Counter(o.ability.exact_id for u in self.all_own_units for o in u.orders)
         self.invisible_enemy_start_locations: List[Point2] = [p for p in self.enemy_start_locations if not self.is_visible(p)]
         self.resource_by_tag = {unit.tag: unit for unit in chain(self.mineral_field, self.gas_buildings)}
@@ -110,9 +109,8 @@ class Pool12AllIn(BotAI):
             if unit.type_id == UnitTypeId.QUEEN:
                 self.inject_queens.append(unit)
             elif unit.type_id == self.army_type:
-                self.micro_units.append(unit)
+                self.micro_army(unit)
 
-        self.micro_army()
         self.inject_larvae()
 
         if self.build_order():
@@ -125,8 +123,6 @@ class Pool12AllIn(BotAI):
             else:
                 self.gas_harvester_target = 0
             self.macro(build_army)
-
-        self.micro_units.clear()
 
     def build_spire(self) -> bool:
         main = self.townhalls.closest_to(self.start_location)
@@ -242,71 +238,18 @@ class Pool12AllIn(BotAI):
                 unit.move(move_target)
                 unit(AbilityId.SMART, target, True)
 
-    def micro_army(self) -> None:
-
-        targets = self.all_enemy_units.not_flying.filter(lambda u: not u.is_snapshot)
-        units = list(chain(self.micro_units, targets))
-
-
-        dps = np.zeros((len(units), len(units)), dtype=float)
-        distance = np.zeros_like(dps)
-        attack_weight = np.zeros_like(dps)
-
-        for i, a in enumerate(units):
-            for j, b in enumerate(units):
-                if a.owner_id == b.owner_id:
-                    continue
-
-                dps[i, j] = a.calculate_dps_vs_target(b)
-                theoretical_range = a.air_range if b.is_flying else a.ground_range
-                d = a.distance_to(b) - a.radius - b.radius
-                distance[i, j] = d
-
-                if d <= theoretical_range:
-                    attack_weight[i, j] = 1.0
-                else:
-                    movement_speed = 1.4 * a.real_speed
-                    time_to_attack = (d - theoretical_range) / (1e-3 + movement_speed)
-                    attack_weight[i, j] = 1 / (1 + time_to_attack * time_to_attack)
-
-        attack_probability = attack_weight / np.sum(attack_weight, axis=1, keepdims=True)
-        expected_dps = np.multiply(attack_probability, dps)
-
-        health = np.array([unit.health + unit.shield for unit in units])
-        dps_incoming = np.sum(expected_dps, axis=0)
-        survival_time = health / (1e-3 + dps_incoming)
-
-
-        if targets.exists:
-            for i, unit in enumerate(self.micro_units):
-
-                j = min(
-                    range(len(self.micro_units), len(units)),
-                    key=lambda k: survival_time[k] / attack_probability[i, k]
-                )
-                target = units[j]
-
-                if survival_time[j] < survival_time[i]:
-                    unit.attack(target.position)
-                else:
-                    unit.move(self.townhalls.center)
-                
-        else:
-            for unit in self.micro_units:
-                unit.attack(self.enemy_start_locations[0])
-
-        # if unit.is_idle or unit.is_using_ability(AbilityId.EFFECT_INJECTLARVA):
-        #     if self.enemy_structures:
-        #         unit.attack(self.enemy_structures.random.position)
-        #     elif any(self.invisible_enemy_start_locations):
-        #         unit.attack(random.choice(self.invisible_enemy_start_locations))
-        #     else:
-        #         a = self.game_info.playable_area
-        #         target = np.random.uniform((a.x, a.y), (a.right, a.top))
-        #         target = Point2(target)
-        #         if self.in_pathing_grid(target) and not self.is_visible(target):
-        #             unit.attack(target)
-
+    def micro_army(self, unit: Unit) -> None:
+        if unit.is_idle or unit.is_using_ability(AbilityId.EFFECT_INJECTLARVA):
+            if self.enemy_structures:
+                unit.attack(self.enemy_structures.random.position)
+            elif any(self.invisible_enemy_start_locations):
+                unit.attack(random.choice(self.invisible_enemy_start_locations))
+            else:
+                a = self.game_info.playable_area
+                target = np.random.uniform((a.x, a.y), (a.right, a.top))
+                target = Point2(target)
+                if self.in_pathing_grid(target) and not self.is_visible(target):
+                    unit.attack(target)
 
     def inject_larvae(self):
         hatches: List[Unit] = sorted(self.townhalls.ready, key=lambda u: u.tag)

@@ -25,12 +25,12 @@ class Queen(DodgeBehavior, InjectBehavior, CreepBehavior, TransfuseBehavior, Com
             return command
         elif (
             (self.ai.supply_used + self.ai.larva.amount < 200)
-            and (0 == self.ai.combat.ground_dps[self.unit.position.rounded])
+            and (0 == self.ai.combat.ground_dps[self.state.position.rounded])
             and (command := self.inject())
         ):
             return command
         elif (
-            0 == self.ai.combat.ground_dps[self.unit.position.rounded]
+            0 == self.ai.combat.ground_dps[self.state.position.rounded]
             and (command := self.spread_creep())
         ):
             return command

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Iterable
 
+import numpy as np
+
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
@@ -19,15 +21,19 @@ class PoolFirst(ZergMacro):
 
     def build_order(self) -> Iterable[MacroId]:
         return [
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
+            # UnitTypeId.EXTRACTOR,
+            # UnitTypeId.DRONE,
+            UnitTypeId.OVERLORD,
             UnitTypeId.SPAWNINGPOOL,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
             UnitTypeId.DRONE,
-            UnitTypeId.OVERLORD,
-            UnitTypeId.ZERGLING,
-            UnitTypeId.ZERGLING,
-            UnitTypeId.ZERGLING,
-            UnitTypeId.QUEEN,
+            UnitTypeId.DRONE,
+            UnitTypeId.EXTRACTOR,
+            UnitTypeId.HATCHERY,
+            # UnitTypeId.QUEEN,
             # UnitTypeId.DRONE,
             # UnitTypeId.DRONE,
             # UnitTypeId.DRONE,
@@ -53,6 +59,20 @@ class PoolFirst(ZergMacro):
 
     def filter_upgrade(self, upgrade) -> bool:
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
-            return 1 < self.ai.townhalls.amount
+            return 0 < len(self.ai.unit_manager.actual_by_type[UnitTypeId.BANELING])
         else:
             return super().filter_upgrade(upgrade)
+
+    def update_composition(self) -> None:
+
+        queen_target = 1 + self.ai.townhalls.amount
+        queen_target = np.clip(queen_target, 0, 8)
+
+        make_army = 0 < len(self.ai.unit_manager.actual_by_type[UnitTypeId.SPAWNINGPOOL])
+
+        self.ai.macro.composition = {
+            UnitTypeId.DRONE: 19,
+            UnitTypeId.QUEEN: queen_target,
+            UnitTypeId.ZERGLING: 100 if make_army else 0,
+            UnitTypeId.BANELING: 50 if make_army else 0,
+        }

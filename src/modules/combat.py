@@ -100,7 +100,7 @@ class CombatModule(AIModule):
             if (
                 isinstance(behavior, CombatBehavior)
                 and (
-                    behavior.unit.type_id not in CIVILIANS
+                    behavior.state.type_id not in CIVILIANS
                     or (hasattr(behavior, 'is_drafted') and behavior.is_drafted)
                 )
             )
@@ -151,7 +151,7 @@ class CombatModule(AIModule):
             behavior.targets.clear()
             behavior.threats.clear()
             behavior.dps_incoming = 0.0
-            unit = behavior.unit
+            unit = behavior.state
             for enemy_behavior in self.enemies.values():
                 enemy = enemy_behavior.unit
 
@@ -201,7 +201,7 @@ class CombatModule(AIModule):
             return cost.minerals + cost.vespene
 
         army_cost = sum(
-            unit_value(self.ai.unit_cost[behavior.unit.type_id])
+            unit_value(self.ai.unit_cost[behavior.state.type_id])
             for behavior in self.army
         )
         enemy_cost = sum(
@@ -224,14 +224,14 @@ class CombatBehavior(AIUnit):
 
     def target_priority(self, target: Unit) -> float:
         if not (
-            self.ai.can_attack(self.unit, target) 
-            or self.unit.is_detector
+            self.ai.can_attack(self.state, target) 
+            or self.state.is_detector
             # or self.unit.is_burrowed
         ):
             return 0.0
         priority = 1e8
-        priority /= 30.0 + target.position.distance_to(self.unit.position)
-        if self.unit.is_detector:
+        priority /= 30.0 + target.position.distance_to(self.state.position)
+        if self.state.is_detector:
             if target.is_cloaked:
                 priority *= 10.0
             if not target.is_revealed:
@@ -270,11 +270,11 @@ class CombatBehavior(AIUnit):
             confidence = self.estimated_survival / (self.estimated_survival + enemy.estimated_survival)
 
 
-        if self.unit.type_id == UnitTypeId.QUEEN and not self.ai.has_creep(self.unit.position):
+        if self.state.type_id == UnitTypeId.QUEEN and not self.ai.has_creep(self.state.position):
             self.stance = CombatStance.FLEE
-        elif self.unit.is_burrowed:
+        elif self.state.is_burrowed:
             self.stance = CombatStance.FLEE
-        elif 1 < self.unit.ground_range:
+        elif 1 < self.state.ground_range:
             if 3/4 <= confidence:
                 self.stance = CombatStance.ADVANCE
             elif 2/4 <= confidence:
@@ -284,8 +284,8 @@ class CombatBehavior(AIUnit):
             else:
                 self.stance = CombatStance.FLEE
         else:
-            if 1/2 <= confidence:
-                self.stance = CombatStance.RETREAT
+            if 1/3 <= confidence:
+                self.stance = CombatStance.FIGHT
             else:
                 self.stance = CombatStance.FLEE
 
@@ -293,35 +293,40 @@ class CombatBehavior(AIUnit):
 
         if stance in { CombatStance.FLEE, CombatStance.RETREAT }:
             
-            unit_range = self.ai.get_unit_range(self.unit, not target.is_flying, target.is_flying)
+            unit_range = self.ai.get_unit_range(self.state, not target.is_flying, target.is_flying)
 
             
             if stance == CombatStance.RETREAT:
-                if not self.unit.weapon_cooldown:
-                    return self.unit.attack(target.position)
-                elif self.unit.radius + unit_range + target.radius + self.unit.distance_to_weapon_ready < self.unit.position.distance_to(target.position):
-                    return self.unit.attack(target.position)
+                if not self.state.weapon_cooldown:
+                    return self.state.attack(target.position)
+                elif self.state.radius + unit_range + target.radius + self.state.distance_to_weapon_ready < self.state.position.distance_to(target.position):
+                    return self.state.attack(target.position)
 
-            if self.unit.is_flying:
+            if self.state.is_flying:
                 retreat_map = self.ai.combat.retreat_air
             else:
                 retreat_map = self.ai.combat.retreat_ground
 
-            i, j = self.unit.position.rounded
+            i, j = self.state.position.rounded
 
             g = retreat_map[i, j, :]
             g /= max(1e-6, np.linalg.norm(g))
 
-            if not self.unit.is_flying:
+            if not self.state.is_flying:
                 gb = self.ai.pathing_border[i, j, :]
-                gb /= max(1e-6, np.linalg.norm(gb))
 
-                g -= min(0, np.dot(g, gb)) * gb
-                g /= max(1e-6, np.linalg.norm(g))
+                if (
+                    0 < np.linalg.norm(gb)
+                    and np.dot(g, gb) < 0
+                ):
+                    gb /= max(1e-6, np.linalg.norm(gb))
 
-            retreat_point = self.unit.position + self.unit.movement_speed * g
+                    g -= min(0, np.dot(g, gb)) * gb
+                    g /= max(1e-6, np.linalg.norm(g))
 
-            return self.unit.move(retreat_point)
+            retreat_point = self.state.position + self.state.movement_speed * g
+
+            return self.state.move(retreat_point)
 
         # elif stance == CombatStance.RETREAT:
 
@@ -340,17 +345,17 @@ class CombatBehavior(AIUnit):
 
         elif stance == CombatStance.FIGHT:
 
-            return self.unit.attack(target.position)
+            return self.state.attack(target.position)
 
         elif stance == CombatStance.ADVANCE:
 
-            distance = self.unit.position.distance_to(target.position) - self.unit.radius - target.radius
-            if self.unit.weapon_cooldown and 1 < distance:
-                return self.unit.move(target)
-            elif self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(
-                    self.unit) + target.radius:
-                return self.unit.attack(target.position)
+            distance = self.state.position.distance_to(target.position) - self.state.radius - target.radius
+            if self.state.weapon_cooldown and 1 < distance:
+                return self.state.move(target)
+            elif self.state.position.distance_to(target.position) <= self.state.radius + self.ai.get_unit_range(
+                    self.state) + target.radius:
+                return self.state.attack(target.position)
             else:
-                return self.unit.attack(target.position)
+                return self.state.attack(target.position)
 
         return None

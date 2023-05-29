@@ -64,12 +64,6 @@ class ZergAI(AIBase):
         self.morph_overlords()
         self.expand()
 
-    def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
-        for upgrade in upgrades:
-            if not self.count(upgrade, include_planned=False):
-                return (upgrade,)
-        return tuple()
-
     def morph_overlords(self) -> None:
         supply_pending = sum(
             provided
