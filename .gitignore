@@ -2,13 +2,11 @@
 __pycache__/
 
 .vscode/
-.VSCodeCounter/
 
 publish/
 data/
 debug/
-Rasputin/
-venv/
+env/
 
 *.png
 *.txt

@@ -74,7 +74,7 @@ FLOOD_FILL_OFFSETS = {
     # Point2((+1, +1)),
 }
 
-def flood_fill(weight: np.ndarray, origins: Iterable[Point2]):
+def flood_fill_incremental(weight: np.ndarray, origins: Iterable[Point2]):
 
     distance = np.full(weight.shape, np.inf)
     for origin in origins:

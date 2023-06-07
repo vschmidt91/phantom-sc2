@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Any, Coroutine, Iterable
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -42,12 +42,15 @@ class RoachRush(ZergMacro):
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
             UnitTypeId.ROACH,
-            UnitTypeId.ROACH,
-            UnitTypeId.ROACH,
+            UnitTypeId.RAVAGER,
+            UnitTypeId.RAVAGER,
+            # UnitTypeId.ROACH,
         ]
+    
+    
 
-    def filter_upgrade(self, upgrade) -> bool:
-        if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
-            return 1 < self.ai.townhalls.amount
-        else:
-            return super().filter_upgrade(upgrade)
+    # def filter_upgrade(self, upgrade) -> bool:
+    #     if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
+    #         return 1 < self.ai.townhalls.amount
+    #     else:
+    #         return super().filter_upgrade(upgrade)

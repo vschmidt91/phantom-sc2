@@ -8,6 +8,7 @@ from sc2.main import GameMatch, run_multiple_games
 from sc2.player import AbstractPlayer, Bot, Computer
 from src.strategies.pool_first import PoolFirst
 from src.strategies.hatch_first import HatchFirst
+from src.strategies.double_rush import DoubleRush
 
 from src.pool12_allin import Pool12AllIn
 from src.ai_base import AIBase
@@ -37,10 +38,10 @@ RACES = [
 ]
 
 BUILDS = [
-    AIBuild.Rush,
+    # AIBuild.Rush,
     # AIBuild.Timing,
     # AIBuild.Power,
-    # AIBuild.Macro,
+    AIBuild.Macro,
     # AIBuild.Air,
 ]
 
@@ -52,11 +53,11 @@ SEED = 123
 
 def create_bot():
 
-    # ai = ZergAI(strategy_cls=None)
-    # ai.debug = True
-    # ai.game_step = 2
+    ai = ZergAI(strategy_cls=DoubleRush)
+    ai.debug = True
+    ai.game_step = 2
 
-    ai = Pool12AllIn()
+    # ai = Pool12AllIn()
 
     # ai = DummyAI()
 

@@ -14,6 +14,7 @@ from skimage.io import imsave
 from scipy.ndimage import gaussian_filter
 from skimage.draw import disk, rectangle, rectangle_perimeter
 
+from skimage.segmentation import flood_fill
 from sc2.bot_ai import BotAI
 from sc2.constants import IS_DETECTOR
 from sc2.data import Result, race_townhalls, ActionResult, Race
@@ -37,7 +38,7 @@ from src.bot_events import UnitCreatedEvent
 from src.units.unit import AIUnit
 
 from .cost import Cost
-from .utils import flood_fill
+from .utils import flood_fill_incremental
 from .constants import LARVA_COST, WORKERS, UNIT_TRAINED_FROM, WITH_TECH_EQUIVALENTS
 from .constants import GAS_BY_RACE, REQUIREMENTS_KEYS
 from .constants import TRAIN_INFO, UPGRADE_RESEARCHED_FROM, RESEARCH_INFO, RANGE_UPGRADES
@@ -76,7 +77,7 @@ class AIBase(BotAI):
         self.game_step: int = 2
         self.unit_command_uses_self_do = True
 
-        self.strategy_cls: Type[Strategy] = strategy_cls or PoolFirst
+        self.strategy_cls: Type[Strategy] = strategy_cls or HatchFirst
         with open(version_path, 'r', encoding="UTF-8") as file:
             self.version = file.readline().replace('\n', '')
         self.debug: bool = False
@@ -108,10 +109,10 @@ class AIBase(BotAI):
 
         if self.debug:
             logging.basicConfig(level=logging.DEBUG)
+            self.profiler = cProfile.Profile()
 
             # import matplotlib.pyplot as plt
             # plt.ion()
-            # self.profiler = cProfile.Profile()
             # self.figure = plt.figure()
             # self.figure_img = plt.imshow(self.game_info.pathing_grid.data_numpy.transpose())
             # plt.show()
@@ -552,30 +553,23 @@ class AIBase(BotAI):
             for x_offset in np.arange(-radius, +radius + 1)
             for y_offset in np.arange(-radius, +radius + 1)
         )
+    
 
     def create_enemy_main_map(self) -> np.ndarray:
-        weight = np.where(
-            np.transpose(self.game_info.placement_grid.data_numpy) == 1,
-            1.0,
-            np.inf,
-        )
-        origins = [
-            p.rounded
-            for p in self.enemy_start_locations
-        ]
-        enemy_main = flood_fill(
-            weight,
-            origins,
-        )
-        enemy_main = np.isfinite(enemy_main)
+
+        g = self.game_info.pathing_grid.data_numpy.T.copy()
+        for start_location in self.enemy_start_locations:
+            flood_fill(g, start_location.rounded, 2, in_place=True)
+
+        enemy_main = g == 2
         return enemy_main
 
     def create_distance_map(self) -> Tuple[np.ndarray, np.ndarray]:
 
-        pathing = np.transpose(self.game_info.pathing_grid.data_numpy)
-        for townhall in self.townhalls:
-            for position in self.enumerate_positions(townhall):
-                pathing[position.rounded] = 1
+        # g = self.game_info.pathing_grid.data_numpy.T.copy()
+        # for townhall in self.townhalls:
+        #     for position in self.enumerate_positions(townhall):
+        #         g[position.rounded] = 1
 
         weight_ground = np.where(
             np.transpose(self.game_info.pathing_grid.data_numpy) == 0,
@@ -586,7 +580,7 @@ class AIBase(BotAI):
             th.position.rounded
             for th in self.townhalls
         ]
-        distance_ground = flood_fill(
+        distance_ground = flood_fill_incremental(
             weight_ground,
             origins,
         )
@@ -603,7 +597,7 @@ class AIBase(BotAI):
         weight_air[self.game_info.playable_area.right:-1, :] = np.inf
         weight_air[:, 0:self.game_info.playable_area.y] = np.inf
         weight_air[:, self.game_info.playable_area.top:-1] = np.inf
-        distance_air = flood_fill(
+        distance_air = flood_fill_incremental(
             weight_air,
             origins,
         )
