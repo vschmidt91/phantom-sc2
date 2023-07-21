@@ -15,12 +15,10 @@ if TYPE_CHECKING:
 
 
 class SpawnChangelingBehavior(AIUnit):
-
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
 
     def spawn_changeling(self) -> Optional[UnitCommand]:
-
         if self.state.type_id in {UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE}:
             if self.ai.in_pathing_grid(self.state):
                 ability = AbilityId.SPAWNCHANGELING_SPAWNCHANGELING

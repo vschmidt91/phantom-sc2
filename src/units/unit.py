@@ -1,14 +1,11 @@
 from __future__ import annotations
-from dataclasses import dataclass
 
-import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable, Optional, List
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Optional
 
 from sc2.unit import Unit, UnitCommand, UnitTypeId
-from sc2.position import Point2
-
-from src.tools.observable import Observable, Event
+from src.tools.observable import Event, Observable
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -21,17 +18,16 @@ class UnitChangedEvent(Event):
 
 
 class AIUnit(ABC):
-
     def __init__(self, ai: AIBase, state: Unit):
         self.ai = ai
         self.state = state
         self.on_damage_taken = Observable[UnitChangedEvent]()
         self.on_type_changed = Observable[UnitChangedEvent]()
         self.on_destroyed = Observable[UnitChangedEvent]()
-        
+
     def on_step(self) -> None:
         old_state = self.state
-        new_state = self.ai.unit_manager.unit_by_tag.get(self.state.tag)
+        new_state = self.ai.unit_manager.unit_by_tag.get(self.state.tag, None)
         event = UnitChangedEvent(self, old_state)
         if new_state:
             self.state = new_state
@@ -40,11 +36,8 @@ class AIUnit(ABC):
             if new_state.health + new_state.shield < old_state.shield + old_state.shield:
                 self.on_damage_taken(event)
         else:
-            if (
-                old_state.type_id == UnitTypeId.DRONE
-                and old_state.tag not in self.ai.state.dead_units
-            ):
-                pass # drone in extractor
+            if old_state.type_id == UnitTypeId.DRONE and old_state.tag not in self.ai.state.dead_units:
+                pass  # drone in extractor
             else:
                 self.on_destroyed(event)
 
@@ -58,7 +51,6 @@ class AIUnit(ABC):
 
 
 class IdleBehavior(AIUnit):
-
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
 

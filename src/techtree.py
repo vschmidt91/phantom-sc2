@@ -2,18 +2,16 @@ import json
 from dataclasses import dataclass
 from enum import Enum, Flag, auto
 from functools import cached_property
-from typing import List, Set, Union, Optional, Dict
+from typing import Dict, List, Optional, Set, Union
 
-from sc2.data import Race, Attribute
+from sc2.data import Attribute, Race
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 
-
-from .modules.macro import MacroId
-from .constants import LARVA_COST, UNIT_TRAINED_FROM_WITH_EQUIVALENTS
 from .cost import Cost
+from .modules.macro import MacroId
+
 
 def camel_to_upper_case(camel: str) -> str:
     upper = ""
@@ -23,6 +21,7 @@ def camel_to_upper_case(camel: str) -> str:
         else:
             upper += char.upper()
     return upper
+
 
 class TechTreeAbilityTarget(Flag):
     POINT = auto()
@@ -49,6 +48,7 @@ class TechTreeAbilityTargetUnitType(Enum):
 class TechTreeAbilityTargetUnit:
     type: TechTreeAbilityTargetUnitType
     unit: UnitTypeId
+
 
 @dataclass
 class TechTreeAbility:
@@ -160,61 +160,58 @@ class TechTreeUpgrade:
 
 
 class TechTree:
-
     def __init__(self, path: str) -> None:
         with open(path, encoding="UTF-8") as file:
             data = json.load(file)
 
         self.abilities: Dict[AbilityId, TechTreeAbility] = dict()
-        for item in data['Ability']:
+        for item in data["Ability"]:
+            item["id"] = AbilityId(item["id"])
 
-            item['id'] = AbilityId(item['id'])
-
-            if isinstance(item['target'], dict):
-                [(key, value)] = item['target'].items()
-                if key == 'Research':
-                    item['target'] = TechTreeAbilityTargetResearch(UpgradeId(value['upgrade']))
+            if isinstance(item["target"], dict):
+                [(key, value)] = item["target"].items()
+                if key == "Research":
+                    item["target"] = TechTreeAbilityTargetResearch(UpgradeId(value["upgrade"]))
                 else:
-                    item['target'] = TechTreeAbilityTargetUnit(
+                    item["target"] = TechTreeAbilityTargetUnit(
                         TechTreeAbilityTargetUnitType[camel_to_upper_case(key)],
-                        UnitTypeId(value['produces'])
+                        UnitTypeId(value["produces"]),
                     )
-            elif item['target'] == 'None':
-                item['target'] = TechTreeAbilityTarget(0)
+            elif item["target"] == "None":
+                item["target"] = TechTreeAbilityTarget(0)
             else:
-                item['target'] = TechTreeAbilityTarget[camel_to_upper_case(item['target'])]
+                item["target"] = TechTreeAbilityTarget[camel_to_upper_case(item["target"])]
 
             ability = TechTreeAbility(**item)
             self.abilities[ability.id] = ability
 
         self.units: Dict[UnitTypeId, TechTreeUnit] = dict()
-        for item in data['Unit']:
-
-            item['id'] = UnitTypeId(item['id'])
-            item['race'] = Race[item['race']]
-            item['attributes'] = [Attribute[a] for a in item['attributes']]
-            item['abilities'] = {AbilityId(a['ability']) for a in item['abilities']}
+        for item in data["Unit"]:
+            item["id"] = UnitTypeId(item["id"])
+            item["race"] = Race[item["race"]]
+            item["attributes"] = [Attribute[a] for a in item["attributes"]]
+            item["abilities"] = {AbilityId(a["ability"]) for a in item["abilities"]}
 
             weapons = []
-            for weapon in item['weapons']:
-                target_type = camel_to_upper_case(weapon['target_type'])
-                weapon['target_type'] = TechTreeWeaponType[target_type]
+            for weapon in item["weapons"]:
+                target_type = camel_to_upper_case(weapon["target_type"])
+                weapon["target_type"] = TechTreeWeaponType[target_type]
                 bonuses = []
-                for bonus in weapon['bonuses']:
-                    bonus['against'] = Attribute[bonus['against']]
+                for bonus in weapon["bonuses"]:
+                    bonus["against"] = Attribute[bonus["against"]]
                     bonuses.append(TechTreeWeaponBonus(**bonus))
-                weapon['bonuses'] = bonuses
+                weapon["bonuses"] = bonuses
                 weapons.append(TechTreeWeapon(**weapon))
-            item['weapons'] = weapons
+            item["weapons"] = weapons
 
             unit = TechTreeUnit(**item)
             self.units[unit.id] = unit
 
         self.upgrades: Dict[UpgradeId, TechTreeUpgrade] = dict()
-        for item in data['Upgrade']:
-            item['id'] = UpgradeId(item['id'])
+        for item in data["Upgrade"]:
+            item["id"] = UpgradeId(item["id"])
 
-            item['cost'] = TechTreeCost(**item['cost'])
+            item["cost"] = TechTreeCost(**item["cost"])
 
             upgrade = TechTreeUpgrade(**item)
             self.upgrades[upgrade.id] = upgrade

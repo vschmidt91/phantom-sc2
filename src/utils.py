@@ -1,9 +1,9 @@
-import inspect
-import math
-import time
-from typing import Iterable, Union
+from typing import Iterable, Union, Set
+import itertools
+import scipy.misc
 
 import numpy as np
+
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -52,10 +52,7 @@ def get_requirements(item: Union[UnitTypeId, UpgradeId]) -> Iterable[Union[UnitT
     else:
         raise TypeError()
 
-    requirements = {
-        info.get("required_building"),
-        info.get("required_upgrade")
-    }
+    requirements = {info.get("required_building"), info.get("required_upgrade")}
     requirements.discard(None)
 
     for requirement1 in requirements:
@@ -63,19 +60,50 @@ def get_requirements(item: Union[UnitTypeId, UpgradeId]) -> Iterable[Union[UnitT
         for requirement2 in get_requirements(requirement1):
             yield requirement2
 
+
 FLOOD_FILL_OFFSETS = {
-    Point2((-1, 0)),
-    Point2((0, -1)),
-    Point2((0, +1)),
-    Point2((+1, 0)),
+    (-1, 0),
+    (0, -1),
+    (0, +1),
+    (+1, 0),
     # Point2((-1, -1)),
     # Point2((-1, +1)),
     # Point2((+1, -1)),
     # Point2((+1, +1)),
 }
 
-def flood_fill_incremental(weight: np.ndarray, origins: Iterable[Point2]):
 
+def flood_fill_incremental_bool(is_border: np.ndarray, origins: Set[Point2]):
+
+    distance = np.full(is_border.shape, np.inf)
+    front = {
+        (int(x), int(y))
+        for x, y in origins
+    }
+    for d in itertools.count():
+
+        for p in front:
+            distance[p] = d
+        front = {
+            tuple(np.add(point, offset))
+            for point in front
+            for offset in FLOOD_FILL_OFFSETS
+        }
+        # front.difference_update(origins)
+        front = {
+            p
+            for p in front
+            if d < distance[p] and not is_border[p]
+        }
+
+        if not any(front):
+            break
+
+    return distance
+
+
+
+def flood_fill_incremental(weight: np.ndarray, origins: Set[Point2]):
     distance = np.full(weight.shape, np.inf)
     for origin in origins:
         distance[origin] = 0

@@ -1,28 +1,23 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-import numpy as np
-
-from sc2.bot_ai import Race
+from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.ids.ability_id import AbilityId
-from sc2.ids.buff_id import BuffId
 from sc2.unit import Unit, UnitCommand
 
-from ..modules.module import AIModule
 from ..behaviors.gather import GatherBehavior
-from ..modules.combat import CombatBehavior, InfluenceMapEntry
+from ..modules.combat import CombatBehavior
 from ..modules.dodge import DodgeBehavior
 from ..modules.macro import MacroBehavior
+from ..modules.module import AIModule
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
 class WorkerManager(AIModule):
-
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
 
@@ -31,38 +26,29 @@ class WorkerManager(AIModule):
         pass
 
     def draft_civilians(self) -> None:
-
         if (
-            self.ai.combat.confidence < 1/2
+            self.ai.combat.confidence < 1 / 2
             and 0 == self.ai.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False)
-            and 100 < self.ai.time < 180
+            # and 100 < self.ai.time < 180
         ):
-                worker = next(
-                    (w
-                        for w in self.ai.unit_manager.units.values()
-                        if isinstance(w, Worker) and not w.is_drafted
-                    ),
-                    None
-                )
-                if worker:
-                    worker.is_drafted = True
-        else:
-        # elif 2/3 < self.ai.combat.confidence:
+            worker = next(
+                (w for w in self.ai.unit_manager.units.values() if isinstance(w, Worker) and not w.is_drafted),
+                None,
+            )
+            if worker:
+                worker.is_drafted = True
+        # else:
+        elif 2/3 < self.ai.combat.confidence:
             worker = min(
-                (
-                    w
-                    for w in self.ai.unit_manager.units.values()
-                    if isinstance(w, Worker) and w.is_drafted
-                ),
-                key=lambda w : w.state.shield_health_percentage,
-                default=None
+                (w for w in self.ai.unit_manager.units.values() if isinstance(w, Worker) and w.is_drafted),
+                key=lambda w: w.state.shield_health_percentage,
+                default=None,
             )
             if worker:
                 worker.is_drafted = False
 
 
 class Worker(DodgeBehavior, CombatBehavior, MacroBehavior, GatherBehavior):
-
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
         self.is_drafted: bool = False
@@ -72,13 +58,11 @@ class Worker(DodgeBehavior, CombatBehavior, MacroBehavior, GatherBehavior):
             return command
         elif self.is_drafted:
             return self.fight()
-        elif (
-            1 < self.ai.combat.ground_dps[self.state.position.rounded]
-            and UpgradeId.BURROW in self.ai.state.upgrades
-        ):
-            return self.state(AbilityId.BURROWDOWN)
-            # else:
-            #     return self.fight()
+        elif 1 < self.ai.combat.ground_dps[self.state.position.rounded]:
+            if UpgradeId.BURROW in self.ai.state.upgrades:
+                return self.state(AbilityId.BURROWDOWN)
+            else:
+                return self.fight()
         elif self.state.is_burrowed:
             return self.state(AbilityId.BURROWUP)
         elif command := self.macro():

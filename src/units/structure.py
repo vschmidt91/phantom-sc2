@@ -1,19 +1,18 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sc2.ids.ability_id import AbilityId
 from sc2.unit import Unit, UnitCommand
+from src.units.unit import UnitChangedEvent
 
 from ..modules.macro import MacroBehavior
-from src.units.unit import UnitChangedEvent
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
 class Structure(MacroBehavior):
-
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
         self.cancel: bool = False
@@ -26,11 +25,10 @@ class Structure(MacroBehavior):
             return self.macro()
 
     def cancel_if_under_threat(self, event: UnitChangedEvent):
-        if self.state.health_percentage < 0.05:
+        if self.state.health_percentage < 0.1:
             self.cancel = True
 
 
 class Larva(Structure):
-
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)

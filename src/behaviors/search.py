@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import random
+from typing import TYPE_CHECKING, Optional
+
 import numpy as np
-from typing import Optional, TYPE_CHECKING
 
 from sc2.unit_command import UnitCommand
 
@@ -15,12 +16,10 @@ if TYPE_CHECKING:
 
 
 class SearchBehavior(AIUnit):
-
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
 
     def search(self) -> Optional[UnitCommand]:
-
         if self.state.type_id == UnitTypeId.OVERLORD:
             return None
 
@@ -34,11 +33,7 @@ class SearchBehavior(AIUnit):
                 a = self.ai.game_info.playable_area
                 target = np.random.uniform((a.x, a.y), (a.right, a.top))
                 target = Point2(target)
-                if (
-                        (self.state.is_flying or self.ai.in_pathing_grid(target))
-                        and not self.ai.is_visible(target)
-                ):
+                if (self.state.is_flying or self.ai.in_pathing_grid(target)) and not self.ai.is_visible(target):
                     return self.state.attack(target)
-
 
         return None

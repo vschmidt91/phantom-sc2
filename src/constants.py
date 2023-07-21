@@ -13,28 +13,20 @@ from sc2.ids.upgrade_id import UpgradeId
 
 from .utils import get_requirements
 
-WITH_TECH_EQUIVALENTS = {
-    unit: {unit} | EQUIVALENTS_FOR_TECH_PROGRESS.get(unit, set())
-    for unit in UnitTypeId
-}
+WITH_TECH_EQUIVALENTS = {unit: {unit} | EQUIVALENTS_FOR_TECH_PROGRESS.get(unit, set()) for unit in UnitTypeId}
 
 UNIT_TRAINED_FROM_WITH_EQUIVALENTS = {
-    item: {
-        equivalent
-        for trainer in UNIT_TRAINED_FROM.get(item, [])
-        for equivalent in WITH_TECH_EQUIVALENTS[trainer]
-    }
+    item: {equivalent for trainer in UNIT_TRAINED_FROM.get(item, []) for equivalent in WITH_TECH_EQUIVALENTS[trainer]}
     for item in UnitTypeId
 }
 
 UPGRADE_RESEARCHED_FROM_WITH_EQUIVALENTS = {
-    item: WITH_TECH_EQUIVALENTS.get(UPGRADE_RESEARCHED_FROM.get(item), set())
-    for item in UpgradeId
+    item: WITH_TECH_EQUIVALENTS.get(UPGRADE_RESEARCHED_FROM.get(item), set()) for item in UpgradeId
 }
 
 ITEM_TRAINED_FROM_WITH_EQUIVALENTS = {
     **UNIT_TRAINED_FROM_WITH_EQUIVALENTS,
-    **UPGRADE_RESEARCHED_FROM_WITH_EQUIVALENTS
+    **UPGRADE_RESEARCHED_FROM_WITH_EQUIVALENTS,
 }
 
 STATIC_DEFENSE_BY_RACE = {
@@ -53,8 +45,7 @@ RANGE_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, int]] = {
 }
 
 SPEED_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, float]] = {
-    unit_type: {upgrade: SPEED_INCREASE_DICT[unit_type]}
-    for unit_type, upgrade in SPEED_UPGRADE_DICT.items()
+    unit_type: {upgrade: SPEED_INCREASE_DICT[unit_type]} for unit_type, upgrade in SPEED_UPGRADE_DICT.items()
 }
 
 MACRO_INFO = {
@@ -124,7 +115,7 @@ SUPPLY_PROVIDED = {
         # UnitTypeId.ORBITALCOMMAND: 15,
         # UnitTypeId.ORBITALCOMMANDFLYING: 15,
         # UnitTypeId.PLANETARYFORTRESS: 15,
-    }
+    },
 }
 
 CHANGELINGS = {
@@ -137,15 +128,19 @@ CHANGELINGS = {
 }
 
 CIVILIANS = {
-    UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.PROBE,
-    UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.BANELINGCOCOON,
+    UnitTypeId.SCV,
+    UnitTypeId.MULE,
+    UnitTypeId.PROBE,
+    UnitTypeId.LARVA,
+    UnitTypeId.EGG,
+    UnitTypeId.BANELINGCOCOON,
     *WITH_TECH_EQUIVALENTS[UnitTypeId.WARPPRISM],
     *WITH_TECH_EQUIVALENTS[UnitTypeId.DRONE],
     # *WITH_TECH_EQUIVALENTS[UnitTypeId.QUEEN],
     *WITH_TECH_EQUIVALENTS[UnitTypeId.OVERLORD],
     *WITH_TECH_EQUIVALENTS[UnitTypeId.BROODLING],
     *WITH_TECH_EQUIVALENTS[UnitTypeId.OBSERVER],
-    *CHANGELINGS
+    *CHANGELINGS,
 }
 
 UNIT_BY_TRAIN_ABILITY: Dict[AbilityId, UnitTypeId] = {
@@ -160,10 +155,7 @@ UPGRADE_BY_RESEARCH_ABILITY: Dict[AbilityId, UpgradeId] = {
     for upgrade, upgrade_element in research_element.items()
 }
 
-ITEM_BY_ABILITY = {
-    **UNIT_BY_TRAIN_ABILITY,
-    **UPGRADE_BY_RESEARCH_ABILITY
-}
+ITEM_BY_ABILITY = {**UNIT_BY_TRAIN_ABILITY, **UPGRADE_BY_RESEARCH_ABILITY}
 
 GAS_BY_RACE: Dict[Race, UnitTypeId] = {
     Race.Zerg: UnitTypeId.EXTRACTOR,
@@ -179,15 +171,11 @@ REQUIREMENTS_EXCLUDE = {
 
 REQUIREMENTS_KEYS = {
     *UNIT_TRAINED_FROM.keys(),
-    *UPGRADE_RESEARCHED_FROM.keys()
+    *UPGRADE_RESEARCHED_FROM.keys(),
 }.difference(REQUIREMENTS_EXCLUDE)
 
 REQUIREMENTS = {
-    item: {
-        requirement
-        for requirement in get_requirements(item)
-        if requirement in REQUIREMENTS_KEYS
-    }
+    item: {requirement for requirement in get_requirements(item) if requirement in REQUIREMENTS_KEYS}
     for item in REQUIREMENTS_KEYS
 }
 

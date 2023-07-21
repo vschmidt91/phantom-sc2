@@ -1,7 +1,5 @@
-
-
 from abc import ABC
-from typing import TypeVar, Generic, Callable, List, NoReturn, Sequence
+from typing import Callable, Generic, List, NoReturn, TypeVar
 
 
 class Event(ABC):
@@ -11,8 +9,8 @@ class Event(ABC):
 TEvent = TypeVar("TEvent", bound=Event)
 Callback = Callable[[TEvent], NoReturn]
 
-class Observable(Generic[TEvent]):
 
+class Observable(Generic[TEvent]):
     def __init__(self) -> None:
         self.callbacks: List[Callback] = list()
 

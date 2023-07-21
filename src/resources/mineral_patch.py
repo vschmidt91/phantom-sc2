@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from .resource_unit import ResourceUnit
 from ..constants import RICH_MINERALS
+from .resource_unit import ResourceUnit
+
 
 class MineralPatch(ResourceUnit):
-
     def __init__(self, unit: Unit) -> None:
         super().__init__(unit)
         self.speedmining_target: Point2 = unit.position

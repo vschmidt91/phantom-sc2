@@ -1,91 +1,86 @@
 import cProfile
+import logging
+import math
 import pstats
+import random
 from functools import cmp_to_key
 from itertools import chain
-import logging
-from dataclasses import dataclass
-import os
-import math
-import random
-from re import U
-from typing import Optional, Type, Dict, Iterable, Tuple
-import numpy as np
-from skimage.io import imsave
-from scipy.ndimage import gaussian_filter
-from skimage.draw import disk, rectangle, rectangle_perimeter
+from typing import Iterable, Optional, Tuple, Type
 
+import numpy as np
+import skimage
+from scipy.ndimage import gaussian_filter
+from scipy.spatial import ConvexHull
+from skimage.draw import ellipse
 from skimage.segmentation import flood_fill
+
 from sc2.bot_ai import BotAI
 from sc2.constants import IS_DETECTOR
-from sc2.data import Result, race_townhalls, ActionResult, Race
+from sc2.data import ActionResult, Race, Result, race_townhalls
 from sc2.game_state import ActionRawUnitCommand
-from sc2.position import Point2, Point3
-from sc2.unit import Unit, UnitOrder, UnitCommand
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-
-from .constants import ZERG_ARMOR_UPGRADES
-from .constants import ZERG_MELEE_UPGRADES
-from .constants import ZERG_RANGED_UPGRADES
-from .constants import ZERG_FLYER_UPGRADES
-from .constants import ZERG_FLYER_ARMOR_UPGRADES
-
+from sc2.position import Point2, Point3
+from sc2.unit import Unit, UnitCommand, UnitOrder
 from src.behaviors.overlord_drop import OverlordDropManager
-from src.bot_events import BotEvents
-from src.bot_events import InitEvent, StartEvent
-from src.bot_events import UnitCreatedEvent
-from src.units.unit import AIUnit
+from src.bot_events import BotEvents, InitEvent, StartEvent, UnitCreatedEvent
 
-from .cost import Cost
-from .utils import flood_fill_incremental
-from .constants import LARVA_COST, WORKERS, UNIT_TRAINED_FROM, WITH_TECH_EQUIVALENTS
-from .constants import GAS_BY_RACE, REQUIREMENTS_KEYS
-from .constants import TRAIN_INFO, UPGRADE_RESEARCHED_FROM, RESEARCH_INFO, RANGE_UPGRADES
-from .resources.resource_manager import ResourceManager
-from .strategies.hatch_first import HatchFirst
-from .strategies.pool_first import PoolFirst
-from .strategies.roach_rush import RoachRush
-from .techtree import TechTree
 from .behaviors.inject import InjectManager
-from .behaviors.survive import SurviveBehavior
-from .units.unit import AIUnit
+from .constants import (
+    GAS_BY_RACE,
+    LARVA_COST,
+    RANGE_UPGRADES,
+    REQUIREMENTS_KEYS,
+    RESEARCH_INFO,
+    TRAIN_INFO,
+    UNIT_TRAINED_FROM,
+    UPGRADE_RESEARCHED_FROM,
+    WITH_TECH_EQUIVALENTS,
+    WORKERS,
+    ZERG_ARMOR_UPGRADES,
+    ZERG_FLYER_ARMOR_UPGRADES,
+    ZERG_FLYER_UPGRADES,
+    ZERG_MELEE_UPGRADES,
+    ZERG_RANGED_UPGRADES,
+)
+from .cost import Cost
 from .modules.chat import Chat
 from .modules.combat import CombatModule
 from .modules.dodge import DodgeModule
 from .modules.macro import MacroBehavior, MacroId, MacroModule, compare_plans
 from .modules.scout import ScoutModule
-from .modules.unit_manager import IGNORED_UNIT_TYPES, UnitManager
+from .modules.unit_manager import UnitManager
 from .resources.base import Base
 from .resources.mineral_patch import MineralPatch
+from .resources.resource_manager import ResourceManager
 from .resources.vespene_geyser import VespeneGeyser
+from .strategies.hatch_first import HatchFirst
 from .strategies.strategy import Strategy
+from .techtree import TechTree
+from .units.unit import AIUnit
 from .units.worker import Worker, WorkerManager
-
+from .utils import flood_fill_incremental, flood_fill_incremental_bool
 
 
 class AIBase(BotAI):
-
-    def __init__(self,
-        strategy_cls: Optional[Type[Strategy]] = None,
-        version_path = "version.txt"
-    ):
-
+    def __init__(self, strategy_cls: Optional[Type[Strategy]] = None, version_path="version.txt"):
         self.events = BotEvents()
 
         self.raw_affects_selection = True
-        self.game_step: int = 2
+        self.game_step: int = 4
         self.unit_command_uses_self_do = True
 
         self.strategy_cls: Type[Strategy] = strategy_cls or HatchFirst
-        with open(version_path, 'r', encoding="UTF-8") as file:
-            self.version = file.readline().replace('\n', '')
+        with open(version_path, "r", encoding="UTF-8") as file:
+            self.version = file.readline().replace("\n", "")
         self.debug: bool = False
 
         self.extractor_trick_enabled: bool = False
         self.iteration: int = 0
-        self.techtree: TechTree = TechTree('data/techtree.json')
+        self.techtree: TechTree = TechTree("data/techtree.json")
         self.profiler: Optional[cProfile.Profile] = None
+        self.apm: float = 0.0
 
         super().__init__()
 
@@ -99,30 +94,25 @@ class AIBase(BotAI):
         return 0 < unit.movement_speed
 
     async def on_before_start(self):
-
         self.events.on_init(InitEvent())
 
-        self.unit_cost = {
-            type_id: self.get_cost(type_id)
-            for type_id in UnitTypeId
-        }
+        self.unit_cost = {type_id: self.get_cost(type_id) for type_id in UnitTypeId}
 
         if self.debug:
             logging.basicConfig(level=logging.DEBUG)
             self.profiler = cProfile.Profile()
 
-            # import matplotlib.pyplot as plt
-            # plt.ion()
-            # self.figure = plt.figure()
-            # self.figure_img = plt.imshow(self.game_info.pathing_grid.data_numpy.transpose())
-            # plt.show()
+            import matplotlib.pyplot as plt
 
-            # self.plot, self.plot_axes = plt.subplots(1, 2)
-            # self.plot_images = None
+            plt.ion()
+            self.figure = plt.figure()
+            self.figure_img = plt.imshow(self.game_info.pathing_grid.data_numpy.transpose())
+            plt.show()
+
         else:
             logging.basicConfig(level=logging.ERROR)
 
-        logging.debug('before_start')
+        logging.debug("before_start")
 
         self.client.game_step = self.game_step
 
@@ -154,9 +144,11 @@ class AIBase(BotAI):
             )
         elif unit == UnitTypeId.ROACH:
             return chain(
-                (UpgradeId.GLIALRECONSTITUTION,
-                 UpgradeId.BURROW,
-                 UpgradeId.TUNNELINGCLAWS),
+                (
+                    UpgradeId.GLIALRECONSTITUTION,
+                    UpgradeId.BURROW,
+                    UpgradeId.TUNNELINGCLAWS,
+                ),
                 # (UpgradeId.GLIALRECONSTITUTION,),
                 self.upgrade_sequence(ZERG_RANGED_UPGRADES),
                 self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
@@ -194,10 +186,9 @@ class AIBase(BotAI):
             return []
 
     async def on_start(self):
-
         self.events.on_start(StartEvent())
 
-        logging.debug('start')
+        logging.debug("start")
 
         # await self.client.debug_create_unit([
         #     [UnitTypeId.OVERLORDTRANSPORT, 1, self.game_info.map_center, 1],
@@ -213,13 +204,22 @@ class AIBase(BotAI):
 
         pathing_grid = self.game_info.pathing_grid.data_numpy.transpose()
         border_x, border_y = np.gradient(pathing_grid)
-        self.pathing_border = np.stack([
-            border_x,
-            border_y,
-        ], axis=-1)
+        self.pathing_border = np.stack(
+            [
+                border_x,
+                border_y,
+            ],
+            axis=-1,
+        )
 
         self.distance_ground, self.distance_air = self.create_distance_map()
         self.enemy_main = self.create_enemy_main_map()
+
+        self.map_coordinates = [
+            (x, y) for x in range(self.game_info.map_size[0]) for y in range(self.game_info.map_size[1])
+        ]
+
+        self.defense_map = np.zeros(self.game_info.map_size, dtype=bool)
 
         bases = await self.initialize_bases()
         self.resource_manager = ResourceManager(self, bases)
@@ -274,7 +274,6 @@ class AIBase(BotAI):
                 self.handle_action(action, tag)
 
     def handle_action(self, action: ActionRawUnitCommand, tag: int) -> None:
-
         # if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
         #     if not self.unit_manager.try_remove_unit(tag):
         #         logging.error("creep tumor not found")
@@ -289,20 +288,18 @@ class AIBase(BotAI):
         }:
             return
         elif behavior.state.type_id in {UnitTypeId.LARVA, UnitTypeId.EGG}:
-            candidates = list(chain(self.unit_manager.actual_by_type[UnitTypeId.LARVA],
-                               self.unit_manager.actual_by_type[UnitTypeId.EGG]))
+            candidates = list(
+                chain(
+                    self.unit_manager.actual_by_type[UnitTypeId.LARVA],
+                    self.unit_manager.actual_by_type[UnitTypeId.EGG],
+                )
+            )
         else:
             candidates = [behavior]
-        actual_behavior = next((
-            b
-            for b in candidates
-            if (
-                isinstance(b, MacroBehavior)
-                and b.plan
-                and b.macro_ability == action.exact_id
-            )
-        ),
-            None)
+        actual_behavior = next(
+            (b for b in candidates if (isinstance(b, MacroBehavior) and b.plan and b.macro_ability == action.exact_id)),
+            None,
+        )
 
         if actual_behavior:
             # if behavior.unit and actual_behavior.unit:
@@ -314,85 +311,94 @@ class AIBase(BotAI):
         #     logging.error(f'trainer not found: {action}')
 
     async def kill_random_units(self, chance: float = 3e-4) -> None:
-        tags = [
-            unit.tag
-            for unit in self.all_own_units
-            if random.random() < chance
-        ]
+        tags = [unit.tag for unit in self.all_own_units if random.random() < chance]
         if tags:
             await self.client.debug_kill_unit(tags)
 
-            
     def get_cost(self, item: MacroId) -> Cost:
         try:
             minerals_vespene = self.calculate_cost(item)
             food = self.calculate_supply_cost(item)
-        except:
+        except Exception:
             return Cost(0.0, 0.0, 0.0, 0.0)
         larva = LARVA_COST.get(item, 0.0)
-        return Cost(float(minerals_vespene.minerals), float(minerals_vespene.vespene), food, larva)
+        return Cost(
+            float(minerals_vespene.minerals),
+            float(minerals_vespene.vespene),
+            food,
+            larva,
+        )
 
     async def on_step(self, iteration: int):
-
-        # logging.debug(f'step: {iteration}')
-
         if iteration == 0 and self.debug:
             return
 
         self.iteration = iteration
 
         if 1 < self.time:
-            await self.chat.add_message('(glhf)')
+            await self.chat.add_message("(glhf)")
 
         if self.profiler:
             self.profiler.enable()
 
-        if self.extractor_trick_enabled and self.supply_left <= 0:
-            for gas in self.gas_buildings.not_ready:
-                self.do(gas(AbilityId.CANCEL))
-                self.extractor_trick_enabled = False
-                break
-
         self.handle_errors()
         self.handle_actions()
+
+        def defense_points_of_structure(structure: Unit) -> Iterable[Point2]:
+            p = structure.position
+            if structure.type_id in race_townhalls[self.race]:
+                o = 10
+                yield p + Point2((-o, 0))
+                yield p + Point2((+o, 0))
+                yield p + Point2((0, -o))
+                yield p + Point2((0, +o))
+            else:
+                yield p
+
+        defense_points = np.array([p for s in self.structures for p in defense_points_of_structure(s)])
+        defense_region = ConvexHull(defense_points)
+        vertices = defense_region.points[defense_region.vertices]
+        defense_mask = skimage.draw.polygon2mask(
+            image_shape=self.game_info.map_size,
+            polygon=vertices,
+        )
+        self.defense_map = defense_mask == 1
 
         self.creep_placement_map = (
             (self.state.creep.data_numpy == 1)
             & (self.state.visibility.data_numpy == 2)
             & (self.game_info.pathing_grid.data_numpy == 1)
         ).transpose()
+
         self.creep_value_map = (
-            (self.state.creep.data_numpy == 0)
-            & (self.game_info.pathing_grid.data_numpy == 1)
-        ).transpose().astype(float)
+            np.where(self.state.creep.data_numpy.T == 0, 1.0, 0.0)
+            * np.where(self.game_info.pathing_grid.data_numpy.T == 1, 1.0, 0.0)
+            * np.where(self.defense_map, 3.0, 1.0)
+        )
 
-        def convert_rect_coords(coords: np.ndarray):
-            return coords[0].astype(int).flatten(), coords[1].astype(int).flatten()
-
-        base_size = Point2((5, 5))
-        static_defense_size = Point2((2, 2))
+        base_radius = self.techtree.units[UnitTypeId.HATCHERY].radius
         for base in self.resource_manager.bases:
-            # d = disk(base, 4, shape=self.game_info.map_size)
-            # self.creep_placement_map[d] = False
-            # self.creep_value_map[d] *= 3
+            dx, dy = ellipse(
+                *base.position.rounded,
+                r_radius=base_radius,
+                c_radius=base_radius,
+                shape=self.game_info.map_size,
+            )
+            self.creep_placement_map[dx, dy] = False
+            self.creep_value_map[dx, dy] *= 3
 
-            r = convert_rect_coords(rectangle(
-                base.position - 0.5 * base_size,
-                extent=base_size,
-                shape=self.game_info.map_size
-            ))
-            self.creep_placement_map[r] = False
-            self.creep_value_map[r] *= 3
+        self.creep_value_map_blurred = gaussian_filter(self.creep_value_map, 5)
 
-            r = convert_rect_coords(rectangle(
-                base.static_defense_position - 0.5 * static_defense_size,
-                extent=static_defense_size,
-                shape=self.game_info.map_size
-            ))
-            self.creep_placement_map[r] = False
-
-        self.creep_value_map_blurred = gaussian_filter(self.creep_value_map, 3)
-
+        # if self.debug:
+        #     if 0 < iteration:
+        #         self.figure_data = self.combat.retreat_air
+        #         self.figure_img.set_data(self.figure_data)
+        #         self.figure_img.set_clim(
+        #             vmin=np.amin(self.figure_data),
+        #             vmax=np.amax(self.figure_data),
+        #         )
+        #     self.figure.canvas.draw()
+        #     self.figure.canvas.flush_events()
 
         modules = [
             self.unit_manager,
@@ -414,9 +420,9 @@ class AIBase(BotAI):
             self.profiler.disable()
             stats = pstats.Stats(self.profiler)
             if iteration % 100 == 0:
-                logging.info('dump profiling')
+                logging.info("dump profiling")
                 stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
-                stats.dump_stats(filename='profiling.prof')
+                stats.dump_stats(filename="profiling.prof")
 
         if self.debug:
             await self.draw_debug()
@@ -429,10 +435,9 @@ class AIBase(BotAI):
             #     await self.kill_random_units()
             worker_count = sum(1 for b in self.unit_manager.units.values() if isinstance(b, Worker))
             if worker_count != self.supply_workers:
-                logging.error('worker supply mismatch')
+                logging.error("worker supply mismatch")
 
     async def on_building_construction_started(self, unit: Unit):
-
         self.on_building_construction_started(UnitCreatedEvent(unit))
         logging.debug("building_construction_started: %s", unit)
 
@@ -443,7 +448,7 @@ class AIBase(BotAI):
             if unit.type_id in {
                 UnitTypeId.CREEPTUMOR,
                 UnitTypeId.CREEPTUMORQUEEN,
-                UnitTypeId.CREEPTUMORBURROWED
+                UnitTypeId.CREEPTUMORBURROWED,
             }:
                 # print('tumor')
                 pass
@@ -458,14 +463,11 @@ class AIBase(BotAI):
                                     behavior.plan = None
                             assert self.unit_manager.try_remove_unit(trainer.state.tag)
                             break
-                        elif (
-                                not trainer.state.is_idle
-                                and trainer.state.order_target in {unit.position, geyser_tag}
-                        ):
+                        elif not trainer.state.is_idle and trainer.state.order_target in {unit.position, geyser_tag}:
                             assert self.unit_manager.try_remove_unit(trainer.state.tag)
                             break
                     else:
-                        logging.error('trainer not found')
+                        logging.error("trainer not found")
 
     async def on_unit_created(self, unit: Unit):
         logging.debug("unit_created: %s", unit)
@@ -496,13 +498,13 @@ class AIBase(BotAI):
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         logging.info("upgrade_complete: %s", upgrade)
 
-    def count(self,
-            item: MacroId,
-            include_pending: bool = True,
-            include_planned: bool = True,
-            include_actual: bool = True
-        ) -> int:
-
+    def count(
+        self,
+        item: MacroId,
+        include_pending: bool = True,
+        include_planned: bool = True,
+        include_actual: bool = True,
+    ) -> int:
         factor = 2 if item == UnitTypeId.ZERGLING else 1
 
         count = 0
@@ -519,18 +521,11 @@ class AIBase(BotAI):
         return count
 
     async def initialize_bases(self):
+        start_bases = {self.start_location, *self.enemy_start_locations}
 
-        start_bases = {
-            self.start_location,
-            *self.enemy_start_locations
-        }
-        
         bases = []
         for position, resources in self.expansion_locations_dict.items():
-            if (
-                position not in start_bases
-                and not await self.can_place_single(UnitTypeId.HATCHERY, position)
-            ):
+            if position not in start_bases and not await self.can_place_single(UnitTypeId.HATCHERY, position):
                 continue
             base = Base(
                 position,
@@ -538,7 +533,7 @@ class AIBase(BotAI):
                 (VespeneGeyser(g) for g in resources.vespene_geyser),
             )
             bases.append(base)
-            
+
         bases = sorted(
             bases,
             key=lambda b: self.distance_ground[b.position.rounded] + self.distance_air[b.position.rounded],
@@ -553,10 +548,8 @@ class AIBase(BotAI):
             for x_offset in np.arange(-radius, +radius + 1)
             for y_offset in np.arange(-radius, +radius + 1)
         )
-    
 
     def create_enemy_main_map(self) -> np.ndarray:
-
         g = self.game_info.pathing_grid.data_numpy.T.copy()
         for start_location in self.enemy_start_locations:
             flood_fill(g, start_location.rounded, 2, in_place=True)
@@ -565,64 +558,56 @@ class AIBase(BotAI):
         return enemy_main
 
     def create_distance_map(self) -> Tuple[np.ndarray, np.ndarray]:
-
         # g = self.game_info.pathing_grid.data_numpy.T.copy()
         # for townhall in self.townhalls:
         #     for position in self.enumerate_positions(townhall):
         #         g[position.rounded] = 1
 
-        weight_ground = np.where(
-            np.transpose(self.game_info.pathing_grid.data_numpy) == 0,
-            np.inf,
-            1.0,
-        )
-        origins = [
-            th.position.rounded
+        is_border = np.transpose(self.game_info.pathing_grid.data_numpy) == 0
+        origins = {
+            p.rounded
             for th in self.townhalls
-        ]
-        distance_ground = flood_fill_incremental(
-            weight_ground,
+            for p in self.enumerate_positions(th)
+        }
+        distance_ground = flood_fill_incremental_bool(
+            is_border,
             origins,
         )
         distance_ground = np.where(np.isinf(distance_ground), np.nan, distance_ground)
         distance_ground /= np.nanmax(distance_ground)
         distance_ground = np.where(np.isnan(distance_ground), 1, distance_ground)
 
-        weight_air = np.where(
-            np.transpose(self.game_info.pathing_grid.data_numpy) == 0,
-            1.0,
-            10.0,
-        )
-        weight_air[0:self.game_info.playable_area.x, :] = np.inf
-        weight_air[self.game_info.playable_area.right:-1, :] = np.inf
-        weight_air[:, 0:self.game_info.playable_area.y] = np.inf
-        weight_air[:, self.game_info.playable_area.top:-1] = np.inf
-        distance_air = flood_fill_incremental(
-            weight_air,
-            origins,
-        )
-        distance_air = np.where(np.isinf(distance_air), np.nan, distance_air)
-        distance_air /= np.nanmax(distance_air)
-        distance_air = np.where(np.isnan(distance_air), 1, distance_air)
+        # weight_air = np.where(
+        #     np.transpose(self.game_info.pathing_grid.data_numpy) == 0,
+        #     1.0,
+        #     10.0,
+        # )
+        # weight_air[0 : self.game_info.playable_area.x, :] = np.inf
+        # weight_air[self.game_info.playable_area.right : -1, :] = np.inf
+        # weight_air[:, 0 : self.game_info.playable_area.y] = np.inf
+        # weight_air[:, self.game_info.playable_area.top : -1] = np.inf
+        # distance_air = flood_fill_incremental(
+        #     weight_air,
+        #     origins,
+        # )
+        # distance_air = np.where(np.isinf(distance_air), np.nan, distance_air)
+        # distance_air /= np.nanmax(distance_air)
+        # distance_air = np.where(np.isnan(distance_air), 1, distance_air)
+
+        distance_air = distance_ground
 
         return distance_ground, distance_air
 
     async def draw_debug(self):
-
         font_color = (255, 255, 255)
         font_size = 12
 
         plans = []
-        plans.extend(
-            b.plan
-            for b in self.unit_manager.units.values()
-            if isinstance(b, MacroBehavior) and b.plan
-        )
+        plans.extend(b.plan for b in self.unit_manager.units.values() if isinstance(b, MacroBehavior) and b.plan)
         plans.extend(self.macro.unassigned_plans)
         plans.sort(key=cmp_to_key(compare_plans), reverse=True)
 
         for i, target in enumerate(plans):
-
             positions = []
 
             if not target.target:
@@ -636,9 +621,13 @@ class AIBase(BotAI):
                 positions.append(Point3((target.target.x, target.target.y, height)))
 
             unit_tag = next(
-                (tag
-                 for tag, behavior in self.unit_manager.units.items()
-                 if isinstance(behavior, MacroBehavior) and behavior.plan == target), None)
+                (
+                    tag
+                    for tag, behavior in self.unit_manager.units.items()
+                    if isinstance(behavior, MacroBehavior) and behavior.plan == target
+                ),
+                None,
+            )
             if (behavior := self.unit_manager.units.get(unit_tag)) and behavior.state:
                 positions.append(behavior.state.position3d)
 
@@ -656,25 +645,21 @@ class AIBase(BotAI):
         font_color = (255, 0, 0)
 
         for enemy in self.unit_manager.enemies.values():
-
             pos = enemy.position
             position = Point3((*pos, self.get_terrain_z_height(pos)))
             text = f"{enemy.name}"
             self.client.debug_text_world(text, position, color=font_color, size=font_size)
 
+        self.client.debug_text_screen(f"Confidence: {round(100 * self.combat.confidence)}%", (0.01, 0.01))
         self.client.debug_text_screen(
-            f'Confidence: {round(100 * self.combat.confidence)}%',
-            (0.01, 0.01)
-        )
-        self.client.debug_text_screen(
-            f'Gas Target: {round(self.resource_manager.get_gas_target(), 3)}',
-            (0.01, 0.03)
+            f"Gas Target: {round(self.resource_manager.get_gas_target(), 3)}",
+            (0.01, 0.03),
         )
 
         for i, plan in enumerate(plans):
             self.client.debug_text_screen(
-                f'{1 + i} {round(plan.eta or 0, 1)} {plan.item.name}',
-                (0.01, 0.1 + 0.01 * i)
+                f"{1 + i} {round(plan.eta or 0, 1)} {plan.item.name}",
+                (0.01, 0.1 + 0.01 * i),
             )
 
         # self.figure_img.set_data(self.combat.army_map.data[:, :, [0, 1, 4]])
@@ -691,15 +676,13 @@ class AIBase(BotAI):
         }:
             return False
         return all(
-            self.count(e, include_pending=False, include_planned=False) == 0
-            for e in WITH_TECH_EQUIVALENTS[unit]
+            self.count(e, include_pending=False, include_planned=False) == 0 for e in WITH_TECH_EQUIVALENTS[unit]
         )
 
     def is_upgrade_missing(self, upgrade: UpgradeId) -> bool:
         return upgrade not in self.state.upgrades
 
     def get_missing_requirements(self, item: MacroId) -> Iterable[MacroId]:
-
         if item not in REQUIREMENTS_KEYS:
             return
 
@@ -713,15 +696,9 @@ class AIBase(BotAI):
 
         if self.is_unit_missing(trainer):
             yield trainer
-        if (
-                (required_building := info.get('required_building'))
-                and self.is_unit_missing(required_building)
-        ):
+        if (required_building := info.get("required_building")) and self.is_unit_missing(required_building):
             yield required_building
-        if (
-                (required_upgrade := info.get('required_upgrade'))
-                and self.is_upgrade_missing(required_upgrade)
-        ):
+        if (required_upgrade := info.get("required_upgrade")) and self.is_upgrade_missing(required_upgrade):
             yield required_upgrade
 
     def get_owned_geysers(self):
@@ -741,7 +718,7 @@ class AIBase(BotAI):
         if isinstance(order.target, Point2):
             if not isinstance(command.target, Point2):
                 return False
-            elif 1e-3 < order.target.distance_to(command.target):
+            elif 0.5 < order.target.distance_to(command.target):
                 return False
         elif isinstance(order.target, int):
             if not isinstance(command.target, Unit):
@@ -777,11 +754,7 @@ class AIBase(BotAI):
         workers = 0
         workers += sum((b.harvester_target for b in self.resource_manager.bases_taken))
         workers += 16 * self.count(UnitTypeId.HATCHERY, include_actual=False, include_planned=False)
-        workers += 3 * self.count(
-            GAS_BY_RACE[self.race],
-            include_actual=False,
-            include_planned=False
-        )
+        workers += 3 * self.count(GAS_BY_RACE[self.race], include_actual=False, include_planned=False)
         return workers
 
     def blocked_bases(self, position: Point2, margin: float = 0.0) -> Iterable[Base]:

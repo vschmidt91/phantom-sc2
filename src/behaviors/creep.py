@@ -1,35 +1,35 @@
 from __future__ import annotations
 
+import logging
 import math
 from typing import TYPE_CHECKING, Optional
-from scipy.ndimage import gaussian_filter
-from skimage.draw import circle_perimeter, line, disk
 
 import numpy as np
+from scipy.ndimage import gaussian_filter
+from skimage.draw import circle_perimeter, disk, line
+
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit, UnitCommand
-import logging
 
-from ..units.unit import AIUnit
-from ..modules.module import AIModule
 from ..constants import ENERGY_COST
+from ..modules.module import AIModule
+from ..units.unit import AIUnit
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 TUMOR_RANGE = 10
 
-class CreepBehavior(AIUnit):
 
+class CreepBehavior(AIUnit):
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
         self.creation_step = self.ai.state.game_loop
         self.bonus_radius = 0
 
     def spread_creep(self) -> Optional[UnitCommand]:
-
         if self.state.type_id == UnitTypeId.CREEPTUMORBURROWED:
             age = self.ai.state.game_loop - self.creation_step
             # if self.unit.is_ready:
@@ -51,19 +51,21 @@ class CreepBehavior(AIUnit):
             return self.ai.creep_value_map_blurred[t]
 
         origin = self.state.position.rounded
-        targets = circle_perimeter(*origin, TUMOR_RANGE + self.bonus_radius, shape=self.ai.game_info.map_size)
-        target = max(
-            (
-                t
-                for t in zip(*targets)
-                if 0 < self.ai.creep_value_map[t]
+        targets = np.stack(
+            circle_perimeter(
+                *origin,
+                TUMOR_RANGE + 1 + self.bonus_radius,
+                shape=self.ai.game_info.map_size,
             ),
-            key=target_value,
-            default=None
+            axis=-1,
         )
-        
+        target = max(
+            ((x, y) for (x, y) in targets if 0 < self.ai.creep_value_map[x, y]),
+            key=target_value,
+            default=None,
+        )
+
         if target:
-        
             if self.state.type_id == UnitTypeId.CREEPTUMORBURROWED:
                 target = origin.towards(Point2(target), TUMOR_RANGE).rounded
 
@@ -76,13 +78,13 @@ class CreepBehavior(AIUnit):
             return None
 
         # targets = targets.sort(target_value)
-        
+
         # paths = [
         #     list(zip(*line(*t, *origin)))
         #     for t in targets
         #     if self.ai.creep_target_map[t]
         # ]
-        
+
         # if self.unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
         #     paths = [
         #         p[-TUMOR_RANGE:]
@@ -102,7 +104,7 @@ class CreepBehavior(AIUnit):
         #     p[i]
         #     for p, i in zip(paths, target_indices)
         # ]
-            
+
         # target = max(targets, key=target_value, default=None)
 
         # if target:

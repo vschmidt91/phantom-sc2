@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit, UnitCommand
 
 from ..behaviors.changeling_scout import SpawnChangelingBehavior
-from ..behaviors.survive import SurviveBehavior
 from ..behaviors.overlord_drop import OverlordDropBehavior
+from ..behaviors.survive import SurviveBehavior
 from ..modules.combat import CombatBehavior
 from ..modules.dodge import DodgeBehavior
 from ..modules.macro import MacroBehavior
@@ -17,8 +17,15 @@ if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
-class Overlord(DodgeBehavior, MacroBehavior, SpawnChangelingBehavior, ScoutBehavior, SurviveBehavior, OverlordDropBehavior, CombatBehavior):
-
+class Overlord(
+    DodgeBehavior,
+    MacroBehavior,
+    SpawnChangelingBehavior,
+    ScoutBehavior,
+    SurviveBehavior,
+    OverlordDropBehavior,
+    CombatBehavior,
+):
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
 

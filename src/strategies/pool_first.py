@@ -7,15 +7,14 @@ import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
-from .zerg_macro import ZergMacro
 from ..modules.macro import MacroId
+from .zerg_macro import ZergMacro
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
 class PoolFirst(ZergMacro):
-
     def __init__(self, ai: AIBase):
         super().__init__(ai)
 
@@ -64,7 +63,6 @@ class PoolFirst(ZergMacro):
             return super().filter_upgrade(upgrade)
 
     def update_composition(self) -> None:
-
         queen_target = 1 + self.ai.townhalls.amount
         queen_target = np.clip(queen_target, 0, 8)
 

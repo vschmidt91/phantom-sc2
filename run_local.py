@@ -24,10 +24,17 @@ MAPS = [
     # 'InsideAndOutAIE',
     # 'HardwireAIE',
     # 'StargazersAIE',
-    'WaterfallAIE',
+    # 'WaterfallAIE',
     # 'GlitteringAshesAIE',
     # '2000AtmospheresAIE',
     # 'BlackburnAIE',
+    'AltitudeAIE',
+    # 'RoyalBloodAIE',
+    # 'NeoHumanityAIE',
+    # 'GresvanAIE',
+    # 'DragonScalesAIE',
+    # 'BabylonAIE',
+    # 'AncientCisternAIE',
 ]
 
 RACES = [
@@ -38,10 +45,10 @@ RACES = [
 ]
 
 BUILDS = [
-    # AIBuild.Rush,
+    AIBuild.Rush,
     # AIBuild.Timing,
     # AIBuild.Power,
-    AIBuild.Macro,
+    # AIBuild.Macro,
     # AIBuild.Air,
 ]
 
@@ -53,9 +60,9 @@ SEED = 123
 
 def create_bot():
 
-    ai = ZergAI(strategy_cls=DoubleRush)
+    ai = ZergAI(strategy_cls=HatchFirst)
     ai.debug = True
-    ai.game_step = 2
+    ai.game_step = 8
 
     # ai = Pool12AllIn()
 
@@ -66,7 +73,7 @@ def create_bot():
 
 def create_opponents(difficulty) -> Iterable[AbstractPlayer]:
 
-    # yield Bot(Race.Zerg, Pool12AllIn(), '12PoolBot')
+    yield Bot(Race.Zerg, Pool12AllIn(), '12PoolBot')
 
     for race in RACES:
         for build in BUILDS:

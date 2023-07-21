@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
-from dataclasses import dataclass
 
-import numpy as np
+from sc2.unit import AbilityId, Unit, UnitCommand, UnitTypeId
 
-from sc2.unit import Unit, UnitCommand, UnitTypeId, AbilityId, Point2
-
-from ..units.unit import AIUnit
-from ..modules.module import AIModule
 from ..constants import CHANGELINGS, COOLDOWN
+from ..units.unit import AIUnit
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -18,7 +14,6 @@ BILE_ABILITY = AbilityId.EFFECT_CORROSIVEBILE
 
 
 class BileBehavior(AIUnit):
-
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
         self.last_used = 0
@@ -40,7 +35,6 @@ class BileBehavior(AIUnit):
         return priority
 
     def bile(self) -> Optional[UnitCommand]:
-
         if self.state.type_id != UnitTypeId.RAVAGER:
             return None
 
@@ -49,8 +43,8 @@ class BileBehavior(AIUnit):
 
         target = max(
             self.ai.unit_manager.units_in_circle(self.state.position, 10),
-            key=lambda t:self.bile_priority(t),
-            default=None
+            key=lambda t: self.bile_priority(t),
+            default=None,
         )
 
         if not target:

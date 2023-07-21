@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Iterable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable
 
 from sc2.position import Point2
 
 
 class ResourceBase:
-
     def __init__(self, position: Point2):
         self.position = position
 
@@ -24,5 +23,5 @@ class ResourceBase:
     def __hash__(self) -> int:
         return hash(self.position)
 
-    def flatten(self) -> Iterable['ResourceBase']:
+    def flatten(self) -> Iterable["ResourceBase"]:
         yield self

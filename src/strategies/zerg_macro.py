@@ -1,22 +1,22 @@
 from __future__ import annotations
 
 import math
-from typing import Counter, TYPE_CHECKING
+from typing import TYPE_CHECKING, Counter
 
 import numpy as np
+
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
-from .strategy import Strategy
 from ..constants import ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES
 from ..unit_counters import UNIT_COUNTER_DICT
+from .strategy import Strategy
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
 class ZergMacro(Strategy):
-
     def __init__(self, ai: AIBase):
         super().__init__(ai)
         self.tech_up = False
@@ -25,7 +25,6 @@ class ZergMacro(Strategy):
         self.update_composition()
 
     def update_composition(self) -> None:
-
         worker_count = self.ai.state.score.food_used_economy
         worker_target = np.clip(self.ai.get_max_harvester(), 1, 100)
 
@@ -39,7 +38,7 @@ class ZergMacro(Strategy):
         # larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
         # queen_target = math.ceil(larva_rate / (3 / 29))
         # queen_target = min(queen_target, self.ai.townhalls.amount)
-        queen_target = 1 + self.ai.townhalls.amount
+        queen_target = self.ai.townhalls.amount
         queen_target = np.clip(queen_target, 0, 8)
         # print(queen_target)
 
@@ -57,10 +56,7 @@ class ZergMacro(Strategy):
             UnitTypeId.MUTALISK: 0.0,
         }
 
-        can_build = {
-            t: not any(self.ai.get_missing_requirements(t))
-            for t in composition
-        }
+        can_build = {t: not any(self.ai.get_missing_requirements(t)) for t in composition}
 
         enemy_counts = Counter[UnitTypeId](
             enemy.type_id
@@ -77,8 +73,9 @@ class ZergMacro(Strategy):
                 if counters := UNIT_COUNTER_DICT.get(enemy_type):
                     for counter in counters:
                         if can_build[counter]:
-                            composition[counter] += 2 * ratio * count * self.ai.get_unit_cost(
-                                enemy_type) / self.ai.get_unit_cost(counter)
+                            composition[counter] += (
+                                2 * ratio * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(counter)
+                            )
                             break
         else:
             composition[UnitTypeId.ZERGLING] = 1.0
@@ -101,22 +98,22 @@ class ZergMacro(Strategy):
             composition[UnitTypeId.OVERSEER] = 3
 
         if worker_count == worker_target:
-            banking = min(self.ai.minerals, self.ai.vespene) / 500
+            banking = min(self.ai.minerals, self.ai.vespene) / 50
             if 0 < hive_count:
                 composition[UnitTypeId.BROODLORD] += banking
                 composition[UnitTypeId.CORRUPTOR] += banking
+                composition[UnitTypeId.HYDRALISK] += banking
+                composition[UnitTypeId.ROACH] += banking
+                composition[UnitTypeId.ZERGLING] += banking
             elif 0 < lair_count:
                 composition[UnitTypeId.HYDRALISK] += banking
                 composition[UnitTypeId.ROACH] += banking
+                composition[UnitTypeId.ZERGLING] += banking
             else:
                 composition[UnitTypeId.ROACH] += banking
                 composition[UnitTypeId.ZERGLING] += banking
 
-        self.ai.macro.composition = {
-            k: math.floor(v)
-            for k, v in composition.items()
-            if 0 < v
-        }
+        self.ai.macro.composition = {k: math.floor(v) for k, v in composition.items() if 0 < v}
 
     def filter_upgrade(self, upgrade) -> bool:
         if not self.tech_up and upgrade != UpgradeId.ZERGLINGMOVEMENTSPEED:
