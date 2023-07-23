@@ -5,15 +5,10 @@ import pstats
 import random
 from functools import cmp_to_key
 from itertools import chain
-from typing import Iterable, Optional, Tuple, Type
+from typing import Iterable, Optional, Tuple, Type, TypeVar, List
 
 import numpy as np
 import skimage
-from scipy.ndimage import gaussian_filter
-from scipy.spatial import ConvexHull
-from skimage.draw import ellipse
-from skimage.segmentation import flood_fill
-
 from sc2.bot_ai import BotAI
 from sc2.constants import IS_DETECTOR
 from sc2.data import ActionResult, Race, Result, race_townhalls
@@ -23,32 +18,26 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit, UnitCommand, UnitOrder
+from scipy.ndimage import gaussian_filter
+from scipy.spatial import ConvexHull
+from skimage.draw import ellipse
+from skimage.segmentation import flood_fill
+
 from src.behaviors.overlord_drop import OverlordDropManager
-from src.bot_events import BotEvents, InitEvent, StartEvent, UnitCreatedEvent
+from src.bot_events import BotEvents, InitEvent, StartEvent
 
 from .behaviors.inject import InjectManager
-from .constants import (
-    GAS_BY_RACE,
-    LARVA_COST,
-    RANGE_UPGRADES,
-    REQUIREMENTS_KEYS,
-    RESEARCH_INFO,
-    TRAIN_INFO,
-    UNIT_TRAINED_FROM,
-    UPGRADE_RESEARCHED_FROM,
-    WITH_TECH_EQUIVALENTS,
-    WORKERS,
-    ZERG_ARMOR_UPGRADES,
-    ZERG_FLYER_ARMOR_UPGRADES,
-    ZERG_FLYER_UPGRADES,
-    ZERG_MELEE_UPGRADES,
-    ZERG_RANGED_UPGRADES,
-)
+from .constants import (GAS_BY_RACE, LARVA_COST, RANGE_UPGRADES,
+                        REQUIREMENTS_KEYS, RESEARCH_INFO, TRAIN_INFO,
+                        UNIT_TRAINED_FROM, UPGRADE_RESEARCHED_FROM,
+                        WITH_TECH_EQUIVALENTS, WORKERS, ZERG_ARMOR_UPGRADES,
+                        ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES,
+                        ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES)
 from .cost import Cost
 from .modules.chat import Chat
 from .modules.combat import CombatModule
 from .modules.dodge import DodgeModule
-from .modules.macro import MacroBehavior, MacroId, MacroModule, compare_plans
+from .modules.macro import MacroBehavior, MacroId, MacroModule, compare_plans, MacroPlan
 from .modules.scout import ScoutModule
 from .modules.unit_manager import UnitManager
 from .resources.base import Base
@@ -60,15 +49,19 @@ from .strategies.strategy import Strategy
 from .techtree import TechTree
 from .units.unit import AIUnit
 from .units.worker import Worker, WorkerManager
-from .utils import flood_fill_incremental, flood_fill_incremental_bool
+from .utils import flood_fill_incremental_bool
+
+T = TypeVar("T")
 
 
 class AIBase(BotAI):
-    def __init__(self, strategy_cls: Optional[Type[Strategy]] = None, version_path="version.txt"):
+    def __init__(
+        self, strategy_cls: Optional[Type[Strategy]] = None, version_path="version.txt"
+    ):
         self.events = BotEvents()
 
         self.raw_affects_selection = True
-        self.game_step: int = 4
+        self.game_step: int = 2
         self.unit_command_uses_self_do = True
 
         self.strategy_cls: Type[Strategy] = strategy_cls or HatchFirst
@@ -106,7 +99,9 @@ class AIBase(BotAI):
 
             plt.ion()
             self.figure = plt.figure()
-            self.figure_img = plt.imshow(self.game_info.pathing_grid.data_numpy.transpose())
+            self.figure_img = plt.imshow(
+                self.game_info.pathing_grid.data_numpy.transpose()
+            )
             plt.show()
 
         else:
@@ -216,7 +211,9 @@ class AIBase(BotAI):
         self.enemy_main = self.create_enemy_main_map()
 
         self.map_coordinates = [
-            (x, y) for x in range(self.game_info.map_size[0]) for y in range(self.game_info.map_size[1])
+            (x, y)
+            for x in range(self.game_info.map_size[0])
+            for y in range(self.game_info.map_size[1])
         ]
 
         self.defense_map = np.zeros(self.game_info.map_size, dtype=bool)
@@ -231,8 +228,8 @@ class AIBase(BotAI):
         self.dodge = DodgeModule(self)
         self.inject = InjectManager(self)
         self.drops = OverlordDropManager(self)
-        self.strategy: Strategy = self.strategy_cls(self)
-        self.worker_manager: WorkerManager = WorkerManager(self)
+        self.strategy = self.strategy_cls(self)
+        self.worker_manager = WorkerManager(self)
 
         for step in self.strategy.build_order():
             plan = self.macro.add_plan(step)
@@ -255,7 +252,10 @@ class AIBase(BotAI):
         for detector_type in IS_DETECTOR:
             for detector in self.unit_manager.actual_by_type[detector_type]:
                 distance = detector.state.position.distance_to(unit.position)
-                if distance <= detector.state.radius + detector.state.detect_range + unit.radius:
+                if (
+                    distance
+                    <= detector.state.radius + detector.state.detect_range + unit.radius
+                ):
                     yield detector
 
     def can_attack(self, unit: Unit, target: Unit) -> bool:
@@ -297,7 +297,15 @@ class AIBase(BotAI):
         else:
             candidates = [behavior]
         actual_behavior = next(
-            (b for b in candidates if (isinstance(b, MacroBehavior) and b.plan and b.macro_ability == action.exact_id)),
+            (
+                b
+                for b in candidates
+                if (
+                    isinstance(b, MacroBehavior)
+                    and b.plan
+                    and b.macro_ability == action.exact_id
+                )
+            ),
             None,
         )
 
@@ -331,6 +339,9 @@ class AIBase(BotAI):
 
     async def on_step(self, iteration: int):
         if iteration == 0 and self.debug:
+            # await self.client.debug_create_unit([
+            #     [UnitTypeId.QUEEN, 8, self.start_location.towards(self.game_info.map_center, 8), 1],
+            # ])
             return
 
         self.iteration = iteration
@@ -355,7 +366,9 @@ class AIBase(BotAI):
             else:
                 yield p
 
-        defense_points = np.array([p for s in self.structures for p in defense_points_of_structure(s)])
+        defense_points = np.array(
+            [p for s in self.structures for p in defense_points_of_structure(s)]
+        )
         defense_region = ConvexHull(defense_points)
         vertices = defense_region.points[defense_region.vertices]
         defense_mask = skimage.draw.polygon2mask(
@@ -371,10 +384,19 @@ class AIBase(BotAI):
         ).transpose()
 
         self.creep_value_map = (
-            np.where(self.state.creep.data_numpy.T == 0, 1.0, 0.0)
+            np.where(self.state.creep.data_numpy.T == 0, 1.0, 0.1)
             * np.where(self.game_info.pathing_grid.data_numpy.T == 1, 1.0, 0.0)
             * np.where(self.defense_map, 3.0, 1.0)
         )
+
+        # for creep_producer in self.unit_manager.all(CreepBehavior):
+        #     x, y = ellipse(
+        #         *creep_producer.state.position,
+        #         r_radius=10,
+        #         c_radius=10,
+        #         shape=self.creep_value_map.shape,
+        #     )
+        #     self.creep_value_map[x, y] = 0.0
 
         base_radius = self.techtree.units[UnitTypeId.HATCHERY].radius
         for base in self.resource_manager.bases:
@@ -433,12 +455,14 @@ class AIBase(BotAI):
         if self.debug:
             # if 90 < self.time:
             #     await self.kill_random_units()
-            worker_count = sum(1 for b in self.unit_manager.units.values() if isinstance(b, Worker))
+            worker_count = sum(
+                1 for b in self.unit_manager.units.values() if isinstance(b, Worker)
+            )
             if worker_count != self.supply_workers:
                 logging.error("worker supply mismatch")
 
     async def on_building_construction_started(self, unit: Unit):
-        self.on_building_construction_started(UnitCreatedEvent(unit))
+        # await self.on_building_construction_started(UnitCreatedEvent(unit))
         logging.debug("building_construction_started: %s", unit)
 
         behavior = self.unit_manager.add_unit(unit)
@@ -454,16 +478,26 @@ class AIBase(BotAI):
                 pass
             else:
                 geyser = self.resource_manager.resource_by_position.get(unit.position)
-                geyser_tag = geyser.unit.tag if isinstance(geyser, VespeneGeyser) and geyser.unit else None
+                geyser_tag = (
+                    geyser.unit.tag
+                    if isinstance(geyser, VespeneGeyser) and geyser.unit
+                    else None
+                )
                 for trainer_type in UNIT_TRAINED_FROM.get(unit.type_id, []):
                     for trainer in self.unit_manager.actual_by_type[trainer_type]:
                         if trainer.state.position.distance_to(unit.position) < 0.5:
-                            if behavior := self.unit_manager.units.get(trainer.state.tag):
+                            if behavior := self.unit_manager.units.get(
+                                trainer.state.tag
+                            ):
                                 if isinstance(behavior, MacroBehavior):
                                     behavior.plan = None
                             assert self.unit_manager.try_remove_unit(trainer.state.tag)
                             break
-                        elif not trainer.state.is_idle and trainer.state.order_target in {unit.position, geyser_tag}:
+                        elif (
+                            not trainer.state.is_idle
+                            and trainer.state.order_target
+                            in {unit.position, geyser_tag}
+                        ):
                             assert self.unit_manager.try_remove_unit(trainer.state.tag)
                             break
                     else:
@@ -509,10 +543,10 @@ class AIBase(BotAI):
 
         count = 0
         if include_actual:
-            if item in WORKERS:
-                count += self.state.score.food_used_economy
-            else:
-                count += len(self.unit_manager.actual_by_type[item])
+            # if item in WORKERS:
+            #     count += self.state.score.food_used_economy
+            # else:
+            count += len(self.unit_manager.actual_by_type[item])
         if include_pending:
             count += factor * len(self.unit_manager.pending_by_type[item])
         if include_planned:
@@ -525,7 +559,9 @@ class AIBase(BotAI):
 
         bases = []
         for position, resources in self.expansion_locations_dict.items():
-            if position not in start_bases and not await self.can_place_single(UnitTypeId.HATCHERY, position):
+            if position not in start_bases and not await self.can_place_single(
+                UnitTypeId.HATCHERY, position
+            ):
                 continue
             base = Base(
                 position,
@@ -536,7 +572,8 @@ class AIBase(BotAI):
 
         bases = sorted(
             bases,
-            key=lambda b: self.distance_ground[b.position.rounded] + self.distance_air[b.position.rounded],
+            key=lambda b: self.distance_ground[b.position.rounded]
+            + self.distance_air[b.position.rounded],
         )
 
         return bases
@@ -565,9 +602,7 @@ class AIBase(BotAI):
 
         is_border = np.transpose(self.game_info.pathing_grid.data_numpy) == 0
         origins = {
-            p.rounded
-            for th in self.townhalls
-            for p in self.enumerate_positions(th)
+            p.rounded for th in self.townhalls for p in self.enumerate_positions(th)
         }
         distance_ground = flood_fill_incremental_bool(
             is_border,
@@ -602,8 +637,12 @@ class AIBase(BotAI):
         font_color = (255, 255, 255)
         font_size = 12
 
-        plans = []
-        plans.extend(b.plan for b in self.unit_manager.units.values() if isinstance(b, MacroBehavior) and b.plan)
+        plans: List[MacroPlan] = []
+        plans.extend(
+            b.plan
+            for b in self.unit_manager.units.values()
+            if isinstance(b, MacroBehavior) and b.plan
+        )
         plans.extend(self.macro.unassigned_plans)
         plans.sort(key=cmp_to_key(compare_plans), reverse=True)
 
@@ -634,7 +673,9 @@ class AIBase(BotAI):
             text = f"{str(i + 1)} {target.item.name}"
 
             for position in positions:
-                self.client.debug_text_world(text, position, color=font_color, size=font_size)
+                self.client.debug_text_world(
+                    text, position, color=font_color, size=font_size
+                )
 
             if len(positions) == 2:
                 position_from, position_to = positions
@@ -648,9 +689,13 @@ class AIBase(BotAI):
             pos = enemy.position
             position = Point3((*pos, self.get_terrain_z_height(pos)))
             text = f"{enemy.name}"
-            self.client.debug_text_world(text, position, color=font_color, size=font_size)
+            self.client.debug_text_world(
+                text, position, color=font_color, size=font_size
+            )
 
-        self.client.debug_text_screen(f"Confidence: {round(100 * self.combat.confidence)}%", (0.01, 0.01))
+        self.client.debug_text_screen(
+            f"Confidence: {round(100 * self.combat.confidence)}%", (0.01, 0.01)
+        )
         self.client.debug_text_screen(
             f"Gas Target: {round(self.resource_manager.get_gas_target(), 3)}",
             (0.01, 0.03),
@@ -676,7 +721,8 @@ class AIBase(BotAI):
         }:
             return False
         return all(
-            self.count(e, include_pending=False, include_planned=False) == 0 for e in WITH_TECH_EQUIVALENTS[unit]
+            self.count(e, include_pending=False, include_planned=False) == 0
+            for e in WITH_TECH_EQUIVALENTS[unit]
         )
 
     def is_upgrade_missing(self, upgrade: UpgradeId) -> bool:
@@ -696,9 +742,13 @@ class AIBase(BotAI):
 
         if self.is_unit_missing(trainer):
             yield trainer
-        if (required_building := info.get("required_building")) and self.is_unit_missing(required_building):
+        if (
+            required_building := info.get("required_building")
+        ) and self.is_unit_missing(required_building):
             yield required_building
-        if (required_upgrade := info.get("required_upgrade")) and self.is_upgrade_missing(required_upgrade):
+        if (
+            required_upgrade := info.get("required_upgrade")
+        ) and self.is_upgrade_missing(required_upgrade):
             yield required_upgrade
 
     def get_owned_geysers(self):
@@ -727,7 +777,9 @@ class AIBase(BotAI):
                 return False
         return True
 
-    def get_unit_range(self, unit: Unit, ground: bool = True, air: bool = True) -> float:
+    def get_unit_range(
+        self, unit: Unit, ground: bool = True, air: bool = True
+    ) -> float:
         unit_range = 0.0
         if ground:
             unit_range = max(unit_range, unit.ground_range)
@@ -753,8 +805,12 @@ class AIBase(BotAI):
     def get_max_harvester(self) -> int:
         workers = 0
         workers += sum((b.harvester_target for b in self.resource_manager.bases_taken))
-        workers += 16 * self.count(UnitTypeId.HATCHERY, include_actual=False, include_planned=False)
-        workers += 3 * self.count(GAS_BY_RACE[self.race], include_actual=False, include_planned=False)
+        workers += 16 * self.count(
+            UnitTypeId.HATCHERY, include_actual=False, include_planned=False
+        )
+        workers += 3 * self.count(
+            GAS_BY_RACE[self.race], include_actual=False, include_planned=False
+        )
         return workers
 
     def blocked_bases(self, position: Point2, margin: float = 0.0) -> Iterable[Base]:

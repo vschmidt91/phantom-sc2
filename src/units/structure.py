@@ -3,9 +3,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.buff_id import BuffId
 from sc2.unit import Unit, UnitCommand
+
 from src.units.unit import UnitChangedEvent
 
+from ..behaviors.inject import InjectReciever
 from ..modules.macro import MacroBehavior
 
 if TYPE_CHECKING:
@@ -27,6 +30,17 @@ class Structure(MacroBehavior):
     def cancel_if_under_threat(self, event: UnitChangedEvent):
         if self.state.health_percentage < 0.1:
             self.cancel = True
+
+
+class Hatchery(Structure, InjectReciever):
+    def wants_inject(self) -> bool:
+        if not self.state.is_ready:
+            return False
+        # if BuffId.QUEENSPAWNLARVATIMER in self.state.buffs:
+        #     return False
+        if 20 < self.ai.larva.amount:
+            return False
+        return True
 
 
 class Larva(Structure):

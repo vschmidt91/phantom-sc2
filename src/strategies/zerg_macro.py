@@ -4,7 +4,6 @@ import math
 from typing import TYPE_CHECKING, Counter
 
 import numpy as np
-
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
@@ -56,7 +55,9 @@ class ZergMacro(Strategy):
             UnitTypeId.MUTALISK: 0.0,
         }
 
-        can_build = {t: not any(self.ai.get_missing_requirements(t)) for t in composition}
+        can_build = {
+            t: not any(self.ai.get_missing_requirements(t)) for t in composition
+        }
 
         enemy_counts = Counter[UnitTypeId](
             enemy.type_id
@@ -65,8 +66,12 @@ class ZergMacro(Strategy):
         )
 
         self.tech_up = 40 <= worker_count and 3 <= self.ai.townhalls.amount
-        lair_count = self.ai.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
-        hive_count = self.ai.count(UnitTypeId.HIVE, include_pending=True, include_planned=False)
+        lair_count = self.ai.count(
+            UnitTypeId.LAIR, include_pending=False, include_planned=False
+        )
+        hive_count = self.ai.count(
+            UnitTypeId.HIVE, include_pending=True, include_planned=False
+        )
 
         if any(enemy_counts):
             for enemy_type, count in enemy_counts.items():
@@ -74,7 +79,11 @@ class ZergMacro(Strategy):
                     for counter in counters:
                         if can_build[counter]:
                             composition[counter] += (
-                                2 * ratio * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(counter)
+                                2
+                                * ratio
+                                * count
+                                * self.ai.get_unit_cost(enemy_type)
+                                / self.ai.get_unit_cost(counter)
                             )
                             break
         else:
@@ -98,32 +107,41 @@ class ZergMacro(Strategy):
             composition[UnitTypeId.OVERSEER] = 3
 
         if worker_count == worker_target:
-            banking = min(self.ai.minerals, self.ai.vespene) / 50
+            banking = min(self.ai.minerals, self.ai.vespene) / 100
+            banking_minerals = self.ai.minerals / 100
             if 0 < hive_count:
                 composition[UnitTypeId.BROODLORD] += banking
                 composition[UnitTypeId.CORRUPTOR] += banking
                 composition[UnitTypeId.HYDRALISK] += banking
                 composition[UnitTypeId.ROACH] += banking
-                composition[UnitTypeId.ZERGLING] += banking
+                composition[UnitTypeId.ZERGLING] += banking_minerals
             elif 0 < lair_count:
                 composition[UnitTypeId.HYDRALISK] += banking
                 composition[UnitTypeId.ROACH] += banking
-                composition[UnitTypeId.ZERGLING] += banking
+                composition[UnitTypeId.ZERGLING] += banking_minerals
             else:
                 composition[UnitTypeId.ROACH] += banking
-                composition[UnitTypeId.ZERGLING] += banking
+                composition[UnitTypeId.ZERGLING] += banking_minerals
 
-        self.ai.macro.composition = {k: math.floor(v) for k, v in composition.items() if 0 < v}
+        self.ai.macro.composition = {
+            k: math.floor(v) for k, v in composition.items() if 0 < v
+        }
 
     def filter_upgrade(self, upgrade) -> bool:
         if not self.tech_up and upgrade != UpgradeId.ZERGLINGMOVEMENTSPEED:
             return False
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
-            return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False)
+            return 0 < self.ai.count(
+                UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False
+            )
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
-            return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False)
+            return 0 < self.ai.count(
+                UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False
+            )
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL3:
-            return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False)
+            return 0 < self.ai.count(
+                UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False
+            )
         elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
             return 0 < self.ai.count(UnitTypeId.GREATERSPIRE, include_planned=False)
         elif upgrade == UpgradeId.OVERLORDSPEED:

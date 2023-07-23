@@ -1,18 +1,61 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional
 
-from sc2.ids.buff_id import BuffId
+from sc2.ids.ability_id import AbilityId
+from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 
-from ..constants import *
+# from ..constants import *
 from ..modules.module import AIModule
-from ..resources.base import Base
 from ..units.unit import AIUnit
-from ..utils import *
+
+# from ..utils import *
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
+
+
+class InjectProvider(AIUnit, ABC):
+    def __init__(self, ai: AIBase, state: Unit):
+        super().__init__(ai, state)
+        self.inject_target: Optional["InjectReciever"] = None
+
+    @abstractmethod
+    def can_inject(self) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_inject_ability(self, reciever: "InjectReciever") -> AbilityId:
+        raise NotImplementedError
+
+    def inject(self) -> Optional[UnitCommand]:
+        if self.inject_target is None:
+            return None
+        if self.inject_target.is_snapshot:
+            self.inject_target = None
+            return None
+        if not self.inject_target.wants_inject():
+            self.inject_target = None
+            return None
+        if not self.can_inject():
+            target = self.inject_target.state.position.towards(
+                self.ai.game_info.map_center,
+                self.state.radius + self.inject_target.state.radius,
+            )
+            if 8 < self.state.position.distance_to(target):
+                return self.state(AbilityId.MOVE, target)
+            else:
+                return None
+        ability = self.get_inject_ability(self.inject_target)
+        return self.state(ability, self.inject_target.state)
+
+
+class InjectReciever(AIUnit, ABC):
+    @abstractmethod
+    def wants_inject(self) -> bool:
+        raise NotImplementedError
 
 
 class InjectManager(AIModule):
@@ -20,52 +63,89 @@ class InjectManager(AIModule):
         super().__init__(ai)
 
     async def on_step(self) -> None:
-        self.assign_queen()
+        self.assign_injects()
 
-    def assign_queen(self) -> None:
-        queens = [behavior for behavior in self.ai.unit_manager.units.values() if isinstance(behavior, InjectBehavior)]
-        injected_bases = {q.inject_base for q in queens}
+    def assign_injects(self) -> None:
+        providers = {
+            provider
+            for provider in self.ai.unit_manager.all(InjectProvider)
+            if provider.can_inject() and not provider.inject_target
+        }
+        recievers_provided = {
+            provider.inject_target.state.tag
+            for provider in self.ai.unit_manager.all(InjectProvider)
+            if provider.inject_target
+        }
+        recievers = {
+            reciever
+            for reciever in self.ai.unit_manager.all(InjectReciever)
+            if reciever.wants_inject() and reciever.state.tag not in recievers_provided
+        }
+        while any(providers) and any(recievers):
+            provider = max(providers, key=lambda p: p.state.energy)
 
-        queen = next((queen for queen in queens if not queen.inject_base), None)
-        if queen:
-            pos = queen.state.position
-            queen.inject_base = min(
-                (
-                    base
-                    for base in self.ai.resource_manager.bases
-                    if (
-                        base.townhall
-                        and base not in injected_bases
-                        and BuffId.QUEENSPAWNLARVATIMER not in base.townhall.state.buffs
-                    )
-                ),
-                key=lambda b: b.position.distance_to(pos),
-                default=None,
+            reciever = min(
+                recievers,
+                key=lambda r: r.state.position.distance_to(provider.state.position),
             )
 
+            providers.remove(provider)
+            recievers.remove(reciever)
 
-class InjectBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
-        super().__init__(ai, unit)
-        self.inject_base: Optional[Base] = None
+            provider.inject_target = reciever
 
-    def inject(self) -> Optional[UnitCommand]:
-        if not self.inject_base:
-            return None
+    # def assign_queen(self) -> None:
+    #     injectors = [
+    #         unit
+    #         for unit in self.ai.unit_manager.units.values()
+    #         if isinstance(unit, InjectBehavior)
+    #     ]
+    #     injected_bases = {q.inject_target for q in injectors}
 
-        if not self.inject_base.townhall:
-            self.inject_base = None
-            return None
+    #     if not (injector := next((queen for queen in injectors if not queen.inject_target), None)):
+    #         return
 
-        target = self.inject_base.position.towards(
-            self.inject_base.mineral_patches.position,
-            -(self.inject_base.townhall.state.radius + self.state.radius),
-        )
-        if 10 < self.state.position.distance_to(target):
-            return self.state.move(target)
-        elif self.inject_base.townhall.state.has_buff(BuffId.QUEENSPAWNLARVATIMER):
-            return None
-        elif ENERGY_COST[AbilityId.EFFECT_INJECTLARVA] <= self.state.energy:
-            return self.state(AbilityId.EFFECT_INJECTLARVA, target=self.inject_base.townhall.state)
+    #     def base_priority(base: Base) -> float:
+    #         return injector.state.position.distance_to(base.position)
 
-        return None
+    #     bases: Iterable[Base] = (
+    #         base
+    #         for base in self.ai.resource_manager.bases
+    #         if (
+    #             base.townhall
+    #             and base not in injected_bases
+    #             and BuffId.QUEENSPAWNLARVATIMER not in base.townhall.state.buffs
+    #         )
+    #     )
+    #     injector.inject_target = min(
+    #         bases,
+    #         key=base_priority,
+    #         default=None,
+    #     )
+
+
+# class InjectBehavior(AIUnit):
+#     def __init__(self, ai: AIBase, unit: Unit):
+#         super().__init__(ai, unit)
+#         self.inject_target: Optional[Base] = None
+
+#     def inject(self) -> Optional[UnitCommand]:
+#         if not self.inject_target:
+#             return None
+
+#         if not self.inject_target.townhall:
+#             self.inject_target = None
+#             return None
+
+#         target = self.inject_target.position.towards(
+#             self.inject_target.mineral_patches.position,
+#             -(self.inject_target.townhall.state.radius + self.state.radius),
+#         )
+#         if 10 < self.state.position.distance_to(target):
+#             return self.state.move(target)
+#         elif self.inject_target.townhall.state.has_buff(BuffId.QUEENSPAWNLARVATIMER):
+#             return None
+#         elif ENERGY_COST[AbilityId.EFFECT_INJECTLARVA] <= self.state.energy:
+#             return self.state(AbilityId.EFFECT_INJECTLARVA, target=self.inject_target.townhall.state)
+
+#         return None

@@ -28,9 +28,9 @@ MAPS = [
     # 'GlitteringAshesAIE',
     # '2000AtmospheresAIE',
     # 'BlackburnAIE',
-    'AltitudeAIE',
+    # 'AltitudeAIE',
     # 'RoyalBloodAIE',
-    # 'NeoHumanityAIE',
+    'NeoHumanityAIE',
     # 'GresvanAIE',
     # 'DragonScalesAIE',
     # 'BabylonAIE',
@@ -38,9 +38,9 @@ MAPS = [
 ]
 
 RACES = [
-    Race.Protoss,
+    # Race.Protoss,
     # Race.Terran,
-    # Race.Zerg,
+    Race.Zerg,
     # Race.Random,
 ]
 
@@ -73,7 +73,7 @@ def create_bot():
 
 def create_opponents(difficulty) -> Iterable[AbstractPlayer]:
 
-    yield Bot(Race.Zerg, Pool12AllIn(), '12PoolBot')
+    # yield Bot(Race.Zerg, Pool12AllIn(), '12PoolBot')
 
     for race in RACES:
         for build in BUILDS:
