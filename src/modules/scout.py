@@ -1,22 +1,19 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 from sc2.position import Point2
-from sc2.unit import Unit
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit_command import UnitCommand
 
 import numpy as np
 
-from ..units.unit import AIUnit
+from ..units.unit import AIUnit, Behavior
 from .module import AIModule
-
-if TYPE_CHECKING:
-    from ..ai_base import AIBase
 
 
 class ScoutModule(AIModule):
-    def __init__(self, ai: AIBase) -> None:
+    def __init__(self, ai: "AIBase") -> None:
         super().__init__(ai)
 
         self.scout_enemy_natural: bool = False
@@ -56,14 +53,10 @@ class ScoutModule(AIModule):
             scout.scout_position = unscouted_target
 
     async def on_step(self) -> None:
-        scouts = [
-            behavior
-            for behavior in self.ai.unit_manager.units.values()
-            if isinstance(behavior, ScoutBehavior)
-        ]
-        detectors = [behavior for behavior in scouts if behavior.state.is_detector]
+        scouts = list(self.ai.unit_manager.behavior_of_type(ScoutBehavior))
+        detectors = [behavior for behavior in scouts if behavior.unit.state.is_detector]
         nondetectors = [
-            behavior for behavior in scouts if not behavior.state.is_detector
+            behavior for behavior in scouts if not behavior.unit.state.is_detector
         ]
         scout_targets = []
         if self.scout_enemy_natural and self.ai.time < 3 * 60:
@@ -76,28 +69,32 @@ class ScoutModule(AIModule):
         self.send_units(nondetectors, scout_targets)
 
 
-class ScoutBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
-        super().__init__(ai, unit)
+class ScoutBehavior(Behavior):
+    def __init__(self, unit: AIUnit):
+        super().__init__(unit)
         self.scout_position: Optional[Point2] = None
 
     def scout(self) -> Optional[UnitCommand]:
+        if self.unit.state.type_id == UnitTypeId.OVERSEER:
+            return None
         if self.scout_position:
-            max_distance = self.state.radius + self.state.sight_range
+            max_distance = self.unit.state.radius + self.unit.state.sight_range
             # max_distance = 1.0
-            if self.scout_position.distance_to(self.state) < max_distance:
-                return self.state.hold_position()
+            if self.scout_position.distance_to(self.unit.state) < max_distance:
+                return self.unit.state.hold_position()
             else:
-                return self.state.move(self.scout_position)
-        elif self.state.is_idle:
-            target = self.state.position
-            target = target.towards(self.ai.game_info.map_center, 3.0 * self.state.movement_speed)
-            target = np.random.normal(loc=target, scale=self.state.sight_range)
+                return self.unit.state.move(self.scout_position)
+        elif self.unit.state.is_idle:
+            target = self.unit.state.position
+            target = target.towards(
+                self.ai.game_info.map_center, 1.0 * self.unit.state.movement_speed
+            )
+            target = np.random.normal(loc=target, scale=self.unit.state.sight_range)
             target = np.clip(target, 0, np.subtract(self.ai.game_info.map_size, 1))
             target_point = Point2(target)
             if (
                 not self.ai.is_visible(target_point)
                 and self.ai.combat.air_dps[target_point.rounded] < 1
             ):
-                return self.state.move(target_point)
+                return self.unit.state.move(target_point)
         return None

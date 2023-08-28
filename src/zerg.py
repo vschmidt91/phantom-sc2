@@ -63,7 +63,7 @@ class ZergAI(AIBase):
         supply_pending = sum(
             provided
             for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
-            for unit in self.unit_manager.pending_by_type[unit_type]
+            for unit in self.unit_manager.pending_by_type(unit_type)
         )
         supply_planned = sum(
             provided

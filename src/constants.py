@@ -1,8 +1,11 @@
 from itertools import chain
-from typing import Dict
+from typing import Dict, List
 
-from sc2.constants import (EQUIVALENTS_FOR_TECH_PROGRESS, SPEED_INCREASE_DICT,
-                           SPEED_UPGRADE_DICT)
+from sc2.constants import (
+    EQUIVALENTS_FOR_TECH_PROGRESS,
+    SPEED_INCREASE_DICT,
+    SPEED_UPGRADE_DICT,
+)
 from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
@@ -166,10 +169,10 @@ UPGRADE_BY_RESEARCH_ABILITY: Dict[AbilityId, UpgradeId] = {
 
 ITEM_BY_ABILITY = {**UNIT_BY_TRAIN_ABILITY, **UPGRADE_BY_RESEARCH_ABILITY}
 
-GAS_BY_RACE: Dict[Race, UnitTypeId] = {
-    Race.Zerg: UnitTypeId.EXTRACTOR,
-    Race.Protoss: UnitTypeId.ASSIMILATOR,
-    Race.Terran: UnitTypeId.REFINERY,
+GAS_BY_RACE: Dict[Race, List[UnitTypeId]] = {
+    Race.Zerg: [UnitTypeId.EXTRACTOR, UnitTypeId.EXTRACTORRICH],
+    Race.Protoss: [UnitTypeId.ASSIMILATOR, UnitTypeId.ASSIMILATORRICH],
+    Race.Terran: [UnitTypeId.REFINERY, UnitTypeId.REFINERYRICH],
 }
 
 REQUIREMENTS_EXCLUDE = {

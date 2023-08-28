@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
-from sc2.unit import Unit, UnitCommand
+from sc2.unit import UnitCommand
 
+from .unit import AIUnit
 from ..behaviors.extractor_trick import ExtractorTrickBehavior
-
-if TYPE_CHECKING:
-    from ..ai_base import AIBase
 
 
 class Extractor(ExtractorTrickBehavior):
-    def __init__(self, ai: AIBase, unit: Unit):
-        super().__init__(ai, unit)
+    def __init__(self, unit: AIUnit) -> None:
+        super().__init__(unit)
 
     def get_command(self) -> Optional[UnitCommand]:
         return self.do_extractor_trick()

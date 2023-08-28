@@ -1,32 +1,39 @@
 from __future__ import annotations
 
 import logging
-from collections import defaultdict
 from dataclasses import dataclass
 from itertools import chain
 import itertools
-from typing import (TYPE_CHECKING, DefaultDict, Dict, Iterable, List, Optional,
-                    Type, TypeVar)
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+)
 
 import numpy as np
 import skimage.draw
 from sc2.data import race_townhalls
-from sc2.ids.ability_id import AbilityId
+from sc2.ids.upgrade_id import UpgradeId
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
-from sc2.unit import Unit, UnitTypeId
+from sc2.unit import Unit
 from scipy.spatial import cKDTree
 
 from src.units.unit import UnitChangedEvent
 
-from ..constants import CHANGELINGS, ITEM_BY_ABILITY, WORKERS
+from ..constants import ITEM_BY_ABILITY
 from ..units.army import Army
-from ..units.changeling import Changeling
 from ..units.creep_tumor import CreepTumor
 from ..units.extractor import Extractor
 from ..units.overlord import Overlord
 from ..units.queen import Queen
 from ..units.structure import Hatchery, Larva, Structure
-from ..units.unit import AIUnit, IdleBehavior
+from ..units.unit import AIUnit, Behavior
 from ..units.worker import Worker
 from .macro import MacroId
 from .module import AIModule
@@ -49,125 +56,117 @@ IGNORED_UNIT_TYPES = {
 # ])
 T = TypeVar("T")
 
+
 @dataclass
 class PendingEntry:
     item: MacroId
     trainer: AIUnit
 
 
+BehaviorTable = Dict[UnitTypeId, Any]
+
+DEFAULT_BEHAVIORS: BehaviorTable = {
+    UnitTypeId.EXTRACTOR: Extractor,
+    UnitTypeId.EXTRACTORRICH: Extractor,
+    UnitTypeId.CREEPTUMOR: CreepTumor,
+    UnitTypeId.CREEPTUMORBURROWED: CreepTumor,
+    UnitTypeId.CREEPTUMORQUEEN: CreepTumor,
+    UnitTypeId.LARVA: Larva,
+    UnitTypeId.HATCHERY: Hatchery,
+    UnitTypeId.LAIR: Hatchery,
+    UnitTypeId.HIVE: Hatchery,
+    UnitTypeId.OVERLORD: Overlord,
+    UnitTypeId.QUEEN: Queen,
+    UnitTypeId.OVERSEER: Army,
+    UnitTypeId.ZERGLING: Army,
+    UnitTypeId.ZERGLINGBURROWED: Army,
+    UnitTypeId.ROACH: Army,
+    UnitTypeId.ROACHBURROWED: Army,
+    UnitTypeId.HYDRALISK: Army,
+    UnitTypeId.HYDRALISKBURROWED: Army,
+    UnitTypeId.ULTRALISK: Army,
+    UnitTypeId.ULTRALISKBURROWED: Army,
+    UnitTypeId.MUTALISK: Army,
+    UnitTypeId.CORRUPTOR: Army,
+    UnitTypeId.BROODLORD: Army,
+    UnitTypeId.DRONE: Worker,
+    UnitTypeId.DRONEBURROWED: Worker,
+    UnitTypeId.SCV: Worker,
+    UnitTypeId.MULE: Worker,
+    UnitTypeId.PROBE: Worker,
+    UnitTypeId.SPAWNINGPOOL: Structure,
+    UnitTypeId.ROACHWARREN: Structure,
+    UnitTypeId.HYDRALISKDEN: Structure,
+    UnitTypeId.LURKERDEN: Structure,
+    UnitTypeId.ULTRALISKCAVERN: Structure,
+    UnitTypeId.EVOLUTIONCHAMBER: Structure,
+    UnitTypeId.SPINECRAWLER: Structure,
+    UnitTypeId.SPINECRAWLERUPROOTED: Structure,
+    UnitTypeId.SPORECRAWLER: Structure,
+    UnitTypeId.SPORECRAWLERUPROOTED: Structure,
+}
+
+
 class UnitManager(AIModule):
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
-
+        self.behavior_table: BehaviorTable = DEFAULT_BEHAVIORS
         self.unit_by_tag: Dict[int, Unit] = dict()
 
         self.units: Dict[int, AIUnit] = dict()
         self.enemies: Dict[int, Unit] = dict()
 
-        self.actual_by_type: DefaultDict[MacroId, List[AIUnit]] = defaultdict(list)
-        self.pending_by_type: DefaultDict[MacroId, List[AIUnit]] = defaultdict(list)
-
     @property
     def townhalls(self) -> Iterable[Structure]:
         return (
             townhall
-            for townhall_type in race_townhalls[self.ai.race]
-            for townhall in self.actual_by_type[townhall_type]
-            if isinstance(townhall, Structure)
+            for townhall in self.behavior_of_type(Structure)
+            if townhall.unit.state.type_id in race_townhalls[self.ai.race]
         )
 
-    def update_tables(self):
-
-        # self.actual_by_type.clear()
-        # self.pending_by_type.clear()
-
-        # for behavior in self.units.values():
-        #     self.add_unit_to_tables(behavior)
-
-        all_units = sorted(
-            self.units.values(),
-            key=lambda u: u.state.type_id.value
-        )
-
-        all_by_type = {
-            key: list(values)
-            for key, values in itertools.groupby(
-                all_units,
-                key=lambda u: u.state.type_id
-            )
-        }
-
-        actual_by_type = {
-            key: [
+    def actual_by_type(self, type_id: MacroId) -> List[AIUnit]:
+        if isinstance(type_id, UnitTypeId):
+            return [
                 unit
-                for unit in values
-                if unit.state.is_ready
+                for unit in self.units.values()
+                if (unit.state.type_id == type_id and unit.state.is_ready)
             ]
-            for key, values in all_by_type.items()
-        }
-        actual_by_type.update({
-            upgrade: [None]
-            for upgrade in self.ai.state.upgrades
-        })
-        self.actual_by_type = defaultdict(list, actual_by_type)
+        elif isinstance(type_id, UpgradeId):
+            if type_id in self.ai.state.upgrades:
+                return [None]
+            else:
+                return []
+        else:
+            return []
 
-        pending_entries = sorted(
+    def pending_by_type(self, type_id: MacroId) -> List[AIUnit]:
+        return list(
             itertools.chain(
                 (
-                    PendingEntry(unit.state.type_id, unit)
-                    for unit in all_units
-                    if not unit.state.is_ready
+                    unit
+                    for unit in self.units.values()
+                    if (unit.state.type_id == type_id and not unit.state.is_ready)
                 ),
                 (
-                    PendingEntry(item, unit)
-                    for unit in all_units
+                    unit
+                    for unit in self.units.values()
                     for order in unit.state.orders
-                    if (item := ITEM_BY_ABILITY.get(order.ability.exact_id)) is not None
-                )
-            ),
-            key=lambda e: e.item.value,
+                    if ITEM_BY_ABILITY.get(order.ability.exact_id) == type_id
+                ),
+            )
         )
 
-        pending_by_type = {
-            key: [
-                entry.trainer
-                for entry in values
-            ]
-            for key, values in itertools.groupby(
-                pending_entries,
-                key=lambda e: e.item,
-            )
-        }
-        self.pending_by_type = defaultdict(list, pending_by_type)
-
-        # for unit in all_units:
-        #     for order in unit.state.orders:
-        #         if (item := ITEM_BY_ABILITY.get(order.ability.exact_id)) is not None:
-        #             self.pending_by_type[item].append(unit)
-
-        # for upgrade in self.ai.state.upgrades:
-        #     self.actual_by_type[upgrade] = [None]
-
-    def add_unit_to_tables(self, behavior: AIUnit) -> None:
-        if behavior.state.is_ready:
-            self.actual_by_type[behavior.state.type_id].append(behavior)
-            for order in behavior.state.orders:
-                if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
-                    self.pending_by_type[item].append(behavior)
-        else:
-            self.pending_by_type[behavior.state.type_id].append(behavior)
-
-    def add_unit(self, unit: Unit) -> Optional[AIUnit]:
-        if unit.type_id in IGNORED_UNIT_TYPES:
+    def add_unit(self, state: Unit) -> Optional[AIUnit]:
+        if state.type_id in IGNORED_UNIT_TYPES:
             return None
-        elif unit.is_mine:
-            behavior = self.create_unit(unit)
-
-            behavior.on_destroyed.subscribe(self.remove_unit)
-            self.add_unit_to_tables(behavior)
-            self.units[unit.tag] = behavior
-            return behavior
-        elif unit.is_enemy:
+        elif state.is_mine:
+            unit = AIUnit(self.ai, state)
+            if (behavior := self.create_behavior(unit)):
+                unit.behavior = behavior
+                unit.on_destroyed.subscribe(self.remove_unit)
+                self.units[state.tag] = unit
+            return unit
+        elif state.is_enemy:
             return None
         else:
             return None
@@ -183,48 +182,28 @@ class UnitManager(AIModule):
         else:
             return False
 
-    def create_unit(self, unit: Unit) -> AIUnit:
-        if unit.type_id in IGNORED_UNIT_TYPES:
-            return IdleBehavior(self.ai, unit)
-        if unit.type_id in CHANGELINGS:
-            return Changeling(self.ai, unit)
-        elif unit.type_id in {UnitTypeId.EXTRACTOR, UnitTypeId.EXTRACTORRICH}:
-            return Extractor(self.ai, unit)
-        elif unit.type_id in {
-            UnitTypeId.CREEPTUMOR,
-            UnitTypeId.CREEPTUMORBURROWED,
-            UnitTypeId.CREEPTUMORQUEEN,
-        }:
-            return CreepTumor(self.ai, unit)
-        elif unit.type_id == UnitTypeId.LARVA:
-            return Larva(self.ai, unit)
-        elif unit.type_id in {
-            UnitTypeId.HATCHERY,
-            UnitTypeId.LAIR,
-            UnitTypeId.HIVE,
-        }:
-            return Hatchery(self.ai, unit)
-        elif unit.type_id in WORKERS:
-            return Worker(self.ai, unit)
-        elif unit.type_id in {
-            UnitTypeId.OVERLORD,
-            UnitTypeId.OVERLORDTRANSPORT,
-        }:
-            return Overlord(self.ai, unit)
-        elif unit.type_id == UnitTypeId.QUEEN:
-            return Queen(self.ai, unit)
-        elif self.ai.techtree.units[unit.type_id].is_structure:
-            return Structure(self.ai, unit)
-        else:
-            return Army(self.ai, unit)
+    def create_behavior(self, unit: AIUnit) -> Optional[Behavior]:
+        behavior_cls = self.behavior_table.get(unit.state.type_id)
+        if not behavior_cls:
+            return None
+        behavior = behavior_cls(unit)
+        return behavior
 
-    def all(self, type: Type[T]) -> Iterable[T]:
+    def of_type(self, type: Type[T]) -> Iterable[T]:
         return (unit for unit in self.units.values() if isinstance(unit, type))
+
+    def behavior_of_type(self, type: Type[T]) -> Iterable[T]:
+        return (
+            unit.behavior
+            for unit in self.units.values()
+            if isinstance(unit.behavior, type)
+        )
 
     def update_tags(self) -> None:
         self.unit_by_tag = {unit.tag: unit for unit in self.ai.all_own_units}
-        for tag, unit in self.units.items():
-            unit.state = self.unit_by_tag.get(tag) or unit.state
+        for tag, unit in list(self.units.items()):
+            new_state = self.unit_by_tag.get(tag)
+            unit.update_state(new_state)
 
         visibility_map = self.ai.state.visibility.data_numpy.transpose()
         for tag, enemy in self.enemies.copy().items():
@@ -244,11 +223,10 @@ class UnitManager(AIModule):
 
     async def on_step(self) -> None:
         self.update_tags()
-        self.update_tables()
 
         for unit in list(self.units.values()):
-            unit.on_step()
-            command = unit.get_command()
+            # unit.on_step()
+            command = unit.behavior.get_command()
             if not command:
                 continue
             # if any(

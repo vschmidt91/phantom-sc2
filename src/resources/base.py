@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from typing import Iterable, List, Optional, TYPE_CHECKING
 
 from sc2.position import Point2
+
+if TYPE_CHECKING:
+    from src.ai_base import AIBase
 
 from ..behaviors.gather import GatherBehavior
 from ..units.structure import Structure
@@ -17,19 +20,22 @@ STATIC_DEFENSE_OFFSET = 4.25
 class Base(ResourceGroup[ResourceBase]):
     def __init__(
         self,
+        ai: AIBase,
         position: Point2,
         mineral_patches: Iterable[MineralPatch],
         vespene_geysers: Iterable[VespeneGeyser],
-    ):
+    ) -> None:
         self.townhall: Optional[Structure] = None
         self.static_defense: Optional[Structure] = None
         self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(
-            sorted(mineral_patches, key=lambda m: m.position.distance_to(position))
+            ai,
+            sorted(mineral_patches, key=lambda m: m.position.distance_to(position)),
         )
         self.vespene_geysers: ResourceGroup[VespeneGeyser] = ResourceGroup(
-            sorted(vespene_geysers, key=lambda g: g.position.distance_to(position))
+            ai,
+            sorted(vespene_geysers, key=lambda g: g.position.distance_to(position)),
         )
-        super().__init__([self.mineral_patches, self.vespene_geysers], position)
+        super().__init__(ai, [self.mineral_patches, self.vespene_geysers], position)
 
         static_defense_position = Point2(
             self.position.towards(self.mineral_patches.position, STATIC_DEFENSE_OFFSET)
@@ -45,7 +51,7 @@ class Base(ResourceGroup[ResourceBase]):
                     continue
                 harvester = min(
                     harvesters,
-                    key=lambda h: h.state.position.distance_to(patch.unit.position),
+                    key=lambda h: h.unit.state.position.distance_to(patch.unit.position),
                     default=None,
                 )
                 if not harvester:

@@ -1,39 +1,37 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 import numpy as np
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
-from sc2.unit import Unit, UnitCommand
+from sc2.unit import UnitCommand
 from skimage.draw import circle_perimeter, line
 
 from ..constants import ENERGY_COST
-from ..units.unit import AIUnit
-
-if TYPE_CHECKING:
-    from ..ai_base import AIBase
+from ..units.unit import AIUnit, Behavior
 
 TUMOR_RANGE = 10
 
 
-class CreepBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
-        super().__init__(ai, unit)
+class CreepBehavior(Behavior):
+    def __init__(self, unit: AIUnit) -> None:
+        super().__init__(unit)
         self.creation_step = self.ai.state.game_loop
 
     def spread_creep(self) -> Optional[UnitCommand]:
-        if self.state.type_id == UnitTypeId.CREEPTUMORBURROWED:
+        if self.unit.state.type_id == UnitTypeId.CREEPTUMORBURROWED:
             age = self.ai.state.game_loop - self.creation_step
             if age < 550:
                 return None
-        elif self.state.type_id == UnitTypeId.QUEEN:
-            if self.state.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
+        elif self.unit.state.type_id == UnitTypeId.QUEEN:
+            if self.unit.state.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
                 return None
-            elif self.state.is_using_ability(AbilityId.BUILD_CREEPTUMOR_QUEEN):
-                return self.state(
-                    AbilityId.BUILD_CREEPTUMOR_QUEEN, target=self.state.order_target
+            elif self.unit.state.is_using_ability(AbilityId.BUILD_CREEPTUMOR_QUEEN):
+                return self.unit.state(
+                    AbilityId.BUILD_CREEPTUMOR_QUEEN,
+                    target=self.unit.state.order_target,
                 )
         else:
             return None
@@ -41,7 +39,7 @@ class CreepBehavior(AIUnit):
         def target_value(t):
             return self.ai.creep_value_map_blurred[t]
 
-        origin = np.array(self.state.position).astype(int)
+        origin = np.array(self.unit.state.position).astype(int)
         targets = np.stack(
             circle_perimeter(
                 *origin,
@@ -61,7 +59,7 @@ class CreepBehavior(AIUnit):
             for x, y in zip(*line(*target, *origin)):
                 if self.ai.creep_placement_map[x, y]:
                     target = Point2((x, y))
-                    return self.state.build(UnitTypeId.CREEPTUMOR, target)
+                    return self.unit.state.build(UnitTypeId.CREEPTUMOR, target)
 
         # random mode
         angle = np.random.uniform(0, 2 * np.pi)
@@ -70,6 +68,6 @@ class CreepBehavior(AIUnit):
         target = tuple(target.astype(int))
 
         if self.ai.creep_placement_map[target]:
-            return self.state.build(UnitTypeId.CREEPTUMOR, Point2(target))
+            return self.unit.state.build(UnitTypeId.CREEPTUMOR, Point2(target))
 
         return None

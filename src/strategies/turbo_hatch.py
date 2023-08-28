@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Coroutine, Iterable
+from typing import TYPE_CHECKING, Iterable
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
-class HatchFirst(ZergMacro):
+class TurboHatch(ZergMacro):
     def __init__(self, ai: AIBase):
         super().__init__(ai)
 
@@ -32,18 +32,29 @@ class HatchFirst(ZergMacro):
             UnitTypeId.DRONE,
             UnitTypeId.HATCHERY,
             UnitTypeId.DRONE,
-            UnitTypeId.EXTRACTOR,
-            UnitTypeId.DRONE,
+            # UnitTypeId.EXTRACTOR,
+            # UnitTypeId.DRONE,
             UnitTypeId.OVERLORD,
             UnitTypeId.SPAWNINGPOOL,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONE,
         ]
 
     def filter_upgrade(self, upgrade) -> bool:
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
-            return 1 < self.ai.townhalls.ready.amount
+            if 2 < self.ai.townhalls.amount:
+                return True
+            else:
+                return self.ai.townhalls.amount <= self.ai.count(
+                    UnitTypeId.QUEEN, include_planned=False
+                )
+            return 16 < self.ai.count(
+                UnitTypeId.DRONE, include_pending=False, include_planned=False
+            )
         return super().filter_upgrade(upgrade)
 
-    def on_step(self) -> None:
+    async def on_step(self) -> None:
         if (
             self.ai.supply_used == 14
             and any(self.ai.gas_buildings.not_ready)
@@ -51,4 +62,4 @@ class HatchFirst(ZergMacro):
         ):
             # print("extractor_trick_enabled")
             self.ai.extractor_trick_enabled = True
-        return super().on_step()
+        await super().on_step()

@@ -4,6 +4,7 @@ import math
 import pstats
 import random
 from functools import cmp_to_key
+import functools
 from itertools import chain
 from typing import Iterable, Optional, Tuple, Type, TypeVar, List
 
@@ -26,13 +27,25 @@ from skimage.segmentation import flood_fill
 from src.behaviors.overlord_drop import OverlordDropManager
 from src.bot_events import BotEvents, InitEvent, StartEvent
 
+from .units.structure import Larva
 from .behaviors.inject import InjectManager
-from .constants import (GAS_BY_RACE, LARVA_COST, RANGE_UPGRADES,
-                        REQUIREMENTS_KEYS, RESEARCH_INFO, TRAIN_INFO,
-                        UNIT_TRAINED_FROM, UPGRADE_RESEARCHED_FROM,
-                        WITH_TECH_EQUIVALENTS, WORKERS, ZERG_ARMOR_UPGRADES,
-                        ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES,
-                        ZERG_MELEE_UPGRADES, ZERG_RANGED_UPGRADES)
+from .constants import (
+    GAS_BY_RACE,
+    LARVA_COST,
+    RANGE_UPGRADES,
+    REQUIREMENTS_KEYS,
+    RESEARCH_INFO,
+    TRAIN_INFO,
+    UNIT_TRAINED_FROM,
+    UPGRADE_RESEARCHED_FROM,
+    WITH_TECH_EQUIVALENTS,
+    WORKERS,
+    ZERG_ARMOR_UPGRADES,
+    ZERG_FLYER_ARMOR_UPGRADES,
+    ZERG_FLYER_UPGRADES,
+    ZERG_MELEE_UPGRADES,
+    ZERG_RANGED_UPGRADES,
+)
 from .cost import Cost
 from .modules.chat import Chat
 from .modules.combat import CombatModule
@@ -68,6 +81,7 @@ class AIBase(BotAI):
         with open(version_path, "r", encoding="UTF-8") as file:
             self.version = file.readline().replace("\n", "")
         self.debug: bool = False
+        self.profiler_enabled = False
 
         self.extractor_trick_enabled: bool = False
         self.iteration: int = 0
@@ -91,7 +105,7 @@ class AIBase(BotAI):
 
         self.unit_cost = {type_id: self.get_cost(type_id) for type_id in UnitTypeId}
 
-        if self.debug:
+        if self.profiler_enabled:
             logging.basicConfig(level=logging.DEBUG)
             self.profiler = cProfile.Profile()
 
@@ -250,7 +264,7 @@ class AIBase(BotAI):
 
     def units_detecting(self, unit: Unit) -> Iterable[AIUnit]:
         for detector_type in IS_DETECTOR:
-            for detector in self.unit_manager.actual_by_type[detector_type]:
+            for detector in self.unit_manager.actual_by_type(detector_type):
                 distance = detector.state.position.distance_to(unit.position)
                 if (
                     distance
@@ -278,31 +292,33 @@ class AIBase(BotAI):
         #     if not self.unit_manager.try_remove_unit(tag):
         #         logging.error("creep tumor not found")
 
-        behavior = self.unit_manager.units.get(tag)
-        if not behavior:
+        unit = self.unit_manager.units.get(tag)
+        if not unit:
             return
-        elif behavior.state.type_id in {
+        elif unit.state.type_id in {
             UnitTypeId.DRONE,
             UnitTypeId.SCV,
             UnitTypeId.PROBE,
         }:
             return
-        elif behavior.state.type_id in {UnitTypeId.LARVA, UnitTypeId.EGG}:
-            candidates = list(
-                chain(
-                    self.unit_manager.actual_by_type[UnitTypeId.LARVA],
-                    self.unit_manager.actual_by_type[UnitTypeId.EGG],
-                )
-            )
+        elif unit.state.type_id in {UnitTypeId.LARVA, UnitTypeId.EGG}:
+            candidates = self.unit_manager.behavior_of_type(Larva)
+            # candidates = list(
+            #     chain(
+            #         self.unit_manager.actual_by_type(UnitTypeId.LARVA),
+            #         self.unit_manager.actual_by_type(UnitTypeId.EGG),
+            #     )
+            # )
+        elif not isinstance(unit.behavior, MacroBehavior):
+            return
         else:
-            candidates = [behavior]
+            candidates = [unit.behavior]
         actual_behavior = next(
             (
                 b
                 for b in candidates
                 if (
-                    isinstance(b, MacroBehavior)
-                    and b.plan
+                    b.plan
                     and b.macro_ability == action.exact_id
                 )
             ),
@@ -346,10 +362,12 @@ class AIBase(BotAI):
 
         self.iteration = iteration
 
+        # self.count.cache_clear()
+
         if 1 < self.time:
             await self.chat.add_message("(glhf)")
 
-        if self.profiler:
+        if self.profiler_enabled:
             self.profiler.enable()
 
         self.handle_errors()
@@ -438,7 +456,7 @@ class AIBase(BotAI):
         for module in modules:
             await module.on_step()
 
-        if self.profiler:
+        if self.profiler_enabled:
             self.profiler.disable()
             stats = pstats.Stats(self.profiler)
             if iteration % 100 == 0:
@@ -456,7 +474,7 @@ class AIBase(BotAI):
             # if 90 < self.time:
             #     await self.kill_random_units()
             worker_count = sum(
-                1 for b in self.unit_manager.units.values() if isinstance(b, Worker)
+                1 for b in self.unit_manager.behavior_of_type(Worker)
             )
             if worker_count != self.supply_workers:
                 logging.error("worker supply mismatch")
@@ -484,7 +502,7 @@ class AIBase(BotAI):
                     else None
                 )
                 for trainer_type in UNIT_TRAINED_FROM.get(unit.type_id, []):
-                    for trainer in self.unit_manager.actual_by_type[trainer_type]:
+                    for trainer in self.unit_manager.actual_by_type(trainer_type):
                         if trainer.state.position.distance_to(unit.position) < 0.5:
                             if behavior := self.unit_manager.units.get(
                                 trainer.state.tag
@@ -532,6 +550,7 @@ class AIBase(BotAI):
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         logging.info("upgrade_complete: %s", upgrade)
 
+    # @functools.lru_cache
     def count(
         self,
         item: MacroId,
@@ -546,9 +565,9 @@ class AIBase(BotAI):
             # if item in WORKERS:
             #     count += self.state.score.food_used_economy
             # else:
-            count += len(self.unit_manager.actual_by_type[item])
+            count += len(self.unit_manager.actual_by_type(item))
         if include_pending:
-            count += factor * len(self.unit_manager.pending_by_type[item])
+            count += factor * len(self.unit_manager.pending_by_type(item))
         if include_planned:
             count += factor * sum(1 for _ in self.macro.planned_by_type(item))
 
@@ -564,9 +583,10 @@ class AIBase(BotAI):
             ):
                 continue
             base = Base(
+                self,
                 position,
-                (MineralPatch(m) for m in resources.mineral_field),
-                (VespeneGeyser(g) for g in resources.vespene_geyser),
+                (MineralPatch(self, m.position) for m in resources.mineral_field),
+                (VespeneGeyser(self, g.position) for g in resources.vespene_geyser),
             )
             bases.append(base)
 
@@ -755,9 +775,9 @@ class AIBase(BotAI):
         for base in self.resource_manager.bases:
             if not base.townhall:
                 continue
-            if not base.townhall.state.is_ready:
+            if not base.townhall.unit.state.is_ready:
                 continue
-            if base.townhall.state.type_id not in race_townhalls[self.race]:
+            if base.townhall.unit.state.type_id not in race_townhalls[self.race]:
                 continue
             for geyser in base.vespene_geysers:
                 yield geyser.unit
@@ -808,8 +828,13 @@ class AIBase(BotAI):
         workers += 16 * self.count(
             UnitTypeId.HATCHERY, include_actual=False, include_planned=False
         )
-        workers += 3 * self.count(
-            GAS_BY_RACE[self.race], include_actual=False, include_planned=False
+        # workers += sum(
+        #     geyser.harvester_target
+        #     for geyser in self.resource_manager.vespene_geysers
+        # )
+        workers += 3 * sum(
+            self.count(t, include_actual=False, include_planned=False)
+            for t in GAS_BY_RACE[self.race]
         )
         return workers
 

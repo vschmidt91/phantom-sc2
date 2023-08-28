@@ -1,5 +1,6 @@
 import itertools
 from typing import Iterable, Set, Union
+import functools
 
 import numpy as np
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
@@ -14,6 +15,18 @@ from sc2.unit import Unit
 
 class PlacementNotFoundException(Exception):
     pass
+
+
+def invalidate_cached_properties(obj):
+    cls = type(obj)
+    cached = {
+        attr
+        for attr in list(obj.__dict__.keys())
+        if (descriptor := getattr(cls, attr, None))
+        if isinstance(descriptor, functools.cached_property)
+    }
+    for attr in cached:
+        del obj.__dict__[attr]
 
 
 def center(points: Iterable[Point2]) -> Point2:

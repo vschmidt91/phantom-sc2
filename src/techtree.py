@@ -225,3 +225,11 @@ class TechTree:
 
             upgrade = TechTreeUpgrade(**item)
             self.upgrades[upgrade.id] = upgrade
+
+        self.structures = {
+            type_id for type_id, unit in self.units.items() if unit.is_structure
+        }
+
+        self.workers = {
+            type_id for type_id, unit in self.units.items() if unit.is_worker
+        }

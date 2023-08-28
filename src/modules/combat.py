@@ -2,24 +2,21 @@ from __future__ import annotations
 
 from enum import Enum, auto
 from itertools import chain
-from typing import TYPE_CHECKING, List, Optional
+from typing import List, Optional
 
 import numpy as np
 from sc2.unit import Unit, UnitCommand
 from sc2.position import Point3
 from scipy.ndimage import gaussian_filter
 from skimage.draw import disk
-import scipy.stats
 
 from src.cost import Cost
 
 from ..constants import CHANGELINGS, CIVILIANS
-from ..units.unit import AIUnit
+from ..units.unit import AIUnit, Behavior
+
 # from ..units.worker import Worker
 from .module import AIModule
-
-if TYPE_CHECKING:
-    from ..ai_base import AIBase
 
 
 class CombatStance(Enum):
@@ -43,7 +40,7 @@ CONFIDENCE_MAP_SCALE = 6
 
 
 class CombatModule(AIModule):
-    def __init__(self, ai: AIBase) -> None:
+    def __init__(self, ai: "AIBase") -> None:
         super().__init__(ai)
         self.confidence: float = 1.0
 
@@ -74,8 +71,8 @@ class CombatModule(AIModule):
     async def on_step(self):
         self.army = [
             unit
-            for unit in self.ai.unit_manager.units.values()
-            if (isinstance(unit, CombatBehavior) and unit.wants_to_fight())
+            for unit in self.ai.unit_manager.behavior_of_type(CombatBehavior)
+            if unit.wants_to_fight()
         ]
 
         self.enemies = [
@@ -84,7 +81,7 @@ class CombatModule(AIModule):
             if unit.type_id not in CIVILIANS
         ]
 
-        units = list(chain((u.state for u in self.army), self.enemies))
+        units = list(chain((u.unit.state for u in self.army), self.enemies))
 
         self.ground_dps.fill(0.0)
         self.air_dps.fill(0.0)
@@ -140,7 +137,7 @@ class CombatModule(AIModule):
                     attack_weight[i, j] = 1.0
                 else:
                     # attack_weight[i, j] = max(0.0, 2 - d / theoretical_range)
-                # else:
+                    # else:
                     movement_speed = 1.4 * (a.real_speed + b.real_speed)
                     time_to_attack = (d - theoretical_range) / (1e-3 + movement_speed)
                     attack_weight[i, j] = max(0.0, 1.0 - time_to_attack / 3)
@@ -154,37 +151,46 @@ class CombatModule(AIModule):
         dps_incoming = np.sum(expected_dps, axis=0)
         survival_time = health / (0.1 + dps_incoming)
 
-        if self.confidence < 0.666:
+        for combatant in self.ai.unit_manager.of_type(CombatBehavior):
+            combatant.target = None
 
-            time_seed = int(self.ai.state.game_loop / 100)
-            target = self.ai.townhalls[time_seed % self.ai.townhalls.amount]
-            for unit in self.army:
-                unit.target = target
+        # if self.confidence < 0.666:
 
-        for unit in self.ai.unit_manager.all(CombatBehavior):
-            unit.target = None
+        #     time_seed = int(self.ai.state.game_loop / 100)
+        #     target = self.ai.townhalls[time_seed % self.ai.townhalls.amount]
+        #     for unit in self.army:
+        #         unit.target = target
 
+        # else:
 
         if any(self.enemies):
-            for i, unit in enumerate(self.army):
+            for i, combatant in enumerate(self.army):
                 j = min(
-                    range(len(self.army), len(units)),
+                    (
+                        j
+                        for j in range(len(self.army), len(units))
+                        if 0 < dps[i, j]
+                    ),
                     key=lambda k: distance[i, k],
                     # key=lambda k: expected_dps[k, i],
+                    default=None,
                 )
-                unit.target = units[j]
+                if j:
+                    combatant.target = units[j]
+                else:
+                    combatant.target = None
 
                 # if survival_time[j] <= survival_time[i]:
-                if 3 + unit.state.weapon_cooldown <= survival_time[i]:
-                    unit.stance = CombatStance.FIGHT
+                if 3 + combatant.unit.state.weapon_cooldown <= survival_time[i]:
+                    combatant.stance = CombatStance.FIGHT
                 else:
-                    unit.stance = CombatStance.FLEE
+                    combatant.stance = CombatStance.FLEE
 
         def unit_value(cost: Cost):
             return cost.minerals + cost.vespene
 
         army_cost = sum(
-            unit_value(self.ai.unit_cost[behavior.state.type_id])
+            unit_value(self.ai.unit_cost[behavior.unit.state.type_id])
             for behavior in self.army
         )
         enemy_cost = sum(
@@ -193,36 +199,35 @@ class CombatModule(AIModule):
         self.confidence = (1 + army_cost) / (1 + army_cost + enemy_cost)
 
 
-class CombatBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
-        super().__init__(ai, unit)
+class CombatBehavior(Behavior):
+    def __init__(self, unit: AIUnit):
+        super().__init__(unit)
         self.stance: CombatStance = CombatStance.FIGHT
         self.target: Optional[Unit] = None
 
     def on_step(self) -> None:
-
-        super().on_step()
-
         if self.ai.debug:
-
             if self.target is not None:
-
                 color = (255, 255, 255)
-                if self.stance == CombatStance.FIGHT:
+                if self.unit.state == CombatStance.FIGHT:
                     color = (255, 0, 0)
-                elif self.stance == CombatStance.FLEE:
-                    color = (0, 0, 255) 
+                elif self.unit.state == CombatStance.FLEE:
+                    color = (0, 0, 255)
 
-                position_from = Point3((
-                    *self.state.position,
-                    self.ai.get_terrain_z_height(self.state.position) + 0.5
-                ))
+                position_from = Point3(
+                    (
+                        *self.unit.state.position,
+                        self.ai.get_terrain_z_height(self.unit.state.position) + 0.5,
+                    )
+                )
 
-                position_to = Point3((
-                    *self.target.position,
-                    self.ai.get_terrain_z_height(self.target.position) + 0.5
-                ))
-                
+                position_to = Point3(
+                    (
+                        *self.target.position,
+                        self.ai.get_terrain_z_height(self.target.position) + 0.5,
+                    )
+                )
+
                 self.ai.client.debug_line_out(position_from, position_to, color=color)
 
     def wants_to_fight(self) -> bool:
@@ -237,32 +242,32 @@ class CombatBehavior(AIUnit):
 
         if self.stance in {CombatStance.FLEE, CombatStance.RETREAT}:
             unit_range = self.ai.get_unit_range(
-                self.state, not self.target.is_flying, self.target.is_flying
+                self.unit.state, not self.target.is_flying, self.target.is_flying
             )
 
             if self.stance == CombatStance.RETREAT:
-                if not self.state.weapon_cooldown:
-                    return self.state.attack(self.target.position)
+                if not self.unit.state.weapon_cooldown:
+                    return self.unit.state.attack(self.target.position)
                 elif (
-                    self.state.radius
+                    self.unit.state.radius
                     + unit_range
                     + self.target.radius
-                    + self.state.distance_to_weapon_ready
-                    < self.state.position.distance_to(self.target.position)
+                    + self.unit.state.distance_to_weapon_ready
+                    < self.unit.state.position.distance_to(self.target.position)
                 ):
-                    return self.state.attack(self.target.position)
+                    return self.unit.state.attack(self.target.position)
 
-            if self.state.is_flying:
+            if self.unit.state.is_flying:
                 retreat_map = self.ai.combat.retreat_air
             else:
                 retreat_map = self.ai.combat.retreat_ground
 
-            i, j = self.state.position.rounded
+            i, j = self.unit.state.position.rounded
 
             g = retreat_map[i, j, :]
-            g /= max(1e-6, np.linalg.norm(g))
+            g /= max(1e-6, float(np.linalg.norm(g)))
 
-            # if not self.state.is_flying:
+            # if not self.unit.state.is_flying:
             #     gb = self.ai.pathing_border[i, j, :]
 
             #     if 0 < np.linalg.norm(gb) and np.dot(g, gb) < 0:
@@ -271,9 +276,11 @@ class CombatBehavior(AIUnit):
             #         g -= min(0, np.dot(g, gb)) * gb
             #         g /= max(1e-6, np.linalg.norm(g))
 
-            retreat_point = self.state.position + self.state.movement_speed * g
+            retreat_point = (
+                self.unit.state.position + self.unit.state.movement_speed * g
+            )
 
-            return self.state.move(retreat_point)
+            return self.unit.state.move(retreat_point)
 
         # elif stance == CombatStance.RETREAT:
 
@@ -291,17 +298,17 @@ class CombatBehavior(AIUnit):
         #         return self.unit.attack(target.position)
 
         elif self.stance == CombatStance.FIGHT:
-            return self.state.attack(self.target.position)
+            return self.unit.state.attack(self.target.position)
 
         # elif stance == CombatStance.ADVANCE:
 
-        #     distance = self.state.position.distance_to(target.position) - self.state.radius - target.radius
-        #     if self.state.weapon_cooldown and 1 < distance:
-        #         return self.state.move(target)
-        #     elif self.state.position.distance_to(target.position) <= self.state.radius + self.ai.get_unit_range(
-        #             self.state) + target.radius:
-        #         return self.state.attack(target.position)
+        #     distance = self.unit.state.position.distance_to(target.position) - self.unit.state.radius - target.radius
+        #     if self.unit.state.weapon_cooldown and 1 < distance:
+        #         return self.unit.state.move(target)
+        #     elif self.unit.state.position.distance_to(target.position) <= self.unit.state.radius + self.ai.get_unit_range(
+        #             self.unit.state) + target.radius:
+        #         return self.unit.state.attack(target.position)
         #     else:
-        #         return self.state.attack(target.position)
+        #         return self.unit.state.attack(target.position)
 
         return None

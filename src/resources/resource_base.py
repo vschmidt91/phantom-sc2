@@ -1,22 +1,25 @@
 from __future__ import annotations
 
-from abc import abstractmethod
-from typing import Iterable
+from abc import ABC, abstractproperty
+from typing import Iterable, TYPE_CHECKING
 
 from sc2.position import Point2
+from src.modules.module import AIModule
+
+if TYPE_CHECKING:
+    from src.ai_base import AIBase
 
 
-class ResourceBase:
-    def __init__(self, position: Point2):
+class ResourceBase(AIModule, ABC):
+    def __init__(self, ai: AIBase, position: Point2) -> None:
+        super().__init__(ai)
         self.position = position
 
-    @property
-    @abstractmethod
+    @abstractproperty
     def harvester_target(self) -> int:
         raise NotImplementedError()
 
-    @property
-    @abstractmethod
+    @abstractproperty
     def remaining(self) -> int:
         raise NotImplementedError()
 

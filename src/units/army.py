@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
-from sc2.unit import Unit, UnitCommand
+from sc2.unit import UnitCommand
+
+from src.units.unit import AIUnit
 
 from ..behaviors.bile import BileBehavior
 from ..behaviors.burrow import BurrowBehavior
@@ -11,9 +13,6 @@ from ..behaviors.search import SearchBehavior
 from ..modules.combat import CombatBehavior
 from ..modules.dodge import DodgeBehavior
 from ..modules.macro import MacroBehavior
-
-if TYPE_CHECKING:
-    from ..ai_base import AIBase
 
 
 class Army(
@@ -25,8 +24,8 @@ class Army(
     CombatBehavior,
     SearchBehavior,
 ):
-    def __init__(self, ai: AIBase, unit: Unit):
-        super().__init__(ai, unit)
+    def __init__(self, unit: AIUnit):
+        super().__init__(unit)
 
     def get_command(self) -> Optional[UnitCommand]:
         if command := self.dodge():

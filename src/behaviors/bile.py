@@ -1,21 +1,18 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from sc2.unit import AbilityId, Unit, UnitCommand, UnitTypeId
 
 from ..constants import CHANGELINGS, COOLDOWN
-from ..units.unit import AIUnit
-
-if TYPE_CHECKING:
-    from ..ai_base import AIBase
+from ..units.unit import AIUnit, Behavior
 
 BILE_ABILITY = AbilityId.EFFECT_CORROSIVEBILE
 
 
-class BileBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
-        super().__init__(ai, unit)
+class BileBehavior(Behavior):
+    def __init__(self, unit: AIUnit):
+        super().__init__(unit)
         self.last_used = 0
 
     def bile_priority(self, target: Unit) -> float:
@@ -23,7 +20,7 @@ class BileBehavior(AIUnit):
             return 0.0
         if not self.ai.is_visible(target.position):
             return 0.0
-        if not self.state.in_ability_cast_range(BILE_ABILITY, target.position):
+        if not self.unit.state.in_ability_cast_range(BILE_ABILITY, target.position):
             return 0.0
         if target.is_hallucination:
             return 0.0
@@ -35,7 +32,7 @@ class BileBehavior(AIUnit):
         return priority
 
     def bile(self) -> Optional[UnitCommand]:
-        if self.state.type_id != UnitTypeId.RAVAGER:
+        if self.unit.state.type_id != UnitTypeId.RAVAGER:
             return None
 
         if (
@@ -45,7 +42,7 @@ class BileBehavior(AIUnit):
             return None
 
         target = max(
-            self.ai.unit_manager.units_in_circle(self.state.position, 10),
+            self.ai.unit_manager.units_in_circle(self.unit.state.position, 10),
             key=lambda t: self.bile_priority(t),
             default=None,
         )
@@ -58,4 +55,4 @@ class BileBehavior(AIUnit):
 
         self.last_used = self.ai.state.game_loop
 
-        return self.state(BILE_ABILITY, target=target.position)
+        return self.unit.state(BILE_ABILITY, target=target.position)

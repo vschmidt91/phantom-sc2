@@ -5,13 +5,14 @@ from typing import TYPE_CHECKING, Optional
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.unit import Unit, UnitCommand
+from sc2.unit import UnitCommand
 
 from ..behaviors.gather import GatherBehavior
 from ..modules.combat import CombatBehavior
 from ..modules.dodge import DodgeBehavior
 from ..modules.macro import MacroBehavior
 from ..modules.module import AIModule
+from .unit import AIUnit
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -50,10 +51,10 @@ class WorkerManager(AIModule):
             worker = min(
                 (
                     w
-                    for w in self.ai.unit_manager.units.values()
-                    if isinstance(w, Worker) and w.is_drafted
+                    for w in self.ai.unit_manager.behavior_of_type(Worker)
+                    if w.is_drafted
                 ),
-                key=lambda w: w.state.shield_health_percentage,
+                key=lambda w: w.unit.state.shield_health_percentage,
                 default=None,
             )
             if worker:
@@ -62,15 +63,15 @@ class WorkerManager(AIModule):
 
 
 class Worker(DodgeBehavior, CombatBehavior, MacroBehavior, GatherBehavior):
-    def __init__(self, ai: AIBase, unit: Unit):
-        super().__init__(ai, unit)
+    def __init__(self, unit: AIUnit) -> None:
+        super().__init__(unit)
         self.is_drafted: bool = False
 
     def wants_to_fight(self) -> bool:
         return (
-            1 < self.ai.combat.ground_dps[self.state.position.rounded]
+            1 < self.ai.combat.ground_dps[self.unit.state.position.rounded]
         ) or self.is_drafted
-    
+
     def on_step(self) -> None:
         if self.plan is not None:
             self.remove_gather_target()
@@ -82,14 +83,14 @@ class Worker(DodgeBehavior, CombatBehavior, MacroBehavior, GatherBehavior):
         elif command := self.fight():
             return command
         elif (
-            self.state.health_percentage < 0.3
+            self.unit.state.health_percentage < 0.3
             and UpgradeId.BURROW in self.ai.state.upgrades
-            and not self.state.is_burrowed
+            and not self.unit.state.is_burrowed
         ):
-            return self.state(AbilityId.BURROWDOWN)
-        elif self.state.is_burrowed:
-            if self.ai.combat.ground_dps[self.state.position.rounded] < 1:
-                return self.state(AbilityId.BURROWUP)
+            return self.unit.state(AbilityId.BURROWDOWN)
+        elif self.unit.state.is_burrowed:
+            if self.ai.combat.ground_dps[self.unit.state.position.rounded] < 1:
+                return self.unit.state(AbilityId.BURROWUP)
             else:
                 return None
         elif command := self.macro():

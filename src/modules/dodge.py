@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass
 from itertools import chain
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 from sc2.game_state import EffectData
@@ -14,11 +14,8 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 
-from ..units.unit import AIUnit
+from ..units.unit import AIUnit, Behavior
 from .module import AIModule
-
-if TYPE_CHECKING:
-    from ..ai_base import AIBase
 
 DODGE_DELAYED_EFFECTS = {
     EffectId.RAVAGERCORROSIVEBILECP,
@@ -43,7 +40,7 @@ class DamageCircle:
 
 
 class DodgeModule(AIModule):
-    def __init__(self, ai: AIBase) -> None:
+    def __init__(self, ai: "AIBase") -> None:
         super().__init__(ai)
         self.elements: List[DodgeElement] = list()
         self.elements_delayed: List[DodgeEffectDelayed] = list()
@@ -132,9 +129,9 @@ class DodgeEffectDelayed(DodgeEffect):
     #         yield DamageCircle(self.position, radius_adjusted, damage)
 
 
-class DodgeBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
-        super().__init__(ai, unit)
+class DodgeBehavior(Behavior):
+    def __init__(self, unit: AIUnit):
+        super().__init__(unit)
         self.safety_distance: float = 1.0
 
     def dodge(self) -> Optional[UnitCommand]:
@@ -143,10 +140,10 @@ class DodgeBehavior(AIUnit):
             if isinstance(dodge, DodgeEffectDelayed):
                 delay = (2 * self.ai.client.game_step) / 22.4
                 time_remaining = max(0.0, dodge.time_of_impact - self.ai.time - delay)
-                distance_bonus = 1.4 * self.state.movement_speed * time_remaining
-            distance_have = self.state.distance_to(dodge.position)
+                distance_bonus = 1.4 * self.unit.state.movement_speed * time_remaining
+            distance_have = self.unit.state.distance_to(dodge.position)
             for circle in dodge.circles:
-                distance_want = circle.radius + self.state.radius
+                distance_want = circle.radius + self.unit.state.radius
                 if (
                     distance_have + distance_bonus
                     < distance_want + self.safety_distance
@@ -155,14 +152,16 @@ class DodgeBehavior(AIUnit):
                         np.random.normal(loc=0.0, scale=0.001, size=2)
                     )
                     dodge_from = dodge.position
-                    if dodge_from == self.state.position:
+                    if dodge_from == self.unit.state.position:
                         dodge_from += random_offset
                     target = dodge_from.towards(
-                        self.state, distance_want + 2 * self.safety_distance
+                        self.unit.state, distance_want + 2 * self.safety_distance
                     )
-                    if self.state.is_burrowed and not self.ai.can_move(self.state):
-                        return self.state(AbilityId.BURROWUP)
+                    if self.unit.state.is_burrowed and not self.ai.can_move(
+                        self.unit.state
+                    ):
+                        return self.unit.state(AbilityId.BURROWUP)
                     else:
-                        return self.state.move(target)
+                        return self.unit.state.move(target)
 
         return None

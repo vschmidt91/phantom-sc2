@@ -38,17 +38,17 @@ MAPS = [
 ]
 
 RACES = [
-    # Race.Protoss,
+    Race.Protoss,
     # Race.Terran,
-    Race.Zerg,
+    # Race.Zerg,
     # Race.Random,
 ]
 
 BUILDS = [
-    AIBuild.Rush,
+    # AIBuild.Rush,
     # AIBuild.Timing,
     # AIBuild.Power,
-    # AIBuild.Macro,
+    AIBuild.Macro,
     # AIBuild.Air,
 ]
 
@@ -62,6 +62,7 @@ def create_bot():
 
     ai = ZergAI(strategy_cls=HatchFirst)
     ai.debug = True
+    # ai.profiler_enabled = True
     ai.game_step = 8
 
     # ai = Pool12AllIn()

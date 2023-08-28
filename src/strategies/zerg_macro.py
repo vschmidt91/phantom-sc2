@@ -88,6 +88,7 @@ class ZergMacro(Strategy):
                             break
         else:
             composition[UnitTypeId.ZERGLING] = 1.0
+            pass
 
         composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 7
         composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 3
@@ -106,22 +107,44 @@ class ZergMacro(Strategy):
             composition[UnitTypeId.GREATERSPIRE] = 1
             composition[UnitTypeId.OVERSEER] = 3
 
-        if worker_count == worker_target:
-            banking = min(self.ai.minerals, self.ai.vespene) / 100
-            banking_minerals = self.ai.minerals / 100
-            if 0 < hive_count:
-                composition[UnitTypeId.BROODLORD] += banking
-                composition[UnitTypeId.CORRUPTOR] += banking
-                composition[UnitTypeId.HYDRALISK] += banking
-                composition[UnitTypeId.ROACH] += banking
-                composition[UnitTypeId.ZERGLING] += banking_minerals
-            elif 0 < lair_count:
-                composition[UnitTypeId.HYDRALISK] += banking
-                composition[UnitTypeId.ROACH] += banking
-                composition[UnitTypeId.ZERGLING] += banking_minerals
-            else:
-                composition[UnitTypeId.ROACH] += banking
-                composition[UnitTypeId.ZERGLING] += banking_minerals
+        bank_spending = set()
+        if 500 < self.ai.minerals:
+            if 300 < self.ai.vespene:
+                if 0 < hive_count:
+                    bank_spending.add(UnitTypeId.BROODLORD)
+                    bank_spending.add(UnitTypeId.CORRUPTOR)
+                if 0 < lair_count:
+                    bank_spending.add(UnitTypeId.HYDRALISK)
+            bank_spending.add(UnitTypeId.ROACH)
+
+            bank_spending.add(UnitTypeId.QUEEN)
+            bank_spending.add(UnitTypeId.ZERGLING)
+        for unit in bank_spending:
+            if not can_build[unit]:
+                continue
+            if any(self.ai.macro.planned_by_type(unit)):
+                continue
+            if not self.ai.can_afford(unit):
+                continue
+            self.ai.macro.add_plan(unit)
+
+        # if worker_count == worker_target:
+
+        #     banking = min(self.ai.minerals, self.ai.vespene) / 100
+        #     banking_minerals = self.ai.minerals / 100
+        #     if 0 < hive_count:
+        #         composition[UnitTypeId.BROODLORD] += banking
+        #         composition[UnitTypeId.CORRUPTOR] += banking
+        #         composition[UnitTypeId.HYDRALISK] += banking
+        #         composition[UnitTypeId.ROACH] += banking
+        #         composition[UnitTypeId.ZERGLING] += 2 * banking_minerals
+        #     elif 0 < lair_count:
+        #         composition[UnitTypeId.HYDRALISK] += banking
+        #         composition[UnitTypeId.ROACH] += banking
+        #         composition[UnitTypeId.ZERGLING] += 2 * banking_minerals
+        #     else:
+        #         composition[UnitTypeId.ROACH] += banking
+        #         composition[UnitTypeId.ZERGLING] += 2 * banking_minerals
 
         self.ai.macro.composition = {
             k: math.floor(v) for k, v in composition.items() if 0 < v

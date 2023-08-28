@@ -1,40 +1,37 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from sc2.ids.ability_id import AbilityId
-from sc2.ids.buff_id import BuffId
-from sc2.unit import Unit, UnitCommand
+from sc2.unit import UnitCommand
 
 from src.units.unit import UnitChangedEvent
 
 from ..behaviors.inject import InjectReciever
 from ..modules.macro import MacroBehavior
-
-if TYPE_CHECKING:
-    from ..ai_base import AIBase
+from .unit import AIUnit
 
 
 class Structure(MacroBehavior):
-    def __init__(self, ai: AIBase, unit: Unit):
-        super().__init__(ai, unit)
+    def __init__(self, unit: AIUnit):
+        super().__init__(unit)
         self.cancel: bool = False
-        self.on_damage_taken.subscribe(self.cancel_if_under_threat)
+        self.unit.on_damage_taken.subscribe(self.cancel_if_under_threat)
 
     def get_command(self) -> Optional[UnitCommand]:
         if self.cancel:
-            return self.state(AbilityId.CANCEL)
+            return self.unit.state(AbilityId.CANCEL)
         else:
             return self.macro()
 
     def cancel_if_under_threat(self, event: UnitChangedEvent):
-        if self.state.health_percentage < 0.1:
+        if self.unit.state.health_percentage < 0.1:
             self.cancel = True
 
 
 class Hatchery(Structure, InjectReciever):
     def wants_inject(self) -> bool:
-        if not self.state.is_ready:
+        if not self.unit.state.is_ready:
             return False
         # if BuffId.QUEENSPAWNLARVATIMER in self.state.buffs:
         #     return False
@@ -44,5 +41,5 @@ class Hatchery(Structure, InjectReciever):
 
 
 class Larva(Structure):
-    def __init__(self, ai: AIBase, unit: Unit):
-        super().__init__(ai, unit)
+    def __init__(self, unit: AIUnit):
+        super().__init__(unit)

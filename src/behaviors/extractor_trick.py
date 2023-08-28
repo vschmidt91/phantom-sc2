@@ -1,23 +1,19 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 from sc2.ids.ability_id import AbilityId
-from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 
-from ..units.unit import AIUnit
-
-if TYPE_CHECKING:
-    from ..ai_base import AIBase
+from ..units.unit import AIUnit, Behavior
 
 
-class ExtractorTrickBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
-        super().__init__(ai, unit)
+class ExtractorTrickBehavior(Behavior):
+    def __init__(self, unit: AIUnit) -> None:
+        super().__init__(unit)
 
     def do_extractor_trick(self) -> Optional[UnitCommand]:
-        if self.state.is_ready:
+        if self.unit.state.is_ready:
             return None
 
         if not self.ai.extractor_trick_enabled:
@@ -27,4 +23,4 @@ class ExtractorTrickBehavior(AIUnit):
             return None
 
         self.ai.extractor_trick_enabled = False
-        return self.state(AbilityId.CANCEL)
+        return self.unit.state(AbilityId.CANCEL)

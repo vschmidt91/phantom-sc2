@@ -5,10 +5,11 @@ from itertools import chain
 from typing import TYPE_CHECKING, Counter, Dict, Iterable, Optional, Type
 
 import numpy as np
-from sc2.data import race_gas, race_townhalls
+from sc2.data import race_townhalls
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
+from sc2.unit import Unit
 
 from ..behaviors.gather import GatherBehavior
 from ..constants import GAS_BY_RACE, STATIC_DEFENSE_BY_RACE
@@ -20,6 +21,7 @@ from .mineral_patch import MineralPatch
 from .resource_base import ResourceBase
 from .resource_group import ResourceGroup
 from .vespene_geyser import VespeneGeyser
+from ..units.structure import Structure
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -69,8 +71,9 @@ class ResourceManager(AIModule):
     def __init__(self, ai: AIBase, bases: Iterable[Base]) -> None:
         super().__init__(ai)
         self.do_split = True
-        self.bases = ResourceGroup(list(bases))
+        self.bases = ResourceGroup(ai, list(bases))
         self.set_speedmining_positions()
+        self.resource_unit_by_position: Dict[Point2, Unit] = dict()
         self.resource_by_position: Dict[Point2, ResourceUnit] = {
             resource.position: resource for resource in self.bases.flatten()
         }
@@ -80,7 +83,7 @@ class ResourceManager(AIModule):
 
     @property
     def bases_taken(self) -> Iterable[Base]:
-        return (b for b in self.bases if b.townhall and b.townhall.state.is_ready)
+        return (b for b in self.bases if b.townhall and b.townhall.unit.state.is_ready)
 
     @property
     def mineral_patches(self) -> Iterable[MineralPatch]:
@@ -117,26 +120,23 @@ class ResourceManager(AIModule):
         self.build_static_defense = 1 < static_defense_priority
 
         townhalls_by_position = {
-            townhall.state.position: townhall
-            for townhall_type in race_townhalls[self.ai.race]
-            for townhall in chain(
-                self.ai.unit_manager.actual_by_type[townhall_type],
-                self.ai.unit_manager.pending_by_type[townhall_type],
-            )
+            townhall.unit.state.position: townhall
+            for townhall in self.ai.unit_manager.behavior_of_type(Structure)
+            if townhall.unit.state.type_id in race_townhalls[self.ai.race]
         }
 
         static_defense_type = STATIC_DEFENSE_BY_RACE[self.ai.race]
         static_defense = {
             unit.state.position: unit
             for unit in chain(
-                self.ai.unit_manager.actual_by_type[static_defense_type],
-                self.ai.unit_manager.pending_by_type[static_defense_type],
+                self.ai.unit_manager.actual_by_type(static_defense_type),
+                self.ai.unit_manager.pending_by_type(static_defense_type),
             )
             if unit.state.type_id == static_defense_type
         }
         static_defense_pending = {
             unit.state.position: unit
-            for unit in self.ai.unit_manager.pending_by_type[static_defense_type]
+            for unit in self.ai.unit_manager.pending_by_type(static_defense_type)
             if unit.state.type_id != static_defense_type
         }
         static_defense_plans = {
@@ -156,7 +156,7 @@ class ResourceManager(AIModule):
             for base in self.bases:
                 if (
                     base.townhall
-                    and base.townhall.state.is_ready
+                    and base.townhall.unit.state.is_ready
                     and not base.static_defense
                 ):
                     plan = self.ai.macro.add_plan(static_defense_type)
@@ -166,26 +166,28 @@ class ResourceManager(AIModule):
     def update_patches_and_geysers(self) -> None:
         gas_buildings_by_position = {
             gas.state.position: gas
-            for gas in self.ai.unit_manager.actual_by_type[race_gas[self.ai.race]]
+            for t in GAS_BY_RACE[self.ai.race]
+            for gas in self.ai.unit_manager.actual_by_type(t)
         }
+        self.gas_buildings_by_position = gas_buildings_by_position
 
         resource_by_position = {unit.position: unit for unit in self.ai.resources}
+        self.resource_unit_by_position = resource_by_position
 
-        for base in self.bases:
-            for patch in base.mineral_patches:
-                patch.unit = resource_by_position.get(patch.position)
-            for geyser in base.vespene_geysers:
-                geyser.unit = resource_by_position.get(geyser.position)
-                geyser.structure = gas_buildings_by_position.get(geyser.position)
+        # for base in self.bases:
+        #     for patch in base.mineral_patches:
+        #         patch.unit = resource_by_position.get(patch.position)
+        #     for geyser in base.vespene_geysers:
+        #         geyser.unit = resource_by_position.get(geyser.position)
+        #         geyser.structure = gas_buildings_by_position.get(geyser.position)
 
     def balance_harvesters(self) -> None:
         harvester = next(
             (
                 h
-                for h in self.ai.unit_manager.units.values()
+                for h in self.ai.unit_manager.behavior_of_type(GatherBehavior)
                 if (
-                    isinstance(h, GatherBehavior)
-                    and h.gather_target
+                    h.gather_target
                     and isinstance(h.gather_target, MineralPatch)
                     and h.gather_target.harvester_target
                     < self.harvesters_by_resource[h.gather_target]
@@ -213,8 +215,8 @@ class ResourceManager(AIModule):
         self.harvesters_by_resource = Counter[ResourceUnit](
             (
                 unit.gather_target
-                for unit in self.ai.unit_manager.units.values()
-                if isinstance(unit, GatherBehavior) and unit.gather_target
+                for unit in self.ai.unit_manager.behavior_of_type(GatherBehavior)
+                if unit.gather_target
             )
         )
 
@@ -223,12 +225,10 @@ class ResourceManager(AIModule):
         self.update_gas()
         self.update_income()
 
+        self.bases.on_step()
+
         if self.do_split:
-            harvesters = (
-                u
-                for u in self.ai.unit_manager.units.values()
-                if isinstance(u, GatherBehavior)
-            )
+            harvesters = list(self.ai.unit_manager.behavior_of_type(GatherBehavior))
             self.bases[0].split_initial_workers(harvesters)
             self.do_split = False
 
@@ -279,7 +279,9 @@ class ResourceManager(AIModule):
         vespene = max(0, self.ai.macro.future_spending.vespene - self.ai.vespene)
         if minerals + vespene == 0:
             minerals = sum(
-                b.mineral_patches.remaining for b in self.bases if b.townhall
+                b.mineral_patches.remaining
+                for b in self.bases
+                if b.townhall
             )
             vespene = sum(b.vespene_geysers.remaining for b in self.bases if b.townhall)
 
@@ -287,7 +289,7 @@ class ResourceManager(AIModule):
         # worker_type = race_worker[self.race]
         # gas_target = gas_ratio * self.count(worker_type, include_pending=False)
 
-        # vespene *= 2
+        vespene *= 1.5
 
         gas_ratio = 1 - 1 / (1 + vespene / max(1, minerals))
         gas_target = self.ai.state.score.food_used_economy * gas_ratio
@@ -295,19 +297,25 @@ class ResourceManager(AIModule):
         # print(minerals, vespene)
 
         if 0 < gas_target:
-            gas_target = max(3.0, gas_target)
+            gas_target = max(2.0, gas_target)
 
         return gas_target
 
     def build_gasses(self, gas_target: float):
-        gas_type = GAS_BY_RACE[self.ai.race]
+        gas_types = GAS_BY_RACE[self.ai.race]
         gas_depleted = self.ai.gas_buildings.filter(lambda g: not g.has_vespene).amount
-        gas_pending = self.ai.count(gas_type, include_actual=False)
-        gas_have = self.ai.count(gas_type, include_pending=False, include_planned=False)
+        gas_pending = sum(
+            self.ai.count(gas_type, include_actual=False)
+            for gas_type in gas_types
+        )
+        gas_have = sum(
+            self.ai.count(gas_type, include_pending=False, include_planned=False)
+            for gas_type in gas_types
+        )
         gas_max = sum(1 for g in self.ai.get_owned_geysers())
         gas_want = min(gas_max, gas_depleted + math.ceil((gas_target - 1) / 3))
         if gas_have + gas_pending < gas_want:
-            self.ai.macro.add_plan(gas_type)
+            self.ai.macro.add_plan(gas_types[0])
         # elif gas_want + 1 < gas_have + gas_pending:
         #     gas_plans = sorted(self.ai.macro.planned_by_type(gas_type), key=lambda p: p.priority)
         #     for _, plan in zip(range(gas_have + gas_pending - gas_want), gas_plans):
@@ -321,7 +329,9 @@ class ResourceManager(AIModule):
         effective_gas_target = min(float(gas_max), gas_target)
         effective_gas_balance = gas_harvester_count - effective_gas_target
         mineral_balance = mineral_harvester_count - sum(
-            b.mineral_patches.harvester_target for b in self.bases
+            b.mineral_patches.harvester_target
+            for b in self.bases
+            if b.townhall and b.townhall.unit.state.is_ready
         )
 
         if (
@@ -342,8 +352,8 @@ class ResourceManager(AIModule):
     def harvester_count(self, of_type: Type[ResourceUnit]) -> int:
         return sum(
             1
-            for b in self.ai.unit_manager.units.values()
-            if isinstance(b, GatherBehavior) and isinstance(b.gather_target, of_type)
+            for b in self.ai.unit_manager.behavior_of_type(GatherBehavior)
+            if isinstance(b.gather_target, of_type)
         )
 
     def pick_resource(
@@ -360,13 +370,12 @@ class ResourceManager(AIModule):
     ) -> Optional[GatherBehavior]:
         harvesters = [
             b
-            for b in self.ai.unit_manager.units.values()
-            if isinstance(b, GatherBehavior)
-            and isinstance(b.gather_target, from_type)
+            for b in self.ai.unit_manager.behavior_of_type(GatherBehavior)
+            if isinstance(b.gather_target, from_type)
         ]
         return min(
             harvesters,
-            key=lambda h: h.state.position.distance_to(close_to),
+            key=lambda h: h.unit.state.position.distance_to(close_to),
             default=None,
         )
 
