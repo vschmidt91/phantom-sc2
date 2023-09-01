@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from dataclasses import dataclass
 from itertools import chain
 import itertools
@@ -21,7 +22,7 @@ from sc2.data import race_townhalls
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
-from sc2.unit import Unit
+from sc2.unit import Unit, UnitCommand
 from scipy.spatial import cKDTree
 
 from src.units.unit import UnitChangedEvent
@@ -30,6 +31,7 @@ from ..constants import ITEM_BY_ABILITY
 from ..units.army import Army
 from ..units.creep_tumor import CreepTumor
 from ..units.extractor import Extractor
+from ..units.changeling import Changeling
 from ..units.overlord import Overlord
 from ..units.queen import Queen
 from ..units.structure import Hatchery, Larva, Structure
@@ -77,7 +79,7 @@ DEFAULT_BEHAVIORS: BehaviorTable = {
     UnitTypeId.HIVE: Hatchery,
     UnitTypeId.OVERLORD: Overlord,
     UnitTypeId.QUEEN: Queen,
-    UnitTypeId.OVERSEER: Army,
+    UnitTypeId.OVERSEER: Overlord,
     UnitTypeId.ZERGLING: Army,
     UnitTypeId.ZERGLINGBURROWED: Army,
     UnitTypeId.ROACH: Army,
@@ -100,10 +102,14 @@ DEFAULT_BEHAVIORS: BehaviorTable = {
     UnitTypeId.LURKERDEN: Structure,
     UnitTypeId.ULTRALISKCAVERN: Structure,
     UnitTypeId.EVOLUTIONCHAMBER: Structure,
+    UnitTypeId.INFESTATIONPIT: Structure,
+    UnitTypeId.SPIRE: Structure,
+    UnitTypeId.GREATERSPIRE: Structure,
     UnitTypeId.SPINECRAWLER: Structure,
     UnitTypeId.SPINECRAWLERUPROOTED: Structure,
     UnitTypeId.SPORECRAWLER: Structure,
     UnitTypeId.SPORECRAWLERUPROOTED: Structure,
+    UnitTypeId.CHANGELING: Changeling,
 }
 
 
@@ -224,24 +230,39 @@ class UnitManager(AIModule):
     async def on_step(self) -> None:
         self.update_tags()
 
+        commands: List[UnitCommand] = []
+        commands_skipped: List[UnitCommand] = []
         for unit in list(self.units.values()):
             # unit.on_step()
+            if not unit.behavior:
+                continue
             command = unit.behavior.get_command()
             if not command:
                 continue
-            # if any(
-            #     self.ai.order_matches_command(o, command) for o in command.unit.orders
-            # ):
-            #     continue
+            if any(
+                self.ai.order_matches_command(o, command) for o in command.unit.orders
+            ):
+                commands_skipped.append(command)
+                continue
             # if (
             #     command.ability == AbilityId.MOVE
             #     and command.target.distance_to(unit.state.position) < 0.5
             # ):
             #     continue
+            commands.append(command)
             result = self.ai.do(command, subtract_cost=False, subtract_supply=False)
 
             if not result:
-                logging.error("command failed: %s", command)
+                logging.error(f"command failed: {command}")
+
+        logging.debug(f"Commands: {Counter(c.ability for c in commands)}")
+        # logging.debug(f"Commands skipped: {Counter(c.ability for c in commands_skipped)}")
+        # logging.debug(f"{len(commands)} commands, {len(commands_skipped)} skipped")
+
+        optimal_game_step = max(self.ai.min_game_step, len(commands) // 40)
+        if self.ai.client.game_step != optimal_game_step:
+            logging.info(f"changin game_step to {optimal_game_step}")
+            self.ai.client.game_step = optimal_game_step
 
         self.unit_by_position = {
             unit.position: unit

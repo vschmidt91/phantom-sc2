@@ -77,10 +77,11 @@ class GatherBehavior(Behavior):
                 target = self.gather_target.structure.state
 
         if not target:
-            self.gather_target = None
+            self.remove_gather_target()
             return None
         elif self.command_queue:
-            self.command_queue, target = None, self.command_queue
+            target = self.command_queue
+            self.command_queue = None
             return self.unit.state.smart(target, queue=True)
         # elif self.unit.is_carrying_resource:
         #     self.unit(AbilityId.SMART, self.return_target.unit, True)

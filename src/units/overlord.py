@@ -8,6 +8,7 @@ from sc2.unit import UnitCommand
 from ..behaviors.changeling_scout import SpawnChangelingBehavior
 from ..behaviors.overlord_drop import OverlordDropBehavior
 from ..behaviors.survive import SurviveBehavior
+from ..behaviors.search import SearchBehavior
 from ..modules.combat import CombatBehavior
 from ..modules.dodge import DodgeBehavior
 from ..modules.macro import MacroBehavior
@@ -23,20 +24,28 @@ class Overlord(
     SurviveBehavior,
     OverlordDropBehavior,
     CombatBehavior,
+    SearchBehavior,
 ):
     def __init__(self, unit: AIUnit) -> None:
         super().__init__(unit)
 
     def get_command(self) -> Optional[UnitCommand]:
         if self.unit.state.type_id == UnitTypeId.OVERLORD:
-            return self.dodge() or self.macro() or self.survive() or self.scout()
+            return self.dodge() or self.macro() or self.survive() or self.scout() or self.search()
         elif self.unit.state.type_id == UnitTypeId.OVERLORDTRANSPORT:
             return self.dodge() or self.survive() or self.execute_overlord_drop()
         elif self.unit.state.type_id in {
             UnitTypeId.OVERSEER,
             UnitTypeId.OVERSEERSIEGEMODE,
         }:
-            return (
-                self.dodge() or self.spawn_changeling() or self.scout() or self.fight()
-            )
+            if (command := self.dodge()):
+                return command
+            elif (command := self.spawn_changeling()):
+                return command
+            elif (command := self.scout()):
+                return command
+            elif (command := self.fight()):
+                return command
+            else:
+                return None
         return None

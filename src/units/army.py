@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional
+import random
 
 from sc2.unit import UnitCommand
 
@@ -40,6 +41,10 @@ class Army(
             return command
         elif command := self.fight():
             return command
+        elif self.ai.time < 8 * 60 and self.unit.state.is_idle:
+            return self.unit.state.attack(
+                random.choice(self.ai.enemy_start_locations)
+            )
         elif command := self.search():
             return command
         else:

@@ -57,7 +57,7 @@ class PoolFirst(ZergMacro):
 
     def filter_upgrade(self, upgrade) -> bool:
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
-            return 0 < len(self.ai.unit_manager.actual_by_type(UnitTypeId.BANELING))
+            return 0 < self.ai.count(UnitTypeId.BANELING, include_pending=False, include_planned=False)
         else:
             return super().filter_upgrade(upgrade)
 
@@ -65,9 +65,7 @@ class PoolFirst(ZergMacro):
         queen_target = 1 + self.ai.townhalls.amount
         queen_target = np.clip(queen_target, 0, 8)
 
-        make_army = 0 < len(
-            self.ai.unit_manager.actual_by_type(UnitTypeId.SPAWNINGPOOL)
-        )
+        make_army = 0 < self.ai.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False)
 
         self.ai.macro.composition = {
             UnitTypeId.DRONE: 19,

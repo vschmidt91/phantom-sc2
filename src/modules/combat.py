@@ -85,7 +85,7 @@ class CombatModule(AIModule):
 
         self.ground_dps.fill(0.0)
         self.air_dps.fill(0.0)
-        seconds_per_iteration = self.ai.game_step / 22.4
+        seconds_per_iteration = self.ai.client.game_step / 22.4
         for enemy in self.enemies:
             if enemy.can_attack_ground:
                 r = (
@@ -140,7 +140,8 @@ class CombatModule(AIModule):
                     # else:
                     movement_speed = 1.4 * (a.real_speed + b.real_speed)
                     time_to_attack = (d - theoretical_range) / (1e-3 + movement_speed)
-                    attack_weight[i, j] = max(0.0, 1.0 - time_to_attack / 3)
+                    # attack_weight[i, j] = max(0.0, 1.0 - time_to_attack / 5)
+                    attack_weight[i, j] = 0.5 ** time_to_attack
 
         attack_probability = attack_weight / (
             1e-3 + np.sum(attack_weight, axis=1, keepdims=True)
@@ -169,7 +170,7 @@ class CombatModule(AIModule):
                     (
                         j
                         for j in range(len(self.army), len(units))
-                        if 0 < dps[i, j]
+                        if 0 < dps[i, j] or combatant.unit.state.is_detector
                     ),
                     key=lambda k: distance[i, k],
                     # key=lambda k: expected_dps[k, i],
@@ -181,7 +182,7 @@ class CombatModule(AIModule):
                     combatant.target = None
 
                 # if survival_time[j] <= survival_time[i]:
-                if 3 + combatant.unit.state.weapon_cooldown <= survival_time[i]:
+                if 3 + 0.5 * combatant.unit.state.weapon_cooldown <= survival_time[i]:
                     combatant.stance = CombatStance.FIGHT
                 else:
                     combatant.stance = CombatStance.FLEE
@@ -198,6 +199,31 @@ class CombatModule(AIModule):
         )
         self.confidence = (1 + army_cost) / (1 + army_cost + enemy_cost)
 
+        if self.ai.debug:
+            for combatant in self.ai.unit_manager.behavior_of_type(CombatBehavior):
+                if combatant.target is None:
+                    continue
+                color = (255, 255, 255)
+                if combatant.stance == CombatStance.FIGHT:
+                    color = (255, 0, 0)
+                elif combatant.stance == CombatStance.FLEE:
+                    color = (0, 0, 255)
+
+                position_from = Point3(
+                    (
+                        *combatant.unit.state.position,
+                        self.ai.get_terrain_z_height(combatant.unit.state.position) + 0.5,
+                    )
+                )
+
+                position_to = Point3(
+                    (
+                        *combatant.target.position,
+                        self.ai.get_terrain_z_height(combatant.target.position) + 0.5,
+                    )
+                )
+
+                self.ai.client.debug_line_out(position_from, position_to, color=color)
 
 class CombatBehavior(Behavior):
     def __init__(self, unit: AIUnit):
@@ -205,35 +231,15 @@ class CombatBehavior(Behavior):
         self.stance: CombatStance = CombatStance.FIGHT
         self.target: Optional[Unit] = None
 
-    def on_step(self) -> None:
-        if self.ai.debug:
-            if self.target is not None:
-                color = (255, 255, 255)
-                if self.unit.state == CombatStance.FIGHT:
-                    color = (255, 0, 0)
-                elif self.unit.state == CombatStance.FLEE:
-                    color = (0, 0, 255)
-
-                position_from = Point3(
-                    (
-                        *self.unit.state.position,
-                        self.ai.get_terrain_z_height(self.unit.state.position) + 0.5,
-                    )
-                )
-
-                position_to = Point3(
-                    (
-                        *self.target.position,
-                        self.ai.get_terrain_z_height(self.target.position) + 0.5,
-                    )
-                )
-
-                self.ai.client.debug_line_out(position_from, position_to, color=color)
-
     def wants_to_fight(self) -> bool:
         return True
 
     def fight(self) -> Optional[UnitCommand]:
+
+        # if self.target:
+        #     if self.target.game_loop != self.ai.state.game_loop:
+        #         self.target = None
+
         if not self.wants_to_fight():
             return None
 
@@ -298,6 +304,7 @@ class CombatBehavior(Behavior):
         #         return self.unit.attack(target.position)
 
         elif self.stance == CombatStance.FIGHT:
+            # return self.unit.state.attack(self.target)
             return self.unit.state.attack(self.target.position)
 
         # elif stance == CombatStance.ADVANCE:

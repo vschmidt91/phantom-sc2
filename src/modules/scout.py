@@ -49,7 +49,9 @@ class ScoutModule(AIModule):
             unscouted_target := next(
                 (t for t in targets if t not in scouted_positions), None
             )
-        ) and (scout := next((s for s in units if not s.scout_position), None)):
+        ) and (
+            scout := next((s for s in units if not s.scout_position), None)
+        ):
             scout.scout_position = unscouted_target
 
     async def on_step(self) -> None:
@@ -75,26 +77,13 @@ class ScoutBehavior(Behavior):
         self.scout_position: Optional[Point2] = None
 
     def scout(self) -> Optional[UnitCommand]:
-        if self.unit.state.type_id == UnitTypeId.OVERSEER:
+        # if self.unit.state.type_id == UnitTypeId.OVERSEER:
+        #     return None
+        if not self.scout_position:
             return None
-        if self.scout_position:
-            max_distance = self.unit.state.radius + self.unit.state.sight_range
-            # max_distance = 1.0
-            if self.scout_position.distance_to(self.unit.state) < max_distance:
-                return self.unit.state.hold_position()
-            else:
-                return self.unit.state.move(self.scout_position)
-        elif self.unit.state.is_idle:
-            target = self.unit.state.position
-            target = target.towards(
-                self.ai.game_info.map_center, 1.0 * self.unit.state.movement_speed
-            )
-            target = np.random.normal(loc=target, scale=self.unit.state.sight_range)
-            target = np.clip(target, 0, np.subtract(self.ai.game_info.map_size, 1))
-            target_point = Point2(target)
-            if (
-                not self.ai.is_visible(target_point)
-                and self.ai.combat.air_dps[target_point.rounded] < 1
-            ):
-                return self.unit.state.move(target_point)
-        return None
+        max_distance = self.unit.state.radius + self.unit.state.sight_range
+        # max_distance = 1.0
+        if self.scout_position.distance_to(self.unit.state) < max_distance:
+            return self.unit.state.hold_position()
+        else:
+            return self.unit.state.move(self.scout_position)

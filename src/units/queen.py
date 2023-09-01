@@ -22,6 +22,11 @@ class Queen(
     def __init__(self, unit: AIUnit) -> None:
         super().__init__(unit)
 
+    def can_spread_creep(self) -> bool:
+        if self.unit.state.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
+            return False
+        return True
+
     def get_inject_ability(self, reciever: InjectReciever) -> AbilityId:
         return AbilityId.EFFECT_INJECTLARVA
 

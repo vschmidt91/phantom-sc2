@@ -1,6 +1,6 @@
-from __future__ import annotations
+import logging
 
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 from sc2.position import Point2
 
 
@@ -8,21 +8,18 @@ from ..constants import RICH_GAS
 from ..units.unit import AIUnit
 from .resource_unit import ResourceUnit
 
-if TYPE_CHECKING:
-    from src.ai_base import AIBase
-    from ..units.structure import Structure
-
 
 class VespeneGeyser(ResourceUnit):
-    def __init__(self, ai: AIBase, position: Point2) -> None:
+    def __init__(self, ai: "AIBase", position: Point2) -> None:
         super().__init__(ai, position)
 
-    # @functools.cached_property
     @property
     def structure(self) -> Optional[AIUnit]:
         return self.ai.resource_manager.gas_buildings_by_position.get(self.position)
 
     def on_step(self) -> None:
+        if self.structure and 3 < self.structure.state.assigned_harvesters:
+            self.ai.chat.add_tag("gas_bug_detected")
         return super().on_step()
 
     @property

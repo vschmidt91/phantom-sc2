@@ -62,8 +62,8 @@ def create_bot():
 
     ai = ZergAI(strategy_cls=HatchFirst)
     ai.debug = True
-    # ai.profiler_enabled = True
-    ai.game_step = 8
+    ai.profiler_enabled = True
+    ai.min_game_step = 8
 
     # ai = Pool12AllIn()
 

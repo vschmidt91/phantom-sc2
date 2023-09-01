@@ -60,23 +60,24 @@ class ZergAI(AIBase):
         self.expand()
 
     def morph_overlords(self) -> None:
-        supply_pending = sum(
-            provided
+        if self.debug:
+            supply_cap = sum(
+                provided * self.count(unit_type, include_pending=False, include_planned=False)
+                for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
+            )
+            if self.supply_cap != supply_cap:
+                logging.error(f"Supply calculation error. Expected {supply_cap}, got {self.supply_cap}")
+        virtual_supply = sum(
+            provided * self.count(unit_type, include_actual=False)
             for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
-            for unit in self.unit_manager.pending_by_type(unit_type)
-        )
-        supply_planned = sum(
-            provided
-            for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
-            for plan in self.macro.planned_by_type(unit_type)
         )
 
-        if 200 <= self.supply_cap + supply_pending + supply_planned:
+        if 200 <= self.supply_cap + virtual_supply:
             return
 
         supply_buffer = 4.0 + self.resource_manager.income.larva / 2.0
 
-        if self.supply_left + supply_pending + supply_planned <= supply_buffer:
+        if self.supply_left + virtual_supply <= supply_buffer:
             plan = self.macro.add_plan(UnitTypeId.OVERLORD)
             plan.priority = 1
 

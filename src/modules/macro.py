@@ -351,9 +351,9 @@ class MacroModule(AIModule):
             )
         )
 
-        # return next(trainers_filtered, None)
+        return next(trainers_filtered, None)
 
-        return min(trainers_filtered, key=lambda t: t.unit.state.tag, default=None)
+        # return min(trainers_filtered, key=lambda t: t.unit.state.tag, default=None)
 
     async def get_target_position(self, target: UnitTypeId) -> Point2:
         data = self.ai.game_data.units[target.value]
@@ -392,7 +392,7 @@ class MacroModule(AIModule):
         ]
         targets = set(upgrades)
         targets.update(
-            r for item in chain(self.composition, upgrades) for r in REQUIREMENTS[item]
+            r for item in chain(self.composition.keys(), upgrades) for r in REQUIREMENTS[item]
         )
         for target in targets:
             if equivalents := WITH_TECH_EQUIVALENTS.get(target):

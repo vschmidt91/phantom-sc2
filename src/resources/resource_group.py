@@ -34,10 +34,10 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
     def flatten(self) -> Iterable[T]:
         return (x for item in self.items for x in item.flatten())
 
-    def on_step(self) -> None:
+    async def on_step(self) -> None:
         for item in self.items:
-            item.on_step()
-        return super().on_step()
+            await item.on_step()
+        await super().on_step()
 
     @property
     def remaining(self) -> Iterable[int]:

@@ -181,14 +181,14 @@ class ResourceManager(AIModule):
         #         geyser.unit = resource_by_position.get(geyser.position)
         #         geyser.structure = gas_buildings_by_position.get(geyser.position)
 
-    def balance_harvesters(self) -> None:
+    def balance_mineral_harvesters(self, from_type, to) -> None:
         harvester = next(
             (
                 h
                 for h in self.ai.unit_manager.behavior_of_type(GatherBehavior)
                 if (
                     h.gather_target
-                    and isinstance(h.gather_target, MineralPatch)
+                    and isinstance(h.gather_target, from_type)
                     and h.gather_target.harvester_target
                     < self.harvesters_by_resource[h.gather_target]
                 )
@@ -201,7 +201,7 @@ class ResourceManager(AIModule):
         transfer_to = next(
             (
                 resource
-                for resource in self.mineral_patches
+                for resource in to
                 if self.harvesters_by_resource[resource] < resource.harvester_target
             ),
             None,
@@ -222,17 +222,20 @@ class ResourceManager(AIModule):
 
         self.update_patches_and_geysers()
         self.update_bases()
-        self.update_gas()
+        if (self.ai.iteration & 1) == 0:
+            self.update_gas()
+        else:
+            self.balance_mineral_harvesters(MineralPatch, self.mineral_patches)
+            self.balance_mineral_harvesters(VespeneGeyser, self.vespene_geysers)
         self.update_income()
 
-        self.bases.on_step()
+        await self.bases.on_step()
 
         if self.do_split:
             harvesters = list(self.ai.unit_manager.behavior_of_type(GatherBehavior))
             self.bases[0].split_initial_workers(harvesters)
             self.do_split = False
 
-        self.balance_harvesters()
 
     def set_speedmining_positions(self) -> None:
         for base in self.bases:

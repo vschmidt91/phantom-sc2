@@ -30,6 +30,7 @@ from src.bot_events import BotEvents, InitEvent, StartEvent
 from .units.structure import Larva
 from .behaviors.inject import InjectManager
 from .constants import (
+    CREEP_TUMORS,
     GAS_BY_RACE,
     LARVA_COST,
     RANGE_UPGRADES,
@@ -74,7 +75,7 @@ class AIBase(BotAI):
         self.events = BotEvents()
 
         self.raw_affects_selection = True
-        self.game_step: int = 2
+        self.min_game_step: int = 2
         self.unit_command_uses_self_do = True
 
         self.strategy_cls: Type[Strategy] = strategy_cls or HatchFirst
@@ -104,9 +105,13 @@ class AIBase(BotAI):
         self.events.on_init(InitEvent())
 
         self.unit_cost = {type_id: self.get_cost(type_id) for type_id in UnitTypeId}
+        
+        if self.debug:
+            logging.basicConfig(level=logging.DEBUG)
+        else:
+            logging.basicConfig(level=logging.INFO)
 
         if self.profiler_enabled:
-            logging.basicConfig(level=logging.DEBUG)
             self.profiler = cProfile.Profile()
 
             import matplotlib.pyplot as plt
@@ -118,12 +123,10 @@ class AIBase(BotAI):
             )
             plt.show()
 
-        else:
-            logging.basicConfig(level=logging.ERROR)
 
         logging.debug("before_start")
 
-        self.client.game_step = self.game_step
+        self.client.game_step = self.min_game_step
 
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
@@ -200,8 +203,7 @@ class AIBase(BotAI):
         logging.debug("start")
 
         # await self.client.debug_create_unit([
-        #     [UnitTypeId.OVERLORDTRANSPORT, 1, self.game_info.map_center, 1],
-        #     [UnitTypeId.ZERGLING, 8, self.game_info.map_center, 1],
+        #     [UnitTypeId.OVERSEER, 1, self.game_info.map_center, 1],
         # ])
 
         # await self.client.debug_create_unit([
@@ -261,26 +263,6 @@ class AIBase(BotAI):
             if error.result == ActionResult.CantBuildLocationInvalid.value:
                 if behavior := self.unit_manager.units.get(error.unit_tag):
                     self.scout.blocked_positions[behavior.state.position] = self.time
-
-    def units_detecting(self, unit: Unit) -> Iterable[AIUnit]:
-        for detector_type in IS_DETECTOR:
-            for detector in self.unit_manager.actual_by_type(detector_type):
-                distance = detector.state.position.distance_to(unit.position)
-                if (
-                    distance
-                    <= detector.state.radius + detector.state.detect_range + unit.radius
-                ):
-                    yield detector
-
-    def can_attack(self, unit: Unit, target: Unit) -> bool:
-        if target.is_cloaked and not target.is_revealed:
-            return False
-        elif target.is_burrowed and not any(self.units_detecting(target)):
-            return False
-        elif target.is_flying:
-            return unit.can_attack_air
-        else:
-            return unit.can_attack_ground
 
     def handle_actions(self):
         for action in self.state.actions_unit_commands:
@@ -356,11 +338,15 @@ class AIBase(BotAI):
     async def on_step(self, iteration: int):
         if iteration == 0 and self.debug:
             # await self.client.debug_create_unit([
-            #     [UnitTypeId.QUEEN, 8, self.start_location.towards(self.game_info.map_center, 8), 1],
+            #     [UnitTypeId.QUEEN, 2, self.start_location.towards(self.game_info.map_center, 8), 1],
             # ])
             return
 
         self.iteration = iteration
+
+        if self.debug:
+            available_abilities_list = await self.get_available_abilities(self.all_own_units)
+            self.available_abilities = dict(zip(self.all_own_units, available_abilities_list))
 
         # self.count.cache_clear()
 
@@ -375,24 +361,21 @@ class AIBase(BotAI):
 
         def defense_points_of_structure(structure: Unit) -> Iterable[Point2]:
             p = structure.position
-            if structure.type_id in race_townhalls[self.race]:
-                o = 10
-                yield p + Point2((-o, 0))
-                yield p + Point2((+o, 0))
-                yield p + Point2((0, -o))
-                yield p + Point2((0, +o))
-            else:
-                yield p
+            o = 10.0
+            yield p + Point2((-o, 0))
+            yield p + Point2((+o, 0))
+            yield p + Point2((0, -o))
+            yield p + Point2((0, +o))
 
-        defense_points = np.array(
-            [p for s in self.structures for p in defense_points_of_structure(s)]
-        )
-        defense_region = ConvexHull(defense_points)
-        vertices = defense_region.points[defense_region.vertices]
-        defense_mask = skimage.draw.polygon2mask(
-            image_shape=self.game_info.map_size,
-            polygon=vertices,
-        )
+        defense_points = [p for s in self.structures for p in defense_points_of_structure(s)]
+        defense_mask = np.zeros(self.game_info.map_size, dtype=float)
+        if 1 < len(defense_points):
+            defense_region = ConvexHull(np.array(defense_points))
+            vertices = defense_region.points[defense_region.vertices]
+            defense_mask = skimage.draw.polygon2mask(
+                image_shape=self.game_info.map_size,
+                polygon=vertices,
+            )
         self.defense_map = defense_mask == 1
 
         self.creep_placement_map = (
@@ -416,7 +399,7 @@ class AIBase(BotAI):
         #     )
         #     self.creep_value_map[x, y] = 0.0
 
-        base_radius = self.techtree.units[UnitTypeId.HATCHERY].radius
+        base_radius = 1 + self.techtree.units[UnitTypeId.HATCHERY].radius
         for base in self.resource_manager.bases:
             dx, dy = ellipse(
                 *base.position.rounded,
@@ -467,6 +450,11 @@ class AIBase(BotAI):
         if self.debug:
             await self.draw_debug()
 
+        # if 1e6 < self.state.score.current_apm:
+        #     self.game_step = 4
+        # elif self.state.score.current_apm < 1e5:
+        #     self.game_step = 2
+
         # if iteration % 100 == 0:
         #     self.distance_ground, self.distance_air = self.create_distance_map()
 
@@ -479,47 +467,29 @@ class AIBase(BotAI):
             if worker_count != self.supply_workers:
                 logging.error("worker supply mismatch")
 
-    async def on_building_construction_started(self, unit: Unit):
-        # await self.on_building_construction_started(UnitCreatedEvent(unit))
-        logging.debug("building_construction_started: %s", unit)
-
-        behavior = self.unit_manager.add_unit(unit)
-        # self.unit_manager.pending_by_type[unit.type_id].append(behavior)
-
-        if self.race == Race.Zerg:
-            if unit.type_id in {
-                UnitTypeId.CREEPTUMOR,
-                UnitTypeId.CREEPTUMORQUEEN,
-                UnitTypeId.CREEPTUMORBURROWED,
-            }:
-                # print('tumor')
-                pass
+    def _remove_trainer(self, unit: Unit) -> None:
+                    
+        for trainer in self.unit_manager.behavior_of_type(MacroBehavior):
+            if not trainer.plan:
+                continue
+            if not trainer.plan.target:
+                continue
+            if isinstance(trainer.plan.target, Unit):
+                plan_target = trainer.plan.target.position
             else:
-                geyser = self.resource_manager.resource_by_position.get(unit.position)
-                geyser_tag = (
-                    geyser.unit.tag
-                    if isinstance(geyser, VespeneGeyser) and geyser.unit
-                    else None
-                )
-                for trainer_type in UNIT_TRAINED_FROM.get(unit.type_id, []):
-                    for trainer in self.unit_manager.actual_by_type(trainer_type):
-                        if trainer.state.position.distance_to(unit.position) < 0.5:
-                            if behavior := self.unit_manager.units.get(
-                                trainer.state.tag
-                            ):
-                                if isinstance(behavior, MacroBehavior):
-                                    behavior.plan = None
-                            assert self.unit_manager.try_remove_unit(trainer.state.tag)
-                            break
-                        elif (
-                            not trainer.state.is_idle
-                            and trainer.state.order_target
-                            in {unit.position, geyser_tag}
-                        ):
-                            assert self.unit_manager.try_remove_unit(trainer.state.tag)
-                            break
-                    else:
-                        logging.error("trainer not found")
+                plan_target = trainer.plan.target
+            if plan_target != unit.position:
+                continue
+            self.unit_manager.try_remove_unit(trainer.unit.state.tag)
+            return
+
+        logging.error("trainer not found")
+
+    async def on_building_construction_started(self, unit: Unit):
+        logging.debug("building_construction_started: %s", unit)
+        self.unit_manager.add_unit(unit)
+        if self.race == Race.Zerg and (unit.type_id not in CREEP_TUMORS):
+            self._remove_trainer(unit)
 
     async def on_unit_created(self, unit: Unit):
         logging.debug("unit_created: %s", unit)
@@ -720,6 +690,10 @@ class AIBase(BotAI):
             f"Gas Target: {round(self.resource_manager.get_gas_target(), 3)}",
             (0.01, 0.03),
         )
+        self.client.debug_text_screen(
+            f"Harvester Count: {sum(v for k, v in self.resource_manager.harvesters_by_resource.items())}",
+            (0.01, 0.04),
+        )
 
         for i, plan in enumerate(plans):
             self.client.debug_text_screen(
@@ -788,7 +762,7 @@ class AIBase(BotAI):
         if isinstance(order.target, Point2):
             if not isinstance(command.target, Point2):
                 return False
-            elif 0.5 < order.target.distance_to(command.target):
+            elif 1 < order.target.distance_to(command.target):
                 return False
         elif isinstance(order.target, int):
             if not isinstance(command.target, Unit):

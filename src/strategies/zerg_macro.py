@@ -37,7 +37,7 @@ class ZergMacro(Strategy):
         # larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
         # queen_target = math.ceil(larva_rate / (3 / 29))
         # queen_target = min(queen_target, self.ai.townhalls.amount)
-        queen_target = self.ai.townhalls.amount
+        queen_target = self.ai.townhalls.amount + 1
         queen_target = np.clip(queen_target, 0, 8)
         # print(queen_target)
 
@@ -90,7 +90,7 @@ class ZergMacro(Strategy):
             composition[UnitTypeId.ZERGLING] = 1.0
             pass
 
-        composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 7
+        composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 3
         composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 3
 
         if self.tech_up:
@@ -116,35 +116,17 @@ class ZergMacro(Strategy):
                 if 0 < lair_count:
                     bank_spending.add(UnitTypeId.HYDRALISK)
             bank_spending.add(UnitTypeId.ROACH)
-
+            # bank_spending.add(UnitTypeId.OVERSEER)
             bank_spending.add(UnitTypeId.QUEEN)
             bank_spending.add(UnitTypeId.ZERGLING)
         for unit in bank_spending:
             if not can_build[unit]:
                 continue
-            if any(self.ai.macro.planned_by_type(unit)):
+            if 0 < self.ai.count(unit, include_actual=False, include_pending=False)):
                 continue
             if not self.ai.can_afford(unit):
                 continue
             self.ai.macro.add_plan(unit)
-
-        # if worker_count == worker_target:
-
-        #     banking = min(self.ai.minerals, self.ai.vespene) / 100
-        #     banking_minerals = self.ai.minerals / 100
-        #     if 0 < hive_count:
-        #         composition[UnitTypeId.BROODLORD] += banking
-        #         composition[UnitTypeId.CORRUPTOR] += banking
-        #         composition[UnitTypeId.HYDRALISK] += banking
-        #         composition[UnitTypeId.ROACH] += banking
-        #         composition[UnitTypeId.ZERGLING] += 2 * banking_minerals
-        #     elif 0 < lair_count:
-        #         composition[UnitTypeId.HYDRALISK] += banking
-        #         composition[UnitTypeId.ROACH] += banking
-        #         composition[UnitTypeId.ZERGLING] += 2 * banking_minerals
-        #     else:
-        #         composition[UnitTypeId.ROACH] += banking
-        #         composition[UnitTypeId.ZERGLING] += 2 * banking_minerals
 
         self.ai.macro.composition = {
             k: math.floor(v) for k, v in composition.items() if 0 < v
