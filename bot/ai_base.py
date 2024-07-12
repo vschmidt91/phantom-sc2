@@ -41,7 +41,6 @@ from .resources.resource_manager import ResourceManager
 from .strategies.hatch_first import HatchFirst
 from .strategies.pool_first import PoolFirst
 from .strategies.roach_rush import RoachRush
-from .techtree import TechTree
 from .behaviors.inject import InjectManager
 from .behaviors.survive import SurviveBehavior
 from .units.unit import AIUnit
@@ -75,7 +74,6 @@ class AIBase(BotAI):
 
         self.extractor_trick_enabled: bool = False
         self.iteration: int = 0
-        self.techtree: TechTree = TechTree('bot/data/techtree.json')
         self.profiler: Optional[cProfile.Profile] = None
 
         super().__init__()
@@ -767,12 +765,3 @@ class AIBase(BotAI):
             include_planned=False
         )
         return workers
-
-    def blocked_bases(self, position: Point2, margin: float = 0.0) -> Iterable[Base]:
-        townhall_type = next(iter(race_townhalls[self.race]))
-        radius = self.techtree.units[townhall_type].radius or 0.0
-        return (
-            base
-            for base in self.resource_manager.bases
-            if np.linalg.norm(position - base.position, ord=1) < margin + radius
-        )

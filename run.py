@@ -1,30 +1,21 @@
 import itertools
+import random
 import sys
 from typing import Iterable
+from pathlib import Path
 
-import sc2
-from sc2.ids.buff_id import BuffId
+from sc2 import maps
 from sc2.data import Race, Difficulty, AIBuild
-from sc2.main import GameMatch, run_multiple_games
+from sc2.main import run_game
 from sc2.player import AbstractPlayer, Bot, Computer
-from bot.strategies.pool_first import PoolFirst
-from bot.strategies.hatch_first import HatchFirst
-
-from bot.pool12_allin import Pool12AllIn
-from bot.ai_base import AIBase
 from bot.zerg import ZergAI
-from bot.strategies.terran_macro import TerranMacro
 from ladder import run_ladder_game
 
-BuffId._missing_ = lambda _ : BuffId.NULL
-
-MAPS = [
-    "Equilibrium512V2AIE",
-    "Goldenaura512V2AIE",
-    "Gresvan512V2AIE",
-    "HardLead512V2AIE",
-    "Oceanborn512V2AIE",
-    "SiteDelta512V2AIE",
+MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
+MAP_FILE_EXT: str = "SC2Map"
+MAP_VETOS: list[str] = [
+    "PlateauMicro_2",
+    "BotMicroArena_6",
 ]
 
 RACES = [
@@ -72,10 +63,25 @@ if __name__ == "__main__":
     else:
         ai.debug = True
         ai.game_step = 2
-        for i in itertools.count():
-            games = [
-                GameMatch(sc2.maps.get(map), [create_bot(ai), opponent], realtime=REAL_TIME, random_seed=SEED)
-                for map in MAPS
-                for opponent in create_opponents(DIFFICULTY)
-            ]
-            results = run_multiple_games(games)
+        map_list: list[str] = [
+            p.name.replace(f".{MAP_FILE_EXT}", "")
+            for p in Path(MAPS_PATH).glob(f"*.{MAP_FILE_EXT}")
+            if p.is_file()
+        ]
+        for m in MAP_VETOS:
+            map_list.remove(m)
+        random_race = random.choice([
+            Race.Zerg,
+            Race.Terran,
+            Race.Protoss,
+        ])
+        enemy_build = random.choice(BUILDS)
+        print("Starting local game...")
+        run_game(
+            maps.get(random.choice(map_list)),
+            [
+                create_bot(ai),
+                Computer(random_race, Difficulty.CheatInsane, enemy_build),
+            ],
+            realtime=False,
+        )

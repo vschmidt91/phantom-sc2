@@ -130,7 +130,7 @@ class UnitManager(AIModule):
             return Overlord(self.ai, unit)
         elif unit.type_id == UnitTypeId.QUEEN:
             return Queen(self.ai, unit)
-        elif self.ai.techtree.units[unit.type_id].is_structure:
+        elif unit.is_structure:
             return Structure(self.ai, unit)
         else:
             return Army(self.ai, unit)
