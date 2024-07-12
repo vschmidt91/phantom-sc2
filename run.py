@@ -7,13 +7,13 @@ from sc2.ids.buff_id import BuffId
 from sc2.data import Race, Difficulty, AIBuild
 from sc2.main import GameMatch, run_multiple_games
 from sc2.player import AbstractPlayer, Bot, Computer
-from src.strategies.pool_first import PoolFirst
-from src.strategies.hatch_first import HatchFirst
+from bot.strategies.pool_first import PoolFirst
+from bot.strategies.hatch_first import HatchFirst
 
-from src.pool12_allin import Pool12AllIn
-from src.ai_base import AIBase
-from src.zerg import ZergAI
-from src.strategies.terran_macro import TerranMacro
+from bot.pool12_allin import Pool12AllIn
+from bot.ai_base import AIBase
+from bot.zerg import ZergAI
+from bot.strategies.terran_macro import TerranMacro
 from tools.dummy import DummyAI
 from ladder import run_ladder_game
 

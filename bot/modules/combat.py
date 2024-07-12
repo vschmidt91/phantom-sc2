@@ -18,8 +18,8 @@ from scipy.cluster.vq import kmeans
 from skimage.draw import disk
 from skimage.transform import resize, rescale
 
-from src.behaviors.bile import BileBehavior
-from src.cost import Cost
+from bot.behaviors.bile import BileBehavior
+from bot.cost import Cost
 
 from ..utils import center
 from ..influence_map import InfluenceMap

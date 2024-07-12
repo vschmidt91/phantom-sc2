@@ -25,7 +25,7 @@ from .module import AIModule
 from ..constants import WORKERS, CHANGELINGS, ITEM_BY_ABILITY
 from ..units.extractor import Extractor
 from ..units.structure import Larva, Structure
-from src.units import unit
+from bot.units import unit
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase

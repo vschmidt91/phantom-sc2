@@ -30,7 +30,7 @@ from .constants import ZERG_RANGED_UPGRADES
 from .constants import ZERG_FLYER_UPGRADES
 from .constants import ZERG_FLYER_ARMOR_UPGRADES
 
-from src.behaviors.overlord_drop import OverlordDropManager
+from bot.behaviors.overlord_drop import OverlordDropManager
 
 from .cost import Cost
 from .utils import flood_fill
