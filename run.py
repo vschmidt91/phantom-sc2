@@ -14,7 +14,6 @@ from bot.pool12_allin import Pool12AllIn
 from bot.ai_base import AIBase
 from bot.zerg import ZergAI
 from bot.strategies.terran_macro import TerranMacro
-from tools.dummy import DummyAI
 from ladder import run_ladder_game
 
 BuffId._missing_ = lambda _ : BuffId.NULL
