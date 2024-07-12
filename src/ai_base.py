@@ -99,13 +99,6 @@ class AIBase(BotAI):
         if self.debug:
             logging.basicConfig(level=logging.DEBUG)
 
-            import matplotlib.pyplot as plt
-            plt.ion()
-            self.profiler = cProfile.Profile()
-            self.figure = plt.figure()
-            self.figure_img = plt.imshow(self.game_info.pathing_grid.data_numpy.transpose())
-            plt.show()
-
             # self.plot, self.plot_axes = plt.subplots(1, 2)
             # self.plot_images = None
         else:
