@@ -35,7 +35,7 @@ from src.behaviors.overlord_drop import OverlordDropManager
 from .cost import Cost
 from .utils import flood_fill
 from .constants import LARVA_COST, WORKERS, UNIT_TRAINED_FROM, WITH_TECH_EQUIVALENTS
-from .constants import GAS_BY_RACE, REQUIREMENTS_KEYS
+from .constants import GAS_BY_RACE, REQUIREMENTS_KEYS, VERSION_FILE
 from .constants import TRAIN_INFO, UPGRADE_RESEARCHED_FROM, RESEARCH_INFO, RANGE_UPGRADES
 from .resources.resource_manager import ResourceManager
 from .strategies.hatch_first import HatchFirst
@@ -59,18 +59,18 @@ from .units.worker import Worker, WorkerManager
 
 class AIBase(BotAI):
 
-    def __init__(self,
-        strategy_cls: Optional[Type[Strategy]] = None,
-        version_path = "version.txt"
-    ):
+    def __init__(self,):
 
         self.raw_affects_selection = True
         self.game_step: int = 2
         self.unit_command_uses_self_do = True
 
-        self.strategy_cls: Type[Strategy] = strategy_cls or HatchFirst
-        with open(version_path, 'r', encoding="UTF-8") as file:
-            self.version = file.readline().replace('\n', '')
+        self.strategy_cls: Type[Strategy] = HatchFirst
+
+        if os.path.exists(VERSION_FILE):
+            with open(VERSION_FILE) as f:
+                self.version = f.read()
+
         self.debug: bool = False
 
         self.extractor_trick_enabled: bool = False

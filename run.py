@@ -1,4 +1,5 @@
 import itertools
+import sys
 from typing import Iterable
 
 import sc2
@@ -14,6 +15,7 @@ from src.ai_base import AIBase
 from src.zerg import ZergAI
 from src.strategies.terran_macro import TerranMacro
 from tools.dummy import DummyAI
+from ladder import run_ladder_game
 
 BuffId._missing_ = lambda _ : BuffId.NULL
 
@@ -47,16 +49,7 @@ RESULT_PATH = 'results.json'
 SEED = 123
 
 
-def create_bot():
-
-    ai = ZergAI(strategy_cls=None)
-    ai.debug = True
-    ai.game_step = 1
-
-    # ai = Pool12AllIn()
-
-    # ai = DummyAI()
-
+def create_bot(ai):
     return Bot(Race.Zerg, ai, 'PhantomBot')
 
 
@@ -71,10 +64,19 @@ def create_opponents(difficulty) -> Iterable[AbstractPlayer]:
 
 if __name__ == "__main__":
 
-    for i in itertools.count():
-        games = [
-            GameMatch(sc2.maps.get(map), [create_bot(), opponent], realtime=REAL_TIME, random_seed=SEED)
-            for map in MAPS
-            for opponent in create_opponents(DIFFICULTY)
-        ]
-        results = run_multiple_games(games)
+    ai = ZergAI()
+    if "--LadderServer" in sys.argv:
+        # Ladder game started by LadderManager
+        print("Starting ladder game...")
+        result, opponentid = run_ladder_game(create_bot(ai))
+        print(result," against opponent ", opponentid)
+    else:
+        ai.debug = True
+        ai.game_step = 2
+        for i in itertools.count():
+            games = [
+                GameMatch(sc2.maps.get(map), [create_bot(ai), opponent], realtime=REAL_TIME, random_seed=SEED)
+                for map in MAPS
+                for opponent in create_opponents(DIFFICULTY)
+            ]
+            results = run_multiple_games(games)
