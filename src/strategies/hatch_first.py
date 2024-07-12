@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Iterable, TYPE_CHECKING
 
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 
 from .zerg_macro import ZergMacro
 from ..modules.macro import MacroId
@@ -28,8 +29,4 @@ class HatchFirst(ZergMacro):
             UnitTypeId.DRONE,
             UnitTypeId.EXTRACTOR,
             UnitTypeId.SPAWNINGPOOL,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.DRONE,
-            # UnitTypeId.HATCHERY,
         ]

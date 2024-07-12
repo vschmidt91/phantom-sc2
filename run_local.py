@@ -18,15 +18,12 @@ from tools.dummy import DummyAI
 BuffId._missing_ = lambda _ : BuffId.NULL
 
 MAPS = [
-    # 'BerlingradAIE',
-    # 'MoondanceAIE',
-    # 'InsideAndOutAIE',
-    # 'HardwireAIE',
-    # 'StargazersAIE',
-    'WaterfallAIE',
-    # 'GlitteringAshesAIE',
-    # '2000AtmospheresAIE',
-    # 'BlackburnAIE',
+    "Equilibrium512V2AIE",
+    "Goldenaura512V2AIE",
+    "Gresvan512V2AIE",
+    "HardLead512V2AIE",
+    "Oceanborn512V2AIE",
+    "SiteDelta512V2AIE",
 ]
 
 RACES = [
@@ -54,7 +51,7 @@ def create_bot():
 
     ai = ZergAI(strategy_cls=None)
     ai.debug = True
-    ai.game_step = 2
+    ai.game_step = 1
 
     # ai = Pool12AllIn()
 

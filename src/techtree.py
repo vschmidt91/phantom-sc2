@@ -50,6 +50,13 @@ class TechTreeAbilityTargetUnit:
     type: TechTreeAbilityTargetUnitType
     unit: UnitTypeId
 
+
+@dataclass
+class TechTreeCost:
+    minerals: int
+    gas: int
+    time: float
+
 @dataclass
 class TechTreeAbility:
     id: AbilityId
@@ -62,6 +69,7 @@ class TechTreeAbility:
     buff: List
     cooldown: int
     target: Union[TechTreeAbilityTarget, TechTreeAbilityTargetResearch, TechTreeAbilityTargetUnit]
+    remaps_to_ability_id: AbilityId
 
 
 @dataclass
@@ -142,13 +150,6 @@ class TechTreeUnit:
 
 
 @dataclass
-class TechTreeCost:
-    minerals: int
-    gas: int
-    time: float
-
-
-@dataclass
 class TechTreeUpgrade:
     id: UpgradeId
     name: str
@@ -169,6 +170,7 @@ class TechTree:
         for item in data['Ability']:
 
             item['id'] = AbilityId(item['id'])
+            item['remaps_to_ability_id'] = AbilityId(item.get('remaps_to_ability_id', 0))
 
             if isinstance(item['target'], dict):
                 [(key, value)] = item['target'].items()

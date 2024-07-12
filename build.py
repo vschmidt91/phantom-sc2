@@ -97,6 +97,7 @@ if __name__ == '__main__':
     for bot in BOTS:
 
         path = os.path.join(OUTPUT_PATH, bot.name + '.zip')
+        os.mkdir(path)
         if os.path.exists(path):
             os.remove(path)
         zip_file = ZipFile(path, 'w', zipfile.ZIP_DEFLATED)
