@@ -10,7 +10,7 @@ link_args = []
 include_dirs = [numpy.get_include()]
 libraries = []
 
-INPUT_DIR = "src/modules/"
+INPUT_DIR = "bot/modules/"
 
 def build():
     source_files = []
