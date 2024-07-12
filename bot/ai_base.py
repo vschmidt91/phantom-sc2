@@ -75,7 +75,7 @@ class AIBase(BotAI):
 
         self.extractor_trick_enabled: bool = False
         self.iteration: int = 0
-        self.techtree: TechTree = TechTree('data/techtree.json')
+        self.techtree: TechTree = TechTree('bot/data/techtree.json')
         self.profiler: Optional[cProfile.Profile] = None
 
         super().__init__()
