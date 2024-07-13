@@ -8,7 +8,7 @@ __pycache__/
 
 # C extensions
 *.so
-.cpp
+*.cpp
 
 # Distribution / packaging
 .Python
