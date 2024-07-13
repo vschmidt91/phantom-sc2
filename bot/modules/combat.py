@@ -155,7 +155,7 @@ class CombatModule(AIModule):
 
         retreat_cost_ground = self.ai.mediator.get_map_data_object.get_pyastar_grid() + np.log1p(self.ground_dps)
         retreat_cost_air = self.ai.mediator.get_map_data_object.get_clean_air_grid() + np.log1p(self.air_dps)
-        retreat_targets = [w.position for w in self.ai.workers]
+        retreat_targets = [w.position for w in self.ai.workers] + [self.ai.start_location]
         self.retreat_ground = DijkstraOutput.from_cy(
             cy_dijkstra(
                 retreat_cost_ground.astype(np.float64),
