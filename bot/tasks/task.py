@@ -1,4 +1,3 @@
-
 from abc import ABC, abstractmethod
 from typing import Optional
 
@@ -6,8 +5,8 @@ from sc2.unit import Unit, UnitCommand
 
 from bot.units.unit import AIUnit
 
-class Task(ABC):
 
+class Task(ABC):
     def __init__(self) -> None:
         pass
 

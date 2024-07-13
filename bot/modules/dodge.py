@@ -3,16 +3,16 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass
 from itertools import chain
-from typing import List, TYPE_CHECKING, Optional, Dict
-import numpy as np
+from typing import TYPE_CHECKING, Dict, List, Optional
 
+import numpy as np
 from sc2.game_state import EffectData
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.unit_command import UnitCommand
 from sc2.position import Point2
 from sc2.unit import Unit
+from sc2.unit_command import UnitCommand
 
 from ..units.unit import AIUnit
 from .module import AIModule
@@ -43,7 +43,6 @@ class DamageCircle:
 
 
 class DodgeModule(AIModule):
-
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
         self.elements: List[DodgeElement] = list()
@@ -51,26 +50,15 @@ class DodgeModule(AIModule):
 
     async def on_step(self):
         delayed_positions = {e.position for e in self.elements_delayed}
-        delayed_old = (
-            element
-            for element in self.elements_delayed
-            if self.ai.time <= element.time_of_impact
-        )
+        delayed_old = (element for element in self.elements_delayed if self.ai.time <= element.time_of_impact)
         delayed_new = (
             DodgeEffectDelayed(effect, self.ai.time)
             for effect in self.ai.state.effects
-            if (
-                effect.id in DODGE_DELAYED_EFFECTS
-                and next(iter(effect.positions)) not in delayed_positions
-        )
+            if (effect.id in DODGE_DELAYED_EFFECTS and next(iter(effect.positions)) not in delayed_positions)
         )
         self.elements_delayed = list(chain(delayed_old, delayed_new))
 
-        dodge_effects = (
-            DodgeEffect(effect)
-            for effect in self.ai.state.effects
-            if effect.id in DODGE_EFFECTS
-        )
+        dodge_effects = (DodgeEffect(effect) for effect in self.ai.state.effects if effect.id in DODGE_EFFECTS)
         dodge_unit = (
             DodgeUnit(enemy)
             for enemy in self.ai.unit_manager.enemies.values()
@@ -80,7 +68,6 @@ class DodgeModule(AIModule):
 
 
 class DodgeElement(ABC):
-
     def __init__(self, position: Point2, circles: List[DamageCircle]):
         self.position: Point2 = position
         self.circles: List[DamageCircle] = circles
@@ -131,13 +118,11 @@ class DodgeEffectDelayed(DodgeEffect):
 
 
 class DodgeBehavior(AIUnit):
-
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
         self.safety_distance: float = 1.0
 
     def dodge(self) -> Optional[UnitCommand]:
-
         for dodge in self.ai.dodge.elements:
             distance_bonus = 0.0
             if isinstance(dodge, DodgeEffectDelayed):
@@ -148,7 +133,7 @@ class DodgeBehavior(AIUnit):
             for circle in dodge.circles:
                 distance_want = circle.radius + self.unit.radius
                 if distance_have + distance_bonus < distance_want + self.safety_distance:
-                    random_offset =  Point2(np.random.normal(loc=0.0, scale=0.001, size=2))
+                    random_offset = Point2(np.random.normal(loc=0.0, scale=0.001, size=2))
                     dodge_from = dodge.position
                     if dodge_from == self.unit.position:
                         dodge_from += random_offset

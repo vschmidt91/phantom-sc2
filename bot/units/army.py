@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit, UnitCommand
 
-from ..behaviors.burrow import BurrowBehavior
-from ..behaviors.search import SearchBehavior
 from ..behaviors.bile import BileBehavior
+from ..behaviors.burrow import BurrowBehavior
 from ..behaviors.overlord_drop import OverlordDropMemberBehavior
+from ..behaviors.search import SearchBehavior
 from ..modules.combat import CombatBehavior
 from ..modules.dodge import DodgeBehavior
 from ..modules.macro import MacroBehavior
@@ -18,8 +18,15 @@ if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
-class Army(DodgeBehavior, MacroBehavior, BurrowBehavior, BileBehavior, OverlordDropMemberBehavior, CombatBehavior, SearchBehavior):
-
+class Army(
+    DodgeBehavior,
+    MacroBehavior,
+    BurrowBehavior,
+    BileBehavior,
+    OverlordDropMemberBehavior,
+    CombatBehavior,
+    SearchBehavior,
+):
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
 

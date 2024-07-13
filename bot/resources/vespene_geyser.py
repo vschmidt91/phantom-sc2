@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sc2.unit import Unit
 
-from .resource_unit import ResourceUnit
 from ..constants import RICH_GAS
+from .resource_unit import ResourceUnit
 
 if TYPE_CHECKING:
     from ..units.structure import Structure
 
 
 class VespeneGeyser(ResourceUnit):
-
     def __init__(self, unit: Unit) -> None:
         super().__init__(unit)
         self.structure: Optional[Structure] = None

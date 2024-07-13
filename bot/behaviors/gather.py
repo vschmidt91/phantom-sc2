@@ -1,24 +1,23 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from sc2.unit_command import UnitCommand
 from sc2.unit import Union
+from sc2.unit_command import UnitCommand
 
-from ..units.structure import Structure
-from ..resources.resource_base import ResourceBase
 from ..resources.mineral_patch import MineralPatch
+from ..resources.resource_base import ResourceBase
 from ..resources.vespene_geyser import VespeneGeyser
+from ..units.structure import Structure
 from ..units.unit import AIUnit
 from ..utils import *
+
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 
 class GatherBehavior(AIUnit):
-
     def __init__(self, ai: AIBase, unit: Unit):
-
         super().__init__(ai, unit)
 
         self.gather_target: Optional[ResourceBase] = None
@@ -36,7 +35,6 @@ class GatherBehavior(AIUnit):
         )
 
     def gather(self) -> Optional[UnitCommand]:
-
         if not self.gather_target:
             return None
         elif not self.return_target:
@@ -90,5 +88,5 @@ class GatherBehavior(AIUnit):
                 return self.unit.smart(target)
         elif self.unit.is_idle:
             return self.unit.smart(target)
-            
+
         return None

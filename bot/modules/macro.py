@@ -1,25 +1,30 @@
 from __future__ import annotations
 
-import random
 import math
+import random
 from functools import cmp_to_key
 from itertools import chain
-from typing import List, TYPE_CHECKING, Union, Optional, Iterable, Dict
+from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Union
 
 from sc2.data import race_townhalls
+from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.ids.ability_id import AbilityId
-from sc2.unit_command import UnitCommand
-from sc2.unit import Unit
 from sc2.position import Point2
+from sc2.unit import Unit
+from sc2.unit_command import UnitCommand
 
-from ..units.unit import AIUnit
-from .module import AIModule
-from ..constants import ITEM_TRAINED_FROM_WITH_EQUIVALENTS, MACRO_INFO, GAS_BY_RACE
-from ..constants import REQUIREMENTS, WITH_TECH_EQUIVALENTS
+from ..constants import (
+    GAS_BY_RACE,
+    ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
+    MACRO_INFO,
+    REQUIREMENTS,
+    WITH_TECH_EQUIVALENTS,
+)
 from ..cost import Cost
+from ..units.unit import AIUnit
 from ..utils import PlacementNotFoundException, time_to_reach
+from .module import AIModule
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -40,7 +45,6 @@ def compare_plans(plan_a: MacroPlan, plan_b: MacroPlan) -> int:
 
 
 class MacroPlan:
-
     def __init__(self, plan_id: int, item: MacroId):
         self.plan_id = plan_id
         self.item = item
@@ -57,7 +61,6 @@ class MacroPlan:
 
 
 class MacroModule(AIModule):
-
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
         self.next_plan_id: int = 0
@@ -91,19 +94,12 @@ class MacroModule(AIModule):
         return chain(unit_plans, self.unassigned_plans)
 
     def planned_by_type(self, item: MacroId) -> Iterable[MacroPlan]:
-        return (
-            plan
-            for plan in self.enumerate_plans()
-            if plan.item == item
-        )
+        return (plan for plan in self.enumerate_plans() if plan.item == item)
 
     def make_composition(self):
         if 200 <= self.ai.supply_used:
             return
-        composition_have = {
-            unit: self.ai.count(unit)
-            for unit in self.composition
-        }
+        composition_have = {unit: self.ai.count(unit) for unit in self.composition}
         for unit, count in self.composition.items():
             if count < 1:
                 continue
@@ -122,7 +118,6 @@ class MacroModule(AIModule):
                 plan.priority = priority
 
     async def on_step(self) -> None:
-
         self.make_composition()
         self.make_tech()
 
@@ -131,17 +126,14 @@ class MacroModule(AIModule):
         trainers = {
             behavior
             for behavior in self.ai.unit_manager.units.values()
-            if (
-                    isinstance(behavior, MacroBehavior)
-                    and not behavior.plan
-            )
+            if (isinstance(behavior, MacroBehavior) and not behavior.plan)
         }
 
         plans = sorted(
             self.enumerate_plans(),
             key=cmp_to_key(compare_plans),
             # key = lambda t : t.priority,
-            reverse=True
+            reverse=True,
         )
 
         trainer_by_plan = {
@@ -151,13 +143,9 @@ class MacroModule(AIModule):
         }
 
         for i, plan in enumerate(plans):
-
             cost = self.ai.get_cost(plan.item)
 
-            if (
-                any(self.ai.get_missing_requirements(plan.item))
-                and plan.priority == math.inf
-            ):
+            if any(self.ai.get_missing_requirements(plan.item)) and plan.priority == math.inf:
                 break
 
             if (2 if self.ai.extractor_trick_enabled else 1) <= i and plan.priority == math.inf:
@@ -207,14 +195,18 @@ class MacroModule(AIModule):
             else:
                 eta = 0.0
                 if 0 < cost.minerals:
-                    eta = max(eta, 60 * (reserve.minerals - self.ai.minerals)
-                        / max(1, self.ai.resource_manager.income.minerals))
+                    eta = max(
+                        eta,
+                        60 * (reserve.minerals - self.ai.minerals) / max(1, self.ai.resource_manager.income.minerals),
+                    )
                 if 0 < cost.vespene:
-                    eta = max(eta, 60 * (reserve.vespene - self.ai.vespene)
-                        / max(1, self.ai.resource_manager.income.vespene))
+                    eta = max(
+                        eta, 60 * (reserve.vespene - self.ai.vespene) / max(1, self.ai.resource_manager.income.vespene)
+                    )
                 if 0 < cost.larva:
-                    eta = max(eta, 60 * (reserve.larva - self.ai.larva.amount)
-                        / max(1, self.ai.resource_manager.income.larva))
+                    eta = max(
+                        eta, 60 * (reserve.larva - self.ai.larva.amount) / max(1, self.ai.resource_manager.income.larva)
+                    )
                 if 0 < cost.food:
                     if self.ai.supply_left < cost.food:
                         eta = math.inf
@@ -222,67 +214,53 @@ class MacroModule(AIModule):
 
         cost_zero = Cost(0, 0, 0, 0)
         future_spending = cost_zero
-        future_spending += sum((
-            self.ai.get_cost(plan.item)
-            for plan in self.ai.macro.unassigned_plans
-        ), cost_zero)
-        future_spending += sum((
-            self.ai.get_cost(b.plan.item)
-            for b in self.ai.unit_manager.units.values()
-            if isinstance(b, MacroBehavior) and b.plan
-        ), cost_zero)
-        future_spending += sum((
-            self.ai.get_cost(unit) * max(0, count - self.ai.count(unit))
-            for unit, count in self.composition.items()
-        ), cost_zero)
+        future_spending += sum((self.ai.get_cost(plan.item) for plan in self.ai.macro.unassigned_plans), cost_zero)
+        future_spending += sum(
+            (
+                self.ai.get_cost(b.plan.item)
+                for b in self.ai.unit_manager.units.values()
+                if isinstance(b, MacroBehavior) and b.plan
+            ),
+            cost_zero,
+        )
+        future_spending += sum(
+            (self.ai.get_cost(unit) * max(0, count - self.ai.count(unit)) for unit, count in self.composition.items()),
+            cost_zero,
+        )
         self.future_spending = future_spending
 
         future_timeframe = 3 / 60
         if 0 < future_spending.minerals:
             future_timeframe = max(
-                future_timeframe,
-                future_spending.minerals / max(1, self.ai.resource_manager.income.minerals)
+                future_timeframe, future_spending.minerals / max(1, self.ai.resource_manager.income.minerals)
             )
         if 0 < future_spending.vespene:
             future_timeframe = max(
-                future_timeframe,
-                future_spending.vespene / max(1, self.ai.resource_manager.income.vespene)
+                future_timeframe, future_spending.vespene / max(1, self.ai.resource_manager.income.vespene)
             )
         if 0 < future_spending.larva:
             future_timeframe = max(
-                future_timeframe,
-                future_spending.larva / max(1, self.ai.resource_manager.income.larva)
+                future_timeframe, future_spending.larva / max(1, self.ai.resource_manager.income.larva)
             )
         self.future_timeframe = future_timeframe
 
-    async def get_target(self,
-        trainer: MacroBehavior,
-        objective: MacroPlan
-    ) -> Union[Unit, Point2, None]:
+    async def get_target(self, trainer: MacroBehavior, objective: MacroPlan) -> Union[Unit, Point2, None]:
         gas_type = GAS_BY_RACE[self.ai.race]
         if objective.item == gas_type:
-            exclude_positions = {
-                geyser.position
-                for geyser in self.ai.gas_buildings
-            }
+            exclude_positions = {geyser.position for geyser in self.ai.gas_buildings}
             exclude_tags = {
                 order.target
                 for unit in self.ai.unit_manager.pending_by_type[gas_type]
                 for order in unit.unit.orders
                 if isinstance(order.target, int)
             }
-            exclude_tags.update({
-                step.target.tag
-                for step in self.planned_by_type(gas_type)
-                if isinstance(step.target, Unit)
-            })
+            exclude_tags.update(
+                {step.target.tag for step in self.planned_by_type(gas_type) if isinstance(step.target, Unit)}
+            )
             geysers = [
                 geyser
                 for geyser in self.ai.get_owned_geysers()
-                if (
-                        geyser.position not in exclude_positions
-                        and geyser.tag not in exclude_tags
-                )
+                if (geyser.position not in exclude_positions and geyser.tag not in exclude_tags)
             ]
             if not any(geysers):
                 raise PlacementNotFoundException()
@@ -302,11 +280,7 @@ class MacroModule(AIModule):
             if objective.max_distance is not None:
                 max_distance = objective.max_distance
                 position = await self.ai.find_placement(
-                    trainer.macro_ability,
-                    position,
-                    max_distance=max_distance,
-                    placement_step=1,
-                    addon_place=with_addon
+                    trainer.macro_ability, position, max_distance=max_distance, placement_step=1, addon_place=with_addon
                 )
             if position is None:
                 raise PlacementNotFoundException()
@@ -315,11 +289,7 @@ class MacroModule(AIModule):
         else:
             return None
 
-    def search_trainer(self,
-        trainers: Iterable[MacroBehavior],
-        item: MacroId
-    ) -> Optional[MacroBehavior]:
-
+    def search_trainer(self, trainers: Iterable[MacroBehavior], item: MacroId) -> Optional[MacroBehavior]:
         trainer_types = ITEM_TRAINED_FROM_WITH_EQUIVALENTS[item]
 
         trainers_filtered = (
@@ -329,16 +299,12 @@ class MacroModule(AIModule):
                 trainer.unit.type_id in trainer_types
                 and trainer.unit.is_ready
                 and (trainer.unit.is_idle or not trainer.unit.is_structure)
-        )
+            )
         )
 
         # return next(trainers_filtered, None)
 
-        return min(
-            trainers_filtered,
-            key=lambda t: t.unit.tag,
-            default=None
-        )
+        return min(trainers_filtered, key=lambda t: t.unit.tag, default=None)
 
     async def get_target_position(self, target: UnitTypeId) -> Point2:
         data = self.ai.game_data.units[target.value]
@@ -368,17 +334,10 @@ class MacroModule(AIModule):
 
     def make_tech(self):
         upgrades = [
-            u
-            for unit in self.composition
-            for u in self.ai.upgrades_by_unit(unit)
-            if self.ai.strategy.filter_upgrade(u)
+            u for unit in self.composition for u in self.ai.upgrades_by_unit(unit) if self.ai.strategy.filter_upgrade(u)
         ]
         targets = set(upgrades)
-        targets.update(
-            r
-            for item in chain(self.composition, upgrades)
-            for r in REQUIREMENTS[item]
-        )
+        targets.update(r for item in chain(self.composition, upgrades) for r in REQUIREMENTS[item])
         for target in targets:
             if equivalents := WITH_TECH_EQUIVALENTS.get(target):
                 target_met = any(self.ai.count(t) for t in equivalents)
@@ -390,24 +349,18 @@ class MacroModule(AIModule):
 
 
 class MacroBehavior(AIUnit):
-
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
         self.plan: Optional[MacroPlan] = None
 
     @property
     def macro_ability(self) -> Optional[AbilityId]:
-        if (
-                self.plan
-                and (element := MACRO_INFO.get(self.unit.type_id))
-                and (ability := element.get(self.plan.item))
-        ):
-            return ability.get('ability')
+        if self.plan and (element := MACRO_INFO.get(self.unit.type_id)) and (ability := element.get(self.plan.item)):
+            return ability.get("ability")
         else:
             return None
 
     def macro(self) -> Optional[UnitCommand]:
-
         if self.plan is None:
             return None
         elif not self.macro_ability:

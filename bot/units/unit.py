@@ -1,12 +1,12 @@
 from __future__ import annotations
-from dataclasses import dataclass
 
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Callable, Optional, List
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Callable, List, Optional
 
-from sc2.unit import Unit, UnitCommand
 from sc2.position import Point2
+from sc2.unit import Unit, UnitCommand
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -18,9 +18,7 @@ class DamageTakenEvent:
     amount: float
 
 
-
 class AIUnit(ABC):
-
     def __init__(self, ai: AIBase, unit: Unit):
         self.ai = ai
         self.unit = unit
@@ -39,7 +37,6 @@ class AIUnit(ABC):
 
 
 class IdleBehavior(AIUnit):
-
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
 

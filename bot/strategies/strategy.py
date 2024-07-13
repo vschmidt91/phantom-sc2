@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
-from typing import Iterable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable
 
 from sc2.ids.upgrade_id import UpgradeId
 
@@ -14,7 +14,6 @@ if TYPE_CHECKING:
 
 
 class Strategy(ABC, AIModule):
-
     def __init__(self, ai: AIBase):
         super().__init__(ai)
 

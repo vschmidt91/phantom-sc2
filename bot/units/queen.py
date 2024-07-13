@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sc2.unit import Unit, UnitCommand
 
+from ..behaviors.creep import CreepBehavior
 from ..behaviors.inject import InjectBehavior
 from ..behaviors.search import SearchBehavior
 from ..behaviors.transfuse import TransfuseBehavior
 from ..modules.combat import CombatBehavior
-from ..behaviors.creep import CreepBehavior
 from ..modules.dodge import DodgeBehavior
 
 if TYPE_CHECKING:
@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 
 
 class Queen(DodgeBehavior, InjectBehavior, CreepBehavior, TransfuseBehavior, CombatBehavior):
-
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
 
@@ -29,10 +28,7 @@ class Queen(DodgeBehavior, InjectBehavior, CreepBehavior, TransfuseBehavior, Com
             and (command := self.inject())
         ):
             return command
-        elif (
-            0 == self.ai.combat.ground_dps[self.unit.position.rounded]
-            and (command := self.spread_creep())
-        ):
+        elif 0 == self.ai.combat.ground_dps[self.unit.position.rounded] and (command := self.spread_creep()):
             return command
         elif command := self.transfuse():
             return command

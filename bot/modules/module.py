@@ -7,7 +7,6 @@ if TYPE_CHECKING:
 
 
 class AIModule:
-
     def __init__(self, ai: AIBase) -> None:
         self.ai = ai
 

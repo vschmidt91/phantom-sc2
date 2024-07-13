@@ -1,16 +1,15 @@
-import math
 import logging
+import math
 from itertools import chain
-from typing import Iterable, Dict, Set
+from typing import Dict, Iterable, Set
 
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
-from .modules import unit_manager
-
 from .ai_base import AIBase
 from .constants import SUPPLY_PROVIDED
+from .modules import unit_manager
 
 SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
     Race.Zerg: {
@@ -55,8 +54,8 @@ SPORE_TRIGGERS[Race.Random] = {
     *SPORE_TRIGGERS[Race.Zerg],
 }
 
-class ZergAI(AIBase):
 
+class ZergAI(AIBase):
     async def on_step(self, iteration):
         await super().on_step(iteration)
 
@@ -91,7 +90,6 @@ class ZergAI(AIBase):
             plan.priority = 1
 
     def expand(self) -> None:
-
         # if self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False) < 1:
         #     return
 
@@ -107,7 +105,7 @@ class ZergAI(AIBase):
         if self.townhalls.amount == 2:
             expand = 21 <= self.state.score.food_used_economy
         elif 2 < self.townhalls.amount:
-            expand = 2/3 < saturation
+            expand = 2 / 3 < saturation
 
         for plan in self.macro.planned_by_type(UnitTypeId.HATCHERY):
             if plan.priority < math.inf:

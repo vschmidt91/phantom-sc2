@@ -1,14 +1,13 @@
-
 from typing import Optional
 
-from sc2.unit import  UnitCommand
 from sc2.position import Point2
-
+from sc2.unit import UnitCommand
 from task import Task
+
 from ..units.unit import AIUnit
 
-class ScoutLocationTask(Task):
 
+class ScoutLocationTask(Task):
     def __init__(self) -> None:
         self.target: Point2
 

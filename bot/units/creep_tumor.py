@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sc2.unit import Unit, UnitCommand
 
@@ -11,7 +11,6 @@ if TYPE_CHECKING:
 
 
 class CreepTumor(CreepBehavior):
-
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
 

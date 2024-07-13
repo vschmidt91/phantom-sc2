@@ -52,16 +52,14 @@ def get_requirements(item: Union[UnitTypeId, UpgradeId]) -> Iterable[Union[UnitT
     else:
         raise TypeError()
 
-    requirements = {
-        info.get("required_building"),
-        info.get("required_upgrade")
-    }
+    requirements = {info.get("required_building"), info.get("required_upgrade")}
     requirements.discard(None)
 
     for requirement1 in requirements:
         yield requirement1
         for requirement2 in get_requirements(requirement1):
             yield requirement2
+
 
 FLOOD_FILL_OFFSETS = {
     Point2((-1, 0)),
@@ -74,8 +72,8 @@ FLOOD_FILL_OFFSETS = {
     # Point2((+1, +1)),
 }
 
-def flood_fill(weight: np.ndarray, origins: Iterable[Point2]):
 
+def flood_fill(weight: np.ndarray, origins: Iterable[Point2]):
     distance = np.full(weight.shape, np.inf)
     for origin in origins:
         distance[origin] = 0

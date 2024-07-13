@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from typing import Iterable, Optional, TYPE_CHECKING
 import math
+from typing import TYPE_CHECKING, Iterable, Optional
 
 from sc2.position import Point2
 
+from ..behaviors.gather import GatherBehavior
 from ..units.structure import Structure
 from .mineral_patch import MineralPatch
 from .resource_base import ResourceBase
 from .resource_group import ResourceGroup
 from .vespene_geyser import VespeneGeyser
-from ..behaviors.gather import GatherBehavior
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -19,8 +19,8 @@ STATIC_DEFENSE_OFFSET = 4.25
 
 
 class Base(ResourceGroup[ResourceBase]):
-
-    def __init__(self,
+    def __init__(
+        self,
         position: Point2,
         mineral_patches: Iterable[MineralPatch],
         vespene_geysers: Iterable[VespeneGeyser],
@@ -28,15 +28,11 @@ class Base(ResourceGroup[ResourceBase]):
         self.townhall: Optional[Structure] = None
         self.static_defense: Optional[Structure] = None
         self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(
-            sorted(
-                mineral_patches,
-                key=lambda m: m.position.distance_to(position)
-            ))
+            sorted(mineral_patches, key=lambda m: m.position.distance_to(position))
+        )
         self.vespene_geysers: ResourceGroup[VespeneGeyser] = ResourceGroup(
-            sorted(
-                vespene_geysers,
-                key=lambda g: g.position.distance_to(position)
-            ))
+            sorted(vespene_geysers, key=lambda g: g.position.distance_to(position))
+        )
         super().__init__([self.mineral_patches, self.vespene_geysers], position)
 
         static_defense_position = Point2(self.position.towards(self.mineral_patches.position, STATIC_DEFENSE_OFFSET))
@@ -50,9 +46,7 @@ class Base(ResourceGroup[ResourceBase]):
                 if not patch.unit:
                     continue
                 harvester = min(
-                    harvesters,
-                    key=lambda h: h.unit.position.distance_to(patch.unit.position),
-                    default=None
+                    harvesters, key=lambda h: h.unit.position.distance_to(patch.unit.position), default=None
                 )
                 if not harvester:
                     return

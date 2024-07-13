@@ -1,7 +1,6 @@
 from sc2.ids.unit_typeid import UnitTypeId
 
 UNIT_COUNTER_DICT = {
-
     UnitTypeId.ZEALOT: [UnitTypeId.BROODLORD, UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
     UnitTypeId.STALKER: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.SENTRY: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
@@ -10,7 +9,13 @@ UNIT_COUNTER_DICT = {
     UnitTypeId.DARKTEMPLAR: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
     UnitTypeId.ARCHON: [UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
     UnitTypeId.IMMORTAL: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.COLOSSUS: [UnitTypeId.BROODLORD, UnitTypeId.CORRUPTOR, UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
+    UnitTypeId.COLOSSUS: [
+        UnitTypeId.BROODLORD,
+        UnitTypeId.CORRUPTOR,
+        UnitTypeId.ROACH,
+        UnitTypeId.HYDRALISK,
+        UnitTypeId.ZERGLING,
+    ],
     UnitTypeId.DISRUPTOR: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.PHOENIX: [UnitTypeId.CORRUPTOR, UnitTypeId.HYDRALISK, UnitTypeId.QUEEN],
     UnitTypeId.VOIDRAY: [UnitTypeId.HYDRALISK, UnitTypeId.QUEEN],
@@ -19,7 +24,6 @@ UNIT_COUNTER_DICT = {
     UnitTypeId.CARRIER: [UnitTypeId.CORRUPTOR, UnitTypeId.HYDRALISK, UnitTypeId.QUEEN],
     UnitTypeId.PHOTONCANNON: [UnitTypeId.RAVAGER, UnitTypeId.QUEEN, UnitTypeId.ZERGLING],
     # UnitTypeId.PROBE: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
-
     UnitTypeId.MARINE: [UnitTypeId.BROODLORD, UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
     UnitTypeId.MARAUDER: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.REAPER: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
@@ -42,7 +46,6 @@ UNIT_COUNTER_DICT = {
     UnitTypeId.FACTORYFLYING: [UnitTypeId.CORRUPTOR],
     UnitTypeId.STARPORTFLYING: [UnitTypeId.CORRUPTOR],
     UnitTypeId.BUNKER: [UnitTypeId.RAVAGER, UnitTypeId.QUEEN, UnitTypeId.ZERGLING],
-
     UnitTypeId.ZERGLING: [UnitTypeId.BROODLORD, UnitTypeId.ROACH, UnitTypeId.ZERGLING, UnitTypeId.HYDRALISK],
     UnitTypeId.ZERGLINGBURROWED: [UnitTypeId.BROODLORD, UnitTypeId.ROACH, UnitTypeId.ZERGLING, UnitTypeId.HYDRALISK],
     UnitTypeId.BANELING: [UnitTypeId.BROODLORD, UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
@@ -68,5 +71,4 @@ UNIT_COUNTER_DICT = {
     UnitTypeId.SPINECRAWLER: [UnitTypeId.RAVAGER, UnitTypeId.QUEEN, UnitTypeId.ZERGLING],
     # UnitTypeId.DRONE: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
     # UnitTypeId.DRONEBURROWED: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
-
 }

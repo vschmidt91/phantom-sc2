@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from sc2.ids.buff_id import BuffId
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.buff_id import BuffId
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 
-from ..units.unit import AIUnit
 from ..constants import ENERGY_COST
+from ..units.unit import AIUnit
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -31,18 +31,14 @@ class TransfuseBehavior(AIUnit):
             return 0
         priority = 1
         priority *= 10 + self.ai.get_unit_value(target)
-        priority /= .1 + target.health_percentage
+        priority /= 0.1 + target.health_percentage
         return priority
 
     def transfuse(self) -> Optional[UnitCommand]:
-
         if self.unit.energy < ENERGY_COST[self.ABILITY]:
             return None
 
-        target = max(self.ai.all_own_units,
-            key=lambda t: self.priority(t),
-            default=None
-        )
+        target = max(self.ai.all_own_units, key=lambda t: self.priority(t), default=None)
         if not target:
             return None
         if self.priority(target) <= 0:

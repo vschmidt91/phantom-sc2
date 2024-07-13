@@ -9,7 +9,6 @@ if TYPE_CHECKING:
 
 
 class Chat(AIModule):
-
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
         self.messages: Set[str] = set()
@@ -24,7 +23,7 @@ class Chat(AIModule):
 
     async def add_tag(self, tag: str, include_time: bool = True) -> None:
         if include_time:
-            message = f'Tag:{tag}@{self.ai.time_formatted}'
+            message = f"Tag:{tag}@{self.ai.time_formatted}"
         else:
-            message = f'Tag:{tag}'
+            message = f"Tag:{tag}"
         await self.add_message(message, True)

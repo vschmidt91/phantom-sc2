@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from sc2.ids.buff_id import BuffId
 from sc2.unit_command import UnitCommand
 
-from ..resources.base import Base
-from ..units.unit import AIUnit
 from ..constants import *
 from ..modules.module import AIModule
+from ..resources.base import Base
+from ..units.unit import AIUnit
 from ..utils import *
 
 if TYPE_CHECKING:
@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 
 
 class InjectManager(AIModule):
-
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
 
@@ -24,18 +23,10 @@ class InjectManager(AIModule):
         self.assign_queen()
 
     def assign_queen(self) -> None:
-        queens = [
-            behavior
-            for behavior in self.ai.unit_manager.units.values()
-            if isinstance(behavior, InjectBehavior)
-        ]
+        queens = [behavior for behavior in self.ai.unit_manager.units.values() if isinstance(behavior, InjectBehavior)]
         injected_bases = {q.inject_base for q in queens}
 
-        queen = next((
-            queen
-            for queen in queens
-            if not queen.inject_base
-        ), None)
+        queen = next((queen for queen in queens if not queen.inject_base), None)
         if queen:
             pos = queen.unit.position
             queen.inject_base = min(
@@ -48,19 +39,17 @@ class InjectManager(AIModule):
                         and BuffId.QUEENSPAWNLARVATIMER not in base.townhall.unit.buffs
                     )
                 ),
-                key = lambda b: b.position.distance_to(pos),
-                default = None
+                key=lambda b: b.position.distance_to(pos),
+                default=None,
             )
 
 
 class InjectBehavior(AIUnit):
-
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
         self.inject_base: Optional[Base] = None
 
     def inject(self) -> Optional[UnitCommand]:
-
         if not self.inject_base:
             return None
 
@@ -68,8 +57,9 @@ class InjectBehavior(AIUnit):
             self.inject_base = None
             return None
 
-        target = self.inject_base.position.towards(self.inject_base.mineral_patches.position,
-                                                   -(self.inject_base.townhall.unit.radius + self.unit.radius))
+        target = self.inject_base.position.towards(
+            self.inject_base.mineral_patches.position, -(self.inject_base.townhall.unit.radius + self.unit.radius)
+        )
         if ENERGY_COST[AbilityId.EFFECT_INJECTLARVA] <= self.unit.energy:
             return self.unit(AbilityId.EFFECT_INJECTLARVA, target=self.inject_base.townhall.unit)
         elif not self.inject_base.townhall.unit.has_buff(BuffId.QUEENSPAWNLARVATIMER):
