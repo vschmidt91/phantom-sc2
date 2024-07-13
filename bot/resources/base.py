@@ -1,7 +1,4 @@
-from __future__ import annotations
-
-import math
-from typing import TYPE_CHECKING, Iterable, Optional
+from typing import Iterable, Optional
 
 from sc2.position import Point2
 
@@ -11,9 +8,6 @@ from .mineral_patch import MineralPatch
 from .resource_base import ResourceBase
 from .resource_group import ResourceGroup
 from .vespene_geyser import VespeneGeyser
-
-if TYPE_CHECKING:
-    from ..ai_base import AIBase
 
 STATIC_DEFENSE_OFFSET = 4.25
 

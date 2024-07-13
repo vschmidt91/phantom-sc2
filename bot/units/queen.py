@@ -6,7 +6,6 @@ from sc2.unit import Unit, UnitCommand
 
 from ..behaviors.creep import CreepBehavior
 from ..behaviors.inject import InjectBehavior
-from ..behaviors.search import SearchBehavior
 from ..behaviors.transfuse import TransfuseBehavior
 from ..modules.combat import CombatBehavior
 from ..modules.dodge import DodgeBehavior

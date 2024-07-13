@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
+from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
+from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 
-from ..constants import *
+from ..constants import ENERGY_COST
 from ..modules.module import AIModule
 from ..resources.base import Base
 from ..units.unit import AIUnit
-from ..utils import *
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase

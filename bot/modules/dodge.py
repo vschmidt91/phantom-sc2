@@ -61,7 +61,7 @@ class DodgeModule(AIModule):
         dodge_effects = (DodgeEffect(effect) for effect in self.ai.state.effects if effect.id in DODGE_EFFECTS)
         dodge_unit = (
             DodgeUnit(enemy)
-            for enemy in self.ai.unit_manager.enemies.values()
+            for enemy in self.ai.all_enemy_units
             if enemy and enemy.type_id in DODGE_UNITS
         )
         self.elements = list(chain(dodge_effects, dodge_unit, self.elements_delayed))

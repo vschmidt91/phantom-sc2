@@ -1,12 +1,10 @@
-from __future__ import annotations
-
-from abc import abstractmethod
-from typing import TYPE_CHECKING, Iterable
+from abc import abstractmethod, ABC
+from typing import Iterable
 
 from sc2.position import Point2
 
 
-class ResourceBase:
+class ResourceBase(ABC):
     def __init__(self, position: Point2):
         self.position = position
 

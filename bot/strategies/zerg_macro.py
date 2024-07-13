@@ -59,8 +59,8 @@ class ZergMacro(Strategy):
 
         enemy_counts = Counter[UnitTypeId](
             enemy.type_id
-            for enemy in self.ai.unit_manager.enemies.values()
-            if enemy and enemy.type_id in UNIT_COUNTER_DICT
+            for enemy in self.ai.all_enemy_units
+            if enemy.type_id in UNIT_COUNTER_DICT
         )
 
         self.tech_up = 40 <= worker_count and 3 <= self.ai.townhalls.amount
@@ -73,7 +73,7 @@ class ZergMacro(Strategy):
                     for counter in counters:
                         if can_build[counter]:
                             composition[counter] += (
-                                3 * ratio * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(counter)
+                                4 * ratio * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(counter)
                             )
                             break
         else:
@@ -100,7 +100,6 @@ class ZergMacro(Strategy):
             banking_minerals = max(0, self.ai.minerals - 300)
             banking_gas = max(0, self.ai.minerals - 300)
             if 0 < banking_minerals and 0 < banking_gas:
-
                 composition[UnitTypeId.ZERGLING] += 24
 
                 if 0 < banking_gas:
@@ -111,7 +110,6 @@ class ZergMacro(Strategy):
                         composition[UnitTypeId.HYDRALISK] += 12
                     else:
                         composition[UnitTypeId.ROACH] += 12
-
 
         self.ai.macro.composition = {k: math.floor(v) for k, v in composition.items() if 0 < v}
 

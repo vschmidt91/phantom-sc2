@@ -1,20 +1,20 @@
-import itertools
 import random
 import sys
-from typing import Iterable
 from pathlib import Path
+from typing import Iterable
 
 from sc2 import maps
-from sc2.data import Race, Difficulty, AIBuild
+from sc2.data import AIBuild, Difficulty, Race
 from sc2.main import run_game
 from sc2.player import AbstractPlayer, Bot, Computer
+
 from ladder import run_ladder_game
 
 sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 
-from bot.zerg import ZergAI
+from bot.zerg import ZergAI  # type: ignore
 
 MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
 MAP_FILE_EXT: str = "SC2Map"
@@ -63,8 +63,8 @@ if __name__ == "__main__":
     if "--LadderServer" in sys.argv:
         # Ladder game started by LadderManager
         print("Starting ladder game...")
-        result, opponentid = run_ladder_game(create_bot(ai))
-        print(result," against opponent ", opponentid)
+        result, opponent_id = run_ladder_game(create_bot(ai))
+        print(result, " against opponent ", opponent_id)
     else:
         ai.debug = True
         ai.game_step = 2

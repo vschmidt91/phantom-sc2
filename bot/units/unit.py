@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, List, Optional
+from typing import TYPE_CHECKING, Optional
 
-from sc2.position import Point2
 from sc2.unit import Unit, UnitCommand
 
 if TYPE_CHECKING:

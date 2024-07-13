@@ -1,6 +1,5 @@
 import logging
 import math
-from itertools import chain
 from typing import Dict, Iterable, Set
 
 from sc2.data import Race
@@ -9,7 +8,6 @@ from sc2.ids.upgrade_id import UpgradeId
 
 from .ai_base import AIBase
 from .constants import SUPPLY_PROVIDED
-from .modules import unit_manager
 
 SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
     Race.Zerg: {

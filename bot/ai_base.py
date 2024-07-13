@@ -4,14 +4,13 @@ import math
 import os
 import pstats
 import random
-from dataclasses import dataclass
-from functools import cmp_to_key
+from functools import cmp_to_key, lru_cache
 from itertools import chain
-from re import U
-from typing import Dict, Iterable, Optional, Tuple, Type
+from typing import Iterable, Type
 
 import numpy as np
 from ares import AresBot
+from ares.cache import property_cache_once_per_frame
 from sc2.constants import IS_DETECTOR
 from sc2.data import ActionResult, Race, Result, race_townhalls
 from sc2.game_state import ActionRawUnitCommand
@@ -20,14 +19,13 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit, UnitCommand, UnitOrder
+from sc2.units import Units
 from scipy.ndimage import gaussian_filter
-from skimage.draw import disk, rectangle, rectangle_perimeter
-from skimage.io import imsave
+from skimage.draw import rectangle
 
 from bot.behaviors.overlord_drop import OverlordDropManager
 
 from .behaviors.inject import InjectManager
-from .behaviors.survive import SurviveBehavior
 from .constants import (
     GAS_BY_RACE,
     LARVA_COST,
@@ -44,7 +42,7 @@ from .constants import (
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
     ZERG_MELEE_UPGRADES,
-    ZERG_RANGED_UPGRADES,
+    ZERG_RANGED_UPGRADES, CIVILIANS,
 )
 from .cost import Cost
 from .modules.chat import Chat
@@ -52,18 +50,32 @@ from .modules.combat import CombatModule
 from .modules.dodge import DodgeModule
 from .modules.macro import MacroBehavior, MacroId, MacroModule, compare_plans
 from .modules.scout import ScoutModule
-from .modules.unit_manager import IGNORED_UNIT_TYPES, UnitManager
+from .modules.unit_manager import UnitManager
 from .resources.base import Base
 from .resources.mineral_patch import MineralPatch
 from .resources.resource_manager import ResourceManager
 from .resources.vespene_geyser import VespeneGeyser
 from .strategies.hatch_first import HatchFirst
-from .strategies.pool_first import PoolFirst
-from .strategies.roach_rush import RoachRush
 from .strategies.strategy import Strategy
 from .units.unit import AIUnit
-from .units.worker import Worker, WorkerManager
+from .units.worker import Worker
 from .utils import flood_fill
+
+
+def order_matches_command(order: UnitOrder, command: UnitCommand) -> bool:
+    if order.ability.exact_id != command.ability:
+        return False
+    if isinstance(order.target, Point2):
+        if not isinstance(command.target, Point2):
+            return False
+        elif 1e-3 < order.target.distance_to(command.target):
+            return False
+    elif isinstance(order.target, int):
+        if not isinstance(command.target, Unit):
+            return False
+        elif order.target != command.target.tag:
+            return False
+    return True
 
 
 class AIBase(AresBot):
@@ -84,7 +96,7 @@ class AIBase(AresBot):
 
         self.extractor_trick_enabled: bool = False
         self.iteration: int = 0
-        self.profiler: Optional[cProfile.Profile] = None
+        self.profiler: cProfile.Profile | None = None
 
         super().__init__()
 
@@ -207,7 +219,6 @@ class AIBase(AresBot):
         self.inject = InjectManager(self)
         self.drops = OverlordDropManager(self)
         self.strategy: Strategy = self.strategy_cls(self)
-        self.worker_manager: WorkerManager = WorkerManager(self)
 
         for step in self.strategy.build_order():
             plan = self.macro.add_plan(step)
@@ -289,11 +300,12 @@ class AIBase(AresBot):
         if tags:
             await self.client.debug_kill_unit(tags)
 
+    @lru_cache(maxsize=None)
     def get_cost(self, item: MacroId) -> Cost:
         try:
             minerals_vespene = self.calculate_cost(item)
             food = self.calculate_supply_cost(item)
-        except:
+        except Exception:
             return Cost(0.0, 0.0, 0.0, 0.0)
         larva = LARVA_COST.get(item, 0.0)
         return Cost(float(minerals_vespene.minerals), float(minerals_vespene.vespene), food, larva)
@@ -369,7 +381,6 @@ class AIBase(AresBot):
             self.combat,
             self.chat,
             self.inject,
-            self.worker_manager,
             self.drops,
         ]
         for module in modules:
@@ -449,7 +460,7 @@ class AIBase(AresBot):
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         await super().on_unit_took_damage(unit, amount_damage_taken)
         behavior = self.unit_manager.units.get(unit.tag)
-        if behavior != None:
+        if behavior is not None:
             behavior.on_took_damage(amount_damage_taken)
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
@@ -516,7 +527,7 @@ class AIBase(AresBot):
         enemy_main = np.isfinite(enemy_main)
         return enemy_main
 
-    def create_distance_map(self) -> Tuple[np.ndarray, np.ndarray]:
+    def create_distance_map(self) -> tuple[np.ndarray, np.ndarray]:
         pathing = np.transpose(self.game_info.pathing_grid.data_numpy)
         for townhall in self.townhalls:
             for position in self.enumerate_positions(townhall):
@@ -601,7 +612,7 @@ class AIBase(AresBot):
 
         font_color = (255, 0, 0)
 
-        for enemy in self.unit_manager.enemies.values():
+        for enemy in self.all_enemy_units:
             pos = enemy.position
             position = Point3((*pos, self.get_terrain_z_height(pos)))
             text = f"{enemy.name}"
@@ -663,21 +674,6 @@ class AIBase(AresBot):
             for geyser in base.vespene_geysers:
                 yield geyser.unit
 
-    def order_matches_command(self, order: UnitOrder, command: UnitCommand) -> bool:
-        if order.ability.exact_id != command.ability:
-            return False
-        if isinstance(order.target, Point2):
-            if not isinstance(command.target, Point2):
-                return False
-            elif 1e-3 < order.target.distance_to(command.target):
-                return False
-        elif isinstance(order.target, int):
-            if not isinstance(command.target, Unit):
-                return False
-            elif order.target != command.target.tag:
-                return False
-        return True
-
     def get_unit_range(self, unit: Unit, ground: bool = True, air: bool = True) -> float:
         unit_range = 0.0
         if ground:
@@ -702,8 +698,23 @@ class AIBase(AresBot):
         return cost.minerals + cost.vespene
 
     def get_max_harvester(self) -> int:
-        workers = 0
-        workers += sum((b.harvester_target for b in self.resource_manager.bases_taken))
+        workers = sum(b.harvester_target for b in self.resource_manager.bases_taken)
         workers += 16 * self.count(UnitTypeId.HATCHERY, include_actual=False, include_planned=False)
         workers += 3 * self.count(GAS_BY_RACE[self.race], include_actual=False, include_planned=False)
         return workers
+
+    @property
+    def army(self) -> Units:
+        return self.all_own_units.exclude_type(CIVILIANS)
+
+    @property
+    def enemy_army(self) -> Units:
+        return self.all_enemy_units.exclude_type(CIVILIANS)
+
+    @property
+    def civilians(self) -> Units:
+        return self.all_own_units(CIVILIANS)
+
+    @property
+    def enemy_civilians(self) -> Units:
+        return self.all_enemy_units(CIVILIANS)

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from sc2.unit import Unit, UnitCommand
+from sc2.unit import UnitCommand
 
 from bot.units.unit import AIUnit
 

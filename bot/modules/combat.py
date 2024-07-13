@@ -1,48 +1,32 @@
 from __future__ import annotations
 
-import copy
 import math
-from cmath import isnan
 from dataclasses import dataclass
 from enum import Enum, auto
 from itertools import chain
-from os import truncate
-from random import gauss
-from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Set, Union
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Point2, Unit, UnitCommand
-from sc2.units import Units
-from scipy.cluster.vq import kmeans
-from scipy.ndimage.filters import gaussian_filter
-from scipy.spatial.distance import cdist
 from skimage.draw import disk
-from skimage.transform import rescale, resize
-from sklearn.cluster import DBSCAN, KMeans
-
-from bot.behaviors.bile import BileBehavior
 from bot.cost import Cost
 
-from ..constants import CHANGELINGS, CIVILIANS, WORKERS
-from ..influence_map import InfluenceMap
+from ..constants import CHANGELINGS, CIVILIANS
 from ..units.unit import AIUnit
-from ..utils import center
 from .cy_dijkstra import cy_dijkstra  # type: ignore
 
-# from ..units.worker import Worker
 from .module import AIModule
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
-    from ..units.unit import Worker
 
 
 class Enemy:
     def __init__(self, unit: Unit) -> None:
         self.unit = unit
-        self.targets: List[CombatBehavior] = []
-        self.threats: List[CombatBehavior] = []
+        self.targets: list[CombatBehavior] = []
+        self.threats: list[CombatBehavior] = []
         self.dps_incoming: float = 0.0
         self.estimated_survival: float = np.inf
 
@@ -101,10 +85,10 @@ class CombatModule(AIModule):
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
         self.confidence: float = 1.0
-        self.ground_dps = np.zeros((self.ai.game_info.map_size))
-        self.air_dps = np.zeros((self.ai.game_info.map_size))
-        self.army: List[CombatBehavior] = []
-        self.enemies: Dict[int, Enemy] = {}
+        self.ground_dps = np.zeros(self.ai.game_info.map_size)
+        self.air_dps = np.zeros(self.ai.game_info.map_size)
+        self.army: list[CombatBehavior] = []
+        self.enemies: dict[int, Enemy] = {}
 
     def target_priority(self, target: Unit) -> float:
         if target.is_hallucination:
@@ -137,7 +121,7 @@ class CombatModule(AIModule):
         ]
 
         self.enemies = {
-            unit.tag: Enemy(unit) for unit in self.ai.unit_manager.enemies.values() if unit.type_id not in CIVILIANS
+            unit.tag: Enemy(unit) for unit in self.ai.enemy_army
         }
 
         self.ground_dps[:, :] = 0.0
@@ -195,51 +179,27 @@ class CombatModule(AIModule):
                 weight = math.exp(-max(0, time_scale * time_until_in_range(enemy, unit)))
                 behavior.dps_incoming += dps * weight
 
-                # if (
-                #     self.ai.can_attack(unit, enemy)
-                #     and time_until_in_range(unit, enemy) < 3
-                # ):
-                #     dps = enemy.air_dps if unit.is_flying else enemy.ground_dps
-                #     enemy_behavior.dps_incoming +=
-                #     behavior.targets.append(enemy_behavior)
-                #     enemy_behavior.threats.append(behavior)
-                # if (
-                #     self.ai.can_attack(enemy, unit)
-                #     and time_until_in_range(enemy, unit) < 3
-                # ):
-                #     enemy_behavior.targets.append(behavior)
-                #     behavior.threats.append(enemy_behavior)
-
-        def dps(unit: Unit) -> float:
-            return max(unit.air_dps, unit.ground_dps)
-
         for behavior in chain(self.army, self.enemies.values()):
-            # unit = behavior.unit
-            # behavior.dps_incoming = sum(
-            #    dps(e.unit) * math.exp(-max(0, )) / len(e.targets)
-            #    for e in behavior.threats
-            # )
             if 0 < behavior.dps_incoming:
                 behavior.estimated_survival = (unit.health + unit.shield) / behavior.dps_incoming
             else:
                 behavior.estimated_survival = np.inf
 
         self.target_priority_dict = {
-            unit.tag: self.target_priority(unit) for unit in self.ai.unit_manager.enemies.values()
+            unit.tag: self.target_priority(unit) for unit in self.ai.enemy_army
         }
 
         def unit_value(cost: Cost):
             return cost.minerals + cost.vespene
 
-        army_cost = sum(unit_value(self.ai.unit_cost[behavior.unit.type_id]) for behavior in self.army)
-        enemy_cost = sum(unit_value(self.ai.unit_cost[behavior.unit.type_id]) for behavior in self.enemies.values())
+        army_cost = sum(unit_value(self.ai.unit_cost[unit.type_id]) for unit in self.ai.army)
+        enemy_cost = sum(unit_value(self.ai.unit_cost[unit.type_id]) for unit in self.ai.enemy_army)
         self.confidence = army_cost / max(1, army_cost + enemy_cost)
 
 
 class CombatBehavior(AIUnit):
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
-        self.stance: CombatStance = CombatStance.FIGHT
         self.targets: List[Enemy] = []
         self.threats: List[Enemy] = []
         self.dps_incoming: float = 0.0
@@ -249,7 +209,6 @@ class CombatBehavior(AIUnit):
         if not (
             self.ai.can_attack(self.unit, target)
             or self.unit.is_detector
-            # or self.unit.is_burrowed
         ):
             return 0.0
         priority = 1e8
@@ -266,7 +225,7 @@ class CombatBehavior(AIUnit):
         target, priority = max(
             (
                 (enemy, self.target_priority(enemy) * self.ai.combat.target_priority_dict.get(enemy.tag, 0))
-                for enemy in self.ai.unit_manager.enemies.values()
+                for enemy in self.ai.enemy_army
             ),
             key=lambda p: p[1],
             default=(None, 0),
@@ -292,25 +251,23 @@ class CombatBehavior(AIUnit):
             confidence = self.estimated_survival / (self.estimated_survival + enemy.estimated_survival)
 
         if self.unit.type_id == UnitTypeId.QUEEN and not self.ai.has_creep(self.unit.position):
-            self.stance = CombatStance.FLEE
+            stance = CombatStance.FLEE
         elif self.unit.is_burrowed:
-            self.stance = CombatStance.FLEE
+            stance = CombatStance.FLEE
         elif 1 < self.unit.ground_range:
             if 3 / 4 <= confidence:
-                self.stance = CombatStance.ADVANCE
+                stance = CombatStance.ADVANCE
             elif 2 / 4 <= confidence:
-                self.stance = CombatStance.FIGHT
+                stance = CombatStance.FIGHT
             elif 1 / 4 <= confidence:
-                self.stance = CombatStance.RETREAT
+                stance = CombatStance.RETREAT
             else:
-                self.stance = CombatStance.FLEE
+                stance = CombatStance.FLEE
         else:
             if 1 / 2 <= confidence:
-                self.stance = CombatStance.RETREAT
+                stance = CombatStance.RETREAT
             else:
-                self.stance = CombatStance.FLEE
-
-        stance = self.stance
+                stance = CombatStance.FLEE
 
         if stance in {CombatStance.FLEE, CombatStance.RETREAT}:
             unit_range = self.ai.get_unit_range(self.unit, not target.is_flying, target.is_flying)

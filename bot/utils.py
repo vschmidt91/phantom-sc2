@@ -1,7 +1,4 @@
-import inspect
-import math
-import time
-from typing import Iterable, Union
+from typing import Iterable
 
 import numpy as np
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
@@ -39,7 +36,7 @@ def time_to_reach(unit: Unit, target: Point2) -> float:
     return distance / movement_speed
 
 
-def get_requirements(item: Union[UnitTypeId, UpgradeId]) -> Iterable[Union[UnitTypeId, UpgradeId]]:
+def get_requirements(item: UnitTypeId | UpgradeId) -> Iterable[UnitTypeId | UpgradeId]:
     if isinstance(item, UnitTypeId):
         trainers = UNIT_TRAINED_FROM[item]
         trainer = sorted(trainers, key=lambda v: v.value)[0]

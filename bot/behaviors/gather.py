@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
-from sc2.unit import Union
+from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 
 from ..resources.mineral_patch import MineralPatch
@@ -10,7 +10,6 @@ from ..resources.resource_base import ResourceBase
 from ..resources.vespene_geyser import VespeneGeyser
 from ..units.structure import Structure
 from ..units.unit import AIUnit
-from ..utils import *
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase

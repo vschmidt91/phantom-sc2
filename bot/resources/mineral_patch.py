@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
-
 from sc2.position import Point2
 from sc2.unit import Unit
 

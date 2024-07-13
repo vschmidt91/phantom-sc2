@@ -54,7 +54,8 @@ def run_ladder_game(bot):
     return result, args.OpponentId
 
 
-# Modified version of sc2.main._join_game to allow custom host and port, and to not spawn an additional sc2process (thanks to alkurbatov for fix)
+# Modified version of sc2.main._join_game to allow custom host and port
+# and to not spawn an additional sc2process (thanks to alkurbatov for fix)
 async def join_ladder_game(
     host, port, players, realtime, portconfig, save_replay_as=None, step_time_limit=None, game_time_limit=None
 ):
@@ -68,7 +69,7 @@ async def join_ladder_game(
         if save_replay_as is not None:
             await client.save_replay(save_replay_as)
     except ConnectionAlreadyClosed:
-        logging.error(f"Connection was closed before the game ended")
+        logging.error("Connection was closed before the game ended")
         return None
     finally:
         await ws_connection.close()

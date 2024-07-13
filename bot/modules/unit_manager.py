@@ -12,8 +12,6 @@ from sc2.position import Point2
 from sc2.unit import Unit, UnitTypeId
 from scipy.spatial import cKDTree
 
-from bot.units import unit
-
 from ..constants import CHANGELINGS, ITEM_BY_ABILITY, WORKERS
 from ..units.army import Army
 from ..units.changeling import Changeling
@@ -50,7 +48,6 @@ class UnitManager(AIModule):
         super().__init__(ai)
 
         self.units: Dict[int, AIUnit] = dict()
-        self.enemies: Dict[int, Unit] = dict()
 
         self.actual_by_type: DefaultDict[MacroId, List[AIUnit]] = defaultdict(list)
         self.pending_by_type: DefaultDict[MacroId, List[AIUnit]] = defaultdict(list)
@@ -99,8 +96,6 @@ class UnitManager(AIModule):
     def try_remove_unit(self, tag: int) -> bool:
         if self.units.pop(tag, None):
             return True
-        elif self.enemies.pop(tag, None):
-            return True
         else:
             return False
 
@@ -130,21 +125,9 @@ class UnitManager(AIModule):
             return Army(self.ai, unit)
 
     def update_tags(self) -> None:
-        unit_by_tag = {unit.tag: unit for unit in self.ai.all_own_units}
+        unit_by_tag = {u.tag: u for u in self.ai.all_own_units}
         for tag, unit in self.units.items():
             unit.unit = unit_by_tag.get(tag) or unit.unit
-
-        visibility_map = self.ai.state.visibility.data_numpy.transpose()
-        for tag, enemy in self.enemies.copy().items():
-            if enemy.game_loop + 1000 < self.ai.state.game_loop:
-                del self.enemies[tag]
-                continue
-            visibility_disk = skimage.draw.disk(center=enemy.position, radius=1, shape=self.ai.game_info.map_size)
-            visibility = visibility_map[visibility_disk] == 2
-            if np.all(visibility):
-                del self.enemies[tag]
-                continue
-        self.enemies.update((unit.tag, unit) for unit in self.ai.all_enemy_units if not unit.is_snapshot)
 
     async def on_step(self) -> None:
         self.update_tags()
@@ -160,7 +143,7 @@ class UnitManager(AIModule):
             if not result:
                 logging.error("command failed: %s", command)
 
-        self.unit_by_position = {unit.position: unit for unit in chain(self.ai.all_own_units, self.ai.all_enemy_units)}
+        self.unit_by_position = {u.position: u for u in chain(self.ai.all_own_units, self.ai.all_enemy_units)}
         self.unit_positions = list(self.unit_by_position.keys())
         self.unit_tree = cKDTree(np.array(self.unit_positions))
         return

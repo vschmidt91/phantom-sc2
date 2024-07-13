@@ -4,11 +4,12 @@ import random
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.position import Point2
+from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 
-from ..constants import *
 from ..units.unit import AIUnit
-from ..utils import *
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase

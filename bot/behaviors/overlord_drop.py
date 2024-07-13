@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import logging
 import random
-from itertools import chain
-from typing import TYPE_CHECKING, List, Optional, Set
+from typing import TYPE_CHECKING, Optional, Set
 
 from sc2.unit import AbilityId, Point2, Unit, UnitCommand, UnitTypeId
 

@@ -13,7 +13,6 @@ from sc2.position import Point2
 from ..behaviors.gather import GatherBehavior
 from ..constants import GAS_BY_RACE, STATIC_DEFENSE_BY_RACE
 from ..cost import Cost
-from ..modules.macro import MacroPlan
 from ..modules.module import AIModule
 from ..resources.resource_unit import ResourceUnit
 from .base import Base
@@ -26,7 +25,6 @@ if TYPE_CHECKING:
     from ..ai_base import AIBase
 
 MINING_RADIUS = 1.325
-# MINING_RADIUS = 1.4
 
 MINERAL_RADIUS = 1.125
 HARVESTER_RADIUS = 0.375
@@ -108,7 +106,7 @@ class ResourceManager(AIModule):
 
     def update_bases(self) -> None:
         static_defense_priority = sum(
-            STATIC_DEFENSE_TRIGGERS.get(enemy.type_id, 0.0) for enemy in self.ai.unit_manager.enemies.values()
+            STATIC_DEFENSE_TRIGGERS.get(enemy.type_id, 0.0) for enemy in self.ai.all_enemy_units
         )
         self.build_static_defense = 1 < static_defense_priority
 

@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
-import numpy as np
-from sc2.unit import AbilityId, Point2, Unit, UnitCommand, UnitTypeId
+from sc2.unit import AbilityId, Unit, UnitCommand, UnitTypeId
 
 from ..constants import CHANGELINGS, COOLDOWN
-from ..modules.module import AIModule
 from ..units.unit import AIUnit
 
 if TYPE_CHECKING:

@@ -12,6 +12,7 @@ libraries = []
 
 INPUT_DIR = "bot/modules/"
 
+
 def build():
     source_files = []
     for root, directories, files in os.walk(INPUT_DIR):

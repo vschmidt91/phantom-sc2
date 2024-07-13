@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from abc import ABC
 from typing import TYPE_CHECKING, Optional
 
+from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit_command import UnitCommand
 
-from ..constants import *
 from ..units.unit import AIUnit
 
 if TYPE_CHECKING:
@@ -22,9 +23,6 @@ class BurrowBehavior(AIUnit):
 
         if UpgradeId.BURROW not in self.ai.state.upgrades:
             return None
-
-        # if UpgradeId.TUNNELINGCLAWS not in self.ai.state.upgrades:
-        #     return None
 
         if self.unit.is_burrowed:
             if self.unit.health_percentage == 1 or self.unit.is_revealed:

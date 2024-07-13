@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import math
-from typing import TYPE_CHECKING, Counter, Iterable
+from typing import TYPE_CHECKING, Iterable
 
-import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.upgrade_id import UpgradeId
 
 from ..modules.macro import MacroId
 from .strategy import Strategy
