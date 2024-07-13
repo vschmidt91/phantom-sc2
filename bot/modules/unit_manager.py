@@ -6,7 +6,6 @@ from itertools import chain
 from typing import TYPE_CHECKING, DefaultDict, Dict, Iterable, List, Optional
 
 import numpy as np
-import skimage.draw
 from sc2.data import race_townhalls
 from sc2.position import Point2
 from sc2.unit import Unit, UnitTypeId
@@ -33,14 +32,6 @@ IGNORED_UNIT_TYPES = {
     UnitTypeId.LOCUSTMP,
     UnitTypeId.LOCUSTMPFLYING,
 }
-
-# VISIBILITY_OFFSETS = np.array([
-#     [0, 0],
-#     [-1, 0],
-#     [+1, 0],
-#     [0, -1],
-#     [0, +1],
-# ])
 
 
 class UnitManager(AIModule):
