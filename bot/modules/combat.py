@@ -32,6 +32,7 @@ from ..units.unit import AIUnit
 # from ..units.worker import Worker
 from .module import AIModule
 from ..constants import WORKERS, CIVILIANS, CHANGELINGS
+from .cy_dijkstra import cy_dijkstra  # type: ignore
 
 if TYPE_CHECKING:
     from ..ai_base import AIBase
@@ -63,6 +64,37 @@ class InfluenceMapEntry(Enum):
     COUNT = 6
 
 CONFIDENCE_MAP_SCALE = 6
+
+Point = tuple[int, int]
+HALF = Point2((0.5, 0.5))
+
+
+
+@dataclass
+class DijkstraOutput:
+    prev_x: np.ndarray
+    prev_y: np.ndarray
+    dist: np.ndarray
+
+    @classmethod
+    def from_cy(cls, o) -> "DijkstraOutput":
+        return DijkstraOutput(
+            np.asarray(o.prev_x),
+            np.asarray(o.prev_y),
+            np.asarray(o.dist),
+        )
+
+    def get_path(self, target: Point, limit: float = math.inf):
+        path: list[Point] = []
+        x, y = target
+        while len(path) < limit:
+            path.append((x, y))
+            x2 = self.prev_x[x, y]
+            y2 = self.prev_y[x, y]
+            if x2 < 0:
+                break
+            x, y = x2, y2
+        return path
 
 class CombatModule(AIModule):
 
@@ -125,17 +157,21 @@ class CombatModule(AIModule):
                 d = disk(enemy.position, r, shape=self.air_dps.shape)
                 self.air_dps[d] += enemy.air_dps
 
-        retreat_ground = self.ground_dps
-        retreat_ground = gaussian_filter(retreat_ground, sigma=1)
-        retreat_ground += 100 * self.ai.distance_ground
-        retreat_ground = -np.stack(np.gradient(retreat_ground), axis=-1)
-        self.retreat_ground = retreat_ground
-
-        retreat_air = self.air_dps
-        retreat_air = gaussian_filter(retreat_air, sigma=1)
-        retreat_air += 100 * self.ai.distance_air
-        retreat_air = -np.stack(np.gradient(retreat_air), axis=-1)
-        self.retreat_air = retreat_air
+        retreat_cost_ground = self.ai.mediator.get_map_data_object.get_pyastar_grid() + np.log1p(self.ground_dps)
+        retreat_cost_air = self.ai.mediator.get_map_data_object.get_clean_air_grid() + np.log1p(self.air_dps)
+        retreat_targets = [w.position for w in self.ai.workers]
+        self.retreat_ground = DijkstraOutput.from_cy(
+            cy_dijkstra(
+                retreat_cost_ground.astype(np.float64),
+                np.array(retreat_targets, dtype=np.intp),
+            )
+        )
+        self.retreat_air = DijkstraOutput.from_cy(
+            cy_dijkstra(
+                retreat_cost_air.astype(np.float64),
+                np.array(retreat_targets, dtype=np.intp),
+            )
+        )
 
         def time_until_in_range(unit: Unit, target: Unit) -> float:
             if target.is_flying:
@@ -295,7 +331,6 @@ class CombatBehavior(AIUnit):
             
             unit_range = self.ai.get_unit_range(self.unit, not target.is_flying, target.is_flying)
 
-            
             if stance == CombatStance.RETREAT:
                 if not self.unit.weapon_cooldown:
                     return self.unit.attack(target.position)
@@ -307,19 +342,26 @@ class CombatBehavior(AIUnit):
             else:
                 retreat_map = self.ai.combat.retreat_ground
 
-            i, j = self.unit.position.rounded
+            # i, j = self.unit.position.rounded
+            #
+            # g = retreat_map[i, j, :]
+            # g /= max(1e-6, np.linalg.norm(g))
+            #
+            # if not self.unit.is_flying:
+            #     gb = self.ai.pathing_border[i, j, :]
+            #     gb /= max(1e-6, np.linalg.norm(gb))
+            #
+            #     g -= min(0, np.dot(g, gb)) * gb
+            #     g /= max(1e-6, np.linalg.norm(g))
+            #
+            # retreat_point = self.unit.position + self.unit.movement_speed * g
 
-            g = retreat_map[i, j, :]
-            g /= max(1e-6, np.linalg.norm(g))
-
-            if not self.unit.is_flying:
-                gb = self.ai.pathing_border[i, j, :]
-                gb /= max(1e-6, np.linalg.norm(gb))
-
-                g -= min(0, np.dot(g, gb)) * gb
-                g /= max(1e-6, np.linalg.norm(g))
-
-            retreat_point = self.unit.position + self.unit.movement_speed * g
+            p = self.unit.position.rounded
+            if retreat_map.dist[p] == np.inf:
+                retreat_point = self.ai.start_location
+            else:
+                retreat_path = retreat_map.get_path(p, 5)
+                retreat_point = Point2(retreat_path[-1]).offset(HALF)
 
             return self.unit.move(retreat_point)
 

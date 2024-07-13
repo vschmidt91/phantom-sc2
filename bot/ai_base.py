@@ -14,6 +14,7 @@ from skimage.io import imsave
 from scipy.ndimage import gaussian_filter
 from skimage.draw import disk, rectangle, rectangle_perimeter
 
+from ares import AresBot
 from sc2.bot_ai import BotAI
 from sc2.constants import IS_DETECTOR
 from sc2.data import Result, race_townhalls, ActionResult, Race
@@ -56,7 +57,7 @@ from .resources.vespene_geyser import VespeneGeyser
 from .strategies.strategy import Strategy
 from .units.worker import Worker, WorkerManager
 
-class AIBase(BotAI):
+class AIBase(AresBot):
 
     def __init__(self,):
 
@@ -88,6 +89,7 @@ class AIBase(BotAI):
         return 0 < unit.movement_speed
 
     async def on_before_start(self):
+        await super().on_before_start()
 
         self.unit_cost = {
             type_id: self.get_cost(type_id)
@@ -168,6 +170,7 @@ class AIBase(BotAI):
             return []
 
     async def on_start(self):
+        await super().on_start()
 
         logging.debug('start')
 
@@ -305,6 +308,7 @@ class AIBase(BotAI):
         return Cost(float(minerals_vespene.minerals), float(minerals_vespene.vespene), food, larva)
 
     async def on_step(self, iteration: int):
+        await super().on_step(iteration)
 
         # logging.debug(f'step: {iteration}')
 
@@ -404,9 +408,11 @@ class AIBase(BotAI):
                 logging.error('worker supply mismatch')
 
     async def on_end(self, game_result: Result):
+        await super().on_end(game_result)
         logging.debug("end: %s", game_result)
 
     async def on_building_construction_started(self, unit: Unit):
+        await super().on_building_construction_started(unit)
         logging.debug("building_construction_started: %s", unit)
 
         behavior = self.unit_manager.add_unit(unit)
@@ -441,34 +447,42 @@ class AIBase(BotAI):
                         logging.error('trainer not found')
 
     async def on_building_construction_complete(self, unit: Unit):
+        await super().on_building_construction_complete(unit)
         logging.debug("building_construction_complete: %s", unit)
 
     async def on_enemy_unit_entered_vision(self, unit: Unit):
+        await super().on_enemy_unit_entered_vision(unit)
         logging.debug("enemy_unit_entered_vision: %s", unit)
         if unit.is_snapshot:
             return
 
     async def on_enemy_unit_left_vision(self, unit_tag: int):
+        await super().on_enemy_unit_left_vision(unit_tag)
         logging.debug("enemy_unit_left_vision: %i", unit_tag)
 
     async def on_unit_destroyed(self, unit_tag: int):
+        await super().on_unit_destroyed(unit_tag)
         logging.debug("unit_destroyed: %i", unit_tag)
         self.unit_manager.try_remove_unit(unit_tag)
 
     async def on_unit_created(self, unit: Unit):
+        await super().on_unit_created(unit)
         logging.debug("unit_created: %s", unit)
         self.unit_manager.add_unit(unit)
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
+        await super().on_unit_type_changed(unit, previous_type)
         logging.debug("unit_type_changed: %s -> %s", previous_type, unit)
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
+        await super().on_unit_took_damage(unit, amount_damage_taken)
         logging.debug("unit_took_damage: %f @ %s", amount_damage_taken, unit)
         behavior = self.unit_manager.units.get(unit.tag)
         if behavior != None:
             behavior.on_took_damage(amount_damage_taken)
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
+        await super().on_upgrade_complete(upgrade)
         logging.info("upgrade_complete: %s", upgrade)
 
     def count(self,

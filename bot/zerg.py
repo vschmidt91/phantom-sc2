@@ -58,7 +58,6 @@ SPORE_TRIGGERS[Race.Random] = {
 class ZergAI(AIBase):
 
     async def on_step(self, iteration):
-
         await super().on_step(iteration)
 
         self.morph_overlords()

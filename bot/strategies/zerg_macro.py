@@ -83,8 +83,8 @@ class ZergMacro(Strategy):
         else:
             composition[UnitTypeId.ZERGLING] = 1.0
 
-        composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 7
-        composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 3
+        composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 10
+        composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 5
 
         if self.tech_up:
             # composition[UnitTypeId.OVERLORDTRANSPORT] = 1
@@ -101,7 +101,7 @@ class ZergMacro(Strategy):
             composition[UnitTypeId.OVERSEER] = 3
 
         if worker_count == worker_target:
-            banking = min(self.ai.minerals, self.ai.vespene) / 500
+            banking = min(self.ai.minerals, self.ai.vespene) / 300
             if 0 < hive_count:
                 composition[UnitTypeId.BROODLORD] += banking
                 composition[UnitTypeId.CORRUPTOR] += banking
