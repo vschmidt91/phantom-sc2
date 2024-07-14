@@ -66,8 +66,8 @@ class MacroModule(AIModule):
         self.next_plan_id: int = 0
         self.future_spending = Cost(0, 0, 0, 0)
         self.future_timeframe = 0.0
-        self.unassigned_plans: List[MacroPlan] = list()
-        self.composition: Dict[UnitTypeId, int] = dict()
+        self.unassigned_plans: list[MacroPlan] = list()
+        self.composition: dict[UnitTypeId, int] = dict()
 
     def add_plan(self, item: MacroId) -> MacroPlan:
         self.next_plan_id += 1

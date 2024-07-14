@@ -19,9 +19,9 @@ class GatherBehavior(AIUnit):
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
 
-        self.gather_target: Optional[ResourceBase] = None
-        self.command_queue: Optional[Unit] = None
-        self.return_target: Optional[Structure] = None
+        self.gather_target: ResourceBase | None = None
+        self.command_queue: Unit | None = None
+        self.return_target: Structure | None = None
 
         self.ai.resource_manager.add_harvester(self)
 

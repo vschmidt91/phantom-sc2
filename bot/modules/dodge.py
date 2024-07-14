@@ -109,13 +109,6 @@ class DodgeEffectDelayed(DodgeEffect):
         self.time_of_impact: float = time + self.DELAY[effect.id]
         super().__init__(effect)
 
-    # def get_circles(self, time: float) -> Iterable[DamageCircle]:
-    #     time_remaining = self.time + self.delay - time
-    #     movement_speed = 1.0
-    #     for radius, damage in self.CIRCLES[self.effect.id]:
-    #         radius_adjusted = radius - movement_speed * time_remaining
-    #         yield DamageCircle(self.position, radius_adjusted, damage)
-
 
 class DodgeBehavior(AIUnit):
     def __init__(self, ai: AIBase, unit: Unit):

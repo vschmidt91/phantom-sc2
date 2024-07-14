@@ -11,6 +11,7 @@ from sc2.position import Point2
 from sc2.unit import Unit, UnitTypeId
 from scipy.spatial import cKDTree
 
+from ..constants import IGNORED_UNIT_TYPES
 from ..constants import CHANGELINGS, ITEM_BY_ABILITY, WORKERS
 from ..units.army import Army
 from ..units.changeling import Changeling
@@ -27,21 +28,13 @@ from .module import AIModule
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-IGNORED_UNIT_TYPES = {
-    UnitTypeId.BROODLING,
-    UnitTypeId.LOCUSTMP,
-    UnitTypeId.LOCUSTMPFLYING,
-}
-
 
 class UnitManager(AIModule):
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
-
-        self.units: Dict[int, AIUnit] = dict()
-
-        self.actual_by_type: DefaultDict[MacroId, List[AIUnit]] = defaultdict(list)
-        self.pending_by_type: DefaultDict[MacroId, List[AIUnit]] = defaultdict(list)
+        self.units: dict[int, AIUnit] = dict()
+        self.actual_by_type: DefaultDict[MacroId, list[AIUnit]] = defaultdict(list)
+        self.pending_by_type: DefaultDict[MacroId, list[AIUnit]] = defaultdict(list)
 
     @property
     def townhalls(self) -> Iterable[Structure]:
@@ -71,7 +64,7 @@ class UnitManager(AIModule):
         else:
             self.pending_by_type[behavior.unit.type_id].append(behavior)
 
-    def add_unit(self, unit: Unit) -> Optional[AIUnit]:
+    def add_unit(self, unit: Unit) -> AIUnit | None:
         if unit.type_id in IGNORED_UNIT_TYPES:
             return None
         elif unit.is_mine:

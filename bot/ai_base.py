@@ -47,7 +47,7 @@ from .constants import (
 from .cost import Cost
 from .modules.chat import Chat
 from .modules.combat import CombatModule
-from .modules.dodge import DodgeModule
+from .modules.dodge import DodgeModule, DodgeElement, DodgeEffect
 from .modules.macro import MacroBehavior, MacroId, MacroModule, compare_plans
 from .modules.scout import ScoutModule
 from .modules.unit_manager import UnitManager
@@ -182,6 +182,10 @@ class AIBase(AresBot):
 
     async def on_start(self):
         await super().on_start()
+
+        # await self.client.debug_create_unit([[UnitTypeId.ROACHBURROWED, 40, self.game_info.map_center, 2]])
+        # await self.client.debug_create_unit([[UnitTypeId.ROACHBURROWED, 30, self.game_info.map_center, 1]])
+        # await self.client.debug_upgrade()
 
         # await self.client.debug_create_unit([
         #     [UnitTypeId.OVERLORDTRANSPORT, 1, self.game_info.map_center, 1],
@@ -459,9 +463,6 @@ class AIBase(AresBot):
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         await super().on_unit_took_damage(unit, amount_damage_taken)
-        behavior = self.unit_manager.units.get(unit.tag)
-        if behavior is not None:
-            behavior.on_took_damage(amount_damage_taken)
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         await super().on_upgrade_complete(upgrade)

@@ -20,7 +20,6 @@ class AIUnit(ABC):
     def __init__(self, ai: AIBase, unit: Unit):
         self.ai = ai
         self.unit = unit
-        self.damage_taken: DamageTakenEvent = DamageTakenEvent(0, 0)
 
     @property
     def is_snapshot(self) -> bool:
@@ -29,9 +28,6 @@ class AIUnit(ABC):
     @abstractmethod
     def get_command(self) -> Optional[UnitCommand]:
         raise NotImplementedError()
-
-    def on_took_damage(self, damage_taken: float):
-        self.damage_taken = DamageTakenEvent(self.ai.time, damage_taken)
 
 
 class IdleBehavior(AIUnit):

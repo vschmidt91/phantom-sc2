@@ -12,20 +12,12 @@ if TYPE_CHECKING:
 
 
 class Structure(MacroBehavior):
-    def __init__(self, ai: AIBase, unit: Unit):
-        super().__init__(ai, unit)
-        self.cancel: bool = False
 
     def get_command(self) -> Optional[UnitCommand]:
-        if self.cancel:
+        if self.unit.health_percentage < 0.05:
             return self.unit(AbilityId.CANCEL)
         else:
             return self.macro()
-
-    def on_took_damage(self, damage_taken: float):
-        if self.unit.health_percentage < 0.05:
-            self.cancel = True
-        return super().on_took_damage(damage_taken)
 
 
 class Larva(Structure):

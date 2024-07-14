@@ -8,7 +8,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
 from ..constants import ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES
-from ..unit_counters import UNIT_COUNTER_DICT
+from ..constants import UNIT_COUNTER_DICT
 from .strategy import Strategy
 
 if TYPE_CHECKING:
@@ -79,8 +79,8 @@ class ZergMacro(Strategy):
         else:
             composition[UnitTypeId.ZERGLING] = 1.0
 
-        composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 10
-        composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 5
+        composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 13
+        composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 8
 
         if self.tech_up:
             # composition[UnitTypeId.OVERLORDTRANSPORT] = 1
