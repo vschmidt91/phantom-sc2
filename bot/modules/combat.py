@@ -240,6 +240,11 @@ class CombatBehavior(AIUnit):
         if not enemy:
             return None
 
+        if self.unit.is_flying:
+            retreat_map = self.ai.combat.retreat_air
+        else:
+            retreat_map = self.ai.combat.retreat_ground
+
         if np.isinf(self.estimated_survival):
             if np.isinf(enemy.estimated_survival):
                 confidence = 0.5
@@ -265,7 +270,7 @@ class CombatBehavior(AIUnit):
                 stance = CombatStance.FLEE
         else:
             if 1 / 2 <= confidence:
-                stance = CombatStance.RETREAT
+                stance = CombatStance.FIGHT
             else:
                 stance = CombatStance.FLEE
 
@@ -281,25 +286,6 @@ class CombatBehavior(AIUnit):
                 ):
                     return self.unit.attack(target.position)
 
-            if self.unit.is_flying:
-                retreat_map = self.ai.combat.retreat_air
-            else:
-                retreat_map = self.ai.combat.retreat_ground
-
-            # i, j = self.unit.position.rounded
-            #
-            # g = retreat_map[i, j, :]
-            # g /= max(1e-6, np.linalg.norm(g))
-            #
-            # if not self.unit.is_flying:
-            #     gb = self.ai.pathing_border[i, j, :]
-            #     gb /= max(1e-6, np.linalg.norm(gb))
-            #
-            #     g -= min(0, np.dot(g, gb)) * gb
-            #     g /= max(1e-6, np.linalg.norm(g))
-            #
-            # retreat_point = self.unit.position + self.unit.movement_speed * g
-
             p = self.unit.position.rounded
             if retreat_map.dist[p] == np.inf:
                 retreat_point = self.ai.start_location
@@ -308,21 +294,6 @@ class CombatBehavior(AIUnit):
                 retreat_point = Point2(retreat_path[-1]).offset(HALF)
 
             return self.unit.move(retreat_point)
-
-        # elif stance == CombatStance.RETREAT:
-
-        #     if (
-        #         (self.unit.weapon_cooldown or self.unit.is_burrowed)
-        #         and self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(
-        #         self.unit) + target.radius + self.unit.distance_to_weapon_ready
-        #     ):
-        #         retreat_point = self.unit.position.towards(target.position, -12)
-        #         return self.unit.move(retreat_point)
-        #     elif self.unit.position.distance_to(target.position) <= self.unit.radius + self.ai.get_unit_range(
-        #             self.unit) + target.radius:
-        #         return self.unit.attack(target.position)
-        #     else:
-        #         return self.unit.attack(target.position)
 
         elif stance == CombatStance.FIGHT:
             return self.unit.attack(target.position)
