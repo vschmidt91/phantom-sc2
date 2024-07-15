@@ -97,10 +97,10 @@ class CombatModule(AIModule):
             return 0.0
         priority = 1e8
 
-        priority /= 2 + self.ai.distance_ground[target.position.rounded]
-        priority /= 3 if target.is_structure else 1
+        priority /= 1 + self.ai.distance_ground[target.position.rounded]
+        priority /= 5 if target.is_structure else 1
         if target.is_enemy:
-            priority /= 100 + target.shield + target.health
+            priority /= 300 + target.shield + target.health
         else:
             priority /= 500
         # priority *= 3 if target.type_id in WORKERS else 1
@@ -212,12 +212,12 @@ class CombatBehavior(AIUnit):
         ):
             return 0.0
         priority = 1e8
-        priority /= 30.0 + target.position.distance_to(self.unit.position)
+        priority /= 8 + target.position.distance_to(self.unit.position)
         if self.unit.is_detector:
             if target.is_cloaked:
-                priority *= 10.0
+                priority *= 3.0
             if not target.is_revealed:
-                priority *= 10.0
+                priority *= 3.0
 
         return priority
 
@@ -244,6 +244,9 @@ class CombatBehavior(AIUnit):
             retreat_map = self.ai.combat.retreat_air
         else:
             retreat_map = self.ai.combat.retreat_ground
+        p = self.unit.position.rounded
+        retreat_path_limit = 5
+        retreat_path = retreat_map.get_path(p, retreat_path_limit)
 
         if np.isinf(self.estimated_survival):
             if np.isinf(enemy.estimated_survival):
@@ -266,6 +269,8 @@ class CombatBehavior(AIUnit):
                 stance = CombatStance.FIGHT
             elif 1 / 4 <= confidence:
                 stance = CombatStance.RETREAT
+            elif len(retreat_path) < retreat_path_limit:
+                stance = CombatStance.RETREAT
             else:
                 stance = CombatStance.FLEE
         else:
@@ -286,11 +291,9 @@ class CombatBehavior(AIUnit):
                 ):
                     return self.unit.attack(target.position)
 
-            p = self.unit.position.rounded
             if retreat_map.dist[p] == np.inf:
                 retreat_point = self.ai.start_location
             else:
-                retreat_path = retreat_map.get_path(p, 5)
                 retreat_point = Point2(retreat_path[-1]).offset(HALF)
 
             return self.unit.move(retreat_point)
