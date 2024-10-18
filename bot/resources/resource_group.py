@@ -28,7 +28,7 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         return (x for item in self.items for x in item.flatten())
 
     @property
-    def remaining(self) -> Iterable[int]:
+    def remaining(self) -> int:
         return sum(r.remaining for r in self.items)
 
     @property

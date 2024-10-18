@@ -1,10 +1,9 @@
 import logging
 import math
-from typing import Dict, Iterable, Set
+from typing import Dict, Set
 
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.upgrade_id import UpgradeId
 
 from .ai_base import AIBase
 from .constants import SUPPLY_PROVIDED
@@ -59,12 +58,6 @@ class ZergAI(AIBase):
 
         self.morph_overlords()
         self.expand()
-
-    def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
-        for upgrade in upgrades:
-            if not self.count(upgrade, include_planned=False):
-                return (upgrade,)
-        return tuple()
 
     def morph_overlords(self) -> None:
         supply_pending = sum(

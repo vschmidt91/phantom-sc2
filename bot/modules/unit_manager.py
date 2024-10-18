@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from itertools import chain
-from typing import TYPE_CHECKING, DefaultDict, Dict, Iterable, List, Optional
+from typing import TYPE_CHECKING, DefaultDict, Iterable
 
 import numpy as np
 from sc2.data import race_townhalls
@@ -11,8 +11,7 @@ from sc2.position import Point2
 from sc2.unit import Unit, UnitTypeId
 from scipy.spatial import cKDTree
 
-from ..constants import IGNORED_UNIT_TYPES
-from ..constants import CHANGELINGS, ITEM_BY_ABILITY, WORKERS
+from ..constants import CHANGELINGS, IGNORED_UNIT_TYPES, ITEM_BY_ABILITY, WORKERS
 from ..units.army import Army
 from ..units.changeling import Changeling
 from ..units.creep_tumor import CreepTumor
@@ -53,7 +52,7 @@ class UnitManager(AIModule):
             self.add_unit_to_tables(behavior)
 
         for upgrade in self.ai.state.upgrades:
-            self.actual_by_type[upgrade] = [None]
+            self.actual_by_type[upgrade] = [self.ai.all_units[0]]
 
     def add_unit_to_tables(self, behavior: AIUnit) -> None:
         if behavior.unit.is_ready:

@@ -1,5 +1,4 @@
 from abc import ABC
-
 from typing import Optional
 
 from sc2.unit import Unit

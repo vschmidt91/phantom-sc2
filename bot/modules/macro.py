@@ -4,7 +4,7 @@ import math
 import random
 from functools import cmp_to_key
 from itertools import chain
-from typing import TYPE_CHECKING, Dict, Iterable, List, Optional, Union
+from typing import TYPE_CHECKING, Iterable
 
 from sc2.data import race_townhalls
 from sc2.ids.ability_id import AbilityId
@@ -29,7 +29,7 @@ from .module import AIModule
 if TYPE_CHECKING:
     from ..ai_base import AIBase
 
-MacroId = Union[UnitTypeId, UpgradeId]
+MacroId = UnitTypeId | UpgradeId
 
 
 def compare_plans(plan_a: MacroPlan, plan_b: MacroPlan) -> int:
@@ -48,9 +48,9 @@ class MacroPlan:
     def __init__(self, plan_id: int, item: MacroId):
         self.plan_id = plan_id
         self.item = item
-        self.target: Union[Unit, Point2, None] = None
+        self.target: Unit | Point2 | None = None
         self.priority: float = 0.0
-        self.max_distance: Optional[int] = 4
+        self.max_distance: int | None = 4
         self.eta: float = math.inf
 
     def __repr__(self) -> str:
@@ -244,7 +244,7 @@ class MacroModule(AIModule):
             )
         self.future_timeframe = future_timeframe
 
-    async def get_target(self, trainer: MacroBehavior, objective: MacroPlan) -> Union[Unit, Point2, None]:
+    async def get_target(self, trainer: MacroBehavior, objective: MacroPlan) -> Unit | Point2 | None:
         gas_type = GAS_BY_RACE[self.ai.race]
         if objective.item == gas_type:
             exclude_positions = {geyser.position for geyser in self.ai.gas_buildings}
@@ -289,7 +289,7 @@ class MacroModule(AIModule):
         else:
             return None
 
-    def search_trainer(self, trainers: Iterable[MacroBehavior], item: MacroId) -> Optional[MacroBehavior]:
+    def search_trainer(self, trainers: Iterable[MacroBehavior], item: MacroId) -> MacroBehavior | None:
         trainer_types = ITEM_TRAINED_FROM_WITH_EQUIVALENTS[item]
 
         trainers_filtered = (
@@ -336,8 +336,9 @@ class MacroModule(AIModule):
         upgrades = [
             u for unit in self.composition for u in self.ai.upgrades_by_unit(unit) if self.ai.strategy.filter_upgrade(u)
         ]
-        targets = set(upgrades)
-        targets.update(r for item in chain(self.composition, upgrades) for r in REQUIREMENTS[item])
+        targets: set[MacroId] = set(upgrades)
+        targets.update(self.composition.keys())
+        targets.update(r for item in set(targets) for r in REQUIREMENTS[item])
         for target in targets:
             if equivalents := WITH_TECH_EQUIVALENTS.get(target):
                 target_met = any(self.ai.count(t) for t in equivalents)
@@ -351,16 +352,16 @@ class MacroModule(AIModule):
 class MacroBehavior(AIUnit):
     def __init__(self, ai: AIBase, unit: Unit):
         super().__init__(ai, unit)
-        self.plan: Optional[MacroPlan] = None
+        self.plan: MacroPlan | None = None
 
     @property
-    def macro_ability(self) -> Optional[AbilityId]:
+    def macro_ability(self) -> AbilityId | None:
         if self.plan and (element := MACRO_INFO.get(self.unit.type_id)) and (ability := element.get(self.plan.item)):
             return ability.get("ability")
         else:
             return None
 
-    def macro(self) -> Optional[UnitCommand]:
+    def macro(self) -> UnitCommand | None:
         if self.plan is None:
             return None
         elif not self.macro_ability:

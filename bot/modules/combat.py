@@ -4,18 +4,18 @@ import math
 from dataclasses import dataclass
 from enum import Enum, auto
 from itertools import chain
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Point2, Unit, UnitCommand
 from skimage.draw import disk
+
 from bot.cost import Cost
 
 from ..constants import CHANGELINGS, CIVILIANS
 from ..units.unit import AIUnit
 from .cy_dijkstra import cy_dijkstra  # type: ignore
-
 from .module import AIModule
 
 if TYPE_CHECKING:
@@ -82,6 +82,10 @@ class DijkstraOutput:
 
 
 class CombatModule(AIModule):
+    retreat_ground: DijkstraOutput
+    retreat_air: DijkstraOutput
+    target_priority_dict: dict[int, float]
+
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
         self.confidence: float = 1.0
@@ -120,9 +124,7 @@ class CombatModule(AIModule):
             )
         ]
 
-        self.enemies = {
-            unit.tag: Enemy(unit) for unit in self.ai.enemy_army
-        }
+        self.enemies = {unit.tag: Enemy(unit) for unit in self.ai.enemy_army}
 
         self.ground_dps[:, :] = 0.0
         self.air_dps[:, :] = 0.0
@@ -155,12 +157,11 @@ class CombatModule(AIModule):
 
         def time_until_in_range(unit: Unit, target: Unit) -> float:
             if target.is_flying:
-                r = unit.air_range
+                unit_range = unit.air_range
             else:
-                r = unit.ground_range
-            d = np.linalg.norm(unit.position - target.position)
-            d = d - unit.radius - target.radius - r
-            return d / max(1, unit.movement_speed)
+                unit_range = unit.ground_range
+            unit_distance = np.linalg.norm(unit.position - target.position) - unit.radius - target.radius - unit_range
+            return unit_distance / max(1.0, unit.movement_speed)
 
         time_scale = 0.5
         for behavior in self.army:
@@ -172,22 +173,20 @@ class CombatModule(AIModule):
                 enemy = enemy_behavior.unit
 
                 dps = unit.air_dps if enemy.is_flying else unit.ground_dps
-                weight = math.exp(-max(0, time_scale * time_until_in_range(unit, enemy)))
+                weight = math.exp(-max(0.0, time_scale * time_until_in_range(unit, enemy)))
                 enemy_behavior.dps_incoming += dps * weight
 
                 dps = enemy.air_dps if unit.is_flying else enemy.ground_dps
-                weight = math.exp(-max(0, time_scale * time_until_in_range(enemy, unit)))
+                weight = math.exp(-max(0.0, time_scale * time_until_in_range(enemy, unit)))
                 behavior.dps_incoming += dps * weight
 
         for behavior in chain(self.army, self.enemies.values()):
             if 0 < behavior.dps_incoming:
-                behavior.estimated_survival = (unit.health + unit.shield) / behavior.dps_incoming
+                behavior.estimated_survival = (behavior.unit.health + behavior.unit.shield) / behavior.dps_incoming
             else:
                 behavior.estimated_survival = np.inf
 
-        self.target_priority_dict = {
-            unit.tag: self.target_priority(unit) for unit in self.ai.enemy_army
-        }
+        self.target_priority_dict = {unit.tag: self.target_priority(unit) for unit in self.ai.enemy_army}
 
         def unit_value(cost: Cost):
             return cost.minerals + cost.vespene
@@ -206,10 +205,7 @@ class CombatBehavior(AIUnit):
         self.estimated_survival: float = np.inf
 
     def target_priority(self, target: Unit) -> float:
-        if not (
-            self.ai.can_attack(self.unit, target)
-            or self.unit.is_detector
-        ):
+        if not (self.ai.can_attack(self.unit, target) or self.unit.is_detector):
             return 0.0
         priority = 1e8
         priority /= 8 + target.position.distance_to(self.unit.position)
@@ -227,7 +223,7 @@ class CombatBehavior(AIUnit):
                 (enemy, self.target_priority(enemy) * self.ai.combat.target_priority_dict.get(enemy.tag, 0))
                 for enemy in self.ai.enemy_army
             ),
-            key=lambda p: p[1],
+            key=lambda t: t[1],
             default=(None, 0),
         )
 

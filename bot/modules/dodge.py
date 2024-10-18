@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass
-from itertools import chain
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 from sc2.game_state import EffectData
@@ -45,36 +44,40 @@ class DamageCircle:
 class DodgeModule(AIModule):
     def __init__(self, ai: AIBase) -> None:
         super().__init__(ai)
-        self.elements: List[DodgeElement] = list()
-        self.elements_delayed: List[DodgeEffectDelayed] = list()
+        self.elements: list[DodgeElement] = list()
+        self.elements_delayed: list[DodgeEffectDelayed] = list()
 
     async def on_step(self):
-        delayed_positions = {e.position for e in self.elements_delayed}
-        delayed_old = (element for element in self.elements_delayed if self.ai.time <= element.time_of_impact)
-        delayed_new = (
+
+        elements_delayed_old = self.elements_delayed
+        delayed_positions = {e.position for e in elements_delayed_old}
+
+        self.elements_delayed = []
+        self.elements_delayed.extend(
+            element for element in elements_delayed_old if self.ai.time <= element.time_of_impact
+        )
+        self.elements_delayed.extend(
             DodgeEffectDelayed(effect, self.ai.time)
             for effect in self.ai.state.effects
             if (effect.id in DODGE_DELAYED_EFFECTS and next(iter(effect.positions)) not in delayed_positions)
         )
-        self.elements_delayed = list(chain(delayed_old, delayed_new))
 
-        dodge_effects = (DodgeEffect(effect) for effect in self.ai.state.effects if effect.id in DODGE_EFFECTS)
-        dodge_unit = (
-            DodgeUnit(enemy)
-            for enemy in self.ai.all_enemy_units
-            if enemy and enemy.type_id in DODGE_UNITS
+        self.elements = []
+        self.elements.extend(self.elements_delayed)
+        self.elements.extend(
+            DodgeUnit(enemy) for enemy in self.ai.all_enemy_units if enemy and enemy.type_id in DODGE_UNITS
         )
-        self.elements = list(chain(dodge_effects, dodge_unit, self.elements_delayed))
+        self.elements.extend(DodgeEffect(effect) for effect in self.ai.state.effects if effect.id in DODGE_EFFECTS)
 
 
 class DodgeElement(ABC):
-    def __init__(self, position: Point2, circles: List[DamageCircle]):
+    def __init__(self, position: Point2, circles: list[DamageCircle]):
         self.position: Point2 = position
-        self.circles: List[DamageCircle] = circles
+        self.circles: list[DamageCircle] = circles
 
 
 class DodgeUnit(DodgeElement):
-    CIRCLES: Dict[UnitTypeId, List[DamageCircle]] = {
+    CIRCLES: dict[UnitTypeId, list[DamageCircle]] = {
         UnitTypeId.DISRUPTORPHASED: [DamageCircle(1.5, 145.0)],
         UnitTypeId.BANELING: [DamageCircle(2.2, 19.0)],
     }
@@ -86,7 +89,7 @@ class DodgeUnit(DodgeElement):
 
 
 class DodgeEffect(DodgeElement):
-    CIRCLES: Dict[EffectId, List[DamageCircle]] = {
+    CIRCLES: dict[EffectId, list[DamageCircle]] = {
         EffectId.LURKERMP: [DamageCircle(0.5, 20.0)],
         EffectId.PSISTORMPERSISTENT: [DamageCircle(1.5, 80.0)],
         EffectId.RAVAGERCORROSIVEBILECP: [DamageCircle(1.0, 60)],
@@ -100,7 +103,7 @@ class DodgeEffect(DodgeElement):
 
 
 class DodgeEffectDelayed(DodgeEffect):
-    DELAY: Dict[EffectId, float] = {
+    DELAY: dict[EffectId, float] = {
         EffectId.RAVAGERCORROSIVEBILECP: 50 / 22.4,
         EffectId.NUKEPERSISTENT: 320 / 22.4,
     }

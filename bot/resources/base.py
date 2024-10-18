@@ -30,7 +30,7 @@ class Base(ResourceGroup[ResourceBase]):
         super().__init__([self.mineral_patches, self.vespene_geysers], position)
 
         static_defense_position = Point2(self.position.towards(self.mineral_patches.position, STATIC_DEFENSE_OFFSET))
-        static_defense_position = static_defense_position.rounded.offset((0.0, 0.0))
+        static_defense_position = static_defense_position.rounded.offset(Point2((0.5, 0.5)))
         self.static_defense_position = static_defense_position
 
     def split_initial_workers(self, harvesters: Iterable[GatherBehavior]):

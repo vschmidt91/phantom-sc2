@@ -10,7 +10,6 @@ from typing import Iterable, Type
 
 import numpy as np
 from ares import AresBot
-from ares.cache import property_cache_once_per_frame
 from sc2.constants import IS_DETECTOR
 from sc2.data import ActionResult, Race, Result, race_townhalls
 from sc2.game_state import ActionRawUnitCommand
@@ -27,6 +26,7 @@ from bot.behaviors.overlord_drop import OverlordDropManager
 
 from .behaviors.inject import InjectManager
 from .constants import (
+    CIVILIANS,
     GAS_BY_RACE,
     LARVA_COST,
     RANGE_UPGRADES,
@@ -42,12 +42,12 @@ from .constants import (
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
     ZERG_MELEE_UPGRADES,
-    ZERG_RANGED_UPGRADES, CIVILIANS,
+    ZERG_RANGED_UPGRADES,
 )
 from .cost import Cost
 from .modules.chat import Chat
 from .modules.combat import CombatModule
-from .modules.dodge import DodgeModule, DodgeElement, DodgeEffect
+from .modules.dodge import DodgeModule
 from .modules.macro import MacroBehavior, MacroId, MacroModule, compare_plans
 from .modules.scout import ScoutModule
 from .modules.unit_manager import UnitManager
@@ -313,6 +313,12 @@ class AIBase(AresBot):
             return Cost(0.0, 0.0, 0.0, 0.0)
         larva = LARVA_COST.get(item, 0.0)
         return Cost(float(minerals_vespene.minerals), float(minerals_vespene.vespene), food, larva)
+
+    def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
+        for upgrade in upgrades:
+            if not self.count(upgrade, include_planned=False):
+                return (upgrade,)
+        return tuple()
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
@@ -656,12 +662,18 @@ class AIBase(AresBot):
         elif isinstance(item, UpgradeId):
             trainer = UPGRADE_RESEARCHED_FROM[item]
             info = RESEARCH_INFO[trainer][item]
+        else:
+            raise ValueError(item)
 
         if self.is_unit_missing(trainer):
             yield trainer
         if (required_building := info.get("required_building")) and self.is_unit_missing(required_building):
             yield required_building
-        if (required_upgrade := info.get("required_upgrade")) and self.is_upgrade_missing(required_upgrade):
+        if (
+            (required_upgrade := info.get("required_upgrade"))
+            and isinstance(required_upgrade, UpgradeId)
+            and self.is_upgrade_missing(required_upgrade)
+        ):
             yield required_upgrade
 
     def get_owned_geysers(self):

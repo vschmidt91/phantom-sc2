@@ -91,16 +91,6 @@ class ResourceManager(AIModule):
             key=lambda r: r.harvester_target - self.harvesters_by_resource[r],
             default=None,
         )
-        # gather_target = min(
-        #     (
-        #         x
-        #         for b in self.bases_taken
-        #         for x in b.flatten()
-        #         if 0 < x.harvester_target
-        #     ),
-        #     key=lambda r: harvester.unit.position.distance_to(r.position),
-        #     default=None
-        # )
         if gather_target:
             harvester.set_gather_target(gather_target)
 
@@ -108,7 +98,7 @@ class ResourceManager(AIModule):
         static_defense_priority = sum(
             STATIC_DEFENSE_TRIGGERS.get(enemy.type_id, 0.0) for enemy in self.ai.all_enemy_units
         )
-        self.build_static_defense = 1 < static_defense_priority
+        self.build_static_defense = 1 <= static_defense_priority
 
         townhalls_by_position = {
             townhall.unit.position: townhall
