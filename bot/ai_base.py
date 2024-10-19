@@ -9,7 +9,6 @@ from itertools import chain
 from typing import Iterable
 
 import numpy as np
-from action import Action
 from ares import AresBot
 from loguru import logger
 from sc2.constants import IS_DETECTOR
@@ -22,7 +21,8 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bot.behaviors.overlord_drop import OverlordDropManager
+from .behaviors.overlord_drop import OverlordDropManager
+from .action import Action
 
 from .behaviors.inject import InjectManager
 from .components.creep import CreepSpread
