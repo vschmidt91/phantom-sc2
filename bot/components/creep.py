@@ -20,6 +20,7 @@ TUMOR_RANGE = 10
 
 class CreepSpread(Component):
     _creation_step: dict[int, int] = dict()
+    _spread_step: dict[int, int] = dict()
 
     def spread_creep(self) -> Iterable[Action]:
 
@@ -47,9 +48,13 @@ class CreepSpread(Component):
 
         for tumor in self.mediator.get_own_structures_dict[UnitTypeId.CREEPTUMORBURROWED]:
             creation_step = self._creation_step.setdefault(tumor.tag, self.state.game_loop)
-            if self.state.game_loop >= creation_step + 304:
+            if (
+                self.state.game_loop >= creation_step + 304
+                and tumor.tag not in self._spread_step
+            ):
                 if action := self.place_tumor(tumor):
                     yield action
+                    self._spread_step[tumor.tag] = self.state.game_loop
         for queen in self.mediator.get_own_army_dict[UnitTypeId.QUEEN]:
             if queen.energy >= ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN] and not queen.is_using_ability(
                 AbilityId.EFFECT_INJECTLARVA
@@ -60,10 +65,11 @@ class CreepSpread(Component):
 
     def place_tumor(self, unit: Unit) -> Action | None:
 
-        def target_value(t):
-            return self.creep_value_map_blurred[t]
-
         origin = unit.position.rounded
+
+        def target_value(t):
+            return self.creep_value_map_blurred[t] / (1 + unit.position.distance_to(Point2(t)))
+
         targets = circle_perimeter(*origin, TUMOR_RANGE, shape=self.game_info.map_size)
         target = max(list(zip(*targets)), key=target_value, default=None)
 

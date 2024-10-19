@@ -40,8 +40,8 @@ class ZergMacro(Strategy):
         # larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
         # queen_target = math.ceil(larva_rate / (3 / 29))
         # queen_target = min(queen_target, self.ai.townhalls.amount)
-        queen_target = 1 + self.ai.townhalls.amount
-        queen_target = np.clip(queen_target, 0, 8)
+        queen_target = 2 * self.ai.townhalls.amount
+        queen_target = np.clip(queen_target, 0, 12)
         # print(queen_target)
 
         # queen_target = min(8, 1 + self.ai.townhalls.amount)
@@ -74,10 +74,10 @@ class ZergMacro(Strategy):
                     for counter in counters:
                         if can_build[counter]:
                             composition[counter] += (
-                                3 * ratio * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(counter)
+                                2 * ratio * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(counter)
                             )
                             break
-        else:
+        elif self.ai.tech_requirement_progress(UnitTypeId.ZERGLING) == 1:
             composition[UnitTypeId.ZERGLING] = 1.0
 
         composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 13

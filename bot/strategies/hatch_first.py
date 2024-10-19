@@ -16,6 +16,18 @@ class HatchFirst(ZergMacro):
         super().__init__(ai)
 
     def build_order(self) -> Iterable[MacroId]:
+        # return [
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.HATCHERY,
+        #     UnitTypeId.DRONE,
+        #     UnitTypeId.OVERLORD,
+        #     UnitTypeId.SPAWNINGPOOL,
+            # UnitTypeId.DRONE,
+            # UnitTypeId.DRONE,
+            # UnitTypeId.DRONE,
+            # UnitTypeId.EXTRACTOR,
+        # ]
         return [
             UnitTypeId.DRONE,
             UnitTypeId.OVERLORD,

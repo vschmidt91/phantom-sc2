@@ -163,7 +163,7 @@ class CombatModule(AIModule):
             unit_distance = np.linalg.norm(unit.position - target.position) - unit.radius - target.radius - unit_range
             return unit_distance / max(1.0, unit.movement_speed)
 
-        time_scale = 0.5
+        time_scale = 1
         for behavior in self.army:
             behavior.targets.clear()
             behavior.threats.clear()
