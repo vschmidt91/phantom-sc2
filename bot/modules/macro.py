@@ -27,7 +27,7 @@ from ..utils import PlacementNotFoundException, time_to_reach
 from .module import AIModule
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 MacroId = UnitTypeId | UpgradeId
 
@@ -61,7 +61,7 @@ class MacroPlan:
 
 
 class MacroModule(AIModule):
-    def __init__(self, ai: AIBase) -> None:
+    def __init__(self, ai: PhantomBot) -> None:
         super().__init__(ai)
         self.next_plan_id: int = 0
         self.future_spending = Cost(0, 0, 0, 0)
@@ -143,7 +143,7 @@ class MacroModule(AIModule):
         }
 
         for i, plan in enumerate(plans):
-            cost = self.ai.get_cost(plan.item)
+            cost = self.ai.cost.of(plan.item)
 
             if any(self.ai.get_missing_requirements(plan.item)) and plan.priority == math.inf:
                 break
@@ -207,24 +207,24 @@ class MacroModule(AIModule):
                     eta = max(
                         eta, 60 * (reserve.larva - self.ai.larva.amount) / max(1, self.ai.resource_manager.income.larva)
                     )
-                if 0 < cost.food:
-                    if self.ai.supply_left < cost.food:
+                if 0 < cost.supply:
+                    if self.ai.supply_left < cost.supply:
                         eta = math.inf
                 plan.eta = eta
 
         cost_zero = Cost(0, 0, 0, 0)
         future_spending = cost_zero
-        future_spending += sum((self.ai.get_cost(plan.item) for plan in self.ai.macro.unassigned_plans), cost_zero)
+        future_spending += sum((self.ai.cost.of(plan.item) for plan in self.ai.macro.unassigned_plans), cost_zero)
         future_spending += sum(
             (
-                self.ai.get_cost(b.plan.item)
+                self.ai.cost.of(b.plan.item)
                 for b in self.ai.unit_manager.units.values()
                 if isinstance(b, MacroBehavior) and b.plan
             ),
             cost_zero,
         )
         future_spending += sum(
-            (self.ai.get_cost(unit) * max(0, count - self.ai.count(unit)) for unit, count in self.composition.items()),
+            (self.ai.cost.of(unit) * max(0, count - self.ai.count(unit)) for unit, count in self.composition.items()),
             cost_zero,
         )
         self.future_spending = future_spending
@@ -350,7 +350,7 @@ class MacroModule(AIModule):
 
 
 class MacroBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
         self.plan: MacroPlan | None = None
 

@@ -13,7 +13,7 @@ from ..modules.dodge import DodgeBehavior
 from ..modules.macro import MacroBehavior
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 class Army(
@@ -25,7 +25,7 @@ class Army(
     CombatBehavior,
     SearchBehavior,
 ):
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
 
     def get_command(self) -> Optional[UnitCommand]:

@@ -15,11 +15,11 @@ from ..constants import (
 from .strategy import Strategy
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 class ZergMacro(Strategy):
-    def __init__(self, ai: AIBase):
+    def __init__(self, ai: PhantomBot):
         super().__init__(ai)
         self.tech_up = False
 

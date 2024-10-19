@@ -10,11 +10,11 @@ from ..units.unit import AIUnit
 from .module import AIModule
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 class ScoutModule(AIModule):
-    def __init__(self, ai: AIBase) -> None:
+    def __init__(self, ai: PhantomBot) -> None:
         super().__init__(ai)
 
         self.scout_enemy_natural: bool = False
@@ -63,7 +63,7 @@ class ScoutModule(AIModule):
 
 
 class ScoutBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
         self.scout_position: Optional[Point2] = None
 

@@ -3,13 +3,15 @@ import logging
 import math
 import os
 import pstats
-import random
-from functools import cmp_to_key, lru_cache
+from collections import defaultdict
+from functools import cmp_to_key
 from itertools import chain
-from typing import Iterable, Type
+from typing import Iterable
 
 import numpy as np
+from action import Action
 from ares import AresBot
+from loguru import logger
 from sc2.constants import IS_DETECTOR
 from sc2.data import ActionResult, Race, Result, race_townhalls
 from sc2.game_state import ActionRawUnitCommand
@@ -17,18 +19,16 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
-from sc2.unit import Unit, UnitCommand, UnitOrder
+from sc2.unit import Unit
 from sc2.units import Units
-from scipy.ndimage import gaussian_filter
-from skimage.draw import rectangle
 
 from bot.behaviors.overlord_drop import OverlordDropManager
 
 from .behaviors.inject import InjectManager
+from .components.creep import CreepSpread
 from .constants import (
     CIVILIANS,
     GAS_BY_RACE,
-    LARVA_COST,
     RANGE_UPGRADES,
     REQUIREMENTS_KEYS,
     RESEARCH_INFO,
@@ -44,7 +44,7 @@ from .constants import (
     ZERG_MELEE_UPGRADES,
     ZERG_RANGED_UPGRADES,
 )
-from .cost import Cost
+from .cost import CostManager
 from .modules.chat import Chat
 from .modules.combat import CombatModule
 from .modules.dodge import DodgeModule
@@ -62,31 +62,14 @@ from .units.worker import Worker
 from .utils import flood_fill
 
 
-def order_matches_command(order: UnitOrder, command: UnitCommand) -> bool:
-    if order.ability.exact_id != command.ability:
-        return False
-    if isinstance(order.target, Point2):
-        if not isinstance(command.target, Point2):
-            return False
-        elif 1e-3 < order.target.distance_to(command.target):
-            return False
-    elif isinstance(order.target, int):
-        if not isinstance(command.target, Unit):
-            return False
-        elif order.target != command.target.tag:
-            return False
-    return True
-
-
-class AIBase(AresBot):
+class PhantomBot(CreepSpread, AresBot):
     def __init__(
         self,
     ):
-        self.raw_affects_selection = True
-        self.game_step: int = 2
-        self.unit_command_uses_self_do = True
+        super().__init__(game_step_override=2)
 
-        self.strategy_cls: Type[Strategy] = HatchFirst
+        self.raw_affects_selection = True
+        self.unit_command_uses_self_do = True
 
         if os.path.exists(VERSION_FILE):
             with open(VERSION_FILE) as f:
@@ -97,8 +80,7 @@ class AIBase(AresBot):
         self.extractor_trick_enabled: bool = False
         self.iteration: int = 0
         self.profiler: cProfile.Profile | None = None
-
-        super().__init__()
+        self.cost = CostManager(self.calculate_cost, self.calculate_supply_cost)
 
     def can_move(self, unit: Unit) -> bool:
         if unit.is_burrowed:
@@ -111,8 +93,6 @@ class AIBase(AresBot):
 
     async def on_before_start(self):
         await super().on_before_start()
-
-        self.unit_cost = {type_id: self.get_cost(type_id) for type_id in UnitTypeId}
 
         if self.debug:
             logging.basicConfig(level=logging.DEBUG)
@@ -183,6 +163,7 @@ class AIBase(AresBot):
     async def on_start(self):
         await super().on_start()
 
+        # await self.client.debug_create_unit([[UnitTypeId.QUEEN, 3, self.start_location, 1]])
         # await self.client.debug_create_unit([[UnitTypeId.ROACHBURROWED, 40, self.game_info.map_center, 2]])
         # await self.client.debug_create_unit([[UnitTypeId.ROACHBURROWED, 30, self.game_info.map_center, 1]])
         # await self.client.debug_upgrade()
@@ -209,7 +190,6 @@ class AIBase(AresBot):
             axis=-1,
         )
 
-        self.distance_ground, self.distance_air = self.create_distance_map()
         self.enemy_main = self.create_enemy_main_map()
 
         bases = await self.initialize_bases()
@@ -222,7 +202,7 @@ class AIBase(AresBot):
         self.dodge = DodgeModule(self)
         self.inject = InjectManager(self)
         self.drops = OverlordDropManager(self)
-        self.strategy: Strategy = self.strategy_cls(self)
+        self.strategy: Strategy = HatchFirst(self)
 
         for step in self.strategy.build_order():
             plan = self.macro.add_plan(step)
@@ -264,9 +244,6 @@ class AIBase(AresBot):
                 self.handle_action(action, tag)
 
     def handle_action(self, action: ActionRawUnitCommand, tag: int) -> None:
-        if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
-            if not self.unit_manager.try_remove_unit(tag):
-                logging.error("creep tumor not found")
 
         behavior = self.unit_manager.units.get(tag)
         if not behavior:
@@ -299,26 +276,11 @@ class AIBase(AresBot):
         # else:
         #     logging.error(f'trainer not found: {action}')
 
-    async def kill_random_units(self, chance: float = 3e-4) -> None:
-        tags = [unit.tag for unit in self.all_own_units if random.random() < chance]
-        if tags:
-            await self.client.debug_kill_unit(tags)
-
-    @lru_cache(maxsize=None)
-    def get_cost(self, item: MacroId) -> Cost:
-        try:
-            minerals_vespene = self.calculate_cost(item)
-            food = self.calculate_supply_cost(item)
-        except Exception:
-            return Cost(0.0, 0.0, 0.0, 0.0)
-        larva = LARVA_COST.get(item, 0.0)
-        return Cost(float(minerals_vespene.minerals), float(minerals_vespene.vespene), food, larva)
-
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
             if not self.count(upgrade, include_planned=False):
                 return (upgrade,)
-        return tuple()
+        return ()
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
@@ -343,44 +305,6 @@ class AIBase(AresBot):
         self.handle_errors()
         self.handle_actions()
 
-        self.creep_placement_map = (
-            (self.state.creep.data_numpy == 1)
-            & (self.state.visibility.data_numpy == 2)
-            & (self.game_info.pathing_grid.data_numpy == 1)
-        ).transpose()
-        self.creep_value_map = (
-            ((self.state.creep.data_numpy == 0) & (self.game_info.pathing_grid.data_numpy == 1))
-            .transpose()
-            .astype(float)
-        )
-
-        def convert_rect_coords(coords: np.ndarray):
-            return coords[0].astype(int).flatten(), coords[1].astype(int).flatten()
-
-        base_size = Point2((5, 5))
-        static_defense_size = Point2((2, 2))
-        for base in self.resource_manager.bases:
-            # d = disk(base, 4, shape=self.game_info.map_size)
-            # self.creep_placement_map[d] = False
-            # self.creep_value_map[d] *= 3
-
-            r = convert_rect_coords(
-                rectangle(base.position - 0.5 * base_size, extent=base_size, shape=self.game_info.map_size)
-            )
-            self.creep_placement_map[r] = False
-            self.creep_value_map[r] *= 3
-
-            r = convert_rect_coords(
-                rectangle(
-                    base.static_defense_position - 0.5 * static_defense_size,
-                    extent=static_defense_size,
-                    shape=self.game_info.map_size,
-                )
-            )
-            self.creep_placement_map[r] = False
-
-        self.creep_value_map_blurred = gaussian_filter(self.creep_value_map, 3)
-
         modules = [
             self.unit_manager,
             self.strategy,
@@ -396,6 +320,17 @@ class AIBase(AresBot):
         for module in modules:
             await module.on_step()
 
+        actions = [
+            *self.spread_creep(),
+        ]
+        if self.debug:
+            self.check_for_duplicate_actions(actions)
+        for action in actions:
+            if command := await action.execute(self):
+                self.do(command)
+            elif self.debug:
+                logging.info(f"Action failed: {action}")
+
         if self.profiler:
             self.profiler.disable()
             stats = pstats.Stats(self.profiler)
@@ -407,15 +342,21 @@ class AIBase(AresBot):
         if self.debug:
             await self.draw_debug()
 
-        # if iteration % 100 == 0:
-        #     self.distance_ground, self.distance_air = self.create_distance_map()
-
         if self.debug:
             # if 90 < self.time:
             #     await self.kill_random_units()
             worker_count = sum(1 for b in self.unit_manager.units.values() if isinstance(b, Worker))
             if worker_count != self.supply_workers:
                 logging.error("worker supply mismatch")
+
+    def check_for_duplicate_actions(self, actions: list[Action]) -> None:
+        actions_of_unit: defaultdict[Unit, list[Action]] = defaultdict(list)
+        for action in actions:
+            if unit := getattr(action, "unit"):
+                actions_of_unit[unit].append(action)
+        for unit, actions in actions_of_unit.items():
+            if len(actions) > 1:
+                logger.info(f"Unit {unit} received multiple commands: {actions}")
 
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)
@@ -492,7 +433,9 @@ class AIBase(AresBot):
         return count
 
     async def initialize_bases(self):
+
         start_bases = {self.start_location, *self.enemy_start_locations}
+        distance_ground, distance_air = self.create_distance_map()
 
         bases = []
         for position, resources in self.expansion_locations_dict.items():
@@ -507,7 +450,7 @@ class AIBase(AresBot):
 
         bases = sorted(
             bases,
-            key=lambda b: self.distance_ground[b.position.rounded] + self.distance_air[b.position.rounded],
+            key=lambda b: distance_ground[b.position.rounded] + distance_air[b.position.rounded],
         )
 
         return bases

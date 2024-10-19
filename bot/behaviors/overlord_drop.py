@@ -9,11 +9,11 @@ from ..modules.module import AIModule
 from ..units.unit import AIUnit
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 class OverlordDropMemberBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
         self.dropper: Optional[OverlordDropBehavior] = None
 
@@ -24,7 +24,7 @@ class OverlordDropMemberBehavior(AIUnit):
 
 
 class OverlordDropBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
         self.drop_target: Optional[Point2] = None
         self.assigned_to_drop: Set[OverlordDropMemberBehavior] = set()
@@ -74,7 +74,7 @@ class OverlordDropBehavior(AIUnit):
 
 
 class OverlordDropManager(AIModule):
-    def __init__(self, ai: "AIBase") -> None:
+    def __init__(self, ai: "PhantomBot") -> None:
         super().__init__(ai)
         self.active_drops: Set[OverlordDropBehavior] = set()
         self.assigned_to_drop: Set[OverlordDropMemberBehavior] = set()

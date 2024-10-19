@@ -8,11 +8,11 @@ from ..modules.macro import MacroId
 from .zerg_macro import ZergMacro
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 class HatchFirst(ZergMacro):
-    def __init__(self, ai: AIBase):
+    def __init__(self, ai: PhantomBot):
         super().__init__(ai)
 
     def build_order(self) -> Iterable[MacroId]:

@@ -7,11 +7,11 @@ from sc2.unit import Unit, UnitCommand
 from ..behaviors.extractor_trick import ExtractorTrickBehavior
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 class Extractor(ExtractorTrickBehavior):
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
 
     def get_command(self) -> Optional[UnitCommand]:

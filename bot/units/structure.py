@@ -8,7 +8,7 @@ from sc2.unit import Unit, UnitCommand
 from ..modules.macro import MacroBehavior
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 class Structure(MacroBehavior):
@@ -21,5 +21,5 @@ class Structure(MacroBehavior):
 
 
 class Larva(Structure):
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)

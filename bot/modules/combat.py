@@ -19,7 +19,7 @@ from .cy_dijkstra import cy_dijkstra  # type: ignore
 from .module import AIModule
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 class Enemy:
@@ -86,7 +86,7 @@ class CombatModule(AIModule):
     retreat_air: DijkstraOutput
     target_priority_dict: dict[int, float]
 
-    def __init__(self, ai: AIBase) -> None:
+    def __init__(self, ai: PhantomBot) -> None:
         super().__init__(ai)
         self.confidence: float = 1.0
         self.ground_dps = np.zeros(self.ai.game_info.map_size)
@@ -101,7 +101,7 @@ class CombatModule(AIModule):
             return 0.0
         priority = 1e8
 
-        priority /= 1 + self.ai.distance_ground[target.position.rounded]
+        # priority /= 1 + self.ai.distance_ground[target.position.rounded]
         priority /= 5 if target.is_structure else 1
         if target.is_enemy:
             priority /= 300 + target.shield + target.health
@@ -191,13 +191,13 @@ class CombatModule(AIModule):
         def unit_value(cost: Cost):
             return cost.minerals + cost.vespene
 
-        army_cost = sum(unit_value(self.ai.unit_cost[unit.type_id]) for unit in self.ai.army)
-        enemy_cost = sum(unit_value(self.ai.unit_cost[unit.type_id]) for unit in self.ai.enemy_army)
+        army_cost = sum(unit_value(self.ai.cost.of(unit.type_id)) for unit in self.ai.army)
+        enemy_cost = sum(unit_value(self.ai.cost.of(unit.type_id)) for unit in self.ai.enemy_army)
         self.confidence = army_cost / max(1, army_cost + enemy_cost)
 
 
 class CombatBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
         self.targets: List[Enemy] = []
         self.threats: List[Enemy] = []

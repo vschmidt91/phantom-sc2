@@ -8,13 +8,13 @@ from ..constants import CHANGELINGS, COOLDOWN
 from ..units.unit import AIUnit
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 BILE_ABILITY = AbilityId.EFFECT_CORROSIVEBILE
 
 
 class BileBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
         self.last_used = 0
 

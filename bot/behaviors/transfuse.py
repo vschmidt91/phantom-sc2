@@ -11,13 +11,13 @@ from ..constants import ENERGY_COST
 from ..units.unit import AIUnit
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 class TransfuseBehavior(AIUnit):
     ABILITY = AbilityId.TRANSFUSION_TRANSFUSION
 
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
 
     def priority(self, target: Unit) -> float:

@@ -9,11 +9,11 @@ from ..modules.macro import MacroId
 from ..modules.module import AIModule
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 class Strategy(ABC, AIModule):
-    def __init__(self, ai: AIBase):
+    def __init__(self, ai: PhantomBot):
         super().__init__(ai)
 
     @abstractmethod

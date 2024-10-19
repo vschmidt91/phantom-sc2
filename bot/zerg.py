@@ -5,7 +5,7 @@ from typing import Dict, Set
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 
-from .ai_base import AIBase
+from .ai_base import PhantomBot
 from .constants import SUPPLY_PROVIDED
 
 SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
@@ -52,10 +52,9 @@ SPORE_TRIGGERS[Race.Random] = {
 }
 
 
-class ZergAI(AIBase):
+class ZergAI(PhantomBot):
     async def on_step(self, iteration):
         await super().on_step(iteration)
-
         self.morph_overlords()
         self.expand()
 

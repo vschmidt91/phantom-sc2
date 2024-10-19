@@ -17,7 +17,7 @@ from ..units.unit import AIUnit
 from .module import AIModule
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 DODGE_DELAYED_EFFECTS = {
     EffectId.RAVAGERCORROSIVEBILECP,
@@ -42,7 +42,7 @@ class DamageCircle:
 
 
 class DodgeModule(AIModule):
-    def __init__(self, ai: AIBase) -> None:
+    def __init__(self, ai: PhantomBot) -> None:
         super().__init__(ai)
         self.elements: list[DodgeElement] = list()
         self.elements_delayed: list[DodgeEffectDelayed] = list()
@@ -114,7 +114,7 @@ class DodgeEffectDelayed(DodgeEffect):
 
 
 class DodgeBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
         self.safety_distance: float = 1.0
 

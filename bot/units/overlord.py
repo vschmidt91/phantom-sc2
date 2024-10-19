@@ -14,7 +14,7 @@ from ..modules.macro import MacroBehavior
 from ..modules.scout import ScoutBehavior
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 class Overlord(
@@ -26,7 +26,7 @@ class Overlord(
     OverlordDropBehavior,
     CombatBehavior,
 ):
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
 
     def get_command(self) -> Optional[UnitCommand]:

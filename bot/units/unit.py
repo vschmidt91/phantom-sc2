@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Optional
 from sc2.unit import Unit, UnitCommand
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 @dataclass
@@ -17,7 +17,7 @@ class DamageTakenEvent:
 
 
 class AIUnit(ABC):
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         self.ai = ai
         self.unit = unit
 
@@ -31,7 +31,7 @@ class AIUnit(ABC):
 
 
 class IdleBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
 
     def get_command(self) -> Optional[UnitCommand]:

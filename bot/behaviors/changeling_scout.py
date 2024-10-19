@@ -11,11 +11,11 @@ from ..constants import ENERGY_COST
 from ..units.unit import AIUnit
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 class SpawnChangelingBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
 
     def spawn_changeling(self) -> Optional[UnitCommand]:

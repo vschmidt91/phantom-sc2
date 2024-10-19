@@ -22,7 +22,7 @@ from .resource_group import ResourceGroup
 from .vespene_geyser import VespeneGeyser
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 MINING_RADIUS = 1.325
 
@@ -61,7 +61,7 @@ def get_intersections(position1: Point2, radius1: float, position2: Point2, radi
 
 
 class ResourceManager(AIModule):
-    def __init__(self, ai: AIBase, bases: Iterable[Base]) -> None:
+    def __init__(self, ai: PhantomBot, bases: Iterable[Base]) -> None:
         super().__init__(ai)
         self.do_split = True
         self.bases = ResourceGroup(list(bases))

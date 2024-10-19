@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING, Set
 from .module import AIModule
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 class Chat(AIModule):
-    def __init__(self, ai: AIBase) -> None:
+    def __init__(self, ai: PhantomBot) -> None:
         super().__init__(ai)
         self.messages: Set[str] = set()
 

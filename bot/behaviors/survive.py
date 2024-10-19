@@ -9,11 +9,11 @@ from sc2.unit_command import UnitCommand
 from ..units.unit import AIUnit
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 class SurviveBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
         self.last_damage_taken: float = -math.inf
         self.last_shield_health_percentage: float = 0.0

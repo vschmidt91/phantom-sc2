@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from itertools import chain
-from typing import TYPE_CHECKING, DefaultDict, Iterable
+from typing import TYPE_CHECKING, Iterable
 
 import numpy as np
 from sc2.data import race_townhalls
@@ -14,7 +14,6 @@ from scipy.spatial import cKDTree
 from ..constants import CHANGELINGS, IGNORED_UNIT_TYPES, ITEM_BY_ABILITY, WORKERS
 from ..units.army import Army
 from ..units.changeling import Changeling
-from ..units.creep_tumor import CreepTumor
 from ..units.extractor import Extractor
 from ..units.overlord import Overlord
 from ..units.queen import Queen
@@ -25,15 +24,15 @@ from .macro import MacroId
 from .module import AIModule
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 class UnitManager(AIModule):
-    def __init__(self, ai: AIBase) -> None:
+    def __init__(self, ai: PhantomBot) -> None:
         super().__init__(ai)
         self.units: dict[int, AIUnit] = dict()
-        self.actual_by_type: DefaultDict[MacroId, list[AIUnit]] = defaultdict(list)
-        self.pending_by_type: DefaultDict[MacroId, list[AIUnit]] = defaultdict(list)
+        self.actual_by_type: defaultdict[MacroId, list[AIUnit]] = defaultdict(list)
+        self.pending_by_type: defaultdict[MacroId, list[AIUnit]] = defaultdict(list)
 
     @property
     def townhalls(self) -> Iterable[Structure]:
@@ -89,8 +88,6 @@ class UnitManager(AIModule):
             return Changeling(self.ai, unit)
         elif unit.type_id in {UnitTypeId.EXTRACTOR, UnitTypeId.EXTRACTORRICH}:
             return Extractor(self.ai, unit)
-        elif unit.type_id in {UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN}:
-            return CreepTumor(self.ai, unit)
         elif unit.type_id == UnitTypeId.LARVA:
             return Larva(self.ai, unit)
         elif unit.type_id in WORKERS:

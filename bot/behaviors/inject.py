@@ -13,11 +13,11 @@ from ..resources.base import Base
 from ..units.unit import AIUnit
 
 if TYPE_CHECKING:
-    from ..ai_base import AIBase
+    from ..ai_base import PhantomBot
 
 
 class InjectManager(AIModule):
-    def __init__(self, ai: AIBase) -> None:
+    def __init__(self, ai: PhantomBot) -> None:
         super().__init__(ai)
 
     async def on_step(self) -> None:
@@ -46,26 +46,16 @@ class InjectManager(AIModule):
 
 
 class InjectBehavior(AIUnit):
-    def __init__(self, ai: AIBase, unit: Unit):
+    def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
         self.inject_base: Optional[Base] = None
 
     def inject(self) -> Optional[UnitCommand]:
         if not self.inject_base:
             return None
-
         if not self.inject_base.townhall:
             self.inject_base = None
             return None
-
-        target = self.inject_base.position.towards(
-            self.inject_base.mineral_patches.position, -(self.inject_base.townhall.unit.radius + self.unit.radius)
-        )
         if ENERGY_COST[AbilityId.EFFECT_INJECTLARVA] <= self.unit.energy:
             return self.unit(AbilityId.EFFECT_INJECTLARVA, target=self.inject_base.townhall.unit)
-        elif not self.inject_base.townhall.unit.has_buff(BuffId.QUEENSPAWNLARVATIMER):
-            return self.unit.move(target)
-        # elif 12 < self.unit.position.distance_to(target):
-        #     return self.unit.move(target)
-
         return None
