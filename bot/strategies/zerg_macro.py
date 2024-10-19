@@ -77,7 +77,7 @@ class ZergMacro(Strategy):
                                 2 * ratio * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(counter)
                             )
                             break
-        elif self.ai.tech_requirement_progress(UnitTypeId.ZERGLING) == 1:
+        elif 0.8 < self.ai.tech_requirement_progress(UnitTypeId.ZERGLING):
             composition[UnitTypeId.ZERGLING] = 1.0
 
         composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 13
@@ -114,8 +114,12 @@ class ZergMacro(Strategy):
 
         self.ai.macro.composition = {k: math.floor(v) for k, v in composition.items() if 0 < v}
 
+
+
     def filter_upgrade(self, upgrade) -> bool:
-        if not self.tech_up and upgrade != UpgradeId.ZERGLINGMOVEMENTSPEED:
+        if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
+            return True
+        elif not self.tech_up:
             return False
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
             return 0 < self.ai.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False)

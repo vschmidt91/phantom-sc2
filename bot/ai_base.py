@@ -21,10 +21,9 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
 
-from .behaviors.overlord_drop import OverlordDropManager
 from .action import Action
-
 from .behaviors.inject import InjectManager
+from .behaviors.overlord_drop import OverlordDropManager
 from .components.creep import CreepSpread
 from .constants import (
     CIVILIANS,
@@ -65,7 +64,7 @@ from .utils import flood_fill
 class PhantomBot(CreepSpread, AresBot):
     def __init__(
         self,
-    ):
+    ) -> None:
         super().__init__(game_step_override=2)
 
         self.raw_affects_selection = True
@@ -160,7 +159,7 @@ class PhantomBot(CreepSpread, AresBot):
         else:
             return []
 
-    async def on_start(self):
+    async def on_start(self) -> None:
         await super().on_start()
 
         # await self.client.debug_create_unit([[UnitTypeId.QUEEN, 3, self.start_location, 1]])

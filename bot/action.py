@@ -15,7 +15,8 @@ from sc2.unit_command import UnitCommand
 
 class Action(ABC):
     @abstractmethod
-    async def execute(self, bot: AresBot) -> UnitCommand | None: ...
+    async def execute(self, bot: AresBot) -> UnitCommand | None:
+        raise NotImplementedError
 
 
 class DoNothing(Action):

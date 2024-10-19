@@ -4,7 +4,7 @@ import math
 import random
 from functools import cmp_to_key
 from itertools import chain
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Iterable, TypeAlias
 
 from sc2.data import race_townhalls
 from sc2.ids.ability_id import AbilityId
@@ -29,7 +29,7 @@ from .module import AIModule
 if TYPE_CHECKING:
     from ..ai_base import PhantomBot
 
-MacroId = UnitTypeId | UpgradeId
+MacroId: TypeAlias = UnitTypeId | UpgradeId
 
 
 def compare_plans(plan_a: MacroPlan, plan_b: MacroPlan) -> int:
@@ -336,6 +336,7 @@ class MacroModule(AIModule):
         upgrades = [
             u for unit in self.composition for u in self.ai.upgrades_by_unit(unit) if self.ai.strategy.filter_upgrade(u)
         ]
+        upgrades.append(UpgradeId.ZERGLINGMOVEMENTSPEED)
         targets: set[MacroId] = set(upgrades)
         targets.update(self.composition.keys())
         targets.update(r for item in set(targets) for r in REQUIREMENTS[item])
