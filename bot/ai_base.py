@@ -98,8 +98,6 @@ class PhantomBot(CreepSpread, AresBot):
         else:
             logging.basicConfig(level=logging.ERROR)
 
-        self.client.game_step = self.game_step
-
     def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
         if unit == UnitTypeId.ZERGLING:
             return chain(
