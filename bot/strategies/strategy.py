@@ -22,7 +22,3 @@ class Strategy(ABC, AIModule):
 
     def filter_upgrade(self, upgrade: UpgradeId) -> bool:
         return True
-
-    @property
-    def name(self) -> str:
-        return type(self).__name__

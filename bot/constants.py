@@ -16,8 +16,7 @@ from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-
-from .utils import get_requirements
+from utils import get_requirements
 
 VERSION_FILE = "version.txt"
 
@@ -91,16 +90,6 @@ LARVA_COST = {
     UnitTypeId.VIPER: 1.0,
 }
 
-RICH_MINERALS = {
-    UnitTypeId.RICHMINERALFIELD,
-    UnitTypeId.RICHMINERALFIELD750,
-    UnitTypeId.PURIFIERRICHMINERALFIELD,
-    UnitTypeId.PURIFIERRICHMINERALFIELD750,
-}
-
-RICH_GAS = {
-    UnitTypeId.RICHVESPENEGEYSER,
-}
 
 SUPPLY_PROVIDED = {
     Race.Zerg: {

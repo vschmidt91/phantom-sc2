@@ -4,11 +4,12 @@ import math
 from dataclasses import dataclass
 from enum import Enum, auto
 from itertools import chain
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Iterable, List
 
 import numpy as np
+from action import Action, AttackMove, Move
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.unit import Point2, Unit, UnitCommand
+from sc2.unit import Point2, Unit
 from skimage.draw import disk
 
 from bot.cost import Cost
@@ -112,7 +113,7 @@ class CombatModule(AIModule):
 
         return priority
 
-    async def on_step(self):
+    def on_step(self) -> Iterable[Action]:
         self.army = [
             behavior
             for behavior in self.ai.unit_manager.units.values()
@@ -163,7 +164,7 @@ class CombatModule(AIModule):
             unit_distance = np.linalg.norm(unit.position - target.position) - unit.radius - target.radius - unit_range
             return unit_distance / max(1.0, unit.movement_speed)
 
-        time_scale = 1/3
+        time_scale = 1 / 3
         for behavior in self.army:
             behavior.targets.clear()
             behavior.threats.clear()
@@ -195,14 +196,16 @@ class CombatModule(AIModule):
         enemy_cost = sum(unit_value(self.ai.cost.of(unit.type_id)) for unit in self.ai.enemy_army)
         self.confidence = army_cost / max(1, army_cost + enemy_cost)
 
+        for unit in self.army:
+            if action := unit.fight():
+                yield action
+
 
 class CombatBehavior(AIUnit):
-    def __init__(self, ai: PhantomBot, unit: Unit):
-        super().__init__(ai, unit)
-        self.targets: List[Enemy] = []
-        self.threats: List[Enemy] = []
-        self.dps_incoming: float = 0.0
-        self.estimated_survival: float = np.inf
+    targets: List[Enemy] = []
+    threats: List[Enemy] = []
+    dps_incoming: float = 0.0
+    estimated_survival: float = np.inf
 
     def target_priority(self, target: Unit) -> float:
         if not (self.ai.can_attack(self.unit, target) or self.unit.is_detector):
@@ -217,7 +220,7 @@ class CombatBehavior(AIUnit):
 
         return priority
 
-    def fight(self) -> Optional[UnitCommand]:
+    def fight(self) -> Action | None:
         target, priority = max(
             (
                 (enemy, self.target_priority(enemy) * self.ai.combat.target_priority_dict.get(enemy.tag, 0))
@@ -280,33 +283,33 @@ class CombatBehavior(AIUnit):
 
             if stance == CombatStance.RETREAT:
                 if not self.unit.weapon_cooldown:
-                    return self.unit.attack(target.position)
+                    return AttackMove(self.unit, target.position)
                 elif (
                     self.unit.radius + unit_range + target.radius + self.unit.distance_to_weapon_ready
                     < self.unit.position.distance_to(target.position)
                 ):
-                    return self.unit.attack(target.position)
+                    return AttackMove(self.unit, target.position)
 
             if retreat_map.dist[p] == np.inf:
                 retreat_point = self.ai.start_location
             else:
                 retreat_point = Point2(retreat_path[-1]).offset(HALF)
 
-            return self.unit.move(retreat_point)
+            return Move(self.unit, retreat_point)
 
         elif stance == CombatStance.FIGHT:
-            return self.unit.attack(target.position)
+            return AttackMove(self.unit, target.position)
 
         elif stance == CombatStance.ADVANCE:
             distance = self.unit.position.distance_to(target.position) - self.unit.radius - target.radius
             if self.unit.weapon_cooldown and 1 < distance:
-                return self.unit.move(target)
+                return Move(self.unit, target)
             elif (
                 self.unit.position.distance_to(target.position)
                 <= self.unit.radius + self.ai.get_unit_range(self.unit) + target.radius
             ):
-                return self.unit.attack(target.position)
+                return AttackMove(self.unit, target.position)
             else:
-                return self.unit.attack(target.position)
+                return AttackMove(self.unit, target.position)
 
         return None

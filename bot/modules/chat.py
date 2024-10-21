@@ -13,9 +13,6 @@ class Chat(AIModule):
         super().__init__(ai)
         self.messages: Set[str] = set()
 
-    async def on_step(self) -> None:
-        pass
-
     async def add_message(self, message: str, team_only: bool = False) -> None:
         if message not in self.messages:
             await self.ai.client.chat_send(message, team_only)

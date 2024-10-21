@@ -2,12 +2,11 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Callable
 
+from constants import LARVA_COST
 from loguru import logger
 from sc2.game_data import Cost as SC2Cost
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-
-from .constants import LARVA_COST
 
 MineralVespeneCostProvider = Callable[[UnitTypeId], SC2Cost]
 SupplyCostProvider = Callable[[UnitTypeId], float]

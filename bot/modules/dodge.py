@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Iterable, Optional
 
 import numpy as np
+from action import Action
 from sc2.game_state import EffectData
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.effect_id import EffectId
@@ -47,7 +48,7 @@ class DodgeModule(AIModule):
         self.elements: list[DodgeElement] = list()
         self.elements_delayed: list[DodgeEffectDelayed] = list()
 
-    async def on_step(self):
+    def on_step(self) -> Iterable[Action]:
 
         elements_delayed_old = self.elements_delayed
         delayed_positions = {e.position for e in elements_delayed_old}
@@ -68,6 +69,11 @@ class DodgeModule(AIModule):
             DodgeUnit(enemy) for enemy in self.ai.all_enemy_units if enemy and enemy.type_id in DODGE_UNITS
         )
         self.elements.extend(DodgeEffect(effect) for effect in self.ai.state.effects if effect.id in DODGE_EFFECTS)
+
+        for unit in self.ai.unit_manager.units.values():
+            if isinstance(unit, DodgeBehavior):
+                if action := unit.dodge():
+                    yield action
 
 
 class DodgeElement(ABC):
@@ -114,9 +120,7 @@ class DodgeEffectDelayed(DodgeEffect):
 
 
 class DodgeBehavior(AIUnit):
-    def __init__(self, ai: PhantomBot, unit: Unit):
-        super().__init__(ai, unit)
-        self.safety_distance: float = 1.0
+    safety_distance: float = 1.0
 
     def dodge(self) -> Optional[UnitCommand]:
         for dodge in self.ai.dodge.elements:

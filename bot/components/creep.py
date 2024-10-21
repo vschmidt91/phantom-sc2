@@ -24,11 +24,7 @@ class CreepSpread(Component):
 
     @property
     def active_tumor_count(self):
-        return sum(
-            1
-            for tag, step in self._tumor_created_at_step.items()
-            if tag not in self._tumor_spread_at_step
-        )
+        return sum(1 for tag, step in self._tumor_created_at_step.items() if tag not in self._tumor_spread_at_step)
 
     def spread_creep(self) -> Iterable[Action]:
 

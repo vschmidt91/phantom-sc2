@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Dict, Iterable, List, Optional
 
+from action import Action, HoldPosition, Move
 from sc2.position import Point2
 from sc2.unit import Unit
-from sc2.unit_command import UnitCommand
 
 from ..units.unit import AIUnit
 from .module import AIModule
@@ -47,7 +47,7 @@ class ScoutModule(AIModule):
         ):
             scout.scout_position = unscouted_target
 
-    async def on_step(self) -> None:
+    def on_step(self) -> Iterable[Action]:
         scouts = [behavior for behavior in self.ai.unit_manager.units.values() if isinstance(behavior, ScoutBehavior)]
         detectors = [behavior for behavior in scouts if behavior.unit.is_detector]
         nondetectors = [behavior for behavior in scouts if not behavior.unit.is_detector]
@@ -61,19 +61,24 @@ class ScoutModule(AIModule):
         self.send_units(detectors, self.blocked_positions.keys())
         self.send_units(nondetectors, scout_targets)
 
+        for unit in self.ai.unit_manager.units.values():
+            if isinstance(unit, ScoutBehavior):
+                if action := unit.scout():
+                    yield action
+
 
 class ScoutBehavior(AIUnit):
     def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
         self.scout_position: Optional[Point2] = None
 
-    def scout(self) -> Optional[UnitCommand]:
+    def scout(self) -> Action | None:
         if self.scout_position:
             max_distance = self.unit.radius + self.unit.sight_range
             # max_distance = 1.0
             if self.scout_position.distance_to(self.unit) < max_distance:
-                return self.unit.hold_position()
+                return HoldPosition(self.unit)
             else:
-                return self.unit.move(self.scout_position)
+                return Move(self.unit, self.scout_position)
         else:
             return None

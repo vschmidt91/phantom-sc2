@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Iterable, Optional
 
+from action import Action
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.unit import Unit
@@ -20,8 +21,13 @@ class InjectManager(AIModule):
     def __init__(self, ai: PhantomBot) -> None:
         super().__init__(ai)
 
-    async def on_step(self) -> None:
+    def on_step(self) -> Iterable[Action]:
         self.assign_queen()
+
+        for unit in self.ai.unit_manager.units.values():
+            if isinstance(unit, InjectBehavior):
+                if action := unit.inject():
+                    yield action
 
     def assign_queen(self) -> None:
         queens = [behavior for behavior in self.ai.unit_manager.units.values() if isinstance(behavior, InjectBehavior)]

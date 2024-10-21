@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Counter
+from typing import TYPE_CHECKING, Counter, Iterable
 
 import numpy as np
+from action import Action
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
@@ -23,8 +24,9 @@ class ZergMacro(Strategy):
         super().__init__(ai)
         self.tech_up = False
 
-    async def on_step(self) -> None:
+    def on_step(self) -> Iterable[Action]:
         self.update_composition()
+        return []
 
     def update_composition(self) -> None:
         worker_count = self.ai.state.score.food_used_economy
@@ -70,13 +72,12 @@ class ZergMacro(Strategy):
 
         if any(enemy_counts):
             for enemy_type, count in enemy_counts.items():
-                if counters := UNIT_COUNTER_DICT.get(enemy_type):
-                    for counter in counters:
-                        if can_build[counter]:
-                            composition[counter] += (
-                                1.5 * ratio * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(counter)
-                            )
-                            break
+                for counter in UNIT_COUNTER_DICT.get(enemy_type, []):
+                    if can_build[counter]:
+                        composition[counter] += (
+                            1.5 * ratio * count * self.ai.get_unit_cost(enemy_type) / self.ai.get_unit_cost(counter)
+                        )
+                        break
         elif 0.8 < self.ai.tech_requirement_progress(UnitTypeId.ZERGLING):
             composition[UnitTypeId.ZERGLING] = 1.0
 
@@ -113,8 +114,6 @@ class ZergMacro(Strategy):
                         composition[UnitTypeId.ROACH] += 12
 
         self.ai.macro.composition = {k: math.floor(v) for k, v in composition.items() if 0 < v}
-
-
 
     def filter_upgrade(self, upgrade) -> bool:
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:

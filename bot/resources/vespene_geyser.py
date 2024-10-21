@@ -2,13 +2,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
-from ..constants import RICH_GAS
 from .resource_unit import ResourceUnit
 
 if TYPE_CHECKING:
     from ..units.structure import Structure
+
+
+RICH_GAS = {
+    UnitTypeId.RICHVESPENEGEYSER,
+}
 
 
 class VespeneGeyser(ResourceUnit):
@@ -35,3 +40,7 @@ class VespeneGeyser(ResourceUnit):
     @property
     def harvester_target(self) -> int:
         return 3 if self.structure and self.structure.unit.is_ready and self.remaining else 0
+
+    @property
+    def target_unit(self) -> Unit | None:
+        return self.structure.unit if self.structure else None

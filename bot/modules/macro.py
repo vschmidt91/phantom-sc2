@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import math
 import random
+from dataclasses import dataclass
 from functools import cmp_to_key
 from itertools import chain
 from typing import TYPE_CHECKING, Iterable, TypeAlias
 
+from action import Action
+from ares import AresBot
 from sc2.data import race_townhalls
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -13,21 +16,26 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
+from sc2.units import Units
 
+from ..components.component import Component
 from ..constants import (
     GAS_BY_RACE,
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
     MACRO_INFO,
     REQUIREMENTS,
     WITH_TECH_EQUIVALENTS,
+    ZERG_ARMOR_UPGRADES,
+    ZERG_FLYER_ARMOR_UPGRADES,
+    ZERG_FLYER_UPGRADES,
+    ZERG_MELEE_UPGRADES,
+    ZERG_RANGED_UPGRADES,
 )
 from ..cost import Cost
-from ..units.unit import AIUnit
 from ..utils import PlacementNotFoundException, time_to_reach
-from .module import AIModule
 
 if TYPE_CHECKING:
-    from ..ai_base import PhantomBot
+    pass
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 
@@ -44,316 +52,10 @@ def compare_plans(plan_a: MacroPlan, plan_b: MacroPlan) -> int:
     return 0
 
 
-class MacroPlan:
-    def __init__(self, plan_id: int, item: MacroId):
-        self.plan_id = plan_id
-        self.item = item
-        self.target: Unit | Point2 | None = None
-        self.priority: float = 0.0
-        self.max_distance: int | None = 4
-        self.eta: float = math.inf
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.item}, {self.target}, {self.priority}, {self.eta})"
-
-    def __hash__(self) -> int:
-        return hash(self.plan_id)
-
-
-class MacroModule(AIModule):
-    def __init__(self, ai: PhantomBot) -> None:
-        super().__init__(ai)
-        self.next_plan_id: int = 0
-        self.future_spending = Cost(0, 0, 0, 0)
-        self.future_timeframe = 0.0
-        self.unassigned_plans: list[MacroPlan] = list()
-        self.composition: dict[UnitTypeId, int] = dict()
-
-    def add_plan(self, item: MacroId) -> MacroPlan:
-        self.next_plan_id += 1
-        plan = MacroPlan(self.next_plan_id, item)
-        self.unassigned_plans.append(plan)
-        return plan
-
-    def try_remove_plan(self, plan: MacroPlan) -> bool:
-        if plan in self.unassigned_plans:
-            self.unassigned_plans.remove(plan)
-            return True
-        for behavior in self.ai.unit_manager.units.values():
-            if isinstance(behavior, MacroBehavior) and behavior.plan == plan:
-                behavior.plan = None
-                return True
-        return False
-
-    def enumerate_plans(self) -> Iterable[MacroPlan]:
-        unit_plans = (
-            behavior.plan
-            for behavior in self.ai.unit_manager.units.values()
-            if isinstance(behavior, MacroBehavior) and behavior.plan
-        )
-        return chain(unit_plans, self.unassigned_plans)
-
-    def planned_by_type(self, item: MacroId) -> Iterable[MacroPlan]:
-        return (plan for plan in self.enumerate_plans() if plan.item == item)
-
-    def make_composition(self):
-        if 200 <= self.ai.supply_used:
-            return
-        composition_have = {unit: self.ai.count(unit) for unit in self.composition}
-        for unit, count in self.composition.items():
-            if count < 1:
-                continue
-            elif count <= composition_have[unit]:
-                continue
-            if any(self.ai.get_missing_requirements(unit)):
-                continue
-            priority = -self.ai.count(unit, include_planned=False) / count
-            for plan in self.planned_by_type(unit):
-                if plan.priority == math.inf:
-                    continue
-                plan.priority = priority
-                break
-            else:
-                plan = self.add_plan(unit)
-                plan.priority = priority
-
-    async def on_step(self) -> None:
-        self.make_composition()
-        self.make_tech()
-
-        reserve = Cost(0, 0, 0, 0)
-
-        trainers = {
-            behavior
-            for behavior in self.ai.unit_manager.units.values()
-            if (isinstance(behavior, MacroBehavior) and not behavior.plan)
-        }
-
-        plans = sorted(
-            self.enumerate_plans(),
-            key=cmp_to_key(compare_plans),
-            # key = lambda t : t.priority,
-            reverse=True,
-        )
-
-        trainer_by_plan = {
-            behavior.plan: behavior
-            for behavior in self.ai.unit_manager.units.values()
-            if isinstance(behavior, MacroBehavior) and behavior.plan
-        }
-
-        for i, plan in enumerate(plans):
-            cost = self.ai.cost.of(plan.item)
-
-            if any(self.ai.get_missing_requirements(plan.item)) and plan.priority == math.inf:
-                break
-
-            if (2 if self.ai.extractor_trick_enabled else 1) <= i and plan.priority == math.inf:
-                break
-
-            if not (trainer := trainer_by_plan.get(plan)):
-                if trainer := self.search_trainer(trainers, plan.item):
-                    self.unassigned_plans.remove(plan)
-                    trainer.plan = plan
-                    trainers.remove(trainer)
-                else:
-                    if plan.priority == math.inf:
-                        reserve += cost
-                    # if (tf := UNIT_TRAINED_FROM.get(plan.item)) and UnitTypeId.LARVA in tf:
-                    continue
-
-            if any(self.ai.get_missing_requirements(plan.item)):
-                continue
-
-            # if type(plan.item) == UnitTypeId:
-            #     cost = self.ai.techtree.units[plan.item].cost
-            # elif type(plan.item) == UpgradeId:
-            #     cost = self.ai.techtree.upgrades[plan.item].cost2
-            # else:
-            #     raise TypeError()
-
-            if not (trainer.unit and trainer.macro_ability and trainer.unit.is_using_ability(trainer.macro_ability)):
-                reserve += cost
-
-            if plan.target is None:
-                try:
-                    plan.target = await self.get_target(trainer, plan)
-                except PlacementNotFoundException:
-                    continue
-
-            # if (
-            #     plan.priority < math.inf
-            #     and self.ai.is_structure(plan.item)
-            #     and isinstance(plan.target, Point2)
-            #     and not await self.ai.can_place_single(plan.item, plan.target)
-            # ):
-            #     self.remove_plan(plan)
-            #     continue
-
-            if any(self.ai.get_missing_requirements(plan.item)):
-                plan.eta = math.inf
-            else:
-                eta = 0.0
-                if 0 < cost.minerals:
-                    eta = max(
-                        eta,
-                        60 * (reserve.minerals - self.ai.minerals) / max(1, self.ai.resource_manager.income.minerals),
-                    )
-                if 0 < cost.vespene:
-                    eta = max(
-                        eta, 60 * (reserve.vespene - self.ai.vespene) / max(1, self.ai.resource_manager.income.vespene)
-                    )
-                if 0 < cost.larva:
-                    eta = max(
-                        eta, 60 * (reserve.larva - self.ai.larva.amount) / max(1, self.ai.resource_manager.income.larva)
-                    )
-                if 0 < cost.supply:
-                    if self.ai.supply_left < cost.supply:
-                        eta = math.inf
-                plan.eta = eta
-
-        cost_zero = Cost(0, 0, 0, 0)
-        future_spending = cost_zero
-        future_spending += sum((self.ai.cost.of(plan.item) for plan in self.ai.macro.unassigned_plans), cost_zero)
-        future_spending += sum(
-            (
-                self.ai.cost.of(b.plan.item)
-                for b in self.ai.unit_manager.units.values()
-                if isinstance(b, MacroBehavior) and b.plan
-            ),
-            cost_zero,
-        )
-        future_spending += sum(
-            (self.ai.cost.of(unit) * max(0, count - self.ai.count(unit)) for unit, count in self.composition.items()),
-            cost_zero,
-        )
-        self.future_spending = future_spending
-
-        future_timeframe = 3 / 60
-        if 0 < future_spending.minerals:
-            future_timeframe = max(
-                future_timeframe, future_spending.minerals / max(1, self.ai.resource_manager.income.minerals)
-            )
-        if 0 < future_spending.vespene:
-            future_timeframe = max(
-                future_timeframe, future_spending.vespene / max(1, self.ai.resource_manager.income.vespene)
-            )
-        if 0 < future_spending.larva:
-            future_timeframe = max(
-                future_timeframe, future_spending.larva / max(1, self.ai.resource_manager.income.larva)
-            )
-        self.future_timeframe = future_timeframe
-
-    async def get_target(self, trainer: MacroBehavior, objective: MacroPlan) -> Unit | Point2 | None:
-        gas_type = GAS_BY_RACE[self.ai.race]
-        if objective.item == gas_type:
-            exclude_positions = {geyser.position for geyser in self.ai.gas_buildings}
-            exclude_tags = {
-                order.target
-                for unit in self.ai.unit_manager.pending_by_type[gas_type]
-                for order in unit.unit.orders
-                if isinstance(order.target, int)
-            }
-            exclude_tags.update(
-                {step.target.tag for step in self.planned_by_type(gas_type) if isinstance(step.target, Unit)}
-            )
-            geysers = [
-                geyser
-                for geyser in self.ai.get_owned_geysers()
-                if (geyser.position not in exclude_positions and geyser.tag not in exclude_tags)
-            ]
-            if not any(geysers):
-                raise PlacementNotFoundException()
-            else:
-                return random.choice(geysers)
-
-        if not (entry := MACRO_INFO.get(trainer.unit.type_id)):
-            return None
-        if not (data := entry.get(objective.item)):
-            return None
-        # data = MACRO_INFO[trainer.unit.type_id][objective.item]
-
-        if "requires_placement_position" in data:
-            position = await self.get_target_position(objective.item)
-            with_addon = objective in {UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}
-
-            if objective.max_distance is not None:
-                max_distance = objective.max_distance
-                position = await self.ai.find_placement(
-                    trainer.macro_ability, position, max_distance=max_distance, placement_step=1, addon_place=with_addon
-                )
-            if position is None:
-                raise PlacementNotFoundException()
-            else:
-                return position
-        else:
-            return None
-
-    def search_trainer(self, trainers: Iterable[MacroBehavior], item: MacroId) -> MacroBehavior | None:
-        trainer_types = ITEM_TRAINED_FROM_WITH_EQUIVALENTS[item]
-
-        trainers_filtered = (
-            trainer
-            for trainer in trainers
-            if (
-                trainer.unit.type_id in trainer_types
-                and trainer.unit.is_ready
-                and (trainer.unit.is_idle or not trainer.unit.is_structure)
-            )
-        )
-
-        # return next(trainers_filtered, None)
-
-        return min(trainers_filtered, key=lambda t: t.unit.tag, default=None)
-
-    async def get_target_position(self, target: UnitTypeId) -> Point2:
-        data = self.ai.game_data.units[target.value]
-        if target in race_townhalls[self.ai.race]:
-            for base in self.ai.resource_manager.bases:
-                if base.townhall:
-                    continue
-                if base.position in self.ai.scout.blocked_positions:
-                    continue
-                if not base.remaining:
-                    continue
-                return base.position
-            raise PlacementNotFoundException()
-
-        bases = list(self.ai.resource_manager.bases)
-        random.shuffle(bases)
-        for base in bases:
-            if not base.townhall:
-                continue
-            elif not base.townhall.unit.is_ready:
-                continue
-            position = base.position.towards_with_random_angle(base.mineral_patches.position, 10)
-            offset = data.footprint_radius % 1
-            position = position.rounded.offset((offset, offset))
-            return position
-        raise PlacementNotFoundException()
-
-    def make_tech(self):
-        upgrades = [
-            u for unit in self.composition for u in self.ai.upgrades_by_unit(unit) if self.ai.strategy.filter_upgrade(u)
-        ]
-        upgrades.append(UpgradeId.ZERGLINGMOVEMENTSPEED)
-        targets: set[MacroId] = set(upgrades)
-        targets.update(self.composition.keys())
-        targets.update(r for item in set(targets) for r in REQUIREMENTS[item])
-        for target in targets:
-            if equivalents := WITH_TECH_EQUIVALENTS.get(target):
-                target_met = any(self.ai.count(t) for t in equivalents)
-            else:
-                target_met = bool(self.ai.count(target))
-            if not target_met:
-                plan = self.add_plan(target)
-                plan.priority = -1 / 3
-
-
-class MacroBehavior(AIUnit):
-    def __init__(self, ai: PhantomBot, unit: Unit):
-        super().__init__(ai, unit)
-        self.plan: MacroPlan | None = None
+@dataclass
+class MacroAction(Action):
+    unit: Unit
+    plan: MacroPlan
 
     @property
     def macro_ability(self) -> AbilityId | None:
@@ -362,17 +64,8 @@ class MacroBehavior(AIUnit):
         else:
             return None
 
-    def macro(self) -> UnitCommand | None:
-        if self.plan is None:
-            return None
-        elif not self.macro_ability:
-            self.ai.macro.unassigned_plans.append(self.plan)
-            self.plan = None
-            # plan = self.ai.macro.add_plan(self.plan.item)
-            # plan.priority = self.plan.priority
-            # self.plan = None
-            return None
-        elif math.isinf(self.plan.eta):
+    async def execute(self, bot: AresBot) -> UnitCommand | None:
+        if math.isinf(self.plan.eta):
             return None
         elif self.plan.eta <= 0.0:
             if self.unit.is_carrying_resource:
@@ -397,3 +90,344 @@ class MacroBehavior(AIUnit):
             else:
                 return self.unit.hold_position()
         return None
+
+
+@dataclass
+class MacroPlan:
+    plan_id: int
+    item: MacroId
+    target: Unit | Point2 | None = None
+    priority: float = 0.0
+    max_distance: int | None = 4
+    eta: float = math.inf
+
+    def __hash__(self) -> int:
+        return hash(self.plan_id)
+
+
+class MacroModule(Component):
+    next_plan_id: int = 0
+    future_spending = Cost(0, 0, 0, 0)
+    future_timeframe = 0.0
+    unassigned_plans: list[MacroPlan] = list()
+    assigned_plans: dict[int, MacroPlan] = dict()
+    composition: dict[UnitTypeId, int] = dict()
+
+    def add_plan(self, item: MacroId) -> MacroPlan:
+        self.next_plan_id += 1
+        plan = MacroPlan(self.next_plan_id, item)
+        self.unassigned_plans.append(plan)
+        return plan
+
+    def try_remove_plan(self, plan: MacroPlan) -> bool:
+        if plan in self.unassigned_plans:
+            self.unassigned_plans.remove(plan)
+            return True
+        self.assigned_plans = {k: v for k, v in self.assigned_plans.items() if v != plan}
+
+    def enumerate_plans(self) -> Iterable[MacroPlan]:
+        return chain(self.assigned_plans.values(), self.unassigned_plans)
+
+    def planned_by_type(self, item: MacroId) -> Iterable[MacroPlan]:
+        return (plan for plan in self.enumerate_plans() if plan.item == item)
+
+    def make_composition(self, bot: AresBot) -> Iterable[MacroPlan]:
+        if 200 <= self.supply_used:
+            return
+        composition_have = {unit: bot.count(unit) for unit in self.composition}
+        for unit, target in self.composition.items():
+            if target < 1:
+                continue
+            elif target <= composition_have[unit]:
+                continue
+            if any(bot.get_missing_requirements(unit)):
+                continue
+            priority = -bot.count(unit, include_planned=False) / target
+            if not any(self.planned_by_type(unit)):
+                yield
+            for plan in self.planned_by_type(unit):
+                if plan.priority == math.inf:
+                    continue
+                plan.priority = priority
+                break
+            else:
+                plan = self.add_plan(unit)
+                plan.priority = priority
+
+    def macro(self, bot: AresBot) -> Iterable[Action]:
+
+        self.make_composition(bot)
+        self.make_tech(bot)
+
+        reserve = Cost(0, 0, 0, 0)
+
+        plans = sorted(
+            self.enumerate_plans(),
+            key=cmp_to_key(compare_plans),
+            # key = lambda t : t.priority,
+            reverse=True,
+        )
+
+        trainer_by_tag = {t.tag: t for t in bot.units}
+
+        trainer_by_plan = {p: u for t, p in self.assigned_plans if (u := trainer_by_tag.get(t))}
+
+        for i, plan in enumerate(plans):
+            cost = bot.cost.of(plan.item)
+
+            if any(bot.get_missing_requirements(plan.item)) and plan.priority == math.inf:
+                break
+
+            if 1 <= i and plan.priority == math.inf:
+                break
+
+            if not (trainer := trainer_by_plan.get(plan)):
+                if trainer := self.search_trainer(bot.units, plan.item):
+                    self.unassigned_plans.remove(plan)
+                    trainer.plan = plan
+                else:
+                    if plan.priority == math.inf:
+                        reserve += cost
+                    # if (tf := UNIT_TRAINED_FROM.get(plan.item)) and UnitTypeId.LARVA in tf:
+                    continue
+
+            action = MacroAction(trainer, plan)
+
+            if any(bot.get_missing_requirements(plan.item)):
+                continue
+
+            # if type(plan.item) == UnitTypeId:
+            #     cost = self.ai.techtree.units[plan.item].cost
+            # elif type(plan.item) == UpgradeId:
+            #     cost = self.ai.techtree.upgrades[plan.item].cost2
+            # else:
+            #     raise TypeError()
+
+            if not (trainer and action.macro_ability and trainer.is_using_ability(action.macro_ability)):
+                reserve += cost
+
+            if plan.target is None:
+                try:
+                    plan.target = self.get_target(trainer, plan, bot)
+                except PlacementNotFoundException:
+                    continue
+
+            if any(bot.get_missing_requirements(plan.item)):
+                plan.eta = math.inf
+            else:
+                eta = 0.0
+                if 0 < cost.minerals:
+                    eta = max(
+                        eta,
+                        60 * (reserve.minerals - bot.minerals) / max(1, bot.resource_manager.income.minerals),
+                    )
+                if 0 < cost.vespene:
+                    eta = max(eta, 60 * (reserve.vespene - bot.vespene) / max(1, bot.resource_manager.income.vespene))
+                if 0 < cost.larva:
+                    eta = max(eta, 60 * (reserve.larva - bot.larva.amount) / max(1, bot.resource_manager.income.larva))
+                if 0 < cost.supply:
+                    if bot.supply_left < cost.supply:
+                        eta = math.inf
+                plan.eta = eta
+
+            yield action
+
+        cost_zero = Cost(0, 0, 0, 0)
+        future_spending = cost_zero
+        future_spending += sum((bot.cost.of(plan.item) for plan in self.unassigned_plans), cost_zero)
+        # future_spending += sum(
+        #     (
+        #         self.ai.cost.of(b.plan.item)
+        #         for b in self.ai.unit_manager.units.values()
+        #         if isinstance(b, MacroBehavior) and b.plan
+        #     ),
+        #     cost_zero,
+        # )
+        future_spending += sum(
+            (bot.cost.of(unit) * max(0, count - bot.count(unit)) for unit, count in self.composition.items()),
+            cost_zero,
+        )
+        self.future_spending = future_spending
+
+        future_timeframe = 3 / 60
+        if 0 < future_spending.minerals:
+            future_timeframe = max(
+                future_timeframe, future_spending.minerals / max(1, bot.resource_manager.income.minerals)
+            )
+        if 0 < future_spending.vespene:
+            future_timeframe = max(
+                future_timeframe, future_spending.vespene / max(1, bot.resource_manager.income.vespene)
+            )
+        if 0 < future_spending.larva:
+            future_timeframe = max(future_timeframe, future_spending.larva / max(1, bot.resource_manager.income.larva))
+        self.future_timeframe = future_timeframe
+
+    def get_target(self, trainer: Unit, objective: MacroPlan, bot: AresBot) -> Unit | Point2 | None:
+        gas_type = GAS_BY_RACE[bot.race]
+        if objective.item == gas_type:
+            exclude_positions = {geyser.position for geyser in bot.gas_buildings}
+            exclude_tags = {
+                order.target
+                for unit in bot.workers
+                for order in unit.orders
+                if order.ability.exact_id == AbilityId.ZERGBUILD_EXTRACTOR
+            }
+            exclude_tags.update(
+                {step.target.tag for step in bot.planned_by_type(gas_type) if isinstance(step.target, Unit)}
+            )
+            geysers = [
+                geyser
+                for geyser in bot.get_owned_geysers()
+                if (geyser.position not in exclude_positions and geyser.tag not in exclude_tags)
+            ]
+            if not any(geysers):
+                raise PlacementNotFoundException()
+            else:
+                return random.choice(geysers)
+
+        if not (entry := MACRO_INFO.get(trainer.type_id)):
+            return None
+        if not (data := entry.get(objective.item)):
+            return None
+        # data = MACRO_INFO[trainer.unit.type_id][objective.item]
+
+        if "requires_placement_position" in data:
+            position = self.get_target_position(objective.item, bot)
+            objective in {UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}
+
+            # if objective.max_distance is not None:
+            #     max_distance = objective.max_distance
+            #     position = await self.find_placement(
+            #         trainer.macro_ability,
+            #         position,
+            #         max_distance=max_distance,
+            #         placement_step=1,
+            #         addon_place=with_addon,
+            #     )
+            if position is None:
+                raise PlacementNotFoundException()
+            else:
+                return position
+        else:
+            return None
+
+    def search_trainer(self, trainers: Units, item: MacroId) -> Unit | None:
+        trainer_types = ITEM_TRAINED_FROM_WITH_EQUIVALENTS[item]
+
+        trainers_filtered = (
+            trainer
+            for trainer in trainers
+            if (trainer.type_id in trainer_types and trainer.is_ready and (trainer.is_idle or not trainer.is_structure))
+        )
+
+        # return next(trainers_filtered, None)
+
+        return min(trainers_filtered, key=lambda t: t.tag, default=None)
+
+    def get_target_position(self, target: UnitTypeId, bot: AresBot) -> Point2:
+        data = bot.game_data.units[target.value]
+        if target in race_townhalls[bot.race]:
+            for base in bot.resource_manager.bases:
+                if base.townhall:
+                    continue
+                if base.position in bot.scout.blocked_positions:
+                    continue
+                if not base.remaining:
+                    continue
+                return base.position
+            raise PlacementNotFoundException()
+
+        bases = list(bot.resource_manager.bases)
+        random.shuffle(bases)
+        for base in bases:
+            if not base.townhall:
+                continue
+            elif not base.townhall.unit.is_ready:
+                continue
+            position = base.position.towards_with_random_angle(base.mineral_patches.position, 10)
+            offset = data.footprint_radius % 1
+            position = position.rounded.offset((offset, offset))
+            return position
+        raise PlacementNotFoundException()
+
+    def make_tech(self, bot: AresBot):
+        upgrades = [
+            u for unit in self.composition for u in self.upgrades_by_unit(unit, bot) if bot.strategy.filter_upgrade(u)
+        ]
+        upgrades.append(UpgradeId.ZERGLINGMOVEMENTSPEED)
+        targets: set[MacroId] = set(upgrades)
+        targets.update(self.composition.keys())
+        targets.update(r for item in set(targets) for r in REQUIREMENTS[item])
+        for target in targets:
+            if equivalents := WITH_TECH_EQUIVALENTS.get(target):
+                target_met = any(bot.count(t) for t in equivalents)
+            else:
+                target_met = bool(bot.count(target))
+            if not target_met:
+                plan = self.add_plan(target)
+                plan.priority = -1 / 3
+
+    def upgrades_by_unit(self, unit: UnitTypeId, bot) -> Iterable[UpgradeId]:
+        if unit == UnitTypeId.ZERGLING:
+            return chain(
+                (UpgradeId.ZERGLINGMOVEMENTSPEED,),
+                # (UpgradeId.ZERGLINGMOVEMENTSPEED, UpgradeId.ZERGLINGATTACKSPEED),
+                # self.upgrade_sequence(ZERG_MELEE_UPGRADES, bot),
+                # self.upgrade_sequence(ZERG_ARMOR_UPGRADES, bot),
+            )
+        elif unit == UnitTypeId.ULTRALISK:
+            return chain(
+                (UpgradeId.CHITINOUSPLATING, UpgradeId.ANABOLICSYNTHESIS),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES, bot),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES, bot),
+            )
+        elif unit == UnitTypeId.BANELING:
+            return chain(
+                (UpgradeId.CENTRIFICALHOOKS,),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES, bot),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES, bot),
+            )
+        elif unit == UnitTypeId.ROACH:
+            return chain(
+                (UpgradeId.GLIALRECONSTITUTION, UpgradeId.BURROW, UpgradeId.TUNNELINGCLAWS),
+                # (UpgradeId.GLIALRECONSTITUTION,),
+                self.upgrade_sequence(ZERG_RANGED_UPGRADES, bot),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES, bot),
+            )
+        elif unit == UnitTypeId.HYDRALISK:
+            return chain(
+                (UpgradeId.EVOLVEGROOVEDSPINES, UpgradeId.EVOLVEMUSCULARAUGMENTS),
+                self.upgrade_sequence(ZERG_RANGED_UPGRADES, bot),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES, bot),
+            )
+        elif unit == UnitTypeId.QUEEN:
+            return chain(
+                # self.upgradeSequence(ZERG_RANGED_UPGRADES, counts),
+                # self.upgradeSequence(ZERG_ARMOR_UPGRADES, counts),
+            )
+        elif unit == UnitTypeId.MUTALISK:
+            return chain(
+                self.upgrade_sequence(ZERG_FLYER_UPGRADES, bot),
+                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES, bot),
+            )
+        elif unit == UnitTypeId.CORRUPTOR:
+            return chain(
+                self.upgrade_sequence(ZERG_FLYER_UPGRADES, bot),
+                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES, bot),
+            )
+        elif unit == UnitTypeId.BROODLORD:
+            return chain(
+                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES, bot),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES, bot),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES, bot),
+            )
+        elif unit == UnitTypeId.OVERSEER:
+            return (UpgradeId.OVERLORDSPEED,)
+        else:
+            return []
+
+    def upgrade_sequence(self, upgrades, bot: AresBot) -> Iterable[UpgradeId]:
+        for upgrade in upgrades:
+            if not bot.count(upgrade, include_planned=False):
+                return (upgrade,)
+        return ()

@@ -1,8 +1,8 @@
 from typing import Generic, Iterable, Iterator, List, Optional, TypeVar
 
 from sc2.position import Point2
+from utils import center
 
-from ..utils import center
 from .resource_base import ResourceBase
 
 T = TypeVar("T", bound=ResourceBase)

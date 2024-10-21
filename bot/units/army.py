@@ -6,11 +6,9 @@ from sc2.unit import Unit, UnitCommand
 
 from ..behaviors.bile import BileBehavior
 from ..behaviors.burrow import BurrowBehavior
-from ..behaviors.overlord_drop import OverlordDropMemberBehavior
 from ..behaviors.search import SearchBehavior
 from ..modules.combat import CombatBehavior
 from ..modules.dodge import DodgeBehavior
-from ..modules.macro import MacroBehavior
 
 if TYPE_CHECKING:
     from ..ai_base import PhantomBot
@@ -18,10 +16,8 @@ if TYPE_CHECKING:
 
 class Army(
     DodgeBehavior,
-    MacroBehavior,
     BurrowBehavior,
     BileBehavior,
-    OverlordDropMemberBehavior,
     CombatBehavior,
     SearchBehavior,
 ):
@@ -30,8 +26,6 @@ class Army(
 
     def get_command(self) -> Optional[UnitCommand]:
         if command := self.dodge():
-            return command
-        elif command := self.macro():
             return command
         elif command := self.burrow():
             return command

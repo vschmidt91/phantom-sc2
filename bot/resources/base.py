@@ -1,9 +1,9 @@
 from typing import Iterable, Optional
 
+from resources.gather import GatherBehavior
 from sc2.position import Point2
+from sc2.unit import Unit
 
-from ..behaviors.gather import GatherBehavior
-from ..units.structure import Structure
 from .mineral_patch import MineralPatch
 from .resource_base import ResourceBase
 from .resource_group import ResourceGroup
@@ -19,8 +19,8 @@ class Base(ResourceGroup[ResourceBase]):
         mineral_patches: Iterable[MineralPatch],
         vespene_geysers: Iterable[VespeneGeyser],
     ):
-        self.townhall: Optional[Structure] = None
-        self.static_defense: Optional[Structure] = None
+        self.townhall: Optional[Unit] = None
+        self.static_defense: Optional[Unit] = None
         self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(
             sorted(mineral_patches, key=lambda m: m.position.distance_to(position))
         )

@@ -5,17 +5,20 @@ from itertools import chain
 from typing import TYPE_CHECKING, Counter, Dict, Iterable, Optional, Type
 
 import numpy as np
+from action import Action
+from ares import UnitRole
+from constants import GAS_BY_RACE, STATIC_DEFENSE_BY_RACE
+from cost import Cost
+from modules.module import AIModule
+from resources.resource_unit import ResourceUnit
 from sc2.data import race_gas, race_townhalls
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 
-from ..behaviors.gather import GatherBehavior
-from ..constants import GAS_BY_RACE, STATIC_DEFENSE_BY_RACE
-from ..cost import Cost
-from ..modules.module import AIModule
-from ..resources.resource_unit import ResourceUnit
+from ..units.worker import Worker
 from .base import Base
+from .gather import GatherBehavior
 from .mineral_patch import MineralPatch
 from .resource_base import ResourceBase
 from .resource_group import ResourceGroup
@@ -75,7 +78,8 @@ class ResourceManager(AIModule):
 
     @property
     def bases_taken(self) -> Iterable[Base]:
-        return (b for b in self.bases if b.townhall and b.townhall.unit.is_ready)
+        townhall_positions = {th.position for th in self.ai.townhalls.ready}
+        return (b for b in self.bases if b.position in townhall_positions)
 
     @property
     def mineral_patches(self) -> Iterable[MineralPatch]:
@@ -86,13 +90,14 @@ class ResourceManager(AIModule):
         return (r for b in self.bases_taken for r in b.vespene_geysers)
 
     def add_harvester(self, harvester: GatherBehavior) -> None:
-        gather_target = min(
+        gather_target = max(
             (x for b in self.bases_taken for x in b.flatten()),
-            key=lambda r: r.harvester_target - self.harvesters_by_resource[r],
+            key=lambda r: r.harvester_target - self.harvesters_by_resource[r] + np.exp(-r.position.distance_to(harvester.unit.position)),
             default=None,
         )
         if gather_target:
             harvester.set_gather_target(gather_target)
+            self.harvesters_by_resource[gather_target] += 1
 
     def update_bases(self) -> None:
         static_defense_priority = sum(
@@ -155,7 +160,7 @@ class ResourceManager(AIModule):
                 h
                 for h in self.ai.unit_manager.units.values()
                 if (
-                    isinstance(h, GatherBehavior)
+                    isinstance(h, Worker)
                     and h.gather_target
                     and isinstance(h.gather_target, MineralPatch)
                     and h.gather_target.harvester_target < self.harvesters_by_resource[h.gather_target]
@@ -179,12 +184,12 @@ class ResourceManager(AIModule):
 
         harvester.set_gather_target(transfer_to)
 
-    async def on_step(self) -> None:
+    def on_step(self) -> Iterable[Action]:
         self.harvesters_by_resource = Counter[ResourceBase](
             (
                 unit.gather_target
                 for unit in self.ai.unit_manager.units.values()
-                if isinstance(unit, GatherBehavior) and unit.gather_target
+                if isinstance(unit, Worker) and unit.gather_target
             )
         )
 
@@ -194,11 +199,25 @@ class ResourceManager(AIModule):
         self.update_income()
 
         if self.do_split:
-            harvesters = (u for u in self.ai.unit_manager.units.values() if isinstance(u, GatherBehavior))
+            harvesters = (u for u in self.ai.unit_manager.units.values() if isinstance(u, Worker))
             self.bases[0].split_initial_workers(harvesters)
             self.do_split = False
 
         self.balance_harvesters()
+
+        exclude_workers = {
+            w.tag
+            for w in self.ai.mediator.get_units_from_role(role=UnitRole.PERSISTENT_BUILDER)
+        }
+        workers = [
+            w
+            for w in self.ai.unit_manager.units.values()
+            if isinstance(w, Worker) and w.unit.tag not in exclude_workers
+        ]
+
+        for unit in workers:
+            if action := unit.gather():
+                yield action
 
     def set_speedmining_positions(self) -> None:
         for base in self.bases:
@@ -296,7 +315,7 @@ class ResourceManager(AIModule):
         return sum(
             1
             for b in self.ai.unit_manager.units.values()
-            if isinstance(b, GatherBehavior) and isinstance(b.gather_target, of_type)
+            if isinstance(b, Worker) and isinstance(b.gather_target, of_type)
         )
 
     def pick_resource(self, resources: Iterable[ResourceBase]) -> Optional[ResourceUnit]:
@@ -311,7 +330,7 @@ class ResourceManager(AIModule):
             (
                 b
                 for b in self.ai.unit_manager.units.values()
-                if isinstance(b, GatherBehavior) and isinstance(b.gather_target, from_type)
+                if isinstance(b, Worker) and isinstance(b.gather_target, from_type)
             ),
             key=lambda h: h.unit.position.distance_to(close_to),
             default=None,

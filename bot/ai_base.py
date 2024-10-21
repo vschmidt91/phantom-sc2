@@ -5,7 +5,6 @@ import os
 import pstats
 from collections import defaultdict
 from functools import cmp_to_key
-from itertools import chain
 from typing import Iterable
 
 import numpy as np
@@ -13,7 +12,6 @@ from ares import AresBot
 from loguru import logger
 from sc2.constants import IS_DETECTOR
 from sc2.data import ActionResult, Race, Result, race_townhalls
-from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -23,7 +21,7 @@ from sc2.units import Units
 
 from .action import Action
 from .behaviors.inject import InjectManager
-from .behaviors.overlord_drop import OverlordDropManager
+from .components.build_order import BuildOrder
 from .components.creep import CreepSpread
 from .constants import (
     CIVILIANS,
@@ -37,17 +35,12 @@ from .constants import (
     VERSION_FILE,
     WITH_TECH_EQUIVALENTS,
     WORKERS,
-    ZERG_ARMOR_UPGRADES,
-    ZERG_FLYER_ARMOR_UPGRADES,
-    ZERG_FLYER_UPGRADES,
-    ZERG_MELEE_UPGRADES,
-    ZERG_RANGED_UPGRADES,
 )
 from .cost import CostManager
 from .modules.chat import Chat
 from .modules.combat import CombatModule
 from .modules.dodge import DodgeModule
-from .modules.macro import MacroBehavior, MacroId, MacroModule, compare_plans
+from .modules.macro import MacroId, MacroModule, compare_plans
 from .modules.scout import ScoutModule
 from .modules.unit_manager import UnitManager
 from .resources.base import Base
@@ -61,14 +54,10 @@ from .units.worker import Worker
 from .utils import flood_fill
 
 
-class PhantomBot(CreepSpread, AresBot):
+class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
     def __init__(
         self,
     ) -> None:
-        super().__init__(game_step_override=2)
-
-        self.raw_affects_selection = True
-        self.unit_command_uses_self_do = True
 
         if os.path.exists(VERSION_FILE):
             with open(VERSION_FILE) as f:
@@ -80,6 +69,7 @@ class PhantomBot(CreepSpread, AresBot):
         self.iteration: int = 0
         self.profiler: cProfile.Profile | None = None
         self.cost = CostManager(self.calculate_cost, self.calculate_supply_cost)
+        super().__init__(game_step_override=2)
 
     def can_move(self, unit: Unit) -> bool:
         if unit.is_burrowed:
@@ -97,65 +87,6 @@ class PhantomBot(CreepSpread, AresBot):
             logging.basicConfig(level=logging.DEBUG)
         else:
             logging.basicConfig(level=logging.ERROR)
-
-    def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
-        if unit == UnitTypeId.ZERGLING:
-            return chain(
-                (UpgradeId.ZERGLINGMOVEMENTSPEED,),
-                # (UpgradeId.ZERGLINGMOVEMENTSPEED, UpgradeId.ZERGLINGATTACKSPEED),
-                # self.upgrade_sequence(ZERG_MELEE_UPGRADES),
-                # self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.ULTRALISK:
-            return chain(
-                (UpgradeId.CHITINOUSPLATING, UpgradeId.ANABOLICSYNTHESIS),
-                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
-                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.BANELING:
-            return chain(
-                (UpgradeId.CENTRIFICALHOOKS,),
-                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
-                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.ROACH:
-            return chain(
-                (UpgradeId.GLIALRECONSTITUTION, UpgradeId.BURROW, UpgradeId.TUNNELINGCLAWS),
-                # (UpgradeId.GLIALRECONSTITUTION,),
-                self.upgrade_sequence(ZERG_RANGED_UPGRADES),
-                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.HYDRALISK:
-            return chain(
-                (UpgradeId.EVOLVEGROOVEDSPINES, UpgradeId.EVOLVEMUSCULARAUGMENTS),
-                self.upgrade_sequence(ZERG_RANGED_UPGRADES),
-                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.QUEEN:
-            return chain(
-                # self.upgradeSequence(ZERG_RANGED_UPGRADES),
-                # self.upgradeSequence(ZERG_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.MUTALISK:
-            return chain(
-                self.upgrade_sequence(ZERG_FLYER_UPGRADES),
-                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.CORRUPTOR:
-            return chain(
-                self.upgrade_sequence(ZERG_FLYER_UPGRADES),
-                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.BROODLORD:
-            return chain(
-                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
-                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
-                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.OVERSEER:
-            return (UpgradeId.OVERLORDSPEED,)
-        else:
-            return []
 
     async def on_start(self) -> None:
         await super().on_start()
@@ -198,19 +129,10 @@ class PhantomBot(CreepSpread, AresBot):
         self.combat = CombatModule(self)
         self.dodge = DodgeModule(self)
         self.inject = InjectManager(self)
-        self.drops = OverlordDropManager(self)
         self.strategy: Strategy = HatchFirst(self)
-
-        for step in self.strategy.build_order():
-            plan = self.macro.add_plan(step)
-            plan.priority = math.inf
 
         for structure in self.all_own_units:
             self.unit_manager.add_unit(structure)
-
-        # await self.client.debug_create_unit([
-        #     [UnitTypeId.ZERGLINGBURROWED, 1, self.bases[1].position, 2],
-        # ])
 
     def handle_errors(self):
         for error in self.state.action_errors:
@@ -235,49 +157,9 @@ class PhantomBot(CreepSpread, AresBot):
         else:
             return unit.can_attack_ground
 
-    def handle_actions(self):
-        for action in self.state.actions_unit_commands:
-            for tag in action.unit_tags:
-                self.handle_action(action, tag)
-
-    def handle_action(self, action: ActionRawUnitCommand, tag: int) -> None:
-
-        behavior = self.unit_manager.units.get(tag)
-        if not behavior:
-            return
-        elif behavior.unit.type_id in {
-            UnitTypeId.DRONE,
-            UnitTypeId.SCV,
-            UnitTypeId.PROBE,
-        }:
-            return
-        elif behavior.unit.type_id in {UnitTypeId.LARVA, UnitTypeId.EGG}:
-            candidates = list(
-                chain(
-                    self.unit_manager.actual_by_type[UnitTypeId.LARVA], self.unit_manager.actual_by_type[UnitTypeId.EGG]
-                )
-            )
-        else:
-            candidates = [behavior]
-        actual_behavior = next(
-            (b for b in candidates if (isinstance(b, MacroBehavior) and b.plan and b.macro_ability == action.exact_id)),
-            None,
-        )
-
-        if actual_behavior:
-            # if behavior.unit and actual_behavior.unit:
-            #     d = behavior.unit.position.distance_to(actual_behavior.unit.position)
-            #     if 1 < d:
-            #         print(d)
-            actual_behavior.plan = None
-        # else:
-        #     logging.error(f'trainer not found: {action}')
-
-    def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
-        for upgrade in upgrades:
-            if not self.count(upgrade, include_planned=False):
-                return (upgrade,)
-        return ()
+    @property
+    def supply_workers_fixed(self) -> float:
+        return self.supply_used - self.supply_army
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
@@ -293,39 +175,32 @@ class PhantomBot(CreepSpread, AresBot):
         if self.profiler:
             self.profiler.enable()
 
-        if self.extractor_trick_enabled and self.supply_left <= 0:
-            for gas in self.gas_buildings.not_ready:
-                self.do(gas(AbilityId.CANCEL))
-                self.extractor_trick_enabled = False
-                break
-
         self.handle_errors()
-        self.handle_actions()
 
-        modules = [
-            self.unit_manager,
-            self.strategy,
-            self.macro,
-            self.resource_manager,
-            self.scout,
-            self.dodge,
-            self.combat,
-            self.chat,
-            self.inject,
-            self.drops,
-        ]
-        for module in modules:
-            await module.on_step()
+        self.unit_manager.update_all_units()
 
-        actions = [
-            *self.spread_creep(),
-        ]
+        build_order_action = self.execute_build_order()
+
+        actions: list[Action] = []
+
+        actions.extend(self.resource_manager.on_step())
+        # actions.extend(self.inject.on_step())
+        # actions.extend(self.scout.on_step())
+        # actions.extend(self.dodge.on_step())
+        # actions.extend(self.combat.on_step())
+        # actions.extend(self.spread_creep())
+
+        if not build_order_action:
+            actions.extend(self.strategy.on_step())
+            actions.extend(self.macro.macro(self))
+        else:
+            actions.append(build_order_action)
+
         if self.debug:
             self.check_for_duplicate_actions(actions)
         for action in actions:
-            if command := await action.execute(self):
-                self.do(command)
-            elif self.debug:
+            success = await action.execute(self)
+            if not success:
                 logging.info(f"Action failed: {action}")
 
         if self.profiler:
@@ -349,7 +224,8 @@ class PhantomBot(CreepSpread, AresBot):
     def check_for_duplicate_actions(self, actions: list[Action]) -> None:
         actions_of_unit: defaultdict[Unit, list[Action]] = defaultdict(list)
         for action in actions:
-            if unit := getattr(action, "unit"):
+            if hasattr(action, "unit"):
+                unit = getattr(action, "unit")
                 actions_of_unit[unit].append(action)
         for unit, actions in actions_of_unit.items():
             if len(actions) > 1:
@@ -361,7 +237,7 @@ class PhantomBot(CreepSpread, AresBot):
     async def on_building_construction_started(self, unit: Unit):
         await super().on_building_construction_started(unit)
 
-        behavior = self.unit_manager.add_unit(unit)
+        self.unit_manager.add_unit(unit)
         # self.unit_manager.pending_by_type[unit.type_id].append(behavior)
 
         if self.race == Race.Zerg:
@@ -374,9 +250,6 @@ class PhantomBot(CreepSpread, AresBot):
                 for trainer_type in UNIT_TRAINED_FROM.get(unit.type_id, []):
                     for trainer in self.unit_manager.actual_by_type[trainer_type]:
                         if trainer.unit.position.distance_to(unit.position) < 0.5:
-                            if behavior := self.unit_manager.units.get(trainer.unit.tag):
-                                if isinstance(behavior, MacroBehavior):
-                                    behavior.plan = None
                             assert self.unit_manager.try_remove_unit(trainer.unit.tag)
                             break
                         elif not trainer.unit.is_idle and trainer.unit.order_target in {unit.position, geyser_tag}:
@@ -518,7 +391,7 @@ class PhantomBot(CreepSpread, AresBot):
         font_size = 12
 
         plans = []
-        plans.extend(b.plan for b in self.unit_manager.units.values() if isinstance(b, MacroBehavior) and b.plan)
+        # plans.extend(b.plan for b in self.unit_manager.units.values() if isinstance(b, MacroBehavior) and b.plan)
         plans.extend(self.macro.unassigned_plans)
         plans.sort(key=cmp_to_key(compare_plans), reverse=True)
 
@@ -534,17 +407,6 @@ class PhantomBot(CreepSpread, AresBot):
             elif isinstance(target.target, Point2):
                 height = self.get_terrain_z_height(target.target)
                 positions.append(Point3((target.target.x, target.target.y, height)))
-
-            unit_tag = next(
-                (
-                    tag
-                    for tag, behavior in self.unit_manager.units.items()
-                    if isinstance(behavior, MacroBehavior) and behavior.plan == target
-                ),
-                None,
-            )
-            if (behavior := self.unit_manager.units.get(unit_tag)) and behavior.unit:
-                positions.append(behavior.unit.position3d)
 
             text = f"{str(i + 1)} {target.item.name}"
 
@@ -574,47 +436,6 @@ class PhantomBot(CreepSpread, AresBot):
         # self.figure_img.set_data(self.combat.army_map.data[:, :, [0, 1, 4]])
         # self.figure.canvas.draw()
         # self.figure.canvas.flush_events()
-
-    def is_unit_missing(self, unit: UnitTypeId) -> bool:
-        if unit in {
-            UnitTypeId.LARVA,
-            # UnitTypeId.CORRUPTOR,
-            # UnitTypeId.ROACH,
-            # UnitTypeId.HYDRALISK,
-            # UnitTypeId.ZERGLING,
-        }:
-            return False
-        return all(
-            self.count(e, include_pending=False, include_planned=False) == 0 for e in WITH_TECH_EQUIVALENTS[unit]
-        )
-
-    def is_upgrade_missing(self, upgrade: UpgradeId) -> bool:
-        return upgrade not in self.state.upgrades
-
-    def get_missing_requirements(self, item: MacroId) -> Iterable[MacroId]:
-        if item not in REQUIREMENTS_KEYS:
-            return
-
-        if isinstance(item, UnitTypeId):
-            trainers = UNIT_TRAINED_FROM[item]
-            trainer = min(trainers, key=lambda v: v.value)
-            info = TRAIN_INFO[trainer][item]
-        elif isinstance(item, UpgradeId):
-            trainer = UPGRADE_RESEARCHED_FROM[item]
-            info = RESEARCH_INFO[trainer][item]
-        else:
-            raise ValueError(item)
-
-        if self.is_unit_missing(trainer):
-            yield trainer
-        if (required_building := info.get("required_building")) and self.is_unit_missing(required_building):
-            yield required_building
-        if (
-            (required_upgrade := info.get("required_upgrade"))
-            and isinstance(required_upgrade, UpgradeId)
-            and self.is_upgrade_missing(required_upgrade)
-        ):
-            yield required_upgrade
 
     def get_owned_geysers(self):
         for base in self.resource_manager.bases:
@@ -671,3 +492,44 @@ class PhantomBot(CreepSpread, AresBot):
     @property
     def enemy_civilians(self) -> Units:
         return self.all_enemy_units(CIVILIANS)
+
+    def is_upgrade_missing(self, upgrade: UpgradeId) -> bool:
+        return upgrade not in self.state.upgrades
+
+    def is_unit_missing(self, unit: UnitTypeId) -> bool:
+        if unit in {
+            UnitTypeId.LARVA,
+            # UnitTypeId.CORRUPTOR,
+            # UnitTypeId.ROACH,
+            # UnitTypeId.HYDRALISK,
+            # UnitTypeId.ZERGLING,
+        }:
+            return False
+        return all(
+            self.count(e, include_pending=False, include_planned=False) == 0 for e in WITH_TECH_EQUIVALENTS[unit]
+        )
+
+    def get_missing_requirements(self, item: MacroId) -> Iterable[MacroId]:
+        if item not in REQUIREMENTS_KEYS:
+            return
+
+        if isinstance(item, UnitTypeId):
+            trainers = UNIT_TRAINED_FROM[item]
+            trainer = min(trainers, key=lambda v: v.value)
+            info = TRAIN_INFO[trainer][item]
+        elif isinstance(item, UpgradeId):
+            trainer = UPGRADE_RESEARCHED_FROM[item]
+            info = RESEARCH_INFO[trainer][item]
+        else:
+            raise ValueError(item)
+
+        if self.is_unit_missing(trainer):
+            yield trainer
+        if (required_building := info.get("required_building")) and self.is_unit_missing(required_building):
+            yield required_building
+        if (
+            (required_upgrade := info.get("required_upgrade"))
+            and isinstance(required_upgrade, UpgradeId)
+            and self.is_upgrade_missing(required_upgrade)
+        ):
+            yield required_upgrade
