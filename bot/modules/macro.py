@@ -8,7 +8,7 @@ from itertools import chain
 from typing import TYPE_CHECKING, Iterable, TypeAlias
 
 from action import Action
-from ares import AresBot
+from ares import AresBot, UnitRole
 from sc2.data import race_townhalls
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -65,6 +65,7 @@ class MacroAction(Action):
             return None
 
     async def execute(self, bot: AresBot) -> UnitCommand | None:
+        bot.mediator.assign_role(tag=self.unit.tag, role=UnitRole.PERSISTENT_BUILDER)
         if math.isinf(self.plan.eta):
             return None
         elif self.plan.eta <= 0.0:
@@ -104,6 +105,12 @@ class MacroPlan:
     def __hash__(self) -> int:
         return hash(self.plan_id)
 
+    def macro_ability(self, trainer_type: UnitTypeId) -> AbilityId | None:
+        if element := MACRO_INFO.get(trainer_type):
+            if ability := element.get(self.item):
+                return ability.get("ability")
+        return None
+
 
 class MacroModule(Component):
     next_plan_id: int = 0
@@ -119,45 +126,38 @@ class MacroModule(Component):
         self.unassigned_plans.append(plan)
         return plan
 
-    def try_remove_plan(self, plan: MacroPlan) -> bool:
-        if plan in self.unassigned_plans:
-            self.unassigned_plans.remove(plan)
-            return True
-        self.assigned_plans = {k: v for k, v in self.assigned_plans.items() if v != plan}
-
     def enumerate_plans(self) -> Iterable[MacroPlan]:
         return chain(self.assigned_plans.values(), self.unassigned_plans)
 
     def planned_by_type(self, item: MacroId) -> Iterable[MacroPlan]:
         return (plan for plan in self.enumerate_plans() if plan.item == item)
 
-    def make_composition(self, bot: AresBot) -> Iterable[MacroPlan]:
+    def make_composition(self) -> None:
         if 200 <= self.supply_used:
             return
-        composition_have = {unit: bot.count(unit) for unit in self.composition}
+        composition_have = {unit: self.count(unit) for unit in self.composition}
         for unit, target in self.composition.items():
             if target < 1:
                 continue
             elif target <= composition_have[unit]:
                 continue
-            if any(bot.get_missing_requirements(unit)):
+            if any(self.get_missing_requirements(unit)):
                 continue
-            priority = -bot.count(unit, include_planned=False) / target
-            if not any(self.planned_by_type(unit)):
-                yield
-            for plan in self.planned_by_type(unit):
-                if plan.priority == math.inf:
-                    continue
-                plan.priority = priority
-                break
+            priority = -self.count(unit, include_planned=False) / target
+            if any(self.planned_by_type(unit)):
+                for plan in self.planned_by_type(unit):
+                    if plan.priority == math.inf:
+                        continue
+                    plan.priority = priority
+                    break
             else:
                 plan = self.add_plan(unit)
                 plan.priority = priority
 
-    def macro(self, bot: AresBot) -> Iterable[Action]:
+    def macro(self) -> Iterable[Action]:
 
-        self.make_composition(bot)
-        self.make_tech(bot)
+        self.make_composition()
+        self.make_tech()
 
         reserve = Cost(0, 0, 0, 0)
 
@@ -168,23 +168,30 @@ class MacroModule(Component):
             reverse=True,
         )
 
-        trainer_by_tag = {t.tag: t for t in bot.units}
+        trainer_by_tag = {t.tag: t for t in self.all_own_units}
 
-        trainer_by_plan = {p: u for t, p in self.assigned_plans if (u := trainer_by_tag.get(t))}
+        for tag, plan in list(self.assigned_plans.items()):
+            if trainer := trainer_by_tag.get(tag):
+                if trainer.type_id == UnitTypeId.EGG:
+                    self.unassigned_plans.append(plan)
+                    del self.assigned_plans[tag]
+
+        trainer_by_plan = {p: trainer_by_tag.get(t) for t, p in self.assigned_plans.items()}
 
         for i, plan in enumerate(plans):
-            cost = bot.cost.of(plan.item)
+            cost = self.cost.of(plan.item)
 
-            if any(bot.get_missing_requirements(plan.item)) and plan.priority == math.inf:
+            if any(self.get_missing_requirements(plan.item)) and plan.priority == math.inf:
                 break
 
             if 1 <= i and plan.priority == math.inf:
                 break
 
             if not (trainer := trainer_by_plan.get(plan)):
-                if trainer := self.search_trainer(bot.units, plan.item):
-                    self.unassigned_plans.remove(plan)
-                    trainer.plan = plan
+                if trainer := self.search_trainer(self.all_own_units, plan.item):
+                    if plan in self.unassigned_plans:
+                        self.unassigned_plans.remove(plan)
+                    self.assigned_plans[trainer.tag] = plan
                 else:
                     if plan.priority == math.inf:
                         reserve += cost
@@ -193,7 +200,7 @@ class MacroModule(Component):
 
             action = MacroAction(trainer, plan)
 
-            if any(bot.get_missing_requirements(plan.item)):
+            if any(self.get_missing_requirements(plan.item)):
                 continue
 
             # if type(plan.item) == UnitTypeId:
@@ -208,25 +215,27 @@ class MacroModule(Component):
 
             if plan.target is None:
                 try:
-                    plan.target = self.get_target(trainer, plan, bot)
+                    plan.target = self.get_target(trainer, plan)
                 except PlacementNotFoundException:
                     continue
 
-            if any(bot.get_missing_requirements(plan.item)):
+            if any(self.get_missing_requirements(plan.item)):
                 plan.eta = math.inf
             else:
                 eta = 0.0
                 if 0 < cost.minerals:
                     eta = max(
                         eta,
-                        60 * (reserve.minerals - bot.minerals) / max(1, bot.resource_manager.income.minerals),
+                        60 * (reserve.minerals - self.minerals) / max(1, self.resource_manager.income.minerals),
                     )
                 if 0 < cost.vespene:
-                    eta = max(eta, 60 * (reserve.vespene - bot.vespene) / max(1, bot.resource_manager.income.vespene))
+                    eta = max(eta, 60 * (reserve.vespene - self.vespene) / max(1, self.resource_manager.income.vespene))
                 if 0 < cost.larva:
-                    eta = max(eta, 60 * (reserve.larva - bot.larva.amount) / max(1, bot.resource_manager.income.larva))
+                    eta = max(
+                        eta, 60 * (reserve.larva - self.larva.amount) / max(1, self.resource_manager.income.larva)
+                    )
                 if 0 < cost.supply:
-                    if bot.supply_left < cost.supply:
+                    if self.supply_left < cost.supply:
                         eta = math.inf
                 plan.eta = eta
 
@@ -234,7 +243,7 @@ class MacroModule(Component):
 
         cost_zero = Cost(0, 0, 0, 0)
         future_spending = cost_zero
-        future_spending += sum((bot.cost.of(plan.item) for plan in self.unassigned_plans), cost_zero)
+        future_spending += sum((self.cost.of(plan.item) for plan in self.unassigned_plans), cost_zero)
         # future_spending += sum(
         #     (
         #         self.ai.cost.of(b.plan.item)
@@ -244,7 +253,7 @@ class MacroModule(Component):
         #     cost_zero,
         # )
         future_spending += sum(
-            (bot.cost.of(unit) * max(0, count - bot.count(unit)) for unit, count in self.composition.items()),
+            (self.cost.of(unit) * max(0, count - self.count(unit)) for unit, count in self.composition.items()),
             cost_zero,
         )
         self.future_spending = future_spending
@@ -252,32 +261,32 @@ class MacroModule(Component):
         future_timeframe = 3 / 60
         if 0 < future_spending.minerals:
             future_timeframe = max(
-                future_timeframe, future_spending.minerals / max(1, bot.resource_manager.income.minerals)
+                future_timeframe, future_spending.minerals / max(1, self.resource_manager.income.minerals)
             )
         if 0 < future_spending.vespene:
             future_timeframe = max(
-                future_timeframe, future_spending.vespene / max(1, bot.resource_manager.income.vespene)
+                future_timeframe, future_spending.vespene / max(1, self.resource_manager.income.vespene)
             )
         if 0 < future_spending.larva:
-            future_timeframe = max(future_timeframe, future_spending.larva / max(1, bot.resource_manager.income.larva))
+            future_timeframe = max(future_timeframe, future_spending.larva / max(1, self.resource_manager.income.larva))
         self.future_timeframe = future_timeframe
 
-    def get_target(self, trainer: Unit, objective: MacroPlan, bot: AresBot) -> Unit | Point2 | None:
-        gas_type = GAS_BY_RACE[bot.race]
+    def get_target(self, trainer: Unit, objective: MacroPlan) -> Unit | Point2 | None:
+        gas_type = GAS_BY_RACE[self.race]
         if objective.item == gas_type:
-            exclude_positions = {geyser.position for geyser in bot.gas_buildings}
+            exclude_positions = {geyser.position for geyser in self.gas_buildings}
             exclude_tags = {
                 order.target
-                for unit in bot.workers
+                for unit in self.workers
                 for order in unit.orders
                 if order.ability.exact_id == AbilityId.ZERGBUILD_EXTRACTOR
             }
             exclude_tags.update(
-                {step.target.tag for step in bot.planned_by_type(gas_type) if isinstance(step.target, Unit)}
+                {step.target.tag for step in self.planned_by_type(gas_type) if isinstance(step.target, Unit)}
             )
             geysers = [
                 geyser
-                for geyser in bot.get_owned_geysers()
+                for geyser in self.get_owned_geysers()
                 if (geyser.position not in exclude_positions and geyser.tag not in exclude_tags)
             ]
             if not any(geysers):
@@ -292,7 +301,7 @@ class MacroModule(Component):
         # data = MACRO_INFO[trainer.unit.type_id][objective.item]
 
         if "requires_placement_position" in data:
-            position = self.get_target_position(objective.item, bot)
+            position = self.get_target_position(objective.item)
             objective in {UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}
 
             # if objective.max_distance is not None:
@@ -317,27 +326,32 @@ class MacroModule(Component):
         trainers_filtered = (
             trainer
             for trainer in trainers
-            if (trainer.type_id in trainer_types and trainer.is_ready and (trainer.is_idle or not trainer.is_structure))
+            if (
+                trainer.type_id in trainer_types
+                and trainer.is_ready
+                and (trainer.is_idle or not trainer.is_structure)
+                and trainer.tag not in self.assigned_plans
+            )
         )
 
         # return next(trainers_filtered, None)
 
         return min(trainers_filtered, key=lambda t: t.tag, default=None)
 
-    def get_target_position(self, target: UnitTypeId, bot: AresBot) -> Point2:
-        data = bot.game_data.units[target.value]
-        if target in race_townhalls[bot.race]:
-            for base in bot.resource_manager.bases:
+    def get_target_position(self, target: UnitTypeId) -> Point2:
+        data = self.game_data.units[target.value]
+        if target in race_townhalls[self.race]:
+            for base in self.resource_manager.bases:
                 if base.townhall:
                     continue
-                if base.position in bot.scout.blocked_positions:
+                if base.position in self.scout.blocked_positions:
                     continue
                 if not base.remaining:
                     continue
                 return base.position
             raise PlacementNotFoundException()
 
-        bases = list(bot.resource_manager.bases)
+        bases = list(self.resource_manager.bases)
         random.shuffle(bases)
         for base in bases:
             if not base.townhall:
@@ -350,9 +364,9 @@ class MacroModule(Component):
             return position
         raise PlacementNotFoundException()
 
-    def make_tech(self, bot: AresBot):
+    def make_tech(self):
         upgrades = [
-            u for unit in self.composition for u in self.upgrades_by_unit(unit, bot) if bot.strategy.filter_upgrade(u)
+            u for unit in self.composition for u in self.upgrades_by_unit(unit) if self.strategy.filter_upgrade(u)
         ]
         upgrades.append(UpgradeId.ZERGLINGMOVEMENTSPEED)
         targets: set[MacroId] = set(upgrades)
@@ -360,74 +374,74 @@ class MacroModule(Component):
         targets.update(r for item in set(targets) for r in REQUIREMENTS[item])
         for target in targets:
             if equivalents := WITH_TECH_EQUIVALENTS.get(target):
-                target_met = any(bot.count(t) for t in equivalents)
+                target_met = any(self.count(t) for t in equivalents)
             else:
-                target_met = bool(bot.count(target))
+                target_met = bool(self.count(target))
             if not target_met:
                 plan = self.add_plan(target)
                 plan.priority = -1 / 3
 
-    def upgrades_by_unit(self, unit: UnitTypeId, bot) -> Iterable[UpgradeId]:
+    def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
         if unit == UnitTypeId.ZERGLING:
             return chain(
                 (UpgradeId.ZERGLINGMOVEMENTSPEED,),
                 # (UpgradeId.ZERGLINGMOVEMENTSPEED, UpgradeId.ZERGLINGATTACKSPEED),
-                # self.upgrade_sequence(ZERG_MELEE_UPGRADES, bot),
-                # self.upgrade_sequence(ZERG_ARMOR_UPGRADES, bot),
+                # self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                # self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
             )
         elif unit == UnitTypeId.ULTRALISK:
             return chain(
                 (UpgradeId.CHITINOUSPLATING, UpgradeId.ANABOLICSYNTHESIS),
-                self.upgrade_sequence(ZERG_MELEE_UPGRADES, bot),
-                self.upgrade_sequence(ZERG_ARMOR_UPGRADES, bot),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
             )
         elif unit == UnitTypeId.BANELING:
             return chain(
                 (UpgradeId.CENTRIFICALHOOKS,),
-                self.upgrade_sequence(ZERG_MELEE_UPGRADES, bot),
-                self.upgrade_sequence(ZERG_ARMOR_UPGRADES, bot),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
             )
         elif unit == UnitTypeId.ROACH:
             return chain(
                 (UpgradeId.GLIALRECONSTITUTION, UpgradeId.BURROW, UpgradeId.TUNNELINGCLAWS),
                 # (UpgradeId.GLIALRECONSTITUTION,),
-                self.upgrade_sequence(ZERG_RANGED_UPGRADES, bot),
-                self.upgrade_sequence(ZERG_ARMOR_UPGRADES, bot),
+                self.upgrade_sequence(ZERG_RANGED_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
             )
         elif unit == UnitTypeId.HYDRALISK:
             return chain(
                 (UpgradeId.EVOLVEGROOVEDSPINES, UpgradeId.EVOLVEMUSCULARAUGMENTS),
-                self.upgrade_sequence(ZERG_RANGED_UPGRADES, bot),
-                self.upgrade_sequence(ZERG_ARMOR_UPGRADES, bot),
+                self.upgrade_sequence(ZERG_RANGED_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
             )
         elif unit == UnitTypeId.QUEEN:
             return chain(
-                # self.upgradeSequence(ZERG_RANGED_UPGRADES, counts),
-                # self.upgradeSequence(ZERG_ARMOR_UPGRADES, counts),
+                # self.upgradeSequence(ZERG_RANGED_UPGRADES),
+                # self.upgradeSequence(ZERG_ARMOR_UPGRADES),
             )
         elif unit == UnitTypeId.MUTALISK:
             return chain(
-                self.upgrade_sequence(ZERG_FLYER_UPGRADES, bot),
-                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES, bot),
+                self.upgrade_sequence(ZERG_FLYER_UPGRADES),
+                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
             )
         elif unit == UnitTypeId.CORRUPTOR:
             return chain(
-                self.upgrade_sequence(ZERG_FLYER_UPGRADES, bot),
-                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES, bot),
+                self.upgrade_sequence(ZERG_FLYER_UPGRADES),
+                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
             )
         elif unit == UnitTypeId.BROODLORD:
             return chain(
-                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES, bot),
-                self.upgrade_sequence(ZERG_MELEE_UPGRADES, bot),
-                self.upgrade_sequence(ZERG_ARMOR_UPGRADES, bot),
+                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
             )
         elif unit == UnitTypeId.OVERSEER:
             return (UpgradeId.OVERLORDSPEED,)
         else:
             return []
 
-    def upgrade_sequence(self, upgrades, bot: AresBot) -> Iterable[UpgradeId]:
+    def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
-            if not bot.count(upgrade, include_planned=False):
+            if not self.count(upgrade, include_planned=False):
                 return (upgrade,)
         return ()

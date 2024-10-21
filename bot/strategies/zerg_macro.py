@@ -113,7 +113,7 @@ class ZergMacro(Strategy):
                     else:
                         composition[UnitTypeId.ROACH] += 12
 
-        self.ai.macro.composition = {k: math.floor(v) for k, v in composition.items() if 0 < v}
+        self.ai.composition = {k: math.floor(v) for k, v in composition.items() if 0 < v}
 
     def filter_upgrade(self, upgrade) -> bool:
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:

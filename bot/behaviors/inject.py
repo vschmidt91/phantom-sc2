@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Iterable, Optional
 
-from action import Action
+from action import Action, UseAbility
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.unit import Unit
@@ -56,12 +56,12 @@ class InjectBehavior(AIUnit):
         super().__init__(ai, unit)
         self.inject_base: Optional[Base] = None
 
-    def inject(self) -> Optional[UnitCommand]:
+    def inject(self) -> Action | None:
         if not self.inject_base:
             return None
         if not self.inject_base.townhall:
             self.inject_base = None
             return None
         if ENERGY_COST[AbilityId.EFFECT_INJECTLARVA] <= self.unit.energy:
-            return self.unit(AbilityId.EFFECT_INJECTLARVA, target=self.inject_base.townhall.unit)
+            return UseAbility(self.unit, AbilityId.EFFECT_INJECTLARVA, target=self.inject_base.townhall.unit)
         return None

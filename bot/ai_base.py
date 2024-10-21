@@ -5,9 +5,12 @@ import os
 import pstats
 from collections import defaultdict
 from functools import cmp_to_key
+from itertools import chain
 from typing import Iterable
 
 import numpy as np
+from sc2.game_state import ActionRawUnitCommand
+
 from ares import AresBot
 from loguru import logger
 from sc2.constants import IS_DETECTOR
@@ -40,7 +43,7 @@ from .cost import CostManager
 from .modules.chat import Chat
 from .modules.combat import CombatModule
 from .modules.dodge import DodgeModule
-from .modules.macro import MacroId, MacroModule, compare_plans
+from .modules.macro import MacroId, MacroModule, compare_plans, MacroPlan
 from .modules.scout import ScoutModule
 from .modules.unit_manager import UnitManager
 from .resources.base import Base
@@ -124,7 +127,6 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
         self.resource_manager = ResourceManager(self, bases)
         self.scout = ScoutModule(self)
         self.unit_manager = UnitManager(self)
-        self.macro = MacroModule(self)
         self.chat = Chat(self)
         self.combat = CombatModule(self)
         self.dodge = DodgeModule(self)
@@ -136,6 +138,7 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
 
     def handle_errors(self):
         for error in self.state.action_errors:
+            logger.error(error)
             if error.result == ActionResult.CantBuildLocationInvalid.value:
                 if behavior := self.unit_manager.units.get(error.unit_tag):
                     self.scout.blocked_positions[behavior.unit.position] = self.time
@@ -175,6 +178,7 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
         if self.profiler:
             self.profiler.enable()
 
+        self.handle_actions()
         self.handle_errors()
 
         self.unit_manager.update_all_units()
@@ -184,15 +188,15 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
         actions: list[Action] = []
 
         actions.extend(self.resource_manager.on_step())
-        # actions.extend(self.inject.on_step())
+        actions.extend(self.inject.on_step())
         # actions.extend(self.scout.on_step())
         # actions.extend(self.dodge.on_step())
-        # actions.extend(self.combat.on_step())
+        actions.extend(self.combat.on_step())
         # actions.extend(self.spread_creep())
 
         if not build_order_action:
             actions.extend(self.strategy.on_step())
-            actions.extend(self.macro.macro(self))
+            actions.extend(self.macro())
         else:
             actions.append(build_order_action)
 
@@ -227,9 +231,11 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
             if hasattr(action, "unit"):
                 unit = getattr(action, "unit")
                 actions_of_unit[unit].append(action)
-        for unit, actions in actions_of_unit.items():
-            if len(actions) > 1:
-                logger.info(f"Unit {unit} received multiple commands: {actions}")
+        for unit, unit_actions in actions_of_unit.items():
+            # if len(unit_actions) > 1:
+            #     logger.info(f"Unit {unit} received multiple commands: {actions}")
+            for a in unit_actions[1:]:
+                actions.remove(a)
 
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)
@@ -284,6 +290,23 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         await super().on_upgrade_complete(upgrade)
 
+    def handle_actions(self):
+        for action in self.state.actions_unit_commands:
+            for tag in action.unit_tags:
+                self.handle_action(action, tag)
+
+    def handle_action(self, action: ActionRawUnitCommand, tag: int) -> None:
+        if unit := self.all_own_units.find_by_tag(tag):
+            plan = self.assigned_plans.get(tag)
+            if unit.type_id in {UnitTypeId.EGG, UnitTypeId.LARVA}:
+                tag, plan = next((
+                    (t, p)
+                    for t, p in self.assigned_plans.items()
+                    if p.macro_ability(UnitTypeId.LARVA) == action.exact_id
+                ), (None, None))
+            if plan:
+                del self.assigned_plans[tag]
+
     def count(
         self, item: MacroId, include_pending: bool = True, include_planned: bool = True, include_actual: bool = True
     ) -> int:
@@ -298,7 +321,7 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
         if include_pending:
             count += factor * len(self.unit_manager.pending_by_type[item])
         if include_planned:
-            count += factor * sum(1 for _ in self.macro.planned_by_type(item))
+            count += factor * sum(1 for _ in self.planned_by_type(item))
 
         return count
 
@@ -392,7 +415,7 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
 
         plans = []
         # plans.extend(b.plan for b in self.unit_manager.units.values() if isinstance(b, MacroBehavior) and b.plan)
-        plans.extend(self.macro.unassigned_plans)
+        plans.extend(self.unassigned_plans)
         plans.sort(key=cmp_to_key(compare_plans), reverse=True)
 
         for i, target in enumerate(plans):

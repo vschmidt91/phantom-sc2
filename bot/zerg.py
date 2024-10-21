@@ -67,7 +67,7 @@ class ZergAI(PhantomBot):
         supply_planned = sum(
             provided
             for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
-            for plan in self.macro.planned_by_type(unit_type)
+            for plan in self.planned_by_type(unit_type)
         )
 
         if 200 <= self.supply_cap + supply_pending + supply_planned:
@@ -76,7 +76,7 @@ class ZergAI(PhantomBot):
         supply_buffer = 4.0 + self.resource_manager.income.larva / 2.0
 
         if self.supply_left + supply_pending + supply_planned <= supply_buffer:
-            plan = self.macro.add_plan(UnitTypeId.OVERLORD)
+            plan = self.add_plan(UnitTypeId.OVERLORD)
             plan.priority = 1
 
     def expand(self) -> None:
@@ -97,12 +97,12 @@ class ZergAI(PhantomBot):
         elif 2 < self.townhalls.amount:
             expand = 2 / 3 < saturation
 
-        for plan in self.macro.planned_by_type(UnitTypeId.HATCHERY):
+        for plan in self.planned_by_type(UnitTypeId.HATCHERY):
             if plan.priority < math.inf:
                 plan.priority = priority
 
         if expand and self.count(UnitTypeId.HATCHERY, include_actual=False) < 1:
             logging.info("%s: expanding", self.time_formatted)
-            plan = self.macro.add_plan(UnitTypeId.HATCHERY)
+            plan = self.add_plan(UnitTypeId.HATCHERY)
             plan.priority = priority
             plan.max_distance = None

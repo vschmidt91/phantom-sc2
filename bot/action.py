@@ -12,8 +12,6 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 
-from utils import time_to_reach
-
 
 class Action(ABC):
     @abstractmethod
@@ -69,7 +67,6 @@ class Build(Action):
     near: Point2
 
     async def execute(self, bot: AresBot) -> bool:
-        logger.info(self)
         bot.mediator.assign_role(tag=self.unit.tag, role=UnitRole.PERSISTENT_BUILDER)
         if placement := await bot.find_placement(self.type_id, near=self.near):
             if bot.can_afford(self.type_id):

@@ -16,19 +16,6 @@ from .component import Component
 
 
 class BuildOrder(Component):
-    steps: list[UnitTypeId] = [
-        UnitTypeId.DRONE,
-        UnitTypeId.OVERLORD,
-        UnitTypeId.DRONE,
-        UnitTypeId.DRONE,
-        UnitTypeId.DRONE,
-        UnitTypeId.HATCHERY,
-        UnitTypeId.DRONE,
-        UnitTypeId.DRONE,
-        UnitTypeId.DRONE,
-        UnitTypeId.EXTRACTOR,
-        UnitTypeId.SPAWNINGPOOL,
-    ]
 
     def execute_build_order(self) -> Action | None:
         return (
@@ -38,12 +25,12 @@ class BuildOrder(Component):
             or self.take_natural()
             or self.morph_drones(18)
             or self.take_gas(1)
-            or self.make_tech(UnitTypeId.ZERGLING)
+            or self.make_tech_bo(UnitTypeId.ZERGLING)
         )
 
     @cached_property
     def tech_building_position(self):
-        return self.start_location.towards(self.game_info.map_center, 8)
+        return self.start_location.towards(self.game_info.map_center, 8).rounded.offset((.5, .5))
 
     def morph_drones(self, target: int) -> Action | None:
         return self.build_unit(UnitTypeId.DRONE, limit=max(0, target - int(self.supply_workers)))
@@ -54,7 +41,7 @@ class BuildOrder(Component):
         return self.build_unit(UnitTypeId.OVERLORD)
 
     def take_gas(self, target: int) -> Action | None:
-        if target <= self.count(UnitTypeId.EXTRACTOR, include_planned=True):
+        if target <= self.count(UnitTypeId.EXTRACTOR, include_planned=False):
             return None
         elif not (trainer := self.find_trainer(UnitTypeId.EXTRACTOR)):
             return None
@@ -90,7 +77,7 @@ class BuildOrder(Component):
             return None
         return self.build_unit(UnitTypeId.HATCHERY, target=target, limit=1)
 
-    def make_tech(self, unit: UnitTypeId) -> Action | None:
+    def make_tech_bo(self, unit: UnitTypeId) -> Action | None:
         build_structures: set[UnitTypeId] = set()
         if unit == UnitTypeId.ZERGLING:
             build_structures.add(UnitTypeId.SPAWNINGPOOL)

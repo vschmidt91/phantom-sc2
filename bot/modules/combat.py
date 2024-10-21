@@ -303,7 +303,7 @@ class CombatBehavior(AIUnit):
         elif stance == CombatStance.ADVANCE:
             distance = self.unit.position.distance_to(target.position) - self.unit.radius - target.radius
             if self.unit.weapon_cooldown and 1 < distance:
-                return Move(self.unit, target)
+                return Move(self.unit, target.position)
             elif (
                 self.unit.position.distance_to(target.position)
                 <= self.unit.radius + self.ai.get_unit_range(self.unit) + target.radius

@@ -127,7 +127,7 @@ class ResourceManager(AIModule):
             for unit in self.ai.unit_manager.pending_by_type[static_defense_type]
             if unit.unit.type_id != static_defense_type
         }
-        static_defense_plans = {plan.target: plan for plan in self.ai.macro.planned_by_type(static_defense_type)}
+        static_defense_plans = {plan.target: plan for plan in self.ai.planned_by_type(static_defense_type)}
 
         for base in self.bases:
             base.townhall = townhalls_by_position.get(base.position)
@@ -136,7 +136,7 @@ class ResourceManager(AIModule):
         if self.build_static_defense and not any(static_defense_pending) and not any(static_defense_plans):
             for base in self.bases:
                 if base.townhall and base.townhall.unit.is_ready and not base.static_defense:
-                    plan = self.ai.macro.add_plan(static_defense_type)
+                    plan = self.ai.add_plan(static_defense_type)
                     plan.target = base.static_defense_position
                     break
 
@@ -251,8 +251,8 @@ class ResourceManager(AIModule):
         self.build_gasses(gas_target)
 
     def get_gas_target(self) -> float:
-        minerals = max(0, self.ai.macro.future_spending.minerals - self.ai.minerals)
-        vespene = max(0, self.ai.macro.future_spending.vespene - self.ai.vespene)
+        minerals = max(0, self.ai.future_spending.minerals - self.ai.minerals)
+        vespene = max(0, self.ai.future_spending.vespene - self.ai.vespene)
         if minerals + vespene == 0:
             minerals = sum(b.mineral_patches.remaining for b in self.bases if b.townhall)
             vespene = sum(b.vespene_geysers.remaining for b in self.bases if b.townhall)
@@ -281,7 +281,7 @@ class ResourceManager(AIModule):
         gas_max = sum(1 for g in self.ai.get_owned_geysers())
         gas_want = min(gas_max, gas_depleted + math.ceil((gas_target - 1) / 3))
         if gas_have + gas_pending < gas_want:
-            self.ai.macro.add_plan(gas_type)
+            self.ai.add_plan(gas_type)
         # elif gas_want + 1 < gas_have + gas_pending:
         #     gas_plans = sorted(self.ai.macro.planned_by_type(gas_type), key=lambda p: p.priority)
         #     for _, plan in zip(range(gas_have + gas_pending - gas_want), gas_plans):
