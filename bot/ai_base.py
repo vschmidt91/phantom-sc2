@@ -5,11 +5,12 @@ import os
 import pstats
 from collections import defaultdict
 from functools import cmp_to_key
-from itertools import chain
+from itertools import islice
 from typing import Iterable
 
 import numpy as np
 from sc2.game_state import ActionRawUnitCommand
+from sc2.ids.buff_id import BuffId
 
 from ares import AresBot
 from loguru import logger
@@ -22,6 +23,7 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
 
+from .strategies.zerg_macro import ZergMacro
 from .action import Action
 from .behaviors.inject import InjectManager
 from .components.build_order import BuildOrder
@@ -37,20 +39,19 @@ from .constants import (
     UPGRADE_RESEARCHED_FROM,
     VERSION_FILE,
     WITH_TECH_EQUIVALENTS,
-    WORKERS,
+    WORKERS, MACRO_INFO, SUPPLY_PROVIDED, ALL_MACRO_ABILITIES,
 )
-from .cost import CostManager
+from .cost import CostManager, Cost
 from .modules.chat import Chat
 from .modules.combat import CombatModule
 from .modules.dodge import DodgeModule
-from .modules.macro import MacroId, MacroModule, compare_plans, MacroPlan
+from .modules.macro import MacroId, MacroModule, compare_plans
 from .modules.scout import ScoutModule
 from .modules.unit_manager import UnitManager
 from .resources.base import Base
 from .resources.mineral_patch import MineralPatch
 from .resources.resource_manager import ResourceManager
 from .resources.vespene_geyser import VespeneGeyser
-from .strategies.hatch_first import HatchFirst
 from .strategies.strategy import Strategy
 from .units.unit import AIUnit
 from .units.worker import Worker
@@ -131,7 +132,7 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
         self.combat = CombatModule(self)
         self.dodge = DodgeModule(self)
         self.inject = InjectManager(self)
-        self.strategy: Strategy = HatchFirst(self)
+        self.strategy: Strategy = ZergMacro(self)
 
         for structure in self.all_own_units:
             self.unit_manager.add_unit(structure)
@@ -183,22 +184,23 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
 
         self.unit_manager.update_all_units()
 
-        build_order_action = self.execute_build_order()
+        build_order_completed = self.run_build_order()
+
+        if build_order_completed:
+            self.make_composition()
+            self.make_tech()
+            self.morph_overlords()
+            self.expand()
+            self.strategy.update_composition()
 
         actions: list[Action] = []
-
         actions.extend(self.resource_manager.on_step())
         actions.extend(self.inject.on_step())
-        # actions.extend(self.scout.on_step())
-        # actions.extend(self.dodge.on_step())
+        actions.extend(self.scout.on_step())
+        actions.extend(self.dodge.on_step())
         actions.extend(self.combat.on_step())
-        # actions.extend(self.spread_creep())
-
-        if not build_order_action:
-            actions.extend(self.strategy.on_step())
-            actions.extend(self.macro())
-        else:
-            actions.append(build_order_action)
+        actions.extend(self.spread_creep())
+        actions.extend(self.macro())
 
         if self.debug:
             self.check_for_duplicate_actions(actions)
@@ -251,18 +253,24 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
                 # print('tumor')
                 pass
             else:
-                geyser = self.resource_manager.resource_by_position.get(unit.position)
-                geyser_tag = geyser.unit.tag if isinstance(geyser, VespeneGeyser) and geyser.unit else None
-                for trainer_type in UNIT_TRAINED_FROM.get(unit.type_id, []):
-                    for trainer in self.unit_manager.actual_by_type[trainer_type]:
-                        if trainer.unit.position.distance_to(unit.position) < 0.5:
-                            assert self.unit_manager.try_remove_unit(trainer.unit.tag)
-                            break
-                        elif not trainer.unit.is_idle and trainer.unit.order_target in {unit.position, geyser_tag}:
-                            assert self.unit_manager.try_remove_unit(trainer.unit.tag)
-                            break
-                    else:
-                        logging.error("trainer not found")
+                for trainer, plan in list(self.assigned_plans.items()):
+                    if plan.item == unit.type_id and plan.target and unit.position.distance_to(plan.target.position) < 3:
+                        del self.assigned_plans[trainer]
+                        self.unit_manager.try_remove_unit(trainer)
+                        logger.info(f"New building matched to plan: {plan=}, {unit=}, {trainer=}")
+                        break
+                # geyser = self.resource_manager.resource_by_position.get(unit.position)
+                # geyser_tag = geyser.unit.tag if isinstance(geyser, VespeneGeyser) and geyser.unit else None
+                # for trainer_type in UNIT_TRAINED_FROM.get(unit.type_id, []):
+                #     for trainer in self.unit_manager.actual_by_type[trainer_type]:
+                #         if trainer.unit.position.distance_to(unit.position) < 0.5:
+                #             assert self.unit_manager.try_remove_unit(trainer.unit.tag)
+                #             break
+                #         elif not trainer.unit.is_idle and trainer.unit.order_target in {unit.position, geyser_tag}:
+                #             assert self.unit_manager.try_remove_unit(trainer.unit.tag)
+                #             break
+                #     else:
+                #         logging.error("trainer not found")
 
     async def on_building_construction_complete(self, unit: Unit):
         await super().on_building_construction_complete(unit)
@@ -296,16 +304,33 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
                 self.handle_action(action, tag)
 
     def handle_action(self, action: ActionRawUnitCommand, tag: int) -> None:
-        if unit := self.all_own_units.find_by_tag(tag):
-            plan = self.assigned_plans.get(tag)
-            if unit.type_id in {UnitTypeId.EGG, UnitTypeId.LARVA}:
-                tag, plan = next((
-                    (t, p)
-                    for t, p in self.assigned_plans.items()
-                    if p.macro_ability(UnitTypeId.LARVA) == action.exact_id
-                ), (None, None))
-            if plan:
-                del self.assigned_plans[tag]
+        unit = self.unit_tag_dict.get(tag)
+        if unit and unit.type_id == UnitTypeId.EGG:
+            # commands issued to a specific larva will be received by a random one
+            # therefore, a direct lookup will usually be incorrect
+            # instead, all plans are checked for a match
+            tag = next((
+                t
+                for t, p in self.assigned_plans.items()
+                if MACRO_INFO[UnitTypeId.LARVA].get(p.item, {}).get("ability") == action.exact_id
+            ), None)
+        if plan := self.assigned_plans.get(tag):
+            if (
+                unit
+                and unit.type_id != UnitTypeId.EGG
+                and MACRO_INFO.get(unit.type_id, {}).get(plan.item, {}).get("ability") != action.exact_id
+            ):
+                return
+            if (
+                unit
+                and unit.type_id == UnitTypeId.DRONE
+            ):
+                self.unit_manager.try_remove_unit(tag)
+            del self.assigned_plans[tag]
+            logger.info(f"Action matched plan: {action=}, {tag=}, {plan=}")
+
+        elif action.exact_id in ALL_MACRO_ABILITIES:
+            logger.info(f"Action performed by non-existing unit: {action=}, {tag=}")
 
     def count(
         self, item: MacroId, include_pending: bool = True, include_planned: bool = True, include_actual: bool = True
@@ -413,10 +438,11 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
         font_color = (255, 255, 255)
         font_size = 12
 
-        plans = []
-        # plans.extend(b.plan for b in self.unit_manager.units.values() if isinstance(b, MacroBehavior) and b.plan)
-        plans.extend(self.unassigned_plans)
-        plans.sort(key=cmp_to_key(compare_plans), reverse=True)
+        plans = sorted(
+            self.enumerate_plans(),
+            key=cmp_to_key(compare_plans),
+            reverse=True,
+        )
 
         for i, target in enumerate(plans):
             positions = []
@@ -556,3 +582,71 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
             and self.is_upgrade_missing(required_upgrade)
         ):
             yield required_upgrade
+
+
+    @property
+    def income(self) -> Cost:
+
+        larva_per_second = 0.0
+        for hatchery in self.townhalls:
+            if hatchery.is_ready:
+                larva_per_second += 1 / 11
+                if hatchery.has_buff(BuffId.QUEENSPAWNLARVATIMER):
+                    larva_per_second += 3 / 29
+
+        return Cost(
+            self.state.score.collection_rate_minerals,
+            self.state.score.collection_rate_vespene,
+            0.0,
+            60.0 * larva_per_second,
+        )
+
+
+    def morph_overlords(self) -> None:
+        supply_pending = sum(
+            provided
+            for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
+            for unit in self.unit_manager.pending_by_type[unit_type]
+        )
+        supply_planned = sum(
+            provided
+            for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
+            for plan in self.planned_by_type(unit_type)
+        )
+
+        if 200 <= self.supply_cap + supply_pending + supply_planned:
+            return
+
+        supply_buffer = 4.0 + self.income.larva / 2.0
+
+        if self.supply_left + supply_pending + supply_planned <= supply_buffer:
+            plan = self.add_plan(UnitTypeId.OVERLORD)
+            plan.priority = 1
+
+    def expand(self) -> None:
+        # if self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False) < 1:
+        #     return
+
+        if self.time < 50:
+            return
+
+        worker_max = self.get_max_harvester()
+        saturation = self.state.score.food_used_economy / max(1, worker_max)
+        saturation = max(0, min(1, saturation))
+        priority = 3 * (saturation - 1)
+
+        expand = True
+        if self.townhalls.amount == 2:
+            expand = 21 <= self.state.score.food_used_economy
+        elif 2 < self.townhalls.amount:
+            expand = 2 / 3 < saturation
+
+        for plan in self.planned_by_type(UnitTypeId.HATCHERY):
+            if plan.priority < math.inf:
+                plan.priority = priority
+
+        if expand and self.count(UnitTypeId.HATCHERY, include_actual=False) < 1:
+            logging.info("%s: expanding", self.time_formatted)
+            plan = self.add_plan(UnitTypeId.HATCHERY)
+            plan.priority = priority
+            plan.max_distance = None

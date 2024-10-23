@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import random
 from dataclasses import dataclass
 from enum import Enum, auto
 from itertools import chain
@@ -119,6 +120,7 @@ class CombatModule(AIModule):
             for behavior in self.ai.unit_manager.units.values()
             if (
                 isinstance(behavior, CombatBehavior)
+                and not behavior.unit.is_structure
                 and (
                     behavior.unit.type_id not in CIVILIANS or (hasattr(behavior, "is_drafted") and behavior.is_drafted)
                 )
@@ -221,6 +223,22 @@ class CombatBehavior(AIUnit):
         return priority
 
     def fight(self) -> Action | None:
+
+
+        if self.unit.is_idle:
+            if self.ai.time < 8 * 60:
+                return AttackMove(self.unit, random.choice(self.ai.enemy_start_locations))
+            elif self.ai.all_enemy_units.exists:
+                target = self.ai.all_enemy_units.random
+                return AttackMove(self.unit, target.position)
+            else:
+                a = self.ai.game_info.playable_area
+                target = np.random.uniform((a.x, a.y), (a.right, a.top))
+                target = Point2(target)
+                if (self.unit.is_flying or self.ai.in_pathing_grid(target)) and not self.ai.is_visible(target):
+                    return AttackMove(self.unit, target)
+                return None
+
         target, priority = max(
             (
                 (enemy, self.target_priority(enemy) * self.ai.combat.target_priority_dict.get(enemy.tag, 0))

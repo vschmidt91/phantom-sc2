@@ -57,6 +57,17 @@ MACRO_INFO = {
     for unit_type in set(chain(TRAIN_INFO, RESEARCH_INFO))
 }
 
+MACRO_ABILITIES = {
+    trainer_type: {e["ability"] for item, e in element.items()}
+    for trainer_type, element in MACRO_INFO.items()
+}
+
+ALL_MACRO_ABILITIES = {
+    e["ability"]
+    for trainer_type, element in MACRO_INFO.items()
+    for item, e in element.items()
+}
+
 COOLDOWN = {
     AbilityId.EFFECT_CORROSIVEBILE: 7 * 22.4,
     AbilityId.BUILD_CREEPTUMOR_TUMOR: 22 * 22.4,
@@ -274,4 +285,49 @@ UNIT_COUNTER_DICT = {
     UnitTypeId.SPINECRAWLER: [UnitTypeId.RAVAGER, UnitTypeId.QUEEN, UnitTypeId.ZERGLING],
     # UnitTypeId.DRONE: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
     # UnitTypeId.DRONEBURROWED: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
+}
+
+
+
+SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
+    Race.Zerg: {
+        UnitTypeId.DRONEBURROWED,
+        UnitTypeId.QUEENBURROWED,
+        UnitTypeId.ZERGLINGBURROWED,
+        UnitTypeId.BANELINGBURROWED,
+        UnitTypeId.ROACHBURROWED,
+        UnitTypeId.RAVAGERBURROWED,
+        UnitTypeId.HYDRALISKBURROWED,
+        UnitTypeId.LURKERMP,
+        UnitTypeId.LURKERMPBURROWED,
+        UnitTypeId.INFESTORBURROWED,
+        UnitTypeId.SWARMHOSTBURROWEDMP,
+        UnitTypeId.ULTRALISKBURROWED,
+        UnitTypeId.MUTALISK,
+        UnitTypeId.SPIRE,
+    },
+    Race.Protoss: {
+        UnitTypeId.STARGATE,
+        UnitTypeId.ORACLE,
+        UnitTypeId.VOIDRAY,
+        UnitTypeId.CARRIER,
+        UnitTypeId.TEMPEST,
+        UnitTypeId.PHOENIX,
+    },
+    Race.Terran: {
+        UnitTypeId.STARPORT,
+        UnitTypeId.STARPORTFLYING,
+        UnitTypeId.MEDIVAC,
+        UnitTypeId.LIBERATOR,
+        UnitTypeId.RAVEN,
+        UnitTypeId.BANSHEE,
+        UnitTypeId.BATTLECRUISER,
+        UnitTypeId.WIDOWMINE,
+        UnitTypeId.WIDOWMINEBURROWED,
+    },
+}
+SPORE_TRIGGERS[Race.Random] = {
+    *SPORE_TRIGGERS[Race.Terran],
+    *SPORE_TRIGGERS[Race.Protoss],
+    *SPORE_TRIGGERS[Race.Zerg],
 }

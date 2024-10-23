@@ -14,7 +14,7 @@ sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 
-from bot.zerg import ZergAI  # type: ignore
+from bot.ai_base import PhantomBot  # type: ignore
 
 MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
 MAP_FILE_EXT: str = "SC2Map"
@@ -59,7 +59,7 @@ def create_opponents(difficulty) -> Iterable[AbstractPlayer]:
 
 if __name__ == "__main__":
 
-    ai = ZergAI()
+    ai = PhantomBot()
     if "--LadderServer" in sys.argv:
         # Ladder game started by LadderManager
         print("Starting ladder game...")

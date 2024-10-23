@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Counter, Dict, Iterable, Optional, Type
 import numpy as np
 from action import Action
 from ares import UnitRole
-from constants import GAS_BY_RACE, STATIC_DEFENSE_BY_RACE
+from constants import GAS_BY_RACE, STATIC_DEFENSE_BY_RACE, MACRO_ABILITIES
 from cost import Cost
 from modules.module import AIModule
 from resources.resource_unit import ResourceUnit
@@ -73,7 +73,6 @@ class ResourceManager(AIModule):
             resource.position: resource for resource in self.bases.flatten()
         }
         self.harvesters_by_resource: Counter[ResourceUnit] = Counter[ResourceUnit]()
-        self.income = Cost(0, 0, 0, 0)
         self.build_static_defense: bool = False
 
     @property
@@ -196,7 +195,6 @@ class ResourceManager(AIModule):
         self.update_patches_and_geysers()
         self.update_bases()
         self.update_gas()
-        self.update_income()
 
         if self.do_split:
             harvesters = (u for u in self.ai.unit_manager.units.values() if isinstance(u, Worker))
@@ -207,8 +205,13 @@ class ResourceManager(AIModule):
 
         exclude_workers = {
             w.tag
-            for w in self.ai.mediator.get_units_from_role(role=UnitRole.PERSISTENT_BUILDER)
+            for w in self.ai.all_trainers
         }
+        exclude_workers.update({
+            unit.tag
+            for unit in self.ai.all_own_units
+            if not unit.is_idle and unit.orders[0].ability.exact_id in MACRO_ABILITIES.get(unit.type_id, set())
+        })
         workers = [
             w
             for w in self.ai.unit_manager.units.values()
@@ -253,9 +256,9 @@ class ResourceManager(AIModule):
     def get_gas_target(self) -> float:
         minerals = max(0, self.ai.future_spending.minerals - self.ai.minerals)
         vespene = max(0, self.ai.future_spending.vespene - self.ai.vespene)
-        if minerals + vespene == 0:
-            minerals = sum(b.mineral_patches.remaining for b in self.bases if b.townhall)
-            vespene = sum(b.vespene_geysers.remaining for b in self.bases if b.townhall)
+        # if minerals + vespene == 0:
+        #     minerals = sum(b.mineral_patches.remaining for b in self.bases if b.townhall)
+        #     vespene = sum(b.vespene_geysers.remaining for b in self.bases if b.townhall)
 
         # gas_ratio = vespene / max(1, vespene + minerals)
         # worker_type = race_worker[self.race]
@@ -335,15 +338,3 @@ class ResourceManager(AIModule):
             key=lambda h: h.unit.position.distance_to(close_to),
             default=None,
         )
-
-    def update_income(self) -> None:
-        self.income.minerals = self.ai.state.score.collection_rate_minerals
-        self.income.vespene = self.ai.state.score.collection_rate_vespene
-
-        larva_per_second = 0.0
-        for hatchery in self.ai.townhalls:
-            if hatchery.is_ready:
-                larva_per_second += 1 / 11
-                if hatchery.has_buff(BuffId.QUEENSPAWNLARVATIMER):
-                    larva_per_second += 3 / 29
-        self.income.larva = 60.0 * larva_per_second

@@ -17,7 +17,7 @@ class Strategy(ABC, AIModule):
         super().__init__(ai)
 
     @abstractmethod
-    def build_order(self) -> Iterable[MacroId]:
+    def update_composition(self) -> None:
         raise NotImplementedError
 
     def filter_upgrade(self, upgrade: UpgradeId) -> bool:
