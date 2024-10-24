@@ -6,7 +6,6 @@ from action import Action, UseAbility
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.unit import Unit
-from sc2.unit_command import UnitCommand
 
 from ..constants import ENERGY_COST
 from ..modules.module import AIModule

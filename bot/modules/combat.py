@@ -224,7 +224,6 @@ class CombatBehavior(AIUnit):
 
     def fight(self) -> Action | None:
 
-
         if self.unit.is_idle:
             if self.ai.time < 8 * 60:
                 return AttackMove(self.unit, random.choice(self.ai.enemy_start_locations))

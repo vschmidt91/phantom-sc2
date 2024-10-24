@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Counter, Iterable
+from typing import TYPE_CHECKING, Counter
 
 import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId

@@ -5,43 +5,43 @@ import os
 import pstats
 from collections import defaultdict
 from functools import cmp_to_key
-from itertools import islice
 from typing import Iterable
 
 import numpy as np
-from sc2.game_state import ActionRawUnitCommand
-from sc2.ids.buff_id import BuffId
-
 from ares import AresBot
 from loguru import logger
 from sc2.constants import IS_DETECTOR
 from sc2.data import ActionResult, Race, Result, race_townhalls
+from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
 
-from .strategies.zerg_macro import ZergMacro
 from .action import Action
 from .behaviors.inject import InjectManager
 from .components.build_order import BuildOrder
 from .components.creep import CreepSpread
 from .constants import (
+    ALL_MACRO_ABILITIES,
     CIVILIANS,
     GAS_BY_RACE,
+    MACRO_INFO,
     RANGE_UPGRADES,
     REQUIREMENTS_KEYS,
     RESEARCH_INFO,
+    SUPPLY_PROVIDED,
     TRAIN_INFO,
     UNIT_TRAINED_FROM,
     UPGRADE_RESEARCHED_FROM,
     VERSION_FILE,
     WITH_TECH_EQUIVALENTS,
-    WORKERS, MACRO_INFO, SUPPLY_PROVIDED, ALL_MACRO_ABILITIES,
+    WORKERS,
 )
-from .cost import CostManager, Cost
+from .cost import Cost, CostManager
 from .modules.chat import Chat
 from .modules.combat import CombatModule
 from .modules.dodge import DodgeModule
@@ -53,8 +53,8 @@ from .resources.mineral_patch import MineralPatch
 from .resources.resource_manager import ResourceManager
 from .resources.vespene_geyser import VespeneGeyser
 from .strategies.strategy import Strategy
+from .strategies.zerg_macro import ZergMacro
 from .units.unit import AIUnit
-from .units.worker import Worker
 from .utils import flood_fill
 
 
@@ -243,7 +243,11 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
                 pass
             else:
                 for trainer, plan in list(self.assigned_plans.items()):
-                    if plan.item == unit.type_id and plan.target and unit.position.distance_to(plan.target.position) < 3:
+                    if (
+                        plan.item == unit.type_id
+                        and plan.target
+                        and unit.position.distance_to(plan.target.position) < 3
+                    ):
                         del self.assigned_plans[trainer]
                         self.unit_manager.try_remove_unit(trainer)
                         logger.info(f"New building matched to plan: {plan=}, {unit=}, {trainer=}")
@@ -298,11 +302,14 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
             # commands issued to a specific larva will be received by a random one
             # therefore, a direct lookup will usually be incorrect
             # instead, all plans are checked for a match
-            tag = next((
-                t
-                for t, p in self.assigned_plans.items()
-                if MACRO_INFO[UnitTypeId.LARVA].get(p.item, {}).get("ability") == action.exact_id
-            ), None)
+            tag = next(
+                (
+                    t
+                    for t, p in self.assigned_plans.items()
+                    if MACRO_INFO[UnitTypeId.LARVA].get(p.item, {}).get("ability") == action.exact_id
+                ),
+                None,
+            )
         if plan := self.assigned_plans.get(tag):
             if (
                 unit
@@ -572,7 +579,6 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
         ):
             yield required_upgrade
 
-
     @property
     def income(self) -> Cost:
 
@@ -589,7 +595,6 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
             0.0,
             60.0 * larva_per_second,
         )
-
 
     def morph_overlords(self) -> None:
         supply_pending = sum(

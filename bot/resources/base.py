@@ -1,10 +1,9 @@
-from typing import Iterable, Optional
+from typing import Iterable
 
 from sc2.position import Point2
 from sc2.unit import Unit
-from sc2.units import Units
-
 from units.unit import AIUnit
+
 from .mineral_patch import MineralPatch
 from .resource_base import ResourceBase
 from .resource_group import ResourceGroup

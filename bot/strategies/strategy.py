@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING
 
 from sc2.ids.upgrade_id import UpgradeId
 
-from ..modules.macro import MacroId
 from ..modules.module import AIModule
 
 if TYPE_CHECKING:

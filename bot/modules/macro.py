@@ -3,23 +3,23 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass
-from functools import cmp_to_key, cached_property
+from functools import cached_property, cmp_to_key
 from itertools import chain
 from typing import TYPE_CHECKING, Iterable, TypeAlias
 
-from action import Action, UseAbility, HoldPosition, Move
-from ares import AresBot, UnitRole
+from action import Action, HoldPosition, Move, UseAbility
+from ares import AresBot
 from sc2.data import race_townhalls
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
-from sc2.unit_command import UnitCommand
 from sc2.units import Units
 
 from ..components.component import Component
 from ..constants import (
+    ALL_MACRO_ABILITIES,
     GAS_BY_RACE,
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
     MACRO_INFO,
@@ -29,10 +29,10 @@ from ..constants import (
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
     ZERG_MELEE_UPGRADES,
-    ZERG_RANGED_UPGRADES, MACRO_ABILITIES, ALL_MACRO_ABILITIES,
+    ZERG_RANGED_UPGRADES,
 )
 from ..cost import Cost
-from ..utils import PlacementNotFoundException, time_to_reach
+from ..utils import PlacementNotFoundException
 
 if TYPE_CHECKING:
     pass
@@ -51,6 +51,7 @@ def compare_plans(plan_a: MacroPlan, plan_b: MacroPlan) -> int:
         return -1
     return 0
 
+
 @dataclass
 class MacroAction(Action):
     unit: Unit
@@ -58,7 +59,7 @@ class MacroAction(Action):
 
     @cached_property
     def ability(self) -> AbilityId:
-        return  MACRO_INFO.get(self.unit.type_id, {}).get(self.plan.item, {}).get("ability")
+        return MACRO_INFO.get(self.unit.type_id, {}).get(self.plan.item, {}).get("ability")
 
     async def execute(self, bot: AresBot) -> bool:
         if math.isinf(self.plan.eta):
@@ -237,9 +238,7 @@ class MacroModule(Component):
             if 0 < cost.vespene:
                 eta = max(eta, 60 * (reserve.vespene - self.vespene) / max(1, self.income.vespene))
             if 0 < cost.larva:
-                eta = max(
-                    eta, 60 * (reserve.larva - self.larva.amount) / max(1, self.income.larva)
-                )
+                eta = max(eta, 60 * (reserve.larva - self.larva.amount) / max(1, self.income.larva))
             if 0 < cost.supply:
                 if self.supply_left < cost.supply:
                     eta = math.inf
@@ -251,10 +250,7 @@ class MacroModule(Component):
         future_spending = cost_zero
         future_spending += sum((self.cost.of(plan.item) for plan in self.unassigned_plans), cost_zero)
         future_spending += sum(
-            (
-                self.cost.of(plan.item)
-                for plan in self.assigned_plans.values()
-            ),
+            (self.cost.of(plan.item) for plan in self.assigned_plans.values()),
             cost_zero,
         )
         future_spending += sum(
@@ -265,13 +261,9 @@ class MacroModule(Component):
 
         future_timeframe = 3 / 60
         if 0 < future_spending.minerals:
-            future_timeframe = max(
-                future_timeframe, future_spending.minerals / max(1, self.income.minerals)
-            )
+            future_timeframe = max(future_timeframe, future_spending.minerals / max(1, self.income.minerals))
         if 0 < future_spending.vespene:
-            future_timeframe = max(
-                future_timeframe, future_spending.vespene / max(1, self.income.vespene)
-            )
+            future_timeframe = max(future_timeframe, future_spending.vespene / max(1, self.income.vespene))
         if 0 < future_spending.larva:
             future_timeframe = max(future_timeframe, future_spending.larva / max(1, self.income.larva))
         self.future_timeframe = future_timeframe

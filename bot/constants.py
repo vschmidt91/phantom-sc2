@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from itertools import chain
-from typing import Dict
 
 from sc2.constants import (
     EQUIVALENTS_FOR_TECH_PROGRESS,
@@ -39,7 +38,7 @@ STATIC_DEFENSE_BY_RACE = {
     Race.Protoss: UnitTypeId.PHOTONCANNON,
 }
 
-RANGE_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, int]] = {
+RANGE_UPGRADES: dict[UnitTypeId, dict[UpgradeId, int]] = {
     UnitTypeId.COLOSSUS: {UpgradeId.EXTENDEDTHERMALLANCE: 2},
     UnitTypeId.HYDRALISK: {UpgradeId.EVOLVEGROOVEDSPINES: 1},
     UnitTypeId.PHOENIX: {UpgradeId.PHOENIXRANGEUPGRADE: 2},
@@ -48,7 +47,7 @@ RANGE_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, int]] = {
     UnitTypeId.AUTOTURRET: {UpgradeId.HISECAUTOTRACKING: 1},
 }
 
-SPEED_UPGRADES: Dict[UnitTypeId, Dict[UpgradeId, float]] = {
+SPEED_UPGRADES: dict[UnitTypeId, dict[UpgradeId, float]] = {
     unit_type: {upgrade: SPEED_INCREASE_DICT[unit_type]} for unit_type, upgrade in SPEED_UPGRADE_DICT.items()
 }
 
@@ -58,15 +57,10 @@ MACRO_INFO = {
 }
 
 MACRO_ABILITIES = {
-    trainer_type: {e["ability"] for item, e in element.items()}
-    for trainer_type, element in MACRO_INFO.items()
+    trainer_type: {e["ability"] for item, e in element.items()} for trainer_type, element in MACRO_INFO.items()
 }
 
-ALL_MACRO_ABILITIES = {
-    e["ability"]
-    for trainer_type, element in MACRO_INFO.items()
-    for item, e in element.items()
-}
+ALL_MACRO_ABILITIES = {e["ability"] for trainer_type, element in MACRO_INFO.items() for item, e in element.items()}
 
 COOLDOWN = {
     AbilityId.EFFECT_CORROSIVEBILE: 7 * 22.4,
@@ -147,13 +141,13 @@ CIVILIANS = {
     *CHANGELINGS,
 }
 
-UNIT_BY_TRAIN_ABILITY: Dict[AbilityId, UnitTypeId] = {
+UNIT_BY_TRAIN_ABILITY: dict[AbilityId, UnitTypeId] = {
     unit_element["ability"]: unit
     for trainer_element in TRAIN_INFO.values()
     for unit, unit_element in trainer_element.items()
 }
 
-UPGRADE_BY_RESEARCH_ABILITY: Dict[AbilityId, UpgradeId] = {
+UPGRADE_BY_RESEARCH_ABILITY: dict[AbilityId, UpgradeId] = {
     upgrade_element["ability"]: upgrade
     for research_element in RESEARCH_INFO.values()
     for upgrade, upgrade_element in research_element.items()
@@ -161,7 +155,7 @@ UPGRADE_BY_RESEARCH_ABILITY: Dict[AbilityId, UpgradeId] = {
 
 ITEM_BY_ABILITY = {**UNIT_BY_TRAIN_ABILITY, **UPGRADE_BY_RESEARCH_ABILITY}
 
-GAS_BY_RACE: Dict[Race, UnitTypeId] = {
+GAS_BY_RACE: dict[Race, UnitTypeId] = {
     Race.Zerg: UnitTypeId.EXTRACTOR,
     Race.Protoss: UnitTypeId.ASSIMILATOR,
     Race.Terran: UnitTypeId.REFINERY,
@@ -288,8 +282,7 @@ UNIT_COUNTER_DICT = {
 }
 
 
-
-SPORE_TRIGGERS: Dict[Race, Set[UnitTypeId]] = {
+SPORE_TRIGGERS: dict[Race, set[UnitTypeId]] = {
     Race.Zerg: {
         UnitTypeId.DRONEBURROWED,
         UnitTypeId.QUEENBURROWED,
