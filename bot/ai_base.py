@@ -161,10 +161,6 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
         else:
             return unit.can_attack_ground
 
-    @property
-    def supply_workers_fixed(self) -> float:
-        return self.supply_used - self.supply_army
-
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
 
@@ -219,13 +215,6 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
 
         if self.debug:
             await self.draw_debug()
-
-        if self.debug:
-            # if 90 < self.time:
-            #     await self.kill_random_units()
-            worker_count = sum(1 for b in self.unit_manager.units.values() if isinstance(b, Worker))
-            if worker_count != self.supply_workers:
-                logging.error("worker supply mismatch")
 
     def check_for_duplicate_actions(self, actions: list[Action]) -> None:
         actions_of_unit: defaultdict[Unit, list[Action]] = defaultdict(list)
@@ -321,11 +310,11 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
                 and MACRO_INFO.get(unit.type_id, {}).get(plan.item, {}).get("ability") != action.exact_id
             ):
                 return
-            if (
-                unit
-                and unit.type_id == UnitTypeId.DRONE
-            ):
-                self.unit_manager.try_remove_unit(tag)
+            # if (
+            #     unit
+            #     and unit.type_id == UnitTypeId.DRONE
+            # ):
+            #     self.unit_manager.try_remove_unit(tag)
             del self.assigned_plans[tag]
             logger.info(f"Action matched plan: {action=}, {tag=}, {plan=}")
 

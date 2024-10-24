@@ -1,8 +1,8 @@
 from typing import Iterable, Optional
 
-from resources.gather import GatherBehavior
 from sc2.position import Point2
 from sc2.unit import Unit
+from sc2.units import Units
 
 from units.unit import AIUnit
 from .mineral_patch import MineralPatch
@@ -33,17 +33,3 @@ class Base(ResourceGroup[ResourceBase]):
         static_defense_position = Point2(self.position.towards(self.mineral_patches.position, STATIC_DEFENSE_OFFSET))
         static_defense_position = static_defense_position.rounded.offset(Point2((0.5, 0.5)))
         self.static_defense_position = static_defense_position
-
-    def split_initial_workers(self, harvesters: Iterable[GatherBehavior]):
-        harvesters = set(harvesters)
-        for _ in range(len(harvesters)):
-            for patch in self.mineral_patches:
-                if not patch.unit:
-                    continue
-                harvester = min(
-                    harvesters, key=lambda h: h.unit.position.distance_to(patch.unit.position), default=None
-                )
-                if not harvester:
-                    return
-                harvesters.remove(harvester)
-                harvester.set_gather_target(patch)

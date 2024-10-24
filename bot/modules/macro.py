@@ -62,17 +62,20 @@ class MacroAction(Action):
 
     async def execute(self, bot: AresBot) -> bool:
         if math.isinf(self.plan.eta):
-            pass
+            return True
         elif self.plan.eta <= 0.0:
             if self.unit.is_carrying_resource:
                 return await UseAbility(self.unit, AbilityId.HARVEST_RETURN).execute(bot)
             else:
-                return await UseAbility(self.unit, self.ability, target=self.plan.target).execute(bot)
+                target = self.plan.target
+                if isinstance(self.plan.target, Point2) and self.plan.item != GAS_BY_RACE[bot.race]:
+                    target = await bot.find_placement(self.ability, near=self.plan.target, placement_step=1)
+                return await UseAbility(self.unit, self.ability, target=target).execute(bot)
         elif not self.plan.target:
             return True
         else:
             distance = await bot.client.query_pathing(self.unit, self.plan.target.position) or 0.0
-            movement_eta = 2.0 * distance / (1.4 * self.unit.movement_speed)
+            movement_eta = 1 + distance / (1.4 * self.unit.movement_speed)
             # movement_eta = 1.2 * time_to_reach(self.unit, self.plan.target.position)
             if self.unit.is_carrying_resource:
                 movement_eta += 3.0
@@ -192,7 +195,7 @@ class MacroModule(Component):
                     self.assigned_plans[trainer.tag] = plan
                     trainers.remove(trainer)
                 else:
-                    reserve += cost
+                    # reserve += cost
                     # if (tf := UNIT_TRAINED_FROM.get(plan.item)) and UnitTypeId.LARVA in tf:
                     continue
 

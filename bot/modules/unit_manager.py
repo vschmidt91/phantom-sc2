@@ -61,8 +61,8 @@ class UnitManager(AIModule):
             return None
         elif unit.is_mine:
             behavior = self.create_unit(unit)
-            if isinstance(behavior, Worker):
-                self.ai.resource_manager.add_harvester(behavior)
+            if unit.type_id in {UnitTypeId.DRONE, UnitTypeId.SCV, UnitTypeId.PROBE}:
+                self.ai.resource_manager.add_harvester(unit)
             self.add_unit_to_tables(behavior)
             self.units[unit.tag] = behavior
             return behavior

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
 
-from resources.gather import GatherBehavior
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit, UnitCommand
@@ -14,7 +13,7 @@ if TYPE_CHECKING:
     from ..ai_base import PhantomBot
 
 
-class Worker(DodgeBehavior, CombatBehavior, GatherBehavior):
+class Worker(DodgeBehavior, CombatBehavior):
     def __init__(self, ai: PhantomBot, unit: Unit):
         super().__init__(ai, unit)
         self.is_drafted: bool = False
@@ -30,8 +29,6 @@ class Worker(DodgeBehavior, CombatBehavior, GatherBehavior):
             #     return self.fight()
         elif self.unit.is_burrowed:
             return self.unit(AbilityId.BURROWUP)
-        elif command := self.gather():
-            return command
         else:
             return None
         # return self.dodge() or self.fight() or self.macro() or self.gather()
