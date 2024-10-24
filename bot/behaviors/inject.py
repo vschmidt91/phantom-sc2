@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Iterable, Optional
 
-from action import Action, UseAbility
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.unit import Unit
 
+from ..action import Action, UseAbility
 from ..constants import ENERGY_COST
 from ..modules.module import AIModule
 from ..resources.base import Base

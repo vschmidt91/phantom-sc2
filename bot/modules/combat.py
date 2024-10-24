@@ -8,14 +8,13 @@ from itertools import chain
 from typing import TYPE_CHECKING, Iterable, List
 
 import numpy as np
-from action import Action, AttackMove, Move
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Point2, Unit
 from skimage.draw import disk
 
-from bot.cost import Cost
-
+from ..action import Action, AttackMove, Move
 from ..constants import CHANGELINGS, CIVILIANS
+from ..cost import Cost
 from ..units.unit import AIUnit
 from .cy_dijkstra import cy_dijkstra  # type: ignore
 from .module import AIModule

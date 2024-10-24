@@ -1,15 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
-
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
+from ..units.unit import AIUnit
 from .resource_unit import ResourceUnit
-
-if TYPE_CHECKING:
-    from ..units.structure import Structure
-
 
 RICH_GAS = {
     UnitTypeId.RICHVESPENEGEYSER,
@@ -19,7 +14,7 @@ RICH_GAS = {
 class VespeneGeyser(ResourceUnit):
     def __init__(self, unit: Unit) -> None:
         super().__init__(unit)
-        self.structure: Optional[Structure] = None
+        self.structure: AIUnit | None = None
 
     @property
     def is_rich(self) -> bool:

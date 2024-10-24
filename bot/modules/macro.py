@@ -7,7 +7,6 @@ from functools import cached_property, cmp_to_key
 from itertools import chain
 from typing import TYPE_CHECKING, Iterable, TypeAlias
 
-from action import Action, HoldPosition, Move, UseAbility
 from ares import AresBot
 from sc2.data import race_townhalls
 from sc2.ids.ability_id import AbilityId
@@ -17,6 +16,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
+from ..action import Action, HoldPosition, Move, UseAbility
 from ..components.component import Component
 from ..constants import (
     ALL_MACRO_ABILITIES,

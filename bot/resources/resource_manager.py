@@ -5,15 +5,15 @@ from itertools import chain
 from typing import TYPE_CHECKING, Counter, Dict, Iterable, Optional, Type
 
 import numpy as np
-from action import Action
-from constants import GAS_BY_RACE, MACRO_ABILITIES, STATIC_DEFENSE_BY_RACE
-from modules.module import AIModule
-from resources.resource_unit import ResourceUnit
 from sc2.data import race_gas, race_townhalls
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
+from ..action import Action
+from ..constants import GAS_BY_RACE, MACRO_ABILITIES, STATIC_DEFENSE_BY_RACE
+from ..modules.module import AIModule
+from ..resources.resource_unit import ResourceUnit
 from .base import Base
 from .gather import GatherAction
 from .mineral_patch import MineralPatch

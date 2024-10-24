@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Iterable
 
-from action import Action
+from ..action import Action
 
 if TYPE_CHECKING:
     from ..ai_base import PhantomBot

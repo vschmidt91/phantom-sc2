@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Dict, Iterable, List, Optional
 
-from action import Action, HoldPosition, Move
 from sc2.position import Point2
 from sc2.unit import Unit
 
+from ..action import Action, HoldPosition, Move
 from ..units.unit import AIUnit
 from .module import AIModule
 
