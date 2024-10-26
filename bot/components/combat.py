@@ -94,7 +94,9 @@ class CombatModule(Component):
 
     def do_combat(self) -> Iterable[Action]:
 
-        army = self.units.filter(lambda u: u.type_id not in CIVILIANS).filter(lambda u: not(u.type_id == UnitTypeId.QUEEN and u.tag in self._inject_assignment and 20 <= u.energy))
+        army = self.units.filter(lambda u: u.type_id not in CIVILIANS).filter(
+            lambda u: not (u.type_id == UnitTypeId.QUEEN and u.tag in self._inject_assignment and 20 <= u.energy)
+        )
         enemies = self.all_enemy_units
 
         self.ground_dps = np.zeros(self.game_info.map_size)
@@ -160,8 +162,13 @@ class CombatModule(Component):
         def unit_value(cost: Cost):
             return cost.minerals + cost.vespene
 
-        army_cost = sum(unit_value(self.cost.of(unit.type_id)) for unit in army)
-        enemy_cost = sum(unit_value(self.cost.of(unit.type_id)) for unit in enemies)
+        army_cost = sum(
+            unit_value(self.cost.of(unit.type_id))
+            for unit in self.all_own_units.exclude_type(CIVILIANS).exclude_type(UnitTypeId.QUEEN)
+        )
+        enemy_cost = sum(
+            unit_value(self.cost.of(unit.type_id)) for unit in self.all_enemy_units if unit.type_id not in CIVILIANS
+        )
         self.confidence = army_cost / max(1, army_cost + enemy_cost)
 
         changelings = list(chain.from_iterable(self.actual_by_type[t] for t in CHANGELINGS))

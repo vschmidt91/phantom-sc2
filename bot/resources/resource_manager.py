@@ -144,9 +144,7 @@ class ResourceManager(AIModule):
                     break
 
     def update_patches_and_geysers(self) -> None:
-        gas_buildings_by_position = {
-            gas.position: gas for gas in self.ai.actual_by_type[race_gas[self.ai.race]]
-        }
+        gas_buildings_by_position = {gas.position: gas for gas in self.ai.actual_by_type[race_gas[self.ai.race]]}
 
         resource_by_position = {unit.position: unit for unit in self.ai.resources}
 
@@ -253,10 +251,12 @@ class ResourceManager(AIModule):
         # worker_type = race_worker[self.race]
         # gas_target = gas_ratio * self.count(worker_type, include_pending=False)
 
-        vespene *= 1.2
+        vespene *= 5 / 4
 
-        gas_ratio = 1 - 1 / (1 + vespene / max(1, minerals))
-        gas_target = self.ai.state.score.food_used_economy * gas_ratio
+        n = self.ai.supply_workers
+        gas_target = n * vespene / max(1, minerals + vespene)
+        # gas_ratio = 1 - 1 / (1 + vespene / max(1, minerals))
+        # gas_target = self.ai.state.score.food_used_economy * gas_ratio
 
         # print(minerals, vespene)
 
@@ -308,6 +308,7 @@ class ResourceManager(AIModule):
 
     def pick_resource(self, resources: Iterable[ResourceUnit]) -> ResourceUnit | None:
 
+        resources = [r for r in resources if r.target_unit]
         if not any(resources):
             return None
 

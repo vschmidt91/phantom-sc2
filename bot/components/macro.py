@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Iterable, TypeAlias
 
 from ares import AresBot
 from loguru import logger
-from sc2.data import race_townhalls
+from sc2.data import ActionResult, race_townhalls
 from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -170,6 +170,11 @@ class MacroModule(Component):
         for action in self.state.actions_unit_commands:
             for tag in action.unit_tags:
                 self.handle_action(action, tag)
+
+        for error in self.state.action_errors:
+            if error.result == ActionResult.CantBuildLocationInvalid.value:
+                if plan := self.assigned_plans.get(error.unit_tag):
+                    plan.target = None
 
     def handle_action(self, action: ActionRawUnitCommand, tag: int) -> None:
         unit = self.unit_tag_dict.get(tag)

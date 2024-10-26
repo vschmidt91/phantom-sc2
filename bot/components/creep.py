@@ -4,6 +4,7 @@ from typing import Iterable
 
 import numpy as np
 from loguru import logger
+from sc2.data import ActionResult
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -49,6 +50,10 @@ class CreepSpread(Component):
             self.creep_value_map[r] *= 3
 
         self.creep_value_map_blurred = gaussian_filter(self.creep_value_map, 3)
+
+        for error in self.state.action_errors:
+            if error.result == ActionResult.CantBuildLocationInvalid.value:
+                self._tumor_spread_at_step.pop(error.unit_tag, None)
 
         for tumor in self.mediator.get_own_structures_dict[UnitTypeId.CREEPTUMORBURROWED]:
             creation_step = self._tumor_created_at_step.setdefault(tumor.tag, self.state.game_loop)

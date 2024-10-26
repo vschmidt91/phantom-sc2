@@ -1,16 +1,14 @@
 import cProfile
 import math
-import os
 import pstats
 from collections import defaultdict
 from functools import cmp_to_key
 from typing import Iterable
 
-import numpy as np
 from ares import AresBot
 from loguru import logger
 from sc2.constants import IS_DETECTOR
-from sc2.data import ActionResult, Race, Result, race_townhalls
+from sc2.data import Race, Result, race_townhalls
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
@@ -36,7 +34,6 @@ from .constants import (
     TRAIN_INFO,
     UNIT_TRAINED_FROM,
     UPGRADE_RESEARCHED_FROM,
-    VERSION_FILE,
     WITH_TECH_EQUIVALENTS,
     WORKERS,
 )
@@ -57,53 +54,22 @@ class PhantomBot(
     UnitManager,
     AresBot,
 ):
-    def __init__(
-        self,
-    ) -> None:
+    def __init__(self, debug: bool = False, game_step_override: int | None = None) -> None:
 
-        if os.path.exists(VERSION_FILE):
-            with open(VERSION_FILE) as f:
-                self.version = f.read()
-
-        self.debug: bool = False
-
-        self.extractor_trick_enabled: bool = False
-        self.iteration: int = 0
-        self.profiler: cProfile.Profile | None = None
+        self.debug = debug
+        self.profiler = cProfile.Profile() if debug else None
         self.cost = CostManager(self.calculate_cost, self.calculate_supply_cost)
-        super().__init__(game_step_override=2)
+        super().__init__(game_step_override=game_step_override)
 
     async def on_before_start(self):
         await super().on_before_start()
+        self.chat = Chat(self.client)
 
     async def on_start(self) -> None:
         await super().on_start()
-
-        pathing_grid = self.game_info.pathing_grid.data_numpy.transpose()
-        border_x, border_y = np.gradient(pathing_grid)
-        self.pathing_border = np.stack(
-            [
-                border_x,
-                border_y,
-            ],
-            axis=-1,
-        )
-
-        self.enemy_main = self.create_enemy_main_map()
-
         bases = await self.initialize_bases()
-
         self.resource_manager = ResourceManager(self, bases)
-        self.chat = Chat(self.client)
-
-    def handle_errors(self):
-        for error in self.state.action_errors:
-            logger.error(error)
-            if error.result == ActionResult.CantBuildLocationInvalid.value:
-                if unit := self.unit_tag_dict.get(error.unit_tag):
-                    self.blocked_positions[unit.position] = self.time
-                if plan := self.assigned_plans.get(error.unit_tag):
-                    plan.target = None
+        self.initialize_scout_targets()
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
@@ -118,8 +84,6 @@ class PhantomBot(
 
         if self.profiler:
             self.profiler.enable()
-
-        self.handle_errors()
 
         self.update_all_units()
 

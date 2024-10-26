@@ -68,7 +68,7 @@ class Strategy(Component):
                 for counter in UNIT_COUNTER_DICT.get(enemy_type, []):
                     if can_build[counter]:
                         composition[counter] += (
-                            1.5 * ratio * count * self.get_unit_cost(enemy_type) / self.get_unit_cost(counter)
+                            2 * ratio * count * self.get_unit_cost(enemy_type) / self.get_unit_cost(counter)
                         )
                         break
         elif 0.8 < self.tech_requirement_progress(UnitTypeId.ZERGLING):

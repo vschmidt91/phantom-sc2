@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterable
 
 from ares import AresBot
+from sc2.data import ActionResult
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -21,22 +22,28 @@ class ScoutModule(Component):
     blocked_positions: dict[Point2, float] = dict()
     static_targets: list[Point2] = list()
 
+    def detect_blocked_bases(self) -> None:
+        for error in self.state.action_errors:
+            if error.result == ActionResult.CantBuildLocationInvalid.value:
+                if unit := self.unit_tag_dict.get(error.unit_tag):
+                    self.blocked_positions[unit.position] = self.time
+
     def reset_blocked_bases(self) -> None:
         for position, blocked_since in list(self.blocked_positions.items()):
             if blocked_since + 60 < self.time:
                 del self.blocked_positions[position]
 
+    def initialize_scout_targets(self) -> None:
+        for base in self.resource_manager.bases[1 : len(self.resource_manager.bases) // 2]:
+            self.static_targets.append(base.position)
+
+        self.static_targets.sort(key=lambda t: t.distance_to(self.start_location))
+
+        for pos in self.enemy_start_locations:
+            pos = 0.5 * (pos + self.start_location)
+            self.static_targets.insert(1, pos)
+
     def do_scouting(self) -> Iterable[Action]:
-
-        if self.iteration == 1:
-            for base in self.resource_manager.bases[1 : len(self.resource_manager.bases) // 2]:
-                self.static_targets.append(base.position)
-
-            self.static_targets.sort(key=lambda t: t.distance_to(self.start_location))
-
-            for pos in self.enemy_start_locations:
-                pos = 0.5 * (pos + self.start_location)
-                self.static_targets.insert(1, pos)
 
         scouts = self.units({UnitTypeId.OVERLORD, UnitTypeId.OVERSEER})
         detectors = [u for u in scouts if u.is_detector]
@@ -48,6 +55,7 @@ class ScoutModule(Component):
         scout_targets.extend(self.static_targets)
 
         self.reset_blocked_bases()
+        self.detect_blocked_bases()
 
         detectors.sort(key=lambda u: u.tag)
         nondetectors.sort(key=lambda u: u.tag)

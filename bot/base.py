@@ -14,7 +14,6 @@ from .cost import Cost
 from .resources.base import Base
 from .resources.mineral_patch import MineralPatch
 from .resources.vespene_geyser import VespeneGeyser
-from .utils import flood_fill
 
 
 class BotBase(AresBot, ABC):
@@ -36,20 +35,6 @@ class BotBase(AresBot, ABC):
             60.0 * larva_per_second,
         )
 
-    def create_enemy_main_map(self) -> np.ndarray:
-        weight = np.where(
-            np.transpose(self.game_info.placement_grid.data_numpy) == 1,
-            1.0,
-            np.inf,
-        )
-        origins = [p.rounded for p in self.enemy_start_locations]
-        enemy_main = flood_fill(
-            weight,
-            origins,
-        )
-        enemy_main = np.isfinite(enemy_main)
-        return enemy_main
-
     def enumerate_positions(self, structure: Unit) -> Iterable[Point2]:
         radius = structure.footprint_radius
         return (
@@ -58,49 +43,17 @@ class BotBase(AresBot, ABC):
             for y_offset in np.arange(-radius, +radius + 1)
         )
 
-    def create_distance_map(self) -> tuple[np.ndarray, np.ndarray]:
-        pathing = np.transpose(self.game_info.pathing_grid.data_numpy)
-        for townhall in self.townhalls:
-            for position in self.enumerate_positions(townhall):
-                pathing[position.rounded] = 1
-
-        weight_ground = np.where(
-            np.transpose(self.game_info.pathing_grid.data_numpy) == 0,
-            np.inf,
-            1.0,
-        )
-        origins = [th.position.rounded for th in self.townhalls]
-        distance_ground = flood_fill(
-            weight_ground,
-            origins,
-        )
-        distance_ground = np.where(np.isinf(distance_ground), np.nan, distance_ground)
-        distance_ground /= np.nanmax(distance_ground)
-        distance_ground = np.where(np.isnan(distance_ground), 1, distance_ground)
-
-        weight_air = np.where(
-            np.transpose(self.game_info.pathing_grid.data_numpy) == 0,
-            1.0,
-            10.0,
-        )
-        weight_air[0 : self.game_info.playable_area.x, :] = np.inf
-        weight_air[self.game_info.playable_area.right : -1, :] = np.inf
-        weight_air[:, 0 : self.game_info.playable_area.y] = np.inf
-        weight_air[:, self.game_info.playable_area.top : -1] = np.inf
-        distance_air = flood_fill(
-            weight_air,
-            origins,
-        )
-        distance_air = np.where(np.isinf(distance_air), np.nan, distance_air)
-        distance_air /= np.nanmax(distance_air)
-        distance_air = np.where(np.isnan(distance_air), 1, distance_air)
-
-        return distance_ground, distance_air
-
     async def initialize_bases(self):
 
+        base_distances = await self.client.query_pathings(
+            [[self.start_location, b] for b in self.expansion_locations_list]
+        )
+        distance_of_base = {b: d for b, d in zip(self.expansion_locations_list, base_distances)}
+        distance_of_base[self.start_location] = 0
+        for b in self.enemy_start_locations:
+            distance_of_base[b] = np.inf
+
         start_bases = {self.start_location, *self.enemy_start_locations}
-        distance_ground, distance_air = self.create_distance_map()
 
         bases = []
         for position, resources in self.expansion_locations_dict.items():
@@ -115,7 +68,7 @@ class BotBase(AresBot, ABC):
 
         bases = sorted(
             bases,
-            key=lambda b: distance_ground[b.position.rounded] + distance_air[b.position.rounded],
+            key=lambda b: distance_of_base[b.position],
         )
 
         return bases
