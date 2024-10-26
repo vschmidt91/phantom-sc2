@@ -9,8 +9,9 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
+from resources.base import Base
 from ..action import Action
-from .component import Component
+from .base import Component
 
 if TYPE_CHECKING:
     pass
@@ -33,8 +34,8 @@ class ScoutModule(Component):
             if blocked_since + 60 < self.time:
                 del self.blocked_positions[position]
 
-    def initialize_scout_targets(self) -> None:
-        for base in self.resource_manager.bases[1 : len(self.resource_manager.bases) // 2]:
+    def initialize_scout_targets(self, bases: list[Base]) -> None:
+        for base in bases[1 : len(bases) // 2]:
             self.static_targets.append(base.position)
 
         self.static_targets.sort(key=lambda t: t.distance_to(self.start_location))

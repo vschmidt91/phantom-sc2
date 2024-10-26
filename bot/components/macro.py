@@ -35,7 +35,7 @@ from ..constants import (
 )
 from ..cost import Cost
 from ..utils import PlacementNotFoundException
-from .component import Component
+from .base import Component
 
 if TYPE_CHECKING:
     pass

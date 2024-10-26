@@ -12,7 +12,6 @@ from sc2.unit import Unit
 
 from ..action import Action
 from ..constants import GAS_BY_RACE, MACRO_ABILITIES, STATIC_DEFENSE_BY_RACE
-from ..modules.module import AIModule
 from ..resources.resource_unit import ResourceUnit
 from .base import Base
 from .gather import GatherAction
@@ -21,7 +20,7 @@ from .resource_group import ResourceGroup
 from .vespene_geyser import VespeneGeyser
 
 if TYPE_CHECKING:
-    from ..ai_base import PhantomBot
+    from ..phantom import PhantomBot
 
 MINING_RADIUS = 1.325
 
@@ -59,9 +58,9 @@ def get_intersections(position1: Point2, radius1: float, position2: Point2, radi
         yield middle - orthogonal
 
 
-class ResourceManager(AIModule):
+class ResourceManager:
     def __init__(self, ai: PhantomBot, bases: Iterable[Base]) -> None:
-        super().__init__(ai)
+        self.ai = ai
         self.do_split = True
         self.bases = ResourceGroup(list(bases))
         self.set_speedmining_positions()

@@ -9,7 +9,7 @@ from sc2.unit import Unit
 
 from ..action import Action, UseAbility
 from ..constants import ENERGY_COST
-from .component import Component
+from .base import Component
 
 if TYPE_CHECKING:
     pass

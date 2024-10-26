@@ -10,7 +10,7 @@ from ..base import BotBase
 class ChatContext(Protocol):
 
     async def chat_send(self, message: str, team_only: bool) -> None:
-        raise NotImplementedError()
+        """"""
 
 
 @dataclass

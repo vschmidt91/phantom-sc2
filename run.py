@@ -14,7 +14,7 @@ sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 
-from bot.ai_base import PhantomBot  # type: ignore
+from bot.phantom import PhantomBot  # type: ignore
 
 MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
 MAP_FILE_EXT: str = "SC2Map"

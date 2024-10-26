@@ -13,7 +13,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from ..action import Action, Move, UseAbility
-from .component import Component
+from .base import Component
 
 if TYPE_CHECKING:
     pass

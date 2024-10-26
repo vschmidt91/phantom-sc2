@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
 from itertools import chain
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Iterable, TypeAlias
 
 import numpy as np
 from ares import AresBot
@@ -20,19 +20,10 @@ from ..action import Action, AttackMove, Move, UseAbility
 from ..constants import CHANGELINGS, CIVILIANS, COOLDOWN, ENERGY_COST
 from ..cost import Cost
 from ..cython.cy_dijkstra import cy_dijkstra  # type: ignore
-from .component import Component
+from .base import Component
 
 if TYPE_CHECKING:
     pass
-
-
-class Enemy:
-    def __init__(self, unit: Unit) -> None:
-        self.unit = unit
-        self.targets: list[CombatAction] = []
-        self.threats: list[CombatAction] = []
-        self.dps_incoming: float = 0.0
-        self.estimated_survival: float = np.inf
 
 
 class CombatStance(Enum):
@@ -42,19 +33,7 @@ class CombatStance(Enum):
     ADVANCE = auto()
 
 
-class InfluenceMapEntry(Enum):
-    DPS_GROUND_GROUND = 0
-    DPS_GROUND_AIR = 1
-    DPS_AIR_GROUND = 2
-    DPS_AIR_AIR = 3
-    HP_GROUND = 4
-    HP_AIR = 5
-    COUNT = 6
-
-
-CONFIDENCE_MAP_SCALE = 6
-
-Point = tuple[int, int]
+Point: TypeAlias = tuple[int, int]
 HALF = Point2((0.5, 0.5))
 
 
@@ -144,7 +123,6 @@ class CombatModule(Component):
         time_scale = 1 / 3
         for unit in army:
             for enemy in enemies:
-
                 dps = unit.air_dps if enemy.is_flying else unit.ground_dps
                 weight = math.exp(-max(0.0, time_scale * time_until_in_range(unit, enemy)))
                 dps_incoming[enemy.tag] += dps * weight
@@ -178,7 +156,7 @@ class CombatModule(Component):
         for unit in army:
             if unit.type_id in {UnitTypeId.OVERSEER} and (action := self.do_spawn_changeling(unit)):
                 yield action
-            if unit.type_id in {UnitTypeId.ROACH} and (action := self.do_burrow(unit)):
+            elif unit.type_id in {UnitTypeId.ROACH} and (action := self.do_burrow(unit)):
                 yield action
             elif unit.type_id in {UnitTypeId.ROACHBURROWED} and (action := self.do_unburrow(unit)):
                 yield action

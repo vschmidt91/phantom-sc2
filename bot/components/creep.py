@@ -14,7 +14,7 @@ from skimage.draw import circle_perimeter, line, rectangle
 
 from ..action import Action, UseAbility
 from ..constants import ENERGY_COST
-from .component import Component
+from .base import Component
 
 TUMOR_RANGE = 10
 

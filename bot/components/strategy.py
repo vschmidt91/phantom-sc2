@@ -12,7 +12,7 @@ from ..constants import (
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
 )
-from .component import Component
+from .base import Component
 
 if TYPE_CHECKING:
     pass

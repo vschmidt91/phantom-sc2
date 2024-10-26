@@ -1,6 +1,6 @@
 from sc2.ids.unit_typeid import UnitTypeId
 
-from .component import Component
+from .base import Component
 
 
 class BuildOrder(Component):

@@ -20,7 +20,7 @@ from .components.chat import Chat
 from .components.combat import CombatModule
 from .components.creep import CreepSpread
 from .components.dodge import DodgeModule
-from .components.inject import InjectManager
+from .components.inject import Inject
 from .components.macro import MacroId, MacroModule, compare_plans
 from .components.scout import ScoutModule
 from .components.strategy import Strategy
@@ -46,7 +46,7 @@ class PhantomBot(
     CombatModule,
     CreepSpread,
     DodgeModule,
-    InjectManager,
+    Inject,
     MacroModule,
     ScoutModule,
     Strategy,
@@ -69,7 +69,7 @@ class PhantomBot(
         await super().on_start()
         bases = await self.initialize_bases()
         self.resource_manager = ResourceManager(self, bases)
-        self.initialize_scout_targets()
+        self.initialize_scout_targets(bases)
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
@@ -85,7 +85,9 @@ class PhantomBot(
         if self.profiler:
             self.profiler.enable()
 
-        self.update_all_units()
+        self.update_tables()
+
+        self.assign_queens(self.actual_by_type[UnitTypeId.QUEEN], self.townhalls)
 
         build_order_completed = self.run_build_order()
 
@@ -102,7 +104,10 @@ class PhantomBot(
         actions.extend(self.resource_manager.on_step())
         actions.extend(self.spread_creep())
         actions.extend(self.do_transfuse())
-        actions.extend(self.do_injects())
+
+        if self.larva.amount + self.supply_used < 200:
+            actions.extend(self.do_injects())
+
         actions.extend(self.do_scouting())
         actions.extend(self.do_dodge())
         actions.extend(self.do_combat())
@@ -132,8 +137,8 @@ class PhantomBot(
                 unit = getattr(action, "unit")
                 actions_of_unit[unit].append(action)
         for unit, unit_actions in actions_of_unit.items():
-            # if len(unit_actions) > 1:
-            #     logger.info(f"Unit {unit} received multiple commands: {actions}")
+            if len(unit_actions) > 1:
+                logger.debug(f"Unit {unit} received multiple commands: {actions}")
             for a in unit_actions[1:]:
                 actions.remove(a)
 
