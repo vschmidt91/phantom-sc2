@@ -3,7 +3,6 @@ from __future__ import annotations
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
-from ..units.unit import AIUnit
 from .resource_unit import ResourceUnit
 
 RICH_GAS = {
@@ -14,7 +13,7 @@ RICH_GAS = {
 class VespeneGeyser(ResourceUnit):
     def __init__(self, unit: Unit) -> None:
         super().__init__(unit)
-        self.structure: AIUnit | None = None
+        self.structure: Unit | None = None
 
     @property
     def is_rich(self) -> bool:
@@ -34,8 +33,8 @@ class VespeneGeyser(ResourceUnit):
 
     @property
     def harvester_target(self) -> int:
-        return 3 if self.structure and self.structure.unit.is_ready and self.remaining else 0
+        return 3 if self.structure and self.structure.is_ready and self.remaining else 0
 
     @property
     def target_unit(self) -> Unit | None:
-        return self.structure.unit if self.structure else None
+        return self.structure if self.structure else None

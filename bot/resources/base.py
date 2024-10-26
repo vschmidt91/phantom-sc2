@@ -3,7 +3,6 @@ from typing import Iterable
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from ..units.unit import AIUnit
 from .mineral_patch import MineralPatch
 from .resource_base import ResourceBase
 from .resource_group import ResourceGroup
@@ -19,7 +18,7 @@ class Base(ResourceGroup[ResourceBase]):
         mineral_patches: Iterable[MineralPatch],
         vespene_geysers: Iterable[VespeneGeyser],
     ):
-        self.townhall: AIUnit | None = None
+        self.townhall: Unit | None = None
         self.static_defense: Unit | None = None
         self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(
             sorted(mineral_patches, key=lambda m: m.position.distance_to(position))

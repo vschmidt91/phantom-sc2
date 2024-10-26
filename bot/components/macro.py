@@ -8,7 +8,9 @@ from itertools import chain
 from typing import TYPE_CHECKING, Iterable, TypeAlias
 
 from ares import AresBot
+from loguru import logger
 from sc2.data import race_townhalls
+from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -16,11 +18,11 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from ..action import Action, HoldPosition, Move, UseAbility
-from ..components.component import Component
+from ..action import Action
 from ..constants import (
     ALL_MACRO_ABILITIES,
     GAS_BY_RACE,
+    ITEM_BY_ABILITY,
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
     MACRO_INFO,
     REQUIREMENTS,
@@ -33,6 +35,7 @@ from ..constants import (
 )
 from ..cost import Cost
 from ..utils import PlacementNotFoundException
+from .component import Component
 
 if TYPE_CHECKING:
     pass
@@ -66,12 +69,22 @@ class MacroAction(Action):
             return True
         elif self.plan.eta <= 0.0:
             if self.unit.is_carrying_resource:
-                return await UseAbility(self.unit, AbilityId.HARVEST_RETURN).execute(bot)
+                return self.unit(AbilityId.HARVEST_RETURN)
             else:
                 target = self.plan.target
-                if isinstance(self.plan.target, Point2) and self.plan.item != GAS_BY_RACE[bot.race]:
-                    target = await bot.find_placement(self.ability, near=self.plan.target, placement_step=1)
-                return await UseAbility(self.unit, self.ability, target=target).execute(bot)
+                # if isinstance(self.plan.target, Point2):
+                #     if not await bot.can_place_single(self.ability, self.plan.target):
+                #         self.plan.target = None
+                #         return False
+                # if isinstance(self.plan.target, Point2) and self.plan.item != GAS_BY_RACE[bot.race]:
+                #     for d in range(10):
+                #         target = await bot.find_placement(
+                #             self.ability, near=self.plan.target, placement_step=1, max_distance=d
+                #         )
+                #         if target:
+                #             break
+                self.plan.executed = True
+                return self.unit(self.ability, target=target)
         elif not self.plan.target:
             return True
         else:
@@ -79,16 +92,16 @@ class MacroAction(Action):
             movement_eta = 1 + distance / (1.4 * self.unit.movement_speed)
             # movement_eta = 1.2 * time_to_reach(self.unit, self.plan.target.position)
             if self.unit.is_carrying_resource:
-                movement_eta += 3.0
+                movement_eta += 1
             if self.plan.eta <= movement_eta:
                 if self.plan.item == UnitTypeId.EXTRACTOR:
                     return True
                 elif self.unit.is_carrying_resource:
-                    return await UseAbility(self.unit, AbilityId.HARVEST_RETURN).execute(bot)
+                    return self.unit(AbilityId.HARVEST_RETURN)
                 elif 1e-3 < self.unit.position.distance_to(self.plan.target.position):
-                    return await Move(self.unit, self.plan.target).execute(bot)
+                    return self.unit.move(self.plan.target)
                 else:
-                    return await HoldPosition(self.unit).execute(bot)
+                    return self.unit.hold_position()
 
         return True
 
@@ -101,6 +114,7 @@ class MacroPlan:
     priority: float = 0.0
     max_distance: int | None = 4
     eta: float = math.inf
+    executed: bool = False
 
     def __hash__(self) -> int:
         return hash(self.plan_id)
@@ -152,9 +166,39 @@ class MacroModule(Component):
                 plan = self.add_plan(unit)
                 plan.priority = priority
 
+    def handle_actions(self) -> None:
+        for action in self.state.actions_unit_commands:
+            for tag in action.unit_tags:
+                self.handle_action(action, tag)
+
+    def handle_action(self, action: ActionRawUnitCommand, tag: int) -> None:
+        unit = self.unit_tag_dict.get(tag)
+        if unit and unit.type_id == UnitTypeId.EGG:
+            # commands issued to a specific larva will be received by a random one
+            # therefore, a direct lookup will usually be incorrect
+            # instead, all plans are checked for a match
+            for t, p in self.assigned_plans.items():
+                if ITEM_BY_ABILITY.get(action.exact_id) == p.item:
+                    tag = t
+                    break
+        if plan := self.assigned_plans.get(tag):
+            if ITEM_BY_ABILITY.get(action.exact_id) == plan.item:
+                del self.assigned_plans[tag]
+                logger.info(f"Action matched plan: {action=}, {tag=}, {plan=}")
+            # if (
+            #     unit
+            #     and unit.type_id == UnitTypeId.DRONE
+            # ):
+            #     self.unit_manager.try_remove_unit(tag)
+
+        elif action.exact_id in ALL_MACRO_ABILITIES:
+            logger.info(f"Action performed by non-existing unit: {action=}, {tag=}")
+
     def macro(self) -> Iterable[Action]:
 
         reserve = Cost(0, 0, 0, 0)
+
+        self.handle_actions()
 
         plans = sorted(
             self.enumerate_plans(),
@@ -189,6 +233,13 @@ class MacroModule(Component):
             # if 1 <= i and plan.priority == math.inf:
             #     break
 
+            # reset target on failure
+            if plan.executed:
+                plan.target = None
+                plan.executed = False
+                # if trainer := trainer_by_plan.get(plan):
+                #     del self.assigned_plans[trainer.tag]
+
             if not (trainer := trainer_by_plan.get(plan)):
                 if trainer := self.search_trainer(trainers, plan.item):
                     if plan in self.unassigned_plans:
@@ -212,8 +263,8 @@ class MacroModule(Component):
 
             ability = MACRO_INFO.get(trainer.type_id, {}).get(plan.item, {}).get("ability")
             if ability is None:
-                del self.assigned_plans[trainer.tag]
-                self.unassigned_plans.append(plan)
+                if self.assigned_plans.pop(trainer.tag, None):
+                    self.unassigned_plans.append(plan)
                 continue
 
             if not (trainer and ability and trainer.is_using_ability(ability)):
@@ -282,9 +333,9 @@ class MacroModule(Component):
                 {step.target.tag for step in self.planned_by_type(gas_type) if isinstance(step.target, Unit)}
             )
             geysers = [
-                geyser
+                geyser.unit
                 for geyser in self.get_owned_geysers()
-                if (geyser.position not in exclude_positions and geyser.tag not in exclude_tags)
+                if (geyser.position not in exclude_positions and geyser.unit.tag not in exclude_tags)
             ]
             if not any(geysers):
                 raise PlacementNotFoundException()
@@ -335,36 +386,34 @@ class MacroModule(Component):
 
         return min(trainers_filtered, key=lambda t: t.tag, default=None)
 
-    def get_target_position(self, target: UnitTypeId) -> Point2:
+    def get_target_position(self, target: UnitTypeId) -> Point2 | None:
         data = self.game_data.units[target.value]
         if target in race_townhalls[self.race]:
             for base in self.resource_manager.bases:
                 if base.townhall:
                     continue
-                if base.position in self.scout.blocked_positions:
+                if base.position in self.blocked_positions:
                     continue
                 if not base.remaining:
                     continue
                 return base.position
-            raise PlacementNotFoundException()
+            return None
 
         bases = list(self.resource_manager.bases)
         random.shuffle(bases)
         for base in bases:
             if not base.townhall:
                 continue
-            elif not base.townhall.unit.is_ready:
+            elif not base.townhall.is_ready:
                 continue
             position = base.position.towards_with_random_angle(base.mineral_patches.position, 10)
             offset = data.footprint_radius % 1
             position = position.rounded.offset((offset, offset))
             return position
-        raise PlacementNotFoundException()
+        return None
 
-    def make_tech(self):
-        upgrades = [
-            u for unit in self.composition for u in self.upgrades_by_unit(unit) if self.strategy.filter_upgrade(u)
-        ]
+    def make_tech(self) -> None:
+        upgrades = [u for unit in self.composition for u in self.upgrades_by_unit(unit) if self.filter_upgrade(u)]
         upgrades.append(UpgradeId.ZERGLINGMOVEMENTSPEED)
         targets: set[MacroId] = set(upgrades)
         targets.update(self.composition.keys())
@@ -376,7 +425,7 @@ class MacroModule(Component):
                 target_met = bool(self.count(target))
             if not target_met:
                 plan = self.add_plan(target)
-                plan.priority = -1 / 3
+                plan.priority = -1 / 2
 
     def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
         if unit == UnitTypeId.ZERGLING:

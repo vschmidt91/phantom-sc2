@@ -1,4 +1,4 @@
-from typing import Generic, Iterable, Iterator, List, Optional, TypeVar
+from typing import Generic, Iterable, Iterator, Optional, TypeVar, cast
 
 from sc2.position import Point2
 
@@ -9,11 +9,11 @@ T = TypeVar("T", bound=ResourceBase)
 
 
 class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
-    def __init__(self, items: List[T], position: Optional[Point2] = None) -> None:
+    def __init__(self, items: list[T], position: Optional[Point2] = None) -> None:
         if position is None:
             position = center((r.position for r in items))
         super().__init__(position)
-        self.items: List[T] = items
+        self.items = items
 
     def __iter__(self) -> Iterator[T]:
         return iter(self.items)
@@ -25,7 +25,7 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
         return len(self.items)
 
     def flatten(self) -> Iterable[T]:
-        return (x for item in self.items for x in item.flatten())
+        return (cast(T, x) for item in self.items for x in item.flatten())
 
     @property
     def remaining(self) -> int:

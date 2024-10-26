@@ -12,25 +12,22 @@ from ares import AresBot
 from loguru import logger
 from sc2.constants import IS_DETECTOR
 from sc2.data import ActionResult, Race, Result, race_townhalls
-from sc2.game_state import ActionRawUnitCommand
-from sc2.ids.ability_id import AbilityId
-from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
-from sc2.units import Units
 
 from .action import Action
-from .behaviors.inject import InjectManager
 from .components.build_order import BuildOrder
+from .components.combat import CombatModule
 from .components.creep import CreepSpread
+from .components.dodge import DodgeModule
+from .components.inject import InjectManager
+from .components.macro import MacroId, MacroModule, compare_plans
+from .components.scout import ScoutModule
+from .components.strategy import Strategy
 from .constants import (
-    ALL_MACRO_ABILITIES,
-    CIVILIANS,
     GAS_BY_RACE,
-    MACRO_INFO,
-    RANGE_UPGRADES,
     REQUIREMENTS_KEYS,
     RESEARCH_INFO,
     SUPPLY_PROVIDED,
@@ -41,24 +38,15 @@ from .constants import (
     WITH_TECH_EQUIVALENTS,
     WORKERS,
 )
-from .cost import Cost, CostManager
+from .cost import CostManager
 from .modules.chat import Chat
-from .modules.combat import CombatModule
-from .modules.dodge import DodgeModule
-from .modules.macro import MacroId, MacroModule, compare_plans
-from .modules.scout import ScoutModule
 from .modules.unit_manager import UnitManager
-from .resources.base import Base
-from .resources.mineral_patch import MineralPatch
 from .resources.resource_manager import ResourceManager
-from .resources.vespene_geyser import VespeneGeyser
-from .strategies.strategy import Strategy
-from .strategies.zerg_macro import ZergMacro
-from .units.unit import AIUnit
-from .utils import flood_fill
 
 
-class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
+class PhantomBot(
+    BuildOrder, CombatModule, CreepSpread, DodgeModule, InjectManager, MacroModule, ScoutModule, Strategy, AresBot
+):
     def __init__(
         self,
     ) -> None:
@@ -75,18 +63,8 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
         self.cost = CostManager(self.calculate_cost, self.calculate_supply_cost)
         super().__init__(game_step_override=2)
 
-    def can_move(self, unit: Unit) -> bool:
-        if unit.is_burrowed:
-            if unit.type_id == UnitTypeId.INFESTORBURROWED:
-                return True
-            elif unit.type_id == UnitTypeId.ROACHBURROWED:
-                return UpgradeId.TUNNELINGCLAWS in self.state.upgrades
-            return False
-        return 0 < unit.movement_speed
-
     async def on_before_start(self):
         await super().on_before_start()
-
         if self.debug:
             logging.basicConfig(level=logging.DEBUG)
         else:
@@ -94,23 +72,6 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
 
     async def on_start(self) -> None:
         await super().on_start()
-
-        # await self.client.debug_create_unit([[UnitTypeId.QUEEN, 3, self.start_location, 1]])
-        # await self.client.debug_create_unit([[UnitTypeId.ROACHBURROWED, 40, self.game_info.map_center, 2]])
-        # await self.client.debug_create_unit([[UnitTypeId.ROACHBURROWED, 30, self.game_info.map_center, 1]])
-        # await self.client.debug_upgrade()
-
-        # await self.client.debug_create_unit([
-        #     [UnitTypeId.OVERLORDTRANSPORT, 1, self.game_info.map_center, 1],
-        #     [UnitTypeId.ZERGLING, 8, self.game_info.map_center, 1],
-        # ])
-
-        # await self.client.debug_create_unit([
-        #     [UnitTypeId.QUEEN, 3, self.start_location, 1],
-        # ])
-
-        for townhall in self.townhalls:
-            self.do(townhall(AbilityId.RALLY_WORKERS, target=townhall))
 
         pathing_grid = self.game_info.pathing_grid.data_numpy.transpose()
         border_x, border_y = np.gradient(pathing_grid)
@@ -125,41 +86,19 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
         self.enemy_main = self.create_enemy_main_map()
 
         bases = await self.initialize_bases()
+
         self.resource_manager = ResourceManager(self, bases)
-        self.scout = ScoutModule(self)
         self.unit_manager = UnitManager(self)
         self.chat = Chat(self)
-        self.combat = CombatModule(self)
-        self.dodge = DodgeModule(self)
-        self.inject = InjectManager(self)
-        self.strategy: Strategy = ZergMacro(self)
-
-        for structure in self.all_own_units:
-            self.unit_manager.add_unit(structure)
 
     def handle_errors(self):
         for error in self.state.action_errors:
             logger.error(error)
             if error.result == ActionResult.CantBuildLocationInvalid.value:
-                if behavior := self.unit_manager.units.get(error.unit_tag):
-                    self.scout.blocked_positions[behavior.unit.position] = self.time
-
-    def units_detecting(self, unit: Unit) -> Iterable[AIUnit]:
-        for detector_type in IS_DETECTOR:
-            for detector in self.unit_manager.actual_by_type[detector_type]:
-                distance = detector.unit.position.distance_to(unit.position)
-                if distance <= detector.unit.radius + detector.unit.detect_range + unit.radius:
-                    yield detector
-
-    def can_attack(self, unit: Unit, target: Unit) -> bool:
-        if target.is_cloaked and not target.is_revealed:
-            return False
-        elif target.is_burrowed and not any(self.units_detecting(target)):
-            return False
-        elif target.is_flying:
-            return unit.can_attack_air
-        else:
-            return unit.can_attack_ground
+                if unit := self.unit_tag_dict.get(error.unit_tag):
+                    self.blocked_positions[unit.position] = self.time
+                if plan := self.assigned_plans.get(error.unit_tag):
+                    plan.target = None
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
@@ -187,16 +126,16 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
             self.make_tech()
             self.morph_overlords()
             self.expand()
-            self.strategy.update_composition()
+            self.update_composition()
 
         actions: list[Action] = []
-        actions.extend(self.resource_manager.on_step())
-        actions.extend(self.inject.on_step())
-        actions.extend(self.scout.on_step())
-        actions.extend(self.dodge.on_step())
-        actions.extend(self.combat.on_step())
-        actions.extend(self.spread_creep())
         actions.extend(self.macro())
+        actions.extend(self.resource_manager.on_step())
+        actions.extend(self.spread_creep())
+        actions.extend(self.do_injects())
+        actions.extend(self.do_scouting())
+        actions.extend(self.do_dodge())
+        actions.extend(self.do_combat())
 
         if self.debug:
             self.check_for_duplicate_actions(actions)
@@ -228,13 +167,19 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
             for a in unit_actions[1:]:
                 actions.remove(a)
 
+    def units_detecting(self, unit: Unit) -> Iterable[Unit]:
+        for detector_type in IS_DETECTOR:
+            for detector in self.unit_manager.actual_by_type[detector_type]:
+                distance = detector.position.distance_to(unit.position)
+                if distance <= detector.radius + detector.detect_range + unit.radius:
+                    yield detector
+
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)
 
     async def on_building_construction_started(self, unit: Unit):
         await super().on_building_construction_started(unit)
 
-        self.unit_manager.add_unit(unit)
         # self.unit_manager.pending_by_type[unit.type_id].append(behavior)
 
         if self.race == Race.Zerg:
@@ -249,7 +194,6 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
                         and unit.position.distance_to(plan.target.position) < 3
                     ):
                         del self.assigned_plans[trainer]
-                        self.unit_manager.try_remove_unit(trainer)
                         logger.info(f"New building matched to plan: {plan=}, {unit=}, {trainer=}")
                         break
                 # geyser = self.resource_manager.resource_by_position.get(unit.position)
@@ -276,11 +220,11 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
 
     async def on_unit_destroyed(self, unit_tag: int):
         await super().on_unit_destroyed(unit_tag)
-        self.unit_manager.try_remove_unit(unit_tag)
 
     async def on_unit_created(self, unit: Unit):
         await super().on_unit_created(unit)
-        self.unit_manager.add_unit(unit)
+        if unit.type_id in {UnitTypeId.DRONE, UnitTypeId.SCV, UnitTypeId.PROBE}:
+            self.resource_manager.add_harvester(unit)
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         await super().on_unit_type_changed(unit, previous_type)
@@ -291,43 +235,6 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         await super().on_upgrade_complete(upgrade)
 
-    def handle_actions(self):
-        for action in self.state.actions_unit_commands:
-            for tag in action.unit_tags:
-                self.handle_action(action, tag)
-
-    def handle_action(self, action: ActionRawUnitCommand, tag: int) -> None:
-        unit = self.unit_tag_dict.get(tag)
-        if unit and unit.type_id == UnitTypeId.EGG:
-            # commands issued to a specific larva will be received by a random one
-            # therefore, a direct lookup will usually be incorrect
-            # instead, all plans are checked for a match
-            tag = next(
-                (
-                    t
-                    for t, p in self.assigned_plans.items()
-                    if MACRO_INFO[UnitTypeId.LARVA].get(p.item, {}).get("ability") == action.exact_id
-                ),
-                None,
-            )
-        if plan := self.assigned_plans.get(tag):
-            if (
-                unit
-                and unit.type_id != UnitTypeId.EGG
-                and MACRO_INFO.get(unit.type_id, {}).get(plan.item, {}).get("ability") != action.exact_id
-            ):
-                return
-            # if (
-            #     unit
-            #     and unit.type_id == UnitTypeId.DRONE
-            # ):
-            #     self.unit_manager.try_remove_unit(tag)
-            del self.assigned_plans[tag]
-            logger.info(f"Action matched plan: {action=}, {tag=}, {plan=}")
-
-        elif action.exact_id in ALL_MACRO_ABILITIES:
-            logger.info(f"Action performed by non-existing unit: {action=}, {tag=}")
-
     def count(
         self, item: MacroId, include_pending: bool = True, include_planned: bool = True, include_actual: bool = True
     ) -> int:
@@ -336,7 +243,7 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
         count = 0
         if include_actual:
             if item in WORKERS:
-                count += self.state.score.food_used_economy
+                count += self.supply_workers
             else:
                 count += len(self.unit_manager.actual_by_type[item])
         if include_pending:
@@ -345,90 +252,6 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
             count += factor * sum(1 for _ in self.planned_by_type(item))
 
         return count
-
-    async def initialize_bases(self):
-
-        start_bases = {self.start_location, *self.enemy_start_locations}
-        distance_ground, distance_air = self.create_distance_map()
-
-        bases = []
-        for position, resources in self.expansion_locations_dict.items():
-            if position not in start_bases and not await self.can_place_single(UnitTypeId.HATCHERY, position):
-                continue
-            base = Base(
-                position,
-                (MineralPatch(m) for m in resources.mineral_field),
-                (VespeneGeyser(g) for g in resources.vespene_geyser),
-            )
-            bases.append(base)
-
-        bases = sorted(
-            bases,
-            key=lambda b: distance_ground[b.position.rounded] + distance_air[b.position.rounded],
-        )
-
-        return bases
-
-    def enumerate_positions(self, structure: Unit) -> Iterable[Point2]:
-        radius = structure.footprint_radius
-        return (
-            structure.position + Point2((x_offset, y_offset))
-            for x_offset in np.arange(-radius, +radius + 1)
-            for y_offset in np.arange(-radius, +radius + 1)
-        )
-
-    def create_enemy_main_map(self) -> np.ndarray:
-        weight = np.where(
-            np.transpose(self.game_info.placement_grid.data_numpy) == 1,
-            1.0,
-            np.inf,
-        )
-        origins = [p.rounded for p in self.enemy_start_locations]
-        enemy_main = flood_fill(
-            weight,
-            origins,
-        )
-        enemy_main = np.isfinite(enemy_main)
-        return enemy_main
-
-    def create_distance_map(self) -> tuple[np.ndarray, np.ndarray]:
-        pathing = np.transpose(self.game_info.pathing_grid.data_numpy)
-        for townhall in self.townhalls:
-            for position in self.enumerate_positions(townhall):
-                pathing[position.rounded] = 1
-
-        weight_ground = np.where(
-            np.transpose(self.game_info.pathing_grid.data_numpy) == 0,
-            np.inf,
-            1.0,
-        )
-        origins = [th.position.rounded for th in self.townhalls]
-        distance_ground = flood_fill(
-            weight_ground,
-            origins,
-        )
-        distance_ground = np.where(np.isinf(distance_ground), np.nan, distance_ground)
-        distance_ground /= np.nanmax(distance_ground)
-        distance_ground = np.where(np.isnan(distance_ground), 1, distance_ground)
-
-        weight_air = np.where(
-            np.transpose(self.game_info.pathing_grid.data_numpy) == 0,
-            1.0,
-            10.0,
-        )
-        weight_air[0 : self.game_info.playable_area.x, :] = np.inf
-        weight_air[self.game_info.playable_area.right : -1, :] = np.inf
-        weight_air[:, 0 : self.game_info.playable_area.y] = np.inf
-        weight_air[:, self.game_info.playable_area.top : -1] = np.inf
-        distance_air = flood_fill(
-            weight_air,
-            origins,
-        )
-        distance_air = np.where(np.isinf(distance_air), np.nan, distance_air)
-        distance_air /= np.nanmax(distance_air)
-        distance_air = np.where(np.isnan(distance_air), 1, distance_air)
-
-        return distance_ground, distance_air
 
     async def draw_debug(self):
         font_color = (255, 255, 255)
@@ -472,7 +295,7 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
             text = f"{enemy.name}"
             self.client.debug_text_world(text, position, color=font_color, size=font_size)
 
-        self.client.debug_text_screen(f"Confidence: {round(100 * self.combat.confidence)}%", (0.01, 0.01))
+        self.client.debug_text_screen(f"Confidence: {round(100 * self.confidence)}%", (0.01, 0.01))
         self.client.debug_text_screen(f"Gas Target: {round(self.resource_manager.get_gas_target(), 3)}", (0.01, 0.03))
 
         for i, plan in enumerate(plans):
@@ -486,26 +309,12 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
         for base in self.resource_manager.bases:
             if not base.townhall:
                 continue
-            if not base.townhall.unit.is_ready:
+            if not base.townhall.is_ready:
                 continue
-            if base.townhall.unit.type_id not in race_townhalls[self.race]:
+            if base.townhall.type_id not in race_townhalls[self.race]:
                 continue
             for geyser in base.vespene_geysers:
-                yield geyser.unit
-
-    def get_unit_range(self, unit: Unit, ground: bool = True, air: bool = True) -> float:
-        unit_range = 0.0
-        if ground:
-            unit_range = max(unit_range, unit.ground_range)
-        if air:
-            unit_range = max(unit_range, unit.air_range)
-
-        if unit.is_mine and (boni := RANGE_UPGRADES.get(unit.type_id)):
-            for upgrade, bonus in boni.items():
-                if upgrade in self.state.upgrades:
-                    unit_range += bonus
-
-        return unit_range
+                yield geyser
 
     def get_unit_value(self, unit: Unit) -> float:
         health = unit.health + unit.shield
@@ -521,22 +330,6 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
         workers += 16 * self.count(UnitTypeId.HATCHERY, include_actual=False, include_planned=False)
         workers += 3 * self.count(GAS_BY_RACE[self.race], include_actual=False, include_planned=False)
         return workers
-
-    @property
-    def army(self) -> Units:
-        return self.all_own_units.exclude_type(CIVILIANS)
-
-    @property
-    def enemy_army(self) -> Units:
-        return self.all_enemy_units.exclude_type(CIVILIANS)
-
-    @property
-    def civilians(self) -> Units:
-        return self.all_own_units(CIVILIANS)
-
-    @property
-    def enemy_civilians(self) -> Units:
-        return self.all_enemy_units(CIVILIANS)
 
     def is_upgrade_missing(self, upgrade: UpgradeId) -> bool:
         return upgrade not in self.state.upgrades
@@ -578,23 +371,6 @@ class PhantomBot(BuildOrder, CreepSpread, MacroModule, AresBot):
             and self.is_upgrade_missing(required_upgrade)
         ):
             yield required_upgrade
-
-    @property
-    def income(self) -> Cost:
-
-        larva_per_second = 0.0
-        for hatchery in self.townhalls:
-            if hatchery.is_ready:
-                larva_per_second += 1 / 11
-                if hatchery.has_buff(BuffId.QUEENSPAWNLARVATIMER):
-                    larva_per_second += 3 / 29
-
-        return Cost(
-            self.state.score.collection_rate_minerals,
-            self.state.score.collection_rate_vespene,
-            0.0,
-            60.0 * larva_per_second,
-        )
 
     def morph_overlords(self) -> None:
         supply_pending = sum(

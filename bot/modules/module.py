@@ -13,4 +13,4 @@ class AIModule:
         self.ai = ai
 
     def on_step(self) -> Iterable[Action]:
-        pass
+        return []

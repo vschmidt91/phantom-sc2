@@ -11,7 +11,7 @@ class BuildOrder(Component):
             (UnitTypeId.OVERLORD, 2),
             (UnitTypeId.DRONE, 16),
             (UnitTypeId.HATCHERY, 2),
-            (UnitTypeId.DRONE, 18),
+            (UnitTypeId.DRONE, 17),
             (UnitTypeId.EXTRACTOR, 1),
             (UnitTypeId.SPAWNINGPOOL, 1),
         ]

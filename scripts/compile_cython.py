@@ -10,7 +10,7 @@ link_args = []
 include_dirs = [numpy.get_include()]
 libraries = []
 
-INPUT_DIR = "bot/modules/"
+INPUT_DIR = "bot/cython/"
 
 
 def build():

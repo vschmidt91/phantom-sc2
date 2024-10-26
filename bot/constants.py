@@ -39,6 +39,14 @@ STATIC_DEFENSE_BY_RACE = {
     Race.Protoss: UnitTypeId.PHOTONCANNON,
 }
 
+COCOON_FIX: dict[UnitTypeId, UnitTypeId] = {
+    UnitTypeId.OVERLORDCOCOON: UnitTypeId.OVERLORD,
+    UnitTypeId.TRANSPORTOVERLORDCOCOON: UnitTypeId.OVERLORD,
+    UnitTypeId.BANELINGCOCOON: UnitTypeId.ZERGLING,
+    UnitTypeId.RAVAGERCOCOON: UnitTypeId.RAVAGER,
+    UnitTypeId.BROODLORDCOCOON: UnitTypeId.CORRUPTOR,
+}
+
 RANGE_UPGRADES: dict[UnitTypeId, dict[UpgradeId, int]] = {
     UnitTypeId.COLOSSUS: {UpgradeId.EXTENDEDTHERMALLANCE: 2},
     UnitTypeId.HYDRALISK: {UpgradeId.EVOLVEGROOVEDSPINES: 1},

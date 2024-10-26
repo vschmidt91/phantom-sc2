@@ -4,10 +4,21 @@ from dataclasses import dataclass
 
 from ares import AresBot
 from sc2.ids.ability_id import AbilityId
+from sc2.position import Point2
 from sc2.unit import Unit
 
-from ..action import Action, Mine, UseAbility
+from ..action import Action, UseAbility
 from .resource_unit import ResourceUnit
+
+
+@dataclass
+class Mine(Action):
+    unit: Unit
+    move_target: Point2
+    target: Unit
+
+    async def execute(self, bot: AresBot) -> bool:
+        return self.unit.move(self.move_target) and self.unit.smart(self.target, queue=True)
 
 
 @dataclass
@@ -18,7 +29,7 @@ class GatherAction(Action):
     async def execute(self, bot: AresBot) -> bool:
         target = self.gather_target.target_unit
         return_target = min(
-            bot.townhalls,
+            bot.townhalls.ready,
             key=lambda th: th.distance_to(self.gather_target.position),
             default=None,
         )
@@ -27,7 +38,7 @@ class GatherAction(Action):
         elif not return_target:
             return True
         elif not target.is_ready:
-            return True
+            return self.unit.move(target)
         elif not self.gather_target.remaining:
             return False
 

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import math
 import random
+from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
-from itertools import chain
-from typing import TYPE_CHECKING, Iterable, List
+from typing import TYPE_CHECKING, Iterable
 
 import numpy as np
+from ares import AresBot
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Point2, Unit
 from skimage.draw import disk
@@ -15,12 +16,11 @@ from skimage.draw import disk
 from ..action import Action, AttackMove, Move
 from ..constants import CHANGELINGS, CIVILIANS
 from ..cost import Cost
-from ..units.unit import AIUnit
-from .cy_dijkstra import cy_dijkstra  # type: ignore
-from .module import AIModule
+from ..cython.cy_dijkstra import cy_dijkstra  # type: ignore
+from .component import Component
 
 if TYPE_CHECKING:
-    from ..ai_base import PhantomBot
+    pass
 
 
 class Enemy:
@@ -82,56 +82,23 @@ class DijkstraOutput:
         return path
 
 
-class CombatModule(AIModule):
+class CombatModule(Component):
     retreat_ground: DijkstraOutput
     retreat_air: DijkstraOutput
-    target_priority_dict: dict[int, float]
+    estimated_survival: dict[int, float] = dict()
+    confidence: float = 1.0
 
-    def __init__(self, ai: PhantomBot) -> None:
-        super().__init__(ai)
-        self.confidence: float = 1.0
-        self.ground_dps = np.zeros(self.ai.game_info.map_size)
-        self.air_dps = np.zeros(self.ai.game_info.map_size)
-        self.army: list[CombatBehavior] = []
-        self.enemies: dict[int, Enemy] = {}
+    def do_combat(self) -> Iterable[Action]:
 
-    def target_priority(self, target: Unit) -> float:
-        if target.is_hallucination:
-            return 0.0
-        if target.type_id in CHANGELINGS:
-            return 0.0
-        priority = 1e8
+        army = self.units.filter(lambda u: u.type_id not in CIVILIANS)
+        enemies = self.all_enemy_units
 
-        # priority /= 1 + self.ai.distance_ground[target.position.rounded]
-        priority /= 5 if target.is_structure else 1
-        if target.is_enemy:
-            priority /= 300 + target.shield + target.health
-        else:
-            priority /= 500
-        # priority *= 3 if target.type_id in WORKERS else 1
-        # priority /= 10 if target.type_id in CIVILIANS else 1
-
-        return priority
-
-    def on_step(self) -> Iterable[Action]:
-        self.army = [
-            behavior
-            for behavior in self.ai.unit_manager.units.values()
-            if (
-                isinstance(behavior, CombatBehavior)
-                and not behavior.unit.is_structure
-                and (
-                    behavior.unit.type_id not in CIVILIANS or (hasattr(behavior, "is_drafted") and behavior.is_drafted)
-                )
-            )
-        ]
-
-        self.enemies = {unit.tag: Enemy(unit) for unit in self.ai.enemy_army}
+        self.ground_dps = np.zeros(self.game_info.map_size)
+        self.air_dps = np.zeros(self.game_info.map_size)
 
         self.ground_dps[:, :] = 0.0
         self.air_dps[:, :] = 0.0
-        for behavior in self.enemies.values():
-            enemy = behavior.unit
+        for enemy in enemies:
             if enemy.can_attack_ground:
                 r = enemy.radius + enemy.ground_range + 2.0
                 d = disk(enemy.position, r, shape=self.ground_dps.shape)
@@ -141,9 +108,9 @@ class CombatModule(AIModule):
                 d = disk(enemy.position, r, shape=self.air_dps.shape)
                 self.air_dps[d] += enemy.air_dps
 
-        retreat_cost_ground = self.ai.mediator.get_map_data_object.get_pyastar_grid() + np.log1p(self.ground_dps)
-        retreat_cost_air = self.ai.mediator.get_map_data_object.get_clean_air_grid() + np.log1p(self.air_dps)
-        retreat_targets = [w.position for w in self.ai.workers] + [self.ai.start_location]
+        retreat_cost_ground = self.mediator.get_map_data_object.get_pyastar_grid() + np.log1p(self.ground_dps)
+        retreat_cost_air = self.mediator.get_map_data_object.get_clean_air_grid() + np.log1p(self.air_dps)
+        retreat_targets = [w.position for w in self.workers] + [self.start_location]
         self.retreat_ground = DijkstraOutput.from_cy(
             cy_dijkstra(
                 retreat_cost_ground.astype(np.float64),
@@ -165,53 +132,63 @@ class CombatModule(AIModule):
             unit_distance = np.linalg.norm(unit.position - target.position) - unit.radius - target.radius - unit_range
             return unit_distance / max(1.0, unit.movement_speed)
 
+        self.estimated_survival.clear()
+
+        dps_incoming: defaultdict[int, float] = defaultdict(lambda: 0)
         time_scale = 1 / 3
-        for behavior in self.army:
-            behavior.targets.clear()
-            behavior.threats.clear()
-            behavior.dps_incoming = 0.0
-            unit = behavior.unit
-            for enemy_behavior in self.enemies.values():
-                enemy = enemy_behavior.unit
+        for unit in army:
+            for enemy in enemies:
 
                 dps = unit.air_dps if enemy.is_flying else unit.ground_dps
                 weight = math.exp(-max(0.0, time_scale * time_until_in_range(unit, enemy)))
-                enemy_behavior.dps_incoming += dps * weight
+                dps_incoming[enemy.tag] += dps * weight
 
                 dps = enemy.air_dps if unit.is_flying else enemy.ground_dps
                 weight = math.exp(-max(0.0, time_scale * time_until_in_range(enemy, unit)))
-                behavior.dps_incoming += dps * weight
+                dps_incoming[unit.tag] += dps * weight
 
-        for behavior in chain(self.army, self.enemies.values()):
-            if 0 < behavior.dps_incoming:
-                behavior.estimated_survival = (behavior.unit.health + behavior.unit.shield) / behavior.dps_incoming
+        for unit in army | enemies:
+            if 0 < dps_incoming[unit.tag]:
+                self.estimated_survival[unit.tag] = (unit.health + unit.shield) / dps_incoming[unit.tag]
             else:
-                behavior.estimated_survival = np.inf
-
-        self.target_priority_dict = {unit.tag: self.target_priority(unit) for unit in self.ai.enemy_army}
+                self.estimated_survival[unit.tag] = np.inf
 
         def unit_value(cost: Cost):
             return cost.minerals + cost.vespene
 
-        army_cost = sum(unit_value(self.ai.cost.of(unit.type_id)) for unit in self.ai.army)
-        enemy_cost = sum(unit_value(self.ai.cost.of(unit.type_id)) for unit in self.ai.enemy_army)
+        army_cost = sum(unit_value(self.cost.of(unit.type_id)) for unit in army)
+        enemy_cost = sum(unit_value(self.cost.of(unit.type_id)) for unit in enemies)
         self.confidence = army_cost / max(1, army_cost + enemy_cost)
 
-        for unit in self.army:
-            if action := unit.fight():
-                yield action
+        for unit in army:
+            yield CombatBehavior(unit)
 
 
-class CombatBehavior(AIUnit):
-    targets: List[Enemy] = []
-    threats: List[Enemy] = []
-    dps_incoming: float = 0.0
-    estimated_survival: float = np.inf
+@dataclass
+class CombatBehavior(Action):
+    unit: Unit
 
     def target_priority(self, target: Unit) -> float:
-        if not (self.ai.can_attack(self.unit, target) or self.unit.is_detector):
+
+        # from combat_manager:
+
+        if target.is_hallucination:
+            return 0.0
+        if target.type_id in CHANGELINGS:
             return 0.0
         priority = 1e8
+
+        # priority /= 1 + self.ai.distance_ground[target.position.rounded]
+        priority /= 5 if target.is_structure else 1
+        if target.is_enemy:
+            priority /= 300 + target.shield + target.health
+        else:
+            priority /= 500
+
+        # ---
+
+        if not (self.unit.can_attack or self.unit.is_detector):
+            return 0.0
         priority /= 8 + target.position.distance_to(self.unit.position)
         if self.unit.is_detector:
             if target.is_cloaked:
@@ -221,59 +198,56 @@ class CombatBehavior(AIUnit):
 
         return priority
 
-    def fight(self) -> Action | None:
+    async def execute(self, bot: AresBot) -> bool:
 
-        if self.unit.is_idle:
-            if self.ai.time < 8 * 60:
-                return AttackMove(self.unit, random.choice(self.ai.enemy_start_locations))
-            elif self.ai.all_enemy_units.exists:
-                target = self.ai.all_enemy_units.random
-                return AttackMove(self.unit, target.position)
+        if self.unit.is_idle and self.unit.type_id not in {UnitTypeId.QUEEN}:
+            if bot.time < 8 * 60:
+                return await AttackMove(self.unit, random.choice(bot.enemy_start_locations)).execute(bot)
+            elif bot.all_enemy_units.exists:
+                target = bot.all_enemy_units.random
+                return await AttackMove(self.unit, target.position).execute(bot)
             else:
-                a = self.ai.game_info.playable_area
+                a = bot.game_info.playable_area
                 target = np.random.uniform((a.x, a.y), (a.right, a.top))
                 target = Point2(target)
-                if (self.unit.is_flying or self.ai.in_pathing_grid(target)) and not self.ai.is_visible(target):
-                    return AttackMove(self.unit, target)
-                return None
+                if (self.unit.is_flying or bot.in_pathing_grid(target)) and not bot.is_visible(target):
+                    return await AttackMove(self.unit, target).execute(bot)
+                return False
 
         target, priority = max(
-            (
-                (enemy, self.target_priority(enemy) * self.ai.combat.target_priority_dict.get(enemy.tag, 0))
-                for enemy in self.ai.enemy_army
-            ),
+            ((enemy, self.target_priority(enemy)) for enemy in bot.all_enemy_units),
             key=lambda t: t[1],
             default=(None, 0),
         )
 
-        if not target:
-            return None
-        if priority <= 0:
-            return None
+        estimated_survival = bot.estimated_survival.get(self.unit.tag, np.inf)
 
-        enemy = self.ai.combat.enemies.get(target.tag)
-        if not enemy:
-            return None
+        if not target:
+            return True
+        if priority <= 0:
+            return True
 
         if self.unit.is_flying:
-            retreat_map = self.ai.combat.retreat_air
+            retreat_map = bot.retreat_air
         else:
-            retreat_map = self.ai.combat.retreat_ground
+            retreat_map = bot.retreat_ground
         p = self.unit.position.rounded
         retreat_path_limit = 5
         retreat_path = retreat_map.get_path(p, retreat_path_limit)
 
-        if np.isinf(self.estimated_survival):
-            if np.isinf(enemy.estimated_survival):
+        target_survival = bot.estimated_survival.get(target.tag, np.inf)
+
+        if np.isinf(estimated_survival):
+            if np.isinf(target_survival):
                 confidence = 0.5
             else:
                 confidence = 1.0
-        elif np.isinf(enemy.estimated_survival):
+        elif np.isinf(target_survival):
             confidence = 0.0
         else:
-            confidence = self.estimated_survival / (self.estimated_survival + enemy.estimated_survival)
+            confidence = estimated_survival / (estimated_survival + target_survival)
 
-        if self.unit.type_id == UnitTypeId.QUEEN and not self.ai.has_creep(self.unit.position):
+        if self.unit.type_id == UnitTypeId.QUEEN and not bot.has_creep(self.unit.position):
             stance = CombatStance.FLEE
         elif self.unit.is_burrowed:
             stance = CombatStance.FLEE
@@ -295,37 +269,37 @@ class CombatBehavior(AIUnit):
                 stance = CombatStance.FLEE
 
         if stance in {CombatStance.FLEE, CombatStance.RETREAT}:
-            unit_range = self.ai.get_unit_range(self.unit, not target.is_flying, target.is_flying)
+            unit_range = bot.get_unit_range(self.unit, not target.is_flying, target.is_flying)
 
             if stance == CombatStance.RETREAT:
                 if not self.unit.weapon_cooldown:
-                    return AttackMove(self.unit, target.position)
+                    return await AttackMove(self.unit, target.position).execute(bot)
                 elif (
                     self.unit.radius + unit_range + target.radius + self.unit.distance_to_weapon_ready
                     < self.unit.position.distance_to(target.position)
                 ):
-                    return AttackMove(self.unit, target.position)
+                    return await AttackMove(self.unit, target.position).execute(bot)
 
             if retreat_map.dist[p] == np.inf:
-                retreat_point = self.ai.start_location
+                retreat_point = bot.start_location
             else:
                 retreat_point = Point2(retreat_path[-1]).offset(HALF)
 
-            return Move(self.unit, retreat_point)
+            return await Move(self.unit, retreat_point).execute(bot)
 
         elif stance == CombatStance.FIGHT:
-            return AttackMove(self.unit, target.position)
+            return await AttackMove(self.unit, target.position).execute(bot)
 
         elif stance == CombatStance.ADVANCE:
             distance = self.unit.position.distance_to(target.position) - self.unit.radius - target.radius
             if self.unit.weapon_cooldown and 1 < distance:
-                return Move(self.unit, target.position)
+                return await Move(self.unit, target.position).execute(bot)
             elif (
                 self.unit.position.distance_to(target.position)
-                <= self.unit.radius + self.ai.get_unit_range(self.unit) + target.radius
+                <= self.unit.radius + bot.get_unit_range(self.unit) + target.radius
             ):
-                return AttackMove(self.unit, target.position)
+                return await AttackMove(self.unit, target.position).execute(bot)
             else:
-                return AttackMove(self.unit, target.position)
+                return await AttackMove(self.unit, target.position).execute(bot)
 
-        return None
+        return False

@@ -1,5 +1,5 @@
-from ares import AresBot
+from ..base import BotBase
 
 
-class Component(AresBot):
+class Component(BotBase):
     pass
