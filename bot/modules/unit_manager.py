@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable
 
+import numpy as np
 from sc2.data import race_townhalls
+from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
+from scipy.spatial import cKDTree
 
 from ..components.macro import MacroId
 from ..constants import ITEM_BY_ABILITY
@@ -42,10 +45,10 @@ class UnitManager(AIModule):
     def update_all_units(self) -> None:
         self.update_tables()
 
-    #     self.unit_by_position = {u.position: u for u in chain(self.ai.all_own_units, self.ai.all_enemy_units)}
-    #     self.unit_positions = list(self.unit_by_position.keys())
-    #     self.unit_tree = cKDTree(np.array(self.unit_positions))
-    #
-    # def units_in_circle(self, position: Point2, radius: float) -> Iterable[Unit]:
-    #     result = self.unit_tree.query_ball_point(position, radius)
-    #     return (self.unit_by_position[self.unit_positions[i]] for i in result)
+        self.unit_by_position = {u.position: u for u in self.ai.all_units}
+        self.unit_positions = list(self.unit_by_position.keys())
+        self.unit_tree = cKDTree(np.array(self.unit_positions))
+
+    def units_in_circle(self, position: Point2, radius: float) -> Iterable[Unit]:
+        result = self.unit_tree.query_ball_point(position, radius)
+        return (self.unit_by_position[self.unit_positions[i]] for i in result)

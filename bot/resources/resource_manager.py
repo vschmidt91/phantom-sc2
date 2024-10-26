@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from itertools import chain
-from typing import TYPE_CHECKING, Counter, Dict, Iterable, Optional, Type
+from typing import TYPE_CHECKING, Counter, Dict, Iterable, Type
 
 import numpy as np
 from sc2.data import race_gas, race_townhalls
@@ -17,7 +17,6 @@ from ..resources.resource_unit import ResourceUnit
 from .base import Base
 from .gather import GatherAction
 from .mineral_patch import MineralPatch
-from .resource_base import ResourceBase
 from .resource_group import ResourceGroup
 from .vespene_geyser import VespeneGeyser
 
@@ -67,11 +66,19 @@ class ResourceManager(AIModule):
         self.bases = ResourceGroup(list(bases))
         self.set_speedmining_positions()
         self.resource_by_position: Dict[Point2, ResourceUnit] = {
-            resource.position: resource for resource in self.bases.flatten()
+            resource.position: resource for resource in self.all_resources
         }
         self.harvesters_by_resource: Counter[ResourceUnit] = Counter[ResourceUnit]()
         self.build_static_defense: bool = False
         self.harvester_assignment: dict[int, ResourceUnit] = {}
+
+    @property
+    def all_resources(self) -> Iterable[ResourceUnit]:
+        return chain(self.mineral_patches, self.vespene_geysers)
+
+    @property
+    def all_taken_resources(self) -> Iterable[ResourceUnit]:
+        return chain.from_iterable(chain(b.mineral_patches, b.vespene_geysers) for b in self.bases_taken)
 
     @property
     def bases_taken(self) -> Iterable[Base]:
@@ -88,7 +95,7 @@ class ResourceManager(AIModule):
 
     def add_harvester(self, unit: Unit) -> None:
         if gather_target := max(
-            (x for b in self.bases_taken for x in b.flatten()),
+            self.all_taken_resources,
             key=lambda r: (
                 r.harvester_target - self.harvesters_by_resource[r] + np.exp(-r.position.distance_to(unit.position))
             ),
@@ -180,7 +187,7 @@ class ResourceManager(AIModule):
                 in_geyser = self.ai.supply_workers != self.ai.workers.amount and isinstance(target, VespeneGeyser)
                 if not in_geyser:
                     del self.harvester_assignment[tag]
-        self.harvesters_by_resource = Counter[ResourceBase](self.harvester_assignment.values())
+        self.harvesters_by_resource = Counter[ResourceUnit](self.harvester_assignment.values())
 
         self.update_patches_and_geysers()
         self.update_bases()
@@ -301,23 +308,22 @@ class ResourceManager(AIModule):
     def harvester_count(self, of_type: Type[ResourceUnit]) -> int:
         return sum(1 for h, t in self.harvester_assignment.items() if isinstance(t, of_type))
 
-    def pick_resource(self, resources: Iterable[ResourceBase]) -> Optional[ResourceUnit]:
-        return max(
-            resources,
-            key=lambda r: r.harvester_target - self.harvesters_by_resource[r],
-            default=None,
-        )
+    def pick_resource(self, resources: Iterable[ResourceUnit]) -> ResourceUnit | None:
+
+        if not any(resources):
+            return None
+
+        return max(resources, key=lambda r: r.harvester_target - self.harvesters_by_resource[r])
 
     def pick_harvester(self, from_type: Type[ResourceUnit], close_to: Point2) -> Unit | None:
-        return min(
-            (
-                u
-                for h, t in self.harvester_assignment.items()
-                if (u := self.ai.unit_tag_dict.get(h)) and isinstance(t, from_type)
-            ),
-            key=lambda u: u.position.distance_to(close_to),
-            default=None,
-        )
+        harvesters = [
+            u
+            for h, t in self.harvester_assignment.items()
+            if (u := self.ai.unit_tag_dict.get(h)) and isinstance(t, from_type)
+        ]
+        if not any(harvesters):
+            return None
+        return min(harvesters, key=lambda u: u.distance_to(close_to))
 
     def split_initial_workers(self, harvesters: Iterable[Unit]):
         harvesters = set(harvesters)

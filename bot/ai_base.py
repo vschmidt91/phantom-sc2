@@ -1,5 +1,4 @@
 import cProfile
-import logging
 import math
 import os
 import pstats
@@ -26,6 +25,7 @@ from .components.inject import InjectManager
 from .components.macro import MacroId, MacroModule, compare_plans
 from .components.scout import ScoutModule
 from .components.strategy import Strategy
+from .components.transfuse import TransfuseComponent
 from .constants import (
     GAS_BY_RACE,
     REQUIREMENTS_KEYS,
@@ -45,7 +45,16 @@ from .resources.resource_manager import ResourceManager
 
 
 class PhantomBot(
-    BuildOrder, CombatModule, CreepSpread, DodgeModule, InjectManager, MacroModule, ScoutModule, Strategy, AresBot
+    BuildOrder,
+    CombatModule,
+    CreepSpread,
+    DodgeModule,
+    InjectManager,
+    MacroModule,
+    ScoutModule,
+    Strategy,
+    TransfuseComponent,
+    AresBot,
 ):
     def __init__(
         self,
@@ -65,10 +74,6 @@ class PhantomBot(
 
     async def on_before_start(self):
         await super().on_before_start()
-        if self.debug:
-            logging.basicConfig(level=logging.DEBUG)
-        else:
-            logging.basicConfig(level=logging.ERROR)
 
     async def on_start(self) -> None:
         await super().on_start()
@@ -114,7 +119,6 @@ class PhantomBot(
         if self.profiler:
             self.profiler.enable()
 
-        self.handle_actions()
         self.handle_errors()
 
         self.unit_manager.update_all_units()
@@ -132,6 +136,7 @@ class PhantomBot(
         actions.extend(self.macro())
         actions.extend(self.resource_manager.on_step())
         actions.extend(self.spread_creep())
+        actions.extend(self.do_transfuse())
         actions.extend(self.do_injects())
         actions.extend(self.do_scouting())
         actions.extend(self.do_dodge())
@@ -142,13 +147,13 @@ class PhantomBot(
         for action in actions:
             success = await action.execute(self)
             if not success:
-                logging.info(f"Action failed: {action}")
+                logger.error(f"Action failed: {action}")
 
         if self.profiler:
             self.profiler.disable()
             stats = pstats.Stats(self.profiler)
             if iteration % 100 == 0:
-                logging.info("dump profiling")
+                logger.info("dump profiling")
                 stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
                 stats.dump_stats(filename="profiling.prof")
 
@@ -416,7 +421,7 @@ class PhantomBot(
                 plan.priority = priority
 
         if expand and self.count(UnitTypeId.HATCHERY, include_actual=False) < 1:
-            logging.info("%s: expanding", self.time_formatted)
             plan = self.add_plan(UnitTypeId.HATCHERY)
             plan.priority = priority
             plan.max_distance = None
+            logger.info(f"Expanding: {plan=}", self.time_formatted)

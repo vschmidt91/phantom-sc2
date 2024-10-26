@@ -371,7 +371,7 @@ class MacroModule(Component):
     def search_trainer(self, trainers: Units, item: MacroId) -> Unit | None:
         trainer_types = ITEM_TRAINED_FROM_WITH_EQUIVALENTS[item]
 
-        trainers_filtered = (
+        trainers_filtered = [
             trainer
             for trainer in trainers
             if (
@@ -380,11 +380,13 @@ class MacroModule(Component):
                 and (trainer.is_idle or not trainer.is_structure)
                 and trainer.tag not in self.assigned_plans
             )
-        )
+        ]
 
-        # return next(trainers_filtered, None)
+        if any(trainers_filtered):
+            trainers_filtered.sort(key=lambda t: t.tag)
+            return trainers_filtered[0]
 
-        return min(trainers_filtered, key=lambda t: t.tag, default=None)
+        return None
 
     def get_target_position(self, target: UnitTypeId) -> Point2 | None:
         data = self.game_data.units[target.value]

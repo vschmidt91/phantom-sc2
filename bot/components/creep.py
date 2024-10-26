@@ -74,14 +74,18 @@ class CreepSpread(Component):
         def target_value(t):
             return self.creep_value_map_blurred[t] + 1e-3 * self.start_location.distance_to(Point2(t))
 
-        targets = circle_perimeter(*origin, TUMOR_RANGE, shape=self.game_info.map_size)
-        target = max(list(zip(*targets)), key=target_value, default=None)
+        targets_x, target_y = circle_perimeter(origin[0], origin[1], TUMOR_RANGE, shape=self.game_info.map_size)
+        if not any(targets_x):
+            return None
+
+        target: tuple[int, int] = max(list(zip(targets_x, target_y)), key=target_value)
 
         if target:
             if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
                 target = origin.towards(Point2(target), TUMOR_RANGE).rounded
 
-            for x, y in zip(*line(*target, *origin)):
+            line_x, line_y = line(target[0], target[1], origin[0], origin[1])
+            for x, y in zip(line_x, line_y):
                 if self.creep_placement_map[x, y]:
                     target = Point2((x + 0.5, y + 0.5))
                     return UseAbility(unit, AbilityId.BUILD_CREEPTUMOR, target)

@@ -78,16 +78,15 @@ class Strategy(Component):
         composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 8
 
         if self.tech_up:
-            # composition[UnitTypeId.OVERLORDTRANSPORT] = 1
             composition[UnitTypeId.ROACHWARREN] = 1
             composition[UnitTypeId.OVERSEER] = 1
 
-        if self.tech_up and 0 < lair_count + hive_count:
+        if self.tech_up and 0 < lair_count + hive_count and 150 < self.supply_used:
             composition[UnitTypeId.HYDRALISKDEN] = 1
             composition[UnitTypeId.OVERSEER] = 2
             composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
 
-        if self.tech_up and 0 < hive_count:
+        if self.tech_up and 0 < hive_count and 150 < self.supply_used:
             composition[UnitTypeId.GREATERSPIRE] = 1
             composition[UnitTypeId.OVERSEER] = 3
 

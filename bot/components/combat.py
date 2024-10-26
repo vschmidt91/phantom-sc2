@@ -5,16 +5,19 @@ import random
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
+from itertools import chain
 from typing import TYPE_CHECKING, Iterable
 
 import numpy as np
 from ares import AresBot
+from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Point2, Unit
 from skimage.draw import disk
 
-from ..action import Action, AttackMove, Move
-from ..constants import CHANGELINGS, CIVILIANS
+from ..action import Action, AttackMove, Move, UseAbility
+from ..constants import CHANGELINGS, CIVILIANS, COOLDOWN, ENERGY_COST
 from ..cost import Cost
 from ..cython.cy_dijkstra import cy_dijkstra  # type: ignore
 from .component import Component
@@ -26,8 +29,8 @@ if TYPE_CHECKING:
 class Enemy:
     def __init__(self, unit: Unit) -> None:
         self.unit = unit
-        self.targets: list[CombatBehavior] = []
-        self.threats: list[CombatBehavior] = []
+        self.targets: list[CombatAction] = []
+        self.threats: list[CombatAction] = []
         self.dps_incoming: float = 0.0
         self.estimated_survival: float = np.inf
 
@@ -87,6 +90,7 @@ class CombatModule(Component):
     retreat_air: DijkstraOutput
     estimated_survival: dict[int, float] = dict()
     confidence: float = 1.0
+    _bile_last_used: dict[int, int] = dict()
 
     def do_combat(self) -> Iterable[Action]:
 
@@ -160,12 +164,122 @@ class CombatModule(Component):
         enemy_cost = sum(unit_value(self.cost.of(unit.type_id)) for unit in enemies)
         self.confidence = army_cost / max(1, army_cost + enemy_cost)
 
+        changelings = list(chain.from_iterable(self.unit_manager.actual_by_type[t] for t in CHANGELINGS))
+        for unit in changelings:
+            if action := self.do_scout(unit):
+                yield action
         for unit in army:
-            yield CombatBehavior(unit)
+            if unit.type_id in {UnitTypeId.OVERSEER} and (action := self.do_spawn_changeling(unit)):
+                yield action
+            if unit.type_id in {UnitTypeId.ROACH} and (action := self.do_burrow(unit)):
+                yield action
+            elif unit.type_id in {UnitTypeId.ROACHBURROWED} and (action := self.do_unburrow(unit)):
+                yield action
+            elif unit.type_id in {UnitTypeId.RAVAGER} and (action := self.do_bile(unit)):
+                yield action
+            else:
+                yield CombatAction(unit)
+
+    def do_bile(self, unit: Unit) -> Action | None:
+
+        ability = AbilityId.EFFECT_CORROSIVEBILE
+
+        def bile_priority(target: Unit) -> float:
+            if not target.is_enemy:
+                return 0.0
+            if not self.is_visible(target.position):
+                return 0.0
+            if not unit.in_ability_cast_range(ability, target.position):
+                return 0.0
+            if target.is_hallucination:
+                return 0.0
+            if target.type_id in CHANGELINGS:
+                return 0.0
+            priority = 10.0 + max(target.ground_dps, target.air_dps)
+            priority /= 100.0 + target.health + target.shield
+            priority /= 2.0 + target.movement_speed
+            return priority
+
+        if unit.type_id != UnitTypeId.RAVAGER:
+            return None
+
+        last_used = self._bile_last_used.get(unit.tag, 0)
+
+        if self.state.game_loop < last_used + COOLDOWN[AbilityId.EFFECT_CORROSIVEBILE]:
+            return None
+
+        target = max(
+            self.all_enemy_units,
+            key=lambda t: bile_priority(t),
+            default=None,
+        )
+
+        if not target:
+            return None
+
+        if bile_priority(target) <= 0:
+            return None
+
+        self._bile_last_used[unit.tag] = self.state.game_loop
+
+        return UseAbility(unit, ability, target=target.position)
+
+    def do_burrow(self, unit: Unit) -> Action | None:
+
+        if (
+            UpgradeId.BURROW in self.state.upgrades
+            and unit.health_percentage < 1 / 3
+            and unit.weapon_cooldown
+            and not unit.is_revealed
+        ):
+            return UseAbility(unit, AbilityId.BURROWDOWN)
+
+        return None
+
+    def do_scout(self, unit: Unit) -> Action | None:
+        if unit.is_idle:
+            if self.time < 8 * 60:
+                return AttackMove(unit, random.choice(self.enemy_start_locations))
+            elif self.all_enemy_units.exists:
+                target = self.all_enemy_units.random
+                return AttackMove(unit, target.position)
+            else:
+                a = self.game_info.playable_area
+                target = np.random.uniform((a.x, a.y), (a.right, a.top))
+                target = Point2(target)
+                if (unit.is_flying or self.in_pathing_grid(target)) and not self.is_visible(target):
+                    return AttackMove(unit, target)
+        return None
+
+    def do_spawn_changeling(self, unit: Unit) -> Action | None:
+        if unit.type_id in {UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE}:
+            if self.in_pathing_grid(unit):
+                ability = AbilityId.SPAWNCHANGELING_SPAWNCHANGELING
+                if ENERGY_COST[ability] <= unit.energy:
+                    return UseAbility(unit, ability)
+        return None
+
+    def do_unburrow(self, unit: Unit) -> Action | None:
+        if unit.health_percentage == 1 or unit.is_revealed:
+            return UseAbility(unit, AbilityId.BURROWUP)
+        # elif unit.type_id == UnitTypeId.ROACHBURROWED and UpgradeId.TUNNELINGCLAWS in self.state.upgrades:
+        #
+        #     p = unit.position.rounded
+        #     if 0.0 == self.ground_dps[p]:
+        #         return DoNothing()
+        #     else:
+        #         retreat_map = self.retreat_ground
+        #         if retreat_map.dist[p] == np.inf:
+        #             retreat_point = self.start_location
+        #         else:
+        #             retreat_path = retreat_map.get_path(p, 3)
+        #             retreat_point = Point2(retreat_path[-1]).offset(Point2((0.5, 0.5)))
+        #         return Move(unit, retreat_point)
+        return None
 
 
 @dataclass
-class CombatBehavior(Action):
+class CombatAction(Action):
     unit: Unit
 
     def target_priority(self, target: Unit) -> float:
@@ -248,6 +362,8 @@ class CombatBehavior(Action):
             confidence = estimated_survival / (estimated_survival + target_survival)
 
         if self.unit.type_id == UnitTypeId.QUEEN and not bot.has_creep(self.unit.position):
+            stance = CombatStance.FLEE
+        elif bot.confidence < 0.5 and not bot.has_creep(self.unit.position):
             stance = CombatStance.FLEE
         elif self.unit.is_burrowed:
             stance = CombatStance.FLEE

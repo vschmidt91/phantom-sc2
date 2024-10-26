@@ -20,9 +20,8 @@ class InjectManager(Component):
     _inject_assignment: dict[int, int] = dict()
 
     def do_injects(self) -> Iterable[Action]:
-        for tag in list(self._inject_assignment.keys()):
-            if tag not in self.unit_tag_dict:
-                del self._inject_assignment[tag]
+        for tag in self.state.dead_units:
+            self._inject_assignment.pop(tag, None)
         self.assign_queens()
         for queen in self.unit_manager.actual_by_type[UnitTypeId.QUEEN]:
             if target_tag := self._inject_assignment.get(queen.tag):
