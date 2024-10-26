@@ -185,11 +185,6 @@ class MacroModule(Component):
             if ITEM_BY_ABILITY.get(action.exact_id) == plan.item:
                 del self.assigned_plans[tag]
                 logger.info(f"Action matched plan: {action=}, {tag=}, {plan=}")
-            # if (
-            #     unit
-            #     and unit.type_id == UnitTypeId.DRONE
-            # ):
-            #     self.unit_manager.try_remove_unit(tag)
 
         elif action.exact_id in ALL_MACRO_ABILITIES:
             logger.info(f"Action performed by non-existing unit: {action=}, {tag=}")
@@ -203,7 +198,6 @@ class MacroModule(Component):
         plans = sorted(
             self.enumerate_plans(),
             key=cmp_to_key(compare_plans),
-            # key = lambda t : t.priority,
             reverse=True,
         )
 
@@ -216,29 +210,15 @@ class MacroModule(Component):
             )
         ]
 
-        # for tag, plan in list(self.assigned_plans.items()):
-        #     if trainer := trainer_by_tag.get(tag):
-        #         if trainer.type_id == UnitTypeId.EGG:
-        #             self.unassigned_plans.append(plan)
-        #             del self.assigned_plans[tag]
-
         trainer_by_plan = {p: self.unit_tag_dict.get(t) for t, p in self.assigned_plans.items()}
 
         for i, plan in enumerate(plans):
             cost = self.cost.of(plan.item)
 
-            # if any(self.get_missing_requirements(plan.item)) and plan.priority == math.inf:
-            #     break
-            #
-            # if 1 <= i and plan.priority == math.inf:
-            #     break
-
             # reset target on failure
             if plan.executed:
                 plan.target = None
                 plan.executed = False
-                # if trainer := trainer_by_plan.get(plan):
-                #     del self.assigned_plans[trainer.tag]
 
             if not (trainer := trainer_by_plan.get(plan)):
                 if trainer := self.search_trainer(trainers, plan.item):

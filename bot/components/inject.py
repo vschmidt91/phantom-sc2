@@ -23,7 +23,7 @@ class InjectManager(Component):
         for tag in self.state.dead_units:
             self._inject_assignment.pop(tag, None)
         self.assign_queens()
-        for queen in self.unit_manager.actual_by_type[UnitTypeId.QUEEN]:
+        for queen in self.actual_by_type[UnitTypeId.QUEEN]:
             if target_tag := self._inject_assignment.get(queen.tag):
                 if target := self.unit_tag_dict.get(target_tag):
                     if ENERGY_COST[AbilityId.EFFECT_INJECTLARVA] <= queen.energy:
@@ -34,7 +34,7 @@ class InjectManager(Component):
 
     def assign_queens(self) -> None:
 
-        queens = self.unit_manager.actual_by_type[UnitTypeId.QUEEN]
+        queens = self.actual_by_type[UnitTypeId.QUEEN]
         assigned_bases = set(self._inject_assignment.values())
         targets = [
             townhall

@@ -20,7 +20,7 @@ TRANSFUSE_ABILITY = AbilityId.TRANSFUSION_TRANSFUSION
 class TransfuseComponent(Component):
 
     def do_transfuse(self) -> Iterable[Action]:
-        for queen in self.unit_manager.actual_by_type[UnitTypeId.QUEEN]:
+        for queen in self.actual_by_type[UnitTypeId.QUEEN]:
             if action := self.do_transfuse_single(queen):
                 yield action
 

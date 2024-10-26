@@ -18,6 +18,7 @@ from sc2.unit import Unit
 
 from .action import Action
 from .components.build_order import BuildOrder
+from .components.chat import Chat
 from .components.combat import CombatModule
 from .components.creep import CreepSpread
 from .components.dodge import DodgeModule
@@ -26,6 +27,7 @@ from .components.macro import MacroId, MacroModule, compare_plans
 from .components.scout import ScoutModule
 from .components.strategy import Strategy
 from .components.transfuse import TransfuseComponent
+from .components.unit_manager import UnitManager
 from .constants import (
     GAS_BY_RACE,
     REQUIREMENTS_KEYS,
@@ -39,8 +41,6 @@ from .constants import (
     WORKERS,
 )
 from .cost import CostManager
-from .modules.chat import Chat
-from .modules.unit_manager import UnitManager
 from .resources.resource_manager import ResourceManager
 
 
@@ -54,6 +54,7 @@ class PhantomBot(
     ScoutModule,
     Strategy,
     TransfuseComponent,
+    UnitManager,
     AresBot,
 ):
     def __init__(
@@ -93,8 +94,7 @@ class PhantomBot(
         bases = await self.initialize_bases()
 
         self.resource_manager = ResourceManager(self, bases)
-        self.unit_manager = UnitManager(self)
-        self.chat = Chat(self)
+        self.chat = Chat(self.client)
 
     def handle_errors(self):
         for error in self.state.action_errors:
@@ -114,14 +114,14 @@ class PhantomBot(
         self.iteration = iteration
 
         if 1 < self.time:
-            await self.chat.add_message("(glhf)")
+            self.chat.add_message("(glhf)")
 
         if self.profiler:
             self.profiler.enable()
 
         self.handle_errors()
 
-        self.unit_manager.update_all_units()
+        self.update_all_units()
 
         build_order_completed = self.run_build_order()
 
@@ -133,6 +133,7 @@ class PhantomBot(
             self.update_composition()
 
         actions: list[Action] = []
+        actions.extend(self.chat.do_chat())
         actions.extend(self.macro())
         actions.extend(self.resource_manager.on_step())
         actions.extend(self.spread_creep())
@@ -174,7 +175,7 @@ class PhantomBot(
 
     def units_detecting(self, unit: Unit) -> Iterable[Unit]:
         for detector_type in IS_DETECTOR:
-            for detector in self.unit_manager.actual_by_type[detector_type]:
+            for detector in self.actual_by_type[detector_type]:
                 distance = detector.position.distance_to(unit.position)
                 if distance <= detector.radius + detector.detect_range + unit.radius:
                     yield detector
@@ -184,8 +185,6 @@ class PhantomBot(
 
     async def on_building_construction_started(self, unit: Unit):
         await super().on_building_construction_started(unit)
-
-        # self.unit_manager.pending_by_type[unit.type_id].append(behavior)
 
         if self.race == Race.Zerg:
             if unit.type_id in {UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMORBURROWED}:
@@ -201,18 +200,6 @@ class PhantomBot(
                         del self.assigned_plans[trainer]
                         logger.info(f"New building matched to plan: {plan=}, {unit=}, {trainer=}")
                         break
-                # geyser = self.resource_manager.resource_by_position.get(unit.position)
-                # geyser_tag = geyser.unit.tag if isinstance(geyser, VespeneGeyser) and geyser.unit else None
-                # for trainer_type in UNIT_TRAINED_FROM.get(unit.type_id, []):
-                #     for trainer in self.unit_manager.actual_by_type[trainer_type]:
-                #         if trainer.unit.position.distance_to(unit.position) < 0.5:
-                #             assert self.unit_manager.try_remove_unit(trainer.unit.tag)
-                #             break
-                #         elif not trainer.unit.is_idle and trainer.unit.order_target in {unit.position, geyser_tag}:
-                #             assert self.unit_manager.try_remove_unit(trainer.unit.tag)
-                #             break
-                #     else:
-                #         logging.error("trainer not found")
 
     async def on_building_construction_complete(self, unit: Unit):
         await super().on_building_construction_complete(unit)
@@ -250,9 +237,9 @@ class PhantomBot(
             if item in WORKERS:
                 count += self.supply_workers
             else:
-                count += len(self.unit_manager.actual_by_type[item])
+                count += len(self.actual_by_type[item])
         if include_pending:
-            count += factor * len(self.unit_manager.pending_by_type[item])
+            count += factor * len(self.pending_by_type[item])
         if include_planned:
             count += factor * sum(1 for _ in self.planned_by_type(item))
 
@@ -381,7 +368,7 @@ class PhantomBot(
         supply_pending = sum(
             provided
             for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
-            for unit in self.unit_manager.pending_by_type[unit_type]
+            for unit in self.pending_by_type[unit_type]
         )
         supply_planned = sum(
             provided

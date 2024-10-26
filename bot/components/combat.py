@@ -94,7 +94,7 @@ class CombatModule(Component):
 
     def do_combat(self) -> Iterable[Action]:
 
-        army = self.units.filter(lambda u: u.type_id not in CIVILIANS)
+        army = self.units.filter(lambda u: u.type_id not in CIVILIANS).filter(lambda u: not(u.type_id == UnitTypeId.QUEEN and u.tag in self._inject_assignment and 20 <= u.energy))
         enemies = self.all_enemy_units
 
         self.ground_dps = np.zeros(self.game_info.map_size)
@@ -164,7 +164,7 @@ class CombatModule(Component):
         enemy_cost = sum(unit_value(self.cost.of(unit.type_id)) for unit in enemies)
         self.confidence = army_cost / max(1, army_cost + enemy_cost)
 
-        changelings = list(chain.from_iterable(self.unit_manager.actual_by_type[t] for t in CHANGELINGS))
+        changelings = list(chain.from_iterable(self.actual_by_type[t] for t in CHANGELINGS))
         for unit in changelings:
             if action := self.do_scout(unit):
                 yield action

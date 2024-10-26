@@ -113,24 +113,22 @@ class ResourceManager(AIModule):
         townhalls_by_position = {
             townhall.position: townhall
             for townhall_type in race_townhalls[self.ai.race]
-            for townhall in chain(
-                self.ai.unit_manager.actual_by_type[townhall_type], self.ai.unit_manager.pending_by_type[townhall_type]
-            )
+            for townhall in chain(self.ai.actual_by_type[townhall_type], self.ai.pending_by_type[townhall_type])
         }
 
         static_defense_type = STATIC_DEFENSE_BY_RACE[self.ai.race]
         static_defense = {
-            unit.unit.position: unit
+            unit.position: unit
             for unit in chain(
-                self.ai.unit_manager.actual_by_type[static_defense_type],
-                self.ai.unit_manager.pending_by_type[static_defense_type],
+                self.ai.actual_by_type[static_defense_type],
+                self.ai.pending_by_type[static_defense_type],
             )
-            if unit.unit.type_id == static_defense_type
+            if unit.type_id == static_defense_type
         }
         static_defense_pending = {
-            unit.unit.position: unit
-            for unit in self.ai.unit_manager.pending_by_type[static_defense_type]
-            if unit.unit.type_id != static_defense_type
+            unit.position: unit
+            for unit in self.ai.pending_by_type[static_defense_type]
+            if unit.type_id != static_defense_type
         }
         static_defense_plans = {plan.target: plan for plan in self.ai.planned_by_type(static_defense_type)}
 
@@ -147,7 +145,7 @@ class ResourceManager(AIModule):
 
     def update_patches_and_geysers(self) -> None:
         gas_buildings_by_position = {
-            gas.position: gas for gas in self.ai.unit_manager.actual_by_type[race_gas[self.ai.race]]
+            gas.position: gas for gas in self.ai.actual_by_type[race_gas[self.ai.race]]
         }
 
         resource_by_position = {unit.position: unit for unit in self.ai.resources}
