@@ -20,7 +20,7 @@ class InjectManager(Component):
     _inject_assignment: dict[int, int] = dict()
 
     def do_injects(self) -> Iterable[Action]:
-        for tag in self._inject_assignment.keys():
+        for tag in list(self._inject_assignment.keys()):
             if tag not in self.unit_tag_dict:
                 del self._inject_assignment[tag]
         self.assign_queens()
