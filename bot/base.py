@@ -4,7 +4,6 @@ from typing import Iterable, TypeAlias
 
 import numpy as np
 from ares import AresBot
-from ares.cache import property_cache_once_per_frame
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -62,7 +61,7 @@ class BotBase(AresBot, ABC):
 
         return count
 
-    @property_cache_once_per_frame
+    @property
     def income(self) -> Cost:
 
         larva_per_second = 0.0

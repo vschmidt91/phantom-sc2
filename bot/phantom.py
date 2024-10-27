@@ -132,8 +132,6 @@ class PhantomBot(
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         await super().on_unit_type_changed(unit, previous_type)
-        if unit.type_id == UnitTypeId.RAVAGERCOCOON:
-            self._assigned_plans.pop(unit.tag)
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         await super().on_unit_took_damage(unit, amount_damage_taken)

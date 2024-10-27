@@ -85,7 +85,7 @@ class MacroAction(Action):
                 return self.unit(self.ability, target=target)
         elif not self.plan.target:
             return True
-        else:
+        elif plan.target:
             distance = await bot.client.query_pathing(self.unit, self.plan.target.position) or 0.0
             movement_eta = 1 + distance / (1.4 * self.unit.movement_speed)
             # movement_eta = 1.2 * time_to_reach(self.unit, self.plan.target.position)
@@ -119,6 +119,7 @@ class Macro(Component):
         self.next_plan_id += 1
         plan = MacroPlan(self.next_plan_id, item)
         self._unassigned_plans.append(plan)
+        logger.info(f"Adding {plan=}")
         return plan
 
     def enumerate_plans(self) -> Iterable[MacroPlan]:
@@ -153,6 +154,8 @@ class Macro(Component):
 
     def handle_actions(self) -> None:
         for action in self.state.actions_unit_commands:
+            if action.exact_id == AbilityId.MORPHTORAVAGER_RAVAGER:
+                logger.info("morphing ravager")
             for tag in action.unit_tags:
                 self.handle_action(action, tag)
 
@@ -160,6 +163,7 @@ class Macro(Component):
             if error.result == ActionResult.CantBuildLocationInvalid.value:
                 if plan := self._assigned_plans.get(error.unit_tag):
                     plan.target = None
+                    logger.info(f"resetting target for {plan=}")
 
     def handle_action(self, action: ActionRawUnitCommand, tag: int) -> None:
         unit = self.unit_tag_dict.get(tag)
@@ -192,82 +196,70 @@ class Macro(Component):
             reverse=True,
         )
 
-        trainers = [
-            unit
-            for unit in self.all_own_units
-            if (
-                unit.tag not in self._assigned_plans
-                and (unit.is_idle or unit.orders[0].ability.exact_id not in ALL_MACRO_ABILITIES)
-            )
-        ]
+        if len(plans) != len(set(plans)):
+            logger.error(f"duplicate plans: {plans=}")
 
-        trainer_by_plan = {p: self.unit_tag_dict.get(t) for t, p in self._assigned_plans.items()}
+        for plan in list(self._unassigned_plans):
+            if trainer := self.find_trainer(self.all_own_units, plan.item):
+                logger.info(f"Assigning {trainer=} for {plan=}")
+                if plan in self._unassigned_plans:
+                    self._unassigned_plans.remove(plan)
+                self._assigned_plans[trainer.tag] = plan
 
-        for i, plan in enumerate(plans):
-            cost = self.cost.of(plan.item)
+        for i, (tag, plan) in enumerate(list(self._assigned_plans.items())):
 
-            # reset target on failure
-            if plan.executed:
-                plan.target = None
-                plan.executed = False
-
-            if not (trainer := trainer_by_plan.get(plan)):
-                if trainer := self.search_trainer(trainers, plan.item):
-                    if plan in self._unassigned_plans:
-                        self._unassigned_plans.remove(plan)
-                    self._assigned_plans[trainer.tag] = plan
-                    trainers.remove(trainer)
-                else:
-                    # reserve += cost
-                    # if (tf := UNIT_TRAINED_FROM.get(plan.item)) and UnitTypeId.LARVA in tf:
-                    continue
+            plan.eta = math.inf
+            
+            trainer = self.unit_tag_dict.get(tag)
+            if not trainer or trainer.type_id == UnitTypeId.EGG:
+                logger.info(f"resetting {trainer=} for {plan=}")
+                del self._assigned_plans[tag]
+                self._unassigned_plans.append(plan)
+                continue
 
             if any(self.get_missing_requirements(plan.item)):
                 continue
 
-            # if type(plan.item) == UnitTypeId:
-            #     cost = self.ai.techtree.units[plan.item].cost
-            # elif type(plan.item) == UpgradeId:
-            #     cost = self.ai.techtree.upgrades[plan.item].cost2
-            # else:
-            #     raise TypeError()
+            # reset target on failure
+            if plan.executed:
+                logger.info(f"resetting target for {plan=}")
+                plan.target = None
+                plan.executed = False
 
-            ability = MACRO_INFO.get(trainer.type_id, {}).get(plan.item, {}).get("ability")
-            if ability is None:
-                if self._assigned_plans.pop(trainer.tag, None):
-                    self._unassigned_plans.append(plan)
-                continue
-
-            if not (trainer and ability and trainer.is_using_ability(ability)):
-                reserve += cost
-
-            if plan.target is None:
+            if not plan.target:
                 try:
                     plan.target = self.get_target(trainer, plan)
                 except PlacementNotFoundException:
                     continue
-
-            if any(self.get_missing_requirements(plan.item)):
-                plan.eta = math.inf
-                continue
-
-            eta = 0.0
-            if 0 < cost.minerals:
-                eta = max(
-                    eta,
-                    60 * (reserve.minerals - self.minerals) / max(1, self.income.minerals),
-                )
-            if 0 < cost.vespene:
-                eta = max(eta, 60 * (reserve.vespene - self.vespene) / max(1, self.income.vespene))
-            if 0 < cost.larva:
-                eta = max(eta, 60 * (reserve.larva - self.larva.amount) / max(1, self.income.larva))
-            if 0 < cost.supply:
-                if self.supply_left < cost.supply:
-                    eta = math.inf
-            plan.eta = eta
+                    
+            cost = self.cost.of(plan.item)
+            reserve += cost
+            plan.eta = self.get_eta(cost, reserve)
 
             yield MacroAction(trainer, plan)
 
+    def get_eta(self, cost: Cost, reserve: Cost) -> float:
+        eta = 0.0
+        if 0 < cost.minerals:
+            eta = max(
+                eta,
+                60 * (reserve.minerals - self.minerals) / max(1.0, self.income.minerals),
+            )
+        if 0 < cost.vespene:
+            eta = max(eta, 60 * (reserve.vespene - self.vespene) / max(1.0, self.income.vespene))
+        if 0 < cost.larva:
+            eta = max(eta, 60 * (reserve.larva - self.larva.amount) / max(1.0, self.income.larva))
+        if 0 < cost.supply:
+            if self.supply_left < cost.supply:
+                eta = math.inf
+        return eta
+
+    @property
+    def bank(self) -> Cost:
+        return Cost(self.minerals, self.vespene, self.supply_left, self.larva.amount)
+
+    @property
+    def future_spending(self):
         cost_zero = Cost(0, 0, 0, 0)
         future_spending = cost_zero
         future_spending += sum((self.cost.of(plan.item) for plan in self._unassigned_plans), cost_zero)
@@ -279,7 +271,7 @@ class Macro(Component):
             (self.cost.of(unit) * max(0, count - self.count(unit)) for unit, count in self.composition.items()),
             cost_zero,
         )
-        self.future_spending = future_spending
+        return future_spending
 
     def get_target(self, trainer: Unit, objective: MacroPlan) -> Unit | Point2 | None:
         gas_type = GAS_BY_RACE[self.race]
@@ -310,25 +302,13 @@ class Macro(Component):
 
         if "requires_placement_position" in data:
             position = self.get_target_position(objective.item)
-            objective in {UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}
-
-            # if objective.max_distance is not None:
-            #     max_distance = objective.max_distance
-            #     position = await self.find_placement(
-            #         trainer.macro_ability,
-            #         position,
-            #         max_distance=max_distance,
-            #         placement_step=1,
-            #         addon_place=with_addon,
-            #     )
-            if position is None:
+            if not position:
                 raise PlacementNotFoundException()
-            else:
-                return position
+            return position
         else:
             return None
 
-    def search_trainer(self, trainers: Units, item: MacroId) -> Unit | None:
+    def find_trainer(self, trainers: Units, item: MacroId) -> Unit | None:
         trainer_types = ITEM_TRAINED_FROM_WITH_EQUIVALENTS[item]
 
         trainers_filtered = [
