@@ -23,7 +23,6 @@ ZIP_FILES: List[str] = [
     "config.yaml",
     "ladder.py",
     "run.py",
-    "version.txt",
     "terran_builds.yml",
     "terran_builds.yaml",
     "protoss_builds.yml",
@@ -32,9 +31,23 @@ ZIP_FILES: List[str] = [
     "zerg_builds.yaml",
 ]
 if platform.system() == "Windows":
+    EXCLUDE: list[str] = [
+        "ares-sc2\\build",
+        "ares-sc2\\dist",
+        "ares-sc2\\tests",
+        "ares-src\\docs",
+        "map_analyzer\\pickle_gameinfo",
+    ]
     FILETYPES_TO_IGNORE: Tuple = (".c", ".so", "pyx", "pyi")
     ROOT_DIRECTORY = "./"
 else:
+    EXCLUDE: list[str] = [
+        "ares-sc2/build",
+        "ares-sc2/dist",
+        "ares-sc2/tests",
+        "ares-sc2/docs",
+        "map_analyzer/pickle_gameinfo",
+    ]
     FILETYPES_TO_IGNORE: Tuple = (".c", ".pyd", "pyx", "pyi")
     ROOT_DIRECTORY = "./"
 
@@ -56,7 +69,7 @@ def zip_dir(dir_path, zip_file):
     @return:
     """
     for root, _, files in walk(dir_path):
-        if "ares-sc2/build" in root or "ares-sc2/dist" in root:
+        if any(exclude in root for exclude in EXCLUDE):
             continue
         for file in files:
             if file.lower().endswith(FILETYPES_TO_IGNORE):
@@ -254,7 +267,7 @@ if __name__ == "__main__":
     # copy everything we need into a zip file
     zip_files_and_directories(zipfile_name)
 
-    print("Cleaning up...")
+    print(f"Cleaning up...")
 
     destination_directory = os.path.join("./", "python-sc2")
     if os.path.exists(destination_directory):
@@ -266,4 +279,4 @@ if __name__ == "__main__":
     if os.path.exists(destination_directory):
         shutil.rmtree(destination_directory, onerror=on_error)
 
-    print("Ladder zip complete.")
+    print(f"Ladder zip complete.")
