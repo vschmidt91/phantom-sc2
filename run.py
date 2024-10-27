@@ -50,8 +50,6 @@ def create_bot(ai):
 
 def create_opponents(difficulty) -> Iterable[AbstractPlayer]:
 
-    # yield Bot(Race.Zerg, Pool12AllIn(), '12PoolBot')
-
     for race in RACES:
         for build in BUILDS:
             yield Computer(race, difficulty, ai_build=build)
@@ -65,7 +63,7 @@ if __name__ == "__main__":
         result, opponent_id = run_ladder_game(create_bot(PhantomBot()))
         print(result, " against opponent ", opponent_id)
     else:
-        ai = PhantomBot(game_step_override=20)
+        ai = PhantomBot(game_step_override=2)
         ai.debug = True
         map_list: list[str] = [
             p.name.replace(f".{MAP_FILE_EXT}", "")

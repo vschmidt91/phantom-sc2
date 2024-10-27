@@ -16,7 +16,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from ..action import Action
+from ..action import Action, UseAbility, Move, HoldPosition
 from ..constants import (
     ALL_MACRO_ABILITIES,
     GAS_BY_RACE,
@@ -65,40 +65,19 @@ def compare_plans(plan_a: MacroPlan, plan_b: MacroPlan) -> int:
 
 
 @dataclass
-class MacroAction(Action):
+class PreMove(Action):
     unit: Unit
-    plan: MacroPlan
-
-    @cached_property
-    def ability(self) -> AbilityId:
-        return MACRO_INFO.get(self.unit.type_id, {}).get(self.plan.item, {}).get("ability")
+    target: Point2
+    eta: float
 
     async def execute(self, bot: AresBot) -> bool:
-        if math.isinf(self.plan.eta):
-            return True
-        elif self.plan.eta <= 0.0:
-            if self.unit.is_carrying_resource:
-                return self.unit(AbilityId.HARVEST_RETURN)
+        distance = await bot.client.query_pathing(self.unit, self.target) or 0.0
+        movement_eta = 1 + distance / (1.4 * self.unit.movement_speed)
+        if self.eta <= movement_eta:
+            if 1e-3 < self.unit.distance_to(self.target):
+                return self.unit.move(self.target)
             else:
-                target = self.plan.target
-                self.plan.executed = True
-                return self.unit(self.ability, target=target)
-        elif self.plan.target:
-            distance = await bot.client.query_pathing(self.unit, self.plan.target.position) or 0.0
-            movement_eta = 1 + distance / (1.4 * self.unit.movement_speed)
-            # movement_eta = 1.2 * time_to_reach(self.unit, self.plan.target.position)
-            if self.unit.is_carrying_resource:
-                movement_eta += 1
-            if self.plan.eta <= movement_eta:
-                if self.plan.item == UnitTypeId.EXTRACTOR:
-                    return True
-                elif self.unit.is_carrying_resource:
-                    return self.unit(AbilityId.HARVEST_RETURN)
-                elif 1e-3 < self.unit.position.distance_to(self.plan.target.position):
-                    return self.unit.move(self.plan.target)
-                else:
-                    return self.unit.hold_position()
-
+                return self.unit.hold_position()
         return True
 
 
@@ -145,15 +124,21 @@ class Macro(Component):
                     plan.priority = priority
                     break
             else:
-                if unit == UnitTypeId.RAVAGER:
-                    logger.info("ravager")
                 plan = self.add_plan(unit)
                 plan.priority = priority
 
+    async def premove(self, unit: Unit, target: Point2, eta: float) -> Action | None:
+        distance = await self.client.query_pathing(unit, target) or 0.0
+        movement_eta = 1 + distance / (1.4 * unit.movement_speed)
+        if eta <= movement_eta:
+            if 1e-3 < unit.distance_to(target):
+                return Move(unit, target)
+            else:
+                return HoldPosition(unit)
+        return None
+
     def handle_actions(self) -> None:
         for action in self.state.actions_unit_commands:
-            if action.exact_id == AbilityId.MORPHTORAVAGER_RAVAGER:
-                logger.info("morphing ravager")
             for tag in action.unit_tags:
                 self.handle_action(action, tag)
 
@@ -182,7 +167,9 @@ class Macro(Component):
         elif action.exact_id in ALL_MACRO_ABILITIES:
             logger.info(f"Action performed by non-existing unit: {action=}, {tag=}")
 
-    def do_macro(self) -> Iterable[Action]:
+    async def do_macro(self) -> list[Action]:
+
+        actions: list[Action] = []
 
         reserve = Cost(0, 0, 0, 0)
 
@@ -215,6 +202,13 @@ class Macro(Component):
                 self._unassigned_plans.append(plan)
                 continue
 
+            ability = MACRO_INFO.get(trainer.type_id, {}).get(plan.item, {}).get("ability")
+            if not ability:
+                logger.info(f"resetting due to missing ability {trainer=} for {plan=}")
+                del self._assigned_plans[tag]
+                self._unassigned_plans.append(plan)
+                continue
+
             if any(self.get_missing_requirements(plan.item)):
                 continue
 
@@ -234,7 +228,16 @@ class Macro(Component):
             reserve += cost
             plan.eta = self.get_eta(cost, reserve)
 
-            yield MacroAction(trainer, plan)
+            if trainer.is_carrying_resource:
+                actions.append(UseAbility(trainer, AbilityId.HARVEST_RETURN))
+            elif plan.eta <= 0.0:
+                plan.executed = True
+                actions.append(UseAbility(trainer, ability, target=plan.target))
+            elif plan.target:
+                if action := await self.premove(trainer, plan.target.position, plan.eta):
+                    actions.append(action)
+
+        return actions
 
     def get_eta(self, cost: Cost, reserve: Cost) -> float:
         eta = 0.0

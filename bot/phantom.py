@@ -79,7 +79,7 @@ class PhantomBot(
 
         actions: list[Action] = []
         actions.extend(self.chat.do_chat())
-        actions.extend(self.do_macro())
+        actions.extend(await self.do_macro())
         actions.extend(self.do_harvest())
         actions.extend(self.spread_creep())
         actions.extend(self.do_transfuse())
@@ -201,7 +201,7 @@ class PhantomBot(
 
     def morph_overlords(self) -> None:
         supply = self.supply_cap + self.supply_pending + self.supply_planned
-        supply_target = min(200.0, self.supply_used + 4.0 + self.income.larva / 2.0)
+        supply_target = min(200.0, self.supply_used + 3.0 + self.income.larva / 2.0)
         if supply < supply_target:
             plan = self.add_plan(UnitTypeId.OVERLORD)
             plan.priority = 1

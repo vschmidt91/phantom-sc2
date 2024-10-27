@@ -134,7 +134,7 @@ class Combat(Component, ABC):
                 self.estimated_survival[unit.tag] = np.inf
 
         def unit_value(cost: Cost):
-            return cost.minerals + cost.vespene
+            return max(0, cost.minerals + cost.vespene)
 
         army_cost = sum(
             unit_value(self.cost.of(unit.type_id))
