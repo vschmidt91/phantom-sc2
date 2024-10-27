@@ -12,10 +12,11 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Point2, Unit
+from sc2.units import Units
 from skimage.draw import disk
 
 from ..action import Action, AttackMove, Move, UseAbility
-from ..combat_predictor import CombatContext, CombatPrediction, predict_combat
+from ..combat_predictor import CombatPrediction
 from ..constants import CHANGELINGS, CIVILIANS, COOLDOWN, ENERGY_COST
 from ..cost import Cost
 from ..cython.cy_dijkstra import cy_dijkstra  # type: ignore
@@ -66,21 +67,7 @@ class Combat(Component, ABC):
     confidence: float = 1.0
     _bile_last_used: dict[int, int] = dict()
 
-    def do_combat(self) -> Iterable[Action]:
-
-        army = self.units.filter(lambda u: u.type_id not in CIVILIANS).filter(
-            lambda u: not (u.type_id == UnitTypeId.QUEEN and u.tag in self._inject_assignment and 20 <= u.energy)
-        )
-        enemies = self.all_enemy_units
-
-        combat_prediction = predict_combat(
-            CombatContext(
-                units=army,
-                enemy_units=enemies,
-                dps=self.dps_fast,
-                pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
-            )
-        )
+    def do_combat(self, army: Units, enemies: Units, combat_prediction: CombatPrediction) -> Iterable[Action]:
 
         self.ground_dps = np.zeros(self.game_info.map_size)
         self.air_dps = np.zeros(self.game_info.map_size)
@@ -138,6 +125,8 @@ class Combat(Component, ABC):
                 yield action
             elif unit.type_id in {UnitTypeId.RAVAGER} and (action := self.do_bile(unit)):
                 yield action
+            elif unit.type_id in {UnitTypeId.QUEEN}:
+                pass
             else:
                 yield CombatAction(unit, combat_prediction)
 

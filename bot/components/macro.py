@@ -1,7 +1,6 @@
 import math
 import random
 from dataclasses import dataclass
-from functools import cmp_to_key
 from itertools import chain
 from typing import Iterable, TypeAlias
 
@@ -38,7 +37,6 @@ MacroId: TypeAlias = UnitTypeId | UpgradeId
 
 @dataclass
 class MacroPlan:
-    plan_id: int
     item: MacroId
     target: Unit | Point2 | None = None
     priority: float = 0.0
@@ -46,24 +44,16 @@ class MacroPlan:
     eta: float = math.inf
     executed: bool = False
 
-    def __hash__(self) -> int:
-        return hash(self.plan_id)
-
 
 def compare_plans(plan_a: MacroPlan, plan_b: MacroPlan) -> int:
     if plan_a.priority < plan_b.priority:
         return -1
     elif plan_b.priority < plan_a.priority:
         return +1
-    elif plan_a.plan_id < plan_b.plan_id:
-        return +1
-    elif plan_b.plan_id < plan_a.plan_id:
-        return -1
     return 0
 
 
 class Macro(Component):
-    next_plan_id: int = 0
     _unassigned_plans: list[MacroPlan] = list()
     _assigned_plans: dict[int, MacroPlan] = dict()
     composition: dict[UnitTypeId, int] = dict()
@@ -73,8 +63,7 @@ class Macro(Component):
         return [self.unit_tag_dict[t] for t in self._assigned_plans.keys() if t in self.unit_tag_dict]
 
     def add_plan(self, item: MacroId) -> MacroPlan:
-        self.next_plan_id += 1
-        plan = MacroPlan(self.next_plan_id, item)
+        plan = MacroPlan(item)
         self._unassigned_plans.append(plan)
         logger.info(f"Adding {plan=}")
         return plan
@@ -155,14 +144,11 @@ class Macro(Component):
 
         self.handle_actions()
 
-        plans = sorted(
-            self.enumerate_plans(),
-            key=cmp_to_key(compare_plans),
-            reverse=True,
-        )
-
-        if len(plans) != len(set(plans)):
-            logger.error(f"duplicate plans: {plans=}")
+        # plans = sorted(
+        #     self.enumerate_plans(),
+        #     key=cmp_to_key(compare_plans),
+        #     reverse=True,
+        # )
 
         trainers = set(self.all_own_units)
 

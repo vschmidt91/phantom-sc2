@@ -85,7 +85,12 @@ class Strategy(Component, ABC):
             composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
 
         if self.tech_up and 0 < hive_count and 150 < self.supply_used:
-            composition[UnitTypeId.GREATERSPIRE] = 1
+            if 0 == self.count(UnitTypeId.SPIRE, include_planned=False) + self.count(
+                UnitTypeId.SPIRE, include_planned=False
+            ):
+                composition[UnitTypeId.SPIRE] = 1
+            else:
+                composition[UnitTypeId.GREATERSPIRE] = 1
             composition[UnitTypeId.OVERSEER] = 3
 
         if worker_count == worker_target:

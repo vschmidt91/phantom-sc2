@@ -3,27 +3,31 @@ import math
 import pstats
 from collections import defaultdict
 from functools import cmp_to_key
+from typing import Iterable
 
 from ares import AresBot
 from loguru import logger
 from sc2.data import Result
+from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
-from .action import Action
+from .action import Action, UseAbility
 from .build_order import HATCH_FIRST
 from .chat import Chat
-from .components.combat import Combat
+from .combat_predictor import CombatContext, predict_combat
+from .components.combat import Combat, CombatAction
 from .components.creep import CreepSpread
 from .components.dodge import Dodge
-from .components.inject import Inject
 from .components.macro import Macro, compare_plans
 from .components.scout import Scout
 from .components.strategy import Strategy
 from .components.transfuse import Transfuse
+from .constants import CIVILIANS, ENERGY_COST
 from .cost import CostManager
+from .inject import Inject
 from .resources.resource_manager import ResourceManager
 
 
@@ -31,7 +35,6 @@ class PhantomBot(
     Combat,
     CreepSpread,
     Dodge,
-    Inject,
     Macro,
     ResourceManager,
     Scout,
@@ -39,10 +42,10 @@ class PhantomBot(
     Transfuse,
     AresBot,
 ):
-
     debug = False
     profiler: cProfile.Profile | None = None
     chat = Chat()
+    inject = Inject()
     cost: CostManager
     build_order = HATCH_FIRST
 
@@ -69,7 +72,6 @@ class PhantomBot(
         if self.actual_iteration == 10:
             self.chat.add_message("(glhf)")
 
-        self.assign_queens(self.actual_by_type[UnitTypeId.QUEEN], self.townhalls)
         if self.run_build_order():
             self.make_composition()
             self.make_tech()
@@ -77,16 +79,52 @@ class PhantomBot(
             self.expand()
             self.update_composition()
 
+        queens = self.actual_by_type[UnitTypeId.QUEEN]
+        self.inject.assign(queens, self.townhalls.ready)
+
+        army = self.units.exclude_type(CIVILIANS)
+        enemies = self.all_enemy_units
+
+        combat_prediction = predict_combat(
+            CombatContext(
+                units=army,
+                enemy_units=enemies,
+                dps=self.dps_fast,
+                pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
+            )
+        )
+
+        def queen_actions() -> Iterable[Action]:
+            for queen in queens:
+                if queen.energy >= ENERGY_COST[AbilityId.TRANSFUSION_TRANSFUSION] and (
+                    action := self.do_transfuse_single(queen)
+                ):
+                    yield action
+                elif (
+                    queen.energy >= ENERGY_COST[AbilityId.EFFECT_INJECTLARVA]
+                    and self.larva.amount + self.supply_used < 200
+                    and (target_tag := self.inject.get_target(queen))
+                    and (target := self.unit_tag_dict.get(target_tag))
+                ):
+                    yield UseAbility(queen, AbilityId.EFFECT_INJECTLARVA, target=target)
+                elif (
+                    queen.energy >= ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]
+                    and self.active_tumor_count < len(queens)
+                    and (action := self.place_tumor(queen))
+                ):
+                    yield action
+                else:
+                    yield CombatAction(queen, combat_prediction)
+
         actions: list[Action] = []
         actions.extend(self.chat.do_chat())
         actions.extend(await self.do_macro())
         actions.extend(self.do_harvest())
         actions.extend(self.spread_creep())
-        actions.extend(self.do_transfuse())
-        actions.extend(self.do_injects())
+        actions.extend(queen_actions())
         actions.extend(self.do_scouting())
         actions.extend(self.do_dodge())
-        actions.extend(self.do_combat())
+        actions.extend(self.do_combat(army, enemies, combat_prediction))
 
         if self.debug:
             self.check_for_duplicate_actions(actions)
@@ -210,8 +248,8 @@ class PhantomBot(
 
     def morph_overlords(self) -> None:
         supply = self.supply_cap + self.supply_pending + self.supply_planned
-        supply_target = min(200.0, self.supply_used + 3.0 + self.income.larva / 2.0)
-        if supply < supply_target:
+        supply_target = min(200.0, self.supply_used + 4.0 + self.income.larva / 2.0)
+        if supply <= supply_target:
             plan = self.add_plan(UnitTypeId.OVERLORD)
             plan.priority = 1
 

@@ -1,9 +1,7 @@
 from abc import ABC
-from typing import Iterable
 
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
 from ..action import Action, UseAbility
@@ -14,11 +12,6 @@ TRANSFUSE_ABILITY = AbilityId.TRANSFUSION_TRANSFUSION
 
 
 class Transfuse(Component, ABC):
-
-    def do_transfuse(self) -> Iterable[Action]:
-        for queen in self.actual_by_type[UnitTypeId.QUEEN]:
-            if action := self.do_transfuse_single(queen):
-                yield action
 
     def do_transfuse_single(self, unit: Unit) -> Action | None:
 

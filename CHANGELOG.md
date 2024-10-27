@@ -6,7 +6,7 @@
 
 ## FIXES
 - [ ] Stop ground units from attacking air units out of range
-- [ ] Fix Broodlord Switch
+- [x] Fix Broodlord Switch
 
 # vNext
 - Copy component system from 12PoolBot

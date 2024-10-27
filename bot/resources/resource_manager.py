@@ -198,8 +198,8 @@ class ResourceManager(Component):
         #     self.harvester_assignment.pop(t, None)
         for tag, target in list(self.harvester_assignment.items()):
             if tag not in self.unit_tag_dict:
-                in_geyser = self.supply_workers != self.workers.amount and isinstance(target, VespeneGeyser)
-                if not in_geyser:
+                might_be_in_geyser = self.supply_workers != self.workers.amount and isinstance(target, VespeneGeyser)
+                if not might_be_in_geyser:
                     del self.harvester_assignment[tag]
         self.harvesters_by_resource = Counter[ResourceUnit](self.harvester_assignment.values())
 
