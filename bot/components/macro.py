@@ -166,12 +166,15 @@ class Macro(Component):
         if len(plans) != len(set(plans)):
             logger.error(f"duplicate plans: {plans=}")
 
+        trainers = set(self.all_own_units)
+
         for plan in list(self._unassigned_plans):
-            if trainer := self.find_trainer(self.all_own_units, plan.item):
+            if trainer := self.find_trainer(trainers, plan.item):
                 logger.info(f"Assigning {trainer=} for {plan=}")
                 if plan in self._unassigned_plans:
                     self._unassigned_plans.remove(plan)
                 self._assigned_plans[trainer.tag] = plan
+                trainers.remove(trainer)
 
         for i, (tag, plan) in enumerate(list(self._assigned_plans.items())):
 
@@ -291,7 +294,7 @@ class Macro(Component):
         else:
             return None
 
-    def find_trainer(self, trainers: Units, item: MacroId) -> Unit | None:
+    def find_trainer(self, trainers: Iterable[Unit], item: MacroId) -> Unit | None:
         trainer_types = ITEM_TRAINED_FROM_WITH_EQUIVALENTS[item]
 
         trainers_filtered = [

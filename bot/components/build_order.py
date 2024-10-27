@@ -11,7 +11,7 @@ class BuildOrder(Component, ABC):
         steps = [
             (UnitTypeId.DRONE, 13),
             (UnitTypeId.OVERLORD, 2),
-            (UnitTypeId.DRONE, 16),
+            (UnitTypeId.DRONE, 15),
             (UnitTypeId.HATCHERY, 2),
             (UnitTypeId.DRONE, 17),
             (UnitTypeId.EXTRACTOR, 1),

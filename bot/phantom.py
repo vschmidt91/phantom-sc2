@@ -218,7 +218,8 @@ class PhantomBot(
 
         expand = True
         if self.townhalls.amount == 2:
-            expand = 21 <= self.state.score.food_used_economy
+            expand = 2 <= self.count(UnitTypeId.QUEEN, include_planned=False)
+            # expand = 25 <= self.state.score.food_used_economy
         elif 2 < self.townhalls.amount:
             expand = 2 / 3 < saturation
 
