@@ -64,23 +64,6 @@ def compare_plans(plan_a: MacroPlan, plan_b: MacroPlan) -> int:
     return 0
 
 
-@dataclass
-class PreMove(Action):
-    unit: Unit
-    target: Point2
-    eta: float
-
-    async def execute(self, bot: AresBot) -> bool:
-        distance = await bot.client.query_pathing(self.unit, self.target) or 0.0
-        movement_eta = 1 + distance / (1.4 * self.unit.movement_speed)
-        if self.eta <= movement_eta:
-            if 1e-3 < self.unit.distance_to(self.target):
-                return self.unit.move(self.target)
-            else:
-                return self.unit.hold_position()
-        return True
-
-
 class Macro(Component):
     next_plan_id: int = 0
     _unassigned_plans: list[MacroPlan] = list()
