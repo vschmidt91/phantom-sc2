@@ -1,12 +1,11 @@
-from __future__ import annotations
-
 import math
 import random
+from abc import ABC
 from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
 from itertools import chain
-from typing import TYPE_CHECKING, Iterable, TypeAlias
+from typing import Iterable, TypeAlias
 
 import numpy as np
 from ares import AresBot
@@ -21,9 +20,6 @@ from ..constants import CHANGELINGS, CIVILIANS, COOLDOWN, ENERGY_COST
 from ..cost import Cost
 from ..cython.cy_dijkstra import cy_dijkstra  # type: ignore
 from .base import Component
-
-if TYPE_CHECKING:
-    pass
 
 
 class CombatStance(Enum):
@@ -64,7 +60,7 @@ class DijkstraOutput:
         return path
 
 
-class CombatModule(Component):
+class Combat(Component, ABC):
     retreat_ground: DijkstraOutput
     retreat_air: DijkstraOutput
     estimated_survival: dict[int, float] = dict()
@@ -247,20 +243,18 @@ class CombatModule(Component):
     def do_unburrow(self, unit: Unit) -> Action | None:
         if unit.health_percentage == 1 or unit.is_revealed:
             return UseAbility(unit, AbilityId.BURROWUP)
-        # elif unit.type_id == UnitTypeId.ROACHBURROWED and UpgradeId.TUNNELINGCLAWS in self.state.upgrades:
-        #
-        #     p = unit.position.rounded
-        #     if 0.0 == self.ground_dps[p]:
-        #         return DoNothing()
-        #     else:
-        #         retreat_map = self.retreat_ground
-        #         if retreat_map.dist[p] == np.inf:
-        #             retreat_point = self.start_location
-        #         else:
-        #             retreat_path = retreat_map.get_path(p, 3)
-        #             retreat_point = Point2(retreat_path[-1]).offset(Point2((0.5, 0.5)))
-        #         return Move(unit, retreat_point)
         return None
+
+
+def can_attack(unit: Unit, target: Unit) -> bool:
+    if target.is_cloaked and not target.is_revealed:
+        return False
+    # elif target.is_burrowed and not any(self.units_detecting(target)):
+    #     return False
+    elif target.is_flying:
+        return unit.can_attack_air
+    else:
+        return unit.can_attack_ground
 
 
 @dataclass
@@ -286,7 +280,7 @@ class CombatAction(Action):
 
         # ---
 
-        if not (self.unit.can_attack or self.unit.is_detector):
+        if not can_attack(self.unit, target) and not self.unit.is_detector:
             return 0.0
         priority /= 8 + target.position.distance_to(self.unit.position)
         if self.unit.is_detector:

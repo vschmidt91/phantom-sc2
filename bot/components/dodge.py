@@ -1,8 +1,6 @@
-from __future__ import annotations
-
 from abc import ABC
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
 import numpy as np
 from sc2.game_state import EffectData
@@ -14,9 +12,6 @@ from sc2.unit import Unit
 
 from ..action import Action, Move, UseAbility
 from .base import Component
-
-if TYPE_CHECKING:
-    pass
 
 DODGE_DELAYED_EFFECTS = {
     EffectId.RAVAGERCORROSIVEBILECP,
@@ -40,7 +35,50 @@ class DamageCircle:
     damage: float
 
 
-class DodgeModule(Component):
+class DodgeElement(ABC):
+    def __init__(self, position: Point2, circles: list[DamageCircle]):
+        self.position: Point2 = position
+        self.circles: list[DamageCircle] = circles
+
+
+class DodgeUnit(DodgeElement):
+    CIRCLES: dict[UnitTypeId, list[DamageCircle]] = {
+        UnitTypeId.DISRUPTORPHASED: [DamageCircle(1.5, 145.0)],
+        UnitTypeId.BANELING: [DamageCircle(2.2, 19.0)],
+    }
+
+    def __init__(self, unit: Unit):
+        position = unit.position
+        circles = self.CIRCLES[unit.type_id]
+        super().__init__(position, circles)
+
+
+class DodgeEffect(DodgeElement):
+    CIRCLES: dict[EffectId, list[DamageCircle]] = {
+        EffectId.LURKERMP: [DamageCircle(0.5, 20.0)],
+        EffectId.PSISTORMPERSISTENT: [DamageCircle(1.5, 80.0)],
+        EffectId.RAVAGERCORROSIVEBILECP: [DamageCircle(1.0, 60)],
+        EffectId.NUKEPERSISTENT: [DamageCircle(4, 150), DamageCircle(6, 75), DamageCircle(8, 75)],
+    }
+
+    def __init__(self, effect: EffectData):
+        position = next(iter(effect.positions))
+        circles = self.CIRCLES[effect.id]
+        super().__init__(position, circles)
+
+
+class DodgeEffectDelayed(DodgeEffect):
+    DELAY: dict[EffectId, float] = {
+        EffectId.RAVAGERCORROSIVEBILECP: 50 / 22.4,
+        EffectId.NUKEPERSISTENT: 320 / 22.4,
+    }
+
+    def __init__(self, effect: EffectData, time: float):
+        self.time_of_impact: float = time + self.DELAY[effect.id]
+        super().__init__(effect)
+
+
+class Dodge(Component, ABC):
     _dodge_elements: list[DodgeElement] = list()
     _dodge_elements_delayed: list[DodgeEffectDelayed] = list()
     _dodge_safety_distance: float = 1.0
@@ -88,46 +126,3 @@ class DodgeModule(Component):
                             yield UseAbility(unit, AbilityId.BURROWUP)
                         else:
                             yield Move(unit, target)
-
-
-class DodgeElement(ABC):
-    def __init__(self, position: Point2, circles: list[DamageCircle]):
-        self.position: Point2 = position
-        self.circles: list[DamageCircle] = circles
-
-
-class DodgeUnit(DodgeElement):
-    CIRCLES: dict[UnitTypeId, list[DamageCircle]] = {
-        UnitTypeId.DISRUPTORPHASED: [DamageCircle(1.5, 145.0)],
-        UnitTypeId.BANELING: [DamageCircle(2.2, 19.0)],
-    }
-
-    def __init__(self, unit: Unit):
-        position = unit.position
-        circles = self.CIRCLES[unit.type_id]
-        super().__init__(position, circles)
-
-
-class DodgeEffect(DodgeElement):
-    CIRCLES: dict[EffectId, list[DamageCircle]] = {
-        EffectId.LURKERMP: [DamageCircle(0.5, 20.0)],
-        EffectId.PSISTORMPERSISTENT: [DamageCircle(1.5, 80.0)],
-        EffectId.RAVAGERCORROSIVEBILECP: [DamageCircle(1.0, 60)],
-        EffectId.NUKEPERSISTENT: [DamageCircle(4, 150), DamageCircle(6, 75), DamageCircle(8, 75)],
-    }
-
-    def __init__(self, effect: EffectData):
-        position = next(iter(effect.positions))
-        circles = self.CIRCLES[effect.id]
-        super().__init__(position, circles)
-
-
-class DodgeEffectDelayed(DodgeEffect):
-    DELAY: dict[EffectId, float] = {
-        EffectId.RAVAGERCORROSIVEBILECP: 50 / 22.4,
-        EffectId.NUKEPERSISTENT: 320 / 22.4,
-    }
-
-    def __init__(self, effect: EffectData, time: float):
-        self.time_of_impact: float = time + self.DELAY[effect.id]
-        super().__init__(effect)

@@ -1,11 +1,9 @@
-from __future__ import annotations
-
 import math
 import random
 from dataclasses import dataclass
 from functools import cached_property, cmp_to_key
 from itertools import chain
-from typing import TYPE_CHECKING, Iterable, TypeAlias
+from typing import Iterable, TypeAlias
 
 from ares import AresBot
 from loguru import logger
@@ -37,10 +35,21 @@ from ..cost import Cost
 from ..utils import PlacementNotFoundException
 from .base import Component
 
-if TYPE_CHECKING:
-    pass
-
 MacroId: TypeAlias = UnitTypeId | UpgradeId
+
+
+@dataclass
+class MacroPlan:
+    plan_id: int
+    item: MacroId
+    target: Unit | Point2 | None = None
+    priority: float = 0.0
+    max_distance: int | None = 4
+    eta: float = math.inf
+    executed: bool = False
+
+    def __hash__(self) -> int:
+        return hash(self.plan_id)
 
 
 def compare_plans(plan_a: MacroPlan, plan_b: MacroPlan) -> int:
@@ -72,17 +81,6 @@ class MacroAction(Action):
                 return self.unit(AbilityId.HARVEST_RETURN)
             else:
                 target = self.plan.target
-                # if isinstance(self.plan.target, Point2):
-                #     if not await bot.can_place_single(self.ability, self.plan.target):
-                #         self.plan.target = None
-                #         return False
-                # if isinstance(self.plan.target, Point2) and self.plan.item != GAS_BY_RACE[bot.race]:
-                #     for d in range(10):
-                #         target = await bot.find_placement(
-                #             self.ability, near=self.plan.target, placement_step=1, max_distance=d
-                #         )
-                #         if target:
-                #             break
                 self.plan.executed = True
                 return self.unit(self.ability, target=target)
         elif not self.plan.target:
@@ -106,40 +104,25 @@ class MacroAction(Action):
         return True
 
 
-@dataclass
-class MacroPlan:
-    plan_id: int
-    item: MacroId
-    target: Unit | Point2 | None = None
-    priority: float = 0.0
-    max_distance: int | None = 4
-    eta: float = math.inf
-    executed: bool = False
-
-    def __hash__(self) -> int:
-        return hash(self.plan_id)
-
-
-class MacroModule(Component):
+class Macro(Component):
     next_plan_id: int = 0
     future_spending = Cost(0, 0, 0, 0)
-    future_timeframe = 0.0
-    unassigned_plans: list[MacroPlan] = list()
-    assigned_plans: dict[int, MacroPlan] = dict()
+    _unassigned_plans: list[MacroPlan] = list()
+    _assigned_plans: dict[int, MacroPlan] = dict()
     composition: dict[UnitTypeId, int] = dict()
 
     @property
     def all_trainers(self):
-        return [self.unit_tag_dict[t] for t in self.assigned_plans.keys() if t in self.unit_tag_dict]
+        return [self.unit_tag_dict[t] for t in self._assigned_plans.keys() if t in self.unit_tag_dict]
 
     def add_plan(self, item: MacroId) -> MacroPlan:
         self.next_plan_id += 1
         plan = MacroPlan(self.next_plan_id, item)
-        self.unassigned_plans.append(plan)
+        self._unassigned_plans.append(plan)
         return plan
 
     def enumerate_plans(self) -> Iterable[MacroPlan]:
-        return chain(self.assigned_plans.values(), self.unassigned_plans)
+        return chain(self._assigned_plans.values(), self._unassigned_plans)
 
     def planned_by_type(self, item: MacroId) -> Iterable[MacroPlan]:
         return (plan for plan in self.enumerate_plans() if plan.item == item)
@@ -147,11 +130,11 @@ class MacroModule(Component):
     def make_composition(self) -> None:
         if 200 <= self.supply_used:
             return
-        composition_have = {unit: self.count(unit) for unit in self.composition}
         for unit, target in self.composition.items():
+            have = self.count(unit)
             if target < 1:
                 continue
-            elif target <= composition_have[unit]:
+            elif target <= have:
                 continue
             if any(self.get_missing_requirements(unit)):
                 continue
@@ -163,6 +146,8 @@ class MacroModule(Component):
                     plan.priority = priority
                     break
             else:
+                if unit == UnitTypeId.RAVAGER:
+                    logger.info("ravager")
                 plan = self.add_plan(unit)
                 plan.priority = priority
 
@@ -173,28 +158,29 @@ class MacroModule(Component):
 
         for error in self.state.action_errors:
             if error.result == ActionResult.CantBuildLocationInvalid.value:
-                if plan := self.assigned_plans.get(error.unit_tag):
+                if plan := self._assigned_plans.get(error.unit_tag):
                     plan.target = None
 
     def handle_action(self, action: ActionRawUnitCommand, tag: int) -> None:
         unit = self.unit_tag_dict.get(tag)
+        item = ITEM_BY_ABILITY.get(action.exact_id)
         if unit and unit.type_id == UnitTypeId.EGG:
             # commands issued to a specific larva will be received by a random one
             # therefore, a direct lookup will usually be incorrect
             # instead, all plans are checked for a match
-            for t, p in self.assigned_plans.items():
-                if ITEM_BY_ABILITY.get(action.exact_id) == p.item:
+            for t, p in self._assigned_plans.items():
+                if item == p.item:
                     tag = t
                     break
-        if plan := self.assigned_plans.get(tag):
-            if ITEM_BY_ABILITY.get(action.exact_id) == plan.item:
-                del self.assigned_plans[tag]
+        if plan := self._assigned_plans.get(tag):
+            if item == plan.item:
+                del self._assigned_plans[tag]
                 logger.info(f"Action matched plan: {action=}, {tag=}, {plan=}")
 
         elif action.exact_id in ALL_MACRO_ABILITIES:
             logger.info(f"Action performed by non-existing unit: {action=}, {tag=}")
 
-    def macro(self) -> Iterable[Action]:
+    def do_macro(self) -> Iterable[Action]:
 
         reserve = Cost(0, 0, 0, 0)
 
@@ -210,12 +196,12 @@ class MacroModule(Component):
             unit
             for unit in self.all_own_units
             if (
-                unit.tag not in self.assigned_plans
+                unit.tag not in self._assigned_plans
                 and (unit.is_idle or unit.orders[0].ability.exact_id not in ALL_MACRO_ABILITIES)
             )
         ]
 
-        trainer_by_plan = {p: self.unit_tag_dict.get(t) for t, p in self.assigned_plans.items()}
+        trainer_by_plan = {p: self.unit_tag_dict.get(t) for t, p in self._assigned_plans.items()}
 
         for i, plan in enumerate(plans):
             cost = self.cost.of(plan.item)
@@ -227,9 +213,9 @@ class MacroModule(Component):
 
             if not (trainer := trainer_by_plan.get(plan)):
                 if trainer := self.search_trainer(trainers, plan.item):
-                    if plan in self.unassigned_plans:
-                        self.unassigned_plans.remove(plan)
-                    self.assigned_plans[trainer.tag] = plan
+                    if plan in self._unassigned_plans:
+                        self._unassigned_plans.remove(plan)
+                    self._assigned_plans[trainer.tag] = plan
                     trainers.remove(trainer)
                 else:
                     # reserve += cost
@@ -248,8 +234,8 @@ class MacroModule(Component):
 
             ability = MACRO_INFO.get(trainer.type_id, {}).get(plan.item, {}).get("ability")
             if ability is None:
-                if self.assigned_plans.pop(trainer.tag, None):
-                    self.unassigned_plans.append(plan)
+                if self._assigned_plans.pop(trainer.tag, None):
+                    self._unassigned_plans.append(plan)
                 continue
 
             if not (trainer and ability and trainer.is_using_ability(ability)):
@@ -284,9 +270,9 @@ class MacroModule(Component):
 
         cost_zero = Cost(0, 0, 0, 0)
         future_spending = cost_zero
-        future_spending += sum((self.cost.of(plan.item) for plan in self.unassigned_plans), cost_zero)
+        future_spending += sum((self.cost.of(plan.item) for plan in self._unassigned_plans), cost_zero)
         future_spending += sum(
-            (self.cost.of(plan.item) for plan in self.assigned_plans.values()),
+            (self.cost.of(plan.item) for plan in self._assigned_plans.values()),
             cost_zero,
         )
         future_spending += sum(
@@ -294,15 +280,6 @@ class MacroModule(Component):
             cost_zero,
         )
         self.future_spending = future_spending
-
-        future_timeframe = 3 / 60
-        if 0 < future_spending.minerals:
-            future_timeframe = max(future_timeframe, future_spending.minerals / max(1, self.income.minerals))
-        if 0 < future_spending.vespene:
-            future_timeframe = max(future_timeframe, future_spending.vespene / max(1, self.income.vespene))
-        if 0 < future_spending.larva:
-            future_timeframe = max(future_timeframe, future_spending.larva / max(1, self.income.larva))
-        self.future_timeframe = future_timeframe
 
     def get_target(self, trainer: Unit, objective: MacroPlan) -> Unit | Point2 | None:
         gas_type = GAS_BY_RACE[self.race]
@@ -314,12 +291,10 @@ class MacroModule(Component):
                 for order in unit.orders
                 if order.ability.exact_id == AbilityId.ZERGBUILD_EXTRACTOR
             }
-            exclude_tags.update(
-                {step.target.tag for step in self.planned_by_type(gas_type) if isinstance(step.target, Unit)}
-            )
+            exclude_tags.update({p.target.tag for p in self.planned_by_type(gas_type) if isinstance(p.target, Unit)})
             geysers = [
                 geyser.unit
-                for geyser in self.get_owned_geysers()
+                for geyser in self.owned_geysers
                 if (geyser.position not in exclude_positions and geyser.unit.tag not in exclude_tags)
             ]
             if not any(geysers):
@@ -363,7 +338,7 @@ class MacroModule(Component):
                 trainer.type_id in trainer_types
                 and trainer.is_ready
                 and (trainer.is_idle or not trainer.is_structure)
-                and trainer.tag not in self.assigned_plans
+                and trainer.tag not in self._assigned_plans
             )
         ]
 
@@ -376,7 +351,7 @@ class MacroModule(Component):
     def get_target_position(self, target: UnitTypeId) -> Point2 | None:
         data = self.game_data.units[target.value]
         if target in race_townhalls[self.race]:
-            for base in self.resource_manager.bases:
+            for base in self.bases:
                 if base.townhall:
                     continue
                 if base.position in self.blocked_positions:
@@ -386,7 +361,7 @@ class MacroModule(Component):
                 return base.position
             return None
 
-        bases = list(self.resource_manager.bases)
+        bases = list(self.bases)
         random.shuffle(bases)
         for base in bases:
             if not base.townhall:

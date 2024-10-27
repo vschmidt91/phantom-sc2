@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Iterable, Protocol
 
@@ -15,18 +13,12 @@ class ChatContext(Protocol):
 
 @dataclass
 class ChatAction(Action):
-    context: ChatContext
-    message: ChatMessage
-
-    async def execute(self, bot: BotBase) -> bool:
-        await self.context.chat_send(self.message.message, self.message.team_only)
-        return True
-
-
-@dataclass
-class ChatMessage:
     message: str
     team_only: bool
+
+    async def execute(self, bot: BotBase) -> bool:
+        await bot.client.chat_send(self.message, self.team_only)
+        return True
 
     def __hash__(self) -> int:
         return hash(self.message)
@@ -34,20 +26,19 @@ class ChatMessage:
 
 @dataclass
 class Chat:
-    context: ChatContext
-    unsent_messages: set[ChatMessage] = field(default_factory=set)
-    sent_messages: set[ChatMessage] = field(default_factory=set)
+    _unsent_messages: set[ChatAction] = field(default_factory=set)
+    _sent_messages: set[ChatAction] = field(default_factory=set)
 
     def do_chat(self) -> Iterable[Action]:
-        for message in list(self.unsent_messages):
-            yield ChatAction(self.context, message)
-            self.unsent_messages.remove(message)
-            self.sent_messages.add(message)
+        for message in list(self._unsent_messages):
+            yield message
+            self._unsent_messages.remove(message)
+            self._sent_messages.add(message)
 
     def add_message(self, message: str, team_only: bool = False) -> None:
-        chat_message = ChatMessage(message, team_only)
-        if chat_message not in self.sent_messages | self.unsent_messages:
-            self.unsent_messages.add(chat_message)
+        action = ChatAction(message, team_only)
+        if action not in self._sent_messages | self._unsent_messages:
+            self._unsent_messages.add(action)
 
     def add_tag(self, tag: str) -> None:
         message = f"Tag:{tag}"

@@ -1,7 +1,6 @@
-from __future__ import annotations
-
 import math
-from typing import TYPE_CHECKING, Counter
+from abc import ABC
+from typing import Counter
 
 import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
@@ -14,16 +13,13 @@ from ..constants import (
 )
 from .base import Component
 
-if TYPE_CHECKING:
-    pass
 
-
-class Strategy(Component):
+class Strategy(Component, ABC):
     tech_up = False
 
     def update_composition(self) -> None:
         worker_count = self.state.score.food_used_economy
-        worker_target = np.clip(self.get_max_harvester(), 1, 80)
+        worker_target = np.clip(self.max_harvesters, 1, 80)
 
         ratio = max(
             1 - self.confidence,
@@ -63,13 +59,15 @@ class Strategy(Component):
         lair_count = self.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
         hive_count = self.count(UnitTypeId.HIVE, include_pending=True, include_planned=False)
 
+        def total_cost(t: UnitTypeId) -> int:
+            c = self.cost.of(t)
+            return c.minerals + c.vespene
+
         if any(enemy_counts):
             for enemy_type, count in enemy_counts.items():
                 for counter in UNIT_COUNTER_DICT.get(enemy_type, []):
                     if can_build[counter]:
-                        composition[counter] += (
-                            2 * ratio * count * self.get_unit_cost(enemy_type) / self.get_unit_cost(counter)
-                        )
+                        composition[counter] += 2 * ratio * count * total_cost(enemy_type) / total_cost(counter)
                         break
         elif 0.8 < self.tech_requirement_progress(UnitTypeId.ZERGLING):
             composition[UnitTypeId.ZERGLING] = 1.0

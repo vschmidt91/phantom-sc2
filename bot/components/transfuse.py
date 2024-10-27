@@ -1,6 +1,5 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Iterable
+from abc import ABC
+from typing import Iterable
 
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
@@ -11,13 +10,10 @@ from ..action import Action, UseAbility
 from ..constants import ENERGY_COST
 from .base import Component
 
-if TYPE_CHECKING:
-    pass
-
 TRANSFUSE_ABILITY = AbilityId.TRANSFUSION_TRANSFUSION
 
 
-class TransfuseComponent(Component):
+class Transfuse(Component, ABC):
 
     def do_transfuse(self) -> Iterable[Action]:
         for queen in self.actual_by_type[UnitTypeId.QUEEN]:
@@ -26,18 +22,19 @@ class TransfuseComponent(Component):
 
     def do_transfuse_single(self, unit: Unit) -> Action | None:
 
-        def priority(target: Unit) -> float:
-            if unit.tag == target.tag:
+        def priority(t: Unit) -> float:
+            if unit.tag == t.tag:
                 return 0
-            if not unit.in_ability_cast_range(TRANSFUSE_ABILITY, target):
+            if not unit.in_ability_cast_range(TRANSFUSE_ABILITY, t):
                 return 0
-            if BuffId.TRANSFUSION in target.buffs:
+            if BuffId.TRANSFUSION in t.buffs:
                 return 0
-            if target.health_max <= target.health + 75:
+            if t.health_max <= t.health + 75:
                 return 0
-            priority = 1
-            priority *= 10 + self.get_unit_value(target)
-            priority /= 0.1 + target.health_percentage
+            priority = 1.0
+            cost = self.cost.of(t.type_id)
+            priority *= 10 + cost.minerals + cost.vespene
+            priority /= 0.1 + t.health_percentage
             return priority
 
         if unit.energy < ENERGY_COST[TRANSFUSE_ABILITY]:

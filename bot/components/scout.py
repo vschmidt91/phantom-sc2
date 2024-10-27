@@ -1,23 +1,24 @@
-from __future__ import annotations
+from abc import ABC
+from typing import Iterable
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Iterable
-
-from ares import AresBot
 from sc2.data import ActionResult
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from resources.base import Base
-from ..action import Action
+from ..action import Action, HoldPosition, Move
+from ..resources.base import Base
 from .base import Component
 
-if TYPE_CHECKING:
-    pass
+
+def scout_with(unit: Unit, target: Point2) -> Action:
+    if unit.distance_to(target) < unit.radius + unit.sight_range:
+        return HoldPosition(unit)
+    else:
+        return Move(unit, target)
 
 
-class ScoutModule(Component):
+class Scout(Component, ABC):
 
     scout_enemy_natural: bool = False
     blocked_positions: dict[Point2, float] = dict()
@@ -51,7 +52,7 @@ class ScoutModule(Component):
         nondetectors = [u for u in scouts if not u.is_detector]
         scout_targets = []
         if self.scout_enemy_natural and self.time < 3 * 60:
-            target = self.resource_manager.bases[-2].position
+            target = self.bases[-2].position
             scout_targets.append(target)
         scout_targets.extend(self.static_targets)
 
@@ -62,23 +63,6 @@ class ScoutModule(Component):
         nondetectors.sort(key=lambda u: u.tag)
         scout_targets.sort(key=lambda p: p.distance_to(self.start_location))
         for unit, target in zip(detectors, self.blocked_positions):
-            yield ScoutAction(unit, target)
+            yield scout_with(unit, target)
         for unit, target in zip(nondetectors, scout_targets):
-            yield ScoutAction(unit, target)
-
-
-@dataclass
-class ScoutAction(Action):
-    unit: Unit
-    target: Point2
-
-    async def execute(self, bot: AresBot) -> bool:
-        if self.target:
-            max_distance = self.unit.radius + self.unit.sight_range
-            # max_distance = 1.0
-            if self.target.distance_to(self.unit) < max_distance:
-                return self.unit.hold_position()
-            else:
-                return self.unit.move(self.target)
-        else:
-            return False
+            yield scout_with(unit, target)

@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Iterable
 
 from sc2.position import Point2
 
@@ -20,6 +19,3 @@ class ResourceBase(ABC):
 
     def __hash__(self) -> int:
         return hash(self.position)
-
-    def flatten(self) -> Iterable["ResourceBase"]:
-        yield self

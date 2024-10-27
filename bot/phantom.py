@@ -3,12 +3,10 @@ import math
 import pstats
 from collections import defaultdict
 from functools import cmp_to_key
-from typing import Iterable
 
 from ares import AresBot
 from loguru import logger
-from sc2.constants import IS_DETECTOR
-from sc2.data import Race, Result, race_townhalls
+from sc2.data import Result
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
@@ -17,81 +15,62 @@ from sc2.unit import Unit
 from .action import Action
 from .components.build_order import BuildOrder
 from .components.chat import Chat
-from .components.combat import CombatModule
+from .components.combat import Combat
 from .components.creep import CreepSpread
-from .components.dodge import DodgeModule
+from .components.dodge import Dodge
 from .components.inject import Inject
-from .components.macro import MacroId, MacroModule, compare_plans
-from .components.scout import ScoutModule
+from .components.macro import Macro, compare_plans
+from .components.scout import Scout
 from .components.strategy import Strategy
-from .components.transfuse import TransfuseComponent
-from .components.unit_manager import UnitManager
-from .constants import (
-    GAS_BY_RACE,
-    REQUIREMENTS_KEYS,
-    RESEARCH_INFO,
-    SUPPLY_PROVIDED,
-    TRAIN_INFO,
-    UNIT_TRAINED_FROM,
-    UPGRADE_RESEARCHED_FROM,
-    WITH_TECH_EQUIVALENTS,
-    WORKERS,
-)
+from .components.transfuse import Transfuse
 from .cost import CostManager
 from .resources.resource_manager import ResourceManager
 
 
 class PhantomBot(
     BuildOrder,
-    CombatModule,
+    Combat,
     CreepSpread,
-    DodgeModule,
+    Dodge,
     Inject,
-    MacroModule,
-    ScoutModule,
+    Macro,
+    ResourceManager,
+    Scout,
     Strategy,
-    TransfuseComponent,
-    UnitManager,
+    Transfuse,
     AresBot,
 ):
-    def __init__(self, debug: bool = False, game_step_override: int | None = None) -> None:
 
-        self.debug = debug
-        self.profiler = cProfile.Profile() if debug else None
-        self.cost = CostManager(self.calculate_cost, self.calculate_supply_cost)
+    debug = False
+    profiler: cProfile.Profile | None = None
+    chat = Chat()
+    cost: CostManager
+
+    def __init__(self, game_step_override: int | None = None) -> None:
         super().__init__(game_step_override=game_step_override)
 
     async def on_before_start(self):
         await super().on_before_start()
-        self.chat = Chat(self.client)
+        self.cost = CostManager(self.calculate_cost, self.calculate_supply_cost)
+        if self.debug:
+            self.profiler = cProfile.Profile()
 
     async def on_start(self) -> None:
         await super().on_start()
-        bases = await self.initialize_bases()
-        self.resource_manager = ResourceManager(self, bases)
-        self.initialize_scout_targets(bases)
+        self.initialize_scout_targets(self.bases)
+        self.split_initial_workers(self.workers)
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
 
-        if iteration == 0 and self.debug:
-            return
-
-        self.iteration = iteration
-
-        if 1 < self.time:
-            self.chat.add_message("(glhf)")
-
         if self.profiler:
             self.profiler.enable()
 
-        self.update_tables()
+        if self.actual_iteration == 10:
+            self.chat.add_message("(glhf)")
 
         self.assign_queens(self.actual_by_type[UnitTypeId.QUEEN], self.townhalls)
-
-        build_order_completed = self.run_build_order()
-
-        if build_order_completed:
+        if self.run_build_order():
             self.make_composition()
             self.make_tech()
             self.morph_overlords()
@@ -100,20 +79,18 @@ class PhantomBot(
 
         actions: list[Action] = []
         actions.extend(self.chat.do_chat())
-        actions.extend(self.macro())
-        actions.extend(self.resource_manager.on_step())
+        actions.extend(self.do_macro())
+        actions.extend(self.do_harvest())
         actions.extend(self.spread_creep())
         actions.extend(self.do_transfuse())
-
-        if self.larva.amount + self.supply_used < 200:
-            actions.extend(self.do_injects())
-
+        actions.extend(self.do_injects())
         actions.extend(self.do_scouting())
         actions.extend(self.do_dodge())
         actions.extend(self.do_combat())
 
         if self.debug:
             self.check_for_duplicate_actions(actions)
+
         for action in actions:
             success = await action.execute(self)
             if not success:
@@ -130,45 +107,11 @@ class PhantomBot(
         if self.debug:
             await self.draw_debug()
 
-    def check_for_duplicate_actions(self, actions: list[Action]) -> None:
-        actions_of_unit: defaultdict[Unit, list[Action]] = defaultdict(list)
-        for action in actions:
-            if hasattr(action, "unit"):
-                unit = getattr(action, "unit")
-                actions_of_unit[unit].append(action)
-        for unit, unit_actions in actions_of_unit.items():
-            if len(unit_actions) > 1:
-                logger.debug(f"Unit {unit} received multiple commands: {actions}")
-            for a in unit_actions[1:]:
-                actions.remove(a)
-
-    def units_detecting(self, unit: Unit) -> Iterable[Unit]:
-        for detector_type in IS_DETECTOR:
-            for detector in self.actual_by_type[detector_type]:
-                distance = detector.position.distance_to(unit.position)
-                if distance <= detector.radius + detector.detect_range + unit.radius:
-                    yield detector
-
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)
 
     async def on_building_construction_started(self, unit: Unit):
         await super().on_building_construction_started(unit)
-
-        if self.race == Race.Zerg:
-            if unit.type_id in {UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMORBURROWED}:
-                # print('tumor')
-                pass
-            else:
-                for trainer, plan in list(self.assigned_plans.items()):
-                    if (
-                        plan.item == unit.type_id
-                        and plan.target
-                        and unit.position.distance_to(plan.target.position) < 3
-                    ):
-                        del self.assigned_plans[trainer]
-                        logger.info(f"New building matched to plan: {plan=}, {unit=}, {trainer=}")
-                        break
 
     async def on_building_construction_complete(self, unit: Unit):
         await super().on_building_construction_complete(unit)
@@ -185,10 +128,12 @@ class PhantomBot(
     async def on_unit_created(self, unit: Unit):
         await super().on_unit_created(unit)
         if unit.type_id in {UnitTypeId.DRONE, UnitTypeId.SCV, UnitTypeId.PROBE}:
-            self.resource_manager.add_harvester(unit)
+            self.add_harvester(unit)
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         await super().on_unit_type_changed(unit, previous_type)
+        if unit.type_id == UnitTypeId.RAVAGERCOCOON:
+            self._assigned_plans.pop(unit.tag)
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         await super().on_unit_took_damage(unit, amount_damage_taken)
@@ -196,23 +141,17 @@ class PhantomBot(
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         await super().on_upgrade_complete(upgrade)
 
-    def count(
-        self, item: MacroId, include_pending: bool = True, include_planned: bool = True, include_actual: bool = True
-    ) -> int:
-        factor = 2 if item == UnitTypeId.ZERGLING else 1
-
-        count = 0
-        if include_actual:
-            if item in WORKERS:
-                count += self.supply_workers
-            else:
-                count += len(self.actual_by_type[item])
-        if include_pending:
-            count += factor * len(self.pending_by_type[item])
-        if include_planned:
-            count += factor * sum(1 for _ in self.planned_by_type(item))
-
-        return count
+    def check_for_duplicate_actions(self, actions: list[Action]) -> None:
+        actions_of_unit: defaultdict[Unit, list[Action]] = defaultdict(list)
+        for action in actions:
+            if hasattr(action, "unit"):
+                unit = getattr(action, "unit")
+                actions_of_unit[unit].append(action)
+        for unit, unit_actions in actions_of_unit.items():
+            if len(unit_actions) > 1:
+                logger.debug(f"Unit {unit} received multiple commands: {actions}")
+            for a in unit_actions[1:]:
+                actions.remove(a)
 
     async def draw_debug(self):
         font_color = (255, 255, 255)
@@ -257,111 +196,24 @@ class PhantomBot(
             self.client.debug_text_world(text, position, color=font_color, size=font_size)
 
         self.client.debug_text_screen(f"Confidence: {round(100 * self.confidence)}%", (0.01, 0.01))
-        self.client.debug_text_screen(f"Gas Target: {round(self.resource_manager.get_gas_target(), 3)}", (0.01, 0.03))
+        self.client.debug_text_screen(f"Gas Target: {round(self.get_gas_target(), 3)}", (0.01, 0.03))
 
         for i, plan in enumerate(plans):
             self.client.debug_text_screen(f"{1 + i} {round(plan.eta or 0, 1)} {plan.item.name}", (0.01, 0.1 + 0.01 * i))
 
-        # self.figure_img.set_data(self.combat.army_map.data[:, :, [0, 1, 4]])
-        # self.figure.canvas.draw()
-        # self.figure.canvas.flush_events()
-
-    def get_owned_geysers(self):
-        for base in self.resource_manager.bases:
-            if not base.townhall:
-                continue
-            if not base.townhall.is_ready:
-                continue
-            if base.townhall.type_id not in race_townhalls[self.race]:
-                continue
-            for geyser in base.vespene_geysers:
-                yield geyser
-
-    def get_unit_value(self, unit: Unit) -> float:
-        health = unit.health + unit.shield
-        dps = max(unit.ground_dps, unit.air_dps)
-        return math.sqrt(health * dps)
-
-    def get_unit_cost(self, unit_type: UnitTypeId) -> int:
-        cost = self.calculate_unit_value(unit_type)
-        return cost.minerals + cost.vespene
-
-    def get_max_harvester(self) -> int:
-        workers = sum(b.harvester_target for b in self.resource_manager.bases_taken)
-        workers += 16 * self.count(UnitTypeId.HATCHERY, include_actual=False, include_planned=False)
-        workers += 3 * self.count(GAS_BY_RACE[self.race], include_actual=False, include_planned=False)
-        return workers
-
-    def is_upgrade_missing(self, upgrade: UpgradeId) -> bool:
-        return upgrade not in self.state.upgrades
-
-    def is_unit_missing(self, unit: UnitTypeId) -> bool:
-        if unit in {
-            UnitTypeId.LARVA,
-            # UnitTypeId.CORRUPTOR,
-            # UnitTypeId.ROACH,
-            # UnitTypeId.HYDRALISK,
-            # UnitTypeId.ZERGLING,
-        }:
-            return False
-        return all(
-            self.count(e, include_pending=False, include_planned=False) == 0 for e in WITH_TECH_EQUIVALENTS[unit]
-        )
-
-    def get_missing_requirements(self, item: MacroId) -> Iterable[MacroId]:
-        if item not in REQUIREMENTS_KEYS:
-            return
-
-        if isinstance(item, UnitTypeId):
-            trainers = UNIT_TRAINED_FROM[item]
-            trainer = min(trainers, key=lambda v: v.value)
-            info = TRAIN_INFO[trainer][item]
-        elif isinstance(item, UpgradeId):
-            trainer = UPGRADE_RESEARCHED_FROM[item]
-            info = RESEARCH_INFO[trainer][item]
-        else:
-            raise ValueError(item)
-
-        if self.is_unit_missing(trainer):
-            yield trainer
-        if (required_building := info.get("required_building")) and self.is_unit_missing(required_building):
-            yield required_building
-        if (
-            (required_upgrade := info.get("required_upgrade"))
-            and isinstance(required_upgrade, UpgradeId)
-            and self.is_upgrade_missing(required_upgrade)
-        ):
-            yield required_upgrade
-
     def morph_overlords(self) -> None:
-        supply_pending = sum(
-            provided
-            for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
-            for unit in self.pending_by_type[unit_type]
-        )
-        supply_planned = sum(
-            provided
-            for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
-            for plan in self.planned_by_type(unit_type)
-        )
-
-        if 200 <= self.supply_cap + supply_pending + supply_planned:
-            return
-
-        supply_buffer = 4.0 + self.income.larva / 2.0
-
-        if self.supply_left + supply_pending + supply_planned <= supply_buffer:
+        supply = self.supply_cap + self.supply_pending + self.supply_planned
+        supply_target = min(200.0, self.supply_used + 4.0 + self.income.larva / 2.0)
+        if supply < supply_target:
             plan = self.add_plan(UnitTypeId.OVERLORD)
             plan.priority = 1
 
     def expand(self) -> None:
-        # if self.count(UnitTypeId.SPAWNINGPOOL, include_pending=False, include_planned=False) < 1:
-        #     return
 
         if self.time < 50:
             return
 
-        worker_max = self.get_max_harvester()
+        worker_max = self.max_harvesters
         saturation = self.state.score.food_used_economy / max(1, worker_max)
         saturation = max(0, min(1, saturation))
         priority = 3 * (saturation - 1)
@@ -380,4 +232,4 @@ class PhantomBot(
             plan = self.add_plan(UnitTypeId.HATCHERY)
             plan.priority = priority
             plan.max_distance = None
-            logger.info(f"Expanding: {plan=}", self.time_formatted)
+            logger.info(f"Expanding: {plan=}")

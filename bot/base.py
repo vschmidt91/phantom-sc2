@@ -1,24 +1,68 @@
-from abc import ABC
-from typing import Iterable
+from abc import ABC, abstractmethod
+from collections import defaultdict
+from typing import Iterable, TypeAlias
 
 import numpy as np
 from ares import AresBot
+from ares.cache import property_cache_once_per_frame
+from sc2.dicts.unit_research_abilities import RESEARCH_INFO
+from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
+from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
+from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.position import Point2
 from sc2.unit import Unit
 
-from .constants import RANGE_UPGRADES
+from .constants import (
+    ITEM_BY_ABILITY,
+    RANGE_UPGRADES,
+    REQUIREMENTS_KEYS,
+    SUPPLY_PROVIDED,
+    WITH_TECH_EQUIVALENTS,
+    WORKERS,
+)
 from .cost import Cost
 from .resources.base import Base
 from .resources.mineral_patch import MineralPatch
 from .resources.vespene_geyser import VespeneGeyser
 
+MacroId: TypeAlias = UnitTypeId | UpgradeId
+
 
 class BotBase(AresBot, ABC):
 
+    bases = list[Base]()
+    actual_by_type: defaultdict[MacroId, list[Unit]] = defaultdict(list)
+    pending_by_type: defaultdict[MacroId, list[Unit]] = defaultdict(list)
+
     @property
+    def ai(self):
+        return self
+
+    @abstractmethod
+    def planned_by_type(self, item: MacroId) -> Iterable:
+        raise NotImplementedError()
+
+    def count(
+        self, item: MacroId, include_pending: bool = True, include_planned: bool = True, include_actual: bool = True
+    ) -> int:
+        factor = 2 if item == UnitTypeId.ZERGLING else 1
+
+        count = 0
+        if include_actual:
+            if item in WORKERS:
+                count += self.supply_workers
+            else:
+                count += len(self.actual_by_type[item])
+        if include_pending:
+            count += factor * len(self.pending_by_type[item])
+        if include_planned:
+            count += factor * sum(1 for _ in self.planned_by_type(item))
+
+        return count
+
+    @property_cache_once_per_frame
     def income(self) -> Cost:
 
         larva_per_second = 0.0
@@ -35,15 +79,16 @@ class BotBase(AresBot, ABC):
             60.0 * larva_per_second,
         )
 
-    def enumerate_positions(self, structure: Unit) -> Iterable[Point2]:
-        radius = structure.footprint_radius
-        return (
-            structure.position + Point2((x_offset, y_offset))
-            for x_offset in np.arange(-radius, +radius + 1)
-            for y_offset in np.arange(-radius, +radius + 1)
-        )
+    async def on_start(self) -> None:
+        await super().on_start()
+        self.bases = await self.initialize_bases()
+        self.initialize_resources()
 
-    async def initialize_bases(self):
+    async def on_step(self, iteration: int):
+        await super().on_step(iteration)
+        self.update_tables()
+
+    async def initialize_bases(self) -> list[Base]:
 
         base_distances = await self.client.query_pathings(
             [[self.start_location, b] for b in self.expansion_locations_list]
@@ -73,6 +118,76 @@ class BotBase(AresBot, ABC):
 
         return bases
 
+    def update_tables(self):
+        self.actual_by_type.clear()
+        self.pending_by_type.clear()
+
+        for unit in self.all_own_units:
+            if unit.is_ready:
+                self.actual_by_type[unit.type_id].append(unit)
+                for order in unit.orders:
+                    if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
+                        self.pending_by_type[item].append(unit)
+            else:
+                self.pending_by_type[unit.type_id].append(unit)
+
+        for upgrade in self.state.upgrades:
+            self.actual_by_type[upgrade] = [self.all_units[0]]
+
+    def is_unit_missing(self, unit: UnitTypeId) -> bool:
+        if unit in {
+            UnitTypeId.LARVA,
+            # UnitTypeId.CORRUPTOR,
+            # UnitTypeId.ROACH,
+            # UnitTypeId.HYDRALISK,
+            # UnitTypeId.ZERGLING,
+        }:
+            return False
+        return all(
+            self.count(e, include_pending=False, include_planned=False) == 0 for e in WITH_TECH_EQUIVALENTS[unit]
+        )
+
+    @property
+    def supply_pending(self) -> int:
+        return sum(
+            provided
+            for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
+            for unit in self.pending_by_type[unit_type]
+        )
+
+    @property
+    def supply_planned(self) -> int:
+        return sum(
+            provided
+            for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
+            for plan in self.planned_by_type(unit_type)
+        )
+
+    def get_missing_requirements(self, item: MacroId) -> Iterable[MacroId]:
+        if item not in REQUIREMENTS_KEYS:
+            return
+
+        if isinstance(item, UnitTypeId):
+            trainers = UNIT_TRAINED_FROM[item]
+            trainer = min(trainers, key=lambda v: v.value)
+            info = TRAIN_INFO[trainer][item]
+        elif isinstance(item, UpgradeId):
+            trainer = UPGRADE_RESEARCHED_FROM[item]
+            info = RESEARCH_INFO[trainer][item]
+        else:
+            raise ValueError(item)
+
+        if self.is_unit_missing(trainer):
+            yield trainer
+        if (required_building := info.get("required_building")) and self.is_unit_missing(required_building):
+            yield required_building
+        if (
+            (required_upgrade := info.get("required_upgrade"))
+            and isinstance(required_upgrade, UpgradeId)
+            and required_upgrade not in self.state.upgrades
+        ):
+            yield required_upgrade
+
     def get_unit_range(self, unit: Unit, ground: bool = True, air: bool = True) -> float:
         unit_range = 0.0
         if ground:
@@ -95,13 +210,3 @@ class BotBase(AresBot, ABC):
                 return UpgradeId.TUNNELINGCLAWS in self.state.upgrades
             return False
         return 0 < unit.movement_speed
-
-    def can_attack(self, unit: Unit, target: Unit) -> bool:
-        if target.is_cloaked and not target.is_revealed:
-            return False
-        elif target.is_burrowed and not any(self.units_detecting(target)):
-            return False
-        elif target.is_flying:
-            return unit.can_attack_air
-        else:
-            return unit.can_attack_ground

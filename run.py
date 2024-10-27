@@ -65,7 +65,8 @@ if __name__ == "__main__":
         result, opponent_id = run_ladder_game(create_bot(PhantomBot()))
         print(result, " against opponent ", opponent_id)
     else:
-        ai = PhantomBot(debug=True, game_step_override=2)
+        ai = PhantomBot(game_step_override=10)
+        ai.debug = True
         map_list: list[str] = [
             p.name.replace(f".{MAP_FILE_EXT}", "")
             for p in Path(MAPS_PATH).glob(f"*.{MAP_FILE_EXT}")

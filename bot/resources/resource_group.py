@@ -1,4 +1,4 @@
-from typing import Generic, Iterable, Iterator, Optional, TypeVar, cast
+from typing import Generic, Iterable, Iterator, Optional, TypeVar
 
 from sc2.position import Point2
 
@@ -23,9 +23,6 @@ class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
 
     def __len__(self) -> int:
         return len(self.items)
-
-    def flatten(self) -> Iterable[T]:
-        return (cast(T, x) for item in self.items for x in item.flatten())
 
     @property
     def remaining(self) -> int:

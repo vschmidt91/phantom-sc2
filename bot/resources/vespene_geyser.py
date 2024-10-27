@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 

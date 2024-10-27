@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+from abc import ABC
 from typing import Iterable
 
 import numpy as np
@@ -19,7 +18,7 @@ from .base import Component
 TUMOR_RANGE = 10
 
 
-class CreepSpread(Component):
+class CreepSpread(Component, ABC):
     _tumor_created_at_step: dict[int, int] = dict()
     _tumor_spread_at_step: dict[int, int] = dict()
 
