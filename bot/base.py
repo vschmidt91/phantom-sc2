@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from functools import lru_cache
 from typing import Iterable, TypeAlias
 
 import numpy as np
@@ -19,7 +20,7 @@ from .constants import (
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
     WITH_TECH_EQUIVALENTS,
-    WORKERS,
+    WORKERS, DPS_OVERRIDE,
 )
 from .cost import Cost
 from .resources.base import Base
@@ -42,6 +43,15 @@ class BotBase(AresBot, ABC):
     @abstractmethod
     def planned_by_type(self, item: MacroId) -> Iterable:
         raise NotImplementedError()
+
+    @lru_cache(maxsize=None)
+    def dps_fast(self, unit: UnitTypeId) -> float:
+        if dps := DPS_OVERRIDE.get(unit):
+            return dps
+        elif units := self.all_units(unit):
+            return max(units[0].ground_dps, units[0].air_dps)
+        else:
+            return 0.0
 
     def count(
         self, item: MacroId, include_pending: bool = True, include_planned: bool = True, include_actual: bool = True

@@ -20,6 +20,7 @@ from ..constants import CHANGELINGS, CIVILIANS, COOLDOWN, ENERGY_COST
 from ..cost import Cost
 from ..cython.cy_dijkstra import cy_dijkstra  # type: ignore
 from .base import Component
+from ..combat_predictor import CombatContext, predict_combat, CombatPrediction
 
 
 class CombatStance(Enum):
@@ -63,16 +64,23 @@ class DijkstraOutput:
 class Combat(Component, ABC):
     retreat_ground: DijkstraOutput
     retreat_air: DijkstraOutput
-    estimated_survival: dict[int, float] = dict()
     confidence: float = 1.0
     _bile_last_used: dict[int, int] = dict()
 
     def do_combat(self) -> Iterable[Action]:
 
+
         army = self.units.filter(lambda u: u.type_id not in CIVILIANS).filter(
             lambda u: not (u.type_id == UnitTypeId.QUEEN and u.tag in self._inject_assignment and 20 <= u.energy)
         )
         enemies = self.all_enemy_units
+
+        combat_prediction = predict_combat(CombatContext(
+            units=army,
+            enemy_units=enemies,
+            dps=self.dps_fast,
+            pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
+        ))
 
         self.ground_dps = np.zeros(self.game_info.map_size)
         self.air_dps = np.zeros(self.game_info.map_size)
@@ -105,34 +113,6 @@ class Combat(Component, ABC):
             )
         )
 
-        def time_until_in_range(unit: Unit, target: Unit) -> float:
-            if target.is_flying:
-                unit_range = unit.air_range
-            else:
-                unit_range = unit.ground_range
-            unit_distance = np.linalg.norm(unit.position - target.position) - unit.radius - target.radius - unit_range
-            return unit_distance / max(1.0, unit.movement_speed)
-
-        self.estimated_survival.clear()
-
-        dps_incoming: defaultdict[int, float] = defaultdict(lambda: 0)
-        time_scale = 1 / 3
-        for unit in army:
-            for enemy in enemies:
-                dps = unit.air_dps if enemy.is_flying else unit.ground_dps
-                weight = math.exp(-max(0.0, time_scale * time_until_in_range(unit, enemy)))
-                dps_incoming[enemy.tag] += dps * weight
-
-                dps = enemy.air_dps if unit.is_flying else enemy.ground_dps
-                weight = math.exp(-max(0.0, time_scale * time_until_in_range(enemy, unit)))
-                dps_incoming[unit.tag] += dps * weight
-
-        for unit in army | enemies:
-            if 0 < dps_incoming[unit.tag]:
-                self.estimated_survival[unit.tag] = (unit.health + unit.shield) / dps_incoming[unit.tag]
-            else:
-                self.estimated_survival[unit.tag] = np.inf
-
         def unit_value(cost: Cost):
             return max(0, cost.minerals + cost.vespene)
 
@@ -143,7 +123,7 @@ class Combat(Component, ABC):
         enemy_cost = sum(
             unit_value(self.cost.of(unit.type_id)) for unit in self.all_enemy_units if unit.type_id not in CIVILIANS
         )
-        self.confidence = army_cost / max(1, army_cost + enemy_cost)
+        self.confidence = np.log1p(army_cost) - np.log1p(enemy_cost)
 
         changelings = list(chain.from_iterable(self.actual_by_type[t] for t in CHANGELINGS))
         for unit in changelings:
@@ -159,7 +139,7 @@ class Combat(Component, ABC):
             elif unit.type_id in {UnitTypeId.RAVAGER} and (action := self.do_bile(unit)):
                 yield action
             else:
-                yield CombatAction(unit)
+                yield CombatAction(unit, combat_prediction)
 
     def do_bile(self, unit: Unit) -> Action | None:
 
@@ -260,6 +240,7 @@ def can_attack(unit: Unit, target: Unit) -> bool:
 @dataclass
 class CombatAction(Action):
     unit: Unit
+    prediction: CombatPrediction
 
     def target_priority(self, target: Unit) -> float:
 
@@ -313,8 +294,6 @@ class CombatAction(Action):
             default=(None, 0),
         )
 
-        estimated_survival = bot.estimated_survival.get(self.unit.tag, np.inf)
-
         if not target:
             return True
         if priority <= 0:
@@ -328,37 +307,27 @@ class CombatAction(Action):
         retreat_path_limit = 5
         retreat_path = retreat_map.get_path(p, retreat_path_limit)
 
-        target_survival = bot.estimated_survival.get(target.tag, np.inf)
-
-        if np.isinf(estimated_survival):
-            if np.isinf(target_survival):
-                confidence = 0.5
-            else:
-                confidence = 1.0
-        elif np.isinf(target_survival):
-            confidence = 0.0
-        else:
-            confidence = estimated_survival / (estimated_survival + target_survival)
+        confidence = bot.confidence + self.prediction.confidence[self.unit.position.rounded]
 
         if self.unit.type_id == UnitTypeId.QUEEN and not bot.has_creep(self.unit.position):
             stance = CombatStance.FLEE
-        elif bot.confidence < 0.5 and not bot.has_creep(self.unit.position):
+        elif bot.confidence < 0 and not bot.has_creep(self.unit.position):
             stance = CombatStance.FLEE
         elif self.unit.is_burrowed:
             stance = CombatStance.FLEE
         elif 1 < self.unit.ground_range:
-            if 3 / 4 <= confidence:
+            if 1 <= confidence:
                 stance = CombatStance.ADVANCE
-            elif 2 / 4 <= confidence:
+            elif 0 <= confidence:
                 stance = CombatStance.FIGHT
-            elif 1 / 4 <= confidence:
+            elif -1 <= confidence:
                 stance = CombatStance.RETREAT
             elif len(retreat_path) < retreat_path_limit:
                 stance = CombatStance.RETREAT
             else:
                 stance = CombatStance.FLEE
         else:
-            if 1 / 2 <= confidence:
+            if -1 <= confidence:
                 stance = CombatStance.FIGHT
             else:
                 stance = CombatStance.FLEE

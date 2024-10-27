@@ -133,6 +133,11 @@ CHANGELINGS = {
     UnitTypeId.CHANGELINGZEALOT,
 }
 
+DPS_OVERRIDE = {
+    UnitTypeId.BUNKER: 40,
+    UnitTypeId.PLANETARYFORTRESS: 5,
+}
+
 CIVILIANS = {
     UnitTypeId.SCV,
     UnitTypeId.MULE,
