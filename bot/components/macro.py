@@ -1,7 +1,7 @@
 import math
 import random
 from dataclasses import dataclass
-from functools import cached_property, cmp_to_key
+from functools import cmp_to_key
 from itertools import chain
 from typing import Iterable, TypeAlias
 
@@ -16,7 +16,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from ..action import Action, UseAbility, Move, HoldPosition
+from ..action import Action, HoldPosition, Move, UseAbility
 from ..constants import (
     ALL_MACRO_ABILITIES,
     GAS_BY_RACE,
@@ -83,7 +83,6 @@ class PreMove(Action):
 
 class Macro(Component):
     next_plan_id: int = 0
-    future_spending = Cost(0, 0, 0, 0)
     _unassigned_plans: list[MacroPlan] = list()
     _assigned_plans: dict[int, MacroPlan] = dict()
     composition: dict[UnitTypeId, int] = dict()
@@ -194,7 +193,7 @@ class Macro(Component):
         for i, (tag, plan) in enumerate(list(self._assigned_plans.items())):
 
             plan.eta = math.inf
-            
+
             trainer = self.unit_tag_dict.get(tag)
             if not trainer or trainer.type_id == UnitTypeId.EGG:
                 logger.info(f"resetting {trainer=} for {plan=}")
@@ -223,7 +222,7 @@ class Macro(Component):
                     plan.target = self.get_target(trainer, plan)
                 except PlacementNotFoundException:
                     continue
-                    
+
             cost = self.cost.of(plan.item)
             reserve += cost
             plan.eta = self.get_eta(cost, reserve)
