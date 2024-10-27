@@ -83,9 +83,7 @@ class MacroAction(Action):
                 target = self.plan.target
                 self.plan.executed = True
                 return self.unit(self.ability, target=target)
-        elif not self.plan.target:
-            return True
-        elif plan.target:
+        elif self.plan.target:
             distance = await bot.client.query_pathing(self.unit, self.plan.target.position) or 0.0
             movement_eta = 1 + distance / (1.4 * self.unit.movement_speed)
             # movement_eta = 1.2 * time_to_reach(self.unit, self.plan.target.position)
