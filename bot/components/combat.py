@@ -1,7 +1,6 @@
 import math
 import random
 from abc import ABC
-from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum, auto
 from itertools import chain
@@ -16,11 +15,11 @@ from sc2.unit import Point2, Unit
 from skimage.draw import disk
 
 from ..action import Action, AttackMove, Move, UseAbility
+from ..combat_predictor import CombatContext, CombatPrediction, predict_combat
 from ..constants import CHANGELINGS, CIVILIANS, COOLDOWN, ENERGY_COST
 from ..cost import Cost
 from ..cython.cy_dijkstra import cy_dijkstra  # type: ignore
 from .base import Component
-from ..combat_predictor import CombatContext, predict_combat, CombatPrediction
 
 
 class CombatStance(Enum):
@@ -69,18 +68,19 @@ class Combat(Component, ABC):
 
     def do_combat(self) -> Iterable[Action]:
 
-
         army = self.units.filter(lambda u: u.type_id not in CIVILIANS).filter(
             lambda u: not (u.type_id == UnitTypeId.QUEEN and u.tag in self._inject_assignment and 20 <= u.energy)
         )
         enemies = self.all_enemy_units
 
-        combat_prediction = predict_combat(CombatContext(
-            units=army,
-            enemy_units=enemies,
-            dps=self.dps_fast,
-            pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
-        ))
+        combat_prediction = predict_combat(
+            CombatContext(
+                units=army,
+                enemy_units=enemies,
+                dps=self.dps_fast,
+                pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
+            )
+        )
 
         self.ground_dps = np.zeros(self.game_info.map_size)
         self.air_dps = np.zeros(self.game_info.map_size)

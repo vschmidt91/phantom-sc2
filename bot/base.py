@@ -15,12 +15,13 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
 
 from .constants import (
+    DPS_OVERRIDE,
     ITEM_BY_ABILITY,
     RANGE_UPGRADES,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
     WITH_TECH_EQUIVALENTS,
-    WORKERS, DPS_OVERRIDE,
+    WORKERS,
 )
 from .cost import Cost
 from .resources.base import Base
