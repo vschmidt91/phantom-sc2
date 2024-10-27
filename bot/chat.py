@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Iterable, Protocol
 
-from ..action import Action
-from ..base import BotBase
+from .action import Action
+from .base import BotBase
 
 
 class ChatContext(Protocol):

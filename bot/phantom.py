@@ -13,8 +13,8 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
 from .action import Action
-from .components.build_order import BuildOrder
-from .components.chat import Chat
+from .build_order import HATCH_FIRST
+from .chat import Chat
 from .components.combat import Combat
 from .components.creep import CreepSpread
 from .components.dodge import Dodge
@@ -28,7 +28,6 @@ from .resources.resource_manager import ResourceManager
 
 
 class PhantomBot(
-    BuildOrder,
     Combat,
     CreepSpread,
     Dodge,
@@ -45,6 +44,7 @@ class PhantomBot(
     profiler: cProfile.Profile | None = None
     chat = Chat()
     cost: CostManager
+    build_order = HATCH_FIRST
 
     def __init__(self, game_step_override: int | None = None) -> None:
         super().__init__(game_step_override=game_step_override)
@@ -138,6 +138,15 @@ class PhantomBot(
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         await super().on_upgrade_complete(upgrade)
+
+    def run_build_order(self) -> bool:
+        for i, (item, count) in enumerate(self.build_order):
+            if self.count(item, include_planned=False) < count:
+                if self.count(item, include_planned=True) < count:
+                    plan = self.add_plan(item)
+                    plan.priority = -i
+                return False
+        return True
 
     def check_for_duplicate_actions(self, actions: list[Action]) -> None:
         actions_of_unit: defaultdict[Unit, list[Action]] = defaultdict(list)

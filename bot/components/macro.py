@@ -5,7 +5,6 @@ from functools import cmp_to_key
 from itertools import chain
 from typing import Iterable, TypeAlias
 
-from ares import AresBot
 from loguru import logger
 from sc2.data import ActionResult, race_townhalls
 from sc2.game_state import ActionRawUnitCommand
@@ -14,7 +13,6 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
-from sc2.units import Units
 
 from ..action import Action, HoldPosition, Move, UseAbility
 from ..constants import (
@@ -278,7 +276,7 @@ class Macro(Component):
             if not any(geysers):
                 raise PlacementNotFoundException()
             else:
-                return random.choice(geysers)
+                return min(geysers, key=lambda g: g.tag)
 
         if not (entry := MACRO_INFO.get(trainer.type_id)):
             return None

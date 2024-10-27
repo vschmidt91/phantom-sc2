@@ -5,11 +5,13 @@
 - [ ] Stop units from burrowing when knowingly detected
 
 ## FIXES
-- [ ]Stop ground units from attacking air units out of range
+- [ ] Stop ground units from attacking air units out of range
+- [ ] Fix Broodlord Switch
 
 # vNext
 - Copy component system from 12PoolBot
 - Rework creep spread
+- Integrate combat predictor from 12PoolBot
 
 # 2.0
 
