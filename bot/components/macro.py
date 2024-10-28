@@ -189,7 +189,7 @@ class Macro(Component):
             cost = self.cost.of(plan.item)
             plan.eta = self.get_eta(cost, reserve + cost)
             if plan.eta < math.inf:
-                reserve += cost * (1 / (1 + 0.2 * plan.eta))
+                reserve += cost
 
             if trainer.is_carrying_resource:
                 yield UseAbility(trainer, AbilityId.HARVEST_RETURN)
