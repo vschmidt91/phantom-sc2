@@ -1,7 +1,11 @@
 from typing import Iterable
 
 from loguru import logger
+from sc2.ids.ability_id import AbilityId
 from sc2.unit import Unit
+
+from .action import Action, UseAbility
+from .constants import ENERGY_COST
 
 
 class Inject:
@@ -10,6 +14,13 @@ class Inject:
 
     def get_target(self, queen: Unit) -> int | None:
         return self._inject_assignment.get(queen.tag)
+
+    def inject_with(self, queen: Unit) -> Action | None:
+        if queen.energy < ENERGY_COST[AbilityId.EFFECT_INJECTLARVA]:
+            return None
+        elif not (target_tag := self._inject_assignment.get(queen.tag)):
+            return None
+        return UseAbility(queen, AbilityId.EFFECT_INJECTLARVA, target=target_tag)
 
     def assign(self, queens: Iterable[Unit], targets: Iterable[Unit]) -> None:
 

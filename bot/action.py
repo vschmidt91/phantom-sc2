@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
 
 from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2
@@ -50,7 +49,13 @@ class HoldPosition(Action):
 class UseAbility(Action):
     unit: Unit
     ability: AbilityId
-    target: Optional[Point2 | Unit] = None
+    target: Point2 | Unit | int | None = None
 
     async def execute(self, bot: BotBase) -> bool:
-        return self.unit(self.ability, target=self.target)
+        target: Point2 | Unit | int | None
+        if isinstance(self.target, int):
+            if not (target := bot.unit_tag_dict.get(self.target)):
+                return False
+        else:
+            target = self.target
+        return self.unit(self.ability, target=target)

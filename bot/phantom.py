@@ -3,18 +3,17 @@ import math
 import pstats
 from collections import defaultdict
 from functools import cmp_to_key
-from typing import Iterable
+from typing import AsyncGenerator, cast
 
 from ares import AresBot
 from loguru import logger
 from sc2.data import Result
-from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
-from .action import Action, UseAbility
+from .action import Action
 from .build_order import HATCH_FIRST
 from .chat import Chat
 from .combat_predictor import CombatContext, predict_combat
@@ -24,11 +23,11 @@ from .components.dodge import Dodge
 from .components.macro import Macro, compare_plans
 from .components.scout import Scout
 from .components.strategy import Strategy
-from .components.transfuse import Transfuse
-from .constants import CIVILIANS, ENERGY_COST
+from .constants import CIVILIANS
 from .cost import CostManager
 from .inject import Inject
 from .resources.resource_manager import ResourceManager
+from .transfuse import do_transfuse_single
 
 
 class PhantomBot(
@@ -39,7 +38,6 @@ class PhantomBot(
     ResourceManager,
     Scout,
     Strategy,
-    Transfuse,
     AresBot,
 ):
     debug = False
@@ -79,57 +77,14 @@ class PhantomBot(
             self.expand()
             self.update_composition()
 
-        queens = self.actual_by_type[UnitTypeId.QUEEN]
-        self.inject.assign(queens, self.townhalls.ready)
-
-        army = self.units.exclude_type(CIVILIANS)
-        enemies = self.all_enemy_units
-
-        combat_prediction = predict_combat(
-            CombatContext(
-                units=army,
-                enemy_units=enemies,
-                dps=self.dps_fast,
-                pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
-            )
-        )
-
-        def queen_actions() -> Iterable[Action]:
-            for queen in queens:
-                if queen.energy >= ENERGY_COST[AbilityId.TRANSFUSION_TRANSFUSION] and (
-                    action := self.do_transfuse_single(queen)
-                ):
-                    yield action
-                elif (
-                    queen.energy >= ENERGY_COST[AbilityId.EFFECT_INJECTLARVA]
-                    and self.larva.amount + self.supply_used < 200
-                    and (target_tag := self.inject.get_target(queen))
-                    and (target := self.unit_tag_dict.get(target_tag))
-                ):
-                    yield UseAbility(queen, AbilityId.EFFECT_INJECTLARVA, target=target)
-                elif (
-                    queen.energy >= ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]
-                    and self.active_tumor_count < len(queens)
-                    and (action := self.place_tumor(queen))
-                ):
-                    yield action
+        received_action: set[int] = set()
+        async for action in self.micro():
+            if hasattr(action, "unit"):
+                tag = cast(Unit, getattr(action, "unit")).tag
+                if tag in received_action:
+                    logger.debug(f"Skipping duplicate action: {action}")
                 else:
-                    yield CombatAction(queen, combat_prediction)
-
-        actions: list[Action] = []
-        actions.extend(self.chat.do_chat())
-        actions.extend(await self.do_macro())
-        actions.extend(self.do_harvest())
-        actions.extend(self.spread_creep())
-        actions.extend(queen_actions())
-        actions.extend(self.do_scouting())
-        actions.extend(self.do_dodge())
-        actions.extend(self.do_combat(army, enemies, combat_prediction))
-
-        if self.debug:
-            self.check_for_duplicate_actions(actions)
-
-        for action in actions:
+                    received_action.add(tag)
             success = await action.execute(self)
             if not success:
                 logger.error(f"Action failed: {action}")
@@ -176,6 +131,48 @@ class PhantomBot(
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         await super().on_upgrade_complete(upgrade)
+
+    async def micro(self) -> AsyncGenerator[Action, None]:
+
+        queens = self.actual_by_type[UnitTypeId.QUEEN]
+        self.inject.assign(queens, self.townhalls.ready)
+
+        army = self.units.exclude_type(CIVILIANS)
+        enemies = self.all_enemy_units
+
+        combat_prediction = predict_combat(
+            CombatContext(
+                units=army,
+                enemy_units=enemies,
+                dps=self.dps_fast,
+                pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
+            )
+        )
+
+        def micro_queen(q: Unit) -> Action:
+            return (
+                do_transfuse_single(q, army)
+                or (self.inject.inject_with(q) if self.larva.amount + self.supply_used < 200 else None)
+                or self.place_tumor(q)
+                or CombatAction(q, combat_prediction)
+            )
+
+        for action in self.chat.do_chat():
+            yield action
+        async for action in self.do_macro():
+            yield action
+        for action in self.do_harvest():
+            yield action
+        for action in self.spread_creep():
+            yield action
+        for queen in queens:
+            yield micro_queen(queen)
+        for action in self.do_scouting():
+            yield action
+        for action in self.do_dodge():
+            yield action
+        for action in self.do_combat(army, enemies, combat_prediction):
+            yield action
 
     def run_build_order(self) -> bool:
         for i, (item, count) in enumerate(self.build_order):

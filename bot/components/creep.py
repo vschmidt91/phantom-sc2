@@ -12,6 +12,7 @@ from scipy.ndimage import gaussian_filter
 from skimage.draw import circle_perimeter, line, rectangle
 
 from ..action import Action, UseAbility
+from ..constants import ENERGY_COST
 from .base import Component
 
 TUMOR_RANGE = 10
@@ -28,6 +29,12 @@ class CreepSpread(Component, ABC):
         return len(self._tumor_created_at_step) - len(self._tumor_spread_at_step)
 
     def place_tumor(self, unit: Unit) -> Action | None:
+
+        if self.active_tumor_count > self.townhalls.amount:
+            return None
+
+        elif unit.type_id in {UnitTypeId.QUEEN} and unit.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
+            return None
 
         origin = unit.position.rounded
 
@@ -87,12 +94,3 @@ class CreepSpread(Component, ABC):
                 if action := self.place_tumor(tumor):
                     yield action
                     self._tumor_spread_at_step[tumor.tag] = self.state.game_loop
-
-        # queens = self.mediator.get_own_army_dict[UnitTypeId.QUEEN]
-        # if self.active_tumor_count < len(queens):
-        #     for queen in queens:
-        #         if queen.energy >= ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN] and not queen.is_using_ability(
-        #             AbilityId.EFFECT_INJECTLARVA
-        #         ):
-        #             if action := self.place_tumor(queen):
-        #                 yield action

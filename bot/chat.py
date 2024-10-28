@@ -1,14 +1,10 @@
 from dataclasses import dataclass, field
-from typing import Iterable, Protocol
+from typing import Iterable
+
+from loguru import logger
 
 from .action import Action
 from .base import BotBase
-
-
-class ChatContext(Protocol):
-
-    async def chat_send(self, message: str, team_only: bool) -> None:
-        """"""
 
 
 @dataclass
@@ -17,6 +13,7 @@ class ChatAction(Action):
     team_only: bool
 
     async def execute(self, bot: BotBase) -> bool:
+        logger.info(self.message)
         await bot.client.chat_send(self.message, self.team_only)
         return True
 
@@ -26,19 +23,19 @@ class ChatAction(Action):
 
 @dataclass
 class Chat:
-    _unsent_messages: set[ChatAction] = field(default_factory=set)
-    _sent_messages: set[ChatAction] = field(default_factory=set)
+    _unsent: set[ChatAction] = field(default_factory=set)
+    _sent: set[ChatAction] = field(default_factory=set)
 
     def do_chat(self) -> Iterable[Action]:
-        for message in list(self._unsent_messages):
+        for message in list(self._unsent):
             yield message
-            self._unsent_messages.remove(message)
-            self._sent_messages.add(message)
+            self._unsent.remove(message)
+            self._sent.add(message)
 
     def add_message(self, message: str, team_only: bool = False) -> None:
         action = ChatAction(message, team_only)
-        if action not in self._sent_messages | self._unsent_messages:
-            self._unsent_messages.add(action)
+        if action not in self._sent | self._unsent:
+            self._unsent.add(action)
 
     def add_tag(self, tag: str) -> None:
         message = f"Tag:{tag}"

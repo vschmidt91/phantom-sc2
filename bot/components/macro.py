@@ -2,7 +2,7 @@ import math
 import random
 from dataclasses import dataclass
 from itertools import chain
-from typing import Iterable, TypeAlias
+from typing import AsyncGenerator, Iterable, TypeAlias
 
 from loguru import logger
 from sc2.data import ActionResult, race_townhalls
@@ -136,19 +136,11 @@ class Macro(Component):
         elif action.exact_id in ALL_MACRO_ABILITIES:
             logger.info(f"Action performed by non-existing unit: {action=}, {tag=}")
 
-    async def do_macro(self) -> list[Action]:
-
-        actions: list[Action] = []
+    async def do_macro(self) -> AsyncGenerator[Action, None]:
 
         reserve = Cost(0, 0, 0, 0)
 
         self.handle_actions()
-
-        # plans = sorted(
-        #     self.enumerate_plans(),
-        #     key=cmp_to_key(compare_plans),
-        #     reverse=True,
-        # )
 
         trainers = set(self.all_own_units)
 
@@ -160,7 +152,8 @@ class Macro(Component):
                 self._assigned_plans[trainer.tag] = plan
                 trainers.remove(trainer)
 
-        for i, (tag, plan) in enumerate(list(self._assigned_plans.items())):
+        plans_prioritized = sorted(self._assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
+        for i, (tag, plan) in enumerate(plans_prioritized):
 
             plan.eta = math.inf
 
@@ -194,19 +187,18 @@ class Macro(Component):
                     continue
 
             cost = self.cost.of(plan.item)
-            reserve += cost
-            plan.eta = self.get_eta(cost, reserve)
+            plan.eta = self.get_eta(cost, reserve + cost)
+            if plan.eta < math.inf:
+                reserve += cost * (1 / (1 + 0.2 * plan.eta))
 
             if trainer.is_carrying_resource:
-                actions.append(UseAbility(trainer, AbilityId.HARVEST_RETURN))
+                yield UseAbility(trainer, AbilityId.HARVEST_RETURN)
             elif plan.eta <= 0.0:
                 plan.executed = True
-                actions.append(UseAbility(trainer, ability, target=plan.target))
+                yield UseAbility(trainer, ability, target=plan.target)
             elif plan.target:
                 if action := await self.premove(trainer, plan.target.position, plan.eta):
-                    actions.append(action)
-
-        return actions
+                    yield action
 
     def get_eta(self, cost: Cost, reserve: Cost) -> float:
         eta = 0.0
@@ -293,7 +285,7 @@ class Macro(Component):
         ]
 
         if any(trainers_filtered):
-            trainers_filtered.sort(key=lambda t: t.tag)
+            # trainers_filtered.sort(key=lambda t: t.tag)
             return trainers_filtered[0]
 
         return None

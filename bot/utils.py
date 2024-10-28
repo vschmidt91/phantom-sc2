@@ -15,6 +15,12 @@ class PlacementNotFoundException(Exception):
     pass
 
 
+async def chain_async(*streams):
+    for stream in streams:
+        async for item in stream:
+            yield item
+
+
 def center(points: Iterable[Point2]) -> Point2:
     x_sum = 0.0
     y_sum = 0.0
