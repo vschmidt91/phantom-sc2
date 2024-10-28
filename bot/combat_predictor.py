@@ -50,7 +50,7 @@ def _combat_presence(context: CombatContext, units: Units) -> CombatPresence:
         dps = context.dps(unit.type_id)
         px, py = unit.position.rounded
         if 0 < dps:
-            dx, dy = _disk(unit.sight_range)
+            dx, dy = _disk(unit.sight_range + 1.5)
             d = px + dx, py + dy
             health_map[d] += unit.shield + unit.health
             dps_map[d] = np.maximum(dps_map[d], dps)
