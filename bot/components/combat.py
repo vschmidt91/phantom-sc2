@@ -3,8 +3,7 @@ import random
 from abc import ABC
 from dataclasses import dataclass
 from enum import Enum, auto
-from itertools import chain
-from typing import Iterable, TypeAlias
+from typing import TypeAlias
 
 import numpy as np
 from ares import AresBot
@@ -67,7 +66,7 @@ class Combat(Component, ABC):
     confidence: float = 1.0
     _bile_last_used: dict[int, int] = dict()
 
-    def do_combat(self, army: Units, enemies: Units, combat_prediction: CombatPrediction) -> Iterable[Action]:
+    def do_combat(self, enemies: Units) -> None:
 
         self.ground_dps = np.zeros(self.game_info.map_size)
         self.air_dps = np.zeros(self.game_info.map_size)
@@ -111,24 +110,6 @@ class Combat(Component, ABC):
             unit_value(self.cost.of(unit.type_id)) for unit in self.all_enemy_units if unit.type_id not in CIVILIANS
         )
         self.confidence = np.log1p(army_cost) - np.log1p(enemy_cost)
-
-        changelings = list(chain.from_iterable(self.actual_by_type[t] for t in CHANGELINGS))
-        for unit in changelings:
-            if action := self.do_scout(unit):
-                yield action
-        for unit in army:
-            if unit.type_id in {UnitTypeId.OVERSEER} and (action := self.do_spawn_changeling(unit)):
-                yield action
-            elif unit.type_id in {UnitTypeId.ROACH} and (action := self.do_burrow(unit)):
-                yield action
-            elif unit.type_id in {UnitTypeId.ROACHBURROWED} and (action := self.do_unburrow(unit)):
-                yield action
-            elif unit.type_id in {UnitTypeId.RAVAGER} and (action := self.do_bile(unit)):
-                yield action
-            elif unit.type_id in {UnitTypeId.QUEEN}:
-                pass
-            else:
-                yield CombatAction(unit, combat_prediction)
 
     def do_bile(self, unit: Unit) -> Action | None:
 

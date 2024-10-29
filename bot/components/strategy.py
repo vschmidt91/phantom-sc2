@@ -31,7 +31,7 @@ class Strategy(Component, ABC):
         # larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
         # queen_target = math.ceil(larva_rate / (3 / 29))
         # queen_target = min(queen_target, self.ai.townhalls.amount)
-        queen_target = 1 + self.townhalls.amount
+        queen_target = 2 * self.townhalls.amount
         queen_target = np.clip(queen_target, 0, 12)
         # print(queen_target)
 
@@ -55,7 +55,7 @@ class Strategy(Component, ABC):
             enemy.type_id for enemy in self.all_enemy_units if enemy.type_id in UNIT_COUNTER_DICT
         )
 
-        self.tech_up = 32 <= worker_count and 3 <= self.townhalls.amount
+        self.tech_up = 40 <= worker_count and 3 <= self.townhalls.amount
         lair_count = self.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
         hive_count = self.count(UnitTypeId.HIVE, include_pending=True, include_planned=False)
 

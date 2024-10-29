@@ -16,6 +16,7 @@ from ..constants import ENERGY_COST
 from .base import Component
 
 TUMOR_RANGE = 10
+_TUMOR_COOLDOWN = 304
 
 
 class CreepSpread(Component, ABC):
@@ -24,10 +25,23 @@ class CreepSpread(Component, ABC):
     _creep_placement_map: np.ndarray
     _creep_value_map: np.ndarray
 
-    def place_tumor(self, unit: Unit) -> Action | None:
+    def spread_tumors(self) -> Iterable[Action]:
+        for tag, creation_step in list(self._tumor_created_at_step.items()):
+            if tag in self._tumor_spread_at_step:
+                pass
+            elif not (tumor := self.unit_tag_dict.get(tag)):
+                self._tumor_created_at_step.pop(tag, None)
+            elif self.state.game_loop < creation_step + _TUMOR_COOLDOWN:
+                pass
+            elif action := self.place_tumor(tumor):
+                yield action
 
-        if unit.type_id in {UnitTypeId.QUEEN} and unit.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
+    def spread_creep_with_queen(self, queen: Unit) -> Action | None:
+        if queen.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
             return None
+        return self.place_tumor(queen)
+
+    def place_tumor(self, unit: Unit) -> Action | None:
 
         origin = unit.position.rounded
 
@@ -50,7 +64,12 @@ class CreepSpread(Component, ABC):
         logger.debug("No creep tumor placement found.")
         return None
 
-    def spread_creep(self) -> Iterable[Action]:
+    def spread_creep(self) -> None:
+
+        for action in self.state.actions_unit_commands:
+            if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
+                for tag in action.unit_tags:
+                    self._tumor_spread_at_step[tag] = self.state.game_loop
 
         creep_placement_map = (
             (self.state.creep.data_numpy.T == 1)
@@ -82,8 +101,9 @@ class CreepSpread(Component, ABC):
         self._creep_value_map = creep_value_map_blurred
 
         for tumor in self.mediator.get_own_structures_dict[UnitTypeId.CREEPTUMORBURROWED]:
-            creation_step = self._tumor_created_at_step.setdefault(tumor.tag, self.state.game_loop)
-            if self.state.game_loop >= creation_step + 304 and tumor.tag not in self._tumor_spread_at_step:
-                if action := self.place_tumor(tumor):
-                    yield action
-                    self._tumor_spread_at_step[tumor.tag] = self.state.game_loop
+            self._tumor_created_at_step.setdefault(tumor.tag, self.state.game_loop)
+
+        #     if self.state.game_loop >= creation_step + 304 and tumor.tag not in self._tumor_spread_at_step:
+        #         if action := self.place_tumor(tumor):
+        #             yield action
+        # self._tumor_spread_at_step[tumor.tag] = self.state.game_loop

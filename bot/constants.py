@@ -67,7 +67,9 @@ MACRO_ABILITIES = {
     trainer_type: {e["ability"] for item, e in element.items()} for trainer_type, element in MACRO_INFO.items()
 }
 
-ALL_MACRO_ABILITIES = {e["ability"] for trainer_type, element in MACRO_INFO.items() for item, e in element.items()}
+ALL_MACRO_ABILITIES: set[AbilityId] = {
+    e["ability"] for trainer_type, element in MACRO_INFO.items() for item, e in element.items()
+}
 
 COOLDOWN = {
     AbilityId.EFFECT_CORROSIVEBILE: 7 * 22.4,

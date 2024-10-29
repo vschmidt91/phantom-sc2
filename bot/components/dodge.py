@@ -1,6 +1,5 @@
 from abc import ABC
 from dataclasses import dataclass
-from typing import Iterable
 
 import numpy as np
 from sc2.game_state import EffectData
@@ -83,8 +82,7 @@ class Dodge(Component, ABC):
     _dodge_elements_delayed: list[DodgeEffectDelayed] = list()
     _dodge_safety_distance: float = 1.0
 
-    def do_dodge(self) -> Iterable[Action]:
-
+    def update_dodge(self) -> None:
         elements_delayed_old = list(self._dodge_elements_delayed)
         delayed_positions = {e.position for e in elements_delayed_old}
 
@@ -105,24 +103,25 @@ class Dodge(Component, ABC):
         )
         self._dodge_elements.extend(DodgeEffect(effect) for effect in self.state.effects if effect.id in DODGE_EFFECTS)
 
-        for unit in self.all_own_units:
+    def dodge_with(self, unit: Unit) -> Action | None:
 
-            for dodge in self._dodge_elements:
-                distance_bonus = 0.0
-                if isinstance(dodge, DodgeEffectDelayed):
-                    delay = (2 * self.client.game_step) / 22.4
-                    time_remaining = max(0.0, dodge.time_of_impact - self.time - delay)
-                    distance_bonus = 1.4 * unit.movement_speed * time_remaining
-                distance_have = unit.distance_to(dodge.position)
-                for circle in dodge.circles:
-                    distance_want = circle.radius + unit.radius
-                    if distance_have + distance_bonus < distance_want + self._dodge_safety_distance:
-                        random_offset = Point2(np.random.normal(loc=0.0, scale=0.001, size=2))
-                        dodge_from = dodge.position
-                        if dodge_from == unit.position:
-                            dodge_from += random_offset
-                        target = dodge_from.towards(unit, distance_want + 2 * self._dodge_safety_distance)
-                        if unit.is_burrowed and not self.can_move(unit):
-                            yield UseAbility(unit, AbilityId.BURROWUP)
-                        else:
-                            yield Move(unit, target)
+        for dodge in self._dodge_elements:
+            distance_bonus = 0.0
+            if isinstance(dodge, DodgeEffectDelayed):
+                delay = (2 * self.client.game_step) / 22.4
+                time_remaining = max(0.0, dodge.time_of_impact - self.time - delay)
+                distance_bonus = 1.4 * unit.movement_speed * time_remaining
+            distance_have = unit.distance_to(dodge.position)
+            for circle in dodge.circles:
+                distance_want = circle.radius + unit.radius
+                if distance_have + distance_bonus < distance_want + self._dodge_safety_distance:
+                    random_offset = Point2(np.random.normal(loc=0.0, scale=0.001, size=2))
+                    dodge_from = dodge.position
+                    if dodge_from == unit.position:
+                        dodge_from += random_offset
+                    target = dodge_from.towards(unit, distance_want + 2 * self._dodge_safety_distance)
+                    if unit.is_burrowed and not self.can_move(unit):
+                        return UseAbility(unit, AbilityId.BURROWUP)
+                    else:
+                        return Move(unit, target)
+        return None

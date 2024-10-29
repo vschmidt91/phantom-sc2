@@ -1,4 +1,5 @@
 from abc import ABC
+from dataclasses import dataclass
 from typing import Iterable
 
 from loguru import logger
@@ -7,16 +8,22 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from ..action import Action, HoldPosition, Move
+from ..action import Action
+from ..base import BotBase
 from ..resources.base import Base
 from .base import Component
 
 
-def scout_with(unit: Unit, target: Point2) -> Action:
-    if unit.distance_to(target) < unit.radius + unit.sight_range:
-        return HoldPosition(unit)
-    else:
-        return Move(unit, target)
+@dataclass
+class ScoutAction(Action):
+    unit: Unit
+    target: Point2
+
+    async def execute(self, bot: BotBase) -> bool:
+        if self.unit.distance_to(self.target) < self.unit.radius + self.unit.sight_range:
+            return self.unit.hold_position()
+        else:
+            return self.unit.move(self.target)
 
 
 class Scout(Component, ABC):
@@ -48,7 +55,7 @@ class Scout(Component, ABC):
             pos = 0.5 * (pos + self.start_location)
             self.static_targets.insert(1, pos)
 
-    def do_scouting(self) -> Iterable[Action]:
+    def do_scouting(self) -> Iterable[ScoutAction]:
 
         scouts = self.units({UnitTypeId.OVERLORD, UnitTypeId.OVERSEER})
         detectors = [u for u in scouts if u.is_detector]
@@ -66,6 +73,6 @@ class Scout(Component, ABC):
         nondetectors.sort(key=lambda u: u.tag)
         scout_targets.sort(key=lambda p: p.distance_to(self.start_location))
         for unit, target in zip(detectors, self.blocked_positions):
-            yield scout_with(unit, target)
+            yield ScoutAction(unit, target)
         for unit, target in zip(nondetectors, scout_targets):
-            yield scout_with(unit, target)
+            yield ScoutAction(unit, target)

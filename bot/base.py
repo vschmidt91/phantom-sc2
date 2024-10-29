@@ -90,13 +90,12 @@ class BotBase(AresBot, ABC):
         )
 
     async def on_start(self) -> None:
-        await super().on_start()
         self.bases = await self.initialize_bases()
-        self.initialize_resources()
+        await super().on_start()
 
     async def on_step(self, iteration: int):
-        await super().on_step(iteration)
         self.update_tables()
+        await super().on_step(iteration)
 
     async def initialize_bases(self) -> list[Base]:
 

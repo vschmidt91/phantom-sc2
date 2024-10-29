@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Iterable
+from typing import Any, Callable, Coroutine, TypeAlias
 
 from loguru import logger
 
@@ -8,7 +8,7 @@ from .base import BotBase
 
 
 @dataclass
-class ChatAction(Action):
+class ChatMessage(Action):
     message: str
     team_only: bool
 
@@ -21,22 +21,21 @@ class ChatAction(Action):
         return hash(self.message)
 
 
+ChatFunction: TypeAlias = Callable[[ChatMessage], Coroutine[Any, Any, None]]
+
+
 @dataclass
 class Chat:
-    _unsent: set[ChatAction] = field(default_factory=set)
-    _sent: set[ChatAction] = field(default_factory=set)
+    _unsent: set[ChatMessage] = field(default_factory=set)
+    _sent: set[ChatMessage] = field(default_factory=set)
 
-    def do_chat(self) -> Iterable[Action]:
+    async def do_chat(self, send: ChatFunction):
         for message in list(self._unsent):
-            yield message
+            await send(message)
             self._unsent.remove(message)
             self._sent.add(message)
 
     def add_message(self, message: str, team_only: bool = False) -> None:
-        action = ChatAction(message, team_only)
+        action = ChatMessage(message, team_only)
         if action not in self._sent | self._unsent:
             self._unsent.add(action)
-
-    def add_tag(self, tag: str) -> None:
-        message = f"Tag:{tag}"
-        self.add_message(message, True)

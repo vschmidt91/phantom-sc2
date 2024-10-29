@@ -13,7 +13,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from ..action import Action, HoldPosition, Move, UseAbility
+from ..action import Action, DoNothing, HoldPosition, Move, UseAbility
 from ..constants import (
     ALL_MACRO_ABILITIES,
     GAS_BY_RACE,
@@ -43,6 +43,12 @@ class MacroPlan:
     max_distance: int | None = 4
     eta: float = math.inf
     executed: bool = False
+
+
+@dataclass
+class MacroAction:
+    unit: Unit
+    action: Action
 
 
 def compare_plans(plan_a: MacroPlan, plan_b: MacroPlan) -> int:
@@ -98,7 +104,7 @@ class Macro(Component):
 
     async def premove(self, unit: Unit, target: Point2, eta: float) -> Action | None:
         distance = await self.client.query_pathing(unit, target) or 0.0
-        movement_eta = 1 + distance / (1.4 * unit.movement_speed)
+        movement_eta = 1.5 + distance / (1.4 * unit.movement_speed)
         if eta <= movement_eta:
             if 1e-3 < unit.distance_to(target):
                 return Move(unit, target)
@@ -136,7 +142,7 @@ class Macro(Component):
         elif action.exact_id in ALL_MACRO_ABILITIES:
             logger.info(f"Action performed by non-existing unit: {action=}, {tag=}")
 
-    async def do_macro(self) -> AsyncGenerator[Action, None]:
+    async def do_macro(self) -> AsyncGenerator[MacroAction, None]:
 
         reserve = Cost(0, 0, 0, 0)
 
@@ -191,14 +197,16 @@ class Macro(Component):
             if plan.eta < math.inf:
                 reserve += cost
 
-            if trainer.is_carrying_resource:
-                yield UseAbility(trainer, AbilityId.HARVEST_RETURN)
-            elif plan.eta <= 0.0:
+            if plan.eta == 0.0:
                 plan.executed = True
-                yield UseAbility(trainer, ability, target=plan.target)
+                yield MacroAction(trainer, UseAbility(trainer, ability, target=plan.target))
             elif plan.target:
-                if action := await self.premove(trainer, plan.target.position, plan.eta):
-                    yield action
+                if trainer.is_carrying_resource:
+                    yield MacroAction(trainer, UseAbility(trainer, AbilityId.HARVEST_RETURN))
+                elif action := await self.premove(trainer, plan.target.position, plan.eta):
+                    yield MacroAction(trainer, action)
+            else:
+                yield MacroAction(trainer, DoNothing())
 
     def get_eta(self, cost: Cost, reserve: Cost) -> float:
         eta = 0.0

@@ -8,13 +8,14 @@ from sc2.data import race_gas, race_townhalls
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
+from sc2.units import Units
 
-from ..action import Action
+from ..action import Action, DoNothing, Move, Smart
 from ..components.base import Component
-from ..constants import GAS_BY_RACE, MACRO_ABILITIES, STATIC_DEFENSE_BY_RACE
+from ..constants import GAS_BY_RACE, STATIC_DEFENSE_BY_RACE
 from ..resources.resource_unit import ResourceUnit
 from .base import Base
-from .gather import GatherAction
+from .gather import GatherAction, ReturnResource
 from .mineral_patch import MineralPatch
 from .vespene_geyser import VespeneGeyser
 
@@ -192,15 +193,20 @@ class ResourceManager(Component):
             ):
                 self.harvester_assignment[harvester_tag] = transfer_to
 
-    def do_harvest(self) -> Iterable[Action]:
+    def assign_harvesters(self, harvesters: Iterable[Unit]) -> None:
 
-        # for t in self.state.dead_units:
-        #     self.harvester_assignment.pop(t, None)
+        # remove non-existent harvesters
         for tag, target in list(self.harvester_assignment.items()):
             if tag not in self.unit_tag_dict:
                 might_be_in_geyser = self.supply_workers != self.workers.amount and isinstance(target, VespeneGeyser)
                 if not might_be_in_geyser:
                     del self.harvester_assignment[tag]
+
+        # add new harvesters:
+        for unit in harvesters:
+            if unit.tag not in self.harvester_assignment:
+                self.add_harvester(unit)
+
         self.harvesters_by_resource = Counter[ResourceUnit](self.harvester_assignment.values())
 
         self.update_patches_and_geysers()
@@ -208,19 +214,32 @@ class ResourceManager(Component):
         self.update_gas()
         self.balance_harvesters()
 
-        exclude_workers = {w.tag for w in self.all_trainers}
-        exclude_workers.update(
-            {
-                unit.tag
-                for unit in self.all_own_units
-                if not unit.is_idle and unit.orders[0].ability.exact_id in MACRO_ABILITIES.get(unit.type_id, set())
-            }
-        )
-
-        for harvester_tag, gather_target in self.harvester_assignment.items():
-            if harvester_tag not in exclude_workers:
-                if harvester := self.unit_tag_dict.get(harvester_tag):
-                    yield GatherAction(harvester, gather_target)
+    def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
+        if not (target := self.harvester_assignment.get(unit.tag)):
+            return None
+        elif not target.remaining:
+            return None
+        elif not (target_unit := target.target_unit):
+            return None
+        elif not (
+            return_target := min(
+                return_targets,
+                key=lambda th: th.distance_to(unit),
+                default=None,
+            )
+        ):
+            return None
+        elif not target_unit.is_ready:
+            return Move(unit, target_unit.position)
+        elif unit.is_idle:
+            return Smart(unit, target_unit)
+        elif 2 <= len(unit.orders):
+            return DoNothing()
+        elif unit.is_gathering:
+            return GatherAction(unit, target)
+        elif unit.is_returning:
+            return ReturnResource(unit, return_target)
+        return Smart(unit, target_unit)
 
     def set_speedmining_positions(self) -> None:
         for base in self.bases:

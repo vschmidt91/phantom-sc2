@@ -3,6 +3,7 @@ import math
 import pstats
 from collections import defaultdict
 from functools import cmp_to_key
+from itertools import chain
 from typing import AsyncGenerator, cast
 
 from ares import AresBot
@@ -23,7 +24,7 @@ from .components.dodge import Dodge
 from .components.macro import Macro, compare_plans
 from .components.scout import Scout
 from .components.strategy import Strategy
-from .constants import CIVILIANS
+from .constants import ALL_MACRO_ABILITIES, CHANGELINGS, CIVILIANS
 from .cost import CostManager
 from .inject import Inject
 from .resources.resource_manager import ResourceManager
@@ -41,23 +42,22 @@ class PhantomBot(
     AresBot,
 ):
     debug = False
-    profiler: cProfile.Profile | None = None
     chat = Chat()
     inject = Inject()
     cost: CostManager
     build_order = HATCH_FIRST
+    profiler = cProfile.Profile()
 
     def __init__(self, game_step_override: int | None = None) -> None:
         super().__init__(game_step_override=game_step_override)
+        self.cost = CostManager(self.calculate_cost, self.calculate_supply_cost)
 
     async def on_before_start(self):
         await super().on_before_start()
-        self.cost = CostManager(self.calculate_cost, self.calculate_supply_cost)
-        if self.debug:
-            self.profiler = cProfile.Profile()
 
     async def on_start(self) -> None:
         await super().on_start()
+        self.initialize_resources()
         self.initialize_scout_targets(self.bases)
         self.split_initial_workers(self.workers)
 
@@ -67,8 +67,13 @@ class PhantomBot(
         if self.profiler:
             self.profiler.enable()
 
-        if self.actual_iteration == 10:
-            self.chat.add_message("(glhf)")
+        # local only: skip first iteration to simulate ladder environment
+        if self.debug and iteration == 0:
+            return
+
+        await self.chat.do_chat(lambda m: self.client.chat_send(**m.__dict__))
+        self.spread_creep()
+        self.update_dodge()
 
         if self.run_build_order():
             self.make_composition()
@@ -82,7 +87,7 @@ class PhantomBot(
             if hasattr(action, "unit"):
                 tag = cast(Unit, getattr(action, "unit")).tag
                 if tag in received_action:
-                    logger.debug(f"Skipping duplicate action: {action}")
+                    logger.info(f"Skipping duplicate action: {action}")
                 else:
                     received_action.add(tag)
             success = await action.execute(self)
@@ -120,8 +125,6 @@ class PhantomBot(
 
     async def on_unit_created(self, unit: Unit):
         await super().on_unit_created(unit)
-        if unit.type_id in {UnitTypeId.DRONE, UnitTypeId.SCV, UnitTypeId.PROBE}:
-            self.add_harvester(unit)
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         await super().on_unit_type_changed(unit, previous_type)
@@ -132,46 +135,84 @@ class PhantomBot(
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         await super().on_upgrade_complete(upgrade)
 
+    def add_replay_tag(self, tag: str) -> None:
+        self.chat.add_message(f"Tag:{tag}", True)
+
     async def micro(self) -> AsyncGenerator[Action, None]:
 
         queens = self.actual_by_type[UnitTypeId.QUEEN]
-        self.inject.assign(queens, self.townhalls.ready)
+        changelings = chain.from_iterable(self.actual_by_type[t] for t in CHANGELINGS)
 
         army = self.units.exclude_type(CIVILIANS)
         enemies = self.all_enemy_units
-
-        combat_prediction = predict_combat(
-            CombatContext(
-                units=army,
-                enemy_units=enemies,
-                dps=self.dps_fast,
-                pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
-            )
+        combat_context = CombatContext(
+            units=army,
+            enemy_units=enemies,
+            dps=self.dps_fast,
+            pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
         )
+        combat_prediction = predict_combat(combat_context)
+
+        self.inject.assign(queens, self.townhalls.ready)
+        self.do_combat(enemies)
 
         def micro_queen(q: Unit) -> Action:
             return (
-                do_transfuse_single(q, army)
+                self.dodge_with(q)
+                or do_transfuse_single(q, army)
                 or (self.inject.inject_with(q) if self.larva.amount + self.supply_used < 200 else None)
-                or self.place_tumor(q)
+                or self.spread_creep_with_queen(q)
                 or CombatAction(q, combat_prediction)
             )
 
-        for action in self.chat.do_chat():
+        macro_actions = {ma.unit: ma.action async for ma in self.do_macro()}
+        scout_actions = {a.unit: a for a in self.do_scouting()}
+
+        harvesters: list[Unit] = []
+        for worker in self.workers:
+            if not worker.is_idle and worker.orders[0].ability.exact_id in ALL_MACRO_ABILITIES:
+                pass
+            elif worker in macro_actions:
+                pass
+            else:
+                harvesters.append(worker)
+        self.assign_harvesters(harvesters)
+
+        for worker in harvesters:
+            yield (
+                self.dodge_with(worker)
+                or self.gather_with(worker, self.townhalls.ready)
+                or CombatAction(worker, combat_prediction)
+            )
+        for action in macro_actions.values():
             yield action
-        async for action in self.do_macro():
-            yield action
-        for action in self.do_harvest():
-            yield action
-        for action in self.spread_creep():
+        for action in self.spread_tumors():
             yield action
         for queen in queens:
             yield micro_queen(queen)
-        for action in self.do_scouting():
-            yield action
-        for action in self.do_dodge():
-            yield action
-        for action in self.do_combat(army, enemies, combat_prediction):
+
+        for unit in changelings:
+            if action := self.do_scout(unit):
+                yield action
+
+        for unit in army:
+            if unit in scout_actions:
+                pass
+            elif unit in macro_actions:
+                pass
+            elif unit.type_id in {UnitTypeId.OVERSEER} and (action := self.do_spawn_changeling(unit)):
+                yield action
+            elif unit.type_id in {UnitTypeId.ROACH} and (action := self.do_burrow(unit)):
+                yield action
+            elif unit.type_id in {UnitTypeId.ROACHBURROWED} and (action := self.do_unburrow(unit)):
+                yield action
+            elif unit.type_id in {UnitTypeId.RAVAGER} and (action := self.do_bile(unit)):
+                yield action
+            elif unit.type_id in {UnitTypeId.QUEEN}:
+                pass
+            else:
+                yield CombatAction(unit, combat_prediction)
+        for action in scout_actions.values():
             yield action
 
     def run_build_order(self) -> bool:
@@ -191,7 +232,8 @@ class PhantomBot(
                 actions_of_unit[unit].append(action)
         for unit, unit_actions in actions_of_unit.items():
             if len(unit_actions) > 1:
-                logger.debug(f"Unit {unit} received multiple commands: {actions}")
+                logger.error(f"Unit {unit} received multiple commands: {actions}")
+                self.add_replay_tag("Conflicting commands")
             for a in unit_actions[1:]:
                 actions.remove(a)
 

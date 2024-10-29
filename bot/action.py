@@ -46,6 +46,21 @@ class HoldPosition(Action):
 
 
 @dataclass
+class Smart(Action):
+    unit: Unit
+    target: Point2 | Unit | int | None = None
+
+    async def execute(self, bot: BotBase) -> bool:
+        target: Point2 | Unit | int | None
+        if isinstance(self.target, int):
+            if not (target := bot.unit_tag_dict.get(self.target)):
+                return False
+        else:
+            target = self.target
+        return self.unit.smart(target=target)
+
+
+@dataclass
 class UseAbility(Action):
     unit: Unit
     ability: AbilityId
