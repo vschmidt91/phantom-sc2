@@ -1,6 +1,7 @@
 from abc import ABC
 from typing import Iterable
 
+from loguru import logger
 from sc2.data import ActionResult
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -28,7 +29,9 @@ class Scout(Component, ABC):
         for error in self.state.action_errors:
             if error.result == ActionResult.CantBuildLocationInvalid.value:
                 if unit := self.unit_tag_dict.get(error.unit_tag):
-                    self.blocked_positions[unit.position] = self.time
+                    if unit.position not in self.blocked_positions:
+                        self.blocked_positions[unit.position] = self.time
+                        logger.info(f"Blocked location detected by {unit}")
 
     def reset_blocked_bases(self) -> None:
         for position, blocked_since in list(self.blocked_positions.items()):
