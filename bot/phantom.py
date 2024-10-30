@@ -200,6 +200,8 @@ class PhantomBot(
                 pass
             elif unit in macro_actions:
                 pass
+            elif action := self.dodge_with(unit):
+                yield action
             elif unit.type_id in {UnitTypeId.OVERSEER} and (action := self.do_spawn_changeling(unit)):
                 yield action
             elif unit.type_id in {UnitTypeId.ROACH} and (action := self.do_burrow(unit)):
