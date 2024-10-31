@@ -8,7 +8,6 @@ from sc2.data import AIBuild, Difficulty, Race
 from sc2.main import run_game
 from sc2.player import AbstractPlayer, Bot, Computer
 
-from ares import DEBUG
 from ladder import run_ladder_game
 
 sys.path.append("ares-sc2/src/ares")
@@ -65,7 +64,7 @@ if __name__ == "__main__":
         print(result, " against opponent ", opponent_id)
     else:
         ai = PhantomBot(game_step_override=2)
-        ai.config[DEBUG] = True
+        ai.config["Debug"] = True
         map_list: list[str] = [
             p.name.replace(f".{MAP_FILE_EXT}", "")
             for p in Path(MAPS_PATH).glob(f"*.{MAP_FILE_EXT}")
