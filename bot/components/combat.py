@@ -1,23 +1,18 @@
 import math
-import random
 from abc import ABC
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TypeAlias
 
 import numpy as np
-from ares import AresBot
-from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Point2, Unit
 from sc2.units import Units
 from skimage.draw import disk
 
-from ..action import Action, AttackMove, Move, UseAbility
+from ..action import Action, AttackMove, Move
 from ..combat_predictor import CombatPrediction
-from ..constants import CHANGELINGS, CIVILIANS, COOLDOWN, ENERGY_COST
-from ..cost import Cost
+from ..constants import CHANGELINGS
 from ..cython.cy_dijkstra import cy_dijkstra  # type: ignore
 from .base import Component
 
@@ -60,19 +55,26 @@ class DijkstraOutput:
         return path
 
 
+def can_attack(unit: Unit, target: Unit) -> bool:
+    if target.is_cloaked and not target.is_revealed:
+        return False
+    # elif target.is_burrowed and not any(self.units_detecting(target)):
+    #     return False
+    elif target.is_flying:
+        return unit.can_attack_air
+    else:
+        return unit.can_attack_ground
+
+
 class Combat(Component, ABC):
     retreat_ground: DijkstraOutput
     retreat_air: DijkstraOutput
-    confidence: float = 1.0
     _bile_last_used: dict[int, int] = dict()
 
     def do_combat(self, enemies: Units) -> None:
 
         self.ground_dps = np.zeros(self.game_info.map_size)
         self.air_dps = np.zeros(self.game_info.map_size)
-
-        self.ground_dps[:, :] = 0.0
-        self.air_dps[:, :] = 0.0
         for enemy in enemies:
             if enemy.can_attack_ground:
                 r = enemy.radius + enemy.ground_range + 2.0
@@ -99,198 +101,72 @@ class Combat(Component, ABC):
             )
         )
 
-        def unit_value(cost: Cost):
-            return max(0, cost.minerals + cost.vespene)
+    def fight_with(self, unit: Unit, combat_prediction: CombatPrediction) -> Action | None:
 
-        army_cost = sum(
-            unit_value(self.cost.of(unit.type_id))
-            for unit in self.all_own_units.exclude_type(CIVILIANS).exclude_type(UnitTypeId.QUEEN)
-        )
-        enemy_cost = sum(
-            unit_value(self.cost.of(unit.type_id)) for unit in self.all_enemy_units if unit.type_id not in CIVILIANS
-        )
-        self.confidence = np.log1p(army_cost) - np.log1p(enemy_cost)
+        def target_priority(t: Unit) -> float:
 
-    def do_bile(self, unit: Unit) -> Action | None:
+            # from combat_manager:
 
-        ability = AbilityId.EFFECT_CORROSIVEBILE
+            if t.is_hallucination:
+                return 0.0
+            if t.type_id in CHANGELINGS:
+                return 0.0
+            priority = 1e8
 
-        def bile_priority(target: Unit) -> float:
-            if not target.is_enemy:
+            # priority /= 1 + self.ai.distance_ground[target.position.rounded]
+            priority /= 5 if t.is_structure else 1
+            if t.is_enemy:
+                priority /= 300 + t.shield + t.health
+            else:
+                priority /= 500
+
+            # ---
+
+            if not can_attack(unit, t) and not unit.is_detector:
                 return 0.0
-            if not self.is_visible(target.position):
-                return 0.0
-            if not unit.in_ability_cast_range(ability, target.position):
-                return 0.0
-            if target.is_hallucination:
-                return 0.0
-            if target.type_id in CHANGELINGS:
-                return 0.0
-            priority = 10.0 + max(target.ground_dps, target.air_dps)
-            priority /= 100.0 + target.health + target.shield
-            priority /= 2.0 + target.movement_speed
+            priority /= 8 + t.position.distance_to(unit.position)
+            if unit.is_detector:
+                if t.is_cloaked:
+                    priority *= 3.0
+                if not t.is_revealed:
+                    priority *= 3.0
+
             return priority
 
-        if unit.type_id != UnitTypeId.RAVAGER:
-            return None
-
-        last_used = self._bile_last_used.get(unit.tag, 0)
-
-        if self.state.game_loop < last_used + COOLDOWN[AbilityId.EFFECT_CORROSIVEBILE]:
-            return None
-
-        target = max(
-            self.all_enemy_units,
-            key=lambda t: bile_priority(t),
-            default=None,
-        )
-
-        if not target:
-            return None
-
-        if bile_priority(target) <= 0:
-            return None
-
-        self._bile_last_used[unit.tag] = self.state.game_loop
-
-        return UseAbility(unit, ability, target=target.position)
-
-    def do_burrow(self, unit: Unit) -> Action | None:
-
-        if (
-            UpgradeId.BURROW in self.state.upgrades
-            and unit.health_percentage < 1 / 3
-            and unit.weapon_cooldown
-            and not unit.is_revealed
-        ):
-            return UseAbility(unit, AbilityId.BURROWDOWN)
-
-        return None
-
-    def do_scout(self, unit: Unit) -> Action | None:
-        if unit.is_idle:
-            if self.time < 8 * 60:
-                return AttackMove(unit, random.choice(self.enemy_start_locations))
-            elif self.all_enemy_units.exists:
-                target = self.all_enemy_units.random
-                return AttackMove(unit, target.position)
-            else:
-                a = self.game_info.playable_area
-                target = np.random.uniform((a.x, a.y), (a.right, a.top))
-                target = Point2(target)
-                if (unit.is_flying or self.in_pathing_grid(target)) and not self.is_visible(target):
-                    return AttackMove(unit, target)
-        return None
-
-    def do_spawn_changeling(self, unit: Unit) -> Action | None:
-        if unit.type_id in {UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE}:
-            if self.in_pathing_grid(unit):
-                ability = AbilityId.SPAWNCHANGELING_SPAWNCHANGELING
-                if ENERGY_COST[ability] <= unit.energy:
-                    return UseAbility(unit, ability)
-        return None
-
-    def do_unburrow(self, unit: Unit) -> Action | None:
-        if unit.health_percentage == 1 or unit.is_revealed:
-            return UseAbility(unit, AbilityId.BURROWUP)
-        return None
-
-
-def can_attack(unit: Unit, target: Unit) -> bool:
-    if target.is_cloaked and not target.is_revealed:
-        return False
-    # elif target.is_burrowed and not any(self.units_detecting(target)):
-    #     return False
-    elif target.is_flying:
-        return unit.can_attack_air
-    else:
-        return unit.can_attack_ground
-
-
-@dataclass
-class CombatAction(Action):
-    unit: Unit
-    prediction: CombatPrediction
-
-    def target_priority(self, target: Unit) -> float:
-
-        # from combat_manager:
-
-        if target.is_hallucination:
-            return 0.0
-        if target.type_id in CHANGELINGS:
-            return 0.0
-        priority = 1e8
-
-        # priority /= 1 + self.ai.distance_ground[target.position.rounded]
-        priority /= 5 if target.is_structure else 1
-        if target.is_enemy:
-            priority /= 300 + target.shield + target.health
-        else:
-            priority /= 500
-
-        # ---
-
-        if not can_attack(self.unit, target) and not self.unit.is_detector:
-            return 0.0
-        priority /= 8 + target.position.distance_to(self.unit.position)
-        if self.unit.is_detector:
-            if target.is_cloaked:
-                priority *= 3.0
-            if not target.is_revealed:
-                priority *= 3.0
-
-        return priority
-
-    async def execute(self, bot: AresBot) -> bool:
-
-        if self.unit.is_idle and self.unit.type_id not in {UnitTypeId.QUEEN}:
-            if bot.time < 8 * 60:
-                return await AttackMove(self.unit, random.choice(bot.enemy_start_locations)).execute(bot)
-            elif bot.all_enemy_units.exists:
-                target = bot.all_enemy_units.random
-                return await AttackMove(self.unit, target.position).execute(bot)
-            else:
-                a = bot.game_info.playable_area
-                target = np.random.uniform((a.x, a.y), (a.right, a.top))
-                target = Point2(target)
-                if (self.unit.is_flying or bot.in_pathing_grid(target)) and not bot.is_visible(target):
-                    return await AttackMove(self.unit, target).execute(bot)
-                return False
-
         target, priority = max(
-            ((enemy, self.target_priority(enemy)) for enemy in bot.all_enemy_units),
+            ((e, target_priority(e)) for e in self.all_enemy_units),
             key=lambda t: t[1],
             default=(None, 0),
         )
 
         if not target:
-            return True
+            return None
         if priority <= 0:
-            return True
+            return None
 
-        if self.unit.is_flying:
-            retreat_map = bot.retreat_air
+        if unit.is_flying:
+            retreat_map = self.retreat_air
         else:
-            retreat_map = bot.retreat_ground
-        p = self.unit.position.rounded
+            retreat_map = self.retreat_ground
+
+        p = unit.position.rounded
         retreat_path_limit = 5
         retreat_path = retreat_map.get_path(p, retreat_path_limit)
 
         confidence = np.mean(
             [
-                bot.confidence,
-                self.prediction.confidence[self.unit.position.rounded],
+                combat_prediction.confidence_global,
+                combat_prediction.confidence[unit.position.rounded],
             ]
         )
 
-        if self.unit.type_id == UnitTypeId.QUEEN and not bot.has_creep(self.unit.position):
+        if unit.type_id == UnitTypeId.QUEEN and not self.has_creep(unit.position):
             stance = CombatStance.FLEE
-        elif confidence < 0 and not bot.has_creep(self.unit.position):
+        elif confidence < 0 and not self.has_creep(unit.position):
             stance = CombatStance.FLEE
-        elif self.unit.is_burrowed:
+        elif unit.is_burrowed:
             stance = CombatStance.FLEE
-        elif 1 < self.unit.ground_range:
+        elif 1 < unit.ground_range:
             if 1 <= confidence:
                 stance = CombatStance.ADVANCE
             elif 0 <= confidence:
@@ -308,37 +184,34 @@ class CombatAction(Action):
                 stance = CombatStance.FLEE
 
         if stance in {CombatStance.FLEE, CombatStance.RETREAT}:
-            unit_range = bot.get_unit_range(self.unit, not target.is_flying, target.is_flying)
+            unit_range = self.get_unit_range(unit, not target.is_flying, target.is_flying)
 
             if stance == CombatStance.RETREAT:
-                if not self.unit.weapon_cooldown:
-                    return await AttackMove(self.unit, target.position).execute(bot)
+                if not unit.weapon_cooldown:
+                    return AttackMove(unit, target.position)
                 elif (
-                    self.unit.radius + unit_range + target.radius + self.unit.distance_to_weapon_ready
-                    < self.unit.position.distance_to(target.position)
+                    unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready
+                    < unit.position.distance_to(target.position)
                 ):
-                    return await AttackMove(self.unit, target.position).execute(bot)
+                    return AttackMove(unit, target.position)
 
             if retreat_map.dist[p] == np.inf:
-                retreat_point = bot.start_location
+                retreat_point = self.start_location
             else:
                 retreat_point = Point2(retreat_path[-1]).offset(HALF)
 
-            return await Move(self.unit, retreat_point).execute(bot)
+            return Move(unit, retreat_point)
 
         elif stance == CombatStance.FIGHT:
-            return await AttackMove(self.unit, target.position).execute(bot)
+            return AttackMove(unit, target.position)
 
         elif stance == CombatStance.ADVANCE:
-            distance = self.unit.position.distance_to(target.position) - self.unit.radius - target.radius
-            if self.unit.weapon_cooldown and 1 < distance:
-                return await Move(self.unit, target.position).execute(bot)
-            elif (
-                self.unit.position.distance_to(target.position)
-                <= self.unit.radius + bot.get_unit_range(self.unit) + target.radius
-            ):
-                return await AttackMove(self.unit, target.position).execute(bot)
+            distance = unit.position.distance_to(target.position) - unit.radius - target.radius
+            if unit.weapon_cooldown and 1 < distance:
+                return Move(unit, target.position)
+            elif unit.position.distance_to(target.position) <= unit.radius + self.get_unit_range(unit) + target.radius:
+                return AttackMove(unit, target.position)
             else:
-                return await AttackMove(self.unit, target.position).execute(bot)
+                return AttackMove(unit, target.position)
 
-        return False
+        return None

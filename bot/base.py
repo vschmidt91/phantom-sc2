@@ -23,7 +23,7 @@ from .constants import (
     WITH_TECH_EQUIVALENTS,
     WORKERS,
 )
-from .cost import Cost
+from .cost import Cost, CostManager
 from .resources.expansion import Expansion
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
@@ -32,8 +32,13 @@ MacroId: TypeAlias = UnitTypeId | UpgradeId
 class BotBase(AresBot, ABC):
 
     bases = list[Expansion]()
+    cost: CostManager
     actual_by_type: defaultdict[MacroId, list[Unit]] = defaultdict(list)
     pending_by_type: defaultdict[MacroId, list[Unit]] = defaultdict(list)
+
+    def __init__(self, game_step_override: int | None = None) -> None:
+        super().__init__(game_step_override=game_step_override)
+        self.cost = CostManager(self.calculate_cost, self.calculate_supply_cost)
 
     @property
     def ai(self):

@@ -5,6 +5,7 @@ from typing import Callable
 import numpy as np
 import skimage.draw
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.unit import Unit
 from sc2.units import Units
 from scipy import ndimage
 
@@ -30,6 +31,7 @@ class CombatPrediction:
     context: CombatContext
     dimensionality: np.ndarray
     confidence: np.ndarray
+    confidence_global: float
     presence: CombatPresence
     enemy_presence: CombatPresence
 
@@ -63,6 +65,10 @@ def _dimensionality(pathing: np.ndarray) -> np.ndarray:
     return dimensionality_filtered
 
 
+def unit_value(u: Unit) -> float:
+    return (u.health + u.shield) * max(u.ground_dps, u.air_dps)
+
+
 def predict_combat(context: CombatContext) -> CombatPrediction:
     presence = _combat_presence(context, context.units)
     enemy_presence = _combat_presence(context, context.enemy_units)
@@ -72,10 +78,15 @@ def predict_combat(context: CombatContext) -> CombatPrediction:
     enemy_force = enemy_presence.dps * np.power(enemy_presence.health, dimensionality)
     confidence = np.log1p(force) - np.log1p(enemy_force)
 
+    force_global = sum(unit_value(u) for u in context.units)
+    enemy_force_global = sum(unit_value(u) for u in context.units)
+    confidence_global = np.log1p(force_global) - np.log1p(enemy_force_global)
+
     return CombatPrediction(
         context=context,
         dimensionality=dimensionality,
         confidence=confidence,
+        confidence_global=confidence_global,
         presence=presence,
         enemy_presence=enemy_presence,
     )

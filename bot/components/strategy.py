@@ -15,27 +15,18 @@ from .base import Component
 
 
 class Strategy(Component, ABC):
-    tech_up = False
+    _tech_up = False
 
-    def update_composition(self) -> None:
+    def update_composition(self, worker_target: int, confidence: float) -> dict[UnitTypeId, int]:
+
         worker_count = self.state.score.food_used_economy
-        worker_target = np.clip(self.max_harvesters, 1, 80)
 
         ratio = max(
-            1 - self.confidence,
+            1 - confidence,
             worker_count / worker_target,
         )
-        # ratio = self.ai.threat_level
-
-        # larva_rate = self.ai.macro.future_spending.larva / (60 * max(1, self.ai.macro.future_timeframe))
-        # larva_rate = max(0.0, larva_rate - self.ai.townhalls.ready.amount / 11.0)
-        # queen_target = math.ceil(larva_rate / (3 / 29))
-        # queen_target = min(queen_target, self.ai.townhalls.amount)
-        queen_target = 2 * self.townhalls.amount
+        queen_target = 2 + self.townhalls.amount
         queen_target = np.clip(queen_target, 0, 12)
-        # print(queen_target)
-
-        # queen_target = min(8, 1 + self.ai.townhalls.amount)
 
         composition = {
             UnitTypeId.DRONE: worker_target,
@@ -55,11 +46,11 @@ class Strategy(Component, ABC):
             enemy.type_id for enemy in self.all_enemy_units if enemy.type_id in UNIT_COUNTER_DICT
         )
 
-        self.tech_up = 40 <= worker_count and 3 <= self.townhalls.amount
+        self._tech_up = 40 <= worker_count and 3 <= self.townhalls.amount
         lair_count = self.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
         hive_count = self.count(UnitTypeId.HIVE, include_pending=True, include_planned=False)
 
-        def total_cost(t: UnitTypeId) -> int:
+        def total_cost(t: UnitTypeId) -> float:
             c = self.cost.of(t)
             return c.minerals + c.vespene
 
@@ -75,16 +66,16 @@ class Strategy(Component, ABC):
         composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 13
         composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 8
 
-        if self.tech_up:
+        if self._tech_up:
             composition[UnitTypeId.ROACHWARREN] = 1
             composition[UnitTypeId.OVERSEER] = 1
 
-        if self.tech_up and 0 < lair_count + hive_count and 150 < self.supply_used:
+        if self._tech_up and 0 < lair_count + hive_count and 150 < self.supply_used:
             composition[UnitTypeId.HYDRALISKDEN] = 1
             composition[UnitTypeId.OVERSEER] = 2
             composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
 
-        if self.tech_up and 0 < hive_count and 150 < self.supply_used:
+        if self._tech_up and 0 < hive_count and 150 < self.supply_used:
             if 0 == self.count(UnitTypeId.SPIRE, include_planned=False) + self.count(
                 UnitTypeId.SPIRE, include_planned=False
             ):
@@ -108,12 +99,12 @@ class Strategy(Component, ABC):
                     else:
                         composition[UnitTypeId.ROACH] += 12
 
-        self.composition = {k: math.floor(v) for k, v in composition.items() if 0 < v}
+        return {k: int(math.floor(v)) for k, v in composition.items() if 0 < v}
 
     def filter_upgrade(self, upgrade) -> bool:
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
             return True
-        elif not self.tech_up:
+        elif not self._tech_up:
             return False
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
             return 0 < self.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False)
@@ -125,7 +116,5 @@ class Strategy(Component, ABC):
             return 0 < self.count(UnitTypeId.GREATERSPIRE, include_planned=False)
         elif upgrade == UpgradeId.OVERLORDSPEED:
             return 8 * 60 < self.time
-        # elif upgrade in {UpgradeId.BURROW, UpgradeId.TUNNELINGCLAWS}:
-        #     return False
         else:
             return True

@@ -4,9 +4,9 @@ from typing import Iterable
 
 from loguru import logger
 from sc2.data import ActionResult
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
+from sc2.units import Units
 
 from ..action import Action
 from ..base import BotBase
@@ -55,11 +55,10 @@ class Scout(Component, ABC):
             pos = 0.5 * (pos + self.start_location)
             self.static_targets.insert(1, pos)
 
-    def do_scouting(self) -> Iterable[ScoutAction]:
+    def do_scouting(self, scouts: Units) -> Iterable[ScoutAction]:
 
-        scouts = self.units({UnitTypeId.OVERLORD, UnitTypeId.OVERSEER})
         detectors = [u for u in scouts if u.is_detector]
-        nondetectors = [u for u in scouts if not u.is_detector]
+        non_detectors = [u for u in scouts if not u.is_detector]
         scout_targets = []
         if self.scout_enemy_natural and self.time < 3 * 60:
             target = self.bases[-2].position
@@ -70,9 +69,9 @@ class Scout(Component, ABC):
         self.detect_blocked_bases()
 
         detectors.sort(key=lambda u: u.tag)
-        nondetectors.sort(key=lambda u: u.tag)
+        non_detectors.sort(key=lambda u: u.tag)
         scout_targets.sort(key=lambda p: p.distance_to(self.start_location))
         for unit, target in zip(detectors, self.blocked_positions):
             yield ScoutAction(unit, target)
-        for unit, target in zip(nondetectors, scout_targets):
+        for unit, target in zip(non_detectors, scout_targets):
             yield ScoutAction(unit, target)

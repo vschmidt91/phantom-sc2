@@ -2,8 +2,8 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from .mineral_patch import MineralPatch
 from .group import ResourceGroup
+from .mineral_patch import MineralPatch
 from .vespene_geyser import VespeneGeyser
 
 STATIC_DEFENSE_OFFSET = 4.25

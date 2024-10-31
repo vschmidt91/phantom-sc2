@@ -10,9 +10,10 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from ..action import Action, Move, Smart, DoNothing
+from ..action import Action, DoNothing, Move, Smart
 from ..components.base import Component
 from ..constants import GAS_BY_RACE, STATIC_DEFENSE_BY_RACE
+from ..cost import Cost
 from ..resources.unit import ResourceUnit
 from .expansion import Expansion
 from .gather import GatherAction, ReturnResource
@@ -193,7 +194,7 @@ class ResourceManager(Component):
             ):
                 self.harvester_assignment[harvester_tag] = transfer_to
 
-    def assign_harvesters(self, harvesters: Iterable[Unit]) -> None:
+    def assign_harvesters(self, harvesters: Iterable[Unit], future_spending: Cost) -> None:
 
         # remove non-existent harvesters
         for tag, target in list(self.harvester_assignment.items()):
@@ -211,7 +212,7 @@ class ResourceManager(Component):
 
         self.update_patches_and_geysers()
         self.update_bases()
-        self.update_gas()
+        self.update_gas(future_spending)
         self.balance_harvesters()
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
@@ -267,14 +268,14 @@ class ResourceManager(Component):
                         break
                 patch.speedmining_target = target
 
-    def update_gas(self):
-        gas_target = self.get_gas_target()
+    def update_gas(self, future_spending: Cost):
+        gas_target = self.get_gas_target(future_spending)
         self.transfer_to_and_from_gas(gas_target)
         self.build_gasses(gas_target)
 
-    def get_gas_target(self) -> float:
-        minerals = max(0, self.future_spending.minerals - self.minerals)
-        vespene = max(0, self.future_spending.vespene - self.vespene)
+    def get_gas_target(self, future_spending: Cost) -> float:
+        minerals = max(0.0, future_spending.minerals - self.minerals)
+        vespene = max(0.0, future_spending.vespene - self.vespene)
         # if minerals + vespene == 0:
         #     minerals = sum(b.mineral_patches.remaining for b in self.bases if b.townhall)
         #     vespene = sum(b.vespene_geysers.remaining for b in self.bases if b.townhall)
@@ -286,7 +287,7 @@ class ResourceManager(Component):
         vespene *= 5 / 4
 
         n = self.supply_workers
-        gas_target = n * vespene / max(1, minerals + vespene)
+        gas_target = n * vespene / max(1.0, minerals + vespene)
         # gas_ratio = 1 - 1 / (1 + vespene / max(1, minerals))
         # gas_target = self.state.score.food_used_economy * gas_ratio
 

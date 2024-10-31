@@ -80,10 +80,10 @@ class Macro(Component):
     def planned_by_type(self, item: MacroId) -> Iterable[MacroPlan]:
         return (plan for plan in self.enumerate_plans() if plan.item == item)
 
-    def make_composition(self) -> None:
+    def make_composition(self, composition: dict[UnitTypeId, int]) -> None:
         if 200 <= self.supply_used:
             return
-        for unit, target in self.composition.items():
+        for unit, target in composition.items():
             have = self.count(unit)
             if target < 1:
                 continue
@@ -140,7 +140,8 @@ class Macro(Component):
                 logger.info(f"Action matched plan: {action=}, {tag=}, {plan=}")
 
         elif action.exact_id in ALL_MACRO_ABILITIES:
-            logger.info(f"Action performed by non-existing unit: {action=}, {tag=}")
+            if item not in {UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMOR, UnitTypeId.CHANGELING}:
+                logger.info(f"Action performed by non-existing unit: {action=}, {tag=}")
 
     async def do_macro(self) -> AsyncGenerator[MacroAction, None]:
 
@@ -226,8 +227,7 @@ class Macro(Component):
     def bank(self) -> Cost:
         return Cost(self.minerals, self.vespene, self.supply_left, self.larva.amount)
 
-    @property
-    def future_spending(self):
+    def get_future_spending(self, composition: dict[UnitTypeId, int]) -> Cost:
         cost_zero = Cost(0, 0, 0, 0)
         future_spending = cost_zero
         future_spending += sum((self.cost.of(plan.item) for plan in self._unassigned_plans), cost_zero)
@@ -236,7 +236,7 @@ class Macro(Component):
             cost_zero,
         )
         future_spending += sum(
-            (self.cost.of(unit) * max(0, count - self.count(unit)) for unit, count in self.composition.items()),
+            (self.cost.of(unit) * max(0, count - self.count(unit)) for unit, count in composition.items()),
             cost_zero,
         )
         return future_spending
@@ -322,11 +322,11 @@ class Macro(Component):
             return position
         return None
 
-    def make_tech(self) -> None:
-        upgrades = [u for unit in self.composition for u in self.upgrades_by_unit(unit) if self.filter_upgrade(u)]
+    def make_tech(self, composition: dict[UnitTypeId, int]) -> None:
+        upgrades = [u for unit in composition for u in self.upgrades_by_unit(unit) if self.filter_upgrade(u)]
         upgrades.append(UpgradeId.ZERGLINGMOVEMENTSPEED)
         targets: set[MacroId] = set(upgrades)
-        targets.update(self.composition.keys())
+        targets.update(composition.keys())
         targets.update(r for item in set(targets) for r in REQUIREMENTS[item])
         for target in targets:
             if equivalents := WITH_TECH_EQUIVALENTS.get(target):
