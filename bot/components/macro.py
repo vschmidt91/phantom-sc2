@@ -13,7 +13,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from ..action import Action, DoNothing, HoldPosition, Move, UseAbility
+from ..action import Action, HoldPosition, Move, UseAbility
 from ..constants import (
     ALL_MACRO_ABILITIES,
     GAS_BY_RACE,
@@ -205,8 +205,6 @@ class Macro(Component):
                     yield MacroAction(trainer, UseAbility(trainer, AbilityId.HARVEST_RETURN))
                 elif action := await self.premove(trainer, plan.target.position, plan.eta):
                     yield MacroAction(trainer, action)
-            else:
-                yield MacroAction(trainer, DoNothing())
 
     def get_eta(self, cost: Cost, reserve: Cost) -> float:
         eta = 0.0
@@ -306,7 +304,7 @@ class Macro(Component):
                     continue
                 if base.position in self.blocked_positions:
                     continue
-                if not base.remaining:
+                if base.mineral_patches.remaining < 500 and base.vespene_geysers.remaining == 0:
                     continue
                 return base.position
             return None

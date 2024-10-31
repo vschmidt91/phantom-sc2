@@ -24,16 +24,14 @@ from .constants import (
     WORKERS,
 )
 from .cost import Cost
-from .resources.base import Base
-from .resources.mineral_patch import MineralPatch
-from .resources.vespene_geyser import VespeneGeyser
+from .resources.expansion import Expansion
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 
 
 class BotBase(AresBot, ABC):
 
-    bases = list[Base]()
+    bases = list[Expansion]()
     actual_by_type: defaultdict[MacroId, list[Unit]] = defaultdict(list)
     pending_by_type: defaultdict[MacroId, list[Unit]] = defaultdict(list)
 
@@ -90,14 +88,14 @@ class BotBase(AresBot, ABC):
         )
 
     async def on_start(self) -> None:
-        self.bases = await self.initialize_bases()
         await super().on_start()
+        self.bases = await self.initialize_bases()
 
     async def on_step(self, iteration: int):
-        self.update_tables()
         await super().on_step(iteration)
+        self.update_tables()
 
-    async def initialize_bases(self) -> list[Base]:
+    async def initialize_bases(self) -> list[Expansion]:
 
         base_distances = await self.client.query_pathings(
             [[self.start_location, b] for b in self.expansion_locations_list]
@@ -113,11 +111,7 @@ class BotBase(AresBot, ABC):
         for position, resources in self.expansion_locations_dict.items():
             if position not in start_bases and not await self.can_place_single(UnitTypeId.HATCHERY, position):
                 continue
-            base = Base(
-                position,
-                (MineralPatch(m) for m in resources.mineral_field),
-                (VespeneGeyser(g) for g in resources.vespene_geyser),
-            )
+            base = Expansion(position, resources)
             bases.append(base)
 
         bases = sorted(

@@ -6,7 +6,7 @@ from sc2.unit import Unit
 
 from ..action import Action
 from .mineral_patch import MineralPatch
-from .resource_unit import ResourceUnit
+from .unit import ResourceUnit
 
 
 @dataclass

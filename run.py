@@ -24,10 +24,10 @@ MAP_VETOS: list[str] = [
 ]
 
 RACES = [
-    Race.Protoss,
+    # Race.Protoss,
     # Race.Terran,
     # Race.Zerg,
-    # Race.Random,
+    Race.Random,
 ]
 
 BUILDS = [
@@ -63,7 +63,7 @@ if __name__ == "__main__":
         result, opponent_id = run_ladder_game(create_bot(PhantomBot()))
         print(result, " against opponent ", opponent_id)
     else:
-        ai = PhantomBot(game_step_override=2)
+        ai = PhantomBot(game_step_override=5)
         ai.debug = True
         map_list: list[str] = [
             p.name.replace(f".{MAP_FILE_EXT}", "")
@@ -72,11 +72,7 @@ if __name__ == "__main__":
         ]
         for m in MAP_VETOS:
             map_list.remove(m)
-        random_race = random.choice([
-            Race.Zerg,
-            Race.Terran,
-            Race.Protoss,
-        ])
+        random_race = random.choice(RACES)
         enemy_build = random.choice(BUILDS)
         print("Starting local game...")
         run_game(

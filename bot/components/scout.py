@@ -10,7 +10,7 @@ from sc2.unit import Unit
 
 from ..action import Action
 from ..base import BotBase
-from ..resources.base import Base
+from ..resources.expansion import Expansion
 from .base import Component
 
 
@@ -45,7 +45,7 @@ class Scout(Component, ABC):
             if blocked_since + 60 < self.time:
                 del self.blocked_positions[position]
 
-    def initialize_scout_targets(self, bases: list[Base]) -> None:
+    def initialize_scout_targets(self, bases: list[Expansion]) -> None:
         for base in bases[1 : len(bases) // 2]:
             self.static_targets.append(base.position)
 

@@ -17,7 +17,7 @@ from sc2.unit import Unit
 from .action import Action
 from .build_order import HATCH_FIRST
 from .chat import Chat
-from .combat_predictor import CombatContext, predict_combat
+from .combat_predictor import CombatContext, predict_combat, CombatPrediction
 from .components.combat import Combat, CombatAction
 from .components.creep import CreepSpread
 from .components.dodge import Dodge
@@ -67,7 +67,7 @@ class PhantomBot(
         if self.profiler:
             self.profiler.enable()
 
-        # local only: skip first iteration to simulate ladder environment
+        # local only: skip first iteration like on the ladder
         if self.debug and iteration == 0:
             return
 
@@ -82,14 +82,14 @@ class PhantomBot(
             self.expand()
             self.update_composition()
 
-        received_action: set[int] = set()
+        unit_acted: set[int] = set()
         async for action in self.micro():
             if hasattr(action, "unit"):
                 tag = cast(Unit, getattr(action, "unit")).tag
-                if tag in received_action:
+                if tag in unit_acted:
                     logger.info(f"Skipping duplicate action: {action}")
                 else:
-                    received_action.add(tag)
+                    unit_acted.add(tag)
             success = await action.execute(self)
             if not success:
                 logger.error(f"Action failed: {action}")
@@ -156,11 +156,12 @@ class PhantomBot(
         self.inject.assign(queens, self.townhalls.ready)
         self.do_combat(enemies)
 
+        should_inject = self.supply_used + self.larva.amount < 200
         def micro_queen(q: Unit) -> Action:
             return (
                 self.dodge_with(q)
                 or do_transfuse_single(q, army)
-                or (self.inject.inject_with(q) if self.larva.amount + self.supply_used < 200 else None)
+                or (self.inject.inject_with(q) if should_inject else None)
                 or self.spread_creep_with_queen(q)
                 or CombatAction(q, combat_prediction)
             )
@@ -179,11 +180,7 @@ class PhantomBot(
         self.assign_harvesters(harvesters)
 
         for worker in harvesters:
-            yield (
-                self.dodge_with(worker)
-                or self.gather_with(worker, self.townhalls.ready)
-                or CombatAction(worker, combat_prediction)
-            )
+            yield self.micro_harvester(worker, combat_prediction)
         for action in macro_actions.values():
             yield action
         for action in self.spread_tumors():
@@ -216,6 +213,15 @@ class PhantomBot(
                 yield CombatAction(unit, combat_prediction)
         for action in scout_actions.values():
             yield action
+
+    def micro_harvester(self, unit: Unit, combat_prediction: CombatPrediction) -> Action:
+        in_danger = 1 < combat_prediction.enemy_presence.dps[unit.position.rounded]
+        return (
+            self.dodge_with(unit)
+            or (CombatAction(unit, combat_prediction) if in_danger else None)
+            or self.gather_with(unit, self.townhalls.ready)
+            or CombatAction(unit, combat_prediction)
+        )
 
     def run_build_order(self) -> bool:
         for i, (item, count) in enumerate(self.build_order):

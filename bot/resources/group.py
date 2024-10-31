@@ -1,19 +1,17 @@
-from typing import Generic, Iterable, Iterator, Optional, TypeVar
+from typing import Generic, Iterable, Iterator, TypeVar
 
 from sc2.position import Point2
 
 from ..utils import center
-from .resource_base import ResourceBase
+from .base import ResourceBase
 
 T = TypeVar("T", bound=ResourceBase)
 
 
 class ResourceGroup(ResourceBase, Generic[T], Iterable[T]):
-    def __init__(self, items: list[T], position: Optional[Point2] = None) -> None:
-        if position is None:
-            position = center((r.position for r in items))
-        super().__init__(position)
-        self.items = items
+    def __init__(self, items: Iterable[T], position: Point2 | None = None) -> None:
+        self.items = list(items)
+        super().__init__(position or center((r.position for r in self.items)))
 
     def __iter__(self) -> Iterator[T]:
         return iter(self.items)

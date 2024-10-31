@@ -1,33 +1,21 @@
-from typing import Iterable
+from abc import ABC, abstractmethod
 
 from sc2.position import Point2
-from sc2.unit import Unit
-
-from .mineral_patch import MineralPatch
-from .resource_base import ResourceBase
-from .resource_group import ResourceGroup
-from .vespene_geyser import VespeneGeyser
-
-STATIC_DEFENSE_OFFSET = 4.25
 
 
-class Base(ResourceGroup[ResourceBase]):
-    def __init__(
-        self,
-        position: Point2,
-        mineral_patches: Iterable[MineralPatch],
-        vespene_geysers: Iterable[VespeneGeyser],
-    ):
-        self.townhall: Unit | None = None
-        self.static_defense: Unit | None = None
-        self.mineral_patches: ResourceGroup[MineralPatch] = ResourceGroup(
-            sorted(mineral_patches, key=lambda m: m.position.distance_to(position))
-        )
-        self.vespene_geysers: ResourceGroup[VespeneGeyser] = ResourceGroup(
-            sorted(vespene_geysers, key=lambda g: g.position.distance_to(position))
-        )
-        super().__init__([self.mineral_patches, self.vespene_geysers], position)
+class ResourceBase(ABC):
+    def __init__(self, position: Point2):
+        self.position = position
 
-        static_defense_position = Point2(self.position.towards(self.mineral_patches.position, STATIC_DEFENSE_OFFSET))
-        static_defense_position = static_defense_position.rounded.offset(Point2((0.5, 0.5)))
-        self.static_defense_position = static_defense_position
+    @property
+    @abstractmethod
+    def harvester_target(self) -> int:
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def remaining(self) -> int:
+        raise NotImplementedError()
+
+    def __hash__(self) -> int:
+        return hash(self.position)

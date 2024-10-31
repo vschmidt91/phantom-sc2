@@ -10,11 +10,11 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from ..action import Action, DoNothing, Move, Smart
+from ..action import Action, Move, Smart, DoNothing
 from ..components.base import Component
 from ..constants import GAS_BY_RACE, STATIC_DEFENSE_BY_RACE
-from ..resources.resource_unit import ResourceUnit
-from .base import Base
+from ..resources.unit import ResourceUnit
+from .expansion import Expansion
 from .gather import GatherAction, ReturnResource
 from .mineral_patch import MineralPatch
 from .vespene_geyser import VespeneGeyser
@@ -88,7 +88,7 @@ class ResourceManager(Component):
         return chain.from_iterable(chain(b.mineral_patches, b.vespene_geysers) for b in self.bases_taken)
 
     @property
-    def bases_taken(self) -> Iterable[Base]:
+    def bases_taken(self) -> Iterable[Expansion]:
         townhall_positions = {th.position for th in self.townhalls if th.is_ready}
         return (b for b in self.bases if b.position in townhall_positions)
 
@@ -318,7 +318,9 @@ class ResourceManager(Component):
         gas_max = sum(g.harvester_target for g in self.vespene_geysers)
         effective_gas_target = min(float(gas_max), gas_target)
         effective_gas_balance = gas_harvester_count - effective_gas_target
-        mineral_balance = mineral_harvester_count - sum(b.mineral_patches.harvester_target for b in self.bases)
+
+        mineral_target = sum(m.harvester_target for b in self.bases for m in b.mineral_patches)
+        mineral_balance = mineral_harvester_count - mineral_target
 
         if (
             0 < mineral_harvester_count
