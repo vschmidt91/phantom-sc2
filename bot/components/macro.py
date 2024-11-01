@@ -184,6 +184,10 @@ class Macro(Component):
             # reset target on failure
             if plan.executed:
                 logger.info(f"resetting target for {plan=}")
+                if isinstance(plan.target, Point2):
+                    if plan.target not in self.blocked_positions:
+                        self.blocked_positions[plan.target] = self.time
+                        logger.info(f"Blocked location detected by {plan}")
                 plan.target = None
                 plan.executed = False
 
