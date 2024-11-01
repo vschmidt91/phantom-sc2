@@ -46,7 +46,7 @@ class Strategy(Component, ABC):
             enemy.type_id for enemy in self.all_enemy_units if enemy.type_id in UNIT_COUNTER_DICT
         )
 
-        self._tech_up = 32 <= worker_count and 3 <= self.townhalls.amount
+        self._tech_up = 35 <= worker_count and 3 <= self.townhalls.amount
         lair_count = self.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
         hive_count = self.count(UnitTypeId.HIVE, include_pending=True, include_planned=False)
 

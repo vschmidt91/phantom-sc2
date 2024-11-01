@@ -59,7 +59,7 @@ class PhantomBot(
 
     async def on_start(self) -> None:
         await super().on_start()
-        await self.client.debug_create_unit([[UnitTypeId.PYLON, 1, self.bases[1].position, 2]])
+        # await self.client.debug_create_unit([[UnitTypeId.PYLON, 1, self.bases[1].position, 2]])
         self.initialize_resources()
         self.initialize_scout_targets(self.bases)
         self.split_initial_workers(self.workers)
