@@ -231,7 +231,7 @@ class PhantomBot(
         in_danger = 1 < combat_prediction.enemy_presence.dps[unit.position.rounded]
         return (
             self.dodge_with(unit)
-            or (self.fight_with(unit, combat_prediction) if in_danger else None)
+            # or (self.fight_with(unit, combat_prediction) if in_danger else None)
             or self.gather_with(unit, self.townhalls.ready)
             or self.fight_with(unit, combat_prediction)
             or DoNothing()
