@@ -29,5 +29,5 @@ def do_transfuse_single(unit: Unit, targets: Iterable[Unit]) -> Action | None:
     if not any(eligible_targets):
         return None
 
-    target = max(targets, key=lambda t: t.health_percentage, default=None)
+    target = min(eligible_targets, key=lambda t: t.health_percentage, default=None)
     return UseAbility(unit, TRANSFUSE_ABILITY, target=target)
