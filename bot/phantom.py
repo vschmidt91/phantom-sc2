@@ -87,7 +87,7 @@ class PhantomBot(
 
         await self.chat.do_chat(self.send_chat_message)
         self.spread_creep()
-        dodge = self.dodge.update_dodge(self)
+        dodge = self.dodge.update(self)
 
         army = self.units.exclude_type(CIVILIANS)
         enemies = self.all_enemy_units
@@ -177,7 +177,7 @@ class PhantomBot(
 
         def micro_queen(q: Unit) -> Action:
             return (
-                dodge.dodge_with(self, q)
+                dodge.dodge_with(q)
                 or do_transfuse_single(q, combat_prediction.context.units)
                 or (self.inject.inject_with(q) if should_inject else None)
                 or (self.spread_creep_with_queen(q) if should_spread_creep else None)
@@ -218,7 +218,7 @@ class PhantomBot(
                 pass
             elif unit in macro_actions:
                 pass
-            elif action := dodge.dodge_with(self, unit):
+            elif action := dodge.dodge_with(unit):
                 yield action
             elif unit.type_id in {UnitTypeId.OVERSEER} and (action := self.do_spawn_changeling(unit)):
                 yield action
@@ -239,7 +239,7 @@ class PhantomBot(
 
     def micro_harvester(self, unit: Unit, combat_prediction: CombatPrediction, dodge: DodgeResult) -> Action:
         return (
-            dodge.dodge_with(self, unit)
+            dodge.dodge_with(unit)
             or self.gather_with(unit, self.townhalls.ready)
             or self.fight_with(unit, combat_prediction)
             or DoNothing()
