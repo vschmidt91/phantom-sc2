@@ -158,9 +158,8 @@ class BotBase(AresBot, ABC):
     @property
     def supply_pending(self) -> int:
         return sum(
-            provided
+            provided * len(self.pending_by_type[unit_type])
             for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
-            for unit in self.pending_by_type[unit_type]
         )
 
     @property
@@ -168,7 +167,7 @@ class BotBase(AresBot, ABC):
         return sum(
             provided
             for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
-            for plan in self.planned_by_type(unit_type)
+            for _ in self.planned_by_type(unit_type)
         )
 
     def get_missing_requirements(self, item: MacroId) -> Iterable[MacroId]:

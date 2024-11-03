@@ -1,15 +1,27 @@
-from typing import TypeAlias
+from dataclasses import dataclass
 
-from sc2.ids.unit_typeid import UnitTypeId
+from ares import UnitID
 
-BuildOrderSteps: TypeAlias = list[tuple[UnitTypeId, int]]
 
-HATCH_FIRST: BuildOrderSteps = [
-    (UnitTypeId.DRONE, 13),
-    (UnitTypeId.OVERLORD, 2),
-    (UnitTypeId.DRONE, 16),
-    (UnitTypeId.HATCHERY, 2),
-    (UnitTypeId.DRONE, 17),
-    (UnitTypeId.EXTRACTOR, 1),
-    (UnitTypeId.SPAWNINGPOOL, 1),
-]
+@dataclass
+class BuildOrderStep:
+    unit: UnitID
+    count: int
+
+
+@dataclass
+class BuildOrder:
+    steps: list[BuildOrderStep]
+
+
+HATCH_FIRST = BuildOrder(
+    [
+        BuildOrderStep(UnitID.DRONE, 13),
+        BuildOrderStep(UnitID.OVERLORD, 2),
+        BuildOrderStep(UnitID.DRONE, 16),
+        BuildOrderStep(UnitID.HATCHERY, 2),
+        BuildOrderStep(UnitID.DRONE, 17),
+        BuildOrderStep(UnitID.EXTRACTOR, 1),
+        BuildOrderStep(UnitID.SPAWNINGPOOL, 1),
+    ]
+)

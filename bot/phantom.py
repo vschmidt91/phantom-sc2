@@ -23,7 +23,7 @@ from .chat import Chat, ChatMessage
 from .combat_predictor import CombatContext, CombatPrediction, predict_combat
 from .components.combat import Combat
 from .components.creep import CreepSpread
-from .components.dodge import Dodge
+from .components.dodge import Dodge, DodgeResult
 from .components.macro import Macro, compare_plans
 from .components.scout import Scout
 from .components.strategy import Strategy
@@ -51,6 +51,7 @@ class PhantomBot(
 ):
     chat = Chat()
     inject = Inject()
+    dodge = Dodge()
     build_order = HATCH_FIRST
     profiler = cProfile.Profile()
 
@@ -59,7 +60,15 @@ class PhantomBot(
 
     async def on_start(self) -> None:
         await super().on_start()
-        # await self.client.debug_create_unit([[UnitTypeId.PYLON, 1, self.bases[1].position, 2]])
+        await self.client.debug_create_unit(
+            [
+                # [UnitTypeId.PYLON, 1, self.bases[1].position, 2],
+                [UnitTypeId.RAVAGER, 10, self.bases[1].position, 1],
+                [UnitTypeId.RAVAGER, 10, self.bases[2].position, 2],
+                [UnitTypeId.BANELING, 10, self.bases[1].position, 1],
+                [UnitTypeId.BANELING, 10, self.bases[2].position, 2],
+            ]
+        )
         self.initialize_resources()
         self.initialize_scout_targets(self.bases)
         self.split_initial_workers(self.workers)
@@ -78,7 +87,7 @@ class PhantomBot(
 
         await self.chat.do_chat(self.send_chat_message)
         self.spread_creep()
-        self.update_dodge()
+        dodge = self.dodge.update_dodge(self)
 
         army = self.units.exclude_type(CIVILIANS)
         enemies = self.all_enemy_units
@@ -101,7 +110,7 @@ class PhantomBot(
         self.do_combat(combat_prediction.context.enemy_units)
 
         unit_acted: set[int] = set()
-        async for action in self.micro(composition, combat_prediction):
+        async for action in self.micro(composition, combat_prediction, dodge):
             if hasattr(action, "unit"):
                 tag = cast(Unit, getattr(action, "unit")).tag
                 if tag in unit_acted:
@@ -155,7 +164,7 @@ class PhantomBot(
         self.chat.add_message(f"Tag:{tag}", True)
 
     async def micro(
-        self, composition: dict[UnitTypeId, int], combat_prediction: CombatPrediction
+        self, composition: dict[UnitTypeId, int], combat_prediction: CombatPrediction, dodge: DodgeResult
     ) -> AsyncGenerator[Action, None]:
 
         queens = self.actual_by_type[UnitTypeId.QUEEN]
@@ -168,7 +177,7 @@ class PhantomBot(
 
         def micro_queen(q: Unit) -> Action:
             return (
-                self.dodge_with(q)
+                dodge.dodge_with(self, q)
                 or do_transfuse_single(q, combat_prediction.context.units)
                 or (self.inject.inject_with(q) if should_inject else None)
                 or (self.spread_creep_with_queen(q) if should_spread_creep else None)
@@ -192,7 +201,7 @@ class PhantomBot(
         self.assign_harvesters(harvesters, self.get_future_spending(composition))
 
         for worker in harvesters:
-            yield self.micro_harvester(worker, combat_prediction)
+            yield self.micro_harvester(worker, combat_prediction, dodge)
         for action in macro_actions.values():
             yield action
         for action in self.spread_tumors():
@@ -209,7 +218,7 @@ class PhantomBot(
                 pass
             elif unit in macro_actions:
                 pass
-            elif action := self.dodge_with(unit):
+            elif action := dodge.dodge_with(self, unit):
                 yield action
             elif unit.type_id in {UnitTypeId.OVERSEER} and (action := self.do_spawn_changeling(unit)):
                 yield action
@@ -228,21 +237,19 @@ class PhantomBot(
         for action in scout_actions.values():
             yield action
 
-    def micro_harvester(self, unit: Unit, combat_prediction: CombatPrediction) -> Action:
-        in_danger = 1 < combat_prediction.enemy_presence.dps[unit.position.rounded]
+    def micro_harvester(self, unit: Unit, combat_prediction: CombatPrediction, dodge: DodgeResult) -> Action:
         return (
-            self.dodge_with(unit)
-            # or (self.fight_with(unit, combat_prediction) if in_danger else None)
+            dodge.dodge_with(self, unit)
             or self.gather_with(unit, self.townhalls.ready)
             or self.fight_with(unit, combat_prediction)
             or DoNothing()
         )
 
     def run_build_order(self) -> bool:
-        for i, (item, count) in enumerate(self.build_order):
-            if self.count(item, include_planned=False) < count:
-                if self.count(item, include_planned=True) < count:
-                    plan = self.add_plan(item)
+        for i, step in enumerate(self.build_order.steps):
+            if self.count(step.unit, include_planned=False) < step.count:
+                if self.count(step.unit, include_planned=True) < step.count:
+                    plan = self.add_plan(step.unit)
                     plan.priority = -i
                 return False
         return True

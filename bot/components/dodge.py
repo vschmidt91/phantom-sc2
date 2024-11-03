@@ -1,127 +1,97 @@
-from abc import ABC
 from dataclasses import dataclass
 
 import numpy as np
-from sc2.game_state import EffectData
-from sc2.ids.ability_id import AbilityId
+from loguru import logger
 from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from ..action import Action, Move, UseAbility
-from .base import Component
-
-DODGE_DELAYED_EFFECTS = {
-    EffectId.RAVAGERCORROSIVEBILECP,
-    EffectId.NUKEPERSISTENT,
-}
-
-DODGE_EFFECTS = {
-    EffectId.LURKERMP,
-    EffectId.PSISTORMPERSISTENT,
-}
-
-DODGE_UNITS = {
-    UnitTypeId.DISRUPTORPHASED,
-    UnitTypeId.BANELING,
-}
+from ..action import Action, Move
+from ..base import BotBase
 
 
-@dataclass
+@dataclass(frozen=True)
 class DamageCircle:
     radius: float
     damage: float
 
 
-class DodgeElement(ABC):
-    def __init__(self, position: Point2, circles: list[DamageCircle]):
-        self.position: Point2 = position
-        self.circles: list[DamageCircle] = circles
+DODGE_UNITS = {
+    UnitTypeId.DISRUPTORPHASED: [DamageCircle(1.5, 145.0)],
+    UnitTypeId.BANELING: [DamageCircle(2.2, 19.0)],
+}
+
+DODGE_EFFECTS = {
+    EffectId.LURKERMP: [DamageCircle(0.5, 20.0)],
+    EffectId.PSISTORMPERSISTENT: [DamageCircle(1.5, 80.0)],
+    EffectId.RAVAGERCORROSIVEBILECP: [DamageCircle(1.0, 60)],
+    EffectId.NUKEPERSISTENT: [DamageCircle(4, 150), DamageCircle(6, 75), DamageCircle(8, 75)],
+}
+
+EFFECT_DELAY: dict[EffectId, float] = {
+    EffectId.RAVAGERCORROSIVEBILECP: 50 / 22.4,
+    EffectId.NUKEPERSISTENT: 320 / 22.4,
+}
 
 
-class DodgeUnit(DodgeElement):
-    CIRCLES: dict[UnitTypeId, list[DamageCircle]] = {
-        UnitTypeId.DISRUPTORPHASED: [DamageCircle(1.5, 145.0)],
-        UnitTypeId.BANELING: [DamageCircle(2.2, 19.0)],
-    }
-
-    def __init__(self, unit: Unit):
-        position = unit.position
-        circles = self.CIRCLES[unit.type_id]
-        super().__init__(position, circles)
+@dataclass(frozen=True)
+class DodgeElement:
+    position: Point2
+    circle: DamageCircle
 
 
-class DodgeEffect(DodgeElement):
-    CIRCLES: dict[EffectId, list[DamageCircle]] = {
-        EffectId.LURKERMP: [DamageCircle(0.5, 20.0)],
-        EffectId.PSISTORMPERSISTENT: [DamageCircle(1.5, 80.0)],
-        EffectId.RAVAGERCORROSIVEBILECP: [DamageCircle(1.0, 60)],
-        EffectId.NUKEPERSISTENT: [DamageCircle(4, 150), DamageCircle(6, 75), DamageCircle(8, 75)],
-    }
+@dataclass
+class DodgeResult:
+    elements: dict[DodgeElement, float]
+    safety_distance: float = 1.0
 
-    def __init__(self, effect: EffectData):
-        position = next(iter(effect.positions))
-        circles = self.CIRCLES[effect.id]
-        super().__init__(position, circles)
+    def dodge_with(self, context: BotBase, unit: Unit) -> Action | None:
 
-
-class DodgeEffectDelayed(DodgeEffect):
-    DELAY: dict[EffectId, float] = {
-        EffectId.RAVAGERCORROSIVEBILECP: 50 / 22.4,
-        EffectId.NUKEPERSISTENT: 320 / 22.4,
-    }
-
-    def __init__(self, effect: EffectData, time: float):
-        self.time_of_impact: float = time + self.DELAY[effect.id]
-        super().__init__(effect)
-
-
-class Dodge(Component, ABC):
-    _dodge_elements: list[DodgeElement] = list()
-    _dodge_elements_delayed: list[DodgeEffectDelayed] = list()
-    _dodge_safety_distance: float = 1.0
-
-    def update_dodge(self) -> None:
-        elements_delayed_old = list(self._dodge_elements_delayed)
-        delayed_positions = {e.position for e in elements_delayed_old}
-
-        self._dodge_elements_delayed.clear()
-        self._dodge_elements_delayed.extend(
-            element for element in elements_delayed_old if self.time <= element.time_of_impact
-        )
-        self._dodge_elements_delayed.extend(
-            DodgeEffectDelayed(effect, self.time)
-            for effect in self.state.effects
-            if (effect.id in DODGE_DELAYED_EFFECTS and next(iter(effect.positions)) not in delayed_positions)
-        )
-
-        self._dodge_elements.clear()
-        self._dodge_elements.extend(self._dodge_elements_delayed)
-        self._dodge_elements.extend(
-            DodgeUnit(enemy) for enemy in self.all_enemy_units if enemy and enemy.type_id in DODGE_UNITS
-        )
-        self._dodge_elements.extend(DodgeEffect(effect) for effect in self.state.effects if effect.id in DODGE_EFFECTS)
-
-    def dodge_with(self, unit: Unit) -> Action | None:
-
-        for dodge in self._dodge_elements:
-            distance_bonus = 0.0
-            if isinstance(dodge, DodgeEffectDelayed):
-                delay = (2 * self.client.game_step) / 22.4
-                time_remaining = max(0.0, dodge.time_of_impact - self.time - delay)
-                distance_bonus = 1.4 * unit.movement_speed * time_remaining
-            distance_have = unit.distance_to(dodge.position)
-            for circle in dodge.circles:
-                distance_want = circle.radius + unit.radius
-                if distance_have + distance_bonus < distance_want + self._dodge_safety_distance:
-                    random_offset = Point2(np.random.normal(loc=0.0, scale=0.001, size=2))
-                    dodge_from = dodge.position
-                    if dodge_from == unit.position:
-                        dodge_from += random_offset
-                    target = dodge_from.towards(unit, distance_want + 2 * self._dodge_safety_distance)
-                    if unit.is_burrowed and not self.can_move(unit):
-                        return UseAbility(unit, AbilityId.BURROWUP)
-                    else:
-                        return Move(unit, target)
+        for element, time_of_impact in self.elements.items():
+            delay = 4 / 22.4
+            time_remaining = max(0.0, time_of_impact - context.time - delay)
+            distance_bonus = 1.4 * unit.movement_speed * time_remaining
+            distance_have = unit.distance_to(element.position)
+            distance_want = element.circle.radius + unit.radius
+            if distance_have + distance_bonus < distance_want + self.safety_distance:
+                random_offset = Point2(np.random.normal(loc=0.0, scale=0.001, size=2))
+                dodge_from = element.position
+                if dodge_from == unit.position:
+                    dodge_from += random_offset
+                target = dodge_from.towards(unit, distance_want + 2 * self.safety_distance)
+                # if unit.is_burrowed and not self.can_move(unit):
+                #     return UseAbility(unit, AbilityId.BURROWUP)
+                # else:
+                return Move(unit, target)
         return None
+
+
+class Dodge:
+
+    _effects: dict[DodgeElement, float] = {}
+
+    def update_dodge(self, context: BotBase) -> DodgeResult:
+
+        units = {
+            DodgeElement(unit.position, circle): context.time
+            for unit in context.all_enemy_units
+            for circle in DODGE_UNITS.get(unit.type_id, [])
+        }
+
+        active_effects: set[DodgeElement] = set()
+        for effect in context.state.effects:
+            time_of_impact = context.time + EFFECT_DELAY.get(effect.id, 0.0)
+            for position in effect.positions:
+                for circle in DODGE_EFFECTS.get(effect.id, []):
+                    element = DodgeElement(position, circle)
+                    active_effects.add(element)
+                    self._effects.setdefault(element, time_of_impact)
+
+        # remove old effects that impacted
+        for element, time_of_impact in list(self._effects.items()):
+            if element not in active_effects and time_of_impact < context.time:
+                logger.debug(f"Removing effect: {element} @ {time_of_impact}")
+                del self._effects[element]
+
+        return DodgeResult(units | self._effects)
