@@ -11,7 +11,7 @@ from sc2.units import Units
 from skimage.draw import disk
 
 from ..action import Action, AttackMove, Move
-from ..combat_predictor import CombatPrediction
+from ..combat_predictor import CombatPrediction, _disk
 from ..constants import CHANGELINGS
 from ..cython.cy_dijkstra import cy_dijkstra  # type: ignore
 from .base import Component
@@ -73,20 +73,21 @@ class Combat(Component, ABC):
 
     def do_combat(self, enemies: Units) -> None:
 
-        self.ground_dps = np.zeros(self.game_info.map_size)
-        self.air_dps = np.zeros(self.game_info.map_size)
+        ground_dps = np.zeros(self.game_info.map_size)
+        air_dps = np.zeros(self.game_info.map_size)
         for enemy in enemies:
+            px, py = enemy.position.rounded
             if enemy.can_attack_ground:
-                r = enemy.radius + enemy.ground_range + 2.0
-                d = disk(enemy.position, r, shape=self.ground_dps.shape)
-                self.ground_dps[d] += enemy.ground_dps
+                dx, dy = _disk(enemy.radius + enemy.ground_range + 2.0)
+                d = px + dx, py + dy
+                ground_dps[d] += enemy.ground_dps
             if enemy.can_attack_air:
-                r = enemy.radius + enemy.air_range + 2.0
-                d = disk(enemy.position, r, shape=self.air_dps.shape)
-                self.air_dps[d] += enemy.air_dps
+                dx, dy = _disk(enemy.radius + enemy.air_range + 2.0)
+                d = px + dx, py + dy
+                air_dps[d] += enemy.air_dps
 
-        retreat_cost_ground = self.mediator.get_map_data_object.get_pyastar_grid() + np.log1p(self.ground_dps)
-        retreat_cost_air = self.mediator.get_map_data_object.get_clean_air_grid() + np.log1p(self.air_dps)
+        retreat_cost_ground = self.mediator.get_map_data_object.get_pyastar_grid() + np.log1p(ground_dps)
+        retreat_cost_air = self.mediator.get_map_data_object.get_clean_air_grid() + np.log1p(air_dps)
         retreat_targets = [w.position for w in self.workers] + [self.start_location]
         self.retreat_ground = DijkstraOutput.from_cy(
             cy_dijkstra(

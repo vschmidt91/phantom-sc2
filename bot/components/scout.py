@@ -4,6 +4,7 @@ from typing import Iterable
 
 from loguru import logger
 from sc2.data import ActionResult
+from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
@@ -34,7 +35,10 @@ class Scout(Component, ABC):
 
     def detect_blocked_bases(self) -> None:
         for error in self.state.action_errors:
-            if error.result == ActionResult.CantBuildLocationInvalid.value:
+            if (
+                error.result == ActionResult.CantBuildLocationInvalid.value
+                and error.ability_id == AbilityId.ZERGBUILD_HATCHERY
+            ):
                 if unit := self.unit_tag_dict.get(error.unit_tag):
                     if unit.position not in self.blocked_positions:
                         self.blocked_positions[unit.position] = self.time

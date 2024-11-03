@@ -23,7 +23,7 @@ from .chat import Chat, ChatMessage
 from .combat_predictor import CombatContext, CombatPrediction, predict_combat
 from .components.combat import Combat
 from .components.creep import CreepSpread
-from .components.dodge import Dodge, DodgeResult
+from .dodge import Dodge, DodgeResult
 from .components.macro import Macro, compare_plans
 from .components.scout import Scout
 from .components.strategy import Strategy
@@ -60,15 +60,16 @@ class PhantomBot(
 
     async def on_start(self) -> None:
         await super().on_start()
-        await self.client.debug_create_unit(
-            [
-                # [UnitTypeId.PYLON, 1, self.bases[1].position, 2],
-                [UnitTypeId.RAVAGER, 10, self.bases[1].position, 1],
-                [UnitTypeId.RAVAGER, 10, self.bases[2].position, 2],
-                [UnitTypeId.BANELING, 10, self.bases[1].position, 1],
-                [UnitTypeId.BANELING, 10, self.bases[2].position, 2],
-            ]
-        )
+        # if self.config[DEBUG]:
+        #     await self.client.debug_create_unit(
+        #         [
+        #             [UnitTypeId.PYLON, 1, self.bases[1].position, 2],
+        #             [UnitTypeId.RAVAGER, 10, self.bases[1].position, 1],
+        #             [UnitTypeId.RAVAGER, 10, self.bases[2].position, 2],
+        #             [UnitTypeId.BANELING, 10, self.bases[1].position, 1],
+        #             [UnitTypeId.BANELING, 10, self.bases[2].position, 2],
+        #         ]
+        #     )
         self.initialize_resources()
         self.initialize_scout_targets(self.bases)
         self.split_initial_workers(self.workers)

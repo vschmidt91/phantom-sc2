@@ -7,8 +7,8 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from ..action import Action, Move, UseAbility
-from ..base import BotBase
+from .action import Action, Move, UseAbility
+from .base import BotBase
 
 
 @dataclass(frozen=True)
@@ -48,25 +48,28 @@ class DodgeResult:
     items: dict[DodgeItem, float]
     safety_distance: float = 1.0
     safety_time = 0.1
+    min_distance = 1e-3
 
     def dodge_with(self, unit: Unit) -> Action | None:
-
         for item, time_of_impact in self.items.items():
-            time_remaining = max(0.0, time_of_impact - self.context.time - self.safety_time)
-            distance_bonus = 1.4 * unit.movement_speed * time_remaining
-            distance_have = unit.distance_to(item.position)
-            distance_want = item.circle.radius + unit.radius
-            if distance_have + distance_bonus < distance_want + self.safety_distance:
-                random_offset = Point2(np.random.normal(loc=0.0, scale=0.001, size=2))
-                dodge_from = item.position
-                if dodge_from == unit.position:
-                    dodge_from += random_offset
-                target = dodge_from.towards(unit, distance_want + self.safety_distance)
-                if unit.is_burrowed and not self.context.can_move(unit):
-                    return UseAbility(unit, AbilityId.BURROWUP)
-                else:
-                    return Move(unit, target)
+            if action := self._dodge_item(unit, item, time_of_impact):
+                return action
         return None
+
+    def _dodge_item(self, unit: Unit, item: DodgeItem, time_of_impact: float) -> Action | None:
+        time_remaining = max(0.0, time_of_impact - self.context.time - self.safety_time)
+        distance_bonus = 1.4 * unit.movement_speed * time_remaining
+        distance_have = unit.distance_to(item.position)
+        distance_want = item.circle.radius + unit.radius
+        if distance_have + distance_bonus >= distance_want + self.safety_distance:
+            return None
+        if unit.is_burrowed and not self.context.can_move(unit):
+            return UseAbility(unit, AbilityId.BURROWUP)
+        dodge_from = item.position
+        if distance_have < self.min_distance:
+            dodge_from += Point2(np.random.normal(loc=0.0, scale=self.min_distance, size=2))
+        target = dodge_from.towards(unit, distance_want + self.safety_distance)
+        return Move(unit, target)
 
 
 class Dodge:
