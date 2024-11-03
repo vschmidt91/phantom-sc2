@@ -42,7 +42,6 @@ from .transfuse import do_transfuse_single
 class PhantomBot(
     Combat,
     CreepSpread,
-    Dodge,
     Macro,
     ResourceManager,
     Scout,
