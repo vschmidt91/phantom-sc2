@@ -23,7 +23,6 @@ from .chat import Chat, ChatMessage
 from .combat_predictor import CombatContext, CombatPrediction, predict_combat
 from .components.combat import Combat
 from .components.creep import CreepSpread
-from .dodge import Dodge, DodgeResult
 from .components.macro import Macro, compare_plans
 from .components.scout import Scout
 from .components.strategy import Strategy
@@ -34,6 +33,7 @@ from .constants import (
     COOLDOWN,
     ENERGY_COST,
 )
+from .dodge import Dodge, DodgeResult
 from .inject import Inject
 from .resources.resource_manager import ResourceManager
 from .transfuse import do_transfuse_single
@@ -86,7 +86,6 @@ class PhantomBot(
             self.profiler.enable()
 
         await self.chat.do_chat(self.send_chat_message)
-        self.spread_creep()
         dodge = self.dodge.update(self)
 
         army = self.units.exclude_type(CIVILIANS)
@@ -96,6 +95,7 @@ class PhantomBot(
             enemy_units=enemies,
             dps=self.dps_fast,
             pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
+            air_pathing=self.mediator.get_map_data_object.get_clean_air_grid(),
         )
         combat_prediction = predict_combat(combat_context)
         worker_target = max(1, min(80, self.max_harvesters))
@@ -107,7 +107,7 @@ class PhantomBot(
             self.morph_overlords()
             self.expand()
 
-        self.do_combat(combat_prediction.context.enemy_units)
+        self.do_combat(combat_prediction)
 
         unit_acted: set[int] = set()
         async for action in self.micro(composition, combat_prediction, dodge):
@@ -166,6 +166,7 @@ class PhantomBot(
     async def micro(
         self, composition: dict[UnitTypeId, int], combat_prediction: CombatPrediction, dodge: DodgeResult
     ) -> AsyncGenerator[Action, None]:
+        creep_context = self.update()
 
         queens = self.actual_by_type[UnitTypeId.QUEEN]
         changelings = chain.from_iterable(self.actual_by_type[t] for t in CHANGELINGS)
@@ -180,7 +181,7 @@ class PhantomBot(
                 dodge.dodge_with(q)
                 or do_transfuse_single(q, combat_prediction.context.units)
                 or (self.inject.inject_with(q) if should_inject else None)
-                or (self.spread_creep_with_queen(q) if should_spread_creep else None)
+                or (creep_context.spread_creep_with_queen(q) if should_spread_creep else None)
                 or self.fight_with(q, combat_prediction)
                 or DoNothing()
             )
@@ -204,7 +205,7 @@ class PhantomBot(
             yield self.micro_harvester(worker, combat_prediction, dodge)
         for action in macro_actions.values():
             yield action
-        for action in self.spread_tumors():
+        for action in self.spread_tumors(creep_context):
             yield action
         for queen in queens:
             yield micro_queen(queen)

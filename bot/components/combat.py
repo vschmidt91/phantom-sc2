@@ -8,7 +8,6 @@ import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Point2, Unit
 from sc2.units import Units
-from skimage.draw import disk
 
 from ..action import Action, AttackMove, Move
 from ..combat_predictor import CombatPrediction, _disk
@@ -71,23 +70,12 @@ class Combat(Component, ABC):
     retreat_air: DijkstraOutput
     _bile_last_used: dict[int, int] = dict()
 
-    def do_combat(self, enemies: Units) -> None:
+    def do_combat(self, prediction: CombatPrediction) -> None:
 
-        ground_dps = np.zeros(self.game_info.map_size)
-        air_dps = np.zeros(self.game_info.map_size)
-        for enemy in enemies:
-            px, py = enemy.position.rounded
-            if enemy.can_attack_ground:
-                dx, dy = _disk(enemy.radius + enemy.ground_range + 2.0)
-                d = px + dx, py + dy
-                ground_dps[d] += enemy.ground_dps
-            if enemy.can_attack_air:
-                dx, dy = _disk(enemy.radius + enemy.air_range + 2.0)
-                d = px + dx, py + dy
-                air_dps[d] += enemy.air_dps
+        threat_level = np.maximum(0, -prediction.confidence)
+        retreat_cost_air = prediction.context.air_pathing + threat_level
+        retreat_cost_ground = prediction.context.pathing + threat_level
 
-        retreat_cost_ground = self.mediator.get_map_data_object.get_pyastar_grid() + np.log1p(ground_dps)
-        retreat_cost_air = self.mediator.get_map_data_object.get_clean_air_grid() + np.log1p(air_dps)
         retreat_targets = [w.position for w in self.workers] + [self.start_location]
         self.retreat_ground = DijkstraOutput.from_cy(
             cy_dijkstra(
@@ -135,7 +123,7 @@ class Combat(Component, ABC):
             return priority
 
         target, priority = max(
-            ((e, target_priority(e)) for e in self.all_enemy_units),
+            ((e, target_priority(e)) for e in combat_prediction.context.enemy_units),
             key=lambda t: t[1],
             default=(None, 0),
         )
@@ -150,9 +138,10 @@ class Combat(Component, ABC):
         else:
             retreat_map = self.retreat_ground
 
-        p = unit.position.rounded
+        x = round(unit.position.x)
+        y = round(unit.position.y)
         retreat_path_limit = 5
-        retreat_path = retreat_map.get_path(p, retreat_path_limit)
+        retreat_path = retreat_map.get_path((x, y), retreat_path_limit)
 
         confidence = np.mean(
             [
@@ -172,7 +161,7 @@ class Combat(Component, ABC):
                 stance = CombatStance.ADVANCE
             elif 0 <= confidence:
                 stance = CombatStance.FIGHT
-            elif -1 <= confidence:
+            elif -unit.weapon_cooldown <= confidence:
                 stance = CombatStance.RETREAT
             elif len(retreat_path) < retreat_path_limit:
                 stance = CombatStance.RETREAT
@@ -196,7 +185,7 @@ class Combat(Component, ABC):
                 ):
                     return AttackMove(unit, target.position)
 
-            if retreat_map.dist[p] == np.inf:
+            if retreat_map.dist[x, y] == np.inf:
                 retreat_point = self.start_location
             else:
                 retreat_point = Point2(retreat_path[-1]).offset(HALF)

@@ -3,13 +3,13 @@ from dataclasses import dataclass
 from ares import UnitID
 
 
-@dataclass
+@dataclass(frozen=True)
 class BuildOrderStep:
     unit: UnitID
     count: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class BuildOrder:
     steps: list[BuildOrderStep]
 

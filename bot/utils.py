@@ -1,6 +1,8 @@
-from typing import Iterable
+import math
+from typing import Iterable, TypeAlias
 
 import numpy as np
+import skimage.draw
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -13,6 +15,31 @@ from sc2.unit import Unit
 
 class PlacementNotFoundException(Exception):
     pass
+
+
+Point: TypeAlias = tuple[int, int]
+
+
+def project_point_onto_line(origin: Point2, direction: Point2, position: Point2) -> Point2:
+    orthogonal_direction = Point2((direction[1], -direction[0]))
+    return (
+        position
+        - np.dot(position - origin, orthogonal_direction)
+        / np.dot(orthogonal_direction, orthogonal_direction)
+        * orthogonal_direction
+    )
+
+
+def get_intersections(position1: Point2, radius1: float, position2: Point2, radius2: float) -> Iterable[Point2]:
+    p01 = position2 - position1
+    distance = np.linalg.norm(p01)
+    if 0 < distance and abs(radius1 - radius2) <= distance <= radius1 + radius2:
+        disc = (radius1**2 - radius2**2 + distance**2) / (2 * distance)
+        height = math.sqrt(radius1**2 - disc**2)
+        middle = position1 + (disc / distance) * p01
+        orthogonal = (height / distance) * np.array([p01.y, -p01.x])
+        yield middle + orthogonal
+        yield middle - orthogonal
 
 
 async def chain_async(*streams):
@@ -40,6 +67,23 @@ def time_to_reach(unit: Unit, target: Point2) -> float:
     if movement_speed == 0:
         return np.inf
     return distance / movement_speed
+
+
+def line(x0: int, y0: int, x1: int, y1: int) -> list[tuple[int, int]]:
+    lx, ly = skimage.draw.line(x0, y0, x1, y1)
+    return [(int(x), int(y)) for x, y in zip(lx, ly)]
+
+
+def circle_perimeter(x0: int, y0: int, r: int, shape: tuple) -> list[tuple[int, int]]:
+    assert len(shape) == 2
+    tx, ty = skimage.draw.circle_perimeter(x0, y0, r, shape=shape)
+    return [(int(x), int(y)) for x, y in zip(tx, ty)]
+
+
+def rectangle(start: tuple[int, int], extent: tuple[int, int], shape: tuple) -> tuple[np.ndarray, np.ndarray]:
+    assert len(shape) == 2
+    rx, ry = skimage.draw.rectangle(start, extent=extent, shape=shape)
+    return rx.astype(int).flatten(), ry.astype(int).flatten()
 
 
 def get_requirements(item: UnitTypeId | UpgradeId) -> Iterable[UnitTypeId | UpgradeId]:

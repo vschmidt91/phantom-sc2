@@ -19,7 +19,7 @@ class DoNothing(Action):
         return True
 
 
-@dataclass
+@dataclass(frozen=True)
 class AttackMove(Action):
     unit: Unit
     target: Point2
@@ -28,7 +28,7 @@ class AttackMove(Action):
         return self.unit.attack(self.target)
 
 
-@dataclass
+@dataclass(frozen=True)
 class Move(Action):
     unit: Unit
     target: Point2
@@ -37,7 +37,7 @@ class Move(Action):
         return self.unit.move(self.target)
 
 
-@dataclass
+@dataclass(frozen=True)
 class HoldPosition(Action):
     unit: Unit
 
@@ -45,7 +45,7 @@ class HoldPosition(Action):
         return self.unit.stop()
 
 
-@dataclass
+@dataclass(frozen=True)
 class Smart(Action):
     unit: Unit
     target: Point2 | Unit | int | None = None
@@ -60,7 +60,7 @@ class Smart(Action):
         return self.unit.smart(target=target)
 
 
-@dataclass
+@dataclass(frozen=True)
 class UseAbility(Action):
     unit: Unit
     ability: AbilityId

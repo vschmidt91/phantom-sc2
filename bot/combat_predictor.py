@@ -12,21 +12,22 @@ from scipy import ndimage
 DpsProvider = Callable[[UnitTypeId], float]
 
 
-@dataclass
+@dataclass(frozen=True)
 class CombatContext:
     units: Units
     enemy_units: Units
     dps: DpsProvider
     pathing: np.ndarray
+    air_pathing: np.ndarray
 
 
-@dataclass
+@dataclass(frozen=True)
 class CombatPresence:
     dps: np.ndarray
     health: np.ndarray
 
 
-@dataclass
+@dataclass(frozen=True)
 class CombatPrediction:
     context: CombatContext
     dimensionality: np.ndarray

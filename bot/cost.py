@@ -13,7 +13,7 @@ MineralVespeneCostProvider = Callable[[UnitTypeId], SC2Cost]
 SupplyCostProvider = Callable[[UnitTypeId], float]
 
 
-@dataclass
+@dataclass(frozen=True)
 class Cost:
     minerals: float
     vespene: float

@@ -20,11 +20,6 @@ from .gather import GatherAction, ReturnResource
 from .mineral_patch import MineralPatch
 from .vespene_geyser import VespeneGeyser
 
-MINING_RADIUS = 1.325
-
-MINERAL_RADIUS = 1.125
-HARVESTER_RADIUS = 0.375
-
 STATIC_DEFENSE_TRIGGERS = {
     UnitTypeId.ROACHBURROWED: 0.5,
     UnitTypeId.MUTALISK: 0.3,
@@ -34,39 +29,15 @@ STATIC_DEFENSE_TRIGGERS = {
 }
 
 
-def project_point_onto_line(origin: Point2, direction: Point2, position: Point2) -> Point2:
-    orthogonal_direction = Point2((direction[1], -direction[0]))
-    return (
-        position
-        - np.dot(position - origin, orthogonal_direction)
-        / np.dot(orthogonal_direction, orthogonal_direction)
-        * orthogonal_direction
-    )
-
-
-def get_intersections(position1: Point2, radius1: float, position2: Point2, radius2: float) -> Iterable[Point2]:
-    p01 = position2 - position1
-    distance = np.linalg.norm(p01)
-    if 0 < distance and abs(radius1 - radius2) <= distance <= radius1 + radius2:
-        disc = (radius1**2 - radius2**2 + distance**2) / (2 * distance)
-        height = math.sqrt(radius1**2 - disc**2)
-        middle = position1 + (disc / distance) * p01
-        orthogonal = (height / distance) * np.array([p01.y, -p01.x])
-        yield middle + orthogonal
-        yield middle - orthogonal
-
-
 class ResourceManager(Component):
 
-    resource_by_position: dict[Point2, ResourceUnit] = {}
     harvesters_by_resource: Counter[ResourceUnit] = Counter[ResourceUnit]()
     build_static_defense: bool = False
     harvester_assignment: dict[int, ResourceUnit] = {}
 
     def initialize_resources(self) -> None:
-        self.resource_by_position = {resource.position: resource for resource in self.all_resources}
-        self.resource_by_position.update({resource.position: resource for resource in self.all_resources})
-        self.set_speedmining_positions()
+        for base in self.bases:
+            base.set_speedmining_positions()
 
     @property
     def owned_geysers(self) -> Iterable[VespeneGeyser]:
@@ -82,7 +53,7 @@ class ResourceManager(Component):
 
     @property
     def all_resources(self) -> Iterable[ResourceUnit]:
-        return chain(self.mineral_patches, self.vespene_geysers)
+        return chain[ResourceUnit](self.mineral_patches, self.vespene_geysers)
 
     @property
     def all_taken_resources(self) -> Iterable[ResourceUnit]:
@@ -241,32 +212,6 @@ class ResourceManager(Component):
         elif unit.is_returning:
             return ReturnResource(unit, return_target)
         return Smart(unit, target_unit)
-
-    def set_speedmining_positions(self) -> None:
-        for base in self.bases:
-            for patch in base.mineral_patches:
-                target = patch.position.towards(base.position, MINING_RADIUS)
-                for patch2 in base.mineral_patches:
-                    if patch.position == patch2.position:
-                        continue
-                    position = project_point_onto_line(target, target - base.position, patch2.position)
-                    distance1 = patch.position.distance_to(base.position)
-                    distance2 = patch2.position.distance_to(base.position)
-                    if distance1 < distance2:
-                        continue
-                    if MINING_RADIUS <= patch2.position.distance_to(position):
-                        continue
-                    intersections = list(
-                        get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS)
-                    )
-                    if intersections:
-                        intersection1, intersection2 = intersections
-                        if intersection1.distance_to(base.position) < intersection2.distance_to(base.position):
-                            target = intersection1
-                        else:
-                            target = intersection2
-                        break
-                patch.speedmining_target = target
 
     def update_gas(self, future_spending: Cost):
         gas_target = self.get_gas_target(future_spending)

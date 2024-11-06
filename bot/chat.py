@@ -7,7 +7,7 @@ from .action import Action
 from .base import BotBase
 
 
-@dataclass
+@dataclass(frozen=True)
 class ChatMessage(Action):
     message: str
     team_only: bool
@@ -24,7 +24,7 @@ class ChatMessage(Action):
 ChatFunction: TypeAlias = Callable[[ChatMessage], Coroutine[Any, Any, None]]
 
 
-@dataclass
+@dataclass(frozen=True)
 class Chat:
     _unsent: set[ChatMessage] = field(default_factory=set)
     _sent: set[ChatMessage] = field(default_factory=set)
