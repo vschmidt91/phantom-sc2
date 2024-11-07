@@ -7,10 +7,9 @@ from typing import TypeAlias
 import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Point2, Unit
-from sc2.units import Units
 
 from ..action import Action, AttackMove, Move
-from ..combat_predictor import CombatPrediction, _disk
+from ..combat_predictor import CombatPrediction
 from ..constants import CHANGELINGS
 from ..cython.cy_dijkstra import cy_dijkstra  # type: ignore
 from .base import Component
@@ -161,7 +160,7 @@ class Combat(Component, ABC):
                 stance = CombatStance.ADVANCE
             elif 0 <= confidence:
                 stance = CombatStance.FIGHT
-            elif -unit.weapon_cooldown <= confidence:
+            elif -1 - math.exp(-unit.weapon_cooldown) <= confidence:
                 stance = CombatStance.RETREAT
             elif len(retreat_path) < retreat_path_limit:
                 stance = CombatStance.RETREAT
