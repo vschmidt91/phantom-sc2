@@ -20,10 +20,10 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
-from .action import Action, AttackMove, DoNothing, UseAbility
+from .action import Action, AttackMove, DoNothing, UseAbility, Move, HoldPosition
 from .build_order import HATCH_FIRST
 from .chat import Chat, ChatMessage
-from .combat import Combat
+from .combat import Combat, HALF
 from .components.macro import Macro, compare_plans
 from .components.scout import Scout
 from .constants import (
@@ -63,20 +63,18 @@ class PhantomBot(
 
     async def on_start(self) -> None:
         await super().on_start()
-        # if self.config[DEBUG]:
-        #     output_path = os.path.join("resources", f"{self.game_info.map_name}.xz")
-        #     with lzma.open(output_path, "wb") as f:
-        #         pickle.dump(self.game_info, f)
-        #     await self.client.debug_create_unit([[UnitTypeId.PYLON, 1, self.bases[1].position, 2]])
-        #     await self.client.debug_create_unit(
-        #         [
-        #             [UnitTypeId.PYLON, 1, self.bases[1].position, 2],
-        #             [UnitTypeId.RAVAGER, 10, self.bases[1].position, 1],
-        #             [UnitTypeId.RAVAGER, 10, self.bases[2].position, 2],
-        #             [UnitTypeId.BANELING, 10, self.bases[1].position, 1],
-        #             [UnitTypeId.BANELING, 10, self.bases[2].position, 2],
-        #         ]
-        #     )
+        if self.config[DEBUG]:
+            # output_path = os.path.join("resources", f"{self.game_info.map_name}.xz")
+            # with lzma.open(output_path, "wb") as f:
+            #     pickle.dump(self.game_info, f)
+            # await self.client.debug_create_unit([[UnitTypeId.PYLON, 1, self.bases[1].position, 2]])
+            await self.client.debug_create_unit(
+                [
+                    [UnitTypeId.ROACH, 10, self.bases[1].position, 1],
+                    [UnitTypeId.ROACH, 10, self.bases[2].position, 2],
+                ]
+            )
+            await self.client.debug_upgrade()
         self.initialize_resources()
         self.initialize_scout_targets(self.bases)
         self.split_initial_workers(self.workers)
@@ -246,7 +244,7 @@ class PhantomBot(
                 yield action
             elif unit.type_id in {UnitTypeId.ROACH} and (action := self.do_burrow(unit)):
                 yield action
-            elif unit.type_id in {UnitTypeId.ROACHBURROWED} and (action := self.do_unburrow(unit)):
+            elif unit.type_id in {UnitTypeId.ROACHBURROWED} and (action := self.do_unburrow(unit, combat)):
                 yield action
             elif unit.type_id in {UnitTypeId.RAVAGER} and (action := self.do_bile(unit)):
                 yield action
@@ -464,7 +462,18 @@ class PhantomBot(
                     return UseAbility(unit, ability)
         return None
 
-    def do_unburrow(self, unit: Unit) -> Action | None:
-        if unit.health_percentage == 1 or unit.is_revealed:
+    def do_unburrow(self, unit: Unit, combat: Combat) -> Action | None:
+        p = tuple[int, int](unit.position.rounded)
+        confidence = combat.prediction.confidence[p]
+        if unit.health_percentage == 1 and 0 < confidence:
             return UseAbility(unit, AbilityId.BURROWUP)
-        return None
+        elif UpgradeId.TUNNELINGCLAWS not in self.state.upgrades:
+            return None
+        elif 0 < combat.prediction.enemy_presence.dps[p]:
+            retreat_path = combat.retreat_ground.get_path(p, 2)
+            if combat.retreat_ground.dist[p] == np.inf:
+                retreat_point = self.start_location
+            else:
+                retreat_point = Point2(retreat_path[-1]).offset(HALF)
+            return Move(unit, retreat_point)
+        return HoldPosition(unit)
