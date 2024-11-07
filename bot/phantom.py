@@ -68,13 +68,13 @@ class PhantomBot(
             # with lzma.open(output_path, "wb") as f:
             #     pickle.dump(self.game_info, f)
             # await self.client.debug_create_unit([[UnitTypeId.PYLON, 1, self.bases[1].position, 2]])
-            await self.client.debug_create_unit(
-                [
-                    [UnitTypeId.ROACH, 10, self.bases[1].position, 1],
-                    [UnitTypeId.ROACH, 10, self.bases[2].position, 2],
-                ]
-            )
-            await self.client.debug_upgrade()
+            # await self.client.debug_create_unit(
+            #     [
+            #         [UnitTypeId.ROACH, 10, self.bases[1].position, 1],
+            #         [UnitTypeId.ROACH, 10, self.bases[2].position, 2],
+            #     ]
+            # )
+            # await self.client.debug_upgrade()
         self.initialize_resources()
         self.initialize_scout_targets(self.bases)
         self.split_initial_workers(self.workers)
