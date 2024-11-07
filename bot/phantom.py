@@ -63,7 +63,7 @@ class PhantomBot(
 
     async def on_start(self) -> None:
         await super().on_start()
-        if self.config[DEBUG]:
+        # if self.config[DEBUG]:
             # output_path = os.path.join("resources", f"{self.game_info.map_name}.xz")
             # with lzma.open(output_path, "wb") as f:
             #     pickle.dump(self.game_info, f)
