@@ -17,6 +17,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from .utils import get_requirements
 
 VERSION_FILE = "version.txt"
+UNKNOWN_VERSION = "unknown_version"
 
 WITH_TECH_EQUIVALENTS = {unit: {unit} | EQUIVALENTS_FOR_TECH_PROGRESS.get(unit, set()) for unit in UnitTypeId}
 

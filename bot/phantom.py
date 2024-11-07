@@ -31,7 +31,7 @@ from .constants import (
     CHANGELINGS,
     CIVILIANS,
     COOLDOWN,
-    ENERGY_COST,
+    ENERGY_COST, VERSION_FILE, UNKNOWN_VERSION,
 )
 from .creep import CreepSpread
 from .dodge import Dodge, DodgeResult
@@ -54,8 +54,9 @@ class PhantomBot(
     dodge = Dodge()
     build_order = HATCH_FIRST
     profiler = cProfile.Profile()
+    version = UNKNOWN_VERSION
 
-    _bile_last_used: dict[int, int] = dict()
+    _bile_last_used = dict[int, int]()
 
     async def on_before_start(self):
         await super().on_before_start()
@@ -79,6 +80,11 @@ class PhantomBot(
         self.initialize_resources()
         self.initialize_scout_targets(self.bases)
         self.split_initial_workers(self.workers)
+
+        if os.path.exists(VERSION_FILE):
+            with open(VERSION_FILE) as f:
+                version = f.read()
+                self.add_replay_tag(f"{version=}")
 
     async def send_chat_message(self, message: ChatMessage) -> None:
         await self.client.chat_send(message.message, message.team_only)
