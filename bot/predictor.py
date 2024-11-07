@@ -13,7 +13,7 @@ DpsProvider = Callable[[UnitTypeId], float]
 
 
 @dataclass(frozen=True)
-class CombatContext:
+class PredictorContext:
     units: Units
     enemy_units: Units
     dps: DpsProvider
@@ -22,19 +22,19 @@ class CombatContext:
 
 
 @dataclass(frozen=True)
-class CombatPresence:
+class Presence:
     dps: np.ndarray
     health: np.ndarray
 
 
 @dataclass(frozen=True)
-class CombatPrediction:
-    context: CombatContext
+class Prediction:
+    context: PredictorContext
     dimensionality: np.ndarray
     confidence: np.ndarray
     confidence_global: float
-    presence: CombatPresence
-    enemy_presence: CombatPresence
+    presence: Presence
+    enemy_presence: Presence
 
 
 @lru_cache(maxsize=None)
@@ -46,7 +46,7 @@ def _disk(radius: float) -> tuple[np.ndarray, np.ndarray]:
     return dx - r, dy - r
 
 
-def _combat_presence(context: CombatContext, units: Units) -> CombatPresence:
+def _combat_presence(context: PredictorContext, units: Units) -> Presence:
     dps_map = np.zeros_like(context.pathing, dtype=float)
     health_map = np.zeros_like(context.pathing, dtype=float)
     for unit in units:
@@ -57,7 +57,7 @@ def _combat_presence(context: CombatContext, units: Units) -> CombatPresence:
             d = px + dx, py + dy
             health_map[d] += unit.shield + unit.health
             dps_map[d] = np.maximum(dps_map[d], dps)
-    return CombatPresence(dps_map, health_map)
+    return Presence(dps_map, health_map)
 
 
 def _dimensionality(pathing: np.ndarray) -> np.ndarray:
@@ -70,7 +70,7 @@ def unit_value(u: Unit) -> float:
     return (u.health + u.shield) * max(u.ground_dps, u.air_dps)
 
 
-def predict_combat(context: CombatContext) -> CombatPrediction:
+def predict(context: PredictorContext) -> Prediction:
     presence = _combat_presence(context, context.units)
     enemy_presence = _combat_presence(context, context.enemy_units)
     dimensionality = _dimensionality(context.pathing)
@@ -83,7 +83,7 @@ def predict_combat(context: CombatContext) -> CombatPrediction:
     enemy_force_global = sum(unit_value(u) for u in context.units)
     confidence_global = np.log1p(force_global) - np.log1p(enemy_force_global)
 
-    return CombatPrediction(
+    return Prediction(
         context=context,
         dimensionality=dimensionality,
         confidence=confidence,

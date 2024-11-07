@@ -1,21 +1,11 @@
 from dataclasses import dataclass, field
 from typing import Any, Callable, Coroutine, TypeAlias
 
-from loguru import logger
-
-from .action import Action
-from .base import BotBase
-
 
 @dataclass(frozen=True)
-class ChatMessage(Action):
+class ChatMessage:
     message: str
     team_only: bool
-
-    async def execute(self, bot: BotBase) -> bool:
-        logger.info(self.message)
-        await bot.client.chat_send(self.message, self.team_only)
-        return True
 
     def __hash__(self) -> int:
         return hash(self.message)

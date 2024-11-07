@@ -29,6 +29,7 @@ from ..constants import (
     ZERG_RANGED_UPGRADES,
 )
 from ..cost import Cost
+from ..strategy import Strategy
 from ..utils import PlacementNotFoundException
 from .base import Component
 
@@ -62,11 +63,6 @@ def compare_plans(plan_a: MacroPlan, plan_b: MacroPlan) -> int:
 class Macro(Component):
     _unassigned_plans: list[MacroPlan] = list()
     _assigned_plans: dict[int, MacroPlan] = dict()
-    composition: dict[UnitTypeId, int] = dict()
-
-    @property
-    def all_trainers(self):
-        return [self.unit_tag_dict[t] for t in self._assigned_plans.keys() if t in self.unit_tag_dict]
 
     def add_plan(self, item: MacroId) -> MacroPlan:
         plan = MacroPlan(item)
@@ -326,11 +322,13 @@ class Macro(Component):
             return position
         return None
 
-    def make_tech(self, composition: dict[UnitTypeId, int]) -> None:
-        upgrades = [u for unit in composition for u in self.upgrades_by_unit(unit) if self.filter_upgrade(u)]
+    def make_tech(self, strategy: Strategy) -> None:
+        upgrades = [
+            u for unit in strategy.composition for u in self.upgrades_by_unit(unit) if strategy.filter_upgrade(u)
+        ]
         upgrades.append(UpgradeId.ZERGLINGMOVEMENTSPEED)
         targets: set[MacroId] = set(upgrades)
-        targets.update(composition.keys())
+        targets.update(strategy.composition.keys())
         targets.update(r for item in set(targets) for r in REQUIREMENTS[item])
         for target in targets:
             if equivalents := WITH_TECH_EQUIVALENTS.get(target):

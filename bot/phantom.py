@@ -1,5 +1,8 @@
 import cProfile
+import lzma
 import math
+import os
+import pickle
 import pstats
 import random
 from collections import defaultdict
@@ -20,12 +23,9 @@ from sc2.unit import Unit
 from .action import Action, AttackMove, DoNothing, UseAbility
 from .build_order import HATCH_FIRST
 from .chat import Chat, ChatMessage
-from .combat_predictor import CombatContext, CombatPrediction, predict_combat
-from .components.combat import Combat
-from .components.creep import CreepSpread
+from .combat import Combat
 from .components.macro import Macro, compare_plans
 from .components.scout import Scout
-from .components.strategy import Strategy
 from .constants import (
     ALL_MACRO_ABILITIES,
     CHANGELINGS,
@@ -33,26 +33,29 @@ from .constants import (
     COOLDOWN,
     ENERGY_COST,
 )
+from .creep import CreepSpread
 from .dodge import Dodge, DodgeResult
 from .inject import Inject
+from .predictor import Prediction, PredictorContext, predict
 from .resources.resource_manager import ResourceManager
+from .strategy import decide_strategy
 from .transfuse import do_transfuse_single
 
 
 class PhantomBot(
-    Combat,
-    CreepSpread,
     Macro,
     ResourceManager,
     Scout,
-    Strategy,
     AresBot,
 ):
+    creep = CreepSpread()
     chat = Chat()
     inject = Inject()
     dodge = Dodge()
     build_order = HATCH_FIRST
     profiler = cProfile.Profile()
+
+    _bile_last_used: dict[int, int] = dict()
 
     async def on_before_start(self):
         await super().on_before_start()
@@ -60,6 +63,10 @@ class PhantomBot(
     async def on_start(self) -> None:
         await super().on_start()
         # if self.config[DEBUG]:
+        #     output_path = os.path.join("resources", f"{self.game_info.map_name}.xz")
+        #     with lzma.open(output_path, "wb") as f:
+        #         pickle.dump(self.game_info, f)
+        #     await self.client.debug_create_unit([[UnitTypeId.PYLON, 1, self.bases[1].position, 2]])
         #     await self.client.debug_create_unit(
         #         [
         #             [UnitTypeId.PYLON, 1, self.bases[1].position, 2],
@@ -90,27 +97,28 @@ class PhantomBot(
 
         army = self.units.exclude_type(CIVILIANS)
         enemies = self.all_enemy_units
-        combat_context = CombatContext(
+        predictor_context = PredictorContext(
             units=army,
             enemy_units=enemies,
             dps=self.dps_fast,
             pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
             air_pathing=self.mediator.get_map_data_object.get_clean_air_grid(),
         )
-        combat_prediction = predict_combat(combat_context)
+        prediction = predict(predictor_context)
         worker_target = max(1, min(80, self.max_harvesters))
-        composition = self.update_composition(worker_target, combat_prediction.confidence_global)
+        strategy = decide_strategy(self, worker_target, prediction.confidence_global)
 
         if self.run_build_order():
-            self.make_composition(composition)
-            self.make_tech(composition)
+            self.make_composition(strategy.composition)
+            self.make_tech(strategy)
             self.morph_overlords()
             self.expand()
 
-        self.do_combat(combat_prediction)
+        retreat_targets = [w.position for w in self.workers] + [self.start_location]
+        combat = Combat(prediction, retreat_targets)
 
         unit_acted: set[int] = set()
-        async for action in self.micro(composition, combat_prediction, dodge):
+        async for action in self.micro(strategy.composition, prediction, dodge, combat):
             if hasattr(action, "unit"):
                 tag = cast(Unit, getattr(action, "unit")).tag
                 if tag in unit_acted:
@@ -164,9 +172,10 @@ class PhantomBot(
         self.chat.add_message(f"Tag:{tag}", True)
 
     async def micro(
-        self, composition: dict[UnitTypeId, int], combat_prediction: CombatPrediction, dodge: DodgeResult
+        self, composition: dict[UnitTypeId, int], prediction: Prediction, dodge: DodgeResult, combat: Combat
     ) -> AsyncGenerator[Action, None]:
-        creep_context = self.update()
+
+        creep_context = self.creep.update(self)
 
         queens = self.actual_by_type[UnitTypeId.QUEEN]
         changelings = chain.from_iterable(self.actual_by_type[t] for t in CHANGELINGS)
@@ -174,22 +183,27 @@ class PhantomBot(
         self.inject.assign(queens, self.townhalls.ready)
 
         should_inject = self.supply_used + self.larva.amount < 200
-        should_spread_creep = self.active_tumor_count < 10
+        should_spread_creep = self.creep.active_tumor_count < 10
+
+        for action in self.state.actions_unit_commands:
+            if action.exact_id == AbilityId.EFFECT_CORROSIVEBILE:
+                for tag in action.unit_tags:
+                    self._bile_last_used[tag] = self.state.game_loop
 
         def micro_queen(q: Unit) -> Action:
             return (
                 dodge.dodge_with(q)
-                or do_transfuse_single(q, combat_prediction.context.units)
+                or do_transfuse_single(q, prediction.context.units)
                 or (self.inject.inject_with(q) if should_inject else None)
                 or (creep_context.spread_creep_with_queen(q) if should_spread_creep else None)
-                or self.fight_with(q, combat_prediction)
+                or combat.fight_with(self, q)
                 or DoNothing()
             )
 
-        macro_actions = {ma.unit: ma.action async for ma in self.do_macro()}
-
         scouts = self.units({UnitTypeId.OVERLORD, UnitTypeId.OVERSEER})
         scout_actions = {a.unit: a for a in self.do_scouting(scouts)}
+
+        macro_actions = {ma.unit: ma.action async for ma in self.do_macro()}
 
         harvesters: list[Unit] = []
         for worker in self.workers:
@@ -202,11 +216,12 @@ class PhantomBot(
         self.assign_harvesters(harvesters, self.get_future_spending(composition))
 
         for worker in harvesters:
-            yield self.micro_harvester(worker, combat_prediction, dodge)
+            yield self.micro_harvester(worker, combat, dodge)
         for action in macro_actions.values():
             yield action
-        for action in self.spread_tumors(creep_context):
-            yield action
+        for tumor in self.creep.get_active_tumors(self):
+            if action := creep_context.place_tumor(tumor):
+                yield action
         for queen in queens:
             yield micro_queen(queen)
 
@@ -214,7 +229,7 @@ class PhantomBot(
             if action := self.do_scout(unit):
                 yield action
 
-        for unit in combat_prediction.context.units:
+        for unit in prediction.context.units:
             if unit in scout_actions:
                 pass
             elif unit in macro_actions:
@@ -231,18 +246,18 @@ class PhantomBot(
                 yield action
             elif unit.type_id in {UnitTypeId.QUEEN}:
                 pass
-            elif action := self.fight_with(unit, combat_prediction):
+            elif action := combat.fight_with(self, unit):
                 yield action
             elif action := self.search_with(unit):
                 yield action
         for action in scout_actions.values():
             yield action
 
-    def micro_harvester(self, unit: Unit, combat_prediction: CombatPrediction, dodge: DodgeResult) -> Action:
+    def micro_harvester(self, unit: Unit, combat_context: Combat, dodge: DodgeResult) -> Action:
         return (
             dodge.dodge_with(unit)
             or self.gather_with(unit, self.townhalls.ready)
-            or self.fight_with(unit, combat_prediction)
+            or combat_context.fight_with(self, unit)
             or DoNothing()
         )
 
@@ -405,8 +420,6 @@ class PhantomBot(
 
         if bile_priority(target) <= 0:
             return None
-
-        self._bile_last_used[unit.tag] = self.state.game_loop
 
         return UseAbility(unit, ability, target=target.position)
 

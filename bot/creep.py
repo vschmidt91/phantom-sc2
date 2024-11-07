@@ -1,4 +1,3 @@
-from abc import ABC
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Iterable
@@ -11,10 +10,10 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from scipy.ndimage import gaussian_filter
 
-from ..action import Action, UseAbility
-from ..constants import ENERGY_COST
-from ..utils import circle_perimeter, line, rectangle
-from .base import Component
+from .action import Action, UseAbility
+from .base import BotBase
+from .constants import ENERGY_COST
+from .utils import circle_perimeter, line, rectangle
 
 TUMOR_RANGE = 10
 _TUMOR_COOLDOWN = 304
@@ -23,6 +22,7 @@ _BASE_SIZE = (5, 5)
 
 @dataclass(frozen=True)
 class CreepSpreadContext:
+    context: BotBase
     creep: np.ndarray
     visibility: np.ndarray
     pathing: np.ndarray
@@ -81,7 +81,7 @@ class CreepSpreadContext:
         return self.place_tumor(queen)
 
 
-class CreepSpread(Component, ABC):
+class CreepSpread:
 
     _tumor_created_at_step: dict[int, int] = dict()
     _tumor_spread_at_step: dict[int, int] = dict()
@@ -90,31 +90,37 @@ class CreepSpread(Component, ABC):
     def active_tumor_count(self):
         return len(self._tumor_created_at_step) - len(self._tumor_spread_at_step)
 
-    def spread_tumors(self, context: CreepSpreadContext) -> Iterable[Action]:
+    def get_active_tumors(self, context: BotBase) -> Iterable[Unit]:
         for tag, creation_step in list(self._tumor_created_at_step.items()):
             if tag in self._tumor_spread_at_step:
                 pass
-            elif self.state.game_loop < creation_step + _TUMOR_COOLDOWN:
+            elif context.state.game_loop < creation_step + _TUMOR_COOLDOWN:
                 pass
-            elif not (tumor := self.unit_tag_dict.get(tag)):
+            elif not (tumor := context.unit_tag_dict.get(tag)):
                 self._tumor_created_at_step.pop(tag, None)
-            elif action := context.place_tumor(tumor):
-                yield action
+            else:
+                yield tumor
 
-    def update(self) -> CreepSpreadContext:
-        for action in self.state.actions_unit_commands:
+    def update(self, context: BotBase) -> CreepSpreadContext:
+        for action in context.state.actions_unit_commands:
             if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
                 for tag in action.unit_tags:
-                    self._tumor_spread_at_step[tag] = self.state.game_loop
+                    self._tumor_spread_at_step[tag] = context.state.game_loop
 
-        for tumor in self.mediator.get_own_structures_dict[UnitTypeId.CREEPTUMORBURROWED]:
-            self._tumor_created_at_step.setdefault(tumor.tag, self.state.game_loop)
+        for tumor in context.mediator.get_own_structures_dict[UnitTypeId.CREEPTUMORBURROWED]:
+            self._tumor_created_at_step.setdefault(tumor.tag, context.state.game_loop)
 
-        creep = self.state.creep.data_numpy.T == 1
-        visibility = self.state.visibility.data_numpy.T == 2
-        pathing = self.game_info.pathing_grid.data_numpy.T == 1
-        bases = {b.position.rounded for b in self.bases}
+        creep = context.state.creep.data_numpy.T == 1
+        visibility = context.state.visibility.data_numpy.T == 2
+        pathing = context.game_info.pathing_grid.data_numpy.T == 1
+        bases = {b.position.rounded for b in context.bases}
 
         return CreepSpreadContext(
-            creep, visibility, pathing, prevent_blocking=bases, reward_blocking=bases, game_loop=self.state.game_loop
+            context,
+            creep,
+            visibility,
+            pathing,
+            prevent_blocking=bases,
+            reward_blocking=bases,
+            game_loop=context.state.game_loop,
         )

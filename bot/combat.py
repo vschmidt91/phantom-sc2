@@ -1,18 +1,18 @@
 import math
-from abc import ABC
 from dataclasses import dataclass
 from enum import Enum, auto
+from functools import cached_property
 from typing import TypeAlias
 
 import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Point2, Unit
 
-from ..action import Action, AttackMove, Move
-from ..combat_predictor import CombatPrediction
-from ..constants import CHANGELINGS
-from ..cython.cy_dijkstra import cy_dijkstra  # type: ignore
-from .base import Component
+from .cython.cy_dijkstra import cy_dijkstra  # type: ignore
+from .action import Action, AttackMove, Move
+from .base import BotBase
+from .constants import CHANGELINGS
+from .predictor import Prediction
 
 
 class CombatStance(Enum):
@@ -64,32 +64,12 @@ def can_attack(unit: Unit, target: Unit) -> bool:
         return unit.can_attack_ground
 
 
-class Combat(Component, ABC):
-    retreat_ground: DijkstraOutput
-    retreat_air: DijkstraOutput
-    _bile_last_used: dict[int, int] = dict()
+@dataclass(frozen=True)
+class Combat:
+    prediction: Prediction
+    retreat_targets: list[Point2]
 
-    def do_combat(self, prediction: CombatPrediction) -> None:
-
-        threat_level = np.maximum(0, -prediction.confidence)
-        retreat_cost_air = prediction.context.air_pathing + threat_level
-        retreat_cost_ground = prediction.context.pathing + threat_level
-
-        retreat_targets = [w.position for w in self.workers] + [self.start_location]
-        self.retreat_ground = DijkstraOutput.from_cy(
-            cy_dijkstra(
-                retreat_cost_ground.astype(np.float64),
-                np.array(retreat_targets, dtype=np.intp),
-            )
-        )
-        self.retreat_air = DijkstraOutput.from_cy(
-            cy_dijkstra(
-                retreat_cost_air.astype(np.float64),
-                np.array(retreat_targets, dtype=np.intp),
-            )
-        )
-
-    def fight_with(self, unit: Unit, combat_prediction: CombatPrediction) -> Action | None:
+    def fight_with(self, context: BotBase, unit: Unit) -> Action | None:
 
         def target_priority(t: Unit) -> float:
 
@@ -122,7 +102,7 @@ class Combat(Component, ABC):
             return priority
 
         target, priority = max(
-            ((e, target_priority(e)) for e in combat_prediction.context.enemy_units),
+            ((e, target_priority(e)) for e in self.prediction.context.enemy_units),
             key=lambda t: t[1],
             default=(None, 0),
         )
@@ -144,14 +124,14 @@ class Combat(Component, ABC):
 
         confidence = np.mean(
             [
-                combat_prediction.confidence_global,
-                combat_prediction.confidence[unit.position.rounded],
+                self.prediction.confidence_global,
+                self.prediction.confidence[unit.position.rounded],
             ]
         )
 
-        if unit.type_id == UnitTypeId.QUEEN and not self.has_creep(unit.position):
+        if unit.type_id == UnitTypeId.QUEEN and not context.has_creep(unit.position):
             stance = CombatStance.FLEE
-        elif confidence < 0 and not self.has_creep(unit.position):
+        elif confidence < 0 and not context.has_creep(unit.position):
             stance = CombatStance.FLEE
         elif unit.is_burrowed:
             stance = CombatStance.FLEE
@@ -173,7 +153,7 @@ class Combat(Component, ABC):
                 stance = CombatStance.FLEE
 
         if stance in {CombatStance.FLEE, CombatStance.RETREAT}:
-            unit_range = self.get_unit_range(unit, not target.is_flying, target.is_flying)
+            unit_range = context.get_unit_range(unit, not target.is_flying, target.is_flying)
 
             if stance == CombatStance.RETREAT:
                 if not unit.weapon_cooldown:
@@ -185,7 +165,7 @@ class Combat(Component, ABC):
                     return AttackMove(unit, target.position)
 
             if retreat_map.dist[x, y] == np.inf:
-                retreat_point = self.start_location
+                retreat_point = context.start_location
             else:
                 retreat_point = Point2(retreat_path[-1]).offset(HALF)
 
@@ -198,9 +178,31 @@ class Combat(Component, ABC):
             distance = unit.position.distance_to(target.position) - unit.radius - target.radius
             if unit.weapon_cooldown and 1 < distance:
                 return Move(unit, target.position)
-            elif unit.position.distance_to(target.position) <= unit.radius + self.get_unit_range(unit) + target.radius:
+            elif (
+                unit.position.distance_to(target.position) <= unit.radius + context.get_unit_range(unit) + target.radius
+            ):
                 return AttackMove(unit, target.position)
             else:
                 return AttackMove(unit, target.position)
 
         return None
+
+    @cached_property
+    def retreat_target_array(self) -> np.ndarray:
+        return np.array(self.retreat_targets).astype(np.intp)
+
+    @cached_property
+    def threat_level(self) -> np.ndarray:
+        return np.maximum(0, -self.prediction.confidence)
+
+    @cached_property
+    def retreat_air(self) -> DijkstraOutput:
+        retreat_cost_air = (self.prediction.context.air_pathing + self.threat_level).astype(np.float64)
+        cy_result = cy_dijkstra(retreat_cost_air, self.retreat_target_array)
+        return DijkstraOutput.from_cy(cy_result)
+
+    @cached_property
+    def retreat_ground(self) -> DijkstraOutput:
+        retreat_cost_air = (self.prediction.context.pathing + self.threat_level).astype(np.float64)
+        cy_result = cy_dijkstra(retreat_cost_air, self.retreat_target_array)
+        return DijkstraOutput.from_cy(cy_result)

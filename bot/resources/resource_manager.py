@@ -38,6 +38,7 @@ class ResourceManager(Component):
     def initialize_resources(self) -> None:
         for base in self.bases:
             base.set_speedmining_positions()
+        self._resource_by_position = np.full(self.game_info.map_size, None, dtype="object")
 
     @property
     def owned_geysers(self) -> Iterable[VespeneGeyser]:
