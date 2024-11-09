@@ -13,7 +13,7 @@ ctypedef cnp.float64_t DTYPE_t
 
 
 cdef extern from "cpp_priority_queue.hpp":
-    cdef cppclass cpp_pq:
+    cdef cppclass PriorityQueue:
         cpp_pq(...) except +
         void push(pair[double,pair[int, int]])
         pair[double,pair[int, int]] top()
@@ -47,13 +47,13 @@ cpdef DijkstraOutput cy_dijkstra(
 
     cdef:
         DTYPE_t _sqrt2 = np.sqrt(2)
-        Py_ssize_t[8] NEIGHBOURS_X = [-1, 1, 0, 0, -1, 1, -1, 1]
-        Py_ssize_t[8] NEIGHBOURS_Y = [0, 0, -1, 1, -1, -1, 1, 1]
-        DTYPE_t[8] NEIGHBOURS_DISTANCE = [1, 1, 1, 1, _sqrt2, _sqrt2, _sqrt2, _sqrt2]
+        Py_ssize_t[8] neighbours_x = [-1, 1, 0, 0, -1, 1, -1, 1]
+        Py_ssize_t[8] neighbours_y = [0, 0, -1, 1, -1, -1, 1, 1]
+        DTYPE_t[8] neighbours_d = [1, 1, 1, 1, _sqrt2, _sqrt2, _sqrt2, _sqrt2]
         DTYPE_t[:, :] dist = np.full_like(cost, np.inf)
         Py_ssize_t[:, :] prev_x = np.full_like(cost, -1, np.intp)
         Py_ssize_t[:, :] prev_y = np.full_like(cost, -1, np.intp)
-        cpp_pq q = cpp_pq(compare_element)
+        PriorityQueue q = PriorityQueue(compare_element)
         Py_ssize_t x, y, x2, y2
         DTYPE_t alternative
         pair[double, pair[int, int]] u, v
@@ -71,9 +71,9 @@ cpdef DijkstraOutput cy_dijkstra(
         x = u.second.first
         y = u.second.second
         for k in range(8):
-            x2 = x + NEIGHBOURS_X[k]
-            y2 = y + NEIGHBOURS_Y[k]
-            alternative = dist[x, y] + NEIGHBOURS_DISTANCE[k] * cost[x2, y2]
+            x2 = x + neighbours_x[k]
+            y2 = y + neighbours_y[k]
+            alternative = dist[x, y] + neighbours_d[k] * cost[x2, y2]
             if alternative < dist[x2, y2]:
                 dist[x2, y2] = alternative
                 prev_x[x2, y2] = x

@@ -6,6 +6,7 @@ from typing import Iterable, TypeAlias
 
 import numpy as np
 from ares import AresBot
+from sc2.data import race_townhalls
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -31,6 +32,9 @@ from .constants import (
 )
 from .cost import Cost, CostManager
 from .resources.expansion import Expansion
+from .resources.mineral_patch import MineralPatch
+from .resources.unit import ResourceUnit
+from .resources.vespene_geyser import VespeneGeyser
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 
@@ -58,6 +62,45 @@ class BotBase(AresBot, ABC):
             return max(units[0].ground_dps, units[0].air_dps)
         else:
             return 0.0
+
+    @property
+    def bases_taken(self) -> Iterable[Expansion]:
+        return (b for b in self.bases if b.townhall and b.townhall.is_ready)
+
+    @property
+    def max_harvesters(self) -> int:
+        workers = sum(b.harvester_target for b in self.bases_taken)
+        workers += 16 * self.townhalls.not_ready.amount
+        workers += 3 * self.gas_buildings.not_ready.amount
+        return workers
+
+    @property
+    def all_resources(self) -> Iterable[ResourceUnit]:
+        return chain[ResourceUnit](self.mineral_patches, self.vespene_geysers)
+
+    @property
+    def all_taken_resources(self) -> Iterable[ResourceUnit]:
+        return chain.from_iterable(chain(b.mineral_patches, b.vespene_geysers) for b in self.bases_taken)
+
+    @property
+    def mineral_patches(self) -> Iterable[MineralPatch]:
+        return (r for b in self.bases_taken for r in b.mineral_patches)
+
+    @property
+    def vespene_geysers(self) -> Iterable[VespeneGeyser]:
+        return (r for b in self.bases_taken for r in b.vespene_geysers)
+
+    @property
+    def owned_geysers(self) -> Iterable[VespeneGeyser]:
+        for base in self.bases:
+            if not base.townhall:
+                continue
+            if not base.townhall.is_ready:
+                continue
+            if base.townhall.type_id not in race_townhalls[self.race]:
+                continue
+            for geyser in base.vespene_geysers:
+                yield geyser
 
     def count(
         self, item: MacroId, include_pending: bool = True, include_planned: bool = True, include_actual: bool = True
@@ -100,6 +143,8 @@ class BotBase(AresBot, ABC):
     async def on_start(self) -> None:
         await super().on_start()
         self.bases = await self.initialize_bases()
+        for base in self.bases:
+            base.set_speedmining_positions()
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)

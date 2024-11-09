@@ -50,6 +50,94 @@ def compare_plans(plan_a: MacroPlan, plan_b: MacroPlan) -> int:
     return 0
 
 
+async def premove(context: BotBase, unit: Unit, target: Point2, eta: float) -> Action | None:
+    distance = await context.client.query_pathing(unit, target) or 0.0
+    movement_eta = 1.5 + distance / (1.4 * unit.movement_speed)
+    if eta <= movement_eta:
+        if 1e-3 < unit.distance_to(target):
+            return Move(unit, target)
+        else:
+            return HoldPosition(unit)
+    return None
+
+
+def get_eta(context: BotBase, reserve: Cost, cost: Cost) -> float:
+    deficit = reserve + cost - context.bank
+    eta = deficit / context.income
+    return max(
+        (
+            0.0,
+            eta.minerals if 0 < deficit.minerals and 0 < cost.minerals else 0.0,
+            eta.vespene if 0 < deficit.vespene and 0 < cost.vespene else 0.0,
+            eta.larva if 0 < deficit.larva and 0 < cost.larva else 0.0,
+            eta.supply if 0 < deficit.supply and 0 < cost.supply else 0.0,
+        )
+    )
+
+
+def get_target_position(context: BotBase, target: UnitTypeId, blocked_positions: set[Point2]) -> Point2 | None:
+    data = context.game_data.units[target.value]
+    if target in {UnitTypeId.HATCHERY}:
+        for base in context.bases:
+            if base.townhall:
+                continue
+            if base.position.rounded in blocked_positions:
+                continue
+            if base.mineral_patches.remaining < 500 and base.vespene_geysers.remaining == 0:
+                continue
+            return base.position
+        return None
+
+    bases = list(context.bases)
+    random.shuffle(bases)
+    for base in bases:
+        if not base.townhall:
+            continue
+        elif not base.townhall.is_ready:
+            continue
+        position = base.position.towards_with_random_angle(base.mineral_patches.position, 10)
+        offset = data.footprint_radius % 1
+        position = position.rounded.offset((offset, offset))
+        return position
+    return None
+
+
+def _debug_draw_plan(
+    context: BotBase,
+    unit: Unit | None,
+    plan: MacroPlan,
+    eta: float,
+    index: int,
+    font_color=(255, 255, 255),
+    font_size=16,
+) -> None:
+    positions = []
+    if isinstance(plan.target, Unit):
+        positions.append(plan.target.position3d)
+    elif isinstance(plan.target, Point3):
+        positions.append(plan.target)
+    elif isinstance(plan.target, Point2):
+        height = context.get_terrain_z_height(plan.target)
+        positions.append(Point3((plan.target.x, plan.target.y, height)))
+
+    if unit:
+        height = context.get_terrain_z_height(unit)
+        positions.append(Point3((unit.position.x, unit.position.y, height)))
+
+    text = f"{plan.item.name} {eta:.2f}"
+
+    for position in positions:
+        context.client.debug_text_world(text, position, color=font_color, size=font_size)
+
+    if len(positions) == 2:
+        position_from, position_to = positions
+        position_from += Point3((0.0, 0.0, 0.1))
+        position_to += Point3((0.0, 0.0, 0.1))
+        context.client.debug_line_out(position_from, position_to, color=font_color)
+
+    context.client.debug_text_screen(f"{1 + index} {round(eta or 0, 1)} {plan.item.name}", (0.01, 0.1 + 0.01 * index))
+
+
 class Macro:
     _unassigned_plans: list[MacroPlan] = list()
     _assigned_plans: dict[int, MacroPlan] = dict()
@@ -63,16 +151,6 @@ class Macro:
 
     def planned_by_type(self, item: MacroId) -> Iterable[MacroPlan]:
         return (plan for plan in self.enumerate_plans() if plan.item == item)
-
-    async def premove(self, context: BotBase, unit: Unit, target: Point2, eta: float) -> Action | None:
-        distance = await context.client.query_pathing(unit, target) or 0.0
-        movement_eta = 1.5 + distance / (1.4 * unit.movement_speed)
-        if eta <= movement_eta:
-            if 1e-3 < unit.distance_to(target):
-                return Move(unit, target)
-            else:
-                return HoldPosition(unit)
-        return None
 
     def assign_unassigned_plans(self, trainers: Units) -> None:
         trainer_set = set(trainers)
@@ -146,8 +224,9 @@ class Macro:
                     continue
 
             cost = context.cost.of(plan.item)
-            eta = self.get_eta(context, reserve + cost)
-            reserve += cost * math.exp(-0.1 * eta)
+            eta = get_eta(context, reserve, cost)
+            if eta < math.inf:
+                reserve += cost
 
             if eta == 0.0:
                 plan.commanded = True
@@ -155,26 +234,13 @@ class Macro:
             elif plan.target:
                 if trainer.is_carrying_resource:
                     actions[trainer] = UseAbility(trainer, AbilityId.HARVEST_RETURN)
-                elif action := await self.premove(context, trainer, plan.target.position, eta):
+                elif action := await premove(context, trainer, plan.target.position, eta):
                     actions[trainer] = action
 
             if context.config[DEBUG]:
-                self._debug_draw_plan(context, trainer, plan, eta, i)
+                _debug_draw_plan(context, trainer, plan, eta, i)
 
         return actions
-
-    def get_eta(self, context: BotBase, reserve: Cost) -> float:
-        deficit = reserve - context.bank
-        eta = deficit / context.income
-        return max(
-            (
-                0.0,
-                eta.minerals if 0 < deficit.minerals else 0.0,
-                eta.vespene if 0 < deficit.vespene else 0.0,
-                eta.larva if 0 < deficit.larva else 0.0,
-                eta.supply if 0 < deficit.supply else 0.0,
-            )
-        )
 
     def get_future_spending(self, context: BotBase, composition: dict[UnitTypeId, int]) -> Cost:
         cost_zero = Cost(0, 0, 0, 0)
@@ -206,7 +272,7 @@ class Macro:
             geysers = [
                 geyser.unit
                 for geyser in context.owned_geysers
-                if (geyser.position not in exclude_positions and geyser.unit.tag not in exclude_tags)
+                if (geyser.position not in exclude_positions and geyser.unit and geyser.unit.tag not in exclude_tags)
             ]
             if not any(geysers):
                 raise PlacementNotFoundException()
@@ -220,7 +286,7 @@ class Macro:
         # data = MACRO_INFO[trainer.unit.type_id][objective.item]
 
         if "requires_placement_position" in data:
-            position = self.get_target_position(context, objective.item, blocked_positions)
+            position = get_target_position(context, objective.item, blocked_positions)
             if not position:
                 raise PlacementNotFoundException()
             return position
@@ -245,34 +311,6 @@ class Macro:
             # trainers_filtered.sort(key=lambda t: t.tag)
             return trainers_filtered[0]
 
-        return None
-
-    def get_target_position(
-        self, context: BotBase, target: UnitTypeId, blocked_positions: set[Point2]
-    ) -> Point2 | None:
-        data = context.game_data.units[target.value]
-        if target in {UnitTypeId.HATCHERY}:
-            for base in context.bases:
-                if base.townhall:
-                    continue
-                if base.position.rounded in blocked_positions:
-                    continue
-                if base.mineral_patches.remaining < 500 and base.vespene_geysers.remaining == 0:
-                    continue
-                return base.position
-            return None
-
-        bases = list(context.bases)
-        random.shuffle(bases)
-        for base in bases:
-            if not base.townhall:
-                continue
-            elif not base.townhall.is_ready:
-                continue
-            position = base.position.towards_with_random_angle(base.mineral_patches.position, 10)
-            offset = data.footprint_radius % 1
-            position = position.rounded.offset((offset, offset))
-            return position
         return None
 
     def _handle_actions(self, context: BotBase) -> None:
@@ -301,41 +339,3 @@ class Macro:
                 logger.info(f"Executed {plan} through {action}")
         elif action.exact_id in ALL_MACRO_ABILITIES:
             logger.info(f"Unplanned {action}")
-
-    def _debug_draw_plan(
-        self,
-        context: BotBase,
-        unit: Unit | None,
-        plan: MacroPlan,
-        eta: float,
-        index: int,
-        font_color=(255, 255, 255),
-        font_size=16,
-    ) -> None:
-        positions = []
-        if isinstance(plan.target, Unit):
-            positions.append(plan.target.position3d)
-        elif isinstance(plan.target, Point3):
-            positions.append(plan.target)
-        elif isinstance(plan.target, Point2):
-            height = context.get_terrain_z_height(plan.target)
-            positions.append(Point3((plan.target.x, plan.target.y, height)))
-
-        if unit:
-            height = context.get_terrain_z_height(unit)
-            positions.append(Point3((unit.position.x, unit.position.y, height)))
-
-        text = f"{plan.item.name} {eta:.2f}"
-
-        for position in positions:
-            context.client.debug_text_world(text, position, color=font_color, size=font_size)
-
-        if len(positions) == 2:
-            position_from, position_to = positions
-            position_from += Point3((0.0, 0.0, 0.1))
-            position_to += Point3((0.0, 0.0, 0.1))
-            context.client.debug_line_out(position_from, position_to, color=font_color)
-
-        context.client.debug_text_screen(
-            f"{1 + index} {round(eta or 0, 1)} {plan.item.name}", (0.01, 0.1 + 0.01 * index)
-        )

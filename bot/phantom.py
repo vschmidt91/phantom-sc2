@@ -8,7 +8,7 @@ from itertools import chain
 from typing import AsyncGenerator, Iterable, cast
 
 import numpy as np
-from ares import DEBUG, AresBot
+from ares import DEBUG
 from loguru import logger
 from sc2.data import ActionResult, Result
 from sc2.ids.ability_id import AbilityId
@@ -18,6 +18,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from .action import Action, AttackMove, DoNothing, HoldPosition, Move, UseAbility
+from .base import BotBase
 from .build_order import HATCH_FIRST
 from .chat import Chat, ChatMessage
 from .combat import HALF, Combat
@@ -43,16 +44,14 @@ from .strategy import Strategy, decide_strategy
 from .transfuse import do_transfuse_single
 
 
-class PhantomBot(
-    ResourceManager,
-    AresBot,
-):
+class PhantomBot(BotBase):
     creep = CreepSpread()
     chat = Chat()
     inject = Inject()
     dodge = Dodge()
     macro = Macro()
     scout = Scout()
+    resource_manager = ResourceManager()
     build_order = HATCH_FIRST
     profiler = cProfile.Profile()
     version = UNKNOWN_VERSION
@@ -77,9 +76,8 @@ class PhantomBot(
         #     ]
         # )
         # await self.client.debug_upgrade()
-        self.initialize_resources()
         self.scout.initialize_scout_targets(self, self.bases)
-        self.split_initial_workers(self.workers)
+        self.resource_manager.split_initial_workers(self.mineral_patches, self.workers)
 
         if os.path.exists(VERSION_FILE):
             with open(VERSION_FILE) as f:
@@ -230,7 +228,9 @@ class PhantomBot(
                 pass
             else:
                 harvesters.append(worker)
-        if plan := self.assign_harvesters(harvesters, self.macro.get_future_spending(self, composition)):
+        if plan := self.resource_manager.assign_harvesters(
+            self, harvesters, self.macro.get_future_spending(self, composition)
+        ):
             self.macro.add_plan(plan)
 
         for worker in harvesters:
@@ -244,7 +244,7 @@ class PhantomBot(
             yield micro_queen(queen)
 
         for unit in changelings:
-            if action := self.do_scout(unit):
+            if action := self.search_with(unit):
                 yield action
 
         for unit in prediction.context.units:
@@ -277,7 +277,7 @@ class PhantomBot(
     def micro_harvester(self, unit: Unit, combat_context: Combat, dodge: DodgeResult) -> Action:
         return (
             dodge.dodge_with(unit)
-            or self.gather_with(unit, self.townhalls.ready)
+            or self.resource_manager.gather_with(unit, self.townhalls.ready)
             or combat_context.fight_with(self, unit)
             or DoNothing()
         )
@@ -377,7 +377,7 @@ class PhantomBot(
 
     def morph_overlord(self) -> MacroPlan | None:
         supply = self.supply_cap + self.supply_pending / 2 + self.supply_planned
-        supply_target = min(200.0, self.supply_used + 2 + 10 * self.income.larva)
+        supply_target = min(200.0, self.supply_used + 2 + 20 * self.income.larva)
         if supply_target < supply:
             return None
         return MacroPlan(UnitTypeId.OVERLORD, priority=1)
@@ -407,20 +407,20 @@ class PhantomBot(
 
         ability = AbilityId.EFFECT_CORROSIVEBILE
 
-        def bile_priority(target: Unit) -> float:
-            if not target.is_enemy:
+        def bile_priority(t: Unit) -> float:
+            if not t.is_enemy:
                 return 0.0
-            if not self.is_visible(target.position):
+            if not self.is_visible(t.position):
                 return 0.0
-            if not unit.in_ability_cast_range(ability, target.position):
+            if not unit.in_ability_cast_range(ability, t.position):
                 return 0.0
-            if target.is_hallucination:
+            if t.is_hallucination:
                 return 0.0
-            if target.type_id in CHANGELINGS:
+            if t.type_id in CHANGELINGS:
                 return 0.0
-            priority = 10.0 + max(target.ground_dps, target.air_dps)
-            priority /= 100.0 + target.health + target.shield
-            priority /= 2.0 + target.movement_speed
+            priority = 10.0 + max(t.ground_dps, t.air_dps)
+            priority /= 100.0 + t.health + t.shield
+            priority /= 2.0 + t.movement_speed
             return priority
 
         if unit.type_id != UnitTypeId.RAVAGER:
@@ -455,21 +455,6 @@ class PhantomBot(
         ):
             return UseAbility(unit, AbilityId.BURROWDOWN)
 
-        return None
-
-    def do_scout(self, unit: Unit) -> Action | None:
-        if unit.is_idle:
-            if self.time < 8 * 60:
-                return AttackMove(unit, random.choice(self.enemy_start_locations))
-            elif self.all_enemy_units.exists:
-                target = self.all_enemy_units.random
-                return AttackMove(unit, target.position)
-            else:
-                a = self.game_info.playable_area
-                target = np.random.uniform((a.x, a.y), (a.right, a.top))
-                target = Point2(target)
-                if (unit.is_flying or self.in_pathing_grid(target)) and not self.is_visible(target):
-                    return AttackMove(unit, target)
         return None
 
     def do_spawn_changeling(self, unit: Unit) -> Action | None:
