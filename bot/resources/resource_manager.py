@@ -31,6 +31,49 @@ STATIC_DEFENSE_TRIGGERS = {
 T = TypeVar("T", bound=ResourceUnit)
 
 
+def get_gas_target(context: BotBase, future_spending: Cost) -> float:
+    minerals = max(0.0, future_spending.minerals - context.minerals)
+    vespene = max(0.0, future_spending.vespene - context.vespene)
+    # if minerals + vespene == 0:
+    #     minerals = sum(b.mineral_patches.remaining for b in self.bases if b.townhall)
+    #     vespene = sum(b.vespene_geysers.remaining for b in self.bases if b.townhall)
+
+    # gas_ratio = vespene / max(1, vespene + minerals)
+    # worker_type = race_worker[self.race]
+    # gas_target = gas_ratio * self.count(worker_type, include_pending=False)
+
+    vespene *= 5 / 4
+
+    n = context.supply_workers
+    gas_target = n * vespene / max(1.0, minerals + vespene)
+    # gas_ratio = 1 - 1 / (1 + vespene / max(1, minerals))
+    # gas_target = self.state.score.food_used_economy * gas_ratio
+
+    # print(minerals, vespene)
+
+    if 0 < gas_target:
+        gas_target = max(3.0, gas_target)
+
+    return gas_target
+
+
+def build_gasses(context: BotBase, gas_target: float) -> MacroPlan | None:
+    gas_type = GAS_BY_RACE[context.race]
+    gas_depleted = context.gas_buildings.filter(lambda g: not g.has_vespene).amount
+    gas_pending = context.count(gas_type, include_actual=False)
+    gas_have = context.count(gas_type, include_pending=False, include_planned=False)
+    gas_max = sum(1 for _ in context.owned_geysers)
+    gas_want = min(gas_max, gas_depleted + math.ceil((gas_target - 1) / 3))
+    if gas_have + gas_pending < gas_want:
+        return MacroPlan(gas_type)
+    return None
+    # elif gas_want + 1 < gas_have + gas_pending:
+    #     gas_plans = sorted(self.macro.planned_by_type(gas_type), key=lambda p: p.priority)
+    #     for _, plan in zip(range(gas_have + gas_pending - gas_want), gas_plans):
+    #         if plan.priority < math.inf:
+    #             self.macro.try_remove_plan(plan)
+
+
 class ResourceManager:
 
     harvesters_by_resource = Counter[ResourceUnit]()
@@ -103,10 +146,10 @@ class ResourceManager:
         for base in context.bases:
             base.townhall = townhalls_by_position.get(base.position)
 
-        gas_target = self.get_gas_target(context, future_spending)
+        gas_target = get_gas_target(context, future_spending)
         self.transfer_to_and_from_gas(context, gas_target)
         self.balance_harvesters(context.mineral_patches)
-        return self.build_gasses(context, gas_target)
+        return build_gasses(context, gas_target)
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
         if not (target := self.harvester_assignment.get(unit.tag)):
@@ -135,47 +178,6 @@ class ResourceManager:
             return ReturnResource(unit, return_target)
         return Smart(unit, target_unit)
 
-    def get_gas_target(self, context: BotBase, future_spending: Cost) -> float:
-        minerals = max(0.0, future_spending.minerals - context.minerals)
-        vespene = max(0.0, future_spending.vespene - context.vespene)
-        # if minerals + vespene == 0:
-        #     minerals = sum(b.mineral_patches.remaining for b in self.bases if b.townhall)
-        #     vespene = sum(b.vespene_geysers.remaining for b in self.bases if b.townhall)
-
-        # gas_ratio = vespene / max(1, vespene + minerals)
-        # worker_type = race_worker[self.race]
-        # gas_target = gas_ratio * self.count(worker_type, include_pending=False)
-
-        vespene *= 5 / 4
-
-        n = context.supply_workers
-        gas_target = n * vespene / max(1.0, minerals + vespene)
-        # gas_ratio = 1 - 1 / (1 + vespene / max(1, minerals))
-        # gas_target = self.state.score.food_used_economy * gas_ratio
-
-        # print(minerals, vespene)
-
-        if 0 < gas_target:
-            gas_target = max(3.0, gas_target)
-
-        return gas_target
-
-    def build_gasses(self, context: BotBase, gas_target: float) -> MacroPlan | None:
-        gas_type = GAS_BY_RACE[context.race]
-        gas_depleted = context.gas_buildings.filter(lambda g: not g.has_vespene).amount
-        gas_pending = context.count(gas_type, include_actual=False)
-        gas_have = context.count(gas_type, include_pending=False, include_planned=False)
-        gas_max = sum(1 for g in context.owned_geysers)
-        gas_want = min(gas_max, gas_depleted + math.ceil((gas_target - 1) / 3))
-        if gas_have + gas_pending < gas_want:
-            return MacroPlan(gas_type)
-        return None
-        # elif gas_want + 1 < gas_have + gas_pending:
-        #     gas_plans = sorted(self.macro.planned_by_type(gas_type), key=lambda p: p.priority)
-        #     for _, plan in zip(range(gas_have + gas_pending - gas_want), gas_plans):
-        #         if plan.priority < math.inf:
-        #             self.macro.try_remove_plan(plan)
-
     def transfer_to_and_from_gas(self, context: BotBase, gas_target: float):
         gas_harvester_count = self.harvester_count(VespeneGeyser)
         mineral_harvester_count = self.harvester_count(MineralPatch)
@@ -186,20 +188,20 @@ class ResourceManager:
         mineral_target = sum(m.harvester_target for b in context.bases for m in b.mineral_patches)
         mineral_balance = mineral_harvester_count - mineral_target
 
-        if (
-            0 < mineral_harvester_count
-            and (effective_gas_balance < 0 or 0 < mineral_balance)
-            and (geyser := self.pick_resource(context.vespene_geysers))
-            and (harvester := self.pick_harvester(context, MineralPatch, geyser.position))
-        ):
-            self.harvester_assignment[harvester.tag] = geyser
-        elif (
-            0 < gas_harvester_count
-            and (1 <= effective_gas_balance and mineral_balance < 0)
-            and (patch := self.pick_resource(context.mineral_patches))
-            and (harvester := self.pick_harvester(context, VespeneGeyser, patch.position))
-        ):
-            self.harvester_assignment[harvester.tag] = patch
+        if effective_gas_balance < 0 or 0 < mineral_balance:
+            if not (geyser := self.pick_resource(context.vespene_geysers)):
+                pass
+            elif not (harvester := self.pick_harvester(context, MineralPatch, geyser.position)):
+                pass
+            else:
+                self.harvester_assignment[harvester.tag] = geyser
+        elif 1 <= effective_gas_balance and mineral_balance < 0:
+            if not (patch := self.pick_resource(context.mineral_patches)):
+                pass
+            elif not (harvester := self.pick_harvester(context, VespeneGeyser, patch.position)):
+                pass
+            else:
+                self.harvester_assignment[harvester.tag] = patch
 
     def harvester_count(self, of_type: Type[ResourceUnit]) -> int:
         return sum(1 for h, t in self.harvester_assignment.items() if isinstance(t, of_type))

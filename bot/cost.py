@@ -4,7 +4,6 @@ from functools import cached_property, lru_cache
 from typing import Callable
 
 import numpy as np
-from loguru import logger
 from sc2.game_data import Cost as SC2Cost
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -70,11 +69,7 @@ class CostManager:
 
     @lru_cache(maxsize=None)
     def of(self, item: UnitTypeId | UpgradeId) -> Cost:
-        try:
-            cost = self.mineral_vespene(item)
-            supply = self.supply(item)
-        except Exception:
-            logger.info(f"Failed to calculate cost for {item}")
-            return Cost(0.0, 0.0, 0.0, 0.0)
+        cost = self.mineral_vespene(item)
+        supply = self.supply(item)
         larva = LARVA_COST.get(item, 0.0)
         return Cost(float(cost.minerals), float(cost.vespene), supply, larva)

@@ -79,27 +79,27 @@ class Combat:
                 return 0.0
             if t.type_id in CHANGELINGS:
                 return 0.0
-            priority = 1e8
+            p = 1e8
 
             # priority /= 1 + self.ai.distance_ground[target.position.rounded]
-            priority /= 5 if t.is_structure else 1
+            p /= 5 if t.is_structure else 1
             if t.is_enemy:
-                priority /= 300 + t.shield + t.health
+                p /= 300 + t.shield + t.health
             else:
-                priority /= 500
+                p /= 500
 
             # ---
 
             if not can_attack(unit, t) and not unit.is_detector:
                 return 0.0
-            priority /= 8 + t.position.distance_to(unit.position)
+            p /= 8 + t.position.distance_to(unit.position)
             if unit.is_detector:
                 if t.is_cloaked:
-                    priority *= 3.0
+                    p *= 3.0
                 if not t.is_revealed:
-                    priority *= 3.0
+                    p *= 3.0
 
-            return priority
+            return p
 
         target, priority = max(
             ((e, target_priority(e)) for e in self.prediction.context.enemy_units),

@@ -244,7 +244,7 @@ class PhantomBot(BotBase):
             yield micro_queen(queen)
 
         for unit in changelings:
-            if action := self.do_scout(unit):
+            if action := self.search_with(unit):
                 yield action
 
         for unit in prediction.context.units:
@@ -407,20 +407,20 @@ class PhantomBot(BotBase):
 
         ability = AbilityId.EFFECT_CORROSIVEBILE
 
-        def bile_priority(target: Unit) -> float:
-            if not target.is_enemy:
+        def bile_priority(t: Unit) -> float:
+            if not t.is_enemy:
                 return 0.0
-            if not self.is_visible(target.position):
+            if not self.is_visible(t.position):
                 return 0.0
-            if not unit.in_ability_cast_range(ability, target.position):
+            if not unit.in_ability_cast_range(ability, t.position):
                 return 0.0
-            if target.is_hallucination:
+            if t.is_hallucination:
                 return 0.0
-            if target.type_id in CHANGELINGS:
+            if t.type_id in CHANGELINGS:
                 return 0.0
-            priority = 10.0 + max(target.ground_dps, target.air_dps)
-            priority /= 100.0 + target.health + target.shield
-            priority /= 2.0 + target.movement_speed
+            priority = 10.0 + max(t.ground_dps, t.air_dps)
+            priority /= 100.0 + t.health + t.shield
+            priority /= 2.0 + t.movement_speed
             return priority
 
         if unit.type_id != UnitTypeId.RAVAGER:
@@ -455,21 +455,6 @@ class PhantomBot(BotBase):
         ):
             return UseAbility(unit, AbilityId.BURROWDOWN)
 
-        return None
-
-    def do_scout(self, unit: Unit) -> Action | None:
-        if unit.is_idle:
-            if self.time < 8 * 60:
-                return AttackMove(unit, random.choice(self.enemy_start_locations))
-            elif self.all_enemy_units.exists:
-                target = self.all_enemy_units.random
-                return AttackMove(unit, target.position)
-            else:
-                a = self.game_info.playable_area
-                target = np.random.uniform((a.x, a.y), (a.right, a.top))
-                target = Point2(target)
-                if (unit.is_flying or self.in_pathing_grid(target)) and not self.is_visible(target):
-                    return AttackMove(unit, target)
         return None
 
     def do_spawn_changeling(self, unit: Unit) -> Action | None:
