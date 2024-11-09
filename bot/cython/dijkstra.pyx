@@ -13,7 +13,7 @@ ctypedef cnp.float64_t DTYPE_t
 
 
 cdef extern from "cpp_priority_queue.hpp":
-    cdef cppclass PriorityQueue:
+    cdef cppclass cpp_pq:
         cpp_pq(...) except +
         void push(pair[double,pair[int, int]])
         pair[double,pair[int, int]] top()
@@ -53,7 +53,7 @@ cpdef DijkstraOutput cy_dijkstra(
         DTYPE_t[:, :] dist = np.full_like(cost, np.inf)
         Py_ssize_t[:, :] prev_x = np.full_like(cost, -1, np.intp)
         Py_ssize_t[:, :] prev_y = np.full_like(cost, -1, np.intp)
-        PriorityQueue q = PriorityQueue(compare_element)
+        cpp_pq q = cpp_pq(compare_element)
         Py_ssize_t x, y, x2, y2
         DTYPE_t alternative
         pair[double, pair[int, int]] u, v
