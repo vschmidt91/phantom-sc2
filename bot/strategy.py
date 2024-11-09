@@ -6,7 +6,7 @@ import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
-from .components.base import BotBase
+from .base import BotBase
 from .constants import UNIT_COUNTER_DICT, ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES
 
 Composition: TypeAlias = dict[UnitTypeId, int]
@@ -66,7 +66,7 @@ def decide_strategy(context: BotBase, worker_target: int, confidence: float) -> 
         enemy.type_id for enemy in context.all_enemy_units if enemy.type_id in UNIT_COUNTER_DICT
     )
 
-    tech_up = 35 <= worker_count and 3 <= context.townhalls.amount
+    tech_up = 32 <= worker_count and 3 <= context.townhalls.amount
     lair_count = context.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
     hive_count = context.count(UnitTypeId.HIVE, include_pending=True, include_planned=False)
 

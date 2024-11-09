@@ -1,61 +1,63 @@
 import cProfile
-import lzma
 import math
 import os
-import pickle
 import pstats
 import random
 from collections import defaultdict
-from functools import cmp_to_key
 from itertools import chain
-from typing import AsyncGenerator, cast
+from typing import AsyncGenerator, Iterable, cast
 
 import numpy as np
 from ares import DEBUG, AresBot
 from loguru import logger
-from sc2.data import Result
+from sc2.data import ActionResult, Result
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.position import Point2, Point3
+from sc2.position import Point2
 from sc2.unit import Unit
 
-from .action import Action, AttackMove, DoNothing, UseAbility, Move, HoldPosition
+from .action import Action, AttackMove, DoNothing, HoldPosition, Move, UseAbility
 from .build_order import HATCH_FIRST
 from .chat import Chat, ChatMessage
-from .combat import Combat, HALF
-from .components.macro import Macro, compare_plans
-from .components.scout import Scout
+from .combat import HALF, Combat
 from .constants import (
     ALL_MACRO_ABILITIES,
     CHANGELINGS,
     CIVILIANS,
     COOLDOWN,
-    ENERGY_COST, VERSION_FILE, UNKNOWN_VERSION,
+    ENERGY_COST,
+    REQUIREMENTS,
+    UNKNOWN_VERSION,
+    VERSION_FILE,
+    WITH_TECH_EQUIVALENTS,
 )
 from .creep import CreepSpread
 from .dodge import Dodge, DodgeResult
 from .inject import Inject
+from .macro import Macro, MacroId, MacroPlan
 from .predictor import Prediction, PredictorContext, predict
 from .resources.resource_manager import ResourceManager
-from .strategy import decide_strategy
+from .scout import Scout
+from .strategy import Strategy, decide_strategy
 from .transfuse import do_transfuse_single
 
 
 class PhantomBot(
-    Macro,
     ResourceManager,
-    Scout,
     AresBot,
 ):
     creep = CreepSpread()
     chat = Chat()
     inject = Inject()
     dodge = Dodge()
+    macro = Macro()
+    scout = Scout()
     build_order = HATCH_FIRST
     profiler = cProfile.Profile()
     version = UNKNOWN_VERSION
 
+    _blocked_positions: dict[Point2, float] = dict()
     _bile_last_used = dict[int, int]()
 
     async def on_before_start(self):
@@ -64,19 +66,19 @@ class PhantomBot(
     async def on_start(self) -> None:
         await super().on_start()
         # if self.config[DEBUG]:
-            # output_path = os.path.join("resources", f"{self.game_info.map_name}.xz")
-            # with lzma.open(output_path, "wb") as f:
-            #     pickle.dump(self.game_info, f)
-            # await self.client.debug_create_unit([[UnitTypeId.PYLON, 1, self.bases[1].position, 2]])
-            # await self.client.debug_create_unit(
-            #     [
-            #         [UnitTypeId.ROACH, 10, self.bases[1].position, 1],
-            #         [UnitTypeId.ROACH, 10, self.bases[2].position, 2],
-            #     ]
-            # )
-            # await self.client.debug_upgrade()
+        # output_path = os.path.join("resources", f"{self.game_info.map_name}.xz")
+        # with lzma.open(output_path, "wb") as f:
+        #     pickle.dump(self.game_info, f)
+        # await self.client.debug_create_unit([[UnitTypeId.CREEPTUMORBURROWED, 1, self.bases[1].position, 2]])
+        # await self.client.debug_create_unit(
+        #     [
+        #         [UnitTypeId.ROACH, 10, self.bases[1].position, 1],
+        #         [UnitTypeId.ROACH, 10, self.bases[2].position, 2],
+        #     ]
+        # )
+        # await self.client.debug_upgrade()
         self.initialize_resources()
-        self.initialize_scout_targets(self.bases)
+        self.scout.initialize_scout_targets(self, self.bases)
         self.split_initial_workers(self.workers)
 
         if os.path.exists(VERSION_FILE):
@@ -96,6 +98,15 @@ class PhantomBot(
                 return
             self.profiler.enable()
 
+        # ACTION HANDLING
+        # -------------------------
+        self.detect_blocked_bases()
+        for error in self.state.action_errors:
+            logger.info(f"{error=}")
+        # ------------------------
+
+        self.reset_blocked_bases()
+
         await self.chat.do_chat(self.send_chat_message)
         dodge = self.dodge.update(self)
 
@@ -113,11 +124,13 @@ class PhantomBot(
         strategy = decide_strategy(self, worker_target, prediction.confidence_global)
 
         if self.run_build_order():
-            self.make_composition(strategy.composition)
-            self.make_tech(strategy)
-            self.morph_overlords()
-            self.expand()
-
+            if plan := (
+                self.make_composition(strategy.composition)
+                or self.make_tech(strategy)
+                or self.morph_overlord()
+                or self.expand()
+            ):
+                self.macro.add_plan(plan)
         retreat_targets = [w.position for w in self.workers] + [self.start_location]
         combat = Combat(prediction, retreat_targets)
 
@@ -131,6 +144,7 @@ class PhantomBot(
                     unit_acted.add(tag)
             success = await action.execute(self)
             if not success:
+                self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
 
         if self.config[DEBUG]:
@@ -140,7 +154,6 @@ class PhantomBot(
                 logger.info("dump profiling")
                 stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
                 stats.dump_stats(filename="profiling.prof")
-            await self.draw_debug()
 
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)
@@ -205,9 +218,9 @@ class PhantomBot(
             )
 
         scouts = self.units({UnitTypeId.OVERLORD, UnitTypeId.OVERSEER})
-        scout_actions = {a.unit: a for a in self.do_scouting(scouts)}
-
-        macro_actions = {ma.unit: ma.action async for ma in self.do_macro()}
+        blocked_positions = set(self._blocked_positions)
+        scout_actions = {a.unit: a for a in self.scout.do_scouting(self, scouts, blocked_positions)}
+        macro_actions = await self.macro.do_macro(self, blocked_positions)
 
         harvesters: list[Unit] = []
         for worker in self.workers:
@@ -217,7 +230,8 @@ class PhantomBot(
                 pass
             else:
                 harvesters.append(worker)
-        self.assign_harvesters(harvesters, self.get_future_spending(composition))
+        if plan := self.assign_harvesters(harvesters, self.macro.get_future_spending(self, composition)):
+            self.macro.add_plan(plan)
 
         for worker in harvesters:
             yield self.micro_harvester(worker, combat, dodge)
@@ -257,6 +271,9 @@ class PhantomBot(
         for action in scout_actions.values():
             yield action
 
+    def planned_by_type(self, item: MacroId) -> Iterable:
+        return self.macro.planned_by_type(item)
+
     def micro_harvester(self, unit: Unit, combat_context: Combat, dodge: DodgeResult) -> Action:
         return (
             dodge.dodge_with(unit)
@@ -269,8 +286,7 @@ class PhantomBot(
         for i, step in enumerate(self.build_order.steps):
             if self.count(step.unit, include_planned=False) < step.count:
                 if self.count(step.unit, include_planned=True) < step.count:
-                    plan = self.add_plan(step.unit)
-                    plan.priority = -i
+                    self.macro.add_plan(MacroPlan(step.unit, priority=-i))
                 return False
         return True
 
@@ -303,87 +319,89 @@ class PhantomBot(
             for a in unit_actions[1:]:
                 actions.remove(a)
 
-    async def draw_debug(self):
-        font_color = (255, 255, 255)
-        font_size = 12
+    def detect_blocked_bases(self) -> None:
+        for error in self.state.action_errors:
+            if (
+                error.result == ActionResult.CantBuildLocationInvalid.value
+                and error.ability_id == AbilityId.ZERGBUILD_HATCHERY.value
+            ):
+                if unit := self.unit_tag_dict.get(error.unit_tag):
+                    p = unit.position.rounded
+                    if p not in self._blocked_positions:
+                        self._blocked_positions[p] = self.time
+                        logger.info(f"Detected blocked base {p}")
 
-        plans = sorted(
-            self.enumerate_plans(),
-            key=cmp_to_key(compare_plans),
-            reverse=True,
-        )
+    def reset_blocked_bases(self) -> None:
+        for position, blocked_since in list(self._blocked_positions.items()):
+            if blocked_since + 60 < self.time:
+                del self._blocked_positions[position]
 
-        for i, target in enumerate(plans):
-            positions = []
+    def make_composition(self, composition: dict[UnitTypeId, int]) -> MacroPlan | None:
+        if 200 <= self.supply_used:
+            return None
+        for unit, target in composition.items():
+            have = self.count(unit)
+            if target < 1:
+                continue
+            elif target <= have:
+                continue
+            if any(self.get_missing_requirements(unit)):
+                continue
+            priority = -self.count(unit, include_planned=False) / target
+            if any(self.planned_by_type(unit)):
+                for plan in self.planned_by_type(unit):
+                    if plan.priority == math.inf:
+                        continue
+                    plan.priority = priority
+                    break
+            else:
+                return MacroPlan(unit, priority=priority)
+        return None
 
-            if not target.target:
-                pass
-            elif isinstance(target.target, Unit):
-                positions.append(target.target.position3d)
-            elif isinstance(target.target, Point3):
-                positions.append(target.target)
-            elif isinstance(target.target, Point2):
-                height = self.get_terrain_z_height(target.target)
-                positions.append(Point3((target.target.x, target.target.y, height)))
+    def make_tech(self, strategy: Strategy) -> MacroPlan | None:
+        upgrades = [
+            u for unit in strategy.composition for u in self.upgrades_by_unit(unit) if strategy.filter_upgrade(u)
+        ]
+        upgrades.append(UpgradeId.ZERGLINGMOVEMENTSPEED)
+        targets: set[MacroId] = set(upgrades)
+        targets.update(strategy.composition.keys())
+        targets.update(r for item in set(targets) for r in REQUIREMENTS[item])
+        for target in targets:
+            if equivalents := WITH_TECH_EQUIVALENTS.get(target):
+                target_met = any(self.count(t) for t in equivalents)
+            else:
+                target_met = bool(self.count(target))
+            if not target_met:
+                return MacroPlan(target, priority=-0.5)
+        return None
 
-            text = f"{str(i + 1)} {target.item.name}"
+    def morph_overlord(self) -> MacroPlan | None:
+        supply = self.supply_cap + self.supply_pending / 2 + self.supply_planned
+        supply_target = min(200.0, self.supply_used + 2 + 10 * self.income.larva)
+        if supply_target < supply:
+            return None
+        return MacroPlan(UnitTypeId.OVERLORD, priority=1)
 
-            for position in positions:
-                self.client.debug_text_world(text, position, color=font_color, size=font_size)
-
-            if len(positions) == 2:
-                position_from, position_to = positions
-                position_from += Point3((0.0, 0.0, 0.1))
-                position_to += Point3((0.0, 0.0, 0.1))
-                self.client.debug_line_out(position_from, position_to, color=font_color)
-
-        font_color = (255, 0, 0)
-
-        for enemy in self.all_enemy_units:
-            pos = enemy.position
-            position = Point3((*pos, self.get_terrain_z_height(pos)))
-            text = f"{enemy.name}"
-            self.client.debug_text_world(text, position, color=font_color, size=font_size)
-
-        # self.client.debug_text_screen(f"Confidence: {round(100 * self.confidence)}%", (0.01, 0.01))
-        # self.client.debug_text_screen(f"Gas Target: {round(self.get_gas_target(), 3)}", (0.01, 0.03))
-
-        for i, plan in enumerate(plans):
-            self.client.debug_text_screen(f"{1 + i} {round(plan.eta or 0, 1)} {plan.item.name}", (0.01, 0.1 + 0.01 * i))
-
-    def morph_overlords(self) -> None:
-        supply = self.supply_cap + self.supply_pending + self.supply_planned
-        supply_target = min(200.0, self.supply_used + 4.0 + self.income.larva / 2.0)
-        if supply <= supply_target:
-            plan = self.add_plan(UnitTypeId.OVERLORD)
-            plan.priority = 1
-
-    def expand(self) -> None:
+    def expand(self) -> MacroPlan | None:
 
         if self.time < 50:
-            return
+            return None
+        if 2 == self.townhalls.amount and 2 > self.count(UnitTypeId.QUEEN, include_planned=False):
+            return None
 
         worker_max = self.max_harvesters
-        saturation = self.state.score.food_used_economy / max(1, worker_max)
-        saturation = max(0, min(1, saturation))
+        saturation = max(0, min(1, self.state.score.food_used_economy / max(1, worker_max)))
+        if 2 < self.townhalls.amount and 2 / 3 > saturation:
+            return None
+
         priority = 3 * (saturation - 1)
-
-        expand = True
-        if self.townhalls.amount == 2:
-            expand = 2 <= self.count(UnitTypeId.QUEEN, include_planned=False)
-            # expand = 25 <= self.state.score.food_used_economy
-        elif 2 < self.townhalls.amount:
-            expand = 2 / 3 < saturation
-
         for plan in self.planned_by_type(UnitTypeId.HATCHERY):
             if plan.priority < math.inf:
                 plan.priority = priority
 
-        if expand and self.count(UnitTypeId.HATCHERY, include_actual=False) < 1:
-            plan = self.add_plan(UnitTypeId.HATCHERY)
-            plan.priority = priority
-            plan.max_distance = None
-            logger.info(f"Expanding: {plan=}")
+        if 0 < self.count(UnitTypeId.HATCHERY, include_actual=False):
+            return None
+        return MacroPlan(UnitTypeId.HATCHERY, priority=priority, max_distance=None)
 
     def do_bile(self, unit: Unit) -> Action | None:
 

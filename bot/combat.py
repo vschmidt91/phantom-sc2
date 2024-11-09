@@ -8,10 +8,10 @@ import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Point2, Unit
 
-from .cython.cy_dijkstra import cy_dijkstra  # type: ignore
 from .action import Action, AttackMove, Move
 from .base import BotBase
 from .constants import CHANGELINGS
+from .cython.cy_dijkstra import cy_dijkstra  # type: ignore
 from .predictor import Prediction
 
 

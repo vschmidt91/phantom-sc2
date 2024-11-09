@@ -11,9 +11,10 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from ..action import Action, DoNothing, Move, Smart
-from ..components.base import Component
-from ..constants import GAS_BY_RACE, STATIC_DEFENSE_BY_RACE
+from ..base import BotBase
+from ..constants import GAS_BY_RACE
 from ..cost import Cost
+from ..macro import MacroPlan
 from ..resources.unit import ResourceUnit
 from .expansion import Expansion
 from .gather import GatherAction, ReturnResource
@@ -29,7 +30,7 @@ STATIC_DEFENSE_TRIGGERS = {
 }
 
 
-class ResourceManager(Component):
+class ResourceManager(BotBase):
 
     harvesters_by_resource: Counter[ResourceUnit] = Counter[ResourceUnit]()
     build_static_defense: bool = False
@@ -108,32 +109,8 @@ class ResourceManager(Component):
             for townhall in chain(self.actual_by_type[townhall_type], self.pending_by_type[townhall_type])
         }
 
-        static_defense_type = STATIC_DEFENSE_BY_RACE[self.race]
-        static_defense = {
-            unit.position: unit
-            for unit in chain(
-                self.actual_by_type[static_defense_type],
-                self.pending_by_type[static_defense_type],
-            )
-            if unit.type_id == static_defense_type
-        }
-        static_defense_pending = {
-            unit.position: unit
-            for unit in self.pending_by_type[static_defense_type]
-            if unit.type_id != static_defense_type
-        }
-        static_defense_plans = {plan.target: plan for plan in self.planned_by_type(static_defense_type)}
-
         for base in self.bases:
             base.townhall = townhalls_by_position.get(base.position)
-            base.static_defense = static_defense.get(base.static_defense_position)
-
-        if self.build_static_defense and not any(static_defense_pending) and not any(static_defense_plans):
-            for base in self.bases:
-                if base.townhall and base.townhall.is_ready and not base.static_defense:
-                    plan = self.add_plan(static_defense_type)
-                    plan.target = base.static_defense_position
-                    break
 
     def update_patches_and_geysers(self) -> None:
         gas_buildings_by_position = {gas.position: gas for gas in self.actual_by_type[race_gas[self.race]]}
@@ -166,7 +143,7 @@ class ResourceManager(Component):
             ):
                 self.harvester_assignment[harvester_tag] = transfer_to
 
-    def assign_harvesters(self, harvesters: Iterable[Unit], future_spending: Cost) -> None:
+    def assign_harvesters(self, harvesters: Iterable[Unit], future_spending: Cost) -> MacroPlan | None:
 
         # remove non-existent harvesters
         for tag, target in list(self.harvester_assignment.items()):
@@ -184,8 +161,11 @@ class ResourceManager(Component):
 
         self.update_patches_and_geysers()
         self.update_bases()
-        self.update_gas(future_spending)
+
+        gas_target = self.get_gas_target(future_spending)
+        self.transfer_to_and_from_gas(gas_target)
         self.balance_harvesters()
+        return self.build_gasses(gas_target)
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
         if not (target := self.harvester_assignment.get(unit.tag)):
@@ -214,11 +194,6 @@ class ResourceManager(Component):
             return ReturnResource(unit, return_target)
         return Smart(unit, target_unit)
 
-    def update_gas(self, future_spending: Cost):
-        gas_target = self.get_gas_target(future_spending)
-        self.transfer_to_and_from_gas(gas_target)
-        self.build_gasses(gas_target)
-
     def get_gas_target(self, future_spending: Cost) -> float:
         minerals = max(0.0, future_spending.minerals - self.minerals)
         vespene = max(0.0, future_spending.vespene - self.vespene)
@@ -244,7 +219,7 @@ class ResourceManager(Component):
 
         return gas_target
 
-    def build_gasses(self, gas_target: float):
+    def build_gasses(self, gas_target: float) -> MacroPlan | None:
         gas_type = GAS_BY_RACE[self.race]
         gas_depleted = self.gas_buildings.filter(lambda g: not g.has_vespene).amount
         gas_pending = self.count(gas_type, include_actual=False)
@@ -252,7 +227,8 @@ class ResourceManager(Component):
         gas_max = sum(1 for g in self.owned_geysers)
         gas_want = min(gas_max, gas_depleted + math.ceil((gas_target - 1) / 3))
         if gas_have + gas_pending < gas_want:
-            self.add_plan(gas_type)
+            return MacroPlan(gas_type)
+        return None
         # elif gas_want + 1 < gas_have + gas_pending:
         #     gas_plans = sorted(self.macro.planned_by_type(gas_type), key=lambda p: p.priority)
         #     for _, plan in zip(range(gas_have + gas_pending - gas_want), gas_plans):

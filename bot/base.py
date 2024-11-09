@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from functools import lru_cache
+from itertools import chain
 from typing import Iterable, TypeAlias
 
 import numpy as np
@@ -22,6 +23,11 @@ from .constants import (
     SUPPLY_PROVIDED,
     WITH_TECH_EQUIVALENTS,
     WORKERS,
+    ZERG_ARMOR_UPGRADES,
+    ZERG_FLYER_ARMOR_UPGRADES,
+    ZERG_FLYER_UPGRADES,
+    ZERG_MELEE_UPGRADES,
+    ZERG_RANGED_UPGRADES,
 )
 from .cost import Cost, CostManager
 from .resources.expansion import Expansion
@@ -39,10 +45,6 @@ class BotBase(AresBot, ABC):
     def __init__(self, game_step_override: int | None = None) -> None:
         super().__init__(game_step_override=game_step_override)
         self.cost = CostManager(self.calculate_cost, self.calculate_supply_cost)
-
-    @property
-    def ai(self):
-        return self
 
     @abstractmethod
     def planned_by_type(self, item: MacroId) -> Iterable:
@@ -78,18 +80,21 @@ class BotBase(AresBot, ABC):
     @property
     def income(self) -> Cost:
 
-        larva_per_second = 0.0
-        for hatchery in self.townhalls:
-            if hatchery.is_ready:
-                larva_per_second += 1 / 11
-                if hatchery.has_buff(BuffId.QUEENSPAWNLARVATIMER):
-                    larva_per_second += 3 / 29
+        larva_per_second = sum(
+            sum(
+                (
+                    1 / 11 if h.is_ready else 0.0,
+                    3 / 29 if h.has_buff(BuffId.QUEENSPAWNLARVATIMER) else 0.0,  # TODO: track actual injects
+                )
+            )
+            for h in self.townhalls
+        )
 
         return Cost(
-            self.state.score.collection_rate_minerals,
-            self.state.score.collection_rate_vespene,
-            0.0,
-            60.0 * larva_per_second,
+            self.state.score.collection_rate_minerals / 60.0,  # TODO: get from harvest assignment
+            self.state.score.collection_rate_vespene / 60.0,  # TODO: get from harvest assignment
+            self.supply_income,  # TODO: iterate over pending
+            larva_per_second,
         )
 
     async def on_start(self) -> None:
@@ -162,6 +167,21 @@ class BotBase(AresBot, ABC):
             for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
         )
 
+    @lru_cache(maxsize=None)
+    def build_time(self, unit_type: UnitTypeId) -> float:
+        return self.game_data.units[unit_type.value].cost.time
+
+    @property
+    def bank(self) -> Cost:
+        return Cost(self.minerals, self.vespene, self.supply_left, self.larva.amount)
+
+    @property
+    def supply_income(self) -> float:
+        return sum(
+            len(self.pending_by_type[unit_type]) * provided / self.build_time(unit_type)
+            for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
+        )
+
     @property
     def supply_planned(self) -> int:
         return sum(
@@ -217,3 +237,68 @@ class BotBase(AresBot, ABC):
                 return UpgradeId.TUNNELINGCLAWS in self.state.upgrades
             return False
         return 0 < unit.movement_speed
+
+    def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
+        if unit == UnitTypeId.ZERGLING:
+            return chain(
+                (UpgradeId.ZERGLINGMOVEMENTSPEED,),
+                # (UpgradeId.ZERGLINGMOVEMENTSPEED, UpgradeId.ZERGLINGATTACKSPEED),
+                # self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                # self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.ULTRALISK:
+            return chain(
+                (UpgradeId.CHITINOUSPLATING, UpgradeId.ANABOLICSYNTHESIS),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.BANELING:
+            return chain(
+                (UpgradeId.CENTRIFICALHOOKS,),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.ROACH:
+            return chain(
+                (UpgradeId.GLIALRECONSTITUTION, UpgradeId.BURROW, UpgradeId.TUNNELINGCLAWS),
+                # (UpgradeId.GLIALRECONSTITUTION,),
+                self.upgrade_sequence(ZERG_RANGED_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.HYDRALISK:
+            return chain(
+                (UpgradeId.EVOLVEGROOVEDSPINES, UpgradeId.EVOLVEMUSCULARAUGMENTS),
+                self.upgrade_sequence(ZERG_RANGED_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.QUEEN:
+            return chain(
+                # self.upgradeSequence(ZERG_RANGED_UPGRADES),
+                # self.upgradeSequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.MUTALISK:
+            return chain(
+                self.upgrade_sequence(ZERG_FLYER_UPGRADES),
+                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.CORRUPTOR:
+            return chain(
+                self.upgrade_sequence(ZERG_FLYER_UPGRADES),
+                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.BROODLORD:
+            return chain(
+                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.OVERSEER:
+            return (UpgradeId.OVERLORDSPEED,)
+        else:
+            return []
+
+    def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
+        for upgrade in upgrades:
+            if not self.count(upgrade, include_planned=False):
+                return (upgrade,)
+        return ()

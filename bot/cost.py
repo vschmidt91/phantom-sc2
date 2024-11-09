@@ -1,7 +1,9 @@
+import math
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from typing import Callable
 
+import numpy as np
 from loguru import logger
 from sc2.game_data import Cost as SC2Cost
 from sc2.ids.unit_typeid import UnitTypeId
@@ -34,6 +36,23 @@ class Cost:
             self.vespene - other.vespene,
             self.supply - other.supply,
             self.larva - other.larva,
+        )
+
+    def __truediv__(self, other: "Cost"):
+        return Cost(
+            self.minerals / other.minerals if other.minerals != 0.0 else math.inf,
+            self.vespene / other.vespene if other.vespene != 0.0 else math.inf,
+            self.supply / other.supply if other.supply != 0.0 else math.inf,
+            self.larva / other.larva if other.larva != 0.0 else math.inf,
+        )
+
+    @cached_property
+    def sign(self) -> "Cost":
+        return Cost(
+            np.sign(self.minerals),
+            np.sign(self.vespene),
+            np.sign(self.supply),
+            np.sign(self.larva),
         )
 
     def __mul__(self, factor: float):
