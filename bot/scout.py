@@ -5,9 +5,9 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from .action import Action
-from .base import BotBase
-from .resources.expansion import Expansion
+from bot.action import Action
+from bot.base import BotBase
+from bot.resources.expansion import Expansion
 
 
 @dataclass

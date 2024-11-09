@@ -2,10 +2,10 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from ..utils import get_intersections, project_point_onto_line
-from .group import ResourceGroup
-from .mineral_patch import MineralPatch
-from .vespene_geyser import VespeneGeyser
+from bot.resources.group import ResourceGroup
+from bot.resources.mineral_patch import MineralPatch
+from bot.resources.vespene_geyser import VespeneGeyser
+from bot.utils import get_intersections, project_point_onto_line
 
 STATIC_DEFENSE_OFFSET = 4.25
 MINING_RADIUS = 1.325

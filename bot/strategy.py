@@ -6,8 +6,12 @@ import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
-from .base import BotBase
-from .constants import UNIT_COUNTER_DICT, ZERG_FLYER_ARMOR_UPGRADES, ZERG_FLYER_UPGRADES
+from bot.base import BotBase
+from bot.constants import (
+    UNIT_COUNTER_DICT,
+    ZERG_FLYER_ARMOR_UPGRADES,
+    ZERG_FLYER_UPGRADES,
+)
 
 Composition: TypeAlias = dict[UnitTypeId, int]
 

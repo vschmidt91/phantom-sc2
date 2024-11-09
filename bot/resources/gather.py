@@ -4,9 +4,9 @@ from ares import AresBot
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from ..action import Action
-from .mineral_patch import MineralPatch
-from .unit import ResourceUnit
+from bot.action import Action
+from bot.resources.mineral_patch import MineralPatch
+from bot.resources.unit import ResourceUnit
 
 
 @dataclass

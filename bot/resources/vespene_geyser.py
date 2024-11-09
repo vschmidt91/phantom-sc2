@@ -1,7 +1,7 @@
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
-from .unit import ResourceUnit
+from bot.resources.unit import ResourceUnit
 
 RICH_GAS = {
     UnitTypeId.RICHVESPENEGEYSER,

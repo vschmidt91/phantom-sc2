@@ -17,12 +17,12 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from .action import Action, AttackMove, DoNothing, HoldPosition, Move, UseAbility
-from .base import BotBase
-from .build_order import HATCH_FIRST
-from .chat import Chat, ChatMessage
-from .combat import HALF, Combat
-from .constants import (
+from bot.action import Action, AttackMove, DoNothing, HoldPosition, Move, UseAbility
+from bot.base import BotBase
+from bot.build_order import HATCH_FIRST
+from bot.chat import Chat, ChatMessage
+from bot.combat import HALF, Combat
+from bot.constants import (
     ALL_MACRO_ABILITIES,
     CHANGELINGS,
     CIVILIANS,
@@ -33,15 +33,15 @@ from .constants import (
     VERSION_FILE,
     WITH_TECH_EQUIVALENTS,
 )
-from .creep import CreepSpread
-from .dodge import Dodge, DodgeResult
-from .inject import Inject
-from .macro import Macro, MacroId, MacroPlan
-from .predictor import Prediction, PredictorContext, predict
-from .resources.resource_manager import ResourceManager
-from .scout import Scout
-from .strategy import Strategy, decide_strategy
-from .transfuse import do_transfuse_single
+from bot.creep import CreepSpread
+from bot.dodge import Dodge, DodgeResult
+from bot.inject import Inject
+from bot.macro import Macro, MacroId, MacroPlan
+from bot.predictor import Prediction, PredictorContext, predict
+from bot.resources.resource_manager import ResourceManager
+from bot.scout import Scout
+from bot.strategy import Strategy, decide_strategy
+from bot.transfuse import do_transfuse_single
 
 
 class PhantomBot(BotBase):
@@ -55,8 +55,7 @@ class PhantomBot(BotBase):
     build_order = HATCH_FIRST
     profiler = cProfile.Profile()
     version = UNKNOWN_VERSION
-
-    _blocked_positions: dict[Point2, float] = dict()
+    _blocked_positions = dict[Point2, float]()
     _bile_last_used = dict[int, int]()
 
     async def on_before_start(self):

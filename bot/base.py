@@ -16,7 +16,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
 
-from .constants import (
+from bot.constants import (
     DPS_OVERRIDE,
     ITEM_BY_ABILITY,
     RANGE_UPGRADES,
@@ -30,11 +30,11 @@ from .constants import (
     ZERG_MELEE_UPGRADES,
     ZERG_RANGED_UPGRADES,
 )
-from .cost import Cost, CostManager
-from .resources.expansion import Expansion
-from .resources.mineral_patch import MineralPatch
-from .resources.unit import ResourceUnit
-from .resources.vespene_geyser import VespeneGeyser
+from bot.cost import Cost, CostManager
+from bot.resources.expansion import Expansion
+from bot.resources.mineral_patch import MineralPatch
+from bot.resources.unit import ResourceUnit
+from bot.resources.vespene_geyser import VespeneGeyser
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 
@@ -43,8 +43,8 @@ class BotBase(AresBot, ABC):
 
     bases = list[Expansion]()
     cost: CostManager
-    actual_by_type: defaultdict[MacroId, list[Unit]] = defaultdict(list)
-    pending_by_type: defaultdict[MacroId, list[Unit]] = defaultdict(list)
+    actual_by_type = defaultdict[MacroId, list[Unit]](list)
+    pending_by_type = defaultdict[MacroId, list[Unit]](list)
 
     def __init__(self, game_step_override: int | None = None) -> None:
         super().__init__(game_step_override=game_step_override)

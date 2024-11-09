@@ -3,7 +3,7 @@ from typing import Optional
 
 from sc2.unit import Unit
 
-from .base import ResourceBase
+from bot.resources.base import ResourceBase
 
 
 class ResourceUnit(ResourceBase, ABC):

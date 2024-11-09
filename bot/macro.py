@@ -14,17 +14,17 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
 
-from .action import Action, HoldPosition, Move, UseAbility
-from .base import BotBase
-from .constants import (
+from bot.action import Action, HoldPosition, Move, UseAbility
+from bot.base import BotBase
+from bot.constants import (
     ALL_MACRO_ABILITIES,
     GAS_BY_RACE,
     ITEM_BY_ABILITY,
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
     MACRO_INFO,
 )
-from .cost import Cost
-from .utils import PlacementNotFoundException
+from bot.cost import Cost
+from bot.utils import PlacementNotFoundException
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 

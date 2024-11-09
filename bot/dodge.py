@@ -7,8 +7,8 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from .action import Action, Move, UseAbility
-from .base import BotBase
+from bot.action import Action, Move, UseAbility
+from bot.base import BotBase
 
 
 @dataclass(frozen=True)
