@@ -113,7 +113,7 @@ class CreepSpread:
         creep = context.state.creep.data_numpy.T == 1
         visibility = context.state.visibility.data_numpy.T == 2
         pathing = context.game_info.pathing_grid.data_numpy.T == 1
-        bases = {b.position.rounded for b in context.bases}
+        bases = {b.position for b in context.bases}
 
         return CreepSpreadContext(
             context,

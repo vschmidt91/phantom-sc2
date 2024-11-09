@@ -65,7 +65,7 @@ class BotBase(AresBot, ABC):
 
     @property
     def bases_taken(self) -> Iterable[Expansion]:
-        return (b for b in self.bases if b.townhall)
+        return (b for b in self.bases if b.townhall and b.townhall.is_ready)
 
     @property
     def max_harvesters(self) -> int:

@@ -377,7 +377,7 @@ class PhantomBot(BotBase):
 
     def morph_overlord(self) -> MacroPlan | None:
         supply = self.supply_cap + self.supply_pending / 2 + self.supply_planned
-        supply_target = min(200.0, self.supply_used + 2 + 10 * self.income.larva)
+        supply_target = min(200.0, self.supply_used + 2 + 20 * self.income.larva)
         if supply_target < supply:
             return None
         return MacroPlan(UnitTypeId.OVERLORD, priority=1)

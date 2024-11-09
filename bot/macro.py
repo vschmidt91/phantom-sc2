@@ -61,16 +61,16 @@ async def premove(context: BotBase, unit: Unit, target: Point2, eta: float) -> A
     return None
 
 
-def get_eta(context: BotBase, reserve: Cost) -> float:
-    deficit = reserve - context.bank
+def get_eta(context: BotBase, reserve: Cost, cost: Cost) -> float:
+    deficit = reserve + cost - context.bank
     eta = deficit / context.income
     return max(
         (
             0.0,
-            eta.minerals if 0 < deficit.minerals else 0.0,
-            eta.vespene if 0 < deficit.vespene else 0.0,
-            eta.larva if 0 < deficit.larva else 0.0,
-            eta.supply if 0 < deficit.supply else 0.0,
+            eta.minerals if 0 < deficit.minerals and 0 < cost.minerals else 0.0,
+            eta.vespene if 0 < deficit.vespene and 0 < cost.vespene else 0.0,
+            eta.larva if 0 < deficit.larva and 0 < cost.larva else 0.0,
+            eta.supply if 0 < deficit.supply and 0 < cost.supply else 0.0,
         )
     )
 
@@ -224,7 +224,7 @@ class Macro:
                     continue
 
             cost = context.cost.of(plan.item)
-            eta = get_eta(context, reserve + cost)
+            eta = get_eta(context, reserve, cost)
             if eta < math.inf:
                 reserve += cost
 
