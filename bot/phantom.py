@@ -8,7 +8,7 @@ from itertools import chain
 from typing import AsyncGenerator, Iterable, cast
 
 import numpy as np
-from ares import DEBUG, AresBot
+from ares import DEBUG
 from loguru import logger
 from sc2.data import ActionResult, Result
 from sc2.ids.ability_id import AbilityId
@@ -18,6 +18,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from .action import Action, AttackMove, DoNothing, HoldPosition, Move, UseAbility
+from .base import BotBase
 from .build_order import HATCH_FIRST
 from .chat import Chat, ChatMessage
 from .combat import HALF, Combat
@@ -43,16 +44,14 @@ from .strategy import Strategy, decide_strategy
 from .transfuse import do_transfuse_single
 
 
-class PhantomBot(
-    ResourceManager,
-    AresBot,
-):
+class PhantomBot(BotBase):
     creep = CreepSpread()
     chat = Chat()
     inject = Inject()
     dodge = Dodge()
     macro = Macro()
     scout = Scout()
+    resource_manager = ResourceManager()
     build_order = HATCH_FIRST
     profiler = cProfile.Profile()
     version = UNKNOWN_VERSION
@@ -77,9 +76,8 @@ class PhantomBot(
         #     ]
         # )
         # await self.client.debug_upgrade()
-        self.initialize_resources()
         self.scout.initialize_scout_targets(self, self.bases)
-        self.split_initial_workers(self.workers)
+        self.resource_manager.split_initial_workers(self.mineral_patches, self.workers)
 
         if os.path.exists(VERSION_FILE):
             with open(VERSION_FILE) as f:
@@ -230,7 +228,9 @@ class PhantomBot(
                 pass
             else:
                 harvesters.append(worker)
-        if plan := self.assign_harvesters(harvesters, self.macro.get_future_spending(self, composition)):
+        if plan := self.resource_manager.assign_harvesters(
+            self, harvesters, self.macro.get_future_spending(self, composition)
+        ):
             self.macro.add_plan(plan)
 
         for worker in harvesters:
@@ -277,7 +277,7 @@ class PhantomBot(
     def micro_harvester(self, unit: Unit, combat_context: Combat, dodge: DodgeResult) -> Action:
         return (
             dodge.dodge_with(unit)
-            or self.gather_with(unit, self.townhalls.ready)
+            or self.resource_manager.gather_with(unit, self.townhalls.ready)
             or combat_context.fight_with(self, unit)
             or DoNothing()
         )

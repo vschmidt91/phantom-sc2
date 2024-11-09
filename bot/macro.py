@@ -147,7 +147,8 @@ class Macro:
 
             cost = context.cost.of(plan.item)
             eta = self.get_eta(context, reserve + cost)
-            reserve += cost * math.exp(-0.1 * eta)
+            if eta < math.inf:
+                reserve += cost
 
             if eta == 0.0:
                 plan.commanded = True
@@ -206,7 +207,7 @@ class Macro:
             geysers = [
                 geyser.unit
                 for geyser in context.owned_geysers
-                if (geyser.position not in exclude_positions and geyser.unit.tag not in exclude_tags)
+                if (geyser.position not in exclude_positions and geyser.unit and geyser.unit.tag not in exclude_tags)
             ]
             if not any(geysers):
                 raise PlacementNotFoundException()
