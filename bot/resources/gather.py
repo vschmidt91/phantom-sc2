@@ -5,22 +5,27 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from bot.action import Action
+from bot.resources.mineral_patch import MineralPatch
+from bot.resources.unit import ResourceUnit
 
 
 @dataclass
 class GatherAction(Action):
     unit: Unit
-    target: Unit
-    speedmining_position: Point2 | None = None
+    gather_target: ResourceUnit
 
     async def execute(self, bot: AresBot) -> bool:
-        if self.unit.order_target != self.target.tag:
-            return self.unit.smart(self.target)
-        move_target = self.speedmining_position or self.target.position.towards(
-            self.unit, self.target.radius + self.unit.radius
-        )
+        if not (target := self.gather_target.target_unit):
+            return False
+        elif self.unit.order_target != target.tag:
+            return self.unit.smart(target)
+        move_target: Point2
+        if isinstance(self.gather_target, MineralPatch):
+            move_target = self.gather_target.speedmining_target
+        else:
+            move_target = target.position.towards(self.unit, target.radius + self.unit.radius)
         if 0.75 < self.unit.distance_to(move_target) < 1.75:
-            return self.unit.move(move_target) and self.unit.smart(self.target, queue=True)
+            return self.unit.move(move_target) and self.unit.smart(target, queue=True)
         else:
             return True
 

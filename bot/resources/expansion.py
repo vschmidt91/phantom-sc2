@@ -16,10 +16,17 @@ HARVESTER_RADIUS = 0.375
 
 class Expansion(ResourceGroup):
     def __init__(self, position: Point2, resources: Units):
+
         self.townhall: Unit | None = None
-        self.mineral_patches = ResourceGroup[MineralPatch](MineralPatch(m) for m in resources.mineral_field)
-        self.vespene_geysers = ResourceGroup[VespeneGeyser](VespeneGeyser(g) for g in resources.vespene_geyser)
+        self.static_defense: Unit | None = None
+
+        self.mineral_patches = ResourceGroup(MineralPatch(m) for m in resources.mineral_field)
+        self.vespene_geysers = ResourceGroup(VespeneGeyser(g) for g in resources.vespene_geyser)
         super().__init__((self.mineral_patches, self.vespene_geysers), position)
+
+        static_defense_position = Point2(self.position.towards(self.mineral_patches.position, STATIC_DEFENSE_OFFSET))
+        static_defense_position = static_defense_position.rounded.offset(Point2((0.5, 0.5)))
+        self.static_defense_position = static_defense_position
 
     def set_speedmining_positions(self) -> None:
         for patch in self.mineral_patches:
