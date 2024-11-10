@@ -171,8 +171,7 @@ class ResourceReport:
         target_pos = self.harvesters.assignment[unit.tag]
         target = self.context.resource_at[target_pos]
         if target.is_vespene_geyser:
-            if not (target := self.context.gas_building_at[target_pos]):
-                return None
+            target = self.context.gas_building_at[target_pos]
         if unit.is_idle:
             return Smart(unit, target)
         elif 2 <= len(unit.orders):
@@ -207,23 +206,23 @@ class ResourceManager:
         if not context.resources:
             return ResourceReport(context, HarvesterAssignment({}), [])
 
-        if self.harvesters.count == 0:
-            self.harvesters = split_initial_workers(context.resources.mineral_field, context.harvesters)
-            return ResourceReport(context, self.harvesters, [])
+        assignment = self.harvesters
 
-        old_assignment = self.harvesters
-        new_assignment = old_assignment
+        if assignment.count == 0:
+            assignment = split_initial_workers(context.resources.mineral_field, context.harvesters)
+            self.harvesters = assignment
+            return ResourceReport(context, assignment, [])
 
         # remove unassigned harvesters
-        for tag in new_assignment:
+        for tag in assignment:
             if tag in context.harvester_tags:
                 continue
-            target_pos = new_assignment.assignment[tag]
+            target_pos = assignment.assignment[tag]
             target = context.resource_at[target_pos]
             if 0 < context.workers_in_geysers and target.is_vespene_geyser:
                 # logger.info(f"in gas: {tag=}")
                 continue
-            new_assignment -= {tag}
+            assignment -= {tag}
             logger.info(f"MIA: {tag=}")
 
         # assign new harvesters
@@ -231,20 +230,26 @@ class ResourceManager:
             return context.harvester_target(t) - len(a.assigned_to(t.position)) + np.exp(-h.distance_to(t))
 
         for harvester in context.harvesters:
-            if harvester.tag in new_assignment:
+            if harvester.tag in assignment:
                 continue
             target = max(
                 chain(context.resources.mineral_field, context.gas_buildings),
-                key=lambda r: assignment_priority(new_assignment, harvester, r)
+                key=lambda r: assignment_priority(assignment, harvester, r)
             )
-            new_assignment += {harvester.tag: target.position}
+            assignment += {harvester.tag: target.position}
             logger.info(f"Assigning {harvester=} to {target=}")
 
         # unassign from mined out resources
-        for tag, target in new_assignment.assignment.items():
-            if target not in context.resource_positions:
-                new_assignment -= {tag}
-                logger.info(f"Unassigning {tag} from mined out {target=}")
+        for tag, target_pos in assignment.assignment.items():
+            if target_pos in context.mineral_positions:
+                if target_pos not in context.resource_positions:
+                    assignment -= {tag}
+                    logger.info(f"Unassigning {tag} from mined out {target_pos=}")
+            else:
+                if target_pos not in context.gas_building_at:
+                    assignment -= {tag}
+                    logger.info(f"Unassigning {tag} from mined out {target_pos=}")
+
 
         gas_target = self.harvesters.count * context.gas_ratio
         if 0 < gas_target:
@@ -262,31 +267,31 @@ class ResourceManager:
         mineral_balance = mineral_harvester_count - mineral_target
 
         if effective_gas_balance < 0 or 0 < mineral_balance:
-            if not (geyser := context.pick_gas(new_assignment)):
+            if not (geyser := context.pick_gas(assignment)):
                 pass
-            elif not (harvester := context.pick_harvester(new_assignment, False, geyser.position)):
+            elif not (harvester := context.pick_harvester(assignment, False, geyser.position)):
                 pass
             else:
-                new_assignment -= {harvester.tag}
-                new_assignment += {harvester.tag: geyser.position}
+                assignment -= {harvester.tag}
+                assignment += {harvester.tag: geyser.position}
                 logger.info(f"Transferring {harvester=} to {geyser=}")
         elif 1 <= effective_gas_balance and mineral_balance < 0:
-            if not (patch := context.pick_mineral(new_assignment)):
+            if not (patch := context.pick_mineral(assignment)):
                 pass
-            elif not (harvester := context.pick_harvester(new_assignment, True, patch.position)):
+            elif not (harvester := context.pick_harvester(assignment, True, patch.position)):
                 pass
             else:
-                new_assignment -= {harvester.tag}
-                new_assignment += {harvester.tag: patch.position}
+                assignment -= {harvester.tag}
+                assignment += {harvester.tag: patch.position}
                 logger.info(f"Transferring {harvester=} to {patch=}")
 
         if transfer := next(
             (
                 tag
-                for tag, target in new_assignment.assignment.items()
+                for tag, target in assignment.assignment.items()
                 if (
                     target in context.mineral_positions
-                    and context.harvester_target_at(target) < len(new_assignment.assigned_to(target))
+                    and context.harvester_target_at(target) < len(assignment.assigned_to(target))
                 )
             ),
             None,
@@ -295,18 +300,18 @@ class ResourceManager:
                 (
                     m
                     for m in context.resources.mineral_field
-                    if len(new_assignment.assigned_to(m.position)) < context.harvester_target(m)
+                    if len(assignment.assigned_to(m.position)) < context.harvester_target(m)
                 ),
                 None,
             ):
-                new_assignment -= {transfer}
-                new_assignment += {transfer: patch.position}
+                assignment -= {transfer}
+                assignment += {transfer: patch.position}
                 logger.info(f"Transferring {transfer=} to {patch=}")
 
         plans = list[MacroPlan]()
         if plan := build_gasses(context.bot, gas_target):
             plans.append(plan)
 
-        self.harvesters = new_assignment
+        self.harvesters = assignment
 
-        return ResourceReport(context, new_assignment, plans)
+        return ResourceReport(context, assignment, plans)
