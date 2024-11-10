@@ -265,14 +265,14 @@ class ResourceReport:
     plans: list[MacroPlan]
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
-        if not (target_pos := self.assignment.items[unit.tag]):
+        if not (target_pos := self.assignment.items.get(unit.tag)):
             logger.error(f"Unassinged harvester {unit}")
             return None
-        if not (target := self.context.resource_at[target_pos]):
+        if not (target := self.context.resource_at.get(target_pos)):
             logger.error(f"No resource found at {target_pos}")
             return None
         if target.is_vespene_geyser:
-            if not (target := self.context.gas_building_at[target_pos]):
+            if not (target := self.context.gas_building_at.get(target_pos)):
                 logger.error(f"No gas building found at {target_pos}")
                 return None
         if unit.is_idle:
