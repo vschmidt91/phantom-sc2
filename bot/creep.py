@@ -50,7 +50,7 @@ class CreepSpreadContext:
 
     @cached_property
     def value_map_blurred(self) -> np.ndarray:
-        return gaussian_filter(self.value_map, 3)
+        return gaussian_filter(self.value_map, 3) * self.pathing.astype(float)
 
     def place_tumor(self, unit: Unit) -> Action | None:
 
@@ -112,7 +112,7 @@ class CreepSpread:
 
         creep = context.state.creep.data_numpy.T == 1
         visibility = context.state.visibility.data_numpy.T == 2
-        pathing = context.game_info.pathing_grid.data_numpy.T == 1
+        pathing = context.mediator.get_map_data_object.get_pyastar_grid() == 1.0
         bases = {b.position for b in context.bases}
 
         return CreepSpreadContext(
