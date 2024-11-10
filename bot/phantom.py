@@ -39,9 +39,10 @@ from bot.inject import Inject
 from bot.macro import Macro, MacroId, MacroPlan
 from bot.predictor import Prediction, PredictorContext, predict
 from bot.resources.resource_manager import (
+    HarvesterAssignment,
     ResourceContext,
-    ResourceManager,
-    ResourceReport, HarvesterAssignment,
+    ResourceReport,
+    update_resources,
 )
 from bot.scout import Scout
 from bot.strategy import Strategy, decide_strategy
@@ -55,7 +56,6 @@ class PhantomBot(BotBase):
     dodge = Dodge()
     macro = Macro()
     scout = Scout()
-    resource_manager = ResourceManager()
     build_order = HATCH_FIRST
     harvester_assignment = HarvesterAssignment({})
     profiler = cProfile.Profile()
@@ -261,8 +261,16 @@ class PhantomBot(BotBase):
             return 0 <= combat.prediction.confidence[p] or 0 == combat.prediction.enemy_presence.dps[p]
 
         resources_to_harvest = self.all_taken_resources.filter(should_harvest_resource)
-        resource_context = ResourceContext(self, self.harvester_assignment, harvesters, self.gas_buildings.ready, resources_to_harvest.vespene_geyser, resources_to_harvest.mineral_field, gas_ratio)
-        resource_report = self.resource_manager.update(resource_context)
+        resource_context = ResourceContext(
+            self,
+            self.harvester_assignment,
+            harvesters,
+            self.gas_buildings.ready,
+            resources_to_harvest.vespene_geyser,
+            resources_to_harvest.mineral_field,
+            gas_ratio,
+        )
+        resource_report = update_resources(resource_context)
         self.harvester_assignment = resource_report.assignment
         for plan in resource_report.plans:
             self.macro.add_plan(plan)
