@@ -1,8 +1,8 @@
 import math
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cached_property, lru_cache
 from itertools import chain
-from typing import Iterable, Iterator
+from typing import Iterator, Iterable
 
 import numpy as np
 from loguru import logger
@@ -113,7 +113,7 @@ class ResourceContext:
     def workers_in_geysers(self) -> int:
         return int(self.bot.supply_workers) - self.bot.workers.amount
 
-    # @lru_cache(maxsize=None)
+    #@lru_cache(maxsize=None)
     def harvester_target_at(self, p: Point2) -> int:
         if geyser := self.vespene_geyser_at.get(p):
             if not remaining(geyser):
@@ -127,11 +127,7 @@ class ResourceContext:
 
     def pick_gas(self, assignment: HarvesterAssignment) -> Unit | None:
         return max(
-            (
-                g
-                for g in self.gas_buildings
-                if len(assignment.assigned_to(g.position)) < self.harvester_target_at(g.position)
-            ),
+            (g for g in self.gas_buildings if len(assignment.assigned_to(g.position)) < self.harvester_target_at(g.position)),
             key=lambda g: self.harvester_target_at(g.position) - len(assignment.assigned_to(g.position)),
             default=None,
         )
@@ -222,7 +218,7 @@ class ResourceManager:
                 continue
             target = max(
                 chain(context.mineral_fields.mineral_field, context.gas_buildings),
-                key=lambda r: assignment_priority(assignment, harvester, r),
+                key=lambda r: assignment_priority(assignment, harvester, r)
             )
             assignment += {harvester.tag: target.position}
             logger.info(f"Assigning {harvester=} to {target=}")
@@ -240,9 +236,7 @@ class ResourceManager:
 
         return assignment
 
-    def update_balance(
-        self, context: ResourceContext, assignment: HarvesterAssignment, gas_target: float
-    ) -> HarvesterAssignment:
+    def update_balance(self, context: ResourceContext, assignment: HarvesterAssignment, gas_target: float) -> HarvesterAssignment:
 
         # transfer to/from gas
         gas_harvester_count = len(assignment.assigned_to_set(context.gas_positions))
@@ -278,7 +272,10 @@ class ResourceManager:
             (
                 tag
                 for tag, p in assignment.items.items()
-                if (p in context.mineral_positions and context.harvester_target_at(p) < len(assignment.assigned_to(p)))
+                if (
+                    p in context.mineral_positions
+                    and context.harvester_target_at(p) < len(assignment.assigned_to(p))
+                )
             ),
             None,
         ):
@@ -312,5 +309,7 @@ class ResourceManager:
         gas_target = assignment.count * context.gas_ratio
         assignment = self.update_balance(context, assignment, gas_target)
 
-        plans = list(chain(context.build_gasses(gas_target)))
+        plans = list(chain(
+            context.build_gasses(gas_target)
+        ))
         return ResourceReport(context, assignment, plans)
