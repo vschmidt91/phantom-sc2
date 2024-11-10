@@ -10,7 +10,7 @@ from typing import AsyncGenerator, Iterable, cast
 import numpy as np
 from ares import DEBUG
 from loguru import logger
-from sc2.data import ActionResult, Result, race_gas, race_townhalls
+from sc2.data import ActionResult, Result
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -28,10 +28,11 @@ from bot.constants import (
     CIVILIANS,
     COOLDOWN,
     ENERGY_COST,
+    GAS_BY_RACE,
     REQUIREMENTS,
     UNKNOWN_VERSION,
     VERSION_FILE,
-    WITH_TECH_EQUIVALENTS, GAS_BY_RACE,
+    WITH_TECH_EQUIVALENTS,
 )
 from bot.creep import CreepSpread
 from bot.dodge import Dodge, DodgeResult

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from functools import cached_property, lru_cache
+from functools import lru_cache
 from itertools import chain
 from typing import Iterable, TypeAlias
 
@@ -20,6 +20,7 @@ from sc2.units import Units
 from bot.constants import (
     DPS_OVERRIDE,
     ITEM_BY_ABILITY,
+    MINING_RADIUS,
     RANGE_UPGRADES,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
@@ -29,10 +30,10 @@ from bot.constants import (
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
     ZERG_MELEE_UPGRADES,
-    ZERG_RANGED_UPGRADES, MINING_RADIUS,
+    ZERG_RANGED_UPGRADES,
 )
 from bot.cost import Cost, CostManager
-from utils import project_point_onto_line, get_intersections, center
+from bot.utils import center, get_intersections, project_point_onto_line
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 
@@ -69,9 +70,7 @@ class BotBase(AresBot, ABC):
     def all_taken_resources(self) -> Units:
         return Units(
             chain.from_iterable(
-                rs
-                for p, rs in self.expansion_locations_dict.items()
-                if (th := self.townhall_at.get(p)) and th.is_ready
+                rs for p, rs in self.expansion_locations_dict.items() if (th := self.townhall_at.get(p)) and th.is_ready
             ),
             self,
         )
@@ -145,7 +144,8 @@ class BotBase(AresBot, ABC):
                     if MINING_RADIUS <= patch2.position.distance_to(position):
                         continue
                     intersections = list(
-                        get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS))
+                        get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS)
+                    )
                     if intersections:
                         intersection1, intersection2 = intersections
                         if intersection1.distance_to(pos) < intersection2.distance_to(pos):
@@ -162,9 +162,7 @@ class BotBase(AresBot, ABC):
     async def initialize_bases(self) -> list[Point2]:
 
         bs = self.expansion_locations_list
-        base_distances = await self.client.query_pathings(
-            [[self.start_location, b] for b in bs]
-        )
+        base_distances = await self.client.query_pathings([[self.start_location, b] for b in bs])
         distance_of_base = dict(zip(bs, base_distances))
         distance_of_base[self.start_location] = 0
         for b in self.enemy_start_locations:

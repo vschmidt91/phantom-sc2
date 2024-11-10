@@ -1,9 +1,9 @@
 import itertools
 import math
 from dataclasses import dataclass
-from functools import cached_property, lru_cache
+from functools import cached_property
 from itertools import chain
-from typing import Iterable, Iterator
+from typing import Iterator
 
 import numpy as np
 from loguru import logger
@@ -14,8 +14,6 @@ from sc2.units import Units
 
 from bot.action import Action, DoNothing, Smart
 from bot.base import BotBase
-from bot.constants import GAS_BY_RACE
-from bot.macro import MacroPlan
 from bot.resources.gather import GatherAction, ReturnResource
 
 STATIC_DEFENSE_TRIGGERS = {
@@ -114,7 +112,7 @@ class ResourceContext:
     def workers_in_geysers(self) -> int:
         return int(self.bot.supply_workers) - self.bot.workers.amount
 
-    #@lru_cache(maxsize=None)
+    # @lru_cache(maxsize=None)
     def harvester_target_at(self, p: Point2) -> int:
         if geyser := self.vespene_geyser_at.get(p):
             if not remaining(geyser):
@@ -134,7 +132,9 @@ class ResourceContext:
             default=None,
         )
 
-    def pick_harvester(self, assignment: HarvesterAssignment, from_resources: set[Point2], close_to: Point2) -> Unit | None:
+    def pick_harvester(
+        self, assignment: HarvesterAssignment, from_resources: set[Point2], close_to: Point2
+    ) -> Unit | None:
         candidate_tags = assignment.assigned_to_set(from_resources)
         candidates = self.harvesters.filter(lambda h: h.tag in candidate_tags)
         if not candidates:
@@ -175,6 +175,7 @@ class ResourceContext:
         # assign new harvesters
         def assignment_priority(a: HarvesterAssignment, h: Unit, t: Unit) -> float:
             return self.harvester_target_at(t.position) - len(a.assigned_to(t.position)) + np.exp(-h.distance_to(t))
+
         for harvester in self.harvesters:
             if harvester.tag in assignment:
                 continue
@@ -191,7 +192,6 @@ class ResourceContext:
 
         # transfer to/from gas
         gas_harvester_count = len(assignment.assigned_to_set(self.gas_positions))
-        mineral_harvester_count = len(assignment.assigned_to_set(self.mineral_positions))
 
         gas_max = sum(self.harvester_target_at(p) for p in self.gas_building_at)
         effective_gas_target = min(gas_max, gas_target)
@@ -204,26 +204,11 @@ class ResourceContext:
             assignment = self.balance_positions(assignment, self.mineral_positions)
             assignment = self.balance_positions(assignment, self.gas_positions)
 
-
-
-        # effective_gas_balance = gas_harvester_count - effective_gas_target
-        #
-        # mineral_target = sum(self.harvester_target_at(p) for p in self.mineral_positions)
-        # mineral_balance = mineral_harvester_count - mineral_target
-        #
-        # if effective_gas_balance < 0 or 0 < mineral_balance:
-        #     assignment = self.transfer_harvester(assignment, self.mineral_positions, self.gas_positions)
-        # elif 1 <= effective_gas_balance and mineral_balance < 0:
-        #     assignment = self.transfer_harvester(assignment, self.gas_positions, self.mineral_positions)
-        # else:
-        #     assignment = self.balance_positions(assignment, set(self.resource_at))
-
-        # assignment = self.balance_positions(assignment, self.mineral_positions)
-        # assignment = self.balance_positions(assignment, self.gas_positions)
-
         return assignment
 
-    def transfer_harvester(self, assignment: HarvesterAssignment, from_resources: set[Point2], to_resources: set[Point2]) -> HarvesterAssignment:
+    def transfer_harvester(
+        self, assignment: HarvesterAssignment, from_resources: set[Point2], to_resources: set[Point2]
+    ) -> HarvesterAssignment:
         if not (patch := self.pick_resource(assignment, to_resources)):
             return assignment
         if not (harvester := self.pick_harvester(assignment, from_resources, patch)):
@@ -239,7 +224,9 @@ class ResourceContext:
         if not any(undersaturated):
             return assignment
 
-        transfer_from, transfer_to = min(itertools.product(oversaturated, undersaturated), key=lambda p: p[0].distance_to(p[1]))
+        transfer_from, transfer_to = min(
+            itertools.product(oversaturated, undersaturated), key=lambda p: p[0].distance_to(p[1])
+        )
 
         # transfer_from = oversaturated[0]
         # transfer_to = undersaturated[0]
@@ -258,10 +245,12 @@ class ResourceReport:
 
     @property
     def max_harvesters(self) -> int:
-        return sum((
-            2 * self.context.mineral_fields.amount,
-            3 * self.context.vespene_geysers.amount,
-        ))
+        return sum(
+            (
+                2 * self.context.mineral_fields.amount,
+                3 * self.context.vespene_geysers.amount,
+            )
+        )
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
         if not (target_pos := self.assignment.items.get(unit.tag)):

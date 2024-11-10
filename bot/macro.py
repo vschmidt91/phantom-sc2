@@ -1,6 +1,5 @@
 import math
 import random
-import shutil
 from dataclasses import dataclass
 from itertools import chain
 from typing import Callable, Iterable, TypeAlias
@@ -80,17 +79,22 @@ async def get_target_position(context: BotBase, target: UnitTypeId, blocked_posi
     data = context.game_data.units[target.value]
     if target in {UnitTypeId.HATCHERY}:
         candidates = [
-            b for b in context.expansion_locations_list
-            if b not in blocked_positions and b not in context.townhall_at
+            b for b in context.expansion_locations_list if b not in blocked_positions and b not in context.townhall_at
         ]
         if not candidates:
             return None
-        loss_positions = {s.position for s in context.structures} | {context.in_mineral_line(b) for b in context.bases_taken}
-        loss_positions_enemy = {s.position for s in context.enemy_structures} | {s for s in context.enemy_start_locations}
+        loss_positions = {s.position for s in context.structures} | {
+            context.in_mineral_line(b) for b in context.bases_taken
+        }
+        loss_positions_enemy = {s.position for s in context.enemy_structures} | {
+            s for s in context.enemy_start_locations
+        }
+
         async def loss_fn(p: Point2) -> float:
             distances = await context.client.query_pathings([[p, q] for q in loss_positions])
             distances_enemy = await context.client.query_pathings([[p, q] for q in loss_positions_enemy])
             return max(distances) - min(distances_enemy)
+
         c_min = candidates[0]
         loss_min = await loss_fn(c_min)
         for c in candidates[1:]:

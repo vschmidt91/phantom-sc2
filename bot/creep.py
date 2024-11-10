@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Iterable, cast
+from typing import Iterable
 
 import numpy as np
 from loguru import logger
