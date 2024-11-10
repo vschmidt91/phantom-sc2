@@ -122,16 +122,11 @@ class Combat:
         retreat_path_limit = 5
         retreat_path = retreat_map.get_path((x, y), retreat_path_limit)
 
-        confidence = np.mean(
-            [
-                self.prediction.confidence_global,
-                self.prediction.confidence[unit.position.rounded],
-            ]
-        )
+        confidence = self.prediction.confidence[unit.position.rounded]
 
         if unit.type_id == UnitTypeId.QUEEN and not context.has_creep(unit.position):
             stance = CombatStance.FLEE
-        elif confidence < 0 and not context.has_creep(unit.position):
+        elif self.prediction.confidence_global < 0 and not context.has_creep(unit.position):
             stance = CombatStance.FLEE
         elif unit.is_burrowed:
             stance = CombatStance.FLEE

@@ -31,7 +31,7 @@ from bot.constants import (
     REQUIREMENTS,
     UNKNOWN_VERSION,
     VERSION_FILE,
-    WITH_TECH_EQUIVALENTS,
+    WITH_TECH_EQUIVALENTS, GAS_BY_RACE,
 )
 from bot.creep import CreepSpread
 from bot.dodge import Dodge, DodgeResult
@@ -62,6 +62,7 @@ class PhantomBot(BotBase):
     version = UNKNOWN_VERSION
     _blocked_positions = dict[Point2, float]()
     _bile_last_used = dict[int, int]()
+    _max_harvesters = 16
 
     async def on_before_start(self):
         await super().on_before_start()
@@ -80,7 +81,7 @@ class PhantomBot(BotBase):
         #     ]
         # )
         # await self.client.debug_upgrade()
-        self.scout.initialize_scout_targets(self, self.bases)
+        self.scout.initialize_scout_targets(self, self.expansion_locations_list)
 
         if os.path.exists(VERSION_FILE):
             with open(VERSION_FILE) as f:
@@ -89,23 +90,6 @@ class PhantomBot(BotBase):
 
     async def send_chat_message(self, message: ChatMessage) -> None:
         await self.client.chat_send(message.message, message.team_only)
-
-    def update_bases(self) -> None:
-        gas_buildings_by_position = {gas.position: gas for gas in self.actual_by_type[race_gas[self.race]]}
-        resource_by_position = {unit.position: unit for unit in self.resources}
-        townhalls_by_position = {
-            townhall.position: townhall
-            for townhall_type in race_townhalls[self.race]
-            for townhall in chain(self.actual_by_type[townhall_type], self.pending_by_type[townhall_type])
-        }
-        for base in self.bases:
-            for patch in base.mineral_patches:
-                patch.unit = resource_by_position.get(patch.position)
-            for geyser in base.vespene_geysers:
-                geyser.unit = resource_by_position.get(geyser.position)
-                geyser.structure = gas_buildings_by_position.get(geyser.position)
-        for base in self.bases:
-            base.townhall = townhalls_by_position.get(base.position)
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
@@ -124,7 +108,6 @@ class PhantomBot(BotBase):
         # ------------------------
 
         self.reset_blocked_bases()
-        self.update_bases()
 
         await self.chat.do_chat(self.send_chat_message)
         dodge = self.dodge.update(self)
@@ -139,7 +122,7 @@ class PhantomBot(BotBase):
             air_pathing=self.mediator.get_map_data_object.get_clean_air_grid(),
         )
         prediction = predict(predictor_context)
-        worker_target = max(1, min(80, self.max_harvesters))
+        worker_target = max(1, min(80, self._max_harvesters))
         strategy = decide_strategy(self, worker_target, prediction.confidence_global)
 
         if self.run_build_order():
@@ -272,7 +255,8 @@ class PhantomBot(BotBase):
         )
         resource_report = update_resources(resource_context)
         self.harvester_assignment = resource_report.assignment
-        for plan in resource_report.plans:
+        self._max_harvesters = resource_report.max_harvesters
+        for plan in self.build_gasses(resource_report):
             self.macro.add_plan(plan)
 
         for worker in harvesters:
@@ -312,6 +296,16 @@ class PhantomBot(BotBase):
                 yield action
         for action in scout_actions.values():
             yield action
+
+    def build_gasses(self, resources: ResourceReport) -> Iterable[MacroPlan]:
+        gas_type = GAS_BY_RACE[self.race]
+        gas_depleted = self.gas_buildings.filter(lambda g: not g.has_vespene).amount
+        gas_pending = self.count(gas_type, include_actual=False)
+        gas_have = resources.context.gas_buildings.amount
+        gas_max = resources.context.vespene_geysers.amount
+        gas_want = min(gas_max, gas_depleted + math.ceil((resources.gas_target - 1) / 3))
+        if gas_have + gas_pending < gas_want:
+            yield MacroPlan(gas_type)
 
     def planned_by_type(self, item: MacroId) -> Iterable:
         return self.macro.planned_by_type(item)
@@ -433,7 +427,7 @@ class PhantomBot(BotBase):
         if 2 == self.townhalls.amount and 2 > self.count(UnitTypeId.QUEEN, include_planned=False):
             return None
 
-        worker_max = self.max_harvesters
+        worker_max = self._max_harvesters
         saturation = max(0, min(1, self.state.score.food_used_economy / max(1, worker_max)))
         if 2 < self.townhalls.amount and 2 / 3 > saturation:
             return None

@@ -1,6 +1,7 @@
+import itertools
 import math
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cached_property, lru_cache
 from itertools import chain
 from typing import Iterable, Iterator
 
@@ -113,7 +114,7 @@ class ResourceContext:
     def workers_in_geysers(self) -> int:
         return int(self.bot.supply_workers) - self.bot.workers.amount
 
-    # @lru_cache(maxsize=None)
+    #@lru_cache(maxsize=None)
     def harvester_target_at(self, p: Point2) -> int:
         if geyser := self.vespene_geyser_at.get(p):
             if not remaining(geyser):
@@ -123,7 +124,8 @@ class ResourceContext:
             if not remaining(patch):
                 return 0
             return 2
-        raise KeyError()
+        logger.error(f"Missing resource at {p}")
+        return 0
 
     def pick_resource(self, assignment: HarvesterAssignment, targets: set[Point2]) -> Point2 | None:
         return max(
@@ -138,16 +140,6 @@ class ResourceContext:
         if not candidates:
             return None
         return candidates.closest_to(close_to)
-
-    def build_gasses(self, gas_target: float) -> Iterable[MacroPlan]:
-        gas_type = GAS_BY_RACE[self.bot.race]
-        gas_depleted = self.bot.gas_buildings.filter(lambda g: not g.has_vespene).amount
-        gas_pending = self.bot.count(gas_type, include_actual=False)
-        gas_have = self.gas_buildings.amount
-        gas_max = self.vespene_geysers.amount
-        gas_want = min(gas_max, gas_depleted + math.ceil((gas_target - 1) / 3))
-        if gas_have + gas_pending < gas_want:
-            yield MacroPlan(gas_type)
 
     def update_assignment(self, assignment: HarvesterAssignment) -> HarvesterAssignment:
         if assignment.count == 0:
@@ -195,26 +187,39 @@ class ResourceContext:
 
         return assignment
 
-    def update_balance(self, assignment: HarvesterAssignment, gas_target: float) -> HarvesterAssignment:
+    def update_balance(self, assignment: HarvesterAssignment, gas_target: int) -> HarvesterAssignment:
 
         # transfer to/from gas
         gas_harvester_count = len(assignment.assigned_to_set(self.gas_positions))
         mineral_harvester_count = len(assignment.assigned_to_set(self.mineral_positions))
 
-        gas_max = sum(self.harvester_target_at(p) for p in self.vespene_geyser_at)
-        effective_gas_target = min(float(gas_max), gas_target)
-        effective_gas_balance = gas_harvester_count - effective_gas_target
+        gas_max = sum(self.harvester_target_at(p) for p in self.gas_building_at)
+        effective_gas_target = min(gas_max, gas_target)
 
-        mineral_target = sum(self.harvester_target_at(p) for p in self.mineral_positions)
-        mineral_balance = mineral_harvester_count - mineral_target
-
-        if effective_gas_balance < 0 or 0 < mineral_balance:
+        if gas_harvester_count < effective_gas_target:
             assignment = self.transfer_harvester(assignment, self.mineral_positions, self.gas_positions)
-        elif 1 <= effective_gas_balance and mineral_balance < 0:
+        elif effective_gas_target < gas_harvester_count:
             assignment = self.transfer_harvester(assignment, self.gas_positions, self.mineral_positions)
+        else:
+            assignment = self.balance_positions(assignment, self.mineral_positions)
+            assignment = self.balance_positions(assignment, self.gas_positions)
 
-        assignment = self.balance_positions(assignment, self.mineral_positions)
-        assignment = self.balance_positions(assignment, self.gas_positions)
+
+
+        # effective_gas_balance = gas_harvester_count - effective_gas_target
+        #
+        # mineral_target = sum(self.harvester_target_at(p) for p in self.mineral_positions)
+        # mineral_balance = mineral_harvester_count - mineral_target
+        #
+        # if effective_gas_balance < 0 or 0 < mineral_balance:
+        #     assignment = self.transfer_harvester(assignment, self.mineral_positions, self.gas_positions)
+        # elif 1 <= effective_gas_balance and mineral_balance < 0:
+        #     assignment = self.transfer_harvester(assignment, self.gas_positions, self.mineral_positions)
+        # else:
+        #     assignment = self.balance_positions(assignment, set(self.resource_at))
+
+        # assignment = self.balance_positions(assignment, self.mineral_positions)
+        # assignment = self.balance_positions(assignment, self.gas_positions)
 
         return assignment
 
@@ -233,10 +238,14 @@ class ResourceContext:
         undersaturated = [p for p in ps if len(assignment.assigned_to(p)) < self.harvester_target_at(p)]
         if not any(undersaturated):
             return assignment
-        transfer_from = oversaturated[0]
+
+        transfer_from, transfer_to = min(itertools.product(oversaturated, undersaturated), key=lambda p: p[0].distance_to(p[1]))
+
+        # transfer_from = oversaturated[0]
+        # transfer_to = undersaturated[0]
+
         harvester = next(iter(assignment.assigned_to(transfer_from)))
-        transfer_to = undersaturated[0]
-        assignment = assignment.assign({harvester.tag: transfer_to})
+        assignment = assignment.assign({harvester: transfer_to})
         logger.info(f"Transferring {harvester=} to {transfer_to=}")
         return assignment
 
@@ -245,7 +254,14 @@ class ResourceContext:
 class ResourceReport:
     context: ResourceContext
     assignment: HarvesterAssignment
-    plans: list[MacroPlan]
+    gas_target: int
+
+    @property
+    def max_harvesters(self) -> int:
+        return sum((
+            2 * self.context.mineral_fields.amount,
+            3 * self.context.vespene_geysers.amount,
+        ))
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
         if not (target_pos := self.assignment.items.get(unit.tag)):
@@ -286,12 +302,11 @@ def split_initial_workers(patches: Units, harvesters: Units) -> HarvesterAssignm
 def update_resources(context: ResourceContext) -> ResourceReport:
 
     if not context.mineral_fields:
-        return ResourceReport(context, HarvesterAssignment({}), [])
+        return ResourceReport(context, HarvesterAssignment({}), 0)
 
     assignment = context.old_assignment
     assignment = context.update_assignment(assignment)
-    gas_target = assignment.count * context.gas_ratio
+    gas_target = math.ceil(assignment.count * context.gas_ratio)
     assignment = context.update_balance(assignment, gas_target)
 
-    plans = list(chain(context.build_gasses(gas_target)))
-    return ResourceReport(context, assignment, plans)
+    return ResourceReport(context, assignment, gas_target)

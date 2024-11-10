@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Iterable
+from typing import Iterable, cast
 
 import numpy as np
 from loguru import logger
@@ -57,7 +57,8 @@ class CreepSpreadContext:
         x0 = round(unit.position.x)
         y0 = round(unit.position.y)
 
-        targets = circle_perimeter(x0, y0, TUMOR_RANGE, shape=self.creep.shape)
+        r = 10 if unit.type_id == UnitTypeId.CREEPTUMORBURROWED else 3
+        targets = circle_perimeter(x0, y0, r, shape=self.creep.shape)
         if not any(targets):
             return None
 
@@ -113,7 +114,7 @@ class CreepSpread:
         creep = context.state.creep.data_numpy.T == 1
         visibility = context.state.visibility.data_numpy.T == 2
         pathing = context.mediator.get_map_data_object.get_pyastar_grid() == 1.0
-        bases = {b.position for b in context.bases}
+        bases = set(context.expansion_locations_list)
 
         return CreepSpreadContext(
             context,

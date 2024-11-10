@@ -1,3 +1,4 @@
+import enum
 import math
 from dataclasses import dataclass
 from typing import Counter, TypeAlias
@@ -16,17 +17,26 @@ from bot.constants import (
 Composition: TypeAlias = dict[UnitTypeId, int]
 
 
+class StrategyTier(enum.Enum):
+    Zero = enum.auto()
+    Hatch = enum.auto()
+    Lair = enum.auto()
+    Hive = enum.auto()
+
+
 @dataclass(frozen=True)
 class Strategy:
     context: BotBase
     composition: Composition
-    tech_up: bool
+    tech_up: StrategyTier
 
     def filter_upgrade(self, upgrade: UpgradeId) -> bool:
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
             return True
-        elif not self.tech_up:
+        elif self.tech_up == StrategyTier.Zero:
             return False
+        elif upgrade == UpgradeId.BURROW:
+            return self.tech_up != StrategyTier.Hatch
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
             return 0 < self.context.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False)
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
@@ -36,7 +46,7 @@ class Strategy:
         elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
             return 0 < self.context.count(UnitTypeId.GREATERSPIRE, include_planned=False)
         elif upgrade == UpgradeId.OVERLORDSPEED:
-            return 8 * 60 < self.context.time
+            return self.tech_up == StrategyTier.Hive
         else:
             return True
 
@@ -70,7 +80,6 @@ def decide_strategy(context: BotBase, worker_target: int, confidence: float) -> 
         enemy.type_id for enemy in context.all_enemy_units if enemy.type_id in UNIT_COUNTER_DICT
     )
 
-    tech_up = 32 <= worker_count and 3 <= context.townhalls.amount
     lair_count = context.count(UnitTypeId.LAIR, include_pending=False, include_planned=False)
     hive_count = context.count(UnitTypeId.HIVE, include_pending=True, include_planned=False)
 
@@ -90,23 +99,30 @@ def decide_strategy(context: BotBase, worker_target: int, confidence: float) -> 
     composition[UnitTypeId.RAVAGER] += composition[UnitTypeId.ROACH] / 13
     composition[UnitTypeId.CORRUPTOR] += composition[UnitTypeId.BROODLORD] / 8
 
-    if tech_up:
+    tier = StrategyTier.Hive
+    if worker_count < 32 or context.townhalls.amount < 3:
+        tier = StrategyTier.Zero
+    elif worker_count < 66 or context.townhalls.amount < 4:
+        tier = StrategyTier.Hatch
+    elif worker_count < 80 or context.townhalls.amount < 5:
+        tier = StrategyTier.Lair
+
+    if tier == StrategyTier.Zero:
+        pass
+    elif tier == StrategyTier.Hatch:
         composition[UnitTypeId.ROACHWARREN] = 1
         composition[UnitTypeId.OVERSEER] = 1
-
-    if tech_up and 0 < lair_count + hive_count and 150 < context.supply_used:
+    elif tier == StrategyTier.Lair:
+        composition[UnitTypeId.OVERSEER] = 3
         composition[UnitTypeId.HYDRALISKDEN] = 1
-        composition[UnitTypeId.OVERSEER] = 2
+        composition[UnitTypeId.EVOLUTIONCHAMBER] = 1
+    elif tier == StrategyTier.Hive:
         composition[UnitTypeId.EVOLUTIONCHAMBER] = 2
-
-    if tech_up and 0 < hive_count and 150 < context.supply_used:
-        if 0 == context.count(UnitTypeId.SPIRE, include_planned=False) + context.count(
-            UnitTypeId.SPIRE, include_planned=False
-        ):
+        composition[UnitTypeId.OVERSEER] = 5
+        if 0 == context.count(UnitTypeId.SPIRE, include_planned=False):
             composition[UnitTypeId.SPIRE] = 1
         else:
             composition[UnitTypeId.GREATERSPIRE] = 1
-        composition[UnitTypeId.OVERSEER] = 3
 
     if worker_count == worker_target:
         banking_minerals = max(0, context.minerals - 300)
@@ -125,4 +141,4 @@ def decide_strategy(context: BotBase, worker_target: int, confidence: float) -> 
 
     composition = {k: int(math.floor(v)) for k, v in composition.items() if 0 < v}
 
-    return Strategy(context, composition, tech_up)
+    return Strategy(context, composition, tier)

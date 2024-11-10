@@ -80,7 +80,7 @@ def predict(context: PredictorContext) -> Prediction:
     confidence = np.log1p(force) - np.log1p(enemy_force)
 
     force_global = sum(unit_value(u) for u in context.units)
-    enemy_force_global = sum(unit_value(u) for u in context.units)
+    enemy_force_global = sum(unit_value(u) for u in context.enemy_units)
     confidence_global = np.log1p(force_global) - np.log1p(enemy_force_global)
 
     return Prediction(

@@ -1,5 +1,6 @@
 import math
 import random
+import shutil
 from dataclasses import dataclass
 from itertools import chain
 from typing import Callable, Iterable, TypeAlias
@@ -75,27 +76,38 @@ def get_eta(context: BotBase, reserve: Cost, cost: Cost) -> float:
     )
 
 
-def get_target_position(context: BotBase, target: UnitTypeId, blocked_positions: set[Point2]) -> Point2 | None:
+async def get_target_position(context: BotBase, target: UnitTypeId, blocked_positions: set[Point2]) -> Point2 | None:
     data = context.game_data.units[target.value]
     if target in {UnitTypeId.HATCHERY}:
-        for base in context.bases:
-            if base.townhall:
-                continue
-            if base.position.rounded in blocked_positions:
-                continue
-            if base.mineral_patches.remaining < 500 and base.vespene_geysers.remaining == 0:
-                continue
-            return base.position
-        return None
+        candidates = [
+            b for b in context.expansion_locations_list
+            if b not in blocked_positions and b not in context.townhall_at
+        ]
+        if not candidates:
+            return None
+        loss_positions = {s.position for s in context.structures} | {context.in_mineral_line(b) for b in context.bases_taken}
+        loss_positions_enemy = {s.position for s in context.enemy_structures} | {s for s in context.enemy_start_locations}
+        async def loss_fn(p: Point2) -> float:
+            distances = await context.client.query_pathings([[p, q] for q in loss_positions])
+            distances_enemy = await context.client.query_pathings([[p, q] for q in loss_positions_enemy])
+            return max(distances) - min(distances_enemy)
+        c_min = candidates[0]
+        loss_min = await loss_fn(c_min)
+        for c in candidates[1:]:
+            loss = await loss_fn(c)
+            if loss < loss_min:
+                loss_min = loss
+                c_min = c
+        return c_min
 
-    bases = list(context.bases)
+    bases = list(context.expansion_locations_dict.items())
     random.shuffle(bases)
-    for base in bases:
-        if not base.townhall:
+    for pos, resources in bases:
+        if not (base := context.townhall_at.get(pos)):
             continue
-        elif not base.townhall.is_ready:
+        if not base.is_ready:
             continue
-        position = base.position.towards_with_random_angle(base.mineral_patches.position, 10)
+        position = pos.towards_with_random_angle(context.behind_mineral_line(pos), 10)
         offset = data.footprint_radius % 1
         position = position.rounded.offset((offset, offset))
         return position
@@ -219,7 +231,7 @@ class Macro:
 
             if not plan.target:
                 try:
-                    plan.target = self.get_target(context, trainer, plan, blocked_positions)
+                    plan.target = await self.get_target(context, trainer, plan, blocked_positions)
                 except PlacementNotFoundException:
                     continue
 
@@ -256,7 +268,7 @@ class Macro:
         )
         return future_spending
 
-    def get_target(
+    async def get_target(
         self, context: BotBase, trainer: Unit, objective: MacroPlan, blocked_positions: set[Point2]
     ) -> Unit | Point2 | None:
         gas_type = GAS_BY_RACE[context.race]
@@ -269,10 +281,11 @@ class Macro:
                 if order.ability.exact_id == AbilityId.ZERGBUILD_EXTRACTOR
             }
             exclude_tags.update({p.target.tag for p in self.planned_by_type(gas_type) if isinstance(p.target, Unit)})
+            owned_geysers = [g for b in context.bases_taken for g in context.expansion_locations_dict[b].vespene_geyser]
             geysers = [
-                geyser.unit
-                for geyser in context.owned_geysers
-                if (geyser.position not in exclude_positions and geyser.unit and geyser.unit.tag not in exclude_tags)
+                geyser
+                for geyser in owned_geysers
+                if (geyser.position not in exclude_positions and geyser and geyser.tag not in exclude_tags)
             ]
             if not any(geysers):
                 raise PlacementNotFoundException()
@@ -286,7 +299,7 @@ class Macro:
         # data = MACRO_INFO[trainer.unit.type_id][objective.item]
 
         if "requires_placement_position" in data:
-            position = get_target_position(context, objective.item, blocked_positions)
+            position = await get_target_position(context, objective.item, blocked_positions)
             if not position:
                 raise PlacementNotFoundException()
             return position

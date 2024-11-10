@@ -7,7 +7,6 @@ from sc2.units import Units
 
 from bot.action import Action
 from bot.base import BotBase
-from bot.resources.expansion import Expansion
 
 
 @dataclass
@@ -27,7 +26,7 @@ class Scout:
     scout_enemy_natural: bool = False
     static_targets: list[Point2] = list()
 
-    def initialize_scout_targets(self, context: BotBase, bases: list[Expansion]) -> None:
+    def initialize_scout_targets(self, context: BotBase, bases: list[Point2]) -> None:
         for base in bases[1 : len(bases) // 2]:
             self.static_targets.append(base.position)
 
@@ -45,7 +44,7 @@ class Scout:
         non_detectors = [u for u in scouts if not u.is_detector]
         scout_targets = []
         if self.scout_enemy_natural and context.time < 3 * 60:
-            target = context.bases[-2].position
+            target = context.expansion_locations_list[-2]
             scout_targets.append(target)
         scout_targets.extend(self.static_targets)
 

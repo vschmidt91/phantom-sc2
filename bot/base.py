@@ -6,7 +6,6 @@ from typing import Iterable, TypeAlias
 
 import numpy as np
 from ares import AresBot
-from sc2.data import race_townhalls
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -30,23 +29,20 @@ from bot.constants import (
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
     ZERG_MELEE_UPGRADES,
-    ZERG_RANGED_UPGRADES,
+    ZERG_RANGED_UPGRADES, MINING_RADIUS,
 )
 from bot.cost import Cost, CostManager
-from bot.resources.expansion import Expansion
-from bot.resources.mineral_patch import MineralPatch
-from bot.resources.unit import ResourceUnit
-from bot.resources.vespene_geyser import VespeneGeyser
+from utils import project_point_onto_line, get_intersections, center
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 
 
 class BotBase(AresBot, ABC):
 
-    bases = list[Expansion]()
     cost: CostManager
     actual_by_type = defaultdict[MacroId, list[Unit]](list)
     pending_by_type = defaultdict[MacroId, list[Unit]](list)
+    speedmining_positions = dict[Point2, Point2]()
 
     def __init__(self, game_step_override: int | None = None) -> None:
         super().__init__(game_step_override=game_step_override)
@@ -65,9 +61,9 @@ class BotBase(AresBot, ABC):
         else:
             return 0.0
 
-    @cached_property
-    def base_at(self) -> dict[Point2, Expansion]:
-        return {b.position: b for b in self.bases}
+    @property
+    def townhall_at(self) -> dict[Point2, Unit]:
+        return {b.position: b for b in self.townhalls}
 
     @property
     def all_taken_resources(self) -> Units:
@@ -75,45 +71,22 @@ class BotBase(AresBot, ABC):
             chain.from_iterable(
                 rs
                 for p, rs in self.expansion_locations_dict.items()
-                if (th := self.base_at[p].townhall) and th.is_ready
+                if (th := self.townhall_at.get(p)) and th.is_ready
             ),
             self,
         )
 
-    @property
-    def bases_taken(self) -> Iterable[Expansion]:
-        return (b for b in self.bases if b.townhall and b.townhall.is_ready)
+    @lru_cache()
+    def in_mineral_line(self, base: Point2) -> Point2:
+        return center(m.position for m in self.expansion_locations_dict[base].mineral_field)
+
+    @lru_cache()
+    def behind_mineral_line(self, base: Point2) -> Point2:
+        return base.towards(self.in_mineral_line(base), 10.0)
 
     @property
-    def max_harvesters(self) -> int:
-        workers = sum(b.harvester_target for b in self.bases_taken)
-        workers += 16 * self.townhalls.not_ready.amount
-        workers += 3 * self.gas_buildings.not_ready.amount
-        return workers
-
-    @property
-    def all_resources(self) -> Iterable[ResourceUnit]:
-        return chain[ResourceUnit](self.mineral_patches, self.vespene_geysers)
-
-    @property
-    def mineral_patches(self) -> Iterable[MineralPatch]:
-        return (r for b in self.bases_taken for r in b.mineral_patches)
-
-    @property
-    def vespene_geysers(self) -> Iterable[VespeneGeyser]:
-        return (r for b in self.bases_taken for r in b.vespene_geysers)
-
-    @property
-    def owned_geysers(self) -> Iterable[VespeneGeyser]:
-        for base in self.bases:
-            if not base.townhall:
-                continue
-            if not base.townhall.is_ready:
-                continue
-            if base.townhall.type_id not in race_townhalls[self.race]:
-                continue
-            for geyser in base.vespene_geysers:
-                yield geyser
+    def bases_taken(self) -> set[Point2]:
+        return {b for b in self.expansion_locations_list if (th := self.townhall_at.get(b)) and th.is_ready}
 
     def count(
         self, item: MacroId, include_pending: bool = True, include_planned: bool = True, include_actual: bool = True
@@ -155,39 +128,56 @@ class BotBase(AresBot, ABC):
 
     async def on_start(self) -> None:
         await super().on_start()
-        self.bases = await self.initialize_bases()
-        for base in self.bases:
-            base.set_speedmining_positions()
-        self.speedmining_positions = {m.position: m.speedmining_target for b in self.bases for m in b.mineral_patches}
+        self.set_speedmining_positions()
+
+    def set_speedmining_positions(self) -> None:
+        for pos, resources in self.expansion_locations_dict.items():
+            for patch in resources.mineral_field:
+                target = patch.position.towards(pos, MINING_RADIUS)
+                for patch2 in resources.mineral_field:
+                    if patch.position == patch2.position:
+                        continue
+                    position = project_point_onto_line(target, target - pos, patch2.position)
+                    distance1 = patch.position.distance_to(pos)
+                    distance2 = patch2.position.distance_to(pos)
+                    if distance1 < distance2:
+                        continue
+                    if MINING_RADIUS <= patch2.position.distance_to(position):
+                        continue
+                    intersections = list(
+                        get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS))
+                    if intersections:
+                        intersection1, intersection2 = intersections
+                        if intersection1.distance_to(pos) < intersection2.distance_to(pos):
+                            target = intersection1
+                        else:
+                            target = intersection2
+                        break
+                self.speedmining_positions[patch.position] = target
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
         self.update_tables()
 
-    async def initialize_bases(self) -> list[Expansion]:
+    async def initialize_bases(self) -> list[Point2]:
 
+        bs = self.expansion_locations_list
         base_distances = await self.client.query_pathings(
-            [[self.start_location, b] for b in self.expansion_locations_list]
+            [[self.start_location, b] for b in bs]
         )
-        distance_of_base = {b: d for b, d in zip(self.expansion_locations_list, base_distances)}
+        distance_of_base = dict(zip(bs, base_distances))
         distance_of_base[self.start_location] = 0
         for b in self.enemy_start_locations:
             distance_of_base[b] = np.inf
 
         start_bases = {self.start_location, *self.enemy_start_locations}
-
         bases = []
         for position, resources in self.expansion_locations_dict.items():
             if position not in start_bases and not await self.can_place_single(UnitTypeId.HATCHERY, position):
                 continue
-            base = Expansion(position, resources)
-            bases.append(base)
+            bases.append(position)
 
-        bases = sorted(
-            bases,
-            key=lambda b: distance_of_base[b.position],
-        )
-
+        bases.sort(key=lambda b: distance_of_base[b.position])
         return bases
 
     def update_tables(self):
