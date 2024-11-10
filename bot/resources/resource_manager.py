@@ -171,7 +171,8 @@ class ResourceReport:
         target_pos = self.harvesters.assignment[unit.tag]
         target = self.context.resource_at[target_pos]
         if target.is_vespene_geyser:
-            target = self.context.gas_building_at[target_pos]
+            if not (target := self.context.gas_building_at[target_pos]):
+                return None
         if unit.is_idle:
             return Smart(unit, target)
         elif 2 <= len(unit.orders):
