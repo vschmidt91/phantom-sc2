@@ -39,7 +39,7 @@ from bot.dodge import Dodge, DodgeResult
 from bot.inject import Inject
 from bot.macro import Macro, MacroId, MacroPlan
 from bot.predictor import Prediction, PredictorContext, predict
-from bot.resources.resource_manager import (
+from bot.resources.main import (
     HarvesterAssignment,
     ResourceContext,
     ResourceReport,

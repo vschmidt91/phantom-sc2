@@ -1,73 +1,28 @@
 import itertools
-import math
 from dataclasses import dataclass
 from functools import cached_property
-from itertools import chain
-from typing import Iterator
 
 import numpy as np
 from loguru import logger
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bot.action import Action, DoNothing, Smart
 from bot.base import BotBase
-from bot.resources.gather import GatherAction, ReturnResource
-
-STATIC_DEFENSE_TRIGGERS = {
-    UnitTypeId.ROACHBURROWED: 0.5,
-    UnitTypeId.MUTALISK: 0.3,
-    UnitTypeId.PHOENIX: 0.3,
-    UnitTypeId.ORACLE: 1.0,
-    UnitTypeId.BANSHEE: 1.0,
-}
+from bot.resources.assignment import HarvesterAssignment
+from bot.resources.utils import remaining
 
 
-def remaining(unit: Unit) -> int:
-    if unit.is_mineral_field:
-        if not unit.is_visible:
-            return 1500
-        else:
-            return unit.mineral_contents
-    elif unit.is_vespene_geyser:
-        if not unit.is_visible:
-            return 2250
-        else:
-            return unit.vespene_contents
-    raise TypeError()
-
-
-@dataclass(frozen=True)
-class HarvesterAssignment:
-    items: dict[int, Point2]
-
-    @property
-    def count(self) -> int:
-        return len(self.items)
-
-    @cached_property
-    def target(self) -> set[Point2]:
-        return set(self.items.values())
-
-    def assigned_to(self, p: Point2) -> set[int]:
-        return {u for u, t in self.items.items() if t == p}
-
-    def assigned_to_set(self, ps: set[Point2]) -> set[int]:
-        return {u for u, t in self.items.items() if t in ps}
-
-    def assign(self, other: dict[int, Point2]) -> "HarvesterAssignment":
-        return HarvesterAssignment({**self.items, **other})
-
-    def unassign(self, other: set[int]) -> "HarvesterAssignment":
-        return HarvesterAssignment({k: v for k, v in self.items.items() if k not in other})
-
-    def __iter__(self) -> Iterator[int]:
-        return iter(self.items)
-
-    def __contains__(self, other: int) -> bool:
-        return other in self.items
+def split_initial_workers(patches: Units, harvesters: Units) -> HarvesterAssignment:
+    harvester_set = set(harvesters)
+    assignment = HarvesterAssignment({})
+    while True:
+        for patch in patches:
+            if not harvester_set:
+                return assignment
+            harvester = min(harvester_set, key=lambda h: h.distance_to(patch))
+            harvester_set.remove(harvester)
+            assignment = assignment.assign({harvester.tag: patch.position})
 
 
 @dataclass(frozen=True)
@@ -126,11 +81,13 @@ class ResourceContext:
         return 0
 
     def pick_resource(self, assignment: HarvesterAssignment, targets: set[Point2]) -> Point2 | None:
-        return max(
-            targets,
-            key=lambda u: self.harvester_target_at(u.position) - len(assignment.assigned_to(u.position)),
-            default=None,
-        )
+
+        def loss_fn(u: Point2) -> float:
+            return self.harvester_target_at(u.position) - len(assignment.assigned_to(u.position))
+
+        if not any(targets):
+            return None
+        return max(targets, key=loss_fn)
 
     def pick_harvester(
         self, assignment: HarvesterAssignment, from_resources: set[Point2], close_to: Point2
@@ -180,7 +137,7 @@ class ResourceContext:
             if harvester.tag in assignment:
                 continue
             target = max(
-                chain(self.mineral_fields.mineral_field, self.gas_buildings),
+                itertools.chain(self.mineral_fields.mineral_field, self.gas_buildings),
                 key=lambda r: assignment_priority(assignment, harvester, r),
             )
             assignment = assignment.assign({harvester.tag: target.position})
@@ -235,67 +192,3 @@ class ResourceContext:
         assignment = assignment.assign({harvester: transfer_to})
         logger.info(f"Transferring {harvester=} to {transfer_to=}")
         return assignment
-
-
-@dataclass(frozen=True)
-class ResourceReport:
-    context: ResourceContext
-    assignment: HarvesterAssignment
-    gas_target: int
-
-    @property
-    def max_harvesters(self) -> int:
-        return sum(
-            (
-                2 * self.context.mineral_fields.amount,
-                3 * self.context.vespene_geysers.amount,
-            )
-        )
-
-    def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
-        if not (target_pos := self.assignment.items.get(unit.tag)):
-            logger.error(f"Unassinged harvester {unit}")
-            return None
-        if not (target := self.context.resource_at.get(target_pos)):
-            logger.error(f"No resource found at {target_pos}")
-            return None
-        if target.is_vespene_geyser:
-            if not (target := self.context.gas_building_at.get(target_pos)):
-                logger.error(f"No gas building found at {target_pos}")
-                return None
-        if unit.is_idle:
-            return Smart(unit, target)
-        elif 2 <= len(unit.orders):
-            return DoNothing()
-        elif unit.is_gathering:
-            return GatherAction(unit, target, self.context.bot.speedmining_positions.get(target_pos))
-        elif unit.is_returning:
-            assert any(return_targets)
-            return_target = min(return_targets, key=lambda th: th.distance_to(unit))
-            return ReturnResource(unit, return_target)
-        return Smart(unit, target)
-
-
-def split_initial_workers(patches: Units, harvesters: Units) -> HarvesterAssignment:
-    harvester_set = set(harvesters)
-    assignment = HarvesterAssignment({})
-    while True:
-        for patch in patches:
-            if not harvester_set:
-                return assignment
-            harvester = min(harvester_set, key=lambda h: h.distance_to(patch))
-            harvester_set.remove(harvester)
-            assignment = assignment.assign({harvester.tag: patch.position})
-
-
-def update_resources(context: ResourceContext) -> ResourceReport:
-
-    if not context.mineral_fields:
-        return ResourceReport(context, HarvesterAssignment({}), 0)
-
-    assignment = context.old_assignment
-    assignment = context.update_assignment(assignment)
-    gas_target = math.ceil(assignment.count * context.gas_ratio)
-    assignment = context.update_balance(assignment, gas_target)
-
-    return ResourceReport(context, assignment, gas_target)
