@@ -1,6 +1,7 @@
 import math
 from dataclasses import dataclass
 from functools import cached_property, lru_cache
+from itertools import chain
 from typing import Iterator
 
 import numpy as np
@@ -231,7 +232,10 @@ class ResourceManager:
         for harvester in context.harvesters:
             if harvester.tag in new_assignment:
                 continue
-            target = max(context.resources, key=lambda r: assignment_priority(new_assignment, harvester, r))
+            target = max(
+                chain(context.resources.mineral_field, context.gas_buildings),
+                key=lambda r: assignment_priority(new_assignment, harvester, r)
+            )
             new_assignment += {harvester.tag: target.position}
             logger.info(f"Assigning {harvester=} to {target=}")
 
