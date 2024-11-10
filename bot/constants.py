@@ -143,7 +143,7 @@ DPS_OVERRIDE = {
 
 CIVILIANS = {
     UnitTypeId.SCV,
-    UnitTypeId.MULE,
+    # UnitTypeId.MULE,
     UnitTypeId.PROBE,
     UnitTypeId.LARVA,
     UnitTypeId.EGG,

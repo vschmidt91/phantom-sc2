@@ -10,7 +10,7 @@ from typing import AsyncGenerator, Iterable, cast
 import numpy as np
 from ares import DEBUG
 from loguru import logger
-from sc2.data import ActionResult, Result
+from sc2.data import ActionResult, Result, race_gas, race_townhalls
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -38,7 +38,11 @@ from bot.dodge import Dodge, DodgeResult
 from bot.inject import Inject
 from bot.macro import Macro, MacroId, MacroPlan
 from bot.predictor import Prediction, PredictorContext, predict
-from bot.resources.resource_manager import ResourceManager
+from bot.resources.resource_manager import (
+    ResourceContext,
+    ResourceManager,
+    ResourceReport,
+)
 from bot.scout import Scout
 from bot.strategy import Strategy, decide_strategy
 from bot.transfuse import do_transfuse_single
@@ -76,15 +80,31 @@ class PhantomBot(BotBase):
         # )
         # await self.client.debug_upgrade()
         self.scout.initialize_scout_targets(self, self.bases)
-        self.resource_manager.split_initial_workers(self.mineral_patches, self.workers)
 
         if os.path.exists(VERSION_FILE):
             with open(VERSION_FILE) as f:
                 version = f.read()
-                self.add_replay_tag(f"{version=}")
+                self.add_replay_tag(f"version_{version}")
 
     async def send_chat_message(self, message: ChatMessage) -> None:
         await self.client.chat_send(message.message, message.team_only)
+
+    def update_bases(self) -> None:
+        gas_buildings_by_position = {gas.position: gas for gas in self.actual_by_type[race_gas[self.race]]}
+        resource_by_position = {unit.position: unit for unit in self.resources}
+        townhalls_by_position = {
+            townhall.position: townhall
+            for townhall_type in race_townhalls[self.race]
+            for townhall in chain(self.actual_by_type[townhall_type], self.pending_by_type[townhall_type])
+        }
+        for base in self.bases:
+            for patch in base.mineral_patches:
+                patch.unit = resource_by_position.get(patch.position)
+            for geyser in base.vespene_geysers:
+                geyser.unit = resource_by_position.get(geyser.position)
+                geyser.structure = gas_buildings_by_position.get(geyser.position)
+        for base in self.bases:
+            base.townhall = townhalls_by_position.get(base.position)
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
@@ -103,12 +123,13 @@ class PhantomBot(BotBase):
         # ------------------------
 
         self.reset_blocked_bases()
+        self.update_bases()
 
         await self.chat.do_chat(self.send_chat_message)
         dodge = self.dodge.update(self)
 
         army = self.units.exclude_type(CIVILIANS)
-        enemies = self.all_enemy_units
+        enemies = self.all_enemy_units.exclude_type(CIVILIANS)
         predictor_context = PredictorContext(
             units=army,
             enemy_units=enemies,
@@ -219,21 +240,33 @@ class PhantomBot(BotBase):
         scout_actions = {a.unit: a for a in self.scout.do_scouting(self, scouts, blocked_positions)}
         macro_actions = await self.macro.do_macro(self, blocked_positions)
 
-        harvesters: list[Unit] = []
-        for worker in self.workers:
-            if not worker.is_idle and worker.orders[0].ability.exact_id in ALL_MACRO_ABILITIES:
-                pass
-            elif worker in macro_actions:
-                pass
-            else:
-                harvesters.append(worker)
-        if plan := self.resource_manager.assign_harvesters(
-            self, harvesters, self.macro.get_future_spending(self, composition)
-        ):
+        def should_harvest(unit: Unit) -> bool:
+            if not unit.is_idle and unit.orders[0].ability.exact_id in ALL_MACRO_ABILITIES:
+                return False
+            elif unit in macro_actions:
+                return False
+            return True
+
+        harvesters = self.workers.filter(should_harvest)
+
+        future_spending = self.macro.get_future_spending(self, composition)
+        required = future_spending - self.bank
+        mineral_trips = required.minerals / 5
+        vespene_trips = required.vespene / 4
+        gas_ratio = vespene_trips / max(1.0, mineral_trips + vespene_trips)
+
+        def should_harvest_resource(r: Unit) -> bool:
+            p = r.position.rounded
+            return 0 <= combat.prediction.confidence[p] or 0 == combat.prediction.enemy_presence.dps[p]
+
+        resources_to_harvest = self.all_taken_resources.filter(should_harvest_resource)
+        resource_context = ResourceContext(self, harvesters, self.gas_buildings, resources_to_harvest, gas_ratio)
+        resource_report = self.resource_manager.update(resource_context)
+        for plan in resource_report.plans:
             self.macro.add_plan(plan)
 
         for worker in harvesters:
-            yield self.micro_harvester(worker, combat, dodge)
+            yield self.micro_harvester(worker, combat, dodge, resource_report)
         for action in macro_actions.values():
             yield action
         for tumor in self.creep.get_active_tumors(self):
@@ -273,10 +306,12 @@ class PhantomBot(BotBase):
     def planned_by_type(self, item: MacroId) -> Iterable:
         return self.macro.planned_by_type(item)
 
-    def micro_harvester(self, unit: Unit, combat_context: Combat, dodge: DodgeResult) -> Action:
+    def micro_harvester(
+        self, unit: Unit, combat_context: Combat, dodge: DodgeResult, resources: ResourceReport
+    ) -> Action:
         return (
             dodge.dodge_with(unit)
-            or self.resource_manager.gather_with(unit, self.townhalls.ready)
+            or resources.gather_with(unit, self.townhalls.ready)
             or combat_context.fight_with(self, unit)
             or DoNothing()
         )
@@ -314,7 +349,7 @@ class PhantomBot(BotBase):
         for unit, unit_actions in actions_of_unit.items():
             if len(unit_actions) > 1:
                 logger.error(f"Unit {unit} received multiple commands: {actions}")
-                self.add_replay_tag("Conflicting commands")
+                self.add_replay_tag("conflicting_commands")
             for a in unit_actions[1:]:
                 actions.remove(a)
 

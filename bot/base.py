@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from itertools import chain
 from typing import Iterable, TypeAlias
 
@@ -14,7 +14,9 @@ from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
+from sc2.position import Point2
 from sc2.unit import Unit
+from sc2.units import Units
 
 from bot.constants import (
     DPS_OVERRIDE,
@@ -78,9 +80,20 @@ class BotBase(AresBot, ABC):
     def all_resources(self) -> Iterable[ResourceUnit]:
         return chain[ResourceUnit](self.mineral_patches, self.vespene_geysers)
 
+    @cached_property
+    def base_at(self) -> dict[Point2, Expansion]:
+        return {b.position: b for b in self.bases}
+
     @property
-    def all_taken_resources(self) -> Iterable[ResourceUnit]:
-        return chain.from_iterable(chain(b.mineral_patches, b.vespene_geysers) for b in self.bases_taken)
+    def all_taken_resources(self) -> Units:
+        return Units(
+            chain.from_iterable(
+                rs
+                for p, rs in self.expansion_locations_dict.items()
+                if (th := self.base_at[p].townhall) and th.is_ready
+            ),
+            self,
+        )
 
     @property
     def mineral_patches(self) -> Iterable[MineralPatch]:
@@ -145,6 +158,7 @@ class BotBase(AresBot, ABC):
         self.bases = await self.initialize_bases()
         for base in self.bases:
             base.set_speedmining_positions()
+        self.speedmining_positions = {m.position: m.speedmining_target for b in self.bases for m in b.mineral_patches}
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
