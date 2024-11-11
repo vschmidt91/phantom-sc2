@@ -75,11 +75,11 @@ class BotBase(AresBot, ABC):
             self,
         )
 
-    @lru_cache()
+    @lru_cache(maxsize=None)
     def in_mineral_line(self, base: Point2) -> Point2:
         return center(m.position for m in self.expansion_locations_dict[base].mineral_field)
 
-    @lru_cache()
+    @lru_cache(maxsize=None)
     def behind_mineral_line(self, base: Point2) -> Point2:
         return base.towards(self.in_mineral_line(base), 10.0)
 

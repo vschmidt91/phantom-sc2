@@ -52,16 +52,16 @@ class ResourceContext:
         return {g.position: g for g in self.vespene_geysers}
 
     @cached_property
-    def harvester_tags(self) -> set[int]:
-        return {h.tag for h in self.harvesters}
+    def harvester_tags(self) -> frozenset[int]:
+        return frozenset({h.tag for h in self.harvesters})
 
     @cached_property
-    def gas_positions(self) -> set[Point2]:
-        return set(self.gas_building_at)
+    def gas_positions(self) -> frozenset[Point2]:
+        return frozenset(self.gas_building_at)
 
     @cached_property
-    def mineral_positions(self) -> set[Point2]:
-        return set(self.mineral_field_at)
+    def mineral_positions(self) -> frozenset[Point2]:
+        return frozenset(self.mineral_field_at)
 
     @cached_property
     def workers_in_geysers(self) -> int:
@@ -80,7 +80,7 @@ class ResourceContext:
         logger.error(f"Missing resource at {p}")
         return 0
 
-    def pick_resource(self, assignment: HarvesterAssignment, targets: set[Point2]) -> Point2 | None:
+    def pick_resource(self, assignment: HarvesterAssignment, targets: frozenset[Point2]) -> Point2 | None:
 
         def loss_fn(u: Point2) -> float:
             return self.harvester_target_at(u.position) - len(assignment.assigned_to(u.position))
@@ -90,7 +90,7 @@ class ResourceContext:
         return max(targets, key=loss_fn)
 
     def pick_harvester(
-        self, assignment: HarvesterAssignment, from_resources: set[Point2], close_to: Point2
+        self, assignment: HarvesterAssignment, from_resources: frozenset[Point2], close_to: Point2
     ) -> Unit | None:
         candidate_tags = assignment.assigned_to_set(from_resources)
         candidates = self.harvesters.filter(lambda h: h.tag in candidate_tags)
@@ -164,7 +164,7 @@ class ResourceContext:
         return assignment
 
     def transfer_harvester(
-        self, assignment: HarvesterAssignment, from_resources: set[Point2], to_resources: set[Point2]
+        self, assignment: HarvesterAssignment, from_resources: frozenset[Point2], to_resources: frozenset[Point2]
     ) -> HarvesterAssignment:
         if not (patch := self.pick_resource(assignment, to_resources)):
             return assignment
@@ -173,7 +173,7 @@ class ResourceContext:
         logger.info(f"Transferring {harvester=} to {patch=}")
         return assignment.assign({harvester.tag: patch})
 
-    def balance_positions(self, assignment: HarvesterAssignment, ps: set[Point2]) -> HarvesterAssignment:
+    def balance_positions(self, assignment: HarvesterAssignment, ps: frozenset[Point2]) -> HarvesterAssignment:
         oversaturated = [p for p in ps if self.harvester_target_at(p) < len(assignment.assigned_to(p))]
         if not any(oversaturated):
             return assignment
@@ -181,13 +181,12 @@ class ResourceContext:
         if not any(undersaturated):
             return assignment
 
+        def loss_fn(p: Point2, q: Point2) -> float:
+            return p.distance_to(q)
+
         transfer_from, transfer_to = min(
-            itertools.product(oversaturated, undersaturated), key=lambda p: p[0].distance_to(p[1])
+            itertools.product(oversaturated, undersaturated), key=lambda p: loss_fn(p[0], p[1])
         )
-
-        # transfer_from = oversaturated[0]
-        # transfer_to = undersaturated[0]
-
         harvester = next(iter(assignment.assigned_to(transfer_from)))
         assignment = assignment.assign({harvester: transfer_to})
         logger.info(f"Transferring {harvester=} to {transfer_to=}")
