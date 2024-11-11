@@ -83,12 +83,8 @@ async def get_target_position(context: BotBase, target: UnitTypeId, blocked_posi
         ]
         if not candidates:
             return None
-        loss_positions = {s.position for s in context.structures} | {
-            context.in_mineral_line(b) for b in context.bases_taken
-        }
-        loss_positions_enemy = {s.position for s in context.enemy_structures} | {
-            s for s in context.enemy_start_locations
-        }
+        loss_positions = {context.in_mineral_line(b) for b in context.bases_taken}
+        loss_positions_enemy = {context.in_mineral_line(s) for s in context.enemy_start_locations}
 
         async def loss_fn(p: Point2) -> float:
             distances = await context.client.query_pathings([[p, q] for q in loss_positions])
