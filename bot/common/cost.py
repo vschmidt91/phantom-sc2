@@ -59,6 +59,15 @@ class Cost:
             np.sign(self.larva),
         )
 
+    @classmethod
+    def max(cls, a: "Cost", b: "Cost") -> "Cost":
+        return Cost(
+            max(a.minerals, b.minerals),
+            max(a.vespene, b.vespene),
+            max(a.supply, b.supply),
+            max(a.larva, b.larva),
+        )
+
     def __mul__(self, factor: float):
         return Cost(self.minerals * factor, self.vespene * factor, self.supply * factor, self.larva * factor)
 

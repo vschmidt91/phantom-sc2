@@ -32,7 +32,7 @@ from bot.common.constants import (
 from bot.common.unit_composition import UnitComposition
 from bot.components.combat.corrosive_biles import CorrosiveBiles
 from bot.components.combat.dodge import Dodge, DodgeResult
-from bot.components.combat.predictor import PredictorContext
+from bot.components.combat.main import Combat
 from bot.components.combat.scout import Scout
 from bot.components.macro.build_order import HATCH_FIRST
 from bot.components.macro.planner import MacroId, MacroPlan, MacroPlanner
@@ -185,7 +185,7 @@ class PhantomBot(BotBase):
         strategy: Strategy,
     ) -> AsyncGenerator[Action, None]:
 
-        combat = PredictorContext(
+        combat = Combat(
             bot=self,
             strategy=strategy,
             units=self.units.exclude_type(CIVILIANS),
@@ -293,7 +293,7 @@ class PhantomBot(BotBase):
         return self.planner.planned_by_type(item)
 
     def micro_harvester(
-        self, unit: Unit, combat: PredictorContext, dodge: DodgeResult, resources: ResourceReport
+        self, unit: Unit, combat: Combat, dodge: DodgeResult, resources: ResourceReport
     ) -> Action | None:
         return dodge.dodge_with(unit) or resources.gather_with(unit, self.townhalls.ready) or combat.fight_with(unit)
 

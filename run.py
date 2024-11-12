@@ -14,7 +14,7 @@ sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 
-from bot.phantom import PhantomBot  # type: ignore
+from bot.main import PhantomBot  # type: ignore
 
 MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
 MAP_FILE_EXT: str = "SC2Map"
@@ -63,7 +63,7 @@ if __name__ == "__main__":
         result, opponent_id = run_ladder_game(create_bot(PhantomBot()))
         print(result, " against opponent ", opponent_id)
     else:
-        ai = PhantomBot(game_step_override=4)
+        ai = PhantomBot(game_step_override=2)
         ai.config["Debug"] = True
         map_list: list[str] = [
             p.name.replace(f".{MAP_FILE_EXT}", "")

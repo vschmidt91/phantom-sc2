@@ -35,7 +35,7 @@ HALF = Point2((0.5, 0.5))
 
 
 @dataclass(frozen=True)
-class PredictorContext:
+class Combat:
     bot: BotBase
     strategy: Strategy
     units: Units
@@ -100,8 +100,10 @@ class PredictorContext:
         retreat_path = retreat_map.get_path((x, y), retreat_path_limit)
 
         unit_range = unit.air_range if target.is_flying else unit.ground_range
-        attack_limit = round(unit_range + 2 * unit.radius)
-        attack_path = self.attack_pathing.get_path((x, y), attack_limit)
+        range_deficit = min(
+            unit.sight_range, max(1, unit.distance_to(target) - unit.radius - target.radius - unit_range)
+        )
+        attack_path = self.attack_pathing.get_path((x, y), range_deficit)
         attack_point = attack_path[-1]
 
         if self.attack_pathing.dist[unit.position.rounded] == math.inf:
@@ -133,7 +135,7 @@ class PredictorContext:
             else:
                 stance = CombatStance.FLEE
         else:
-            if -1 <= confidence:
+            if 0 <= confidence:
                 stance = CombatStance.FIGHT
             else:
                 stance = CombatStance.FLEE

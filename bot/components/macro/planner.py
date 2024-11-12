@@ -73,7 +73,7 @@ class MacroPlanner:
         self.assign_unassigned_plans(context.all_own_units)  # TODO: narrow this down
 
         actions = dict[Unit, Action]()
-        reserve = Cost(0, 0, 0, 0)
+        reserve = context.cost.zero
         plans_prioritized = sorted(self._assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
         for i, (tag, plan) in enumerate(plans_prioritized):
 
@@ -130,8 +130,11 @@ class MacroPlanner:
 
             cost = context.cost.of(plan.item)
             eta = get_eta(context, reserve, cost)
+
             if eta < math.inf:
-                reserve += cost
+                expected_income = context.income * eta
+                needs_to_reserve = Cost.max(context.cost.zero, cost - expected_income)
+                reserve += needs_to_reserve
 
             if eta == 0.0:
                 plan.commanded = True
