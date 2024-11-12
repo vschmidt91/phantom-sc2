@@ -96,6 +96,12 @@ def circle_perimeter(x0: int, y0: int, r: int, shape: tuple) -> list[tuple[int, 
     return [(int(x), int(y)) for x, y in zip(tx, ty)]
 
 
+def circle(x0: int, y0: int, r: int, shape: tuple) -> list[tuple[int, int]]:
+    assert len(shape) == 2
+    tx, ty = skimage.draw.ellipse(x0, y0, r, r, shape=shape)
+    return [(int(x), int(y)) for x, y in zip(tx, ty)]
+
+
 def rectangle(start: tuple[int, int], extent: tuple[int, int], shape: tuple) -> tuple[np.ndarray, np.ndarray]:
     assert len(shape) == 2
     rx, ry = skimage.draw.rectangle(start, extent=extent, shape=shape)

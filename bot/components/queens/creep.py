@@ -13,7 +13,7 @@ from scipy.ndimage import gaussian_filter
 from bot.common.action import Action, UseAbility
 from bot.common.base import BotBase
 from bot.common.constants import ENERGY_COST
-from bot.common.utils import circle_perimeter, line, rectangle
+from bot.common.utils import circle_perimeter, line, rectangle, circle
 
 TUMOR_RANGE = 10
 _TUMOR_COOLDOWN = 304
@@ -52,12 +52,13 @@ class CreepSpreadContext:
     def value_map_blurred(self) -> np.ndarray:
         return gaussian_filter(self.value_map, 3) * self.pathing.astype(float)
 
-    def _place_tumor(self, unit: Unit, r: int) -> Action | None:
+    def _place_tumor(self, unit: Unit, r: int, full_circle = False) -> Action | None:
 
         x0 = round(unit.position.x)
         y0 = round(unit.position.y)
 
-        targets = circle_perimeter(x0, y0, r, shape=self.creep.shape)
+        circle_fn = circle if full_circle else circle_perimeter
+        targets = circle_fn(x0, y0, r, shape=self.creep.shape)
         if not any(targets):
             return None
 
@@ -78,7 +79,7 @@ class CreepSpreadContext:
     def spread_with_queen(self, queen: Unit) -> Action | None:
         if queen.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
             return None
-        return self._place_tumor(queen, 4)
+        return self._place_tumor(queen, 5, full_circle=True)
 
     def spread_with_tumor(self, tumor: Unit) -> Action | None:
         return self._place_tumor(tumor, 10)
