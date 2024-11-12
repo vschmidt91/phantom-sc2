@@ -157,18 +157,24 @@ class ResourceContext:
     def update_balance(self, assignment: HarvesterAssignment, gas_target: int) -> HarvesterAssignment:
 
         # transfer to/from gas
-        gas_harvester_count = len(assignment.assigned_to_set(self.gas_positions))
+        mineral_harvesters = len(assignment.assigned_to_set(self.mineral_positions))
+        gas_harvesters = len(assignment.assigned_to_set(self.gas_positions))
 
+        mineral_max = sum(self.harvester_target_at(p) for p in self.mineral_field_at)
         gas_max = sum(self.harvester_target_at(p) for p in self.gas_building_at)
         effective_gas_target = min(gas_max, gas_target)
 
-        if gas_harvester_count < effective_gas_target:
+        gas_balance = effective_gas_target - gas_harvesters
+        mineral_target = min(mineral_max, assignment.count - effective_gas_target)
+        mineral_balance = mineral_target - mineral_harvesters
+
+        if gas_balance > mineral_balance:
             assignment = self.transfer_harvester(assignment, self.mineral_positions, self.gas_positions)
-        elif effective_gas_target < gas_harvester_count:
+        elif gas_balance + 1 < mineral_balance:
             assignment = self.transfer_harvester(assignment, self.gas_positions, self.mineral_positions)
-        else:
-            assignment = self.balance_positions(assignment, self.mineral_positions)
-            assignment = self.balance_positions(assignment, self.gas_positions)
+
+        assignment = self.balance_positions(assignment, self.mineral_positions)
+        assignment = self.balance_positions(assignment, self.gas_positions)
 
         return assignment
 

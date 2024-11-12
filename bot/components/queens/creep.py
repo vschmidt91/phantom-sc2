@@ -52,12 +52,11 @@ class CreepSpreadContext:
     def value_map_blurred(self) -> np.ndarray:
         return gaussian_filter(self.value_map, 3) * self.pathing.astype(float)
 
-    def place_tumor(self, unit: Unit) -> Action | None:
+    def _place_tumor(self, unit: Unit, r: int) -> Action | None:
 
         x0 = round(unit.position.x)
         y0 = round(unit.position.y)
 
-        r = 10 if unit.type_id == UnitTypeId.CREEPTUMORBURROWED else 3
         targets = circle_perimeter(x0, y0, r, shape=self.creep.shape)
         if not any(targets):
             return None
@@ -76,10 +75,13 @@ class CreepSpreadContext:
         logger.debug("No creep tumor placement found.")
         return None
 
-    def spread_creep_with_queen(self, queen: Unit) -> Action | None:
+    def spread_with_queen(self, queen: Unit) -> Action | None:
         if queen.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
             return None
-        return self.place_tumor(queen)
+        return self._place_tumor(queen, 4)
+
+    def spread_with_tumor(self, tumor: Unit) -> Action | None:
+        return self._place_tumor(tumor, 10)
 
 
 class CreepSpread:

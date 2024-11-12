@@ -1,93 +1,265 @@
+import math
 from dataclasses import dataclass
-from functools import lru_cache
+from enum import Enum, auto
+from functools import cached_property
 from typing import Callable
 
 import numpy as np
-import skimage.draw
+from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
+from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 from scipy import ndimage
 
+from bot.common.action import Action, AttackMove, HoldPosition, Move, UseAbility
+from bot.common.base import BotBase
+from bot.common.constants import CHANGELINGS
+from bot.common.utils import Point, can_attack, disk
+from bot.components.combat.presence import Presence
+from bot.components.macro.strategy import Strategy
+from bot.cython.dijkstra_pathing import DijkstraPathing
+
 DpsProvider = Callable[[UnitTypeId], float]
+
+
+class CombatStance(Enum):
+    FLEE = auto()
+    RETREAT = auto()
+    FIGHT = auto()
+    ADVANCE = auto()
+
+
+HALF = Point2((0.5, 0.5))
 
 
 @dataclass(frozen=True)
 class PredictorContext:
+    bot: BotBase
+    strategy: Strategy
     units: Units
     enemy_units: Units
     dps: DpsProvider
     pathing: np.ndarray
     air_pathing: np.ndarray
+    retreat_targets: frozenset[Point2]
+    attack_targets: frozenset[Point2]
 
+    def fight_with(self, unit: Unit) -> Action | None:
 
-@dataclass(frozen=True)
-class Presence:
-    dps: np.ndarray
-    health: np.ndarray
+        def target_priority(t: Unit) -> float:
 
+            # from combat_manager:
 
-@dataclass(frozen=True)
-class Prediction:
-    context: PredictorContext
-    dimensionality: np.ndarray
-    confidence: np.ndarray
-    confidence_global: float
-    presence: Presence
-    enemy_presence: Presence
+            if t.is_hallucination:
+                return 0.0
+            if t.type_id in CHANGELINGS:
+                return 0.0
+            p = 1e8
 
+            # priority /= 1 + self.ai.distance_ground[target.position.rounded]
+            p /= 5 if t.is_structure else 1
+            if t.is_enemy:
+                p /= 300 + t.shield + t.health
+            else:
+                p /= 500
 
-@lru_cache(maxsize=None)
-def _disk(radius: float) -> tuple[np.ndarray, np.ndarray]:
-    r = int(radius + 0.5)
-    p = radius, radius
-    n = 2 * r + 1
-    dx, dy = skimage.draw.disk(center=p, radius=radius, shape=(n, n))
-    return dx - r, dy - r
+            # ---
 
+            if not can_attack(unit, t) and not unit.is_detector:
+                return 0.0
+            p /= 8 + t.position.distance_to(unit.position)
+            if unit.is_detector:
+                if t.is_cloaked:
+                    p *= 3.0
+                if not t.is_revealed:
+                    p *= 3.0
 
-def _combat_presence(context: PredictorContext, units: Units) -> Presence:
-    dps_map = np.zeros_like(context.pathing, dtype=float)
-    health_map = np.zeros_like(context.pathing, dtype=float)
-    for unit in units:
-        dps = context.dps(unit.type_id)
-        px, py = unit.position.rounded
-        if 0 < dps:
-            dx, dy = _disk(unit.sight_range)
-            d = px + dx, py + dy
-            health_map[d] += unit.shield + unit.health
-            dps_map[d] = np.maximum(dps_map[d], dps)
-    return Presence(dps_map, health_map)
+            return p
 
+        target, priority = max(
+            ((e, target_priority(e)) for e in self.enemy_units),
+            key=lambda t: t[1],
+            default=(None, 0),
+        )
 
-def _dimensionality(pathing: np.ndarray) -> np.ndarray:
-    dimensionality_local = np.where(pathing == np.inf, 1.0, 2.0)
-    dimensionality_filtered = ndimage.gaussian_filter(dimensionality_local, sigma=5.0)
-    return dimensionality_filtered
+        if not target:
+            return None
+        if priority <= 0:
+            return None
 
+        if unit.is_flying:
+            retreat_map = self.retreat_air
+        else:
+            retreat_map = self.retreat_ground
 
-def unit_value(u: Unit, d: np.ndarray) -> float:
-    return pow(u.health + u.shield, d[u.position.rounded]) * max(u.ground_dps, u.air_dps)
+        x = round(unit.position.x)
+        y = round(unit.position.y)
+        retreat_path_limit = 5
+        retreat_path = retreat_map.get_path((x, y), retreat_path_limit)
 
+        unit_range = unit.air_range if target.is_flying else unit.ground_range
+        attack_limit = round(unit_range + 2 * unit.radius)
+        attack_path = self.attack_pathing.get_path((x, y), attack_limit)
+        attack_point = attack_path[-1]
 
-def predict(context: PredictorContext) -> Prediction:
-    presence = _combat_presence(context, context.units)
-    enemy_presence = _combat_presence(context, context.enemy_units)
-    dimensionality = _dimensionality(context.pathing)
+        if self.attack_pathing.dist[unit.position.rounded] == math.inf:
+            attack_point = target.position.rounded
 
-    force = presence.dps * np.power(presence.health, dimensionality)
-    enemy_force = enemy_presence.dps * np.power(enemy_presence.health, dimensionality)
-    confidence = np.log1p(force) - np.log1p(enemy_force)
+        confidence = np.median(
+            (
+                self.confidence[x, y],
+                self.confidence[attack_point],
+                self.strategy.confidence_global,
+            )
+        )
 
-    force_global = sum(unit_value(u, dimensionality) for u in context.units)
-    enemy_force_global = sum(unit_value(u, dimensionality) for u in context.enemy_units)
-    confidence_global = np.log1p(force_global) - np.log1p(enemy_force_global)
+        if unit.type_id == UnitTypeId.QUEEN and not self.bot.has_creep(unit.position):
+            stance = CombatStance.FLEE
+        elif confidence < 0 and not self.bot.has_creep(unit.position):
+            stance = CombatStance.FLEE
+        elif unit.is_burrowed:
+            stance = CombatStance.FLEE
+        elif 1 < unit.ground_range:
+            if 1 <= confidence:
+                stance = CombatStance.ADVANCE
+            elif 0 <= confidence:
+                stance = CombatStance.FIGHT
+            elif -1 - math.exp(-unit.weapon_cooldown) <= confidence:
+                stance = CombatStance.RETREAT
+            elif len(retreat_path) < retreat_path_limit:
+                stance = CombatStance.RETREAT
+            else:
+                stance = CombatStance.FLEE
+        else:
+            if -1 <= confidence:
+                stance = CombatStance.FIGHT
+            else:
+                stance = CombatStance.FLEE
 
-    return Prediction(
-        context=context,
-        dimensionality=dimensionality,
-        confidence=confidence,
-        confidence_global=confidence_global,
-        presence=presence,
-        enemy_presence=enemy_presence,
-    )
+        if stance in {CombatStance.FLEE, CombatStance.RETREAT}:
+            unit_range = self.bot.get_unit_range(unit, not target.is_flying, target.is_flying)
+
+            if stance == CombatStance.RETREAT:
+                if not unit.weapon_cooldown:
+                    return AttackMove(unit, target.position)
+                elif (
+                    unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready
+                    < unit.position.distance_to(target.position)
+                ):
+                    return AttackMove(unit, Point2(attack_point))
+
+            if retreat_map.dist[x, y] == np.inf:
+                retreat_point = self.bot.start_location
+            else:
+                retreat_point = Point2(retreat_path[-1]).offset(HALF)
+
+            return Move(unit, retreat_point)
+
+        elif stance == CombatStance.FIGHT:
+            return AttackMove(unit, target.position)
+
+        elif stance == CombatStance.ADVANCE:
+            distance = unit.position.distance_to(target.position) - unit.radius - target.radius
+            if unit.weapon_cooldown and 1 < distance:
+                return Move(unit, Point2(target.position))
+            elif (
+                unit.position.distance_to(target.position)
+                <= unit.radius + self.bot.get_unit_range(unit) + target.radius
+            ):
+                return AttackMove(unit, target.position)
+            else:
+                return AttackMove(unit, target.position)
+
+        return None
+
+    def do_unburrow(self, unit: Unit) -> Action | None:
+        p = tuple[int, int](unit.position.rounded)
+        confidence = self.confidence[p]
+        if unit.health_percentage == 1 and 0 < confidence:
+            return UseAbility(unit, AbilityId.BURROWUP)
+        elif UpgradeId.TUNNELINGCLAWS not in self.bot.state.upgrades:
+            return None
+        elif 0 < self.enemy_presence.dps[p]:
+            retreat_path = self.retreat_ground.get_path(p, 2)
+            if self.retreat_ground.dist[p] == np.inf:
+                retreat_point = self.bot.start_location
+            else:
+                retreat_point = Point2(retreat_path[-1]).offset(Point2((0.5, 0.5)))
+            return Move(unit, retreat_point)
+        return HoldPosition(unit)
+
+    def do_burrow(self, unit: Unit) -> Action | None:
+        if UpgradeId.BURROW not in self.bot.state.upgrades:
+            return None
+        elif 0.3 < unit.health_percentage:
+            return None
+        elif unit.is_revealed:
+            return None
+        elif not unit.weapon_cooldown:
+            return None
+        return UseAbility(unit, AbilityId.BURROWDOWN)
+
+    @cached_property
+    def dimensionality(self) -> np.ndarray:
+        dimensionality_local = np.where(self.pathing == np.inf, 1.0, 2.0)
+        dimensionality_filtered = ndimage.gaussian_filter(dimensionality_local, sigma=5.0)
+        return dimensionality_filtered
+
+    @cached_property
+    def presence(self) -> Presence:
+        return self.get_combat_presence(self.units)
+
+    @cached_property
+    def enemy_presence(self) -> Presence:
+        return self.get_combat_presence(self.enemy_units)
+
+    def get_combat_presence(self, units: Units) -> Presence:
+        dps_map = np.zeros_like(self.pathing, dtype=float)
+        health_map = np.zeros_like(self.pathing, dtype=float)
+        for unit in units:
+            dps = self.dps(unit.type_id)
+            px, py = unit.position.rounded
+            if 0 < dps:
+                dx, dy = disk(unit.sight_range)
+                d = px + dx, py + dy
+                health_map[d] += unit.shield + unit.health
+                dps_map[d] = np.maximum(dps_map[d], dps)
+        return Presence(dps_map, health_map)
+
+    @cached_property
+    def force(self) -> np.ndarray:
+        return self.presence.get_force(self.dimensionality)
+
+    @cached_property
+    def enemy_force(self) -> np.ndarray:
+        return self.enemy_presence.get_force(self.dimensionality)
+
+    @cached_property
+    def confidence(self) -> np.ndarray:
+        return np.log1p(self.force) - np.log1p(self.enemy_force)
+
+    @cached_property
+    def threat_level(self) -> np.ndarray:
+        return np.maximum(0, -10 * self.confidence)
+
+    @cached_property
+    def retreat_targets_rounded(self) -> list[Point]:
+        return [(int(p[0]), int(p[1])) for p in self.retreat_targets]
+
+    @cached_property
+    def attack_targets_rounded(self) -> list[Point]:
+        return [(int(p[0]), int(p[1])) for p in self.attack_targets]
+
+    @cached_property
+    def retreat_air(self) -> DijkstraPathing:
+        return DijkstraPathing(self.air_pathing + self.threat_level, self.retreat_targets_rounded)
+
+    @cached_property
+    def retreat_ground(self) -> DijkstraPathing:
+        return DijkstraPathing(self.pathing + self.threat_level, self.retreat_targets_rounded)
+
+    @cached_property
+    def attack_pathing(self) -> DijkstraPathing:
+        return DijkstraPathing(self.pathing + self.threat_level, self.attack_targets_rounded)

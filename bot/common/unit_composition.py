@@ -23,7 +23,7 @@ class UnitComposition(Mapping[UnitTypeId, float]):
 
     @classmethod
     def of(cls, units: Iterable[Unit]) -> "UnitComposition":
-        return UnitComposition(Counter[UnitTypeId](u.type_id for u in units))
+        return UnitComposition(dict(Counter[UnitTypeId](u.type_id for u in units)))
 
     def __getitem__(self, __key):
         return self._items.get(__key, 0.0)

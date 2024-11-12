@@ -36,7 +36,7 @@ class Scout:
             pos = 0.5 * (pos + context.start_location)
             self.static_targets.insert(1, pos)
 
-    def do_scouting(
+    def get_actions(
         self, context: BotBase, scouts: Units, blocked_positions: Iterable[Point2]
     ) -> Iterable[ScoutAction]:
 

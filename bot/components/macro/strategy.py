@@ -3,10 +3,9 @@ from collections import defaultdict
 from dataclasses import dataclass
 from functools import cached_property, total_ordering
 
-from bot.common.unit_composition import UnitComposition
+import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.units import Units
 
 from bot.common.base import BotBase
 from bot.common.constants import (
@@ -14,6 +13,7 @@ from bot.common.constants import (
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
 )
+from bot.common.unit_composition import UnitComposition
 
 
 @total_ordering
@@ -23,16 +23,14 @@ class StrategyTier(enum.Enum):
     Lair = 2
     Hive = 3
 
-    def __lt__(self, other):
-        return self.value < other.value
+    def __ge__(self, other):
+        return self.value >= other.value
 
 
 @dataclass(frozen=True)
 class Strategy:
     context: BotBase
-    confidence: float
     max_harvesters: int
-    enemies: Units
 
     @cached_property
     def composition_deficit(self) -> UnitComposition:
@@ -48,7 +46,7 @@ class Strategy:
 
     @cached_property
     def enemy_composition(self) -> UnitComposition:
-        return UnitComposition.of(self.enemies)
+        return UnitComposition.of(self.context.all_enemy_units)
 
     def filter_upgrade(self, upgrade: UpgradeId) -> bool:
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
@@ -66,7 +64,7 @@ class Strategy:
         elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
             return 0 < self.context.count(UnitTypeId.GREATERSPIRE, include_planned=False)
         elif upgrade == UpgradeId.OVERLORDSPEED:
-            return self.tier == StrategyTier.Lair
+            return self.tier >= StrategyTier.Lair
         else:
             return True
 
@@ -75,25 +73,24 @@ class Strategy:
 
     @cached_property
     def army_composition(self) -> UnitComposition:
-        if not any(self.enemies):
-            return UnitComposition({UnitTypeId.ZERGLING: 1})
-        elif 0.8 < self.context.tech_requirement_progress(UnitTypeId.ZERGLING):
-            saturation = self.context.state.score.food_used_economy / self.max_harvesters
-            ratio = 2 * max(1 - self.confidence, saturation)
-            composition = self.counter_composition
-            composition += {
-                UnitTypeId.RAVAGER: composition[UnitTypeId.ROACH] / 13,
-                UnitTypeId.CORRUPTOR: composition[UnitTypeId.BROODLORD] / 8,
-            }
-            return self.counter_composition * ratio
-        else:
+        if self.context.tech_requirement_progress(UnitTypeId.ZERGLING) < 0.8:
             return UnitComposition({})
+        saturation = self.context.state.score.food_used_economy / self.max_harvesters
+        ratio = 2 * max(1 - self.confidence_global, saturation)
+        composition = self.counter_composition
+        composition += {
+            UnitTypeId.RAVAGER: composition[UnitTypeId.ROACH] / 13,
+            UnitTypeId.CORRUPTOR: composition[UnitTypeId.BROODLORD] / 8,
+        }
+        composition = UnitComposition({k: v for k, v in composition.items() if 0 < v})
+        if sum(composition.values()) < 1:
+            composition += {UnitTypeId.ZERGLING: 1}
+        return composition * ratio
 
     @cached_property
     def counter_composition(self) -> UnitComposition:
         def total_cost(t: UnitTypeId) -> float:
-            c = self.context.cost.of(t)
-            return c.minerals + c.vespene
+            return self.context.cost.of(t).total_resources
 
         composition = defaultdict[UnitTypeId, float](float)
         for enemy_type, count in self.enemy_composition.items():
@@ -112,6 +109,18 @@ class Strategy:
         elif self.context.supply_workers < 80 or self.context.townhalls.amount < 5:
             return StrategyTier.Lair
         return StrategyTier.Hive
+
+    @cached_property
+    def force_global(self) -> float:
+        return self.context.cost.of_composition(self.composition).total_resources
+
+    @cached_property
+    def enemy_force_global(self) -> float:
+        return self.context.cost.of_composition(self.enemy_composition).total_resources
+
+    @cached_property
+    def confidence_global(self) -> float:
+        return np.log1p(self.force_global) - np.log1p(self.enemy_force_global)
 
     @cached_property
     def macro_composition(self) -> UnitComposition:
@@ -139,23 +148,3 @@ class Strategy:
             else:
                 composition += {UnitTypeId.SPIRE: 1}
         return composition
-
-        # if worker_count == self.max_harvesters:
-        #     banking_minerals = max(0, self.context.minerals - 300)
-        #     banking_gas = max(0, self.context.minerals - 300)
-        #     if 0 < banking_minerals and 0 < banking_gas:
-        #         composition[UnitTypeId.ZERGLING] += 24
-        #         if 0 < banking_gas:
-        #             if 0 < self.context.count(UnitTypeId.HIVE, include_pending=True, include_planned=False):
-        #                 composition[UnitTypeId.BROODLORD] += 12
-        #                 composition[UnitTypeId.CORRUPTOR] += 3
-        #             if 0 < self.context.count(UnitTypeId.LAIR, include_pending=False, include_planned=False):
-        #                 composition[UnitTypeId.HYDRALISK] += 12
-        #             else:
-        #                 composition[UnitTypeId.ROACH] += 12
-        #
-        #
-        #
-        # composition = {k: int(math.floor(v)) for k, v in composition.items() if 0 < v}
-        #
-        # return Strategy(context, composition, tier)

@@ -1,4 +1,5 @@
 import math
+from functools import lru_cache
 from typing import Iterable, TypeAlias
 
 import numpy as np
@@ -18,6 +19,21 @@ class PlacementNotFoundException(Exception):
 
 
 Point: TypeAlias = tuple[int, int]
+
+
+def unit_value(u: Unit, d: np.ndarray) -> float:
+    return pow(u.health + u.shield, d[u.position.rounded]) * max(u.ground_dps, u.air_dps)
+
+
+def can_attack(unit: Unit, target: Unit) -> bool:
+    if target.is_cloaked and not target.is_revealed:
+        return False
+    # elif target.is_burrowed and not any(self.units_detecting(target)):
+    #     return False
+    elif target.is_flying:
+        return unit.can_attack_air
+    else:
+        return unit.can_attack_ground
 
 
 def project_point_onto_line(origin: Point2, direction: Point2, position: Point2) -> Point2:
@@ -147,3 +163,12 @@ def flood_fill(weight: np.ndarray, origins: Iterable[Point2]):
         front = next_front
 
     return distance
+
+
+@lru_cache(maxsize=None)
+def disk(radius: float) -> tuple[np.ndarray, np.ndarray]:
+    r = int(radius + 0.5)
+    p = radius, radius
+    n = 2 * r + 1
+    dx, dy = skimage.draw.disk(center=p, radius=radius, shape=(n, n))
+    return dx - r, dy - r

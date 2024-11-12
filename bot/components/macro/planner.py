@@ -40,10 +40,14 @@ class MacroPlan:
 
 
 class MacroPlanner:
-    _unassigned_plans: list[MacroPlan] = list()
-    _assigned_plans: dict[int, MacroPlan] = dict()
+    _unassigned_plans = list[MacroPlan]()
+    _assigned_plans = dict[int, MacroPlan]()
 
-    def add_plan(self, plan: MacroPlan) -> None:
+    @property
+    def plan_count(self) -> int:
+        return len(self._unassigned_plans) + len(self._assigned_plans)
+
+    def add(self, plan: MacroPlan) -> None:
         self._unassigned_plans.append(plan)
         logger.info(f"Adding {plan=}")
 
@@ -63,7 +67,7 @@ class MacroPlanner:
                 self._assigned_plans[trainer.tag] = plan
                 trainer_set.remove(trainer)
 
-    async def do_macro(self, context: BotBase, blocked_positions: set[Point2]) -> dict[Unit, Action]:
+    async def get_actions(self, context: BotBase, blocked_positions: set[Point2]) -> dict[Unit, Action]:
 
         self._handle_actions(context)
         self.assign_unassigned_plans(context.all_own_units)  # TODO: narrow this down

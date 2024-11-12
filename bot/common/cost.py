@@ -47,6 +47,10 @@ class Cost:
         )
 
     @cached_property
+    def total_resources(self) -> float:
+        return self.minerals + self.vespene
+
+    @cached_property
     def sign(self) -> "Cost":
         return Cost(
             np.sign(self.minerals),
