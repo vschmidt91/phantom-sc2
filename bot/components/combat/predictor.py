@@ -66,8 +66,8 @@ def _dimensionality(pathing: np.ndarray) -> np.ndarray:
     return dimensionality_filtered
 
 
-def unit_value(u: Unit) -> float:
-    return (u.health + u.shield) * max(u.ground_dps, u.air_dps)
+def unit_value(u: Unit, d: np.ndarray) -> float:
+    return pow(u.health + u.shield, d[u.position.rounded]) * max(u.ground_dps, u.air_dps)
 
 
 def predict(context: PredictorContext) -> Prediction:
@@ -79,8 +79,8 @@ def predict(context: PredictorContext) -> Prediction:
     enemy_force = enemy_presence.dps * np.power(enemy_presence.health, dimensionality)
     confidence = np.log1p(force) - np.log1p(enemy_force)
 
-    force_global = sum(unit_value(u) for u in context.units)
-    enemy_force_global = sum(unit_value(u) for u in context.enemy_units)
+    force_global = sum(unit_value(u, dimensionality) for u in context.units)
+    enemy_force_global = sum(unit_value(u, dimensionality) for u in context.enemy_units)
     confidence_global = np.log1p(force_global) - np.log1p(enemy_force_global)
 
     return Prediction(

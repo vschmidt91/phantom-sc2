@@ -67,7 +67,8 @@ def can_attack(unit: Unit, target: Unit) -> bool:
 @dataclass(frozen=True)
 class Combat:
     prediction: Prediction
-    retreat_targets: list[Point2]
+    retreat_targets: frozenset[Point2]
+    attack_targets: frozenset[Point2]
 
     def fight_with(self, context: BotBase, unit: Unit) -> Action | None:
 
@@ -122,11 +123,25 @@ class Combat:
         retreat_path_limit = 5
         retreat_path = retreat_map.get_path((x, y), retreat_path_limit)
 
-        confidence = self.prediction.confidence[unit.position.rounded]
+        unit_range = unit.air_range if target.is_flying else unit.ground_range
+        attack_limit = round(unit_range + 2 * unit.radius)
+        attack_path = self.attack_pathing.get_path((x, y), attack_limit)
+        attack_point = attack_path[-1]
+
+        if self.attack_pathing.dist[unit.position.rounded] == math.inf:
+            attack_point = target.position.rounded
+
+        confidence = np.median(
+            (
+                self.prediction.confidence[x, y],
+                self.prediction.confidence[attack_point],
+                self.prediction.confidence_global,
+            )
+        )
 
         if unit.type_id == UnitTypeId.QUEEN and not context.has_creep(unit.position):
             stance = CombatStance.FLEE
-        elif self.prediction.confidence_global < 0 and not context.has_creep(unit.position):
+        elif confidence < 0 and not context.has_creep(unit.position):
             stance = CombatStance.FLEE
         elif unit.is_burrowed:
             stance = CombatStance.FLEE
@@ -157,7 +172,7 @@ class Combat:
                     unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready
                     < unit.position.distance_to(target.position)
                 ):
-                    return AttackMove(unit, target.position)
+                    return AttackMove(unit, Point2(attack_point))
 
             if retreat_map.dist[x, y] == np.inf:
                 retreat_point = context.start_location
@@ -172,7 +187,7 @@ class Combat:
         elif stance == CombatStance.ADVANCE:
             distance = unit.position.distance_to(target.position) - unit.radius - target.radius
             if unit.weapon_cooldown and 1 < distance:
-                return Move(unit, target.position)
+                return Move(unit, Point2(target.position))
             elif (
                 unit.position.distance_to(target.position) <= unit.radius + context.get_unit_range(unit) + target.radius
             ):
@@ -183,12 +198,16 @@ class Combat:
         return None
 
     @cached_property
+    def attack_targets_array(self) -> np.ndarray:
+        return np.array(list(self.attack_targets)).astype(np.intp)
+
+    @cached_property
     def retreat_target_array(self) -> np.ndarray:
-        return np.array(self.retreat_targets).astype(np.intp)
+        return np.array(list(self.retreat_targets)).astype(np.intp)
 
     @cached_property
     def threat_level(self) -> np.ndarray:
-        return np.maximum(0, -self.prediction.confidence)
+        return np.maximum(0, -10 * self.prediction.confidence)
 
     @cached_property
     def retreat_air(self) -> DijkstraOutput:
@@ -200,4 +219,10 @@ class Combat:
     def retreat_ground(self) -> DijkstraOutput:
         retreat_cost_air = (self.prediction.context.pathing + self.threat_level).astype(np.float64)
         cy_result = cy_dijkstra(retreat_cost_air, self.retreat_target_array)
+        return DijkstraOutput.from_cy(cy_result)
+
+    @cached_property
+    def attack_pathing(self) -> DijkstraOutput:
+        attack_cost_air = (self.prediction.context.pathing + self.threat_level).astype(np.float64)
+        cy_result = cy_dijkstra(attack_cost_air, self.attack_targets_array)
         return DijkstraOutput.from_cy(cy_result)

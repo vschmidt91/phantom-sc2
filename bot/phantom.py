@@ -147,8 +147,10 @@ class PhantomBot(BotBase):
                 or self.expand()
             ):
                 self.planner.add_plan(plan)
-        retreat_targets = [w.position for w in self.workers] + [self.start_location]
-        combat = Combat(prediction, retreat_targets)
+
+        retreat_targets = frozenset([s.position for s in self.structures] + [self.start_location])
+        attack_targets = frozenset([p.position for p in self.all_enemy_units] + self.enemy_start_locations)
+        combat = Combat(prediction, retreat_targets, attack_targets)
 
         unit_acted: set[int] = set()
         async for action in self.micro(prediction, strategy, combat):

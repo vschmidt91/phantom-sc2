@@ -127,11 +127,11 @@ class Strategy:
             composition += {UnitTypeId.ROACHWARREN: 1}
             composition += {UnitTypeId.OVERSEER: 1}
         if self.tier >= StrategyTier.Lair:
-            composition += {UnitTypeId.OVERSEER, 3}
+            composition += {UnitTypeId.OVERSEER: 2}
             composition += {UnitTypeId.HYDRALISKDEN: 1}
             composition += {UnitTypeId.EVOLUTIONCHAMBER: 1}
         if self.tier >= StrategyTier.Hive:
-            composition += {UnitTypeId.OVERSEER: 5}
+            composition += {UnitTypeId.OVERSEER: 2}
             composition += {UnitTypeId.EVOLUTIONCHAMBER: 1}
             composition += {UnitTypeId.GREATERSPIRE: 1}
             if self.context.count(UnitTypeId.GREATERSPIRE, include_planned=False) == 0:
