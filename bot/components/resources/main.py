@@ -1,8 +1,8 @@
 import math
 
-from bot.resources.assignment import HarvesterAssignment
-from bot.resources.context import ResourceContext
-from bot.resources.report import ResourceReport
+from bot.components.resources.assignment import HarvesterAssignment
+from bot.components.resources.context import ResourceContext
+from bot.components.resources.report import ResourceReport
 
 
 def update_resources(context: ResourceContext) -> ResourceReport:

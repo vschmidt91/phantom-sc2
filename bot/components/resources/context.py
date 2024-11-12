@@ -8,9 +8,9 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bot.base import BotBase
-from bot.resources.assignment import HarvesterAssignment
-from bot.resources.utils import remaining
+from bot.common.base import BotBase
+from bot.components.resources.assignment import HarvesterAssignment
+from bot.components.resources.utils import remaining
 
 
 def split_initial_workers(patches: Units, harvesters: Units) -> HarvesterAssignment:
@@ -34,6 +34,15 @@ class ResourceContext:
     vespene_geysers: Units
     mineral_fields: Units
     gas_ratio: float
+
+    @property
+    def max_harvesters(self) -> int:
+        return sum(
+            (
+                2 * self.mineral_fields.amount,
+                3 * self.vespene_geysers.amount,
+            )
+        )
 
     @cached_property
     def resource_at(self) -> dict[Point2, Unit]:

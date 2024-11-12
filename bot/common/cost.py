@@ -8,7 +8,8 @@ from sc2.game_data import Cost as SC2Cost
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
-from bot.constants import LARVA_COST
+from bot.common.constants import LARVA_COST
+from bot.common.unit_composition import UnitComposition
 
 MineralVespeneCostProvider = Callable[[UnitTypeId], SC2Cost]
 SupplyCostProvider = Callable[[UnitTypeId], float]
@@ -63,13 +64,26 @@ class Cost:
 
 class CostManager:
 
+    @cached_property
+    def zero(self) -> Cost:
+        return Cost(0, 0, 0, 0)
+
     def __init__(self, mineral_vespene: MineralVespeneCostProvider, supply: SupplyCostProvider):
         self.mineral_vespene = mineral_vespene
         self.supply = supply
 
     @lru_cache(maxsize=None)
     def of(self, item: UnitTypeId | UpgradeId) -> Cost:
-        cost = self.mineral_vespene(item)
-        supply = self.supply(item)
+        try:
+            cost = self.mineral_vespene(item)
+            supply = self.supply(item)
+        except Exception:
+            return self.zero
         larva = LARVA_COST.get(item, 0.0)
         return Cost(float(cost.minerals), float(cost.vespene), supply, larva)
+
+    def of_composition(self, composition: UnitComposition) -> Cost:
+        return sum(
+            (self.of(k) * composition[k] for k in composition),
+            self.zero,
+        )

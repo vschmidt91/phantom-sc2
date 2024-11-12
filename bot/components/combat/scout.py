@@ -5,8 +5,8 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bot.action import Action
-from bot.base import BotBase
+from bot.common.action import Action
+from bot.common.base import BotBase
 
 
 @dataclass

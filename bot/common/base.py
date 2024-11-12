@@ -17,7 +17,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bot.constants import (
+from bot.common.constants import (
     DPS_OVERRIDE,
     ITEM_BY_ABILITY,
     MINING_RADIUS,
@@ -32,8 +32,8 @@ from bot.constants import (
     ZERG_MELEE_UPGRADES,
     ZERG_RANGED_UPGRADES,
 )
-from bot.cost import Cost, CostManager
-from bot.utils import center, get_intersections, project_point_onto_line
+from bot.common.cost import Cost, CostManager
+from bot.common.utils import center, get_intersections, project_point_onto_line
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 

@@ -9,6 +9,7 @@ from typing import AsyncGenerator, Iterable, cast
 
 import numpy as np
 from ares import DEBUG
+from common.unit_composition import UnitComposition
 from loguru import logger
 from sc2.data import ActionResult, Result
 from sc2.ids.ability_id import AbilityId
@@ -17,12 +18,16 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from bot.action import Action, AttackMove, DoNothing, HoldPosition, Move, UseAbility
-from bot.base import BotBase
-from bot.build_order import HATCH_FIRST
-from bot.chat import Chat, ChatMessage
-from bot.combat import HALF, Combat
-from bot.constants import (
+from bot.common.action import (
+    Action,
+    AttackMove,
+    DoNothing,
+    HoldPosition,
+    Move,
+    UseAbility,
+)
+from bot.common.base import BotBase
+from bot.common.constants import (
     ALL_MACRO_ABILITIES,
     CHANGELINGS,
     CIVILIANS,
@@ -34,35 +39,39 @@ from bot.constants import (
     VERSION_FILE,
     WITH_TECH_EQUIVALENTS,
 )
-from bot.creep import CreepSpread
-from bot.dodge import Dodge, DodgeResult
-from bot.inject import Inject
-from bot.macro import Macro, MacroId, MacroPlan
-from bot.predictor import Prediction, PredictorContext, predict
-from bot.resources.main import (
+from bot.components.combat.combat import HALF, Combat
+from bot.components.combat.dodge import Dodge, DodgeResult
+from bot.components.combat.predictor import Prediction, PredictorContext, predict
+from bot.components.combat.scout import Scout
+from bot.components.macro.build_order import HATCH_FIRST
+from bot.components.macro.planner import MacroId, MacroPlan, MacroPlanner
+from bot.components.macro.strategy import Strategy
+from bot.components.queens.creep import CreepSpread
+from bot.components.queens.inject import Inject
+from bot.components.queens.transfuse import do_transfuse_single
+from bot.components.resources.main import (
     HarvesterAssignment,
     ResourceContext,
     ResourceReport,
     update_resources,
 )
-from bot.scout import Scout
-from bot.strategy import Strategy, decide_strategy
-from bot.transfuse import do_transfuse_single
 
 
 class PhantomBot(BotBase):
     creep = CreepSpread()
-    chat = Chat()
     inject = Inject()
     dodge = Dodge()
-    macro = Macro()
-    scout = Scout()
+
+    planner = MacroPlanner()
     build_order = HATCH_FIRST
+
+    scout = Scout()
     harvester_assignment = HarvesterAssignment({})
     profiler = cProfile.Profile()
     version = UNKNOWN_VERSION
     _blocked_positions = dict[Point2, float]()
     _bile_last_used = dict[int, int]()
+    _replay_tags = set[str]()
     _max_harvesters = 16
 
     async def on_before_start(self):
@@ -87,10 +96,7 @@ class PhantomBot(BotBase):
         if os.path.exists(VERSION_FILE):
             with open(VERSION_FILE) as f:
                 version = f.read()
-                self.add_replay_tag(f"version_{version}")
-
-    async def send_chat_message(self, message: ChatMessage) -> None:
-        await self.client.chat_send(message.message, message.team_only)
+                await self.add_replay_tag(f"version_{version}")
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
@@ -110,9 +116,6 @@ class PhantomBot(BotBase):
 
         self.reset_blocked_bases()
 
-        await self.chat.do_chat(self.send_chat_message)
-        dodge = self.dodge.update(self)
-
         army = self.units.exclude_type(CIVILIANS)
         enemies = self.all_enemy_units.exclude_type(CIVILIANS)
         predictor_context = PredictorContext(
@@ -123,22 +126,32 @@ class PhantomBot(BotBase):
             air_pathing=self.mediator.get_map_data_object.get_clean_air_grid(),
         )
         prediction = predict(predictor_context)
-        worker_target = max(1, min(80, self._max_harvesters))
-        strategy = decide_strategy(self, worker_target, prediction.confidence_global)
+        max_harvesters = max(1, min(80, self._max_harvesters))  # TODO: exclude mined out resources
+        strategy = Strategy(
+            context=self,
+            confidence=prediction.confidence_global,
+            max_harvesters=max_harvesters,
+            enemies=enemies,
+        )
+
+        target_units = {u for u, n in strategy.composition_target.items() if n > 0}
+        upgrades = {u for unit in target_units for u in self.upgrades_by_unit(unit) if strategy.filter_upgrade(u)}
+        upgrades.add(UpgradeId.ZERGLINGMOVEMENTSPEED)
+        tech_targets = set(target_units) | set(upgrades)
 
         if self.run_build_order():
             if plan := (
-                self.make_composition(strategy.composition)
+                self.make_composition(strategy.composition_target)
                 or self.make_tech(strategy)
                 or self.morph_overlord()
                 or self.expand()
             ):
-                self.macro.add_plan(plan)
+                self.planner.add_plan(plan)
         retreat_targets = [w.position for w in self.workers] + [self.start_location]
         combat = Combat(prediction, retreat_targets)
 
         unit_acted: set[int] = set()
-        async for action in self.micro(strategy.composition, prediction, dodge, combat):
+        async for action in self.micro(prediction, strategy, combat):
             if hasattr(action, "unit"):
                 tag = cast(Unit, getattr(action, "unit")).tag
                 if tag in unit_acted:
@@ -147,7 +160,7 @@ class PhantomBot(BotBase):
                     unit_acted.add(tag)
             success = await action.execute(self)
             if not success:
-                self.add_replay_tag("action_failed")
+                await self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
 
         if self.config[DEBUG]:
@@ -188,11 +201,16 @@ class PhantomBot(BotBase):
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         await super().on_upgrade_complete(upgrade)
 
-    def add_replay_tag(self, tag: str) -> None:
-        self.chat.add_message(f"Tag:{tag}", True)
+    async def add_replay_tag(self, tag: str) -> None:
+        if tag not in self._replay_tags:
+            self._replay_tags.add(tag)
+            await self.client.chat_send(f"Tag:{tag}", True)
 
     async def micro(
-        self, composition: dict[UnitTypeId, int], prediction: Prediction, dodge: DodgeResult, combat: Combat
+        self,
+        prediction: Prediction,
+        strategy: Strategy,
+        combat: Combat,
     ) -> AsyncGenerator[Action, None]:
 
         creep_context = self.creep.update(self)
@@ -210,32 +228,24 @@ class PhantomBot(BotBase):
                 for tag in action.unit_tags:
                     self._bile_last_used[tag] = self.state.game_loop
 
-        def micro_queen(q: Unit) -> Action:
-            return (
-                dodge.dodge_with(q)
-                or do_transfuse_single(q, prediction.context.units)
-                or (self.inject.inject_with(q) if should_inject else None)
-                or (creep_context.spread_creep_with_queen(q) if should_spread_creep else None)
-                or combat.fight_with(self, q)
-                or DoNothing()
-            )
-
         scouts = self.units({UnitTypeId.OVERLORD, UnitTypeId.OVERSEER})
         blocked_positions = set(self._blocked_positions)
         scout_actions = {a.unit: a for a in self.scout.do_scouting(self, scouts, blocked_positions)}
-        macro_actions = await self.macro.do_macro(self, blocked_positions)
+        macro_actions = await self.planner.do_macro(self, blocked_positions)
 
-        def should_harvest(unit: Unit) -> bool:
-            if not unit.is_idle and unit.orders[0].ability.exact_id in ALL_MACRO_ABILITIES:
+        def should_harvest(u: Unit) -> bool:
+            if u in macro_actions:  # got special orders?
                 return False
-            elif unit in macro_actions:
-                return False
-            return True
+            elif u.is_idle:  # you slackin?
+                return True
+            elif u.orders[0].ability.exact_id in ALL_MACRO_ABILITIES:
+                return False  # alright, carry on!
+            return True  # get on with it!
 
-        harvesters = self.workers.filter(should_harvest)
-
-        future_spending = self.macro.get_future_spending(self, composition)
-        required = future_spending - self.bank
+        required = self.cost.zero
+        required += self.planner.get_total_cost(self.cost)
+        required += self.cost.of_composition(strategy.composition_deficit)
+        required -= self.bank
         mineral_trips = required.minerals / 5
         vespene_trips = required.vespene / 4
         gas_ratio = vespene_trips / max(1.0, mineral_trips + vespene_trips)
@@ -244,6 +254,7 @@ class PhantomBot(BotBase):
             p = r.position.rounded
             return 0 <= combat.prediction.confidence[p] or 0 == combat.prediction.enemy_presence.dps[p]
 
+        harvesters = self.workers.filter(should_harvest)
         resources_to_harvest = self.all_taken_resources.filter(should_harvest_resource)
         resource_context = ResourceContext(
             self,
@@ -256,9 +267,21 @@ class PhantomBot(BotBase):
         )
         resource_report = update_resources(resource_context)
         self.harvester_assignment = resource_report.assignment
-        self._max_harvesters = resource_report.max_harvesters
+        self._max_harvesters = resource_context.max_harvesters
         for plan in self.build_gasses(resource_report):
-            self.macro.add_plan(plan)
+            self.planner.add_plan(plan)
+
+        dodge = self.dodge.update(self)
+
+        def micro_queen(q: Unit) -> Action:
+            return (
+                dodge.dodge_with(q)
+                or do_transfuse_single(q, prediction.context.units)
+                or (self.inject.inject_with(q) if should_inject else None)
+                or (creep_context.spread_creep_with_queen(q) if should_spread_creep else None)
+                or combat.fight_with(self, q)
+                or DoNothing()
+            )
 
         for worker in harvesters:
             yield self.micro_harvester(worker, combat, dodge, resource_report)
@@ -309,7 +332,7 @@ class PhantomBot(BotBase):
             yield MacroPlan(gas_type)
 
     def planned_by_type(self, item: MacroId) -> Iterable:
-        return self.macro.planned_by_type(item)
+        return self.planner.planned_by_type(item)
 
     def micro_harvester(
         self, unit: Unit, combat_context: Combat, dodge: DodgeResult, resources: ResourceReport
@@ -325,7 +348,7 @@ class PhantomBot(BotBase):
         for i, step in enumerate(self.build_order.steps):
             if self.count(step.unit, include_planned=False) < step.count:
                 if self.count(step.unit, include_planned=True) < step.count:
-                    self.macro.add_plan(MacroPlan(step.unit, priority=-i))
+                    self.planner.add_plan(MacroPlan(step.unit, priority=-i))
                 return False
         return True
 
@@ -345,7 +368,7 @@ class PhantomBot(BotBase):
                     return AttackMove(unit, target)
         return None
 
-    def check_for_duplicate_actions(self, actions: list[Action]) -> None:
+    async def check_for_duplicate_actions(self, actions: list[Action]) -> None:
         actions_of_unit: defaultdict[Unit, list[Action]] = defaultdict(list)
         for action in actions:
             if hasattr(action, "unit"):
@@ -354,7 +377,7 @@ class PhantomBot(BotBase):
         for unit, unit_actions in actions_of_unit.items():
             if len(unit_actions) > 1:
                 logger.error(f"Unit {unit} received multiple commands: {actions}")
-                self.add_replay_tag("conflicting_commands")
+                await self.add_replay_tag("conflicting_commands")
             for a in unit_actions[1:]:
                 actions.remove(a)
 
@@ -375,10 +398,11 @@ class PhantomBot(BotBase):
             if blocked_since + 60 < self.time:
                 del self._blocked_positions[position]
 
-    def make_composition(self, composition: dict[UnitTypeId, int]) -> MacroPlan | None:
+    def make_composition(self, composition: UnitComposition) -> MacroPlan | None:
         if 200 <= self.supply_used:
             return None
-        for unit, target in composition.items():
+        for unit in composition:
+            target = composition[unit]
             have = self.count(unit)
             if target < 1:
                 continue
@@ -399,11 +423,11 @@ class PhantomBot(BotBase):
 
     def make_tech(self, strategy: Strategy) -> MacroPlan | None:
         upgrades = [
-            u for unit in strategy.composition for u in self.upgrades_by_unit(unit) if strategy.filter_upgrade(u)
+            u for unit in strategy.composition_target for u in self.upgrades_by_unit(unit) if strategy.filter_upgrade(u)
         ]
         upgrades.append(UpgradeId.ZERGLINGMOVEMENTSPEED)
         targets: set[MacroId] = set(upgrades)
-        targets.update(strategy.composition.keys())
+        targets.update(strategy.composition_target.keys())
         targets.update(r for item in set(targets) for r in REQUIREMENTS[item])
         for target in targets:
             if equivalents := WITH_TECH_EQUIVALENTS.get(target):

@@ -4,10 +4,10 @@ from loguru import logger
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bot.action import Action, DoNothing, Smart
-from bot.resources.assignment import HarvesterAssignment
-from bot.resources.gather import GatherAction, ReturnResource
-from bot.resources.main import ResourceContext
+from bot.common.action import Action, DoNothing, Smart
+from bot.components.resources.assignment import HarvesterAssignment
+from bot.components.resources.gather import GatherAction, ReturnResource
+from bot.components.resources.main import ResourceContext
 
 
 @dataclass(frozen=True)
@@ -15,15 +15,6 @@ class ResourceReport:
     context: ResourceContext
     assignment: HarvesterAssignment
     gas_target: int
-
-    @property
-    def max_harvesters(self) -> int:
-        return sum(
-            (
-                2 * self.context.mineral_fields.amount,
-                3 * self.context.vespene_geysers.amount,
-            )
-        )
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
         if not (target_pos := self.assignment.items.get(unit.tag)):

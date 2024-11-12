@@ -2,7 +2,7 @@ import math
 import random
 from dataclasses import dataclass
 from itertools import chain
-from typing import Callable, Iterable, TypeAlias
+from typing import Iterable, TypeAlias
 
 from ares import DEBUG
 from loguru import logger
@@ -14,17 +14,17 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bot.action import Action, HoldPosition, Move, UseAbility
-from bot.base import BotBase
-from bot.constants import (
+from bot.common.action import Action, HoldPosition, Move, UseAbility
+from bot.common.base import BotBase
+from bot.common.constants import (
     ALL_MACRO_ABILITIES,
     GAS_BY_RACE,
     ITEM_BY_ABILITY,
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
     MACRO_INFO,
 )
-from bot.cost import Cost
-from bot.utils import PlacementNotFoundException
+from bot.common.cost import Cost, CostManager
+from bot.common.utils import PlacementNotFoundException
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 
@@ -39,118 +39,7 @@ class MacroPlan:
     commanded: bool = False
 
 
-MacroPriority: TypeAlias = Callable[[MacroPlan], float]
-
-
-def compare_plans(plan_a: MacroPlan, plan_b: MacroPlan) -> int:
-    if plan_a.priority < plan_b.priority:
-        return -1
-    elif plan_b.priority < plan_a.priority:
-        return +1
-    return 0
-
-
-async def premove(context: BotBase, unit: Unit, target: Point2, eta: float) -> Action | None:
-    distance = await context.client.query_pathing(unit, target) or 0.0
-    movement_eta = 1.5 + distance / (1.4 * unit.movement_speed)
-    if eta <= movement_eta:
-        if 1e-3 < unit.distance_to(target):
-            return Move(unit, target)
-        else:
-            return HoldPosition(unit)
-    return None
-
-
-def get_eta(context: BotBase, reserve: Cost, cost: Cost) -> float:
-    deficit = reserve + cost - context.bank
-    eta = deficit / context.income
-    return max(
-        (
-            0.0,
-            eta.minerals if 0 < deficit.minerals and 0 < cost.minerals else 0.0,
-            eta.vespene if 0 < deficit.vespene and 0 < cost.vespene else 0.0,
-            eta.larva if 0 < deficit.larva and 0 < cost.larva else 0.0,
-            eta.supply if 0 < deficit.supply and 0 < cost.supply else 0.0,
-        )
-    )
-
-
-async def get_target_position(context: BotBase, target: UnitTypeId, blocked_positions: set[Point2]) -> Point2 | None:
-    data = context.game_data.units[target.value]
-    if target in {UnitTypeId.HATCHERY}:
-        candidates = [
-            b for b in context.expansion_locations_list if b not in blocked_positions and b not in context.townhall_at
-        ]
-        if not candidates:
-            return None
-        loss_positions = {context.in_mineral_line(b) for b in context.bases_taken}
-        loss_positions_enemy = {context.in_mineral_line(s) for s in context.enemy_start_locations}
-
-        async def loss_fn(p: Point2) -> float:
-            distances = await context.client.query_pathings([[p, q] for q in loss_positions])
-            distances_enemy = await context.client.query_pathings([[p, q] for q in loss_positions_enemy])
-            return max(distances) - min(distances_enemy)
-
-        c_min = candidates[0]
-        loss_min = await loss_fn(c_min)
-        for c in candidates[1:]:
-            loss = await loss_fn(c)
-            if loss < loss_min:
-                loss_min = loss
-                c_min = c
-        return c_min
-
-    bases = list(context.expansion_locations_dict.items())
-    random.shuffle(bases)
-    for pos, resources in bases:
-        if not (base := context.townhall_at.get(pos)):
-            continue
-        if not base.is_ready:
-            continue
-        position = pos.towards_with_random_angle(context.behind_mineral_line(pos), 10)
-        offset = data.footprint_radius % 1
-        position = position.rounded.offset((offset, offset))
-        return position
-    return None
-
-
-def _debug_draw_plan(
-    context: BotBase,
-    unit: Unit | None,
-    plan: MacroPlan,
-    eta: float,
-    index: int,
-    font_color=(255, 255, 255),
-    font_size=16,
-) -> None:
-    positions = []
-    if isinstance(plan.target, Unit):
-        positions.append(plan.target.position3d)
-    elif isinstance(plan.target, Point3):
-        positions.append(plan.target)
-    elif isinstance(plan.target, Point2):
-        height = context.get_terrain_z_height(plan.target)
-        positions.append(Point3((plan.target.x, plan.target.y, height)))
-
-    if unit:
-        height = context.get_terrain_z_height(unit)
-        positions.append(Point3((unit.position.x, unit.position.y, height)))
-
-    text = f"{plan.item.name} {eta:.2f}"
-
-    for position in positions:
-        context.client.debug_text_world(text, position, color=font_color, size=font_size)
-
-    if len(positions) == 2:
-        position_from, position_to = positions
-        position_from += Point3((0.0, 0.0, 0.1))
-        position_to += Point3((0.0, 0.0, 0.1))
-        context.client.debug_line_out(position_from, position_to, color=font_color)
-
-    context.client.debug_text_screen(f"{1 + index} {round(eta or 0, 1)} {plan.item.name}", (0.01, 0.1 + 0.01 * index))
-
-
-class Macro:
+class MacroPlanner:
     _unassigned_plans: list[MacroPlan] = list()
     _assigned_plans: dict[int, MacroPlan] = dict()
 
@@ -254,19 +143,11 @@ class Macro:
 
         return actions
 
-    def get_future_spending(self, context: BotBase, composition: dict[UnitTypeId, int]) -> Cost:
-        cost_zero = Cost(0, 0, 0, 0)
-        future_spending = cost_zero
-        future_spending += sum((context.cost.of(plan.item) for plan in self._unassigned_plans), cost_zero)
-        future_spending += sum(
-            (context.cost.of(plan.item) for plan in self._assigned_plans.values()),
-            cost_zero,
-        )
-        future_spending += sum(
-            (context.cost.of(unit) * max(0, count - context.count(unit)) for unit, count in composition.items()),
-            cost_zero,
-        )
-        return future_spending
+    def get_total_cost(self, cost: CostManager) -> Cost:
+        costs = []
+        costs.extend([cost.of(plan.item) for plan in self._unassigned_plans])
+        costs.extend(cost.of(plan.item) for plan in self._assigned_plans.values())
+        return sum(costs, cost.zero)
 
     async def get_target(
         self, context: BotBase, trainer: Unit, objective: MacroPlan, blocked_positions: set[Point2]
@@ -352,3 +233,111 @@ class Macro:
                 logger.info(f"Executed {plan} through {action}")
         elif action.exact_id in ALL_MACRO_ABILITIES:
             logger.info(f"Unplanned {action}")
+
+
+def _debug_draw_plan(
+    context: BotBase,
+    unit: Unit | None,
+    plan: MacroPlan,
+    eta: float,
+    index: int,
+    font_color=(255, 255, 255),
+    font_size=16,
+) -> None:
+    positions = []
+    if isinstance(plan.target, Unit):
+        positions.append(plan.target.position3d)
+    elif isinstance(plan.target, Point3):
+        positions.append(plan.target)
+    elif isinstance(plan.target, Point2):
+        height = context.get_terrain_z_height(plan.target)
+        positions.append(Point3((plan.target.x, plan.target.y, height)))
+
+    if unit:
+        height = context.get_terrain_z_height(unit)
+        positions.append(Point3((unit.position.x, unit.position.y, height)))
+
+    text = f"{plan.item.name} {eta:.2f}"
+
+    for position in positions:
+        context.client.debug_text_world(text, position, color=font_color, size=font_size)
+
+    if len(positions) == 2:
+        position_from, position_to = positions
+        position_from += Point3((0.0, 0.0, 0.1))
+        position_to += Point3((0.0, 0.0, 0.1))
+        context.client.debug_line_out(position_from, position_to, color=font_color)
+
+    context.client.debug_text_screen(f"{1 + index} {round(eta or 0, 1)} {plan.item.name}", (0.01, 0.1 + 0.01 * index))
+
+
+def compare_plans(plan_a: MacroPlan, plan_b: MacroPlan) -> int:
+    if plan_a.priority < plan_b.priority:
+        return -1
+    elif plan_b.priority < plan_a.priority:
+        return +1
+    return 0
+
+
+async def premove(context: BotBase, unit: Unit, target: Point2, eta: float) -> Action | None:
+    distance = await context.client.query_pathing(unit, target) or 0.0
+    movement_eta = 1.5 + distance / (1.4 * unit.movement_speed)
+    if eta <= movement_eta:
+        if 1e-3 < unit.distance_to(target):
+            return Move(unit, target)
+        else:
+            return HoldPosition(unit)
+    return None
+
+
+def get_eta(context: BotBase, reserve: Cost, cost: Cost) -> float:
+    deficit = reserve + cost - context.bank
+    eta = deficit / context.income
+    return max(
+        (
+            0.0,
+            eta.minerals if 0 < deficit.minerals and 0 < cost.minerals else 0.0,
+            eta.vespene if 0 < deficit.vespene and 0 < cost.vespene else 0.0,
+            eta.larva if 0 < deficit.larva and 0 < cost.larva else 0.0,
+            eta.supply if 0 < deficit.supply and 0 < cost.supply else 0.0,
+        )
+    )
+
+
+async def get_target_position(context: BotBase, target: UnitTypeId, blocked_positions: set[Point2]) -> Point2 | None:
+    data = context.game_data.units[target.value]
+    if target in {UnitTypeId.HATCHERY}:
+        candidates = [
+            b for b in context.expansion_locations_list if b not in blocked_positions and b not in context.townhall_at
+        ]
+        if not candidates:
+            return None
+        loss_positions = {context.in_mineral_line(b) for b in context.bases_taken}
+        loss_positions_enemy = {context.in_mineral_line(s) for s in context.enemy_start_locations}
+
+        async def loss_fn(p: Point2) -> float:
+            distances = await context.client.query_pathings([[p, q] for q in loss_positions])
+            distances_enemy = await context.client.query_pathings([[p, q] for q in loss_positions_enemy])
+            return max(distances) - min(distances_enemy)
+
+        c_min = candidates[0]
+        loss_min = await loss_fn(c_min)
+        for c in candidates[1:]:
+            loss = await loss_fn(c)
+            if loss < loss_min:
+                loss_min = loss
+                c_min = c
+        return c_min
+
+    bases = list(context.expansion_locations_dict.items())
+    random.shuffle(bases)
+    for pos, resources in bases:
+        if not (base := context.townhall_at.get(pos)):
+            continue
+        if not base.is_ready:
+            continue
+        position = pos.towards_with_random_angle(context.behind_mineral_line(pos), 10)
+        offset = data.footprint_radius % 1
+        position = position.rounded.offset((offset, offset))
+        return position
+    return None

@@ -8,11 +8,11 @@ import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Point2, Unit
 
-from bot.action import Action, AttackMove, Move
-from bot.base import BotBase
-from bot.constants import CHANGELINGS
+from bot.common.action import Action, AttackMove, Move
+from bot.common.base import BotBase
+from bot.common.constants import CHANGELINGS
+from bot.components.combat.predictor import Prediction
 from bot.cython.cy_dijkstra import cy_dijkstra  # type: ignore
-from bot.predictor import Prediction
 
 
 class CombatStance(Enum):

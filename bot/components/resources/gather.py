@@ -4,7 +4,7 @@ from ares import AresBot
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from bot.action import Action
+from bot.common.action import Action
 
 
 @dataclass
