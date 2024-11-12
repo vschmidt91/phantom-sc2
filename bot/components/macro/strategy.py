@@ -3,7 +3,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from functools import cached_property, total_ordering
 
-from common.unit_composition import UnitComposition
+from bot.common.unit_composition import UnitComposition
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.units import Units

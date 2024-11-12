@@ -9,7 +9,7 @@ from typing import AsyncGenerator, Iterable, cast
 
 import numpy as np
 from ares import DEBUG
-from common.unit_composition import UnitComposition
+from bot.common.unit_composition import UnitComposition
 from loguru import logger
 from sc2.data import ActionResult, Result
 from sc2.ids.ability_id import AbilityId
