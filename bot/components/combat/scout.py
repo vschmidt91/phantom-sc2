@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Iterable
+from functools import cached_property
 
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -21,40 +21,28 @@ class ScoutAction(Action):
             return self.unit.move(self.target)
 
 
+@dataclass(frozen=True)
 class Scout:
+    context: BotBase
+    units: Units
+    scout_positions: frozenset[Point2]
+    detect_positions: frozenset[Point2]
+    scout_enemy_natural = False
 
-    scout_enemy_natural: bool = False
-    static_targets: list[Point2] = list()
+    @cached_property
+    def detectors(self) -> list[Unit]:
+        return [u for u in self.units if u.is_detector]
 
-    def initialize_scout_targets(self, context: BotBase, bases: list[Point2]) -> None:
-        for base in bases[1 : len(bases) // 2]:
-            self.static_targets.append(base.position)
+    @cached_property
+    def nondetectors(self) -> list[Unit]:
+        return [u for u in self.units if not u.is_detector]
 
-        self.static_targets.sort(key=lambda t: t.distance_to(context.start_location))
+    def get_actions(self) -> dict[Unit, ScoutAction]:
+        detectors = sorted(self.detectors, key=lambda u: u.tag)
+        nondetectors = sorted(self.nondetectors, key=lambda u: u.tag)
+        scout_positions = sorted(self.scout_positions, key=lambda p: hash(p))
+        detect_positions = sorted(self.detect_positions, key=lambda p: hash(p))
 
-        for pos in context.enemy_start_locations:
-            pos = 0.5 * (pos + context.start_location)
-            self.static_targets.insert(1, pos)
-
-    def get_actions(
-        self, context: BotBase, scouts: Units, blocked_positions: Iterable[Point2]
-    ) -> Iterable[ScoutAction]:
-
-        detectors = [u for u in scouts if u.is_detector]
-        non_detectors = [u for u in scouts if not u.is_detector]
-        scout_targets = []
-        if self.scout_enemy_natural and context.time < 3 * 60:
-            target = context.expansion_locations_list[-2]
-            scout_targets.append(target)
-        scout_targets.extend(self.static_targets)
-
-        # self.reset_blocked_bases()
-        # self.detect_blocked_bases()
-
-        detectors.sort(key=lambda u: u.tag)
-        non_detectors.sort(key=lambda u: u.tag)
-        scout_targets.sort(key=lambda p: p.distance_to(context.start_location))
-        for unit, target in zip(detectors, blocked_positions):
-            yield ScoutAction(unit, target)
-        for unit, target in zip(non_detectors, scout_targets):
-            yield ScoutAction(unit, target)
+        return {unit: ScoutAction(unit, target) for unit, target in zip(detectors, detect_positions)} | {
+            unit: ScoutAction(unit, target) for unit, target in zip(nondetectors, scout_positions)
+        }

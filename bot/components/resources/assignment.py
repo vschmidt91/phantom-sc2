@@ -19,7 +19,7 @@ class HarvesterAssignment:
 
     @lru_cache(maxsize=None)
     def assigned_to(self, p: Point2) -> frozenset[int]:
-        return frozenset({u for u, t in frozenset(self.items.items()) if t == p})
+        return frozenset({u for u, t in self.items.items() if t == p})
 
     @lru_cache(maxsize=None)
     def assigned_to_set(self, ps: frozenset[Point2]) -> frozenset[int]:

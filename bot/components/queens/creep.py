@@ -79,7 +79,7 @@ class CreepSpreadContext:
     def spread_with_queen(self, queen: Unit) -> Action | None:
         if queen.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
             return None
-        return self._place_tumor(queen, 5, full_circle=True)
+        return self._place_tumor(queen, 12, full_circle=True)
 
     def spread_with_tumor(self, tumor: Unit) -> Action | None:
         return self._place_tumor(tumor, 10)

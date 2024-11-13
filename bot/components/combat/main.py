@@ -1,4 +1,3 @@
-import math
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import cached_property
@@ -47,6 +46,21 @@ class Combat:
     retreat_targets: frozenset[Point2]
     attack_targets: frozenset[Point2]
 
+    def retreat_with(self, unit: Unit, retreat_path_limit=5) -> Action:
+        x = round(unit.position.x)
+        y = round(unit.position.y)
+        if unit.is_flying:
+            retreat_map = self.retreat_air
+        else:
+            retreat_map = self.retreat_ground
+        retreat_path = retreat_map.get_path((x, y), retreat_path_limit)
+        if retreat_map.dist[x, y] == np.inf:
+            retreat_point = self.bot.start_location
+        else:
+            retreat_point = Point2(retreat_path[-1]).offset(HALF)
+
+        return Move(unit, retreat_point)
+
     def fight_with(self, unit: Unit) -> Action | None:
 
         def target_priority(t: Unit) -> float:
@@ -90,24 +104,18 @@ class Combat:
         if priority <= 0:
             return None
 
-        if unit.is_flying:
-            retreat_map = self.retreat_air
-        else:
-            retreat_map = self.retreat_ground
-
         x = round(unit.position.x)
         y = round(unit.position.y)
-        retreat_path_limit = 5
 
         unit_range = unit.air_range if target.is_flying else unit.ground_range
         range_deficit = min(
             unit.sight_range, max(1, unit.distance_to(target) - unit.radius - target.radius - unit_range)
         )
-        attack_path = self.attack_pathing.get_path((x, y), range_deficit)
-        attack_point = attack_path[-1]
-
-        if self.attack_pathing.dist[unit.position.rounded] == math.inf:
-            attack_point = target.position.rounded
+        if self.attack_pathing.dist[x, y] == np.inf:
+            attack_point = unit.position.towards(target, range_deficit, limit=True).rounded
+        else:
+            attack_path = self.attack_pathing.get_path((x, y), range_deficit)
+            attack_point = attack_path[-1]
         #
         # confidence = max(
         #     self.confidence[x, y],
@@ -115,38 +123,24 @@ class Combat:
         #     # self.strategy.confidence_global,
         # )
 
-        def flee(unit) -> Action:
-            retreat_path = retreat_map.get_path((x, y), retreat_path_limit)
-            if retreat_map.dist[x, y] == np.inf:
-                retreat_point = self.bot.start_location
-            else:
-                retreat_point = Point2(retreat_path[-1]).offset(HALF)
-
-            return Move(unit, retreat_point)
-
-        if unit.type_id == UnitTypeId.QUEEN and not self.bot.has_creep(unit.position):
-            return flee(unit)
-        elif self.confidence[x, y] < 0 and not self.bot.has_creep(unit.position):
-            return flee(unit)
+        if self.confidence[x, y] < 0 and not self.bot.has_creep(unit.position):
+            return self.retreat_with(unit)
         elif unit.is_burrowed:
-            return flee(unit)
+            return self.retreat_with(unit)
+        if 0 == self.enemy_presence.dps[attack_point]:
+            return AttackMove(unit, target.position)
+        elif 0 < self.confidence[attack_point]:
+            return AttackMove(unit, target.position)
+        elif 0 == self.enemy_presence.dps[x, y]:
+            return HoldPosition(unit)
+        elif self.confidence[x, y] < -1:
+            return self.retreat_with(unit)
+        elif unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready < unit.position.distance_to(
+            target.position
+        ):
+            return UseAbility(unit, AbilityId.ATTACK, target)
         else:
-            if 0 < self.confidence[attack_point]:
-                return AttackMove(unit, Point2(attack_point))
-            elif 0 == self.enemy_presence.dps[x, y]:
-                return HoldPosition(unit)
-            # elif -1 - math.exp(-unit.weapon_cooldown) <= self.confidence[x, y]:
-            #     if not unit.weapon_cooldown:
-            #         return UseAbility(unit, AbilityId.ATTACK, target)
-            #     elif (
-            #         unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready
-            #         < unit.position.distance_to(target.position)
-            #     ):
-            #         return UseAbility(unit, AbilityId.ATTACK, target)
-            #     else:
-            #         return flee(unit)
-            else:
-                return flee(unit)
+            return self.retreat_with(unit)
 
         # elif 1 < unit.ground_range:
         #     if 1 <= confidence:

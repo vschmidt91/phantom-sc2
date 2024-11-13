@@ -26,7 +26,6 @@ from bot.common.constants import (
     VERSION_FILE,
     WITH_TECH_EQUIVALENTS,
 )
-from bot.common.debug import Debug, DebugDummy
 from bot.common.main import BotBase
 from bot.common.unit_composition import UnitComposition
 from bot.components.combat.corrosive_biles import CorrosiveBiles
@@ -45,6 +44,7 @@ from bot.components.resources.main import (
     ResourceReport,
     update_resources,
 )
+from bot.debug import Debug, DebugBase, DebugDummy
 
 
 class PhantomBot(BotBase):
@@ -54,7 +54,7 @@ class PhantomBot(BotBase):
     dodge = Dodge()
     corrosive_biles = CorrosiveBiles()
     planner = MacroPlanner()
-    scout = Scout()
+    _debug: DebugBase = DebugDummy()
     build_order = HATCH_FIRST
     harvester_assignment = HarvesterAssignment({})
     version = UNKNOWN_VERSION
@@ -64,26 +64,20 @@ class PhantomBot(BotBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.debug = Debug() if self.config[DEBUG] else DebugDummy()
 
     async def on_before_start(self):
         await super().on_before_start()
 
     async def on_start(self) -> None:
         await super().on_start()
+
         if self.config[DEBUG]:
-            await self.debug.on_start()
-        # output_path = os.path.join("resources", f"{self.game_info.map_name}.xz")
-        # with lzma.open(output_path, "wb") as f:
-        #     pickle.dump(self.game_info, f)
-        # await self.client.debug_create_unit([[UnitTypeId.CREEPTUMORBURROWED, 1, self.bases[1].position, 2]])
-        # await self.client.debug_upgrade()
-        self.scout.initialize_scout_targets(self, self.expansion_locations_list)
+            self._debug = Debug(self)
+            await self._debug.on_start()
 
         if os.path.exists(VERSION_FILE):
             with open(VERSION_FILE) as f:
-                version = f.read()
-                await self.add_replay_tag(f"version_{version}")
+                await self.add_replay_tag(f"version_{f.read()}")
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
@@ -92,7 +86,7 @@ class PhantomBot(BotBase):
             if iteration == 0:  # local only: skip first iteration like on the ladder
                 return
 
-        await self.debug.on_step_start()
+        await self._debug.on_step_start()
 
         self.update_blocked_bases()
         strategy = Strategy(
@@ -106,7 +100,7 @@ class PhantomBot(BotBase):
                 await self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
 
-        await self.debug.on_step_end()
+        await self._debug.on_step_end()
 
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)
@@ -164,6 +158,15 @@ class PhantomBot(BotBase):
         gas_ratio = vespene_trips / max(1.0, mineral_trips + vespene_trips)
         return gas_ratio
 
+    def get_scouting(self) -> Scout:
+        bases_sorted = sorted(self.expansion_locations_list, key=lambda b: b.distance_to(self.start_location))
+        scout_targets = bases_sorted[1 : len(bases_sorted) // 2]
+        for pos in self.enemy_start_locations:
+            pos = 0.5 * (pos + self.start_location)
+            scout_targets.insert(1, pos)
+        scouts = self.units({UnitTypeId.OVERLORD, UnitTypeId.OVERSEER})
+        return Scout(self, scouts, frozenset(scout_targets), frozenset(self._blocked_positions))
+
     async def micro(
         self,
         strategy: Strategy,
@@ -186,13 +189,10 @@ class PhantomBot(BotBase):
         self.inject.assign(queens, self.townhalls.ready)
         should_inject = self.supply_used + self.larva.amount < 200
         should_spread_creep = self.creep.active_tumor_count < 10
-        scouts = self.units({UnitTypeId.OVERLORD, UnitTypeId.OVERSEER})
-        blocked_positions = set(self._blocked_positions)
-        scout_actions = {a.unit: a for a in self.scout.get_actions(self, scouts, blocked_positions)}
-        macro_actions = await self.planner.get_actions(self, blocked_positions)
+        planned_actions = await self.planner.get_actions(self, set(self._blocked_positions))
 
         def should_harvest(u: Unit) -> bool:
-            if u in macro_actions:  # got special orders?
+            if u in planned_actions:  # got special orders?
                 return False
             elif u.is_idle:  # you slackin?
                 return True
@@ -230,6 +230,7 @@ class PhantomBot(BotBase):
                 or do_transfuse_single(q, combat.units)
                 or (self.inject.inject_with(q) if should_inject else None)
                 or (creep.spread_with_queen(q) if should_spread_creep else None)
+                or (combat.retreat_with(q) if not self.has_creep(q) else None)
                 or combat.fight_with(q)
                 # or DoNothing()
             )
@@ -247,16 +248,18 @@ class PhantomBot(BotBase):
                 or self.search_with(unit)
             )
 
+        scout_actions = self.get_scouting().get_actions()
+
         for worker in harvesters:
             yield self.micro_harvester(worker, combat, dodge, resource_report) or DoNothing()
-        for action in macro_actions.values():
+        for action in planned_actions.values():
             yield action
         for tumor in self.creep.get_active_tumors(self):
             yield creep.spread_with_tumor(tumor) or DoNothing()
         for unit in combat.units:
             if unit in scout_actions:
                 pass
-            elif unit in macro_actions:
+            elif unit in planned_actions:
                 pass
             else:
                 yield micro_unit(unit) or DoNothing()
