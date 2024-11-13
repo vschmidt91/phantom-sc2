@@ -3,6 +3,7 @@ from functools import cached_property
 from typing import Iterable
 
 import numpy as np
+from bot.components.combat.main import Combat
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -26,13 +27,14 @@ class CreepSpreadContext:
     creep: np.ndarray
     visibility: np.ndarray
     pathing: np.ndarray
+    mask: np.ndarray
     prevent_blocking: set[Point2]
     reward_blocking: set[Point2]
     game_loop: int
 
     @cached_property
     def placement_map(self) -> np.ndarray:
-        m = self.creep & self.visibility & self.pathing
+        m = self.creep & self.visibility & self.pathing & self.mask
         for b in self.prevent_blocking:
             x, y = (Point2(b) - 0.5 * Point2(_BASE_SIZE)).rounded
             r = rectangle((x, y), extent=_BASE_SIZE, shape=self.creep.shape)
@@ -105,7 +107,7 @@ class CreepSpread:
             else:
                 yield tumor
 
-    def update(self, context: BotBase) -> CreepSpreadContext:
+    def update(self, context: BotBase, combat: Combat) -> CreepSpreadContext:
         for action in context.state.actions_unit_commands:
             if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
                 for tag in action.unit_tags:
@@ -117,6 +119,7 @@ class CreepSpread:
         creep = context.state.creep.data_numpy.T == 1
         visibility = context.state.visibility.data_numpy.T == 2
         pathing = context.mediator.get_map_data_object.get_pyastar_grid() == 1.0
+        mask = combat.confidence >= 0
         bases = set(context.expansion_locations_list)
 
         return CreepSpreadContext(
@@ -124,6 +127,7 @@ class CreepSpread:
             creep,
             visibility,
             pathing,
+            mask,
             prevent_blocking=bases,
             reward_blocking=bases,
             game_loop=context.state.game_loop,

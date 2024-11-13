@@ -183,7 +183,7 @@ class PhantomBot(BotBase):
             attack_targets=frozenset([p.position for p in self.enemy_structures] + self.enemy_start_locations),
         )
 
-        creep = self.creep.update(self)
+        creep = self.creep.update(self, combat)
         queens = self.units(UnitTypeId.QUEEN)
         self.inject.assign(queens, self.townhalls.ready)
         should_inject = self.supply_used + self.larva.amount < 200
@@ -281,7 +281,12 @@ class PhantomBot(BotBase):
     def micro_harvester(
         self, unit: Unit, combat: Combat, dodge: DodgeResult, resources: ResourceReport
     ) -> Action | None:
-        return dodge.dodge_with(unit) or resources.gather_with(unit, self.townhalls.ready) or combat.fight_with(unit)
+        return (
+            dodge.dodge_with(unit)
+            or (combat.retreat_with(unit) if combat.confidence[unit.position.rounded] < 0 else None)
+            or resources.gather_with(unit, self.townhalls.ready)
+            or combat.fight_with(unit)
+        )
 
     def run_build_order(self) -> list[MacroPlan] | None:
         for i, step in enumerate(self.build_order.steps):
