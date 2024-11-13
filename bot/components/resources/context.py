@@ -120,7 +120,7 @@ class ResourceContext:
             if tag in self.harvester_tags:
                 continue
             target_pos = assignment.items[tag]
-            if target := self.resource_at[target_pos]:
+            if target := self.resource_at.get(target_pos):
                 if 0 < self.workers_in_geysers and target.is_vespene_geyser:
                     # logger.info(f"in gas: {tag=}")
                     continue
