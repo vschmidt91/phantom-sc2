@@ -20,7 +20,14 @@ class DebugBase(ABC):
 
 
 class DebugDummy(DebugBase):
-    pass
+    async def on_start(self) -> None:
+        pass
+
+    async def on_step_start(self) -> None:
+        pass
+
+    async def on_step_end(self) -> None:
+        pass
 
 
 class Debug(DebugBase):
