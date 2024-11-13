@@ -1,7 +1,5 @@
-import cProfile
 import math
 import os
-import pstats
 import random
 from itertools import chain
 from typing import AsyncGenerator, Iterable
@@ -17,7 +15,6 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from bot.common.action import Action, AttackMove, DoNothing, UseAbility
-from bot.common.base import BotBase
 from bot.common.constants import (
     ALL_MACRO_ABILITIES,
     CHANGELINGS,
@@ -29,6 +26,8 @@ from bot.common.constants import (
     VERSION_FILE,
     WITH_TECH_EQUIVALENTS,
 )
+from bot.common.debug import Debug, DebugDummy
+from bot.common.main import BotBase
 from bot.common.unit_composition import UnitComposition
 from bot.components.combat.corrosive_biles import CorrosiveBiles
 from bot.components.combat.dodge import Dodge, DodgeResult
@@ -49,38 +48,35 @@ from bot.components.resources.main import (
 
 
 class PhantomBot(BotBase):
+
     creep = CreepSpread()
     inject = Inject()
     dodge = Dodge()
     corrosive_biles = CorrosiveBiles()
-
     planner = MacroPlanner()
-    build_order = HATCH_FIRST
-
     scout = Scout()
+    build_order = HATCH_FIRST
     harvester_assignment = HarvesterAssignment({})
-    profiler = cProfile.Profile()
     version = UNKNOWN_VERSION
     _blocked_positions = dict[Point2, float]()
     _replay_tags = set[str]()
     _max_harvesters = 16
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.debug = Debug() if self.config[DEBUG] else DebugDummy()
 
     async def on_before_start(self):
         await super().on_before_start()
 
     async def on_start(self) -> None:
         await super().on_start()
-        # if self.config[DEBUG]:
+        if self.config[DEBUG]:
+            await self.debug.on_start()
         # output_path = os.path.join("resources", f"{self.game_info.map_name}.xz")
         # with lzma.open(output_path, "wb") as f:
         #     pickle.dump(self.game_info, f)
         # await self.client.debug_create_unit([[UnitTypeId.CREEPTUMORBURROWED, 1, self.bases[1].position, 2]])
-        # await self.client.debug_create_unit(
-        #     [
-        #         [UnitTypeId.ROACH, 10, self.bases[1].position, 1],
-        #         [UnitTypeId.ROACH, 10, self.bases[2].position, 2],
-        #     ]
-        # )
         # await self.client.debug_upgrade()
         self.scout.initialize_scout_targets(self, self.expansion_locations_list)
 
@@ -93,36 +89,24 @@ class PhantomBot(BotBase):
         await super().on_step(iteration)
 
         if self.config[DEBUG]:
-            # local only: skip first iteration like on the ladder
-            if iteration == 0:
+            if iteration == 0:  # local only: skip first iteration like on the ladder
                 return
-            self.profiler.enable()
 
-        for error in self.state.action_errors:
-            logger.info(f"{error=}")
+        await self.debug.on_step_start()
 
         self.update_blocked_bases()
-
         strategy = Strategy(
             context=self, max_harvesters=max(1, min(80, self._max_harvesters))  # TODO: exclude mined out resources,
         )
-
         for plan in self.macro(strategy):
             self.planner.add(plan)
-
         async for action in self.micro(strategy):
             success = await action.execute(self)
             if not success:
                 await self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
 
-        if self.config[DEBUG]:
-            self.profiler.disable()
-            stats = pstats.Stats(self.profiler)
-            if iteration % 100 == 0:
-                logger.info("dump profiling")
-                stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
-                stats.dump_stats(filename="profiling.prof")
+        await self.debug.on_step_end()
 
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)

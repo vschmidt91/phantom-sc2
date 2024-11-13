@@ -6,7 +6,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bot.common.action import Action
-from bot.common.base import BotBase
+from bot.common.main import BotBase
 
 
 @dataclass

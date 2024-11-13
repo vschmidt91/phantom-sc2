@@ -15,7 +15,6 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bot.common.action import Action, HoldPosition, Move, UseAbility
-from bot.common.base import BotBase
 from bot.common.constants import (
     ALL_MACRO_ABILITIES,
     GAS_BY_RACE,
@@ -24,6 +23,7 @@ from bot.common.constants import (
     MACRO_INFO,
 )
 from bot.common.cost import Cost, CostManager
+from bot.common.main import BotBase
 from bot.common.utils import PlacementNotFoundException
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId

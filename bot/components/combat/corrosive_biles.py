@@ -5,8 +5,8 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
 from bot.common.action import Action, UseAbility
-from bot.common.base import BotBase
 from bot.common.constants import CHANGELINGS, COOLDOWN
+from bot.common.main import BotBase
 
 
 @dataclass(frozen=True)

@@ -14,8 +14,8 @@ from sc2.units import Units
 from scipy import ndimage
 
 from bot.common.action import Action, AttackMove, HoldPosition, Move, UseAbility
-from bot.common.base import BotBase
 from bot.common.constants import CHANGELINGS
+from bot.common.main import BotBase
 from bot.common.utils import Point, can_attack, disk
 from bot.components.combat.presence import Presence
 from bot.components.macro.strategy import Strategy
@@ -27,6 +27,7 @@ DpsProvider = Callable[[UnitTypeId], float]
 class CombatStance(Enum):
     FLEE = auto()
     RETREAT = auto()
+    HOLD = auto()
     FIGHT = auto()
     ADVANCE = auto()
 
@@ -97,7 +98,6 @@ class Combat:
         x = round(unit.position.x)
         y = round(unit.position.y)
         retreat_path_limit = 5
-        retreat_path = retreat_map.get_path((x, y), retreat_path_limit)
 
         unit_range = unit.air_range if target.is_flying else unit.ground_range
         range_deficit = min(
@@ -108,50 +108,15 @@ class Combat:
 
         if self.attack_pathing.dist[unit.position.rounded] == math.inf:
             attack_point = target.position.rounded
+        #
+        # confidence = max(
+        #     self.confidence[x, y],
+        #     self.confidence[attack_point],
+        #     # self.strategy.confidence_global,
+        # )
 
-        confidence = np.median(
-            (
-                self.confidence[x, y],
-                self.confidence[attack_point],
-                self.strategy.confidence_global,
-            )
-        )
-
-        if unit.type_id == UnitTypeId.QUEEN and not self.bot.has_creep(unit.position):
-            stance = CombatStance.FLEE
-        elif confidence < 0 and not self.bot.has_creep(unit.position):
-            stance = CombatStance.FLEE
-        elif unit.is_burrowed:
-            stance = CombatStance.FLEE
-        elif 1 < unit.ground_range:
-            if 1 <= confidence:
-                stance = CombatStance.ADVANCE
-            elif 0 <= confidence:
-                stance = CombatStance.FIGHT
-            elif -1 - math.exp(-unit.weapon_cooldown) <= confidence:
-                stance = CombatStance.RETREAT
-            elif len(retreat_path) < retreat_path_limit:
-                stance = CombatStance.RETREAT
-            else:
-                stance = CombatStance.FLEE
-        else:
-            if 0 <= confidence:
-                stance = CombatStance.FIGHT
-            else:
-                stance = CombatStance.FLEE
-
-        if stance in {CombatStance.FLEE, CombatStance.RETREAT}:
-            unit_range = self.bot.get_unit_range(unit, not target.is_flying, target.is_flying)
-
-            if stance == CombatStance.RETREAT:
-                if not unit.weapon_cooldown:
-                    return AttackMove(unit, target.position)
-                elif (
-                    unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready
-                    < unit.position.distance_to(target.position)
-                ):
-                    return AttackMove(unit, Point2(attack_point))
-
+        def flee(unit) -> Action:
+            retreat_path = retreat_map.get_path((x, y), retreat_path_limit)
             if retreat_map.dist[x, y] == np.inf:
                 retreat_point = self.bot.start_location
             else:
@@ -159,20 +124,80 @@ class Combat:
 
             return Move(unit, retreat_point)
 
-        elif stance == CombatStance.FIGHT:
-            return AttackMove(unit, target.position)
-
-        elif stance == CombatStance.ADVANCE:
-            distance = unit.position.distance_to(target.position) - unit.radius - target.radius
-            if unit.weapon_cooldown and 1 < distance:
-                return Move(unit, Point2(target.position))
-            elif (
-                unit.position.distance_to(target.position)
-                <= unit.radius + self.bot.get_unit_range(unit) + target.radius
-            ):
-                return AttackMove(unit, target.position)
+        if unit.type_id == UnitTypeId.QUEEN and not self.bot.has_creep(unit.position):
+            return flee(unit)
+        elif self.confidence[x, y] < 0 and not self.bot.has_creep(unit.position):
+            return flee(unit)
+        elif unit.is_burrowed:
+            return flee(unit)
+        else:
+            if 0 < self.confidence[attack_point]:
+                return AttackMove(unit, Point2(attack_point))
+            elif 0 == self.enemy_presence.dps[x, y]:
+                return HoldPosition(unit)
+            # elif -1 - math.exp(-unit.weapon_cooldown) <= self.confidence[x, y]:
+            #     if not unit.weapon_cooldown:
+            #         return UseAbility(unit, AbilityId.ATTACK, target)
+            #     elif (
+            #         unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready
+            #         < unit.position.distance_to(target.position)
+            #     ):
+            #         return UseAbility(unit, AbilityId.ATTACK, target)
+            #     else:
+            #         return flee(unit)
             else:
-                return AttackMove(unit, target.position)
+                return flee(unit)
+
+        # elif 1 < unit.ground_range:
+        #     if 1 <= confidence:
+        #         stance = CombatStance.ADVANCE
+        #     elif 0 <= confidence:
+        #         stance = CombatStance.FIGHT
+        #     elif -1 - math.exp(-unit.weapon_cooldown) <= confidence:
+        #         stance = CombatStance.RETREAT
+        #     elif len(retreat_path) < retreat_path_limit:
+        #         stance = CombatStance.RETREAT
+        #     else:
+        #         stance = CombatStance.FLEE
+        # else:
+        #     if 0 <= confidence:
+        #         stance = CombatStance.FIGHT
+        #     else:
+        #         stance = CombatStance.FLEE
+
+        # if stance in {CombatStance.FLEE, CombatStance.RETREAT}:
+        #     unit_range = self.bot.get_unit_range(unit, not target.is_flying, target.is_flying)
+        #
+        #     if stance == CombatStance.RETREAT:
+        #         if not unit.weapon_cooldown:
+        #             return AttackMove(unit, target.position)
+        #         elif (
+        #             unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready
+        #             < unit.position.distance_to(target.position)
+        #         ):
+        #             return AttackMove(unit, Point2(attack_point))
+        #
+        #     if retreat_map.dist[x, y] == np.inf:
+        #         retreat_point = self.bot.start_location
+        #     else:
+        #         retreat_point = Point2(retreat_path[-1]).offset(HALF)
+        #
+        #     return Move(unit, retreat_point)
+        #
+        # elif stance == CombatStance.FIGHT:
+        #     return AttackMove(unit, target.position)
+        #
+        # elif stance == CombatStance.ADVANCE:
+        #     distance = unit.position.distance_to(target.position) - unit.radius - target.radius
+        #     if unit.weapon_cooldown and 1 < distance:
+        #         return Move(unit, Point2(target.position))
+        #     elif (
+        #         unit.position.distance_to(target.position)
+        #         <= unit.radius + self.bot.get_unit_range(unit) + target.radius
+        #     ):
+        #         return AttackMove(unit, target.position)
+        #     else:
+        #         return AttackMove(unit, target.position)
 
         return None
 

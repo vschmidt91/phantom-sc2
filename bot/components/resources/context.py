@@ -8,7 +8,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bot.common.base import BotBase
+from bot.common.main import BotBase
 from bot.components.resources.assignment import HarvesterAssignment
 from bot.components.resources.utils import remaining
 
@@ -120,10 +120,10 @@ class ResourceContext:
             if tag in self.harvester_tags:
                 continue
             target_pos = assignment.items[tag]
-            target = self.resource_at[target_pos]
-            if 0 < self.workers_in_geysers and target.is_vespene_geyser:
-                # logger.info(f"in gas: {tag=}")
-                continue
+            if target := self.resource_at[target_pos]:
+                if 0 < self.workers_in_geysers and target.is_vespene_geyser:
+                    # logger.info(f"in gas: {tag=}")
+                    continue
             assignment = assignment.unassign({tag})
             logger.info(f"MIA: {tag=}")
 
@@ -168,13 +168,13 @@ class ResourceContext:
         mineral_target = min(mineral_max, assignment.count - effective_gas_target)
         mineral_balance = mineral_target - mineral_harvesters
 
-        if gas_balance > mineral_balance:
+        if mineral_balance + 1 < gas_balance:
             assignment = self.transfer_harvester(assignment, self.mineral_positions, self.gas_positions)
         elif gas_balance + 1 < mineral_balance:
             assignment = self.transfer_harvester(assignment, self.gas_positions, self.mineral_positions)
-
-        assignment = self.balance_positions(assignment, self.mineral_positions)
-        assignment = self.balance_positions(assignment, self.gas_positions)
+        else:
+            assignment = self.balance_positions(assignment, self.mineral_positions)
+            assignment = self.balance_positions(assignment, self.gas_positions)
 
         return assignment
 

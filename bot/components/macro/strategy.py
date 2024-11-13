@@ -7,12 +7,12 @@ import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
-from bot.common.base import BotBase
 from bot.common.constants import (
     UNIT_COUNTER_DICT,
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
 )
+from bot.common.main import BotBase
 from bot.common.unit_composition import UnitComposition
 
 
