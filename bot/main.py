@@ -138,8 +138,7 @@ class PhantomBot(BotBase):
             await self.client.chat_send(f"Tag:{tag}", True)
 
     def macro(self, strategy: Strategy) -> Iterable[MacroPlan]:
-        build_order_actions = self.run_build_order()
-        if build_order_actions is not None:
+        if (build_order_actions := self.run_build_order()) is not None:
             return build_order_actions
         return chain(
             self.make_composition(strategy.composition_target),
@@ -181,7 +180,7 @@ class PhantomBot(BotBase):
             pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
             air_pathing=self.mediator.get_map_data_object.get_clean_air_grid(),
             retreat_targets=frozenset([s.position for s in self.structures] + [self.start_location]),
-            attack_targets=frozenset([p.position for p in self.all_enemy_units] + self.enemy_start_locations),
+            attack_targets=frozenset([p.position for p in self.enemy_structures] + self.enemy_start_locations),
         )
 
         creep = self.creep.update(self)

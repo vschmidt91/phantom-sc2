@@ -141,58 +141,6 @@ class Combat:
             return UseAbility(unit, AbilityId.ATTACK, target)
         else:
             return self.retreat_with(unit)
-
-        # elif 1 < unit.ground_range:
-        #     if 1 <= confidence:
-        #         stance = CombatStance.ADVANCE
-        #     elif 0 <= confidence:
-        #         stance = CombatStance.FIGHT
-        #     elif -1 - math.exp(-unit.weapon_cooldown) <= confidence:
-        #         stance = CombatStance.RETREAT
-        #     elif len(retreat_path) < retreat_path_limit:
-        #         stance = CombatStance.RETREAT
-        #     else:
-        #         stance = CombatStance.FLEE
-        # else:
-        #     if 0 <= confidence:
-        #         stance = CombatStance.FIGHT
-        #     else:
-        #         stance = CombatStance.FLEE
-
-        # if stance in {CombatStance.FLEE, CombatStance.RETREAT}:
-        #     unit_range = self.bot.get_unit_range(unit, not target.is_flying, target.is_flying)
-        #
-        #     if stance == CombatStance.RETREAT:
-        #         if not unit.weapon_cooldown:
-        #             return AttackMove(unit, target.position)
-        #         elif (
-        #             unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready
-        #             < unit.position.distance_to(target.position)
-        #         ):
-        #             return AttackMove(unit, Point2(attack_point))
-        #
-        #     if retreat_map.dist[x, y] == np.inf:
-        #         retreat_point = self.bot.start_location
-        #     else:
-        #         retreat_point = Point2(retreat_path[-1]).offset(HALF)
-        #
-        #     return Move(unit, retreat_point)
-        #
-        # elif stance == CombatStance.FIGHT:
-        #     return AttackMove(unit, target.position)
-        #
-        # elif stance == CombatStance.ADVANCE:
-        #     distance = unit.position.distance_to(target.position) - unit.radius - target.radius
-        #     if unit.weapon_cooldown and 1 < distance:
-        #         return Move(unit, Point2(target.position))
-        #     elif (
-        #         unit.position.distance_to(target.position)
-        #         <= unit.radius + self.bot.get_unit_range(unit) + target.radius
-        #     ):
-        #         return AttackMove(unit, target.position)
-        #     else:
-        #         return AttackMove(unit, target.position)
-
         return None
 
     def do_unburrow(self, unit: Unit) -> Action | None:
@@ -263,7 +211,7 @@ class Combat:
 
     @cached_property
     def threat_level(self) -> np.ndarray:
-        return np.maximum(0, -10 * self.confidence)
+        return self.enemy_presence.dps
 
     @cached_property
     def retreat_targets_rounded(self) -> list[Point]:
