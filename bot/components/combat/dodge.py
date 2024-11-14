@@ -1,6 +1,9 @@
 from dataclasses import dataclass
+from functools import cached_property
+from typing import Self
 
 import numpy as np
+from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -42,16 +45,50 @@ class DodgeItem:
 
 
 @dataclass(frozen=True)
-class DodgeResult:
+class Dodge:
 
     context: BotBase
-    items: dict[DodgeItem, float]
+    effects: dict[DodgeItem, float]
+    units: list[DodgeItem]()
+
     safety_distance: float = 1.0
     safety_time = 0.1
     min_distance = 1e-3
 
+    @cached_property
+    def all_items(self) -> dict[DodgeItem, float]:
+        return {u: self.context.time for u in self.units} | self.effects
+
+    def update(self, context: BotBase) -> Self:
+
+        effects = dict(self.effects)
+
+        units = [
+            DodgeItem(unit.position, circle)
+            for unit in context.all_enemy_units
+            for circle in DODGE_UNITS.get(unit.type_id, [])
+        ]
+
+        active_effects: set[DodgeItem] = set()
+        for effect in context.state.effects:
+            time_of_impact = context.time + EFFECT_DELAY.get(effect.id, 0.0)
+            for position in effect.positions:
+                for circle in DODGE_EFFECTS.get(effect.id, []):
+                    item = DodgeItem(position, circle)
+                    active_effects.add(item)
+                    effects.setdefault(item, time_of_impact)
+
+        # remove old effects that impacted
+        for item, time_of_impact in list(effects.items()):
+            if time_of_impact < context.time:
+                del effects[item]
+                if item in active_effects:
+                    logger.error(f"Effect impacted earlier than expected: {item}")
+
+        return Dodge(context=context, effects=effects, units=units)
+
     def dodge_with(self, unit: Unit) -> Action | None:
-        for item, time_of_impact in self.items.items():
+        for item, time_of_impact in self.all_items:
             if action := self._dodge_item(unit, item, time_of_impact):
                 return action
         return None
@@ -70,32 +107,3 @@ class DodgeResult:
             dodge_from += Point2(np.random.normal(loc=0.0, scale=self.min_distance, size=2))
         target = dodge_from.towards(unit, distance_want + self.safety_distance)
         return Move(unit, target)
-
-
-class Dodge:
-
-    _effects: dict[DodgeItem, float] = {}
-
-    def update(self, context: BotBase) -> DodgeResult:
-
-        units = {
-            DodgeItem(unit.position, circle): context.time
-            for unit in context.all_enemy_units
-            for circle in DODGE_UNITS.get(unit.type_id, [])
-        }
-
-        active_effects: set[DodgeItem] = set()
-        for effect in context.state.effects:
-            time_of_impact = context.time + EFFECT_DELAY.get(effect.id, 0.0)
-            for position in effect.positions:
-                for circle in DODGE_EFFECTS.get(effect.id, []):
-                    item = DodgeItem(position, circle)
-                    active_effects.add(item)
-                    self._effects.setdefault(item, time_of_impact)
-
-        # remove old effects that impacted
-        for item, time_of_impact in list(self._effects.items()):
-            if item not in active_effects and time_of_impact < context.time:
-                del self._effects[item]
-
-        return DodgeResult(context, units | self._effects)

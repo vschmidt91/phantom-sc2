@@ -29,7 +29,7 @@ from bot.common.constants import (
 from bot.common.main import BotBase
 from bot.common.unit_composition import UnitComposition
 from bot.components.combat.corrosive_biles import CorrosiveBiles
-from bot.components.combat.dodge import Dodge, DodgeResult
+from bot.components.combat.dodge import Dodge
 from bot.components.combat.main import Combat
 from bot.components.combat.scout import Scout
 from bot.components.macro.build_order import HATCH_FIRST
@@ -51,7 +51,6 @@ class PhantomBot(BotBase):
 
     creep = CreepSpread()
     inject = Inject()
-    dodge = Dodge()
     corrosive_biles = CorrosiveBiles()
     planner = MacroPlanner()
     _debug: DebugBase = DebugDummy()
@@ -64,6 +63,7 @@ class PhantomBot(BotBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self._dodge = Dodge(self, effects={}, units=[])
 
     async def on_before_start(self):
         await super().on_before_start()
@@ -221,7 +221,7 @@ class PhantomBot(BotBase):
         for plan in self.build_gasses(resource_report):
             self.planner.add(plan)
 
-        dodge = self.dodge.update(self)
+        dodge = self._dodge = self._dodge.update(self)
 
         def micro_queen(q: Unit) -> Action | None:
             return (
@@ -279,7 +279,7 @@ class PhantomBot(BotBase):
         return self.planner.planned_by_type(item)
 
     def micro_harvester(
-        self, unit: Unit, combat: Combat, dodge: DodgeResult, resources: ResourceReport
+        self, unit: Unit, combat: Combat, dodge: Dodge, resources: ResourceReport
     ) -> Action | None:
         return (
             dodge.dodge_with(unit)
