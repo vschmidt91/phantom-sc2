@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Self
 
 import numpy as np
 from loguru import logger
@@ -59,7 +58,7 @@ class Dodge:
     def all_items(self) -> dict[DodgeItem, float]:
         return self.units | self.effects
 
-    def update(self, context: BotBase) -> Self:
+    def update(self, context: BotBase) -> "Dodge":
 
         effects = dict(self.effects)
 

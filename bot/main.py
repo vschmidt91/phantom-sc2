@@ -5,9 +5,8 @@ from itertools import chain
 from typing import AsyncGenerator, Iterable
 
 import numpy as np
-from frozendict import frozendict
-
 from ares import DEBUG
+from frozendict import frozendict
 from loguru import logger
 from sc2.data import ActionResult, Result
 from sc2.ids.ability_id import AbilityId
@@ -64,7 +63,7 @@ class PhantomBot(BotBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._dodge = Dodge(self, effects={}, units=[])
+        self._dodge = Dodge(self, effects={}, units={})
         self._inject = Inject(frozendict())
 
     # CALLBACKS ========================================================================================================
@@ -285,9 +284,7 @@ class PhantomBot(BotBase):
     def planned_by_type(self, item: MacroId) -> Iterable:
         return self.planner.planned_by_type(item)
 
-    def micro_harvester(
-        self, unit: Unit, combat: Combat, dodge: Dodge, resources: ResourceReport
-    ) -> Action | None:
+    def micro_harvester(self, unit: Unit, combat: Combat, dodge: Dodge, resources: ResourceReport) -> Action | None:
         return (
             dodge.dodge_with(unit)
             or (combat.retreat_with(unit) if combat.confidence[unit.position.rounded] < 0 else None)

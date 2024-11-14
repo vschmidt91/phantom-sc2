@@ -3,7 +3,6 @@ from functools import cached_property
 from typing import Iterable
 
 import numpy as np
-from bot.components.combat.main import Combat
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -15,6 +14,7 @@ from bot.common.action import Action, UseAbility
 from bot.common.constants import ENERGY_COST
 from bot.common.main import BotBase
 from bot.common.utils import circle, circle_perimeter, line, rectangle
+from bot.components.combat.main import Combat
 
 TUMOR_RANGE = 10
 _TUMOR_COOLDOWN = 304

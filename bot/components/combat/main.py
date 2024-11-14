@@ -1,7 +1,7 @@
+import random
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import cached_property
-import random
 from typing import Callable
 
 import numpy as np

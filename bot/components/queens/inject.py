@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Iterable, Self
+from typing import Iterable
 
 from frozendict import frozendict
 from loguru import logger
@@ -25,7 +25,7 @@ class Inject:
             return None
         return UseAbility(queen, AbilityId.EFFECT_INJECTLARVA, target=target_tag)
 
-    def update(self, queens: Iterable[Unit], targets: Iterable[Unit]) -> Self:
+    def update(self, queens: Iterable[Unit], targets: Iterable[Unit]) -> "Inject":
 
         assignment = dict(self.assignment)
         queens_dict = {q.tag: q for q in queens}
