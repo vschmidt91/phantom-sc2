@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from functools import cached_property, lru_cache
+from functools import cache, cached_property
 from typing import Iterator
 
 from sc2.position import Point2
@@ -17,11 +17,11 @@ class HarvesterAssignment:
     def target(self) -> set[Point2]:
         return set(self.items.values())
 
-    @lru_cache(maxsize=None)
+    @cache
     def assigned_to(self, p: Point2) -> frozenset[int]:
         return frozenset({u for u, t in self.items.items() if t == p})
 
-    @lru_cache(maxsize=None)
+    @cache
     def assigned_to_set(self, ps: frozenset[Point2]) -> frozenset[int]:
         return frozenset({u for u, t in self.items.items() if t in ps})
 

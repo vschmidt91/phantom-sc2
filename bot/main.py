@@ -6,7 +6,6 @@ from typing import AsyncGenerator, Iterable
 
 import numpy as np
 from ares import DEBUG
-from frozendict import frozendict
 from loguru import logger
 from sc2.data import ActionResult, Result
 from sc2.ids.ability_id import AbilityId
@@ -64,7 +63,7 @@ class PhantomBot(BotBase):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._dodge = Dodge(self, effects={}, units={})
-        self._inject = Inject(frozendict())
+        self._inject = Inject({})
 
     # CALLBACKS ========================================================================================================
     # vvvvvvvvv

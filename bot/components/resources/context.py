@@ -76,7 +76,7 @@ class ResourceContext:
     def workers_in_geysers(self) -> int:
         return int(self.bot.supply_workers) - self.bot.workers.amount
 
-    # @lru_cache(maxsize=None)
+    # cache
     def harvester_target_at(self, p: Point2) -> int:
         if geyser := self.vespene_geyser_at.get(p):
             if not remaining(geyser):

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from functools import lru_cache
+from functools import cache
 from itertools import chain
 from typing import Iterable, TypeAlias
 
@@ -53,7 +53,7 @@ class BotBase(AresBot, ABC):
     def planned_by_type(self, item: MacroId) -> Iterable:
         raise NotImplementedError()
 
-    @lru_cache(maxsize=None)
+    @cache
     def dps_fast(self, unit: UnitTypeId) -> float:
         if dps := DPS_OVERRIDE.get(unit):
             return dps
@@ -75,11 +75,11 @@ class BotBase(AresBot, ABC):
             self,
         )
 
-    @lru_cache(maxsize=None)
+    @cache
     def in_mineral_line(self, base: Point2) -> Point2:
         return center(m.position for m in self.expansion_locations_dict[base].mineral_field)
 
-    @lru_cache(maxsize=None)
+    @cache
     def behind_mineral_line(self, base: Point2) -> Point2:
         return base.towards(self.in_mineral_line(base), 10.0)
 
@@ -214,7 +214,7 @@ class BotBase(AresBot, ABC):
             for unit_type, provided in SUPPLY_PROVIDED[self.race].items()
         )
 
-    @lru_cache(maxsize=None)
+    @cache
     def build_time(self, unit_type: UnitTypeId) -> float:
         return self.game_data.units[unit_type.value].cost.time
 

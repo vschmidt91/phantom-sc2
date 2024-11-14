@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import Iterable
 
-from frozendict import frozendict
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.unit import Unit
@@ -13,7 +12,7 @@ from bot.common.constants import ENERGY_COST
 @dataclass(frozen=True)
 class Inject:
 
-    assignment: frozendict[int, int]
+    assignment: dict[int, int]
 
     def get_target(self, queen: Unit) -> int | None:
         return self.assignment.get(queen.tag)
@@ -49,4 +48,4 @@ class Inject:
             assignment[q] = target
             unassinged_targets.remove(target)
 
-        return Inject(assignment=frozendict(assignment))
+        return Inject(assignment=assignment)

@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from functools import cached_property, lru_cache
+from functools import cache, cached_property
 from typing import Callable
 
 import numpy as np
@@ -85,7 +85,7 @@ class CostManager:
         self.mineral_vespene = mineral_vespene
         self.supply = supply
 
-    @lru_cache(maxsize=None)
+    @cache
     def of(self, item: UnitTypeId | UpgradeId) -> Cost:
         try:
             cost = self.mineral_vespene(item)

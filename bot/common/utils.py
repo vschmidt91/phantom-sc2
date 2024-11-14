@@ -1,5 +1,5 @@
 import math
-from functools import lru_cache
+from functools import cache
 from typing import Iterable, TypeAlias
 
 import numpy as np
@@ -171,7 +171,7 @@ def flood_fill(weight: np.ndarray, origins: Iterable[Point2]):
     return distance
 
 
-@lru_cache(maxsize=None)
+@cache
 def disk(radius: float) -> tuple[np.ndarray, np.ndarray]:
     r = int(radius + 0.5)
     p = radius, radius
