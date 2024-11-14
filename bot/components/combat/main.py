@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum, auto
 from functools import cached_property
+import random
 from typing import Callable
 
 import numpy as np
@@ -111,11 +112,8 @@ class Combat:
         range_deficit = min(
             unit.sight_range, max(1, unit.distance_to(target) - unit.radius - target.radius - unit_range)
         )
-        if self.attack_pathing.dist[x, y] == np.inf:
-            attack_point = unit.position.towards(target, range_deficit, limit=True).rounded
-        else:
-            attack_path = self.attack_pathing.get_path((x, y), range_deficit)
-            attack_point = attack_path[-1]
+
+        attack_point = unit.position.towards(target, range_deficit, limit=True).rounded
         #
         # confidence = max(
         #     self.confidence[x, y],
@@ -131,10 +129,15 @@ class Combat:
             return AttackMove(unit, target.position)
         elif 0 < self.confidence[attack_point]:
             return AttackMove(unit, target.position)
-        elif 0 == self.enemy_presence.dps[x, y]:
-            return HoldPosition(unit)
-        elif self.confidence[x, y] < -1:
+        elif self.confidence[x, y] < -10:
             return self.retreat_with(unit)
+        elif 0 == self.enemy_presence.dps[x, y]:
+            if self.attack_pathing.dist[x, y] == np.inf:
+                attack_point = random.choice(list(self.attack_targets))
+            else:
+                attack_path = self.attack_pathing.get_path((x, y), range_deficit)
+                attack_point = attack_path[-1]
+            return AttackMove(unit, Point2(attack_point))
         elif unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready < unit.position.distance_to(
             target.position
         ):

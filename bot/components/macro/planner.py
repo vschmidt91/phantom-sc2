@@ -25,6 +25,7 @@ from bot.common.constants import (
 from bot.common.cost import Cost, CostManager
 from bot.common.main import BotBase
 from bot.common.utils import PlacementNotFoundException
+from bot.components.combat.main import Combat
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 
@@ -67,7 +68,7 @@ class MacroPlanner:
                 self._assigned_plans[trainer.tag] = plan
                 trainer_set.remove(trainer)
 
-    async def get_actions(self, context: BotBase, blocked_positions: set[Point2]) -> dict[Unit, Action]:
+    async def get_actions(self, context: BotBase, blocked_positions: set[Point2], combat: Combat) -> dict[Unit, Action]:
 
         self._handle_actions(context)
         self.assign_unassigned_plans(context.all_own_units)  # TODO: narrow this down
@@ -143,6 +144,8 @@ class MacroPlanner:
                 if trainer.is_carrying_resource:
                     actions[trainer] = UseAbility(trainer, AbilityId.HARVEST_RETURN)
                 elif action := await premove(context, trainer, plan.target.position, eta):
+                    actions[trainer] = action
+                elif action := combat.fight_with(trainer):
                     actions[trainer] = action
 
             if context.config[DEBUG]:

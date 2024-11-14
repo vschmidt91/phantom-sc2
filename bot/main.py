@@ -5,6 +5,8 @@ from itertools import chain
 from typing import AsyncGenerator, Iterable
 
 import numpy as np
+from frozendict import frozendict
+
 from ares import DEBUG
 from loguru import logger
 from sc2.data import ActionResult, Result
@@ -50,7 +52,6 @@ from bot.debug import Debug, DebugBase, DebugDummy
 class PhantomBot(BotBase):
 
     creep = CreepSpread()
-    inject = Inject()
     corrosive_biles = CorrosiveBiles()
     planner = MacroPlanner()
     _debug: DebugBase = DebugDummy()
@@ -64,9 +65,10 @@ class PhantomBot(BotBase):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._dodge = Dodge(self, effects={}, units=[])
+        self._inject = Inject(frozendict())
 
-    async def on_before_start(self):
-        await super().on_before_start()
+    # CALLBACKS ========================================================================================================
+    # vvvvvvvvv
 
     async def on_start(self) -> None:
         await super().on_start()
@@ -102,6 +104,9 @@ class PhantomBot(BotBase):
 
         await self._debug.on_step_end()
 
+    async def on_before_start(self):
+        await super().on_before_start()
+
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)
 
@@ -131,6 +136,9 @@ class PhantomBot(BotBase):
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         await super().on_upgrade_complete(upgrade)
+
+    # ^^^^^^^^^^
+    # CALLBACKS ========================================================================================================
 
     async def add_replay_tag(self, tag: str) -> None:
         if tag not in self._replay_tags:
@@ -179,16 +187,15 @@ class PhantomBot(BotBase):
             dps=self.dps_fast,
             pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
             air_pathing=self.mediator.get_map_data_object.get_clean_air_grid(),
-            retreat_targets=frozenset([s.position for s in self.structures] + [self.start_location]),
+            retreat_targets=frozenset([s.position for s in self.townhalls] + [self.start_location]),
             attack_targets=frozenset([p.position for p in self.enemy_structures] + self.enemy_start_locations),
         )
 
         creep = self.creep.update(self, combat)
-        queens = self.units(UnitTypeId.QUEEN)
-        self.inject.assign(queens, self.townhalls.ready)
+        inject = self._inject = self._inject.update(self.units(UnitTypeId.QUEEN), self.townhalls.ready)
         should_inject = self.supply_used + self.larva.amount < 200
         should_spread_creep = self.creep.active_tumor_count < 10
-        planned_actions = await self.planner.get_actions(self, set(self._blocked_positions))
+        planned_actions = await self.planner.get_actions(self, set(self._blocked_positions), combat)
 
         def should_harvest(u: Unit) -> bool:
             if u in planned_actions:  # got special orders?
@@ -227,7 +234,7 @@ class PhantomBot(BotBase):
             return (
                 dodge.dodge_with(q)
                 or do_transfuse_single(q, combat.units)
-                or (self.inject.inject_with(q) if should_inject else None)
+                or (inject.inject_with(q) if should_inject else None)
                 or (creep.spread_with_queen(q) if should_spread_creep else None)
                 or (combat.retreat_with(q) if not self.has_creep(q) else None)
                 or combat.fight_with(q)
@@ -385,10 +392,10 @@ class PhantomBot(BotBase):
 
         worker_max = self._max_harvesters
         saturation = max(0, min(1, self.state.score.food_used_economy / max(1, worker_max)))
-        if 2 < self.townhalls.amount and 3 / 4 > saturation:
+        if 2 < self.townhalls.amount and 4 / 5 > saturation:
             return
 
-        priority = 4 * (saturation - 1)
+        priority = 5 * (saturation - 1)
         for plan in self.planned_by_type(UnitTypeId.HATCHERY):
             if plan.priority < math.inf:
                 plan.priority = priority

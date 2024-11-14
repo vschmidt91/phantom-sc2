@@ -136,3 +136,4 @@ dmypy.json
 /version.txt
 /profiling
 /combat_simulation/dataset.xz
+/resources/

@@ -49,7 +49,7 @@ class Dodge:
 
     context: BotBase
     effects: dict[DodgeItem, float]
-    units: list[DodgeItem]()
+    units: dict[DodgeItem, float]
 
     safety_distance: float = 1.0
     safety_time = 0.1
@@ -57,17 +57,17 @@ class Dodge:
 
     @cached_property
     def all_items(self) -> dict[DodgeItem, float]:
-        return {u: self.context.time for u in self.units} | self.effects
+        return self.units | self.effects
 
     def update(self, context: BotBase) -> Self:
 
         effects = dict(self.effects)
 
-        units = [
-            DodgeItem(unit.position, circle)
+        units = {
+            DodgeItem(unit.position, circle): context.time
             for unit in context.all_enemy_units
             for circle in DODGE_UNITS.get(unit.type_id, [])
-        ]
+        }
 
         active_effects: set[DodgeItem] = set()
         for effect in context.state.effects:
@@ -88,7 +88,7 @@ class Dodge:
         return Dodge(context=context, effects=effects, units=units)
 
     def dodge_with(self, unit: Unit) -> Action | None:
-        for item, time_of_impact in self.all_items:
+        for item, time_of_impact in self.all_items.items():
             if action := self._dodge_item(unit, item, time_of_impact):
                 return action
         return None

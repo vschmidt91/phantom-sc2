@@ -19,8 +19,8 @@ HATCH_FIRST = BuildOrder(
         BuildOrderStep(UnitTypeId.DRONE, 13),
         BuildOrderStep(UnitTypeId.OVERLORD, 2),
         BuildOrderStep(UnitTypeId.DRONE, 16),
+        # BuildOrderStep(UnitTypeId.DRONE, 17),
         BuildOrderStep(UnitTypeId.HATCHERY, 2),
-        BuildOrderStep(UnitTypeId.DRONE, 17),
         BuildOrderStep(UnitTypeId.EXTRACTOR, 1),
         BuildOrderStep(UnitTypeId.SPAWNINGPOOL, 1),
     ]

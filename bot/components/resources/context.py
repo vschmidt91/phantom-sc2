@@ -168,7 +168,7 @@ class ResourceContext:
         mineral_target = min(mineral_max, assignment.count - effective_gas_target)
         mineral_balance = mineral_target - mineral_harvesters
 
-        if mineral_balance + 1 < gas_balance:
+        if mineral_balance < gas_balance:
             assignment = self.transfer_harvester(assignment, self.mineral_positions, self.gas_positions)
         elif gas_balance + 1 < mineral_balance:
             assignment = self.transfer_harvester(assignment, self.gas_positions, self.mineral_positions)
