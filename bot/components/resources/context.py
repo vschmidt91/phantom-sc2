@@ -1,6 +1,7 @@
 import itertools
 from dataclasses import dataclass
 from functools import cached_property
+from typing import TypeAlias
 
 import numpy as np
 from loguru import logger
@@ -8,9 +9,11 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
+from bot.common.assignment import Assignment
 from bot.common.main import BotBase
-from bot.components.resources.assignment import HarvesterAssignment
 from bot.components.resources.utils import remaining
+
+HarvesterAssignment: TypeAlias = Assignment[int, Point2]
 
 
 def split_initial_workers(patches: Units, harvesters: Units) -> HarvesterAssignment:
@@ -108,7 +111,7 @@ class ResourceContext:
         return candidates.closest_to(close_to)
 
     def update_assignment(self, assignment: HarvesterAssignment) -> HarvesterAssignment:
-        if assignment.count == 0:
+        if not any(assignment):
             return split_initial_workers(self.mineral_fields, self.harvesters)
         else:
             return self.update_changes(assignment)
@@ -116,27 +119,22 @@ class ResourceContext:
     def update_changes(self, assignment: HarvesterAssignment) -> HarvesterAssignment:
 
         # remove unassigned harvesters
-        for tag in assignment:
+        for tag, target_pos in assignment.items():
             if tag in self.harvester_tags:
                 continue
-            target_pos = assignment.items[tag]
+            target_pos = assignment[tag]
             if target := self.resource_at.get(target_pos):
                 if 0 < self.workers_in_geysers and target.is_vespene_geyser:
                     # logger.info(f"in gas: {tag=}")
                     continue
-            assignment = assignment.unassign({tag})
+            assignment -= {tag}
             logger.info(f"MIA: {tag=}")
 
         # remove from unassigned resources
-        for tag, target_pos in assignment.items.items():
-            if target_pos in self.mineral_positions:
-                if target_pos not in self.mineral_positions:
-                    assignment = assignment.unassign({tag})
-                    logger.info(f"Unassigning {tag} from mined out {target_pos=}")
-            else:
-                if target_pos not in self.gas_building_at:
-                    assignment = assignment.unassign({tag})
-                    logger.info(f"Unassigning {tag} from mined out {target_pos=}")
+        for tag, target_pos in assignment.items():
+            if target_pos not in self.resource_at:
+                assignment -= {tag}
+                logger.info(f"Unassigning {tag} from {target_pos=}")
 
         # assign new harvesters
         def assignment_priority(a: HarvesterAssignment, h: Unit, t: Unit) -> float:
@@ -149,7 +147,7 @@ class ResourceContext:
                 itertools.chain(self.mineral_fields.mineral_field, self.gas_buildings),
                 key=lambda r: assignment_priority(assignment, harvester, r),
             )
-            assignment = assignment.assign({harvester.tag: target.position})
+            assignment += {harvester.tag: target.position}
             logger.info(f"Assigning {harvester=} to {target=}")
 
         return assignment
@@ -165,7 +163,7 @@ class ResourceContext:
         effective_gas_target = min(gas_max, gas_target)
 
         gas_balance = effective_gas_target - gas_harvesters
-        mineral_target = min(mineral_max, assignment.count - effective_gas_target)
+        mineral_target = min(mineral_max, len(assignment) - effective_gas_target)
         mineral_balance = mineral_target - mineral_harvesters
 
         if mineral_balance < gas_balance:
@@ -186,7 +184,7 @@ class ResourceContext:
         if not (harvester := self.pick_harvester(assignment, from_resources, patch)):
             return assignment
         logger.info(f"Transferring {harvester=} to {patch=}")
-        return assignment.assign({harvester.tag: patch})
+        return assignment + {harvester.tag: patch}
 
     def balance_positions(self, assignment: HarvesterAssignment, ps: frozenset[Point2]) -> HarvesterAssignment:
         oversaturated = [p for p in ps if self.harvester_target_at(p) < len(assignment.assigned_to(p))]
@@ -203,6 +201,6 @@ class ResourceContext:
             itertools.product(oversaturated, undersaturated), key=lambda p: loss_fn(p[0], p[1])
         )
         harvester = next(iter(assignment.assigned_to(transfer_from)))
-        assignment = assignment.assign({harvester: transfer_to})
+        assignment += {harvester: transfer_to}
         logger.info(f"Transferring {harvester=} to {transfer_to=}")
         return assignment

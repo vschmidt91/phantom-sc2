@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from functools import cache
+from functools import cache, cached_property
 from typing import Collection, Generic, Hashable, Iterator, Mapping, TypeVar
 
 TKey = TypeVar("TKey", bound=Hashable)
@@ -31,15 +31,15 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
     def __sub__(self, other: Collection[TKey]) -> "Assignment":
         return self.unassign(other)
 
+    @cached_property
+    def _hash_value(self) -> int:
+        return hash(frozenset(self.items()))
+
+    def __hash__(self) -> int:
+        return self._hash_value
+
     def __iter__(self) -> Iterator[TKey]:
         return iter(self._items)
-
-    # @cached_property
-    # def _hash_value(self) -> int:
-    #     return hash(frozenset(self._items.items()))
-    #
-    # def __hash__(self) -> int:
-    #     return self._hash_value
 
     def __getitem__(self, __key):
         return self._items[__key]

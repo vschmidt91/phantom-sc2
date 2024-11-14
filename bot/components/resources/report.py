@@ -5,7 +5,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bot.common.action import Action, DoNothing, Smart
-from bot.components.resources.assignment import HarvesterAssignment
+from bot.components.resources.context import HarvesterAssignment
 from bot.components.resources.gather import GatherAction, ReturnResource
 from bot.components.resources.main import ResourceContext
 
@@ -17,7 +17,7 @@ class ResourceReport:
     gas_target: int
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
-        if not (target_pos := self.assignment.items.get(unit.tag)):
+        if not (target_pos := self.assignment.get(unit.tag)):
             logger.error(f"Unassinged harvester {unit}")
             return None
         if not (target := self.context.resource_at.get(target_pos)):

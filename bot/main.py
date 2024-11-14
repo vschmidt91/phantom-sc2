@@ -36,7 +36,7 @@ from bot.components.macro.build_order import HATCH_FIRST
 from bot.components.macro.planner import MacroId, MacroPlan, MacroPlanner
 from bot.components.macro.strategy import Strategy
 from bot.components.queens.creep import CreepSpread
-from bot.components.queens.inject import Inject
+from bot.components.queens.inject import Inject, InjectAssignment
 from bot.components.queens.transfuse import do_transfuse_single
 from bot.components.resources.main import (
     HarvesterAssignment,
@@ -63,7 +63,7 @@ class PhantomBot(BotBase):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._dodge = Dodge(self, effects={}, units={})
-        self._inject = Inject({})
+        self._inject = Inject(InjectAssignment({}))
 
     # CALLBACKS ========================================================================================================
     # vvvvvvvvv
