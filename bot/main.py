@@ -185,7 +185,7 @@ class PhantomBot(BotBase):
             dps=self.dps_fast,
             pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
             air_pathing=self.mediator.get_map_data_object.get_clean_air_grid(),
-            retreat_targets=frozenset([self.in_mineral_line(b) for b in self.bases_taken]),
+            retreat_targets=frozenset([self.in_mineral_line(b) for b in self.bases_taken] + [self.start_location]),
             attack_targets=frozenset([p.position for p in self.enemy_structures] + self.enemy_start_locations),
         )
 
