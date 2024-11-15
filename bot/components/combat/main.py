@@ -59,7 +59,7 @@ class Combat:
             retreat_point = self.bot.start_location
         else:
             retreat_point = Point2(retreat_path[-1]).offset(HALF)
-        if len(retreat_path) < retreat_path_limit:
+        if unit.distance_to(retreat_point) < retreat_path_limit:
             return AttackMove(unit, unit.position)
         return Move(unit, retreat_point)
 
