@@ -3112,6 +3112,23 @@ files = [
 protobuf = "*"
 
 [[package]]
+name = "s2protocol"
+version = "5.0.13.92440.4"
+description = "Python library to decode StarCraft II replay protocols"
+optional = false
+python-versions = "*"
+files = [
+    {file = "s2protocol-5.0.13.92440.4-py2-none-any.whl", hash = "sha256:68c49d616fc5a5bc4d356b843c678e324638de358d35041b93969cd1a6304436"},
+    {file = "s2protocol-5.0.13.92440.4.tar.gz", hash = "sha256:a03024d44b076f7ec48d4961d01fcf4e5cb07d0fcce078eaefb34e7ca26ccb37"},
+]
+
+[package.dependencies]
+mpyq = ">=0.2.2"
+
+[package.extras]
+tests = ["tox"]
+
+[[package]]
 name = "sc2-helper"
 version = "0.2.1"
 description = ""
@@ -3743,4 +3760,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11, <3.12"
-content-hash = "9b76ae347acc2345f41252d530b8e1ea71cbefa40bf1e463aaf3d38ec44bb987"
+content-hash = "e5eca4b765a2027b84fe696692d534d5ec3071e530252ff4a74b45a8ef23694d"

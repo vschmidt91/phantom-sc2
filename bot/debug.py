@@ -41,7 +41,7 @@ class Debug(DebugBase):
 
     async def on_start(self) -> None:
         logger.debug("Starting in debug mode")
-        output_path = os.path.join("resources", f"{self.bot.game_info.map_name}.xz")
+        output_path = os.path.join("resources", "maps", f"{self.bot.game_info.map_name}.xz")
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with lzma.open(output_path, "wb") as f:
             pickle.dump(self.bot.game_info, f)
@@ -54,6 +54,8 @@ class Debug(DebugBase):
         # )
 
     async def on_step_start(self) -> None:
+        if self.bot.actual_iteration > 100:
+            await self.bot.client.leave()
         for error in self.bot.state.action_errors:
             logger.debug(f"{error=}")
         self.profiler.enable()

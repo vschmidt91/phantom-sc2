@@ -1,7 +1,9 @@
+import os
 import random
 import sys
 from pathlib import Path
 from typing import Iterable
+import datetime
 
 from sc2 import maps
 from sc2.data import AIBuild, Difficulty, Race
@@ -22,6 +24,7 @@ MAP_VETOS: list[str] = [
     "PlateauMicro_2",
     "BotMicroArena_6",
 ]
+REPLAY_DIR = os.path.join("resources", "replays", "local")
 
 RACES = [
     # Race.Protoss,
@@ -74,6 +77,9 @@ if __name__ == "__main__":
             map_list.remove(m)
         random_race = random.choice(RACES)
         enemy_build = random.choice(BUILDS)
+        replay_name = f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S.SC2REPLAY}"
+        replay_path = os.path.join(REPLAY_DIR, replay_name)
+        os.makedirs(REPLAY_DIR, exist_ok=True)
         print("Starting local game...")
         run_game(
             maps.get(random.choice(map_list)),
@@ -82,4 +88,5 @@ if __name__ == "__main__":
                 Computer(random_race, Difficulty.CheatInsane, enemy_build),
             ],
             realtime=False,
+            save_replay_as=replay_path,
         )
