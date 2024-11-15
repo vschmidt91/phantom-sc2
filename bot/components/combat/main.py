@@ -138,13 +138,13 @@ class Combat:
                 attack_path = self.attack_pathing.get_path((x, y), range_deficit)
                 attack_point = attack_path[-1]
             return AttackMove(unit, Point2(attack_point))
+        elif unit.weapon_ready:
+            return AttackMove(unit, target.position)
         elif unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready < unit.position.distance_to(
             target.position
         ):
             return UseAbility(unit, AbilityId.ATTACK, target)
-        else:
-            return self.retreat_with(unit)
-        return None
+        return self.retreat_with(unit)
 
     def do_unburrow(self, unit: Unit) -> Action | None:
         p = tuple[int, int](unit.position.rounded)
