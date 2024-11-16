@@ -8,12 +8,10 @@ from typing import Iterable
 import datetime
 
 from sc2 import maps
-from sc2.data import AIBuild, Difficulty, Race, Result
+from sc2.data import AIBuild, Difficulty, Race
 from sc2.main import run_game
 from sc2.player import AbstractPlayer, Bot, Computer
 
-from bot.ai.game import Game
-from ai.replay import Replay
 from ladder import run_ladder_game
 
 sys.path.append("ares-sc2/src/ares")
@@ -21,6 +19,8 @@ sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 
 from bot.main import PhantomBot
+from bot.ai.game import Game
+from bot.ai.replay import Replay
 
 MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
 MAP_FILE_EXT: str = "SC2Map"
