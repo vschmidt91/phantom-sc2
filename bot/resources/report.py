@@ -5,9 +5,9 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bot.common.action import Action, DoNothing, Smart
-from bot.components.resources.context import HarvesterAssignment
-from bot.components.resources.gather import GatherAction, ReturnResource
-from bot.components.resources.main import ResourceContext
+from bot.resources.context import HarvesterAssignment
+from bot.resources.gather import GatherAction, ReturnResource
+from bot.resources.main import ResourceContext
 
 
 @dataclass(frozen=True)

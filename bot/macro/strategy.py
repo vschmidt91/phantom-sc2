@@ -31,6 +31,7 @@ class StrategyTier(enum.Enum):
 class Strategy:
     context: BotBase
     max_harvesters: int
+    predicted_enemy_composition: UnitComposition
 
     @cached_property
     def composition_deficit(self) -> UnitComposition:

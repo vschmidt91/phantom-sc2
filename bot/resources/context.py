@@ -11,7 +11,7 @@ from sc2.units import Units
 
 from bot.common.assignment import Assignment
 from bot.common.main import BotBase
-from bot.components.resources.utils import remaining
+from bot.resources.utils import remaining
 
 HarvesterAssignment: TypeAlias = Assignment[int, Point2]
 

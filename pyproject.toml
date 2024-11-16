@@ -27,6 +27,9 @@ mypy = "^1.12.0"
 autoflake = "^2.3.1"
 mpyq = "^0.2.5"
 s2protocol = "^5.0.13.92440.4"
+pandas = "^2.2.3"
+tqdm = "^4.67.0"
+types-tqdm = "^4.66.0.20240417"
 
 
 [build-system]
@@ -57,7 +60,10 @@ module = [
     "ares.*",
     "sc2.*",
     "scipy.*",
+    "pandas.*",
     "sklearn.*",
     "cython_extensions.*",
+    "mpyq.*",
+    "s2protocol.*",
 ]
 ignore_missing_imports = true

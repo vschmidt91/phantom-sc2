@@ -1,3 +1,6 @@
+import dataclasses
+import enum
+import json
 import math
 from functools import cache
 from typing import Iterable, TypeAlias
@@ -178,3 +181,12 @@ def disk(radius: float) -> tuple[np.ndarray, np.ndarray]:
     n = 2 * r + 1
     dx, dy = skimage.draw.disk(center=p, radius=radius, shape=(n, n))
     return dx - r, dy - r
+
+
+class JSONDataclassEncoder(json.JSONEncoder):
+    def default(self, o):
+        if dataclasses.is_dataclass(o):
+            return dataclasses.asdict(o)
+        elif isinstance(o, enum.Enum):
+            return o.value
+        return super().default(o)

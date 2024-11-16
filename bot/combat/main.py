@@ -11,15 +11,14 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
-from scipy import ndimage
 
+from bot.combat.presence import Presence
 from bot.common.action import Action, AttackMove, HoldPosition, Move, UseAbility
 from bot.common.constants import CHANGELINGS
 from bot.common.main import BotBase
 from bot.common.utils import Point, can_attack, disk
-from bot.components.combat.presence import Presence
-from bot.components.macro.strategy import Strategy
 from bot.cython.dijkstra_pathing import DijkstraPathing
+from bot.macro.strategy import Strategy
 
 DpsProvider = Callable[[UnitTypeId], float]
 
@@ -175,12 +174,6 @@ class Combat:
         return UseAbility(unit, AbilityId.BURROWDOWN)
 
     @cached_property
-    def dimensionality(self) -> np.ndarray:
-        dimensionality_local = np.where(self.pathing == np.inf, 1.0, 2.0)
-        dimensionality_filtered = ndimage.gaussian_filter(dimensionality_local, sigma=5.0)
-        return dimensionality_filtered
-
-    @cached_property
     def presence(self) -> Presence:
         return self.get_combat_presence(self.units)
 
@@ -195,7 +188,11 @@ class Combat:
             dps = self.dps(unit.type_id)
             px, py = unit.position.rounded
             if 0 < dps:
-                dx, dy = disk(unit.sight_range)
+                r = 2 * unit.radius
+                r += 1
+                # r = unit.sight_range
+                r += max(unit.ground_range, unit.air_range)
+                dx, dy = disk(r)
                 d = px + dx, py + dy
                 health_map[d] += unit.shield + unit.health
                 dps_map[d] = np.maximum(dps_map[d], dps)
@@ -203,11 +200,11 @@ class Combat:
 
     @cached_property
     def force(self) -> np.ndarray:
-        return self.presence.get_force(self.dimensionality)
+        return self.presence.get_force()
 
     @cached_property
     def enemy_force(self) -> np.ndarray:
-        return self.enemy_presence.get_force(self.dimensionality)
+        return self.enemy_presence.get_force()
 
     @cached_property
     def confidence(self) -> np.ndarray:

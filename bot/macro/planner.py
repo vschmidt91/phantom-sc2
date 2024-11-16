@@ -4,16 +4,16 @@ from dataclasses import dataclass
 from itertools import chain
 from typing import Iterable, TypeAlias
 
-from ares import DEBUG
 from loguru import logger
 from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.position import Point2, Point3
+from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
+from bot.combat.main import Combat
 from bot.common.action import Action, HoldPosition, Move, UseAbility
 from bot.common.constants import (
     ALL_MACRO_ABILITIES,
@@ -25,7 +25,6 @@ from bot.common.constants import (
 from bot.common.cost import Cost, CostManager
 from bot.common.main import BotBase
 from bot.common.utils import PlacementNotFoundException
-from bot.components.combat.main import Combat
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 
@@ -148,9 +147,6 @@ class MacroPlanner:
                 elif action := combat.fight_with(trainer):
                     actions[trainer] = action
 
-            if context.config[DEBUG]:
-                _debug_draw_plan(context, trainer, plan, eta, i)
-
         return actions
 
     def get_total_cost(self, cost: CostManager) -> Cost:
@@ -243,42 +239,6 @@ class MacroPlanner:
                 logger.info(f"Executed {plan} through {action}")
         elif action.exact_id in ALL_MACRO_ABILITIES:
             logger.info(f"Unplanned {action}")
-
-
-def _debug_draw_plan(
-    context: BotBase,
-    unit: Unit | None,
-    plan: MacroPlan,
-    eta: float,
-    index: int,
-    font_color=(255, 255, 255),
-    font_size=16,
-) -> None:
-    positions = []
-    if isinstance(plan.target, Unit):
-        positions.append(plan.target.position3d)
-    elif isinstance(plan.target, Point3):
-        positions.append(plan.target)
-    elif isinstance(plan.target, Point2):
-        height = context.get_terrain_z_height(plan.target)
-        positions.append(Point3((plan.target.x, plan.target.y, height)))
-
-    if unit:
-        height = context.get_terrain_z_height(unit)
-        positions.append(Point3((unit.position.x, unit.position.y, height)))
-
-    text = f"{plan.item.name} {eta:.2f}"
-
-    for position in positions:
-        context.client.debug_text_world(text, position, color=font_color, size=font_size)
-
-    if len(positions) == 2:
-        position_from, position_to = positions
-        position_from += Point3((0.0, 0.0, 0.1))
-        position_to += Point3((0.0, 0.0, 0.1))
-        context.client.debug_line_out(position_from, position_to, color=font_color)
-
-    context.client.debug_text_screen(f"{1 + index} {round(eta or 0, 1)} {plan.item.name}", (0.01, 0.1 + 0.01 * index))
 
 
 def compare_plans(plan_a: MacroPlan, plan_b: MacroPlan) -> int:

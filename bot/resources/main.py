@@ -1,7 +1,7 @@
 import math
 
-from bot.components.resources.context import HarvesterAssignment, ResourceContext
-from bot.components.resources.report import ResourceReport
+from bot.resources.context import HarvesterAssignment, ResourceContext
+from bot.resources.report import ResourceReport
 
 
 def update_resources(context: ResourceContext) -> ResourceReport:

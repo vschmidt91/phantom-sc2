@@ -2,19 +2,26 @@ import math
 import os
 import random
 from itertools import chain
-from typing import AsyncGenerator, Iterable
+from typing import AsyncGenerator, Iterable, TypeAlias
 
 import numpy as np
 from ares import DEBUG
 from loguru import logger
-from sc2.data import ActionResult, Result
+from sc2.data import ActionResult
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
+from bot.ai.main import AI
+from bot.ai.observation import Observation
+from bot.combat.corrosive_biles import CorrosiveBiles
+from bot.combat.dodge import Dodge
+from bot.combat.main import Combat
+from bot.combat.scout import Scout
 from bot.common.action import Action, AttackMove, DoNothing, UseAbility
+from bot.common.assignment import Assignment
 from bot.common.constants import (
     ALL_MACRO_ABILITIES,
     CHANGELINGS,
@@ -28,23 +35,18 @@ from bot.common.constants import (
 )
 from bot.common.main import BotBase
 from bot.common.unit_composition import UnitComposition
-from bot.components.combat.corrosive_biles import CorrosiveBiles
-from bot.components.combat.dodge import Dodge
-from bot.components.combat.main import Combat
-from bot.components.combat.scout import Scout
-from bot.components.macro.build_order import HATCH_FIRST
-from bot.components.macro.planner import MacroId, MacroPlan, MacroPlanner
-from bot.components.macro.strategy import Strategy
-from bot.components.queens.creep import CreepSpread
-from bot.components.queens.inject import Inject, InjectAssignment
-from bot.components.queens.transfuse import do_transfuse_single
-from bot.components.resources.main import (
-    HarvesterAssignment,
-    ResourceContext,
-    ResourceReport,
-    update_resources,
-)
 from bot.debug import Debug, DebugBase, DebugDummy
+from bot.macro.build_order import HATCH_FIRST
+from bot.macro.planner import MacroId, MacroPlan, MacroPlanner
+from bot.macro.strategy import Strategy
+from bot.queens.creep import CreepSpread
+from bot.queens.inject import Inject, InjectAssignment
+from bot.queens.transfuse import do_transfuse_single
+from bot.resources.context import HarvesterAssignment, ResourceContext
+from bot.resources.main import update_resources
+from bot.resources.report import ResourceReport
+
+BlockedPositions: TypeAlias = Assignment[Point2, float]
 
 
 class PhantomBot(BotBase):
@@ -52,18 +54,20 @@ class PhantomBot(BotBase):
     creep = CreepSpread()
     corrosive_biles = CorrosiveBiles()
     planner = MacroPlanner()
-    _debug: DebugBase = DebugDummy()
+    debug: DebugBase = DebugDummy()
     build_order = HATCH_FIRST
     harvester_assignment = HarvesterAssignment({})
     version = UNKNOWN_VERSION
-    _blocked_positions = dict[Point2, float]()
-    _replay_tags = set[str]()
-    _max_harvesters = 16
+    blocked_positions = BlockedPositions({})
+    replay_tags = set[str]()
+    max_harvesters = 16
+    inject = Inject(InjectAssignment({}))
+    observations = dict[int, Observation]()
+    ai = AI()
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._dodge = Dodge(self, effects={}, units={})
-        self._inject = Inject(InjectAssignment({}))
 
     # CALLBACKS ========================================================================================================
     # vvvvvvvvv
@@ -72,25 +76,72 @@ class PhantomBot(BotBase):
         await super().on_start()
 
         if self.config[DEBUG]:
-            self._debug = Debug(self)
-            await self._debug.on_start()
+            self.debug = Debug(self)
+            await self.debug.on_start()
 
         if os.path.exists(VERSION_FILE):
             with open(VERSION_FILE) as f:
                 await self.add_replay_tag(f"version_{f.read()}")
 
     async def on_step(self, iteration: int):
-        await super().on_step(iteration)
-
         if self.config[DEBUG]:
             if iteration == 0:  # local only: skip first iteration like on the ladder
                 return
+        await self.debug.on_step_start()
+        await super().on_step(iteration)
+        await self.do_step()
+        await self.debug.on_step_end()
 
-        await self._debug.on_step_start()
+    # async def on_before_start(self):
+    #     await super().on_before_start()
+    #
+    # async def on_end(self, game_result: Result):
+    #     await super().on_end(game_result)
+    #
+    # async def on_building_construction_started(self, unit: Unit):
+    #     await super().on_building_construction_started(unit)
+    #
+    # async def on_building_construction_complete(self, unit: Unit):
+    #     await super().on_building_construction_complete(unit)
+    #
+    # async def on_enemy_unit_entered_vision(self, unit: Unit):
+    #     await super().on_enemy_unit_entered_vision(unit)
+    #
+    # async def on_enemy_unit_left_vision(self, unit_tag: int):
+    #     await super().on_enemy_unit_left_vision(unit_tag)
+    #
+    # async def on_unit_destroyed(self, unit_tag: int):
+    #     await super().on_unit_destroyed(unit_tag)
+    #
+    # async def on_unit_created(self, unit: Unit):
+    #     await super().on_unit_created(unit)
+    #
+    # async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
+    #     await super().on_unit_type_changed(unit, previous_type)
+    #
+    # async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
+    #     await super().on_unit_took_damage(unit, amount_damage_taken)
+    #
+    # async def on_upgrade_complete(self, upgrade: UpgradeId):
+    #     await super().on_upgrade_complete(upgrade)
 
-        self.update_blocked_bases()
+    # ^^^^^^^^^^
+    # CALLBACKS ========================================================================================================
+
+    async def do_step(self) -> None:
+        observation = Observation(
+            game_loop=self.state.game_loop,
+            composition=UnitComposition.of(self.all_own_units),
+            enemy_composition=UnitComposition.of(self.all_enemy_units),
+            race=self.race,
+            enemy_race=self.enemy_race,
+        )
+        self.observations[self.state.game_loop] = observation
+        predicted_enemy_composition = self.ai.predict(observation)
         strategy = Strategy(
-            context=self, max_harvesters=max(1, min(80, self._max_harvesters))  # TODO: exclude mined out resources,
+            context=self,
+            max_harvesters=max(1, min(80, self.max_harvesters)),  # TODO: exclude mined out resources,
+            predicted_enemy_composition=predicted_enemy_composition,
         )
         for plan in self.macro(strategy):
             self.planner.add(plan)
@@ -100,47 +151,11 @@ class PhantomBot(BotBase):
                 await self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
 
-        await self._debug.on_step_end()
-
-    async def on_before_start(self):
-        await super().on_before_start()
-
-    async def on_end(self, game_result: Result):
-        await super().on_end(game_result)
-
-    async def on_building_construction_started(self, unit: Unit):
-        await super().on_building_construction_started(unit)
-
-    async def on_building_construction_complete(self, unit: Unit):
-        await super().on_building_construction_complete(unit)
-
-    async def on_enemy_unit_entered_vision(self, unit: Unit):
-        await super().on_enemy_unit_entered_vision(unit)
-
-    async def on_enemy_unit_left_vision(self, unit_tag: int):
-        await super().on_enemy_unit_left_vision(unit_tag)
-
-    async def on_unit_destroyed(self, unit_tag: int):
-        await super().on_unit_destroyed(unit_tag)
-
-    async def on_unit_created(self, unit: Unit):
-        await super().on_unit_created(unit)
-
-    async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
-        await super().on_unit_type_changed(unit, previous_type)
-
-    async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
-        await super().on_unit_took_damage(unit, amount_damage_taken)
-
-    async def on_upgrade_complete(self, upgrade: UpgradeId):
-        await super().on_upgrade_complete(upgrade)
-
-    # ^^^^^^^^^^
-    # CALLBACKS ========================================================================================================
+        self._predicted_enemy_composition = predicted_enemy_composition
 
     async def add_replay_tag(self, tag: str) -> None:
-        if tag not in self._replay_tags:
-            self._replay_tags.add(tag)
+        if tag not in self.replay_tags:
+            self.replay_tags.add(tag)
             await self.client.chat_send(f"Tag:{tag}", True)
 
     def macro(self, strategy: Strategy) -> Iterable[MacroPlan]:
@@ -163,14 +178,14 @@ class PhantomBot(BotBase):
         gas_ratio = vespene_trips / max(1.0, mineral_trips + vespene_trips)
         return gas_ratio
 
-    def get_scouting(self) -> Scout:
+    def get_scouting(self, blocked_positions: BlockedPositions) -> Scout:
         bases_sorted = sorted(self.expansion_locations_list, key=lambda b: b.distance_to(self.start_location))
         scout_targets = bases_sorted[1 : len(bases_sorted) // 2]
         for pos in self.enemy_start_locations:
             pos = 0.5 * (pos + self.start_location)
             scout_targets.insert(1, pos)
         scouts = self.units({UnitTypeId.OVERLORD, UnitTypeId.OVERSEER})
-        return Scout(self, scouts, frozenset(scout_targets), frozenset(self._blocked_positions))
+        return Scout(self, scouts, frozenset(scout_targets), frozenset(blocked_positions))
 
     async def micro(
         self,
@@ -190,10 +205,12 @@ class PhantomBot(BotBase):
         )
 
         creep = self.creep.update(self, combat)
-        inject = self._inject = self._inject.update(self.units(UnitTypeId.QUEEN), self.townhalls.ready)
+        inject = self.inject = self.inject.update(self.units(UnitTypeId.QUEEN), self.townhalls.ready)
         should_inject = self.supply_used + self.larva.amount < 200
         should_spread_creep = self.creep.active_tumor_count < 10
-        planned_actions = await self.planner.get_actions(self, set(self._blocked_positions), combat)
+
+        blocked_positions = self.blocked_positions = self.update_blocked_positions(self.blocked_positions)
+        planned_actions = await self.planner.get_actions(self, set(blocked_positions), combat)
 
         def should_harvest(u: Unit) -> bool:
             if u in planned_actions:  # got special orders?
@@ -222,7 +239,7 @@ class PhantomBot(BotBase):
         )
         resource_report = update_resources(resource_context)
         self.harvester_assignment = resource_report.assignment
-        self._max_harvesters = resource_context.max_harvesters
+        self.max_harvesters = resource_context.max_harvesters
         for plan in self.build_gasses(resource_report):
             self.planner.add(plan)
 
@@ -252,7 +269,7 @@ class PhantomBot(BotBase):
                 or self.search_with(unit)
             )
 
-        scout_actions = self.get_scouting().get_actions()
+        scout_actions = self.get_scouting(blocked_positions).get_actions()
 
         for worker in harvesters:
             yield self.micro_harvester(worker, combat, dodge, resource_report) or DoNothing()
@@ -316,7 +333,7 @@ class PhantomBot(BotBase):
                     return AttackMove(unit, target)
         return None
 
-    def update_blocked_bases(self) -> None:
+    def update_blocked_positions(self, blocked_positions: BlockedPositions) -> BlockedPositions:
         for error in self.state.action_errors:
             if (
                 error.result == ActionResult.CantBuildLocationInvalid.value
@@ -324,12 +341,13 @@ class PhantomBot(BotBase):
             ):
                 if unit := self.unit_tag_dict.get(error.unit_tag):
                     p = unit.position.rounded
-                    if p not in self._blocked_positions:
-                        self._blocked_positions[p] = self.time
+                    if p not in blocked_positions:
+                        blocked_positions += {p: self.time}
                         logger.info(f"Detected blocked base {p}")
-        for position, blocked_since in list(self._blocked_positions.items()):
+        for position, blocked_since in blocked_positions.items():
             if blocked_since + 60 < self.time:
-                del self._blocked_positions[position]
+                blocked_positions -= {position}
+        return blocked_positions
 
     def make_composition(self, composition: UnitComposition) -> Iterable[MacroPlan]:
         if 200 <= self.supply_used:
@@ -386,7 +404,7 @@ class PhantomBot(BotBase):
         if 2 == self.townhalls.amount and 2 > self.count(UnitTypeId.QUEEN, include_planned=False):
             return
 
-        worker_max = self._max_harvesters
+        worker_max = self.max_harvesters
         saturation = max(0, min(1, self.state.score.food_used_economy / max(1, worker_max)))
         if 2 < self.townhalls.amount and 4 / 5 > saturation:
             return

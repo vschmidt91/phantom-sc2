@@ -10,11 +10,11 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from scipy.ndimage import gaussian_filter
 
+from bot.combat.main import Combat
 from bot.common.action import Action, UseAbility
 from bot.common.constants import ENERGY_COST
 from bot.common.main import BotBase
 from bot.common.utils import circle, circle_perimeter, line, rectangle
-from bot.components.combat.main import Combat
 
 TUMOR_RANGE = 10
 _TUMOR_COOLDOWN = 304
