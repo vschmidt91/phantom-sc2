@@ -133,8 +133,6 @@ class PhantomBot(BotBase):
             game_loop=self.state.game_loop,
             composition=UnitComposition.of(self.all_own_units),
             enemy_composition=UnitComposition.of(self.all_enemy_units),
-            race=self.race,
-            enemy_race=self.enemy_race,
         )
         self.observations[self.state.game_loop] = observation
         predicted_enemy_composition = self.ai.predict(observation)

@@ -1,5 +1,4 @@
 import numpy as np
-from ares.consts import TOWNHALL_TYPES
 from sc2.constants import WORKER_TYPES
 from sc2.ids.unit_typeid import UnitTypeId
 
@@ -7,7 +6,19 @@ from bot.common.unit_composition import UnitComposition
 
 COMPOSTION_FILTER: list[UnitTypeId] = [
     *WORKER_TYPES,
-    *TOWNHALL_TYPES,
+    UnitTypeId.DRONE,
+    UnitTypeId.DRONEBURROWED,
+    UnitTypeId.SCV,
+    UnitTypeId.PROBE,
+    UnitTypeId.HATCHERY,
+    UnitTypeId.LAIR,
+    UnitTypeId.HIVE,
+    UnitTypeId.COMMANDCENTER,
+    UnitTypeId.COMMANDCENTERFLYING,
+    UnitTypeId.ORBITALCOMMAND,
+    UnitTypeId.ORBITALCOMMANDFLYING,
+    UnitTypeId.PLANETARYFORTRESS,
+    UnitTypeId.NEXUS,
 ]
 
 

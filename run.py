@@ -64,7 +64,8 @@ def create_opponents(difficulty) -> Iterable[AbstractPlayer]:
 if __name__ == "__main__":
 
     ai = PhantomBot()
-    bot = Bot(Race.Zerg, ai, 'PhantomBot')
+    race = Race.Zerg
+    bot = Bot(race, ai, 'PhantomBot')
     timestamp = f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S}"
     replay_path = os.path.join(REPLAY_DIR, f"{timestamp}.SC2REPLAY")
     os.makedirs(REPLAY_DIR, exist_ok=True)
@@ -83,14 +84,14 @@ if __name__ == "__main__":
         ]
         for m in MAP_VETOS:
             map_list.remove(m)
-        random_race = random.choice(RACES)
+        enemy_race = random.choice(RACES)
         enemy_build = random.choice(BUILDS)
         print("Starting local game...")
         result = run_game(
             maps.get(random.choice(map_list)),
             [
                 bot,
-                Computer(random_race, Difficulty.CheatInsane, enemy_build),
+                Computer(enemy_race, Difficulty.CheatInsane, enemy_build),
             ],
             realtime=False,
             save_replay_as=replay_path,
@@ -99,6 +100,8 @@ if __name__ == "__main__":
             result=result,
             observations=ai.observations,
             replay=Replay(replay_path),
+            race=race,
+            enemy_race=enemy_race,
         )
 
         output_path = os.path.join(OUTPUT_DIR, f"{timestamp}.pkl.xz")

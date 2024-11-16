@@ -2,7 +2,7 @@ import glob
 import lzma
 import pickle
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cache, cached_property
 from typing import Iterable
 
 import mpyq
@@ -75,6 +75,15 @@ class Replay:
     def attributes_events(self):
         return list(self.protocol.decode_replay_attributes_events(self.archive.read_file("replay.attributes.events")))
 
+    @cache
+    def get_player_race(self, player_id: int) -> Race:
+        for evt in self.tracker_events:
+            id = evt.get("m_playerId")
+            event_type = evt.get("_event")
+            if event_type in {"NNet.Replay.Tracker.SPlayerSetupEvent"}:
+                if id == player_id:
+                    return Race(evt["m_type"])
+
     @cached_property
     def observations(self) -> dict[int, Observation]:
         tag_to_player = dict[int, int]()
@@ -82,23 +91,13 @@ class Replay:
         composition = UnitComposition({})
         enemy_composition = UnitComposition({})
         last_game_loop = 0
-        race = Race.Random
-        enemy_race = Race.Random
         for evt in self.tracker_events:
             player_id = evt.get("m_controlPlayerId") or evt.get("m_playerId")
             tag = evt.get("m_unitTagIndex")
             event_type = evt.get("_event")
-            if event_type in {"NNet.Replay.Tracker.SPlayerSetupEvent"}:
-                r = Race(evt["m_type"])
-                if player_id == 1:
-                    race = r
-                elif player_id == 2:
-                    enemy_race = r
             game_loop = evt.get("_gameloop")
             if last_game_loop != game_loop:
-                observations[last_game_loop] = Observation(
-                    last_game_loop, composition, enemy_composition, race, enemy_race
-                )
+                observations[last_game_loop] = Observation(last_game_loop, composition, enemy_composition)
                 last_game_loop = game_loop
 
             type_bytes = evt.get("m_unitTypeName")

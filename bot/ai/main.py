@@ -1,4 +1,3 @@
-from sc2.data import Race
 from sklearn.linear_model import SGDRegressor
 from sklearn.multioutput import MultiOutputRegressor
 
@@ -15,8 +14,6 @@ class AI:
             game_loop=0,
             composition=UnitComposition({}),
             enemy_composition=UnitComposition({}),
-            race=Race.Random,
-            enemy_race=Race.Random,
         )
         self.train_one(observation, UnitComposition({}))
 
