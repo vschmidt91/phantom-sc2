@@ -5,6 +5,7 @@ from functools import cached_property
 from typing import Callable
 
 import numpy as np
+from cython_extensions import cy_closest_to
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -35,6 +36,18 @@ HALF = Point2((0.5, 0.5))
 
 
 @dataclass(frozen=True)
+class Attack(Action):
+    unit: Unit
+    target: Unit
+
+    async def execute(self, bot: BotBase) -> bool:
+        if self.target.is_memory:
+            return self.unit.attack(self.target.position)
+        else:
+            return self.unit.attack(self.target)
+
+
+@dataclass(frozen=True)
 class Combat:
     bot: BotBase
     strategy: Strategy
@@ -46,105 +59,71 @@ class Combat:
     retreat_targets: frozenset[Point2]
     attack_targets: frozenset[Point2]
 
-    def retreat_with(self, unit: Unit, retreat_path_limit=5) -> Action:
+    def retreat_with(self, unit: Unit, limit=5) -> Action | None:
         x = round(unit.position.x)
         y = round(unit.position.y)
         if unit.is_flying:
             retreat_map = self.retreat_air
         else:
             retreat_map = self.retreat_ground
-        retreat_path = retreat_map.get_path((x, y), retreat_path_limit)
         if retreat_map.dist[x, y] == np.inf:
-            retreat_point = self.bot.start_location
+            return Move(unit, random.choice(list(self.retreat_targets)))
+        retreat_path = retreat_map.get_path((x, y), limit)
+        if len(retreat_path) < limit:
+            return None
+        return Move(unit, Point2(retreat_path[-1]).offset(HALF))
+
+    def advance_with(self, unit: Unit, limit=5) -> Action | None:
+        x = round(unit.position.x)
+        y = round(unit.position.y)
+        if unit.is_flying:
+            attack_map = self.attack_air
         else:
-            retreat_point = Point2(retreat_path[-1]).offset(HALF)
-        if unit.distance_to(retreat_point) < retreat_path_limit:
-            return AttackMove(unit, unit.position)
-        return Move(unit, retreat_point)
+            attack_map = self.attack_ground
+        if attack_map.dist[x, y] == np.inf:
+            return Move(unit, random.choice(list(self.attack_targets)))
+        attack_path = attack_map.get_path((x, y), limit)
+        if len(attack_path) < limit:
+            return None
+        return Move(unit, Point2(attack_path[-1]).offset(HALF))
 
     def fight_with(self, unit: Unit) -> Action | None:
 
-        def target_priority(t: Unit) -> float:
-
-            # from combat_manager:
-
+        def filter_target(t: Unit) -> bool:
             if t.is_hallucination:
-                return 0.0
+                return False
             if t.type_id in CHANGELINGS:
-                return 0.0
-            p = 1e8
-
-            # priority /= 1 + self.ai.distance_ground[target.position.rounded]
-            p /= 5 if t.is_structure else 1
-            if t.is_enemy:
-                p /= 300 + t.shield + t.health
-            else:
-                p /= 500
-
-            # ---
-
+                return False
             if not can_attack(unit, t) and not unit.is_detector:
-                return 0.0
-            p /= 8 + t.position.distance_to(unit.position)
-            if unit.is_detector:
-                if t.is_cloaked:
-                    p *= 3.0
-                if not t.is_revealed:
-                    p *= 3.0
+                return False
+            return True
 
-            return p
-
-        target, priority = max(
-            ((e, target_priority(e)) for e in self.enemy_units),
-            key=lambda t: t[1],
-            default=(None, 0),
-        )
-
-        if not target:
+        targets = [t for t in self.enemy_units if filter_target(t)]
+        if not any(targets):
             return None
-        if priority <= 0:
-            return None
+
+        target = cy_closest_to(unit.position, targets)
 
         x = round(unit.position.x)
         y = round(unit.position.y)
 
         unit_range = unit.air_range if target.is_flying else unit.ground_range
-        range_deficit = min(
-            unit.sight_range, max(1, unit.distance_to(target) - unit.radius - target.radius - unit_range)
+        is_in_range = unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready < unit.distance_to(
+            target
         )
 
-        attack_point = unit.position.towards(target, range_deficit, limit=True).rounded
-        #
-        # confidence = max(
-        #     self.confidence[x, y],
-        #     self.confidence[attack_point],
-        #     # self.strategy.confidence_global,
-        # )
-
-        if self.confidence[x, y] < 0 and not self.bot.has_creep(unit.position):
-            return self.retreat_with(unit)
-        elif unit.is_burrowed:
-            return self.retreat_with(unit)
-        if 0 == self.enemy_presence.dps[attack_point]:
+        if self.confidence[x, y] < -1:
+            return self.retreat_with(unit) or Move(unit, self.bot.start_location)
+        elif unit.ground_range < 1:
             return AttackMove(unit, target.position)
-        elif 0 < self.confidence[attack_point]:
-            return AttackMove(unit, target.position)
-        elif self.confidence[x, y] < -10:
-            return self.retreat_with(unit)
-        elif 0 == self.enemy_presence.dps[x, y]:
-            if self.attack_pathing.dist[x, y] == np.inf:
-                attack_point = random.choice(list(self.attack_targets))
-            else:
-                attack_path = self.attack_pathing.get_path((x, y), range_deficit)
-                attack_point = attack_path[-1]
-            return AttackMove(unit, Point2(attack_point))
-        elif unit.weapon_ready:
-            return AttackMove(unit, target.position)
-        elif unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready < unit.position.distance_to(
-            target.position
-        ):
-            return UseAbility(unit, AbilityId.ATTACK, target)
-        return self.retreat_with(unit)
+        elif 1 < self.confidence[x, y]:
+            return Attack(unit, target)
+        elif unit.weapon_ready and is_in_range:
+            return Attack(unit, target)
+        elif 0 < self.enemy_presence.dps[x, y]:
+            return self.retreat_with(unit) or Move(unit, self.bot.start_location)
+        else:
+            return self.advance_with(unit) or AttackMove(unit, target.position)
 
     def do_unburrow(self, unit: Unit) -> Action | None:
         p = tuple[int, int](unit.position.rounded)
@@ -189,9 +168,9 @@ class Combat:
             px, py = unit.position.rounded
             if 0 < dps:
                 r = 2 * unit.radius
-                r += 1
-                # r = unit.sight_range
-                r += max(unit.ground_range, unit.air_range)
+                # r += 1
+                # r += max(unit.ground_range, unit.air_range)
+                r += unit.sight_range
                 dx, dy = disk(r)
                 d = px + dx, py + dy
                 health_map[d] += unit.shield + unit.health
@@ -231,5 +210,9 @@ class Combat:
         return DijkstraPathing(self.pathing + self.threat_level, self.retreat_targets_rounded)
 
     @cached_property
-    def attack_pathing(self) -> DijkstraPathing:
+    def attack_air(self) -> DijkstraPathing:
+        return DijkstraPathing(self.air_pathing + self.threat_level, self.attack_targets_rounded)
+
+    @cached_property
+    def attack_ground(self) -> DijkstraPathing:
         return DijkstraPathing(self.pathing + self.threat_level, self.attack_targets_rounded)

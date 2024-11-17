@@ -77,7 +77,7 @@ class Strategy:
         if self.context.tech_requirement_progress(UnitTypeId.ZERGLING) < 0.8:
             return UnitComposition({})
         saturation = self.context.state.score.food_used_economy / self.max_harvesters
-        ratio = 2 * max(1 - self.confidence_global, saturation)
+        ratio = 2.5 * max(1 - self.confidence_global, saturation)
         composition = self.counter_composition
         composition += {
             UnitTypeId.RAVAGER: composition[UnitTypeId.ROACH] / 13,
