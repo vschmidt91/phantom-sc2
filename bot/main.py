@@ -258,7 +258,7 @@ class PhantomBot(BotBase):
             return (
                 dodge.dodge_with(unit)
                 or (self.do_spawn_changeling(unit) if unit.type_id in {UnitTypeId.OVERSEER} else None)
-                or (self.search_with(unit) if unit.type_id in CHANGELINGS else None)
+                or (self.search_with(unit) if unit.type_id in CHANGELINGS)
                 or (combat.do_burrow(unit) if unit.type_id in {UnitTypeId.ROACH} else None)
                 or (combat.do_unburrow(unit) if unit.type_id in {UnitTypeId.ROACHBURROWED} else None)
                 or (self.corrosive_biles.get_action(self, unit) if unit.type_id in {UnitTypeId.RAVAGER} else None)
