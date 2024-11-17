@@ -108,7 +108,7 @@ class Combat:
         y = round(unit.position.y)
 
         unit_range = unit.air_range if target.is_flying else unit.ground_range
-        is_in_range = unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready < unit.distance_to(
+        is_in_range = unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready > unit.distance_to(
             target
         )
 
