@@ -258,7 +258,6 @@ class PhantomBot(BotBase):
             return (
                 dodge.dodge_with(unit)
                 or (self.do_spawn_changeling(unit) if unit.type_id in {UnitTypeId.OVERSEER} else None)
-                or (self.search_with(unit) if unit.type_id in CHANGELINGS)
                 or (combat.do_burrow(unit) if unit.type_id in {UnitTypeId.ROACH} else None)
                 or (combat.do_unburrow(unit) if unit.type_id in {UnitTypeId.ROACHBURROWED} else None)
                 or (self.corrosive_biles.get_action(self, unit) if unit.type_id in {UnitTypeId.RAVAGER} else None)
@@ -280,6 +279,8 @@ class PhantomBot(BotBase):
                 pass
             elif unit in planned_actions:
                 pass
+            elif unit.type_id in CHANGELINGS:
+                yield self.search_with(unit) or DoNothing()
             else:
                 yield micro_unit(unit) or DoNothing()
         for action in scout_actions.values():
