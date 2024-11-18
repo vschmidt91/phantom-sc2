@@ -83,11 +83,11 @@ class Combat:
         if attack_map.dist[x, y] == np.inf:
             return Move(unit, random.choice(list(self.attack_targets)))
         attack_path = attack_map.get_path((x, y), limit)
-        if len(attack_path) < limit:
-            return None
         return Move(unit, Point2(attack_path[-1]).offset(HALF))
 
     def fight_with(self, unit: Unit) -> Action | None:
+
+        is_melee = unit.ground_range < 1
 
         def filter_target(t: Unit) -> bool:
             if t.is_hallucination:
@@ -96,9 +96,11 @@ class Combat:
                 return False
             if not can_attack(unit, t) and not unit.is_detector:
                 return False
+            if not unit.target_in_range(t, unit.distance_to_weapon_ready):
+                return False
             return True
 
-        targets = [t for t in self.enemy_units if filter_target(t)]
+        targets = self.enemy_units.filter(filter_target)
         if not any(targets):
             return None
 
@@ -106,24 +108,24 @@ class Combat:
 
         x = round(unit.position.x)
         y = round(unit.position.y)
-
-        unit_range = unit.air_range if target.is_flying else unit.ground_range
-        is_in_range = unit.radius + unit_range + 0.5 + target.radius + unit.distance_to_weapon_ready > unit.distance_to(
-            target
-        )
-
-        if self.confidence[x, y] < -1:
-            return self.retreat_with(unit) or Move(unit, self.bot.start_location)
-        elif unit.ground_range < 1:
+        confidence = self.confidence[x, y] + self.strategy.confidence_global
+        if 0 < confidence:
+            if unit.weapon_ready:
+                return Attack(unit, target)
+            else:
+                return self.advance_with(unit)
+        elif not (retreat := self.retreat_with(unit, 3)):
             return AttackMove(unit, target.position)
-        elif 1 < self.confidence[x, y]:
+        elif confidence < -1:
+            return retreat
+        elif is_melee:
+            return AttackMove(unit, target.position)
+        elif unit.weapon_ready:
             return Attack(unit, target)
-        elif unit.weapon_ready and is_in_range:
-            return Attack(unit, target)
-        elif 0 < self.enemy_presence.dps[x, y]:
-            return self.retreat_with(unit) or Move(unit, self.bot.start_location)
+        elif 0 == self.enemy_presence.dps[x, y]:
+            return self.advance_with(unit)
         else:
-            return self.advance_with(unit) or AttackMove(unit, target.position)
+            return retreat
 
     def do_unburrow(self, unit: Unit) -> Action | None:
         p = tuple[int, int](unit.position.rounded)
