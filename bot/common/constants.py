@@ -148,13 +148,13 @@ DPS_OVERRIDE = {
 }
 
 CIVILIANS = {
-    # UnitTypeId.SCV,
-    # UnitTypeId.MULE,
-    # UnitTypeId.PROBE,
+    UnitTypeId.SCV,
+    UnitTypeId.MULE,
+    UnitTypeId.PROBE,
     UnitTypeId.LARVA,
     UnitTypeId.EGG,
     *WITH_TECH_EQUIVALENTS[UnitTypeId.WARPPRISM],
-    # *WITH_TECH_EQUIVALENTS[UnitTypeId.DRONE],
+    *WITH_TECH_EQUIVALENTS[UnitTypeId.DRONE],
     # *WITH_TECH_EQUIVALENTS[UnitTypeId.QUEEN],
     *WITH_TECH_EQUIVALENTS[UnitTypeId.OVERLORD],
     *WITH_TECH_EQUIVALENTS[UnitTypeId.BROODLING],
