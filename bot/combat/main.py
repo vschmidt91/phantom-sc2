@@ -116,7 +116,7 @@ class Combat:
                 return self.advance_with(unit)
         elif not (retreat := self.retreat_with(unit, 3)):
             return AttackMove(unit, target.position)
-        elif confidence < -1:
+        elif confidence < -0.5:
             return retreat
         elif is_melee:
             return AttackMove(unit, target.position)

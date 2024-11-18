@@ -58,8 +58,8 @@ class Debug(DebugBase):
         await self.bot.client.debug_create_unit(
             [
                 [UnitTypeId.OVERLORD, 10, self.bot.game_info.map_center, 1],
-                [UnitTypeId.ROACH, 30, self.bot.game_info.map_center, 1],
-                [UnitTypeId.ROACH, 30, self.bot.game_info.map_center, 2],
+                [UnitTypeId.ZERGLING, 40, self.bot.game_info.map_center, 1],
+                [UnitTypeId.ZERGLING, 50, self.bot.game_info.map_center, 2],
                 [UnitTypeId.OVERLORD, 10, self.bot.game_info.map_center, 2],
             ]
         )
