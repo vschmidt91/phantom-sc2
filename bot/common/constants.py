@@ -158,6 +158,12 @@ CIVILIANS = {
     *CHANGELINGS,
 }
 
+ENEMY_CIVILIANS = {
+    UnitTypeId.LARVA,
+    UnitTypeId.EGG,
+    *WITH_TECH_EQUIVALENTS[UnitTypeId.BROODLING],
+}
+
 UNIT_BY_TRAIN_ABILITY: dict[AbilityId, UnitTypeId] = {
     unit_element["ability"]: unit
     for trainer_element in TRAIN_INFO.values()
