@@ -108,8 +108,15 @@ class Combat:
 
         x = round(unit.position.x)
         y = round(unit.position.y)
-        confidence = self.confidence[x, y] + self.strategy.confidence_global
-        if 0 < confidence:
+        confidence = self.confidence[x, y]
+        if not (retreat := self.retreat_with(unit, 3)):
+            return AttackMove(unit, target.position)
+        elif is_melee:
+            if 0 < confidence:
+                return AttackMove(unit, target.position)
+            else:
+                return retreat
+        elif 0 < confidence:
             if unit.weapon_ready:
                 return Attack(unit, target)
             else:
