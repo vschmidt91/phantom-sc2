@@ -129,6 +129,10 @@ class PhantomBot(BotBase):
     # CALLBACKS ========================================================================================================
 
     async def do_step(self) -> None:
+
+        for action in self.state.actions_unit_commands:
+            self.corrosive_biles.handle_action(action)
+
         observation = Observation(
             game_loop=self.state.game_loop,
             composition=UnitComposition.of(self.all_own_units),
