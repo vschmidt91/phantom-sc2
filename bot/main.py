@@ -26,6 +26,7 @@ from bot.common.constants import (
     ALL_MACRO_ABILITIES,
     CHANGELINGS,
     CIVILIANS,
+    ENEMY_CIVILIANS,
     ENERGY_COST,
     GAS_BY_RACE,
     REQUIREMENTS,
@@ -129,6 +130,10 @@ class PhantomBot(BotBase):
     # CALLBACKS ========================================================================================================
 
     async def do_step(self) -> None:
+
+        for action in self.state.actions_unit_commands:
+            self.corrosive_biles.handle_action(action)
+
         observation = Observation(
             game_loop=self.state.game_loop,
             composition=UnitComposition.of(self.all_own_units),
@@ -194,7 +199,7 @@ class PhantomBot(BotBase):
             bot=self,
             strategy=strategy,
             units=self.units.exclude_type(CIVILIANS),
-            enemy_units=self.all_enemy_units.exclude_type(CIVILIANS),
+            enemy_units=self.all_enemy_units.exclude_type(ENEMY_CIVILIANS),
             dps=self.dps_fast,
             pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
             air_pathing=self.mediator.get_map_data_object.get_clean_air_grid(),

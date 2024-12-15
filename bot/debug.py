@@ -54,12 +54,12 @@ class Debug(DebugBase):
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with lzma.open(output_path, "wb") as f:
             pickle.dump(self.bot.game_info, f)
-        # await self.client.debug_upgrade()
+        # await self.bot.debug_upgrade()
         await self.bot.client.debug_create_unit(
             [
                 [UnitTypeId.OVERLORD, 10, self.bot.game_info.map_center, 1],
-                [UnitTypeId.ROACH, 10, self.bot.game_info.map_center, 1],
-                [UnitTypeId.ROACH, 10, self.bot.game_info.map_center, 2],
+                [UnitTypeId.ZERGLING, 45, self.bot.game_info.map_center, 1],
+                [UnitTypeId.ZERGLING, 40, self.bot.game_info.map_center, 2],
                 [UnitTypeId.OVERLORD, 10, self.bot.game_info.map_center, 2],
             ]
         )
