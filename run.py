@@ -77,13 +77,14 @@ if __name__ == "__main__":
         print(result, " against opponent ", opponent_id)
     else:
         ai.config["Debug"] = True
-        map_list: list[str] = [
+        map_set: set[str] = {
             p.name.replace(f".{MAP_FILE_EXT}", "")
             for p in Path(MAPS_PATH).glob(f"*.{MAP_FILE_EXT}")
             if p.is_file()
-        ]
-        for m in MAP_VETOS:
-            map_list.remove(m)
+        }
+        map_set = {m for m in map_set if m not in MAP_VETOS}
+        map_list = list(map_set)
+
         enemy_race = random.choice(RACES)
         enemy_build = random.choice(BUILDS)
         print("Starting local game...")
