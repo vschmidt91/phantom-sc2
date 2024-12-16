@@ -20,7 +20,7 @@ sys.path.append("ares-sc2")
 
 from bot.main import PhantomBot
 from bot.ai.game import Game
-from bot.ai.replay import Replay
+# from bot.ai.replay import Replay
 
 MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
 MAP_FILE_EXT: str = "SC2Map"
@@ -77,13 +77,14 @@ if __name__ == "__main__":
         print(result, " against opponent ", opponent_id)
     else:
         ai.config["Debug"] = True
-        map_list: list[str] = [
+        map_set: set[str] = {
             p.name.replace(f".{MAP_FILE_EXT}", "")
             for p in Path(MAPS_PATH).glob(f"*.{MAP_FILE_EXT}")
             if p.is_file()
-        ]
-        for m in MAP_VETOS:
-            map_list.remove(m)
+        }
+        map_set = {m for m in map_set if m not in MAP_VETOS}
+        map_list = list(map_set)
+
         enemy_race = random.choice(RACES)
         enemy_build = random.choice(BUILDS)
         print("Starting local game...")
@@ -99,7 +100,7 @@ if __name__ == "__main__":
         game_result = Game(
             result=result,
             observations=ai.observations,
-            replay=Replay(replay_path),
+            # replay=Replay(replay_path),
             race=race,
             enemy_race=enemy_race,
         )
