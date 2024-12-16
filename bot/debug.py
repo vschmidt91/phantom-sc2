@@ -12,7 +12,7 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from tqdm import tqdm
 
-from bot.ai.replay import load_replays
+# from bot.ai.replay import load_replays
 from bot.common.main import BotBase
 from bot.macro.planner import MacroPlan
 
@@ -47,9 +47,9 @@ class Debug(DebugBase):
 
     async def on_start(self) -> None:
         logger.debug("Starting in debug mode")
-        dataset = list(load_replays("resources/games/*.pkl.xz"))
-        for x, y in tqdm(dataset):
-            self.bot.ai.train_one(x, y)
+        # dataset = list(load_replays("resources/games/*.pkl.xz"))
+        # for x, y in tqdm(dataset):
+        #     self.bot.ai.train_one(x, y)
         output_path = os.path.join("resources", "maps", f"{self.bot.game_info.map_name}.xz")
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with lzma.open(output_path, "wb") as f:
