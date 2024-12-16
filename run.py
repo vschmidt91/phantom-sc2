@@ -20,7 +20,7 @@ sys.path.append("ares-sc2")
 
 from bot.main import PhantomBot
 from bot.ai.game import Game
-from bot.ai.replay import Replay
+# from bot.ai.replay import Replay
 
 MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
 MAP_FILE_EXT: str = "SC2Map"
@@ -99,7 +99,7 @@ if __name__ == "__main__":
         game_result = Game(
             result=result,
             observations=ai.observations,
-            replay=Replay(replay_path),
+            # replay=Replay(replay_path),
             race=race,
             enemy_race=enemy_race,
         )
