@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from sc2.data import Race, Result
 
 from bot.ai.observation import Observation
+
 # from bot.ai.replay import Replay
 
 

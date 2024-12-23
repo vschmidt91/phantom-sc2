@@ -37,7 +37,7 @@ from bot.common.constants import (
 from bot.common.main import BotBase
 from bot.common.unit_composition import UnitComposition
 from bot.debug import Debug, DebugBase, DebugDummy
-from bot.macro.build_order import HATCH_FIRST, OVERHATCH
+from bot.macro.build_order import OVERHATCH
 from bot.macro.planner import MacroId, MacroPlan, MacroPlanner
 from bot.macro.strategy import Strategy
 from bot.queens.creep import CreepSpread
@@ -300,7 +300,6 @@ class PhantomBot(BotBase):
                 yield micro_unit(unit) or DoNothing()
         for action in scout_actions.values():
             yield action
-
 
     def build_gasses(self, resources: ResourceReport) -> Iterable[MacroPlan]:
         gas_type = GAS_BY_RACE[self.race]
