@@ -37,7 +37,7 @@ from bot.common.constants import (
 from bot.common.main import BotBase
 from bot.common.unit_composition import UnitComposition
 from bot.debug import Debug, DebugBase, DebugDummy
-from bot.macro.build_order import HATCH_FIRST
+from bot.macro.build_order import HATCH_FIRST, OVERHATCH
 from bot.macro.planner import MacroId, MacroPlan, MacroPlanner
 from bot.macro.strategy import Strategy
 from bot.queens.creep import CreepSpread
@@ -56,7 +56,7 @@ class PhantomBot(BotBase):
     corrosive_biles = CorrosiveBiles()
     planner = MacroPlanner()
     debug: DebugBase = DebugDummy()
-    build_order = HATCH_FIRST
+    build_order = OVERHATCH
     harvester_assignment = HarvesterAssignment({})
     version = UNKNOWN_VERSION
     blocked_positions = BlockedPositions({})
@@ -65,6 +65,8 @@ class PhantomBot(BotBase):
     inject = Inject(InjectAssignment({}))
     observations = dict[int, Observation]()
     ai = AI()
+
+    _did_extractor_trick = False
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -176,9 +178,12 @@ class PhantomBot(BotBase):
         required += self.planner.get_total_cost(self.cost)
         required += self.cost.of_composition(composition)
         required -= self.bank
-        mineral_trips = required.minerals / 5
-        vespene_trips = required.vespene / 4
-        gas_ratio = vespene_trips / max(1.0, mineral_trips + vespene_trips)
+
+        if required.minerals <= 0 and required.vespene <= 0:
+            return 1.0
+        mineral_trips = max(0.0, required.minerals / 5)
+        vespene_trips = max(0.0, required.vespene / 4)
+        gas_ratio = vespene_trips / (mineral_trips + vespene_trips)
         return gas_ratio
 
     def get_scouting(self, blocked_positions: BlockedPositions) -> Scout:
@@ -194,6 +199,11 @@ class PhantomBot(BotBase):
         self,
         strategy: Strategy,
     ) -> AsyncGenerator[Action, None]:
+
+        if not self._did_extractor_trick and self.supply_left <= 0:
+            for gas in self.gas_buildings.not_ready:
+                yield UseAbility(gas, AbilityId.CANCEL)
+                self._did_extractor_trick = True
 
         combat = Combat(
             bot=self,
@@ -291,6 +301,7 @@ class PhantomBot(BotBase):
         for action in scout_actions.values():
             yield action
 
+
     def build_gasses(self, resources: ResourceReport) -> Iterable[MacroPlan]:
         gas_type = GAS_BY_RACE[self.race]
         gas_depleted = self.gas_buildings.filter(lambda g: not g.has_vespene).amount
@@ -314,7 +325,9 @@ class PhantomBot(BotBase):
 
     def run_build_order(self) -> list[MacroPlan] | None:
         for i, step in enumerate(self.build_order.steps):
-            if self.count(step.unit, include_planned=False) >= step.count:
+            if step.cancel and self._did_extractor_trick:
+                pass
+            elif self.count(step.unit, include_planned=False) >= step.count:
                 pass
             elif self.count(step.unit) < step.count:
                 return [MacroPlan(step.unit, priority=-i)]
