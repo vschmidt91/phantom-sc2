@@ -88,7 +88,7 @@ class Combat:
     def fight_with(self, unit: Unit) -> Action | None:
 
         is_melee = unit.ground_range < 1
-        bonus_distance = unit.sight_range if is_melee else 0
+        bonus_distance = unit.sight_range if is_melee else 1
 
         def filter_target(t: Unit) -> bool:
             if t.is_hallucination:
@@ -122,8 +122,6 @@ class Combat:
                 return Attack(unit, target)
             else:
                 return self.advance_with(unit)
-        elif not (retreat := self.retreat_with(unit, 3)):
-            return AttackMove(unit, target.position)
         elif confidence < -0.5:
             return retreat
         elif unit.weapon_ready:
