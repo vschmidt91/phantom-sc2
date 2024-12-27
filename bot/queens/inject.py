@@ -51,4 +51,4 @@ class Inject:
             assignment += {q: target}
             unassinged_targets.remove(target)
 
-        return Inject(assignment=assignment)
+        return Inject(assignment)

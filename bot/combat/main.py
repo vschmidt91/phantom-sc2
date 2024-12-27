@@ -1,21 +1,24 @@
 import random
 from dataclasses import dataclass
 from enum import Enum, auto
-from functools import cached_property
+from functools import cache, cached_property
 from typing import Callable
 
 import numpy as np
-from cython_extensions import cy_closest_to
+from common.assignment import Assignment
+from common.constants import HALF, IMPOSSIBLE_TASK_COST
+from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
+from scipy.optimize import LinearConstraint, milp
+from sklearn.metrics import pairwise_distances
 
 from bot.combat.presence import Presence
 from bot.common.action import Action, AttackMove, HoldPosition, Move, UseAbility
-from bot.common.constants import CHANGELINGS
 from bot.common.main import BotBase
 from bot.common.utils import Point, can_attack, disk
 from bot.cython.dijkstra_pathing import DijkstraPathing
@@ -30,9 +33,6 @@ class CombatStance(Enum):
     HOLD = auto()
     FIGHT = auto()
     ADVANCE = auto()
-
-
-HALF = Point2((0.5, 0.5))
 
 
 @dataclass(frozen=True)
@@ -58,6 +58,8 @@ class Combat:
     air_pathing: np.ndarray
     retreat_targets: frozenset[Point2]
     attack_targets: frozenset[Point2]
+
+    target_assignment_max_duration = 10
 
     def retreat_with(self, unit: Unit, limit=5) -> Action | None:
         x = round(unit.position.x)
@@ -88,24 +90,27 @@ class Combat:
     def fight_with(self, unit: Unit) -> Action | None:
 
         is_melee = unit.ground_range < 1
-        bonus_distance = unit.sight_range if is_melee else 1
+        # bonus_distance = unit.sight_range if is_melee else 1
+        #
+        # def filter_target(t: Unit) -> bool:
+        #     if t.is_hallucination:
+        #         return False
+        #     if t.type_id in CHANGELINGS:
+        #         return False
+        #     if not can_attack(unit, t) and not unit.is_detector:
+        #         return False
+        #     if not unit.target_in_range(t, bonus_distance + unit.distance_to_weapon_ready):
+        #         return False
+        #     return True
+        #
+        # targets = self.enemy_units.filter(filter_target)
+        # if not any(targets):
+        #     return None
 
-        def filter_target(t: Unit) -> bool:
-            if t.is_hallucination:
-                return False
-            if t.type_id in CHANGELINGS:
-                return False
-            if not can_attack(unit, t) and not unit.is_detector:
-                return False
-            if not unit.target_in_range(t, bonus_distance + unit.distance_to_weapon_ready):
-                return False
-            return True
+        # target = cy_closest_to(unit.position, targets)
 
-        targets = self.enemy_units.filter(filter_target)
-        if not any(targets):
+        if not (target := self.optimal_targeting.get(unit)):
             return None
-
-        target = cy_closest_to(unit.position, targets)
 
         x = round(unit.position.x)
         y = round(unit.position.y)
@@ -222,3 +227,77 @@ class Combat:
     @cached_property
     def attack_ground(self) -> DijkstraPathing:
         return DijkstraPathing(self.pathing + self.threat_level, self.attack_targets_rounded)
+
+    @cached_property
+    def unit_positions(self) -> np.ndarray:
+        return np.array([np.asarray(u.position) for u in self.units])
+
+    @cached_property
+    def enemy_unit_positions(self) -> np.ndarray:
+        return np.array([np.asarray(u.position) for u in self.enemy_units])
+
+    @cached_property
+    def distance_matrix(self) -> np.ndarray:
+        return pairwise_distances(self.unit_positions, self.enemy_unit_positions)
+
+    @cached_property
+    def optimal_targeting(self) -> Assignment[Unit, Unit]:
+        if not self.units:
+            return Assignment({})
+        if not self.enemy_units:
+            return Assignment({})
+
+        @cache
+        def distance_metric(a, b) -> float:
+            if not can_attack(a, b):
+                return IMPOSSIBLE_TASK_COST
+            d = a.position.distance_to(b.position) - a.radius - b.radius  # TODO: use pathing query
+            r = a.air_range if b.is_flying else a.ground_range
+            travel_distance = d - r - a.distance_to_weapon_ready
+            if travel_distance <= 0:
+                return 0.0
+            if a.movement_speed <= 0:
+                return IMPOSSIBLE_TASK_COST
+            eta = travel_distance / a.movement_speed
+            return eta
+
+        distance_matrix = np.array([[distance_metric(a, b) for a in self.units] for b in self.enemy_units])
+        assignment_matches_unit = np.array(
+            [[1 if a == u else 0 for a in self.units for b in self.enemy_units] for u in self.units]
+        )
+        assignment_matches_target = np.array(
+            [[1 if b == t else 0 for a in self.units for b in self.enemy_units] for t in self.enemy_units]
+        )
+        min_assigned = self.units.amount // self.enemy_units.amount
+        constraints = [
+            LinearConstraint(
+                assignment_matches_unit,
+                np.ones([self.units.amount]),
+                np.ones([self.units.amount]),
+            ),
+            LinearConstraint(
+                assignment_matches_target,
+                np.full([self.enemy_units.amount], min_assigned),
+                np.full([self.enemy_units.amount], min_assigned + 1),
+            ),
+        ]
+        options = dict(
+            time_limit=self.target_assignment_max_duration / 1000,
+        )
+        opt = milp(
+            c=distance_matrix.flat,
+            constraints=constraints,
+            options=options,
+        )
+        if not opt.success:
+            logger.error(f"Target assigment failed: {opt}")
+            return Assignment({})
+        x_opt = opt.x.reshape((self.units.amount, self.enemy_units.amount))
+        target_indices = x_opt.argmax(axis=1)
+        return Assignment(
+            {
+                u: self.enemy_units[target_indices[i]]
+                for i, u in enumerate(self.units)
+                if distance_matrix[target_indices[i], i] < IMPOSSIBLE_TASK_COST
+            }
+        )

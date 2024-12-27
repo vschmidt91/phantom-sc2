@@ -260,8 +260,7 @@ class PhantomBot(BotBase):
 
         def micro_queen(q: Unit) -> Action | None:
             return (
-                dodge.dodge_with(q)
-                or do_transfuse_single(q, combat.units)
+                do_transfuse_single(q, combat.units)
                 or (inject.inject_with(q) if should_inject else None)
                 or (creep.spread_with_queen(q) if should_spread_creep else None)
                 or (combat.retreat_with(q) if not self.has_creep(q) else None)
@@ -335,7 +334,7 @@ class PhantomBot(BotBase):
         return None
 
     def search_with(self, unit: Unit) -> Action | None:
-        if unit.is_idle and unit.type_id not in {UnitTypeId.QUEEN}:
+        if unit.is_idle:
             if self.time < 8 * 60:
                 return AttackMove(unit, random.choice(self.enemy_start_locations))
             elif self.all_enemy_units.exists:

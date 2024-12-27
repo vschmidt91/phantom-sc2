@@ -13,6 +13,7 @@ from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
+from sc2.position import Point2
 
 from bot.common.utils import get_requirements
 
@@ -347,3 +348,6 @@ SPORE_TRIGGERS[Race.Random] = {
     *SPORE_TRIGGERS[Race.Protoss],
     *SPORE_TRIGGERS[Race.Zerg],
 }
+
+IMPOSSIBLE_TASK_COST = 1e8
+HALF = Point2((0.5, 0.5))
