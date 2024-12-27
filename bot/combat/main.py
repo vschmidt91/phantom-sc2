@@ -5,8 +5,8 @@ from functools import cache, cached_property
 from typing import Callable
 
 import numpy as np
-from common.assignment import Assignment
-from common.constants import HALF, IMPOSSIBLE_TASK_COST
+from bot.common.assignment import Assignment
+from bot.common.constants import HALF, IMPOSSIBLE_TASK_COST
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
