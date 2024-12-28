@@ -5,8 +5,6 @@ from functools import cache, cached_property
 from typing import Callable
 
 import numpy as np
-from bot.common.assignment import Assignment
-from bot.common.constants import HALF, IMPOSSIBLE_TASK_COST
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -19,6 +17,8 @@ from sklearn.metrics import pairwise_distances
 
 from bot.combat.presence import Presence
 from bot.common.action import Action, AttackMove, HoldPosition, Move, UseAbility
+from bot.common.assignment import Assignment
+from bot.common.constants import HALF, IMPOSSIBLE_TASK_COST
 from bot.common.main import BotBase
 from bot.common.utils import Point, can_attack, disk
 from bot.cython.dijkstra_pathing import DijkstraPathing
@@ -130,7 +130,7 @@ class Combat:
         elif confidence < -0.5:
             return retreat
         elif unit.weapon_ready:
-                return AttackMove(unit, target.position)
+            return AttackMove(unit, target.position)
         elif 0 == self.enemy_presence.dps[x, y]:
             return self.advance_with(unit)
         else:
@@ -284,6 +284,7 @@ class Combat:
         options = dict(
             time_limit=self.target_assignment_max_duration / 1000,
         )
+        # bias = np.array([dither((a.tag, b.tag)) for a in self.units for b in self.enemy_units])
         opt = milp(
             c=distance_matrix.flat,
             constraints=constraints,

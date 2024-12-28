@@ -190,3 +190,7 @@ class JSONDataclassEncoder(json.JSONEncoder):
         elif isinstance(o, enum.Enum):
             return o.value
         return super().default(o)
+
+
+def dither(obj) -> float:
+    return (hash(obj) & 0xFFFFFFFF) / 2**32

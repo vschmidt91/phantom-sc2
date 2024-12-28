@@ -6,6 +6,7 @@ from typing import AsyncGenerator, Iterable, TypeAlias
 
 import numpy as np
 from ares import DEBUG
+from cython_extensions import cy_closest_to
 from loguru import logger
 from sc2.data import ActionResult
 from sc2.ids.ability_id import AbilityId
@@ -337,8 +338,8 @@ class PhantomBot(BotBase):
         if unit.is_idle:
             if self.time < 8 * 60:
                 return AttackMove(unit, random.choice(self.enemy_start_locations))
-            elif self.all_enemy_units.exists:
-                target = self.all_enemy_units.random
+            elif self.all_enemy_units:
+                target = cy_closest_to(unit.position, self.all_enemy_units)
                 return AttackMove(unit, target.position)
             else:
                 a = self.game_info.playable_area
