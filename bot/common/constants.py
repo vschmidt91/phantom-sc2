@@ -163,6 +163,10 @@ ENEMY_CIVILIANS = {
     UnitTypeId.LARVA,
     UnitTypeId.EGG,
     *WITH_TECH_EQUIVALENTS[UnitTypeId.BROODLING],
+    UnitTypeId.SCV,
+    UnitTypeId.MULE,
+    UnitTypeId.PROBE,
+    *WITH_TECH_EQUIVALENTS[UnitTypeId.DRONE],
 }
 
 UNIT_BY_TRAIN_ABILITY: dict[AbilityId, UnitTypeId] = {
