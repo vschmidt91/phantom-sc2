@@ -124,13 +124,13 @@ class Combat:
                 return retreat
         elif 0 < confidence:
             if unit.weapon_ready:
-                return Attack(unit, target)
+                return AttackMove(unit, target.position)
             else:
                 return self.advance_with(unit)
         elif confidence < -0.5:
             return retreat
         elif unit.weapon_ready:
-            return Attack(unit, target)
+                return AttackMove(unit, target.position)
         elif 0 == self.enemy_presence.dps[x, y]:
             return self.advance_with(unit)
         else:
