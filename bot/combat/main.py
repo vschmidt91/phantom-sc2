@@ -1,10 +1,10 @@
 import random
 from dataclasses import dataclass
-from enum import Enum, auto
 from functools import cache, cached_property
 from typing import Callable
 
 import numpy as np
+from cython_extensions import cy_closest_to
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -25,14 +25,6 @@ from bot.cython.dijkstra_pathing import DijkstraPathing
 from bot.macro.strategy import Strategy
 
 DpsProvider = Callable[[UnitTypeId], float]
-
-
-class CombatStance(Enum):
-    FLEE = auto()
-    RETREAT = auto()
-    HOLD = auto()
-    FIGHT = auto()
-    ADVANCE = auto()
 
 
 @dataclass(frozen=True)
@@ -59,7 +51,7 @@ class Combat:
     retreat_targets: frozenset[Point2]
     attack_targets: frozenset[Point2]
 
-    target_assignment_max_duration = 10
+    target_assignment_max_duration = 30
 
     def retreat_with(self, unit: Unit, limit=5) -> Action | None:
         x = round(unit.position.x)
@@ -83,7 +75,8 @@ class Combat:
         else:
             attack_map = self.attack_ground
         if attack_map.dist[x, y] == np.inf:
-            return Move(unit, random.choice(list(self.attack_targets)))
+            target = min(list(self.attack_targets), key=lambda p: unit.distance_to(p))
+            return Move(unit, target)
         attack_path = attack_map.get_path((x, y), limit)
         return Move(unit, Point2(attack_path[-1]).offset(HALF))
 
