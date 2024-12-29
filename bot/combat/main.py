@@ -51,14 +51,14 @@ class Combat:
     target_assignment_max_duration = 30
 
     def retreat_with(self, unit: Unit, limit=7) -> Action | None:
-        return Move(
-            unit,
-            self.bot.mediator.find_closest_safe_spot(
-                from_pos=unit.position,
-                grid=self.bot.mediator.get_air_grid if unit.is_flying else self.bot.mediator.get_ground_grid,
-                radius=limit,
-            ),
-        )
+        # return Move(
+        #     unit,
+        #     self.bot.mediator.find_closest_safe_spot(
+        #         from_pos=unit.position,
+        #         grid=self.bot.mediator.get_air_grid if unit.is_flying else self.bot.mediator.get_ground_grid,
+        #         radius=limit,
+        #     ),
+        # )
         x = round(unit.position.x)
         y = round(unit.position.y)
         if unit.is_flying:
@@ -70,7 +70,7 @@ class Combat:
         retreat_path = retreat_map.get_path((x, y), limit)
         if len(retreat_path) < limit:
             return self.retreat_with_ares(unit, limit=limit)
-        return Move(unit, Point2(retreat_path[1]).offset(HALF))
+        return Move(unit, Point2(retreat_path[2]).offset(HALF))
 
     def retreat_with_ares(self, unit: Unit, limit=5) -> Action | None:
         return Move(
@@ -123,7 +123,11 @@ class Combat:
                 distances=[unit_range + bonus_range],
                 query_tree=query_tree,
             )[0].filter(lambda t: can_attack(unit, t))
-            if target := min(units_in_range, key=lambda u: u.health + u.shield, default=None):
+
+            def target_priority(u: Unit) -> float:
+                return max(1e-3, u.ground_dps, u.air_dps) / (u.health + u.shield)
+
+            if target := max(units_in_range, key=target_priority, default=None):
                 return Attack(unit, target)
 
         is_melee = unit.ground_range < 1
