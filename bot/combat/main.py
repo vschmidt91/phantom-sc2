@@ -1,18 +1,15 @@
-import random
 from dataclasses import dataclass
 from functools import cache, cached_property
 from typing import Callable
 
 import numpy as np
-from cython_extensions import cy_closest_to
-from loguru import logger
+from ares import UnitTreeQueryType
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
-from scipy.optimize import LinearConstraint, milp
 from sklearn.metrics import pairwise_distances
 
 from bot.combat.presence import Presence
@@ -54,18 +51,26 @@ class Combat:
     target_assignment_max_duration = 30
 
     def retreat_with(self, unit: Unit, limit=5) -> Action | None:
-        x = round(unit.position.x)
-        y = round(unit.position.y)
-        if unit.is_flying:
-            retreat_map = self.retreat_air
-        else:
-            retreat_map = self.retreat_ground
-        if retreat_map.dist[x, y] == np.inf:
-            return Move(unit, random.choice(list(self.retreat_targets)))
-        retreat_path = retreat_map.get_path((x, y), limit)
-        if len(retreat_path) < limit:
-            return None
-        return Move(unit, Point2(retreat_path[-1]).offset(HALF))
+        return Move(
+            unit,
+            self.bot.mediator.find_closest_safe_spot(
+                from_pos=unit.position,
+                grid=self.bot.mediator.get_air_grid if unit.is_flying else self.bot.mediator.get_ground_grid,
+                radius=limit,
+            ),
+        )
+        # x = round(unit.position.x)
+        # y = round(unit.position.y)
+        # if unit.is_flying:
+        #     retreat_map = self.retreat_air
+        # else:
+        #     retreat_map = self.retreat_ground
+        # if retreat_map.dist[x, y] == np.inf:
+        #     return Move(unit, random.choice(list(self.retreat_targets)))
+        # retreat_path = retreat_map.get_path((x, y), limit)
+        # if len(retreat_path) < limit:
+        #     return None
+        # return Move(unit, Point2(retreat_path[-1]).offset(HALF))
 
     def advance_with(self, unit: Unit, limit=5) -> Action | None:
         x = round(unit.position.x)
@@ -81,6 +86,34 @@ class Combat:
         return Move(unit, Point2(attack_path[-1]).offset(HALF))
 
     def fight_with(self, unit: Unit) -> Action | None:
+
+        x = round(unit.position.x)
+        y = round(unit.position.y)
+        confidence = self.confidence[x, y]
+
+        if unit.can_attack_both:
+            query_tree = UnitTreeQueryType.AllEnemy
+        elif unit.can_attack_air:
+            query_tree = UnitTreeQueryType.EnemyFlying
+        elif unit.can_attack_ground:
+            query_tree = UnitTreeQueryType.EnemyGround
+        else:
+            return None
+
+        if unit.weapon_ready:
+            unit_range = max(
+                [
+                    unit.ground_range if unit.can_attack_ground else 0.0,
+                    unit.air_range if unit.can_attack_air else 0.0,
+                ]
+            )
+            units_in_range = self.bot.mediator.get_units_in_range(
+                start_points=[unit],
+                distances=[unit_range],
+                query_tree=query_tree,
+            )[0].filter(lambda t: can_attack(unit, t))
+            if target := min(units_in_range, key=lambda u: u.health + u.shield, default=None):
+                return Attack(unit, target)
 
         is_melee = unit.ground_range < 1
         # bonus_distance = unit.sight_range if is_melee else 1
@@ -105,9 +138,6 @@ class Combat:
         if not (target := self.optimal_targeting.get(unit)):
             return None
 
-        x = round(unit.position.x)
-        y = round(unit.position.y)
-        confidence = self.confidence[x, y]
         if not (retreat := self.retreat_with(unit, 3)):
             return AttackMove(unit, target.position)
         elif is_melee:
@@ -235,18 +265,24 @@ class Combat:
 
     @cached_property
     def optimal_targeting(self) -> Assignment[Unit, Unit]:
-        if not self.units:
-            return Assignment({})
-        if not self.enemy_units:
-            return Assignment({})
+
+        # pairs = list(product(self.units, self.enemy_units))
+        # distance_query = [[a.position, b.position] for a, b in pairs]
+        # distances = asyncio.run(self.bot.client.query_pathings(distance_query))
+        # distance_dict = {
+        #     (a.tag, b.tag): d
+        #     for (a, b), d in zip(pairs, distances)
+        # }
 
         @cache
         def distance_metric(a, b) -> float:
             if not can_attack(a, b):
                 return IMPOSSIBLE_TASK_COST
-            d = a.position.distance_to(b.position) - a.radius - b.radius  # TODO: use pathing query
+
+            d = a.position.distance_to(b.position)  # TODO: use pathing query
+            # d = distance_dict[(a.tag, b.tag)] or a.position.distance_to(b.position)
             r = a.air_range if b.is_flying else a.ground_range
-            travel_distance = d - r - a.distance_to_weapon_ready
+            travel_distance = d - a.radius - b.radius - r - a.distance_to_weapon_ready
             if travel_distance <= 0:
                 return 0.0
             if a.movement_speed <= 0:
@@ -254,44 +290,46 @@ class Combat:
             eta = travel_distance / a.movement_speed
             return eta
 
-        distance_matrix = np.array([[distance_metric(a, b) for a in self.units] for b in self.enemy_units])
-        assignment_matches_unit = np.array(
-            [[1 if a == u else 0 for a in self.units for b in self.enemy_units] for u in self.units]
-        )
-        assignment_matches_target = np.array(
-            [[1 if b == t else 0 for a in self.units for b in self.enemy_units] for t in self.enemy_units]
-        )
-        min_assigned = self.units.amount // self.enemy_units.amount
-        constraints = [
-            LinearConstraint(
-                assignment_matches_unit,
-                np.ones([self.units.amount]),
-                np.ones([self.units.amount]),
-            ),
-            LinearConstraint(
-                assignment_matches_target,
-                np.full([self.enemy_units.amount], min_assigned),
-                np.full([self.enemy_units.amount], min_assigned + 1),
-            ),
-        ]
-        options = dict(
-            time_limit=self.target_assignment_max_duration / 1000,
-        )
-        # bias = np.array([dither((a.tag, b.tag)) for a in self.units for b in self.enemy_units])
-        opt = milp(
-            c=distance_matrix.flat,
-            constraints=constraints,
-            options=options,
-        )
-        if not opt.success:
-            logger.error(f"Target assigment failed: {opt}")
-            return Assignment({})
-        x_opt = opt.x.reshape((self.units.amount, self.enemy_units.amount))
-        target_indices = x_opt.argmax(axis=1)
-        return Assignment(
-            {
-                u: self.enemy_units[target_indices[i]]
-                for i, u in enumerate(self.units)
-                if distance_matrix[target_indices[i], i] < IMPOSSIBLE_TASK_COST
-            }
-        )
+        return Assignment.optimize(self.units, self.enemy_units, distance_metric)
+
+        # distance_matrix = np.array([[distance_metric(a, b) for a in self.units] for b in self.enemy_units])
+        # assignment_matches_unit = np.array(
+        #     [[1 if a == u else 0 for a in self.units for b in self.enemy_units] for u in self.units]
+        # )
+        # assignment_matches_target = np.array(
+        #     [[1 if b == t else 0 for a in self.units for b in self.enemy_units] for t in self.enemy_units]
+        # )
+        # min_assigned = self.units.amount // self.enemy_units.amount
+        # constraints = [
+        #     LinearConstraint(
+        #         assignment_matches_unit,
+        #         np.ones([self.units.amount]),
+        #         np.ones([self.units.amount]),
+        #     ),
+        #     LinearConstraint(
+        #         assignment_matches_target,
+        #         np.full([self.enemy_units.amount], min_assigned),
+        #         np.full([self.enemy_units.amount], min_assigned + 1),
+        #     ),
+        # ]
+        # options = dict(
+        #     time_limit=self.target_assignment_max_duration / 1000,
+        # )
+        # # bias = np.array([dither((a.tag, b.tag)) for a in self.units for b in self.enemy_units])
+        # opt = milp(
+        #     c=distance_matrix.flat,
+        #     constraints=constraints,
+        #     options=options,
+        # )
+        # if not opt.success:
+        #     logger.error(f"Target assigment failed: {opt}")
+        #     return Assignment({})
+        # x_opt = opt.x.reshape((self.units.amount, self.enemy_units.amount))
+        # target_indices = x_opt.argmax(axis=1)
+        # return Assignment(
+        #     {
+        #         u: self.enemy_units[target_indices[i]]
+        #         for i, u in enumerate(self.units)
+        #         if distance_matrix[target_indices[i], i] < IMPOSSIBLE_TASK_COST
+        #     }
+        # )
