@@ -12,6 +12,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sklearn.metrics import pairwise_distances
 
+from ares.consts import EngagementResult
 from bot.combat.presence import Presence
 from bot.common.action import Action, AttackMove, HoldPosition, Move, UseAbility
 from bot.common.assignment import Assignment
@@ -50,7 +51,7 @@ class Combat:
 
     target_assignment_max_duration = 30
 
-    def retreat_with(self, unit: Unit, limit=5) -> Action | None:
+    def retreat_with(self, unit: Unit, limit=7) -> Action | None:
         return Move(
             unit,
             self.bot.mediator.find_closest_safe_spot(
@@ -59,18 +60,28 @@ class Combat:
                 radius=limit,
             ),
         )
-        # x = round(unit.position.x)
-        # y = round(unit.position.y)
-        # if unit.is_flying:
-        #     retreat_map = self.retreat_air
-        # else:
-        #     retreat_map = self.retreat_ground
-        # if retreat_map.dist[x, y] == np.inf:
-        #     return Move(unit, random.choice(list(self.retreat_targets)))
-        # retreat_path = retreat_map.get_path((x, y), limit)
-        # if len(retreat_path) < limit:
-        #     return None
-        # return Move(unit, Point2(retreat_path[-1]).offset(HALF))
+        x = round(unit.position.x)
+        y = round(unit.position.y)
+        if unit.is_flying:
+            retreat_map = self.retreat_air
+        else:
+            retreat_map = self.retreat_ground
+        if retreat_map.dist[x, y] == np.inf:
+            return self.retreat_with_ares(unit, limit=limit)
+        retreat_path = retreat_map.get_path((x, y), limit)
+        if len(retreat_path) < limit:
+            return self.retreat_with_ares(unit, limit=limit)
+        return Move(unit, Point2(retreat_path[1]).offset(HALF))
+
+    def retreat_with_ares(self, unit: Unit, limit=5) -> Action | None:
+        return Move(
+            unit,
+            self.bot.mediator.find_closest_safe_spot(
+                from_pos=unit.position,
+                grid=self.bot.mediator.get_air_grid if unit.is_flying else self.bot.mediator.get_ground_grid,
+                radius=limit,
+            ),
+        )
 
     def advance_with(self, unit: Unit, limit=5) -> Action | None:
         x = round(unit.position.x)
@@ -107,9 +118,10 @@ class Combat:
                     unit.air_range if unit.can_attack_air else 0.0,
                 ]
             )
+            bonus_range = 2 * (self.bot.client.game_step / 22.4) * unit.movement_speed
             units_in_range = self.bot.mediator.get_units_in_range(
                 start_points=[unit],
-                distances=[unit_range],
+                distances=[unit_range+bonus_range],
                 query_tree=query_tree,
             )[0].filter(lambda t: can_attack(unit, t))
             if target := min(units_in_range, key=lambda u: u.health + u.shield, default=None):
@@ -138,7 +150,9 @@ class Combat:
         if not (target := self.optimal_targeting.get(unit)):
             return None
 
-        if not (retreat := self.retreat_with(unit, 3)):
+        # confidence += self.confidence[target.position.rounded]
+
+        if not (retreat := self.retreat_with(unit)):
             return AttackMove(unit, target.position)
         elif is_melee:
             if 0 < confidence:

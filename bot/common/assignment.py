@@ -4,7 +4,7 @@ from typing import Callable, Collection, Generic, Hashable, Iterator, Mapping, T
 
 import numpy as np
 from loguru import logger
-from scipy.optimize import LinearConstraint, milp
+from scipy.optimize import LinearConstraint, milp, linprog
 
 from bot.common.constants import IMPOSSIBLE_TASK_COST
 
@@ -67,30 +67,58 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         assignment_matches_unit = np.array([[1 if ai == u else 0 for ai in a for bj in b] for u in a])
         assignment_matches_target = np.array([[1 if bj == u else 0 for ai in a for bj in b] for u in b])
         min_assigned = len(a) // len(b)
-        constraints = [
-            LinearConstraint(
-                assignment_matches_unit,
-                np.ones([len(a)]),
-                np.ones([len(a)]),
-            ),
-            LinearConstraint(
-                assignment_matches_target,
-                np.full([len(b)], min_assigned),
-                np.full([len(b)], min_assigned + 1),
-            ),
-        ]
-        options = dict(
-            time_limit=max_duration_ms / 1000,
-        )
-        # bias = np.array([dither((a.tag, b.tag)) for a in self.units for b in self.enemy_units])
-        opt = milp(
+        # constraints = [
+        #     LinearConstraint(
+        #         assignment_matches_unit,
+        #         np.ones([len(a)]),
+        #         np.ones([len(a)]),
+        #     ),
+        #     LinearConstraint(
+        #         assignment_matches_target,
+        #         np.full([len(b)], min_assigned),
+        #         np.full([len(b)], min_assigned + 1),
+        #     ),
+        # ]
+        # options = dict(
+        #     time_limit=max_duration_ms / 1000,
+        # )
+        # opt = milp(
+        #     c=cost_array.flat,
+        #     constraints=constraints,
+        #     options=options,
+        # )
+        # if not opt.success:
+        #     logger.error(f"Target assigment failed: {opt}")
+        #     return Assignment({})
+        # x_opt = opt.x.reshape((len(a), len(b)))
+        
+        As_ub = []
+        bs_ub = []
+        
+        As_eq = []
+        bs_eq = []
+        
+        As_eq.append(assignment_matches_unit)
+        bs_eq.append(np.ones([len(a)]))
+        
+        As_ub.append(assignment_matches_target)
+        bs_ub.append(np.full([len(b)], min_assigned + 1))
+        # As_ub.append(-assignment_matches_target)
+        # bs_ub.append(-np.full([len(b)], 1))
+        
+        opt = linprog(
             c=cost_array.flat,
-            constraints=constraints,
-            options=options,
+            A_ub=np.concat(As_ub),
+            b_ub=np.concat(bs_ub),
+            A_eq=np.concat(As_eq),
+            b_eq=np.concat(bs_eq),
+            method="highs",
+            bounds=(0.0, 1.0),
         )
         if not opt.success:
             logger.error(f"Target assigment failed: {opt}")
             return Assignment({})
+
         x_opt = opt.x.reshape((len(a), len(b)))
         target_indices = x_opt.argmax(axis=1)
         result = Assignment[TKey, TValue](

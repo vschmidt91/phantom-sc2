@@ -78,6 +78,7 @@ class Strategy:
             return UnitComposition({})
         saturation = self.context.state.score.food_used_economy / self.max_harvesters
         ratio = 2.5 * max(1 - self.confidence_global, saturation)
+        ratio = 2.0
         composition = self.counter_composition
         composition += {
             UnitTypeId.RAVAGER: composition[UnitTypeId.ROACH] / 13,

@@ -7,6 +7,7 @@ from abc import ABC
 from dataclasses import dataclass
 
 from loguru import logger
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
@@ -52,13 +53,13 @@ class Debug(DebugBase):
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         with lzma.open(output_path, "wb") as f:
             pickle.dump(self.bot.game_info, f)
-        # await self.bot.debug_upgrade()
+        # await self.bot.client.debug_upgrade()
         # await self.bot.client.debug_create_unit(
         #     [
-        #         [UnitTypeId.OVERLORD, 10, self.bot.game_info.map_center, 1],
-        #         [UnitTypeId.ROACH, 15, self.bot.game_info.map_center, 1],
         #         [UnitTypeId.ROACH, 15, self.bot.game_info.map_center, 2],
-        #         [UnitTypeId.OVERLORD, 10, self.bot.game_info.map_center, 2],
+        #         [UnitTypeId.OVERLORD, 10, self.bot.enemy_start_locations[0], 2],
+        #         [UnitTypeId.OVERLORD, 10, self.bot.start_location, 1],
+        #         [UnitTypeId.ROACH, 15, self.bot.game_info.map_center, 1],
         #     ]
         # )
 

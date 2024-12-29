@@ -21,8 +21,9 @@ OVERHATCH = BuildOrder(
         BuildOrderStep(UnitTypeId.EXTRACTOR, 1, cancel=True),
         BuildOrderStep(UnitTypeId.OVERLORD, 2),
         BuildOrderStep(UnitTypeId.HATCHERY, 2),
-        BuildOrderStep(UnitTypeId.DRONE, 16),
+        BuildOrderStep(UnitTypeId.DRONE, 15),
         BuildOrderStep(UnitTypeId.EXTRACTOR, 1),
+        BuildOrderStep(UnitTypeId.DRONE, 16),
         BuildOrderStep(UnitTypeId.SPAWNINGPOOL, 1),
     ]
 )
