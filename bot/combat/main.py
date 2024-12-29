@@ -125,7 +125,8 @@ class Combat:
             )[0].filter(lambda t: can_attack(unit, t))
 
             def target_priority(u: Unit) -> float:
-                return max(1e-3, u.ground_dps, u.air_dps) / (u.health + u.shield)
+                eps = 1e-3
+                return max(eps, u.ground_dps, u.air_dps) / max(eps, u.health + u.shield)
 
             if target := max(units_in_range, key=target_priority, default=None):
                 return Attack(unit, target)
