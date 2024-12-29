@@ -12,7 +12,6 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sklearn.metrics import pairwise_distances
 
-from ares.consts import EngagementResult
 from bot.combat.presence import Presence
 from bot.common.action import Action, AttackMove, HoldPosition, Move, UseAbility
 from bot.common.assignment import Assignment
@@ -121,7 +120,7 @@ class Combat:
             bonus_range = 2 * (self.bot.client.game_step / 22.4) * unit.movement_speed
             units_in_range = self.bot.mediator.get_units_in_range(
                 start_points=[unit],
-                distances=[unit_range+bonus_range],
+                distances=[unit_range + bonus_range],
                 query_tree=query_tree,
             )[0].filter(lambda t: can_attack(unit, t))
             if target := min(units_in_range, key=lambda u: u.health + u.shield, default=None):

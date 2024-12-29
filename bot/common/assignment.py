@@ -4,7 +4,7 @@ from typing import Callable, Collection, Generic, Hashable, Iterator, Mapping, T
 
 import numpy as np
 from loguru import logger
-from scipy.optimize import LinearConstraint, milp, linprog
+from scipy.optimize import linprog
 
 from bot.common.constants import IMPOSSIBLE_TASK_COST
 
@@ -91,21 +91,21 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         #     logger.error(f"Target assigment failed: {opt}")
         #     return Assignment({})
         # x_opt = opt.x.reshape((len(a), len(b)))
-        
+
         As_ub = []
         bs_ub = []
-        
+
         As_eq = []
         bs_eq = []
-        
+
         As_eq.append(assignment_matches_unit)
         bs_eq.append(np.ones([len(a)]))
-        
+
         As_ub.append(assignment_matches_target)
         bs_ub.append(np.full([len(b)], min_assigned + 1))
         # As_ub.append(-assignment_matches_target)
         # bs_ub.append(-np.full([len(b)], 1))
-        
+
         opt = linprog(
             c=cost_array.flat,
             A_ub=np.concat(As_ub),
