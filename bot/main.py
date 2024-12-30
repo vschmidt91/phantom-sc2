@@ -65,7 +65,6 @@ class PhantomBot(BotBase):
     max_harvesters = 16
     inject = Inject(InjectAssignment({}))
     observations = dict[int, Observation]()
-    ai = AI()
 
     _did_extractor_trick = False
 
@@ -143,11 +142,9 @@ class PhantomBot(BotBase):
             enemy_composition=UnitComposition.of(self.all_enemy_units),
         )
         self.observations[self.state.game_loop] = observation
-        predicted_enemy_composition = self.ai.predict(observation)
         strategy = Strategy(
             context=self,
             max_harvesters=max(1, min(80, self.max_harvesters)),  # TODO: exclude mined out resources,
-            predicted_enemy_composition=predicted_enemy_composition,
         )
         for plan in self.macro(strategy):
             self.planner.add(plan)
@@ -156,8 +153,6 @@ class PhantomBot(BotBase):
             if not success:
                 await self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
-
-        self._predicted_enemy_composition = predicted_enemy_composition
 
     async def add_replay_tag(self, tag: str) -> None:
         if tag not in self.replay_tags:

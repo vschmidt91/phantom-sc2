@@ -79,9 +79,6 @@ class Debug(DebugBase):
         for i, (t, plan) in enumerate(self.bot.planner._assigned_plans.items()):
             self._debug_draw_plan(self.bot.unit_tag_dict.get(t), plan, index=i)
 
-        for i, (t, n) in enumerate(self.bot._predicted_enemy_composition.items()):
-            self.bot.client.debug_text_screen(f"{i} {t}: {n}", (0.0, 0.3 + 0.01 * i))
-
     def _debug_draw_plan(
         self,
         unit: Unit | None,
