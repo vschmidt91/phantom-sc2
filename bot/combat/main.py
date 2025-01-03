@@ -130,13 +130,13 @@ class Combat:
 
         # confidence += self.confidence[target.position.rounded]
         # d = unit.distance_to(target)
-        confidence = self.confidence[
-            unit.position.towards(
-                target,
-                max(0, 2 - unit.distance_to(target) - unit.radius - target.radius),
-                limit=True,
-            ).rounded
-        ]
+        # confidence = self.confidence[
+        #     unit.position.towards(
+        #         target,
+        #         max(0, 2 - unit.distance_to(target) - unit.radius - target.radius),
+        #         limit=True,
+        #     ).rounded
+        # ]
 
         if not (retreat := self.retreat_with(unit)):
             return AttackMove(unit, target.position)
@@ -202,7 +202,7 @@ class Combat:
             px, py = unit.position.rounded
             if 0 < dps:
                 r = 2 * unit.radius
-                r += 1
+                # r += 1
                 # r += max(unit.ground_range, unit.air_range)
                 r += unit.sight_range
                 dx, dy = disk(r)
