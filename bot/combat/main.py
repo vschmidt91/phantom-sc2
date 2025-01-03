@@ -89,6 +89,7 @@ class Combat:
         x = round(unit.position.x)
         y = round(unit.position.y)
         confidence = self.confidence[x, y]
+        # confidence = +1.0
 
         if unit.can_attack_both:
             query_tree = UnitTreeQueryType.AllEnemy
@@ -106,12 +107,11 @@ class Combat:
                     unit.air_range if unit.can_attack_air else 0.0,
                 ]
             )
-            bonus_range = 2 * (self.bot.client.game_step / 22.4) * unit.movement_speed
             units_in_range = self.bot.mediator.get_units_in_range(
                 start_points=[unit],
-                distances=[2 * unit.radius + unit_range + bonus_range],
+                distances=[2 * unit.radius + unit_range],
                 query_tree=query_tree,
-            )[0].filter(lambda t: can_attack(unit, t) and unit.target_in_range(t, bonus_range))
+            )[0].filter(lambda t: can_attack(unit, t) and unit.target_in_range(t))
 
             def target_priority(u: Unit) -> float:
                 dps = unit.air_dps if u.is_flying else unit.ground_dps
