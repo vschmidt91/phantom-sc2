@@ -115,10 +115,10 @@ class Combat:
 
             def target_priority(u: Unit) -> float:
                 dps = unit.air_dps if u.is_flying else unit.ground_dps
-                num_hits = math.ceil(u.health + u.shield / dps)
+                num_hits = math.ceil(max(dps, u.health + u.shield) / dps)
                 v = self.bot.calculate_unit_value(u.type_id)
                 total_value = 5 * v.minerals + 12 * v.vespene
-                return total_value / num_hits
+                return np.divide(total_value, num_hits)
 
             if target := max(units_in_range, key=target_priority, default=None):
                 return Attack(unit, target)
