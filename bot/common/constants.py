@@ -355,3 +355,5 @@ SPORE_TRIGGERS[Race.Random] = {
 
 IMPOSSIBLE_TASK_COST = 1e8
 HALF = Point2((0.5, 0.5))
+
+MICRO_MAP_REGEX = "Micro AI Arena"

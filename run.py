@@ -19,93 +19,9 @@ sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 
 from bot.main import PhantomBot
-from bot.ai.game import Game
-# from bot.ai.replay import Replay
-
-MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
-MAP_FILE_EXT: str = "SC2Map"
-MAP_VETOS: list[str] = [
-    "PlateauMicro_2",
-    "BotMicroArena_6",
-]
-REPLAY_DIR = os.path.join("resources", "replays", "local")
-OUTPUT_DIR = os.path.join("resources", "games")
-
-RACES = [
-    Race.Protoss,
-    # Race.Terran,
-    # Race.Zerg,
-    # Race.Random,
-]
-
-BUILDS = [
-    AIBuild.Rush,
-    # AIBuild.Timing,
-    # AIBuild.Power,
-    # AIBuild.Macro,
-    # AIBuild.Air,
-]
-
-DIFFICULTY = Difficulty.VeryHard
-REAL_TIME = False
-RESULT_PATH = 'results.json'
-SEED = 123
-
-
-
-
-def create_opponents(difficulty) -> Iterable[AbstractPlayer]:
-
-    for race in RACES:
-        for build in BUILDS:
-            yield Computer(race, difficulty, ai_build=build)
 
 
 if __name__ == "__main__":
-
-    ai = PhantomBot()
-    race = Race.Zerg
-    bot = Bot(race, ai, 'PhantomBot')
-    timestamp = f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S}"
-    replay_path = os.path.join(REPLAY_DIR, f"{timestamp}.SC2REPLAY")
-    os.makedirs(REPLAY_DIR, exist_ok=True)
-
-    if "--LadderServer" in sys.argv:
-        # Ladder game started by LadderManager
-        print("Starting ladder game...")
-        result, opponent_id = run_ladder_game(bot)
-        print(result, " against opponent ", opponent_id)
-    else:
-        ai.config["Debug"] = True
-        map_set: set[str] = {
-            p.name.replace(f".{MAP_FILE_EXT}", "")
-            for p in Path(MAPS_PATH).glob(f"*.{MAP_FILE_EXT}")
-            if p.is_file()
-        }
-        map_set = {m for m in map_set if m not in MAP_VETOS}
-        map_list = list(map_set)
-
-        enemy_race = random.choice(RACES)
-        enemy_build = random.choice(BUILDS)
-        print("Starting local game...")
-        result = run_game(
-            maps.get(random.choice(map_list)),
-            [
-                bot,
-                Computer(enemy_race, Difficulty.CheatInsane, enemy_build),
-            ],
-            realtime=False,
-            save_replay_as=replay_path,
-        )
-        game_result = Game(
-            result=result,
-            observations=ai.observations,
-            # replay=Replay(replay_path),
-            race=race,
-            enemy_race=enemy_race,
-        )
-
-        output_path = os.path.join(OUTPUT_DIR, f"{timestamp}.pkl.xz")
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        with lzma.open(output_path, "wb") as f:
-            pickle.dump(game_result, f)
+    bot = Bot(Race.Zerg, PhantomBot(), 'PhantomBot')
+    result, opponent_id = run_ladder_game(bot)
+    print(result, " against opponent ", opponent_id)

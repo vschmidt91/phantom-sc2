@@ -14,6 +14,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
+from sc2.units import Units
 
 from bot.ai.observation import Observation
 from bot.combat.corrosive_biles import CorrosiveBiles
@@ -182,9 +183,13 @@ class PhantomBot(BotBase):
         return gas_ratio
 
     def get_scouting(self, blocked_positions: BlockedPositions) -> Scout:
-        bases_sorted = sorted(self.expansion_locations_list, key=lambda b: b.distance_to(self.start_location))
-        scout_targets = bases_sorted[1 : len(bases_sorted) // 2]
-        for pos in self.enemy_start_locations:
+        bases = []
+        scout_targets = list[Point2]()
+        if not self.is_micro_map:
+            bases.extend(self.expansion_locations_list)
+            bases_sorted = sorted(bases, key=lambda b: b.distance_to(self.start_location))
+            scout_targets.extend(bases_sorted[1 : len(bases_sorted) // 2])
+        for pos in bases:
             pos = 0.5 * (pos + self.start_location)
             scout_targets.insert(1, pos)
         scouts = self.units({UnitTypeId.OVERLORD, UnitTypeId.OVERSEER})
@@ -200,6 +205,24 @@ class PhantomBot(BotBase):
                 yield UseAbility(gas, AbilityId.CANCEL)
                 self._did_extractor_trick = True
 
+        retreat_targets = list[Point2]()
+        attack_targets = list[Point2]()
+
+        if self.is_micro_map:
+            retreat_targets.extend(s.position for s in self.structures)
+            if not retreat_targets:
+                retreat_targets.append(self.game_info.map_center)
+            attack_targets.extend(s.position for s in self.enemy_structures)
+            if not attack_targets:
+                attack_targets.append(self.game_info.map_center)
+        else:
+            retreat_targets.extend(self.in_mineral_line(b) for b in self.bases_taken)
+            if not retreat_targets:
+                retreat_targets.append(self.start_location)
+            attack_targets.extend(p.position for p in self.enemy_structures)
+            if not attack_targets:
+                attack_targets.extend(self.enemy_start_locations)
+
         combat = Combat(
             bot=self,
             strategy=strategy,
@@ -208,8 +231,8 @@ class PhantomBot(BotBase):
             dps=self.dps_fast,
             pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
             air_pathing=self.mediator.get_map_data_object.get_clean_air_grid(),
-            retreat_targets=frozenset([self.in_mineral_line(b) for b in self.bases_taken] + [self.start_location]),
-            attack_targets=frozenset([p.position for p in self.enemy_structures] + self.enemy_start_locations),
+            retreat_targets=frozenset(retreat_targets),
+            attack_targets=frozenset(attack_targets),
         )
 
         creep = self.creep.update(self, combat)
@@ -234,7 +257,11 @@ class PhantomBot(BotBase):
             return 0 <= combat.confidence[p] or 0 == combat.enemy_presence.dps[p]
 
         harvesters = self.workers.filter(should_harvest)
-        resources_to_harvest = self.all_taken_resources.filter(should_harvest_resource)
+
+        if self.is_micro_map:
+            resources_to_harvest = Units([], self)
+        else:
+            resources_to_harvest = self.all_taken_resources.filter(should_harvest_resource)
         gas_ratio = self.optimal_gas_ratio(strategy.composition_deficit)
         resource_context = ResourceContext(
             self,

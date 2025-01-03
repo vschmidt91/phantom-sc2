@@ -28,8 +28,8 @@ class CreepSpreadContext:
     visibility: np.ndarray
     pathing: np.ndarray
     mask: np.ndarray
-    prevent_blocking: set[Point2]
-    reward_blocking: set[Point2]
+    prevent_blocking: frozenset[Point2]
+    reward_blocking: frozenset[Point2]
     game_loop: int
 
     @cached_property
@@ -120,7 +120,11 @@ class CreepSpread:
         visibility = context.state.visibility.data_numpy.T == 2
         pathing = context.mediator.get_map_data_object.get_pyastar_grid() == 1.0
         mask = combat.confidence >= 0
-        bases = set(context.expansion_locations_list)
+
+        base_list = list[Point2]()
+        if not context.is_micro_map:
+            base_list.extend(context.expansion_locations_list)
+        bases = frozenset(base_list)
 
         return CreepSpreadContext(
             context,

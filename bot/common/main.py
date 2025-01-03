@@ -1,6 +1,7 @@
+import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from functools import cache
+from functools import cache, cached_property
 from itertools import chain
 from typing import Iterable, TypeAlias
 
@@ -20,6 +21,7 @@ from sc2.units import Units
 from bot.common.constants import (
     DPS_OVERRIDE,
     ITEM_BY_ABILITY,
+    MICRO_MAP_REGEX,
     MINING_RADIUS,
     RANGE_UPGRADES,
     REQUIREMENTS_KEYS,
@@ -127,7 +129,12 @@ class BotBase(AresBot, ABC):
 
     async def on_start(self) -> None:
         await super().on_start()
-        self.set_speedmining_positions()
+        if not self.is_micro_map:
+            self.set_speedmining_positions()
+
+    @cached_property
+    def is_micro_map(self):
+        return re.match(MICRO_MAP_REGEX, self.game_info.map_name)
 
     def set_speedmining_positions(self) -> None:
         for pos, resources in self.expansion_locations_dict.items():
