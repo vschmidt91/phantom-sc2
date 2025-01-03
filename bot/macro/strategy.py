@@ -126,8 +126,6 @@ class Strategy:
     @cached_property
     def macro_composition(self) -> UnitComposition:
         harvester_target = self.max_harvesters
-        if 2 > self.context.townhalls.ready.amount or 1 > self.context.structures(UnitTypeId.SPAWNINGPOOL).ready.amount:
-            harvester_target = min(19, harvester_target)
         queen_target = max(0, min(12, (1 + self.context.townhalls.amount)))
         composition = UnitComposition(
             {
