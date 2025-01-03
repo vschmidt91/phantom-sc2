@@ -53,14 +53,20 @@ class Debug(DebugBase):
         with lzma.open(output_path, "wb") as f:
             pickle.dump(self.bot.game_info, f)
         # await self.bot.client.debug_upgrade()
-        # await self.bot.client.debug_create_unit(
-        #     [
-        #         [UnitTypeId.ROACH, 15, self.bot.game_info.map_center, 2],
-        #         [UnitTypeId.OVERLORD, 10, self.bot.enemy_start_locations[0], 2],
-        #         [UnitTypeId.OVERLORD, 10, self.bot.start_location, 1],
-        #         [UnitTypeId.ROACH, 15, self.bot.game_info.map_center, 1],
-        #     ]
-        # )
+        # num_points = 20
+        # for _ in range(1_000_000):
+        #     if num_points <= 0:
+        #         break
+        #     p = Point2(uniform(low=[0.0, 0.0], high=self.bot.game_info.map_size, size=2)).rounded
+        #     if not self.bot.in_pathing_grid(p):
+        #         continue
+        #     await self.bot.client.debug_create_unit(
+        #         [
+        #             [UnitTypeId.ROACH, 1, p, 2],
+        #             [UnitTypeId.ROACH, 1, p, 1],
+        #         ]
+        #     )
+        #     num_points -= 1
 
     async def on_step_start(self) -> None:
         # if self.bot.actual_iteration > 100:

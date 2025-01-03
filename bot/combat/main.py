@@ -1,5 +1,6 @@
+import math
 from dataclasses import dataclass
-from functools import cache, cached_property
+from functools import cached_property
 from typing import Callable
 
 import numpy as np
@@ -13,7 +14,7 @@ from sc2.units import Units
 from sklearn.metrics import pairwise_distances
 
 from bot.combat.presence import Presence
-from bot.common.action import Action, AttackMove, HoldPosition, Move, UseAbility
+from bot.common.action import Action, Attack, AttackMove, HoldPosition, Move, UseAbility
 from bot.common.assignment import Assignment
 from bot.common.constants import HALF, IMPOSSIBLE_TASK_COST
 from bot.common.main import BotBase
@@ -22,18 +23,6 @@ from bot.cython.dijkstra_pathing import DijkstraPathing
 from bot.macro.strategy import Strategy
 
 DpsProvider = Callable[[UnitTypeId], float]
-
-
-@dataclass(frozen=True)
-class Attack(Action):
-    unit: Unit
-    target: Unit
-
-    async def execute(self, bot: BotBase) -> bool:
-        if self.target.is_memory:
-            return self.unit.attack(self.target.position)
-        else:
-            return self.unit.attack(self.target)
 
 
 @dataclass(frozen=True)
@@ -120,41 +109,34 @@ class Combat:
             bonus_range = 2 * (self.bot.client.game_step / 22.4) * unit.movement_speed
             units_in_range = self.bot.mediator.get_units_in_range(
                 start_points=[unit],
-                distances=[unit_range + bonus_range],
+                distances=[2 * unit.radius + unit_range + bonus_range],
                 query_tree=query_tree,
-            )[0].filter(lambda t: can_attack(unit, t))
+            )[0].filter(lambda t: can_attack(unit, t) and unit.target_in_range(t, bonus_range))
 
             def target_priority(u: Unit) -> float:
-                eps = 1e-3
-                return max(eps, u.ground_dps, u.air_dps) / max(eps, u.health + u.shield)
+                dps = unit.air_dps if u.is_flying else unit.ground_dps
+                num_hits = math.ceil(u.health + u.shield / dps)
+                v = self.bot.calculate_unit_value(u.type_id)
+                total_value = 5 * v.minerals + 12 * v.vespene
+                return total_value / num_hits
 
             if target := max(units_in_range, key=target_priority, default=None):
                 return Attack(unit, target)
 
         is_melee = unit.ground_range < 1
-        # bonus_distance = unit.sight_range if is_melee else 1
-        #
-        # def filter_target(t: Unit) -> bool:
-        #     if t.is_hallucination:
-        #         return False
-        #     if t.type_id in CHANGELINGS:
-        #         return False
-        #     if not can_attack(unit, t) and not unit.is_detector:
-        #         return False
-        #     if not unit.target_in_range(t, bonus_distance + unit.distance_to_weapon_ready):
-        #         return False
-        #     return True
-        #
-        # targets = self.enemy_units.filter(filter_target)
-        # if not any(targets):
-        #     return None
-
-        # target = cy_closest_to(unit.position, targets)
 
         if not (target := self.optimal_targeting.get(unit)):
             return None
 
         # confidence += self.confidence[target.position.rounded]
+        # d = unit.distance_to(target)
+        confidence = self.confidence[
+            unit.position.towards(
+                target,
+                max(0, 2 - unit.distance_to(target) - unit.radius - target.radius),
+                limit=True,
+            ).rounded
+        ]
 
         if not (retreat := self.retreat_with(unit)):
             return AttackMove(unit, target.position)
@@ -216,11 +198,11 @@ class Combat:
         dps_map = np.zeros_like(self.pathing, dtype=float)
         health_map = np.zeros_like(self.pathing, dtype=float)
         for unit in units:
-            dps = self.dps(unit.type_id)
+            dps = max(unit.ground_dps, unit.air_dps)
             px, py = unit.position.rounded
             if 0 < dps:
                 r = 2 * unit.radius
-                # r += 1
+                r += 1
                 # r += max(unit.ground_range, unit.air_range)
                 r += unit.sight_range
                 dx, dy = disk(r)
@@ -284,70 +266,23 @@ class Combat:
     @cached_property
     def optimal_targeting(self) -> Assignment[Unit, Unit]:
 
-        # pairs = list(product(self.units, self.enemy_units))
-        # distance_query = [[a.position, b.position] for a, b in pairs]
-        # distances = asyncio.run(self.bot.client.query_pathings(distance_query))
-        # distance_dict = {
-        #     (a.tag, b.tag): d
-        #     for (a, b), d in zip(pairs, distances)
-        # }
-
-        @cache
-        def distance_metric(a, b) -> float:
+        def distance_metric(a: Unit, b: Unit) -> float:
             if not can_attack(a, b):
                 return IMPOSSIBLE_TASK_COST
 
             d = a.position.distance_to(b.position)  # TODO: use pathing query
+            # return d
             # d = distance_dict[(a.tag, b.tag)] or a.position.distance_to(b.position)
+            # dps = a.air_dps if b.is_flying else a.ground_dps
             r = a.air_range if b.is_flying else a.ground_range
             travel_distance = d - a.radius - b.radius - r - a.distance_to_weapon_ready
-            if travel_distance <= 0:
-                return 0.0
-            if a.movement_speed <= 0:
-                return IMPOSSIBLE_TASK_COST
-            eta = travel_distance / a.movement_speed
-            return eta
+
+            travel_time = np.divide(max(0.0, travel_distance), a.movement_speed)
+            # kill_time = np.divide(b.health + b.shield, dps)
+            risk = travel_time  # + kill_time ?
+            b_value = self.bot.calculate_unit_value(b.type_id)
+            reward = 5 * b_value.minerals + 12 * b_value.vespene
+
+            return np.divide(risk, reward)
 
         return Assignment.optimize(self.units, self.enemy_units, distance_metric)
-
-        # distance_matrix = np.array([[distance_metric(a, b) for a in self.units] for b in self.enemy_units])
-        # assignment_matches_unit = np.array(
-        #     [[1 if a == u else 0 for a in self.units for b in self.enemy_units] for u in self.units]
-        # )
-        # assignment_matches_target = np.array(
-        #     [[1 if b == t else 0 for a in self.units for b in self.enemy_units] for t in self.enemy_units]
-        # )
-        # min_assigned = self.units.amount // self.enemy_units.amount
-        # constraints = [
-        #     LinearConstraint(
-        #         assignment_matches_unit,
-        #         np.ones([self.units.amount]),
-        #         np.ones([self.units.amount]),
-        #     ),
-        #     LinearConstraint(
-        #         assignment_matches_target,
-        #         np.full([self.enemy_units.amount], min_assigned),
-        #         np.full([self.enemy_units.amount], min_assigned + 1),
-        #     ),
-        # ]
-        # options = dict(
-        #     time_limit=self.target_assignment_max_duration / 1000,
-        # )
-        # # bias = np.array([dither((a.tag, b.tag)) for a in self.units for b in self.enemy_units])
-        # opt = milp(
-        #     c=distance_matrix.flat,
-        #     constraints=constraints,
-        #     options=options,
-        # )
-        # if not opt.success:
-        #     logger.error(f"Target assigment failed: {opt}")
-        #     return Assignment({})
-        # x_opt = opt.x.reshape((self.units.amount, self.enemy_units.amount))
-        # target_indices = x_opt.argmax(axis=1)
-        # return Assignment(
-        #     {
-        #         u: self.enemy_units[target_indices[i]]
-        #         for i, u in enumerate(self.units)
-        #         if distance_matrix[target_indices[i], i] < IMPOSSIBLE_TASK_COST
-        #     }
-        # )

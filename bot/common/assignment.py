@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from functools import cache, cached_property
 from typing import Callable, Collection, Generic, Hashable, Iterator, Mapping, TypeVar
@@ -5,8 +6,6 @@ from typing import Callable, Collection, Generic, Hashable, Iterator, Mapping, T
 import numpy as np
 from loguru import logger
 from scipy.optimize import linprog
-
-from bot.common.constants import IMPOSSIBLE_TASK_COST
 
 TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
@@ -55,7 +54,11 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
 
     @classmethod
     def optimize(
-        cls, a: list[TKey], b: list[TValue], cost_fn: Callable[[TKey, TValue], float], max_duration_ms: int = 100
+        cls,
+        a: list[TKey],
+        b: list[TValue],
+        cost_fn: Callable[[TKey, TValue], float],
+        max_duration_ms: int = 100,
     ) -> "Assignment[TKey, TValue]":
 
         if not a:
@@ -63,14 +66,47 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         if not b:
             return Assignment[TKey, TValue]({})
 
+        # >>>
+
+        # distance_matrix = np.array([[cost_fn(ai, bj) for ai in a] for bj in b])
+        # assignment_matches_unit = np.array(
+        #     [[1 if ai == u else 0 for ai in a for bj in b] for u in a]
+        # )
+        # assignment_matches_target = np.array(
+        #     [[1 if b == t else 0 for ai in a for bj in b] for t in b]
+        # )
+        # min_assigned = len(a) // len(b)
+        # constraints = [
+        #     LinearConstraint(
+        #         assignment_matches_unit,
+        #         np.ones([len(a)]),
+        #         np.ones([len(a)]),
+        #     ),
+        #     # LinearConstraint(
+        #     #     assignment_matches_target,
+        #     #     np.full([len(b)], min_assigned),
+        #     #     np.full([len(b)], min_assigned + 1),
+        #     # ),
+        # ]
+        # options = dict(
+        #     time_limit=10. / 1000,
+        # )
+        # opt = milp(
+        #     c=distance_matrix.T.flat,
+        #     constraints=constraints,
+        #     options=options,
+        # )
+
         cost_array = np.array([[cost_fn(ai, bj) for ai in a] for bj in b])
+        np.nan_to_num(cost_array, copy=False)
+        cost_vector = np.array(cost_array.T.flat)
         assignment_matches_unit = np.array([[1 if ai == u else 0 for ai in a for bj in b] for u in a])
         assignment_matches_target = np.array([[1 if bj == u else 0 for ai in a for bj in b] for u in b])
 
-        max_assigned = 1 + len(a) // len(b)
+        max_assigned = math.ceil(len(a) / len(b))
 
         opt = linprog(
-            c=cost_array.flat,
+            c=cost_vector,
             A_ub=assignment_matches_target,
             b_ub=np.full([len(b)], max_assigned),
             A_eq=assignment_matches_unit,
@@ -88,7 +124,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
             {
                 u: b[target_indices[i]]
                 for i, u in enumerate(a)
-                if cost_array[target_indices[i], i] < IMPOSSIBLE_TASK_COST
+                # if cost_array[target_indices[i], i] < IMPOSSIBLE_TASK_COST
             }
         )
         return result

@@ -15,7 +15,6 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from bot.ai.main import AI
 from bot.ai.observation import Observation
 from bot.combat.corrosive_biles import CorrosiveBiles
 from bot.combat.dodge import Dodge
