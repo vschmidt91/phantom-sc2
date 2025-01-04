@@ -2,6 +2,7 @@ import dataclasses
 import enum
 import json
 import math
+import time
 from functools import cache
 from typing import Iterable, TypeAlias
 
@@ -195,9 +196,6 @@ class JSONDataclassEncoder(json.JSONEncoder):
 
 def dither(obj) -> float:
     return (hash(obj) & 0xFFFFFFFF) / 2**32
-
-
-import time
 
 
 def timeit(f):
