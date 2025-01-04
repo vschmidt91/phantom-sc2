@@ -323,32 +323,12 @@ class PhantomBot(BotBase):
             )
 
         def micro_overseers(overseers: Units) -> Iterable[Action]:
-            def cost(u: Unit, t: Unit) -> float:
-                scout_value = 10.0 if t.is_burrowed or t.is_cloaked else 1.0
-                distance_self = u.distance_to(t)
-                distance_others = np.mean([v.distance_to(t) for v in overseers])
-                return distance_self - 3 * distance_others - 10 * scout_value
-            targets = Assignment.distribute(
-                overseers,
-                combat.enemy_units,
-                cost,
-            )
             for u in overseers:
-                def scout() -> Action | None:
-                    if target := targets.get(u):
-                        target_point = self.mediator.find_path_next_point(
-                            start=u.position,
-                            target=target.position,
-                            grid=combat.air_pathing+combat.threat_level,
-                        )
-                        return Move(u, target_point)
-                    return None
                 yield (
                     dodge.dodge_with(u)
                     or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
                     or self.do_spawn_changeling(u)
                     or scout_actions.get(u)
-                    or scout()
                     or combat.advance_with(u)
                 )
 
