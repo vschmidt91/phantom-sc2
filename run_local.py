@@ -66,17 +66,17 @@ def create_opponents(difficulty) -> Iterable[AbstractPlayer]:
 @click.option("--realtime", default=False, envvar="REALTIME")
 @click.option("--debug", default=True, envvar="DEBUG")
 @click.option("--map-pattern", default="*AIE", envvar="MAP_PATTERN")
-@click.option("--race", default=Race.Random, type=click.Choice(Race), envvar="RACE")
-@click.option("--difficulty", default=Difficulty.CheatInsane, type=click.Choice(Difficulty), envvar="DIFFICULTY")
-@click.option("--build", default=AIBuild.Rush, type=click.Choice(AIBuild), envvar="BUILD")
+@click.option("--race", default=Race.Random.name, type=click.Choice([x.name for x in Race]), envvar="RACE")
+@click.option("--difficulty", default=Difficulty.CheatInsane.name, type=click.Choice([x.name for x in Difficulty]), envvar="DIFFICULTY")
+@click.option("--build", default=AIBuild.Rush.name, type=click.Choice([x.name for x in AIBuild]), envvar="BUILD")
 def run_local(
     save_replay: str,
     realtime: bool,
     debug: bool,
     map_pattern: str,
-    race: Race,
-    difficulty: Difficulty,
-    build: AIBuild,
+    race: str,
+    difficulty: str,
+    build: str,
 ):
 
     ai = PhantomBot()
@@ -97,28 +97,16 @@ def run_local(
         if p.is_file()
     ]
 
+    opponent = Computer(Race[race], Difficulty[difficulty], AIBuild[build])
+
     print("Starting local game...")
     result = run_game(
         maps.get(random.choice(map_choices)),
-        [
-            bot,
-            Computer(race, difficulty, build),
-        ],
+        [bot, opponent],
         realtime=realtime,
         save_replay_as=replay_path,
     )
-    game_result = Game(
-        result=result,
-        observations=ai.observations,
-        # replay=Replay(replay_path),
-        race=race,
-        enemy_race=race,
-    )
-
-    output_path = os.path.join(OUTPUT_DIR, f"{timestamp}.pkl.xz")
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    with lzma.open(output_path, "wb") as f:
-        pickle.dump(game_result, f)
+    print(f"Game finished: {result}")
 
 
 if __name__ == "__main__":

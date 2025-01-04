@@ -322,14 +322,35 @@ class PhantomBot(BotBase):
                 or combat.fight_with(q)
             )
 
-        def micro_overseer(u: Unit) -> Action | None:
-            return (
-                dodge.dodge_with(u)
-                or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
-                or self.do_spawn_changeling(u)
-                or scout_actions.get(u)
-                or combat.advance_with(u)
+        def micro_overseers(overseers: Units) -> Iterable[Action]:
+            def cost(u: Unit, t: Unit) -> float:
+                scout_value = 10.0 if t.is_burrowed or t.is_cloaked else 1.0
+                distance_self = u.distance_to(t)
+                distance_others = np.mean([v.distance_to(t) for v in overseers])
+                return distance_self - 3 * distance_others - 10 * scout_value
+            targets = Assignment.distribute(
+                overseers,
+                combat.enemy_units,
+                cost,
             )
+            for u in overseers:
+                def scout() -> Action | None:
+                    if target := targets.get(u):
+                        target_point = self.mediator.find_path_next_point(
+                            start=u.position,
+                            target=target.position,
+                            grid=combat.air_pathing+combat.threat_level,
+                        )
+                        return Move(u, target_point)
+                    return None
+                yield (
+                    dodge.dodge_with(u)
+                    or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
+                    or self.do_spawn_changeling(u)
+                    or scout_actions.get(u)
+                    or scout()
+                    or combat.advance_with(u)
+                )
 
         def micro_harvester(u: Unit) -> Action | None:
             return (
@@ -367,17 +388,17 @@ class PhantomBot(BotBase):
             yield micro_harvester(worker) or DoNothing()
         for tumor in self.creep.get_active_tumors(self):
             yield creep.spread_with_tumor(tumor) or DoNothing()
-        for unit in self.units(UnitTypeId.OVERSEER):
-            yield micro_overseer(unit) or DoNothing()
+        for action in micro_overseers(self.units(UnitTypeId.OVERSEER)):
+            yield action
         for unit in self.units(UnitTypeId.OVERLORD):
             yield micro_overlord(unit) or DoNothing()
+        for unit in self.units(CHANGELINGS):
+            yield self.search_with(unit) or DoNothing()
         for unit in combat.units:
             if unit in scout_actions:
                 pass
             elif unit in planned_actions:
                 pass
-            elif unit.type_id in CHANGELINGS:
-                yield self.search_with(unit) or DoNothing()
             else:
                 yield micro_unit(unit) or DoNothing()
         for structure in self.structures.not_ready:

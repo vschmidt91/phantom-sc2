@@ -7,6 +7,7 @@ from abc import ABC
 from dataclasses import dataclass
 
 from loguru import logger
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
@@ -67,6 +68,12 @@ class Debug(DebugBase):
         #         ]
         #     )
         #     num_points -= 1
+        await self.bot.client.debug_create_unit(
+            [
+                [UnitTypeId.OVERSEER, 3, self.bot.game_info.map_center, 1],
+                [UnitTypeId.MARINE, 3, self.bot.game_info.map_center, 2],
+            ]
+        )
 
     async def on_step_start(self) -> None:
         # if self.bot.actual_iteration > 100:

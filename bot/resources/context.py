@@ -16,9 +16,9 @@ from bot.resources.utils import remaining
 HarvesterAssignment: TypeAlias = Assignment[int, Point2]
 
 
-def split_initial_workers(patches: Units, harvesters: Units) -> HarvesterAssignment:
+def split_initial_workers(patches: Units, harvesters: Units, start_location: Point2) -> HarvesterAssignment:
     def cost(h: Unit, p: Unit) -> float:
-        return h.distance_to(p)
+        return h.distance_to(p) + 3 * p.distance_to(start_location)
 
     a = Assignment.distribute(harvesters, patches, cost)
     return HarvesterAssignment({u.tag: p.position for u, p in a.items()})
@@ -108,7 +108,7 @@ class ResourceContext:
 
     def update_assignment(self, assignment: HarvesterAssignment) -> HarvesterAssignment:
         if not any(assignment):
-            return split_initial_workers(self.mineral_fields, self.harvesters)
+            return split_initial_workers(self.mineral_fields, self.harvesters, self.bot.start_location)
         else:
             return self.update_changes(assignment)
 
