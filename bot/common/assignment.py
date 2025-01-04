@@ -53,49 +53,17 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         return len(self._items)
 
     @classmethod
-    def optimize(
+    def distribute(
         cls,
         a: list[TKey],
         b: list[TValue],
         cost_fn: Callable[[TKey, TValue], float],
-        max_duration_ms: int = 100,
     ) -> "Assignment[TKey, TValue]":
 
         if not a:
             return Assignment[TKey, TValue]({})
         if not b:
             return Assignment[TKey, TValue]({})
-
-        # >>>
-
-        # distance_matrix = np.array([[cost_fn(ai, bj) for ai in a] for bj in b])
-        # assignment_matches_unit = np.array(
-        #     [[1 if ai == u else 0 for ai in a for bj in b] for u in a]
-        # )
-        # assignment_matches_target = np.array(
-        #     [[1 if b == t else 0 for ai in a for bj in b] for t in b]
-        # )
-        # min_assigned = len(a) // len(b)
-        # constraints = [
-        #     LinearConstraint(
-        #         assignment_matches_unit,
-        #         np.ones([len(a)]),
-        #         np.ones([len(a)]),
-        #     ),
-        #     # LinearConstraint(
-        #     #     assignment_matches_target,
-        #     #     np.full([len(b)], min_assigned),
-        #     #     np.full([len(b)], min_assigned + 1),
-        #     # ),
-        # ]
-        # options = dict(
-        #     time_limit=10. / 1000,
-        # )
-        # opt = milp(
-        #     c=distance_matrix.T.flat,
-        #     constraints=constraints,
-        #     options=options,
-        # )
 
         cost_array = np.array([[cost_fn(ai, bj) for ai in a] for bj in b])
         np.nan_to_num(cost_array, copy=False)

@@ -1,4 +1,3 @@
-import math
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Callable
@@ -11,12 +10,11 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
-from sklearn.metrics import pairwise_distances
 
 from bot.combat.presence import Presence
 from bot.common.action import Action, Attack, AttackMove, HoldPosition, Move, UseAbility
 from bot.common.assignment import Assignment
-from bot.common.constants import HALF, IMPOSSIBLE_TASK_COST
+from bot.common.constants import HALF, IMPOSSIBLE_TASK_COST, MAX_UNIT_RADIUS
 from bot.common.main import BotBase
 from bot.common.utils import Point, can_attack, disk
 from bot.cython.dijkstra_pathing import DijkstraPathing
@@ -31,6 +29,7 @@ class Combat:
     strategy: Strategy
     units: Units
     enemy_units: Units
+    distance_matrix: dict[tuple[Unit, Unit], float]
     dps: DpsProvider
     pathing: np.ndarray
     air_pathing: np.ndarray
@@ -84,60 +83,47 @@ class Combat:
         attack_path = attack_map.get_path((x, y), limit)
         return Move(unit, Point2(attack_path[-1]).offset(HALF))
 
+    @cached_property
+    def shootable_targets(self) -> dict[Unit, Units]:
+
+        units = self.bot.all_own_units_slim
+        ground_ranges = [u.radius + u.ground_range + MAX_UNIT_RADIUS for u in units]
+        air_ranges = [u.radius + u.ground_range + MAX_UNIT_RADIUS for u in units]
+
+        ground_candidates = self.bot.mediator.get_units_in_range(
+            start_points=units,
+            distances=ground_ranges,
+            query_tree=UnitTreeQueryType.EnemyGround,
+        )
+        air_candidates = self.bot.mediator.get_units_in_range(
+            start_points=units,
+            distances=air_ranges,
+            query_tree=UnitTreeQueryType.EnemyFlying,
+        )
+        targets = {u: filter(u.target_in_range, a | b) for u, a, b in zip(units, ground_candidates, air_candidates)}
+        return targets
+
     def fight_with(self, unit: Unit) -> Action | None:
 
         x = round(unit.position.x)
         y = round(unit.position.y)
         confidence = self.confidence[x, y]
-        # confidence = +1.0
 
-        if unit.can_attack_both:
-            query_tree = UnitTreeQueryType.AllEnemy
-        elif unit.can_attack_air:
-            query_tree = UnitTreeQueryType.EnemyFlying
-        elif unit.can_attack_ground:
-            query_tree = UnitTreeQueryType.EnemyGround
-        else:
-            return None
+        def target_priority(u: Unit) -> float:
+            dps = unit.air_dps if u.is_flying else unit.ground_dps
+            kill_time = np.divide(u.health + u.shield, dps)
+            v = self.bot.calculate_unit_value(u.type_id)
+            unit_value = 5 * v.minerals + 12 * v.vespene
+            return np.divide(unit_value, kill_time)
 
         if unit.weapon_ready:
-            unit_range = max(
-                [
-                    unit.ground_range if unit.can_attack_ground else 0.0,
-                    unit.air_range if unit.can_attack_air else 0.0,
-                ]
-            )
-            units_in_range = self.bot.mediator.get_units_in_range(
-                start_points=[unit],
-                distances=[2 * unit.radius + unit_range],
-                query_tree=query_tree,
-            )[0].filter(lambda t: can_attack(unit, t) and unit.target_in_range(t))
-
-            def target_priority(u: Unit) -> float:
-                dps = unit.air_dps if u.is_flying else unit.ground_dps
-                num_hits = math.ceil(max(dps, u.health + u.shield) / dps)
-                v = self.bot.calculate_unit_value(u.type_id)
-                total_value = 5 * v.minerals + 12 * v.vespene
-                return np.divide(total_value, num_hits)
-
-            if target := max(units_in_range, key=target_priority, default=None):
+            if target := max(self.shootable_targets.get(unit), key=target_priority, default=None):
                 return Attack(unit, target)
 
         is_melee = unit.ground_range < 1
 
         if not (target := self.optimal_targeting.get(unit)):
             return None
-
-        # confidence += self.confidence[target.position.rounded]
-        # d = unit.distance_to(target)
-        # confidence = self.confidence[
-        #     unit.position.towards(
-        #         target,
-        #         max(0, 2 - unit.distance_to(target) - unit.radius - target.radius),
-        #         limit=True,
-        #     ).rounded
-        # ]
-
         if not (retreat := self.retreat_with(unit)):
             return AttackMove(unit, target.position)
         elif is_melee:
@@ -252,37 +238,21 @@ class Combat:
         return DijkstraPathing(self.pathing + self.threat_level, self.attack_targets_rounded)
 
     @cached_property
-    def unit_positions(self) -> np.ndarray:
-        return np.array([np.asarray(u.position) for u in self.units])
-
-    @cached_property
-    def enemy_unit_positions(self) -> np.ndarray:
-        return np.array([np.asarray(u.position) for u in self.enemy_units])
-
-    @cached_property
-    def distance_matrix(self) -> np.ndarray:
-        return pairwise_distances(self.unit_positions, self.enemy_unit_positions)
-
-    @cached_property
     def optimal_targeting(self) -> Assignment[Unit, Unit]:
 
         def distance_metric(a: Unit, b: Unit) -> float:
             if not can_attack(a, b):
                 return IMPOSSIBLE_TASK_COST
 
-            d = a.position.distance_to(b.position)  # TODO: use pathing query
-            # return d
-            # d = distance_dict[(a.tag, b.tag)] or a.position.distance_to(b.position)
-            # dps = a.air_dps if b.is_flying else a.ground_dps
+            d = self.distance_matrix[a, b]
             r = a.air_range if b.is_flying else a.ground_range
-            travel_distance = d - a.radius - b.radius - r - a.distance_to_weapon_ready
+            travel_distance = max(0.0, d - a.radius - b.radius - r - a.distance_to_weapon_ready)
 
-            travel_time = np.divide(max(0.0, travel_distance), a.movement_speed)
-            # kill_time = np.divide(b.health + b.shield, dps)
+            travel_time = np.divide(travel_distance, a.movement_speed)
             risk = travel_time  # + kill_time ?
             b_value = self.bot.calculate_unit_value(b.type_id)
             reward = 5 * b_value.minerals + 12 * b_value.vespene
 
             return np.divide(risk, reward)
 
-        return Assignment.optimize(self.units, self.enemy_units, distance_metric)
+        return Assignment.distribute(self.units, self.enemy_units, distance_metric)

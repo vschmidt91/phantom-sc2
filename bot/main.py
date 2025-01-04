@@ -1,7 +1,7 @@
 import math
 import os
 import random
-from itertools import chain
+from itertools import chain, product
 from typing import AsyncGenerator, Iterable, TypeAlias
 
 import numpy as np
@@ -15,6 +15,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
+from sklearn.metrics import pairwise_distances
 
 from bot.ai.observation import Observation
 from bot.combat.corrosive_biles import CorrosiveBiles
@@ -60,7 +61,7 @@ class PhantomBot(BotBase):
     build_order = OVERHATCH
     harvester_assignment = HarvesterAssignment({})
     version = UNKNOWN_VERSION
-    blocked_positions = BlockedPositions({})
+    _blocked_positions = BlockedPositions({})
     replay_tags = set[str]()
     max_harvesters = 16
     inject = Inject(InjectAssignment({}))
@@ -195,6 +196,29 @@ class PhantomBot(BotBase):
         scouts = self.units({UnitTypeId.OVERLORD, UnitTypeId.OVERSEER})
         return Scout(self, scouts, frozenset(scout_targets), frozenset(blocked_positions))
 
+    async def get_distance_matrix(self, a: Units, b: Units) -> dict[tuple[Unit, Unit], float]:
+        if not a:
+            return {}
+        if not b:
+            return {}
+        pairs = list(product(a, b))
+        distance_pairs = [[a, b.position] for [a, b] in pairs]
+        distance_results = await self.client.query_pathings(distance_pairs)
+        distance_matrix = dict(zip(pairs, distance_results))
+        return distance_matrix
+
+    def get_distance_matrix_approx(self, a: Units, b: Units) -> dict[tuple[Unit, Unit], float]:
+        if not a:
+            return {}
+        if not b:
+            return {}
+        distances = pairwise_distances(
+            [ai.position for ai in a],
+            [bj.position for bj in b],
+        )
+        distance_matrix = {(ai, bj): distances[i, j] for (i, ai), (j, bj) in product(enumerate(a), enumerate(b))}
+        return distance_matrix
+
     async def micro(
         self,
         strategy: Strategy,
@@ -215,6 +239,8 @@ class PhantomBot(BotBase):
             attack_targets.extend(s.position for s in self.enemy_structures)
             if not attack_targets:
                 attack_targets.append(self.game_info.map_center)
+            units = self.all_own_units.exclude_type({UnitTypeId.BANELING})
+            enemy_units = self.all_enemy_units
         else:
             retreat_targets.extend(self.in_mineral_line(b) for b in self.bases_taken)
             if not retreat_targets:
@@ -222,14 +248,20 @@ class PhantomBot(BotBase):
             attack_targets.extend(p.position for p in self.enemy_structures)
             if not attack_targets:
                 attack_targets.extend(self.enemy_start_locations)
+            units = self.units.exclude_type(CIVILIANS)
+            enemy_units = self.all_enemy_units.exclude_type(ENEMY_CIVILIANS)
+
+        # distance_matrix = await self.get_distance_matrix(units, enemy_units)
+        distance_matrix = self.get_distance_matrix_approx(units, enemy_units)
 
         combat = Combat(
             bot=self,
             strategy=strategy,
-            units=self.units.exclude_type(CIVILIANS),
-            enemy_units=self.all_enemy_units.exclude_type(ENEMY_CIVILIANS),
+            units=units,
+            enemy_units=enemy_units,
             dps=self.dps_fast,
             pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
+            distance_matrix=distance_matrix,
             air_pathing=self.mediator.get_map_data_object.get_clean_air_grid(),
             retreat_targets=frozenset(retreat_targets),
             attack_targets=frozenset(attack_targets),
@@ -240,7 +272,7 @@ class PhantomBot(BotBase):
         should_inject = self.supply_used + self.larva.amount < 200
         should_spread_creep = self.creep.active_tumor_count < 10
 
-        blocked_positions = self.blocked_positions = self.update_blocked_positions(self.blocked_positions)
+        blocked_positions = self._blocked_positions = self.update_blocked_positions(self._blocked_positions)
         planned_actions = await self.planner.get_actions(self, set(blocked_positions), combat)
 
         def should_harvest(u: Unit) -> bool:
@@ -283,33 +315,62 @@ class PhantomBot(BotBase):
         def micro_queen(q: Unit) -> Action | None:
             return (
                 do_transfuse_single(q, combat.units)
+                or (combat.fight_with(q) if 0 < combat.enemy_presence.dps[q.position.rounded] else None)
                 or (inject.inject_with(q) if should_inject else None)
                 or (creep.spread_with_queen(q) if should_spread_creep else None)
                 or (combat.retreat_with(q) if not self.has_creep(q) else None)
                 or combat.fight_with(q)
-                # or DoNothing()
             )
 
-        def micro_unit(unit: Unit) -> Action | None:
+        def micro_overseer(u: Unit) -> Action | None:
             return (
-                dodge.dodge_with(unit)
-                or (self.do_spawn_changeling(unit) if unit.type_id in {UnitTypeId.OVERSEER} else None)
-                or (combat.do_burrow(unit) if unit.type_id in {UnitTypeId.ROACH} else None)
-                or (combat.do_unburrow(unit) if unit.type_id in {UnitTypeId.ROACHBURROWED} else None)
-                or (self.corrosive_biles.get_action(self, unit) if unit.type_id in {UnitTypeId.RAVAGER} else None)
-                or (micro_queen(unit) if unit.type_id in {UnitTypeId.QUEEN} else None)
-                or (combat.fight_with(unit) if unit.type_id not in CIVILIANS else None)
-                or self.search_with(unit)
+                dodge.dodge_with(u)
+                or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
+                or self.do_spawn_changeling(u)
+                or scout_actions.get(u)
+                or combat.advance_with(u)
+            )
+
+        def micro_harvester(u: Unit) -> Action | None:
+            return (
+                dodge.dodge_with(u)
+                or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
+                or resource_report.gather_with(u, self.townhalls.ready)
+            )
+
+        def micro_overlord(u: Unit) -> Action | None:
+            return (
+                dodge.dodge_with(u)
+                or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
+                or scout_actions.get(u)
+                or self.search_with(u)
+            )
+
+        def micro_unit(u: Unit) -> Action | None:
+            return (
+                dodge.dodge_with(u)
+                or (combat.do_burrow(u) if u.type_id in {UnitTypeId.ROACH} else None)
+                or (combat.do_unburrow(u) if u.type_id in {UnitTypeId.ROACHBURROWED} else None)
+                or (self.corrosive_biles.get_action(self, u) if u.type_id in {UnitTypeId.RAVAGER} else None)
+                or (micro_queen(u) if unit.type_id in {UnitTypeId.QUEEN} else None)
+                or (combat.fight_with(u) if unit.type_id not in CIVILIANS else None)
+                or self.search_with(u)
             )
 
         scout_actions = self.get_scouting(blocked_positions).get_actions()
 
-        for worker in harvesters:
-            yield self.micro_harvester(worker, combat, dodge, resource_report) or DoNothing()
         for action in planned_actions.values():
             yield action
+        for action in scout_actions.values():
+            yield action
+        for worker in harvesters:
+            yield micro_harvester(worker) or DoNothing()
         for tumor in self.creep.get_active_tumors(self):
             yield creep.spread_with_tumor(tumor) or DoNothing()
+        for unit in self.units(UnitTypeId.OVERSEER):
+            yield micro_overseer(unit) or DoNothing()
+        for unit in self.units(UnitTypeId.OVERLORD):
+            yield micro_overlord(unit) or DoNothing()
         for unit in combat.units:
             if unit in scout_actions:
                 pass
@@ -319,8 +380,9 @@ class PhantomBot(BotBase):
                 yield self.search_with(unit) or DoNothing()
             else:
                 yield micro_unit(unit) or DoNothing()
-        for action in scout_actions.values():
-            yield action
+        for structure in self.structures.not_ready:
+            if structure.health_percentage < 0.1:
+                yield UseAbility(structure, AbilityId.CANCEL)
 
     def build_gasses(self, resources: ResourceReport) -> Iterable[MacroPlan]:
         gas_type = GAS_BY_RACE[self.race]
@@ -335,14 +397,6 @@ class PhantomBot(BotBase):
     def planned_by_type(self, item: MacroId) -> Iterable:
         return self.planner.planned_by_type(item)
 
-    def micro_harvester(self, unit: Unit, combat: Combat, dodge: Dodge, resources: ResourceReport) -> Action | None:
-        return (
-            dodge.dodge_with(unit)
-            or (combat.retreat_with(unit) if combat.confidence[unit.position.rounded] < 0 else None)
-            or resources.gather_with(unit, self.townhalls.ready)
-            or combat.fight_with(unit)
-        )
-
     def run_build_order(self) -> list[MacroPlan] | None:
         for i, step in enumerate(self.build_order.steps):
             if step.cancel and self._did_extractor_trick:
@@ -356,19 +410,20 @@ class PhantomBot(BotBase):
         return None
 
     def search_with(self, unit: Unit) -> Action | None:
-        if unit.is_idle:
-            if self.time < 8 * 60:
-                return AttackMove(unit, random.choice(self.enemy_start_locations))
-            elif self.all_enemy_units:
-                target = cy_closest_to(unit.position, self.all_enemy_units)
-                return AttackMove(unit, target.position)
-            else:
-                a = self.game_info.playable_area
-                target = np.random.uniform((a.x, a.y), (a.right, a.top))
-                target = Point2(target)
-                if (unit.is_flying or self.in_pathing_grid(target)) and not self.is_visible(target):
-                    return AttackMove(unit, target)
-        return None
+        if not unit.is_idle:
+            return None
+        elif self.time < 8 * 60:
+            return AttackMove(unit, random.choice(self.enemy_start_locations))
+        elif self.all_enemy_units:
+            target = cy_closest_to(unit.position, self.all_enemy_units)
+            return AttackMove(unit, target.position)
+        a = self.game_info.playable_area
+        target = Point2(np.random.uniform((a.x, a.y), (a.right, a.top)))
+        if self.is_visible(target):
+            return None
+        if not self.in_pathing_grid(target) and not unit.is_flying:
+            return None
+        return AttackMove(unit, target)
 
     def update_blocked_positions(self, blocked_positions: BlockedPositions) -> BlockedPositions:
         for error in self.state.action_errors:

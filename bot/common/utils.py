@@ -7,6 +7,7 @@ from typing import Iterable, TypeAlias
 
 import numpy as np
 import skimage.draw
+from loguru import logger
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -194,3 +195,18 @@ class JSONDataclassEncoder(json.JSONEncoder):
 
 def dither(obj) -> float:
     return (hash(obj) & 0xFFFFFFFF) / 2**32
+
+
+import time
+
+
+def timeit(f):
+    def timed(*args, **kw):
+        ts = time.time()
+        result = f(*args, **kw)
+        te = time.time()
+
+        logger.debug(f"{f.__name__}({args}, {kw}) took {te - ts}")
+        return result
+
+    return timed
