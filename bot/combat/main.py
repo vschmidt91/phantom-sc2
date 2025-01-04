@@ -117,7 +117,7 @@ class Combat:
             return np.divide(unit_value, kill_time)
 
         if unit.weapon_ready:
-            if target := max(self.shootable_targets.get(unit), key=target_priority, default=None):
+            if target := max(self.shootable_targets.get(unit, []), key=target_priority, default=None):
                 return Attack(unit, target)
 
         is_melee = unit.ground_range < 1
