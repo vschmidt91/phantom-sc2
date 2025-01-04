@@ -58,6 +58,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         a: list[TKey],
         b: list[TValue],
         cost_fn: Callable[[TKey, TValue], float],
+        maxiter: int = 100,
     ) -> "Assignment[TKey, TValue]":
 
         if not a:
@@ -81,6 +82,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
             b_eq=np.ones([len(a)]),
             method="highs",
             bounds=(0.0, 1.0),
+            options=dict(maxiter=maxiter),
         )
         if not opt.success:
             logger.error(f"Target assigment failed: {opt}")
