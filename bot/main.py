@@ -22,7 +22,7 @@ from bot.combat.corrosive_biles import CorrosiveBiles
 from bot.combat.dodge import Dodge
 from bot.combat.main import Combat
 from bot.combat.scout import Scout
-from bot.common.action import Action, AttackMove, DoNothing, UseAbility
+from bot.common.action import Action, AttackMove, DoNothing, UseAbility, Move
 from bot.common.assignment import Assignment
 from bot.common.constants import (
     ALL_MACRO_ABILITIES,
@@ -413,17 +413,17 @@ class PhantomBot(BotBase):
         if not unit.is_idle:
             return None
         elif self.time < 8 * 60:
-            return AttackMove(unit, random.choice(self.enemy_start_locations))
+            return Move(unit, random.choice(self.enemy_start_locations))
         elif self.all_enemy_units:
             target = cy_closest_to(unit.position, self.all_enemy_units)
-            return AttackMove(unit, target.position)
+            return Move(unit, target.position)
         a = self.game_info.playable_area
         target = Point2(np.random.uniform((a.x, a.y), (a.right, a.top)))
         if self.is_visible(target):
             return None
         if not self.in_pathing_grid(target) and not unit.is_flying:
             return None
-        return AttackMove(unit, target)
+        return Move(unit, target)
 
     def update_blocked_positions(self, blocked_positions: BlockedPositions) -> BlockedPositions:
         for error in self.state.action_errors:
