@@ -58,7 +58,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         a: list[TKey],
         b: list[TValue],
         cost_fn: Callable[[TKey, TValue], float],
-        maxiter: int = 100,
+        maxiter: int = 1_000,
     ) -> "Assignment[TKey, TValue]":
 
         if not a:
