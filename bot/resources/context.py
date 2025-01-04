@@ -17,15 +17,13 @@ HarvesterAssignment: TypeAlias = Assignment[int, Point2]
 
 
 def split_initial_workers(patches: Units, harvesters: Units) -> HarvesterAssignment:
-    harvester_set = set(harvesters)
-    assignment = HarvesterAssignment({})
-    while True:
-        for patch in patches:
-            if not harvester_set:
-                return assignment
-            harvester = min(harvester_set, key=lambda h: h.distance_to(patch))
-            harvester_set.remove(harvester)
-            assignment = assignment.assign({harvester.tag: patch.position})
+    def cost(h: Unit, p: Unit) -> float:
+        return h.distance_to(p)
+    a = Assignment.distribute(harvesters, patches, cost)
+    return HarvesterAssignment({
+        u.tag: p.position
+        for u, p in a.items()
+    })
 
 
 @dataclass(frozen=True)
