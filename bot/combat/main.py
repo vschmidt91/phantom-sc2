@@ -3,6 +3,8 @@ from functools import cached_property
 from typing import Callable
 
 import numpy as np
+from cython_extensions import cy_closest_to
+
 from ares import UnitTreeQueryType
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -258,4 +260,8 @@ class Combat:
 
             return np.divide(risk, reward)
 
-        return Assignment.distribute(self.units, self.enemy_units, distance_metric)
+        assignment = Assignment.distribute(self.units, self.enemy_units, distance_metric)
+        if not assignment:
+            assignment = Assignment({u: cy_closest_to(u.position, self.enemy_units) for u in self.units})
+
+        return assignment
