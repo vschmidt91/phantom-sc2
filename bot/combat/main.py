@@ -252,7 +252,7 @@ class Combat:
             travel_time = np.divide(travel_distance, a.movement_speed)
             dps = a.air_dps if b.is_flying else a.ground_dps
             kill_time = np.divide(b.health + b.shield, dps)
-            risk = travel_time + kill_time # + kill_time ?
+            risk = travel_time + kill_time  # + kill_time ?
             b_value = self.bot.calculate_unit_value(b.type_id)
             reward = 5 * b_value.minerals + 12 * b_value.vespene
 

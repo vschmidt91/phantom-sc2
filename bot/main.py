@@ -22,7 +22,7 @@ from bot.combat.corrosive_biles import CorrosiveBiles
 from bot.combat.dodge import Dodge
 from bot.combat.main import Combat
 from bot.combat.scout import Scout
-from bot.common.action import Action, AttackMove, DoNothing, UseAbility, Move
+from bot.common.action import Action, DoNothing, Move, UseAbility
 from bot.common.assignment import Assignment
 from bot.common.constants import (
     ALL_MACRO_ABILITIES,

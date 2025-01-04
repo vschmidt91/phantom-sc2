@@ -19,11 +19,9 @@ HarvesterAssignment: TypeAlias = Assignment[int, Point2]
 def split_initial_workers(patches: Units, harvesters: Units) -> HarvesterAssignment:
     def cost(h: Unit, p: Unit) -> float:
         return h.distance_to(p)
+
     a = Assignment.distribute(harvesters, patches, cost)
-    return HarvesterAssignment({
-        u.tag: p.position
-        for u, p in a.items()
-    })
+    return HarvesterAssignment({u.tag: p.position for u, p in a.items()})
 
 
 @dataclass(frozen=True)
