@@ -261,7 +261,8 @@ class Combat:
             return np.divide(risk, reward)
 
         assignment = Assignment.distribute(self.units, self.enemy_units, distance_metric)
-        if not assignment:
+
+        if self.units and self.enemy_units and not assignment:
             assignment = Assignment({u: cy_closest_to(u.position, self.enemy_units) for u in self.units})
 
         return assignment
