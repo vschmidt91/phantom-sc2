@@ -17,7 +17,7 @@ from bot.common.action import Action, Attack, AttackMove, HoldPosition, Move, Us
 from bot.common.assignment import Assignment
 from bot.common.constants import HALF, IMPOSSIBLE_TASK_COST, MAX_UNIT_RADIUS
 from bot.common.main import BotBase
-from bot.common.utils import Point, can_attack, disk, combine_comparers
+from bot.common.utils import Point, can_attack, combine_comparers, disk
 from bot.cython.dijkstra_pathing import DijkstraPathing
 from bot.macro.strategy import Strategy
 
@@ -94,6 +94,7 @@ class Combat:
             grid=grid,
         ):
             return Move(unit, path.offset(HALF))
+        return None
 
     @cached_property
     def shootable_targets(self) -> dict[Unit, Units]:
@@ -128,10 +129,14 @@ class Combat:
             unit_value = 5 * v.minerals + 12 * v.vespene
             return np.divide(unit_value, kill_time)
 
-        target_key = cmp_to_key(combine_comparers([
-            lambda a, b: time_to_kill(a) - time_to_kill(b),
-            lambda a, b: b.tag - a.tag,
-        ]))
+        target_key = cmp_to_key(
+            combine_comparers(
+                [
+                    lambda a, b: int(np.sign(time_to_kill(a) - time_to_kill(b))),
+                    lambda a, b: b.tag - a.tag,
+                ]
+            )
+        )
 
         if unit.weapon_ready:
             if target := max(self.shootable_targets.get(unit, []), key=target_key, default=None):
