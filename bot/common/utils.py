@@ -4,7 +4,7 @@ import json
 import math
 import time
 from functools import cache
-from typing import Iterable, TypeAlias
+from typing import Iterable, TypeAlias, Callable
 
 import numpy as np
 import skimage.draw
@@ -208,3 +208,13 @@ def timeit(f):
         return result
 
     return timed
+
+
+def combine_comparers[T](fns: list[Callable[[T, T], int]]) -> Callable[[T, T], int]:
+    def combined(a, b):
+        for f in fns:
+            r = f(a, b)
+            if r != 0:
+                return r
+        return 0
+    return combined

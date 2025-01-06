@@ -53,7 +53,6 @@ BlockedPositions: TypeAlias = Assignment[Point2, float]
 
 
 class PhantomBot(BotBase):
-
     creep = CreepSpread()
     corrosive_biles = CorrosiveBiles()
     planner = MacroPlanner()
@@ -323,14 +322,39 @@ class PhantomBot(BotBase):
             )
 
         def micro_overseers(overseers: Units) -> Iterable[Action]:
+
+            def cost(u: Unit, t: Unit) -> float:
+                scout_cost = 1.0 if t.is_burrowed or t.is_cloaked else 100.0
+                distance_others = sum(v.distance_to(t) for v in overseers) / len(overseers)
+                distance_self = u.distance_to(t)
+                return scout_cost * distance_self / distance_others
+
+            targets = Assignment.distribute(
+                overseers,
+                combat.enemy_units,
+                cost,
+            )
             for u in overseers:
-                yield (
+
+                def scout() -> Action | None:
+                    if target := targets.get(u):
+                        target_point = self.mediator.find_path_next_point(
+                            start=u.position,
+                            target=target.position,
+                            grid=self.mediator.get_air_avoidance_grid,
+                        )
+                        return Move(u, target_point)
+                    return None
+
+                if action := (
                     dodge.dodge_with(u)
                     or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
                     or self.do_spawn_changeling(u)
                     or scout_actions.get(u)
-                    or combat.advance_with(u)
-                )
+                    or scout()
+                    # or combat.advance_with(u)
+                ):
+                    yield action
 
         def micro_harvester(u: Unit) -> Action | None:
             return (

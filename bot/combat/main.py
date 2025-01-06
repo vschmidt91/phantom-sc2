@@ -1,11 +1,10 @@
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cached_property, cmp_to_key
 from typing import Callable
 
 import numpy as np
-from cython_extensions import cy_closest_to
-
 from ares import UnitTreeQueryType
+from cython_extensions import cy_closest_to
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -18,7 +17,7 @@ from bot.common.action import Action, Attack, AttackMove, HoldPosition, Move, Us
 from bot.common.assignment import Assignment
 from bot.common.constants import HALF, IMPOSSIBLE_TASK_COST, MAX_UNIT_RADIUS
 from bot.common.main import BotBase
-from bot.common.utils import Point, can_attack, disk
+from bot.common.utils import Point, can_attack, disk, combine_comparers
 from bot.cython.dijkstra_pathing import DijkstraPathing
 from bot.macro.strategy import Strategy
 
@@ -72,18 +71,29 @@ class Combat:
             ),
         )
 
-    def advance_with(self, unit: Unit, limit=5) -> Action | None:
-        x = round(unit.position.x)
-        y = round(unit.position.y)
+    def advance_with(self, unit: Unit, target: Unit) -> Action | None:
+        # x = round(unit.position.x)
+        # y = round(unit.position.y)
+        # if unit.is_flying:
+        #     attack_map = self.attack_air
+        # else:
+        #     attack_map = self.attack_ground
+        # if attack_map.dist[x, y] == np.inf:
+        #     target = min(list(self.attack_targets), key=lambda p: unit.distance_to(p))
+        #     return Move(unit, target)
+        # attack_path = attack_map.get_path((x, y), limit)
+        # return Move(unit, Point2(attack_path[-1]).offset(HALF))
+
         if unit.is_flying:
-            attack_map = self.attack_air
+            grid = self.bot.mediator.get_air_avoidance_grid
         else:
-            attack_map = self.attack_ground
-        if attack_map.dist[x, y] == np.inf:
-            target = min(list(self.attack_targets), key=lambda p: unit.distance_to(p))
-            return Move(unit, target)
-        attack_path = attack_map.get_path((x, y), limit)
-        return Move(unit, Point2(attack_path[-1]).offset(HALF))
+            grid = self.bot.mediator.get_ground_avoidance_grid
+        if path := self.bot.mediator.find_path_next_point(
+            start=unit.position,
+            target=target.position,
+            grid=grid,
+        ):
+            return Move(unit, path.offset(HALF))
 
     @cached_property
     def shootable_targets(self) -> dict[Unit, Units]:
@@ -111,15 +121,20 @@ class Combat:
         y = round(unit.position.y)
         confidence = self.confidence[x, y]
 
-        def target_priority(u: Unit) -> float:
+        def time_to_kill(u: Unit) -> float:
             dps = unit.air_dps if u.is_flying else unit.ground_dps
             kill_time = np.divide(u.health + u.shield, dps)
             v = self.bot.calculate_unit_value(u.type_id)
             unit_value = 5 * v.minerals + 12 * v.vespene
             return np.divide(unit_value, kill_time)
 
+        target_key = cmp_to_key(combine_comparers([
+            lambda a, b: time_to_kill(a) - time_to_kill(b),
+            lambda a, b: b.tag - a.tag,
+        ]))
+
         if unit.weapon_ready:
-            if target := max(self.shootable_targets.get(unit, []), key=target_priority, default=None):
+            if target := max(self.shootable_targets.get(unit, []), key=target_key, default=None):
                 return Attack(unit, target)
 
         is_melee = unit.ground_range < 1
@@ -130,20 +145,23 @@ class Combat:
             return AttackMove(unit, target.position)
         elif is_melee:
             if 0 < confidence:
+                # return self.advance_with(unit)
                 return AttackMove(unit, target.position)
             else:
                 return retreat
         elif 0 < confidence:
             if unit.weapon_ready:
-                return AttackMove(unit, target.position)
+                return self.advance_with(unit, target)
+                # return AttackMove(unit, target.position)
             else:
-                return self.advance_with(unit)
+                return self.advance_with(unit, target)
         elif confidence < -0.5:
             return retreat
         elif unit.weapon_ready:
-            return AttackMove(unit, target.position)
+            return self.advance_with(unit, target)
+            # return AttackMove(unit, target.position)
         elif 0 == self.enemy_presence.dps[x, y]:
-            return self.advance_with(unit)
+            return self.advance_with(unit, target)
         else:
             return retreat
 
