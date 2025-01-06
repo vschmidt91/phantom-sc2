@@ -7,7 +7,7 @@ import numpy as np
 from loguru import logger
 from scipy.optimize import linprog
 
-from common.constants import IMPOSSIBLE_TASK_COST
+from bot.common.constants import IMPOSSIBLE_TASK_COST
 
 TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
