@@ -7,6 +7,8 @@ import numpy as np
 from loguru import logger
 from scipy.optimize import linprog
 
+from common.constants import IMPOSSIBLE_TASK_COST
+
 TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
 
@@ -67,7 +69,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
             return Assignment[TKey, TValue]({})
 
         cost_array = np.array([[cost_fn(ai, bj) for ai in a] for bj in b])
-        np.nan_to_num(cost_array, copy=False)
+        np.nan_to_num(cost_array, posinf=IMPOSSIBLE_TASK_COST, copy=False)
         cost_vector = np.array(cost_array.T.flat)
         assignment_matches_unit = np.array([[1 if ai == u else 0 for ai in a for bj in b] for u in a])
         assignment_matches_target = np.array([[1 if bj == u else 0 for ai in a for bj in b] for u in b])
@@ -94,7 +96,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
             {
                 u: b[target_indices[i]]
                 for i, u in enumerate(a)
-                # if cost_array[target_indices[i], i] < IMPOSSIBLE_TASK_COST
+                if cost_array[target_indices[i], i] < IMPOSSIBLE_TASK_COST
             }
         )
         return result
