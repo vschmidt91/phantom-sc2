@@ -123,16 +123,21 @@ class Combat:
         confidence = self.confidence[x, y]
 
         def time_to_kill(u: Unit) -> float:
+            hp = u.health + u.shield
+            if hp == 0.0:
+                return np.inf
             dps = unit.air_dps if u.is_flying else unit.ground_dps
-            kill_time = np.divide(u.health + u.shield, dps)
+            if dps == 0.0:
+                return np.inf
+            kill_time = hp / dps
             v = self.bot.calculate_unit_value(u.type_id)
             unit_value = 5 * v.minerals + 12 * v.vespene
-            return np.divide(unit_value, kill_time)
+            return unit_value / kill_time
 
         target_key = cmp_to_key(
             combine_comparers(
                 [
-                    lambda a, b: int(np.sign(time_to_kill(a) - time_to_kill(b))),
+                    lambda a, b: int(np.sign(np.nan_to_num(time_to_kill(a) - time_to_kill(b), posinf=+1, neginf=-1))),
                     lambda a, b: b.tag - a.tag,
                 ]
             )
@@ -146,6 +151,7 @@ class Combat:
 
         if not (target := self.optimal_targeting.get(unit)):
             return None
+        unit_range = unit.air_range if target.is_flying else unit.ground_range
         if not (retreat := self.retreat_with(unit)):
             return AttackMove(unit, target.position)
         elif is_melee:
@@ -154,17 +160,15 @@ class Combat:
                 return AttackMove(unit, target.position)
             else:
                 return retreat
-        elif 0 < confidence:
-            if unit.weapon_ready:
-                return self.advance_with(unit, target)
-                # return AttackMove(unit, target.position)
-            else:
-                return self.advance_with(unit, target)
+        elif 0.5 < confidence:
+            return self.advance_with(unit, target)
         elif confidence < -0.5:
             return retreat
         elif unit.weapon_ready:
-            return self.advance_with(unit, target)
-            # return AttackMove(unit, target.position)
+            if unit.radius + unit.distance_to(target) + target.radius < unit_range + unit.distance_to_weapon_ready:
+                return AttackMove(unit, target.position)
+            else:
+                return self.advance_with(unit, target)
         elif 0 == self.enemy_presence.dps[x, y]:
             return self.advance_with(unit, target)
         else:
@@ -173,7 +177,7 @@ class Combat:
     def do_unburrow(self, unit: Unit) -> Action | None:
         p = tuple[int, int](unit.position.rounded)
         confidence = self.confidence[p]
-        if unit.health_percentage == 1 and 0 < confidence:
+        if unit.health_percentage == 1 and (0 < confidence or 0 == self.enemy_presence.dps[p]):
             return UseAbility(unit, AbilityId.BURROWUP)
         elif UpgradeId.TUNNELINGCLAWS not in self.bot.state.upgrades:
             return None
