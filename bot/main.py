@@ -232,14 +232,10 @@ class PhantomBot(BotBase):
         attack_targets = list[Point2]()
 
         if self.is_micro_map:
-            retreat_targets.extend(s.position for s in self.structures)
-            if not retreat_targets:
-                retreat_targets.append(self.game_info.map_center)
-            attack_targets.extend(s.position for s in self.enemy_structures)
-            if not attack_targets:
-                attack_targets.append(self.game_info.map_center)
-            units = self.all_own_units.exclude_type({UnitTypeId.BANELING})
-            enemy_units = self.all_enemy_units
+            retreat_targets.append(self.game_info.map_center)
+            attack_targets.extend(u.position for u in self.enemy_units)
+            units = self.units
+            enemy_units = self.enemy_units
         else:
             retreat_targets.extend(self.in_mineral_line(b) for b in self.bases_taken)
             if not retreat_targets:
@@ -275,7 +271,9 @@ class PhantomBot(BotBase):
         planned_actions = await self.planner.get_actions(self, set(blocked_positions), combat)
 
         def should_harvest(u: Unit) -> bool:
-            if u in planned_actions:  # got special orders?
+            if self.is_micro_map:
+                return False
+            elif u in planned_actions:  # got special orders?
                 return False
             elif u.is_idle:  # you slackin?
                 return True
@@ -378,7 +376,7 @@ class PhantomBot(BotBase):
                 or (combat.do_unburrow(u) if u.type_id in {UnitTypeId.ROACHBURROWED} else None)
                 or (self.corrosive_biles.get_action(self, u) if u.type_id in {UnitTypeId.RAVAGER} else None)
                 or (micro_queen(u) if unit.type_id in {UnitTypeId.QUEEN} else None)
-                or (combat.fight_with(u) if unit.type_id not in CIVILIANS else None)
+                or combat.fight_with(u)
                 or self.search_with(u)
             )
 
