@@ -79,7 +79,9 @@ class BotBase(AresBot, ABC):
 
     @cache
     def in_mineral_line(self, base: Point2) -> Point2:
-        return center(m.position for m in self.expansion_locations_dict[base].mineral_field)
+        if not (minerals := self.expansion_locations_dict[base].mineral_field):
+            return base
+        return center(m.position for m in minerals)
 
     @cache
     def behind_mineral_line(self, base: Point2) -> Point2:
