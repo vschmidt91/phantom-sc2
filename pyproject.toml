@@ -31,7 +31,6 @@ tqdm = "^4.67.0"
 types-tqdm = "^4.66.0.20240417"
 scipy = "~1.14.1"
 click = "^8.1.8"
-pulp = "^2.9.0"
 
 
 [build-system]

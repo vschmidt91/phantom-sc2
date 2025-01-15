@@ -5,7 +5,6 @@ from typing import Callable, Collection, Generic, Hashable, Iterator, Mapping, T
 
 import numpy as np
 from loguru import logger
-from pulp import LpProblem
 from scipy.optimize import linprog
 
 from bot.common.constants import IMPOSSIBLE_TASK_COST
@@ -76,8 +75,6 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         assignment_matches_target = np.array([[1 if bj == u else 0 for ai in a for bj in b] for u in b])
 
         max_assigned = math.ceil(len(a) / len(b))
-
-        problem = LpProblem()
 
         opt = linprog(
             c=cost_vector,
