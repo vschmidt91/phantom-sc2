@@ -289,11 +289,7 @@ class Combat:
             b_value = self.bot.calculate_unit_value(b.type_id)
             reward = 1 + 5 * b_value.minerals + 12 * b_value.vespene
 
-            switch_penalty = 1 if self.previous_assignment.get(a) == b else 3
-            overlap_penalty = 1 + 3 * self.num_units_assigned_to[b]
-            # overlap_penalty += 100 * max(0, self.num_units_assigned_to[b] - 1)
-
-            return min(1e8, np.divide(risk, reward)) * switch_penalty * overlap_penalty
+            return min(1e8, np.divide(risk, reward))
 
         # optimal_assigned = self.units.amount / max(1, self.enemy_units.amount)
         #
@@ -311,7 +307,6 @@ class Combat:
             self.units,
             self.enemy_units,
             cost_fn,
-            max_assigned=self.units.amount,
         )
 
         # if self.units and self.enemy_units and not assignment:
