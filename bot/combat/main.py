@@ -1,10 +1,9 @@
 from dataclasses import dataclass
 from functools import cached_property, cmp_to_key
-from typing import Callable
+from typing import Callable, Counter
 
 import numpy as np
 from ares import UnitTreeQueryType
-from cython_extensions import cy_closest_to
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -15,7 +14,7 @@ from sc2.units import Units
 from bot.combat.presence import Presence
 from bot.common.action import Action, Attack, AttackMove, HoldPosition, Move, UseAbility
 from bot.common.assignment import Assignment
-from bot.common.constants import HALF, IMPOSSIBLE_TASK_COST, MAX_UNIT_RADIUS
+from bot.common.constants import HALF, MAX_UNIT_RADIUS
 from bot.common.main import BotBase
 from bot.common.utils import Point, can_attack, combine_comparers, disk
 from bot.cython.dijkstra_pathing import DijkstraPathing
@@ -36,7 +35,7 @@ class Combat:
     air_pathing: np.ndarray
     retreat_targets: frozenset[Point2]
     attack_targets: frozenset[Point2]
-
+    previous_assignment: Assignment[Unit, Unit]
     target_assignment_max_duration = 30
 
     def retreat_with(self, unit: Unit, limit=7) -> Action | None:
@@ -268,28 +267,54 @@ class Combat:
         return DijkstraPathing(self.pathing + self.threat_level, self.attack_targets_rounded)
 
     @cached_property
+    def num_units_assigned_to(self) -> Counter[Unit]:
+        return Counter[Unit](self.previous_assignment.values())
+
+    @cached_property
     def optimal_targeting(self) -> Assignment[Unit, Unit]:
 
-        def distance_metric(a: Unit, b: Unit) -> float:
-            if not can_attack(a, b):
-                return IMPOSSIBLE_TASK_COST
+        def cost_fn(a: Unit, b: Unit) -> float:
 
             d = self.distance_matrix[a, b]
             r = a.air_range if b.is_flying else a.ground_range
             travel_distance = max(0.0, d - a.radius - b.radius - r - a.distance_to_weapon_ready)
 
             travel_time = np.divide(travel_distance, a.movement_speed)
-            dps = a.air_dps if b.is_flying else a.ground_dps
+            if can_attack(a, b):
+                dps = a.air_dps if b.is_flying else a.ground_dps
+            else:
+                dps = 1e-8
             kill_time = np.divide(b.health + b.shield, dps)
             risk = travel_time + kill_time  # + kill_time ?
             b_value = self.bot.calculate_unit_value(b.type_id)
-            reward = 5 * b_value.minerals + 12 * b_value.vespene
+            reward = 1 + 5 * b_value.minerals + 12 * b_value.vespene
 
-            return np.divide(risk, reward)
+            switch_penalty = 1 if self.previous_assignment.get(a) == b else 3
+            overlap_penalty = 1 + 3 * self.num_units_assigned_to[b]
+            # overlap_penalty += 100 * max(0, self.num_units_assigned_to[b] - 1)
 
-        assignment = Assignment.distribute(self.units, self.enemy_units, distance_metric)
+            return min(1e8, np.divide(risk, reward)) * switch_penalty * overlap_penalty
 
-        if self.units and self.enemy_units and not assignment:
-            assignment = Assignment({u: cy_closest_to(u.position, self.enemy_units) for u in self.units})
+        # optimal_assigned = self.units.amount / max(1, self.enemy_units.amount)
+        #
+        # def loss_fn(a: dict[tuple[Unit, Unit], float]) -> float:
+        #     loss = 0.0
+        #     for (ai, bj), wij in a.items():
+        #         if 0 != wij:
+        #             loss += wij * distance_metric(ai, bj)
+        #     weight_by_target = {k: sum(w for _, w in g) for k, g in itertools.groupby(a.items(), lambda v: v[0][1])}
+        #     for bj, nj in weight_by_target.items():
+        #         loss += 5 * (nj - optimal_assigned)**2
+        #     return loss
+
+        assignment = Assignment.distribute(
+            self.units,
+            self.enemy_units,
+            cost_fn,
+            max_assigned=self.units.amount,
+        )
+
+        # if self.units and self.enemy_units and not assignment:
+        #     assignment = Assignment({u: cy_closest_to(u.position, self.enemy_units) for u in self.units})
 
         return assignment

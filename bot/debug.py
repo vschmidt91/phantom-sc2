@@ -7,6 +7,8 @@ from abc import ABC
 from dataclasses import dataclass
 
 from loguru import logger
+from numpy.random import uniform
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
@@ -69,8 +71,10 @@ class Debug(DebugBase):
         #     num_points -= 1
         # await self.bot.client.debug_create_unit(
         #     [
-        #         [UnitTypeId.OVERSEER, 5, self.bot.game_info.map_center, 1],
-        #         [UnitTypeId.MARINE, 30, self.bot.game_info.map_center, 2],
+        #         [UnitTypeId.ROACH, 5, self.bot.game_info.map_center, 1],
+        #         [UnitTypeId.ROACH, 5, self.bot.game_info.map_center, 2],
+        #         [UnitTypeId.OVERSEER, 1, self.bot.game_info.map_center, 1],
+        #         [UnitTypeId.OVERSEER, 1, self.bot.game_info.map_center, 2],
         #     ]
         # )
 

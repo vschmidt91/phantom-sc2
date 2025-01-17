@@ -1,13 +1,21 @@
 import math
 from dataclasses import dataclass
 from functools import cache, cached_property
-from typing import Callable, Collection, Generic, Hashable, Iterator, Mapping, TypeVar
+from itertools import product
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Generic,
+    Hashable,
+    Iterator,
+    Mapping,
+    TypeVar,
+)
 
 import numpy as np
 from loguru import logger
-from scipy.optimize import linprog
-
-from bot.common.constants import IMPOSSIBLE_TASK_COST
+from scipy.optimize import linprog, minimize
 
 TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
@@ -55,11 +63,49 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         return len(self._items)
 
     @classmethod
+    def optimize(
+        cls,
+        a: list[TKey],
+        b: list[TValue],
+        loss_fn: Callable[[Any], float],
+        maxiter: int = 100,
+    ) -> "Assignment[TKey, TValue]":
+        pairs = list(product(a, b))
+
+        def loss_fn_vector(x: np.ndarray) -> float:
+            w = np.exp(x)
+            sum_by_a = {ai: 0.0 for ai in a}
+            for (ai, bj), wij in zip(pairs, w):
+                sum_by_a[ai] += wij
+            return loss_fn({(ai, bj): wi / sum_by_a[ai] for (ai, bj), wi in zip(pairs, w)})
+
+        x0 = np.zeros(len(pairs))
+
+        opt = minimize(
+            loss_fn_vector,
+            x0,
+            options=dict(
+                maxiter=maxiter,
+            ),
+        )
+
+        if not opt.success:
+            logger.error(f"Target assigment failed: {opt}")
+            return Assignment({})
+
+        x_opt = opt.x.reshape((len(a), len(b)))
+        indices = np.argmax(x_opt, axis=1)
+        result = Assignment({ai: b[ji] for ai, ji in zip(a, indices)})
+
+        return result
+
+    @classmethod
     def distribute(
         cls,
         a: list[TKey],
         b: list[TValue],
         cost_fn: Callable[[TKey, TValue], float],
+        max_assigned: int | None = None,
         maxiter: int = 1_000,
     ) -> "Assignment[TKey, TValue]":
 
@@ -68,35 +114,27 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         if not b:
             return Assignment[TKey, TValue]({})
 
-        cost_array = np.array([[cost_fn(ai, bj) for ai in a] for bj in b])
-        np.nan_to_num(cost_array, posinf=IMPOSSIBLE_TASK_COST, copy=False)
-        cost_vector = np.array(cost_array.T.flat)
-        assignment_matches_unit = np.array([[1 if ai == u else 0 for ai in a for bj in b] for u in a])
-        assignment_matches_target = np.array([[1 if bj == u else 0 for ai in a for bj in b] for u in b])
+        pairs = list(product(a, b))
 
-        max_assigned = math.ceil(len(a) / len(b))
+        if max_assigned is None:
+            max_assigned = math.ceil(len(a) / len(b))
 
         opt = linprog(
-            c=cost_vector,
-            A_ub=assignment_matches_target,
-            b_ub=np.full([len(b)], max_assigned),
-            A_eq=assignment_matches_unit,
-            b_eq=np.ones([len(a)]),
+            c=np.array([cost_fn(*p) for p in pairs]),
+            A_ub=np.array([[1.0 if bj == bk else 0.0 for ai, bj in pairs] for bk in b]),
+            b_ub=np.full(len(b), max_assigned),
+            A_eq=np.array([[1.0 if ai == ak else 0.0 for ai, bj in pairs] for ak in a]),
+            b_eq=np.ones(len(a)),
             method="highs",
             bounds=(0.0, 1.0),
             options=dict(maxiter=maxiter),
+            integrality=True,
         )
+
         if not opt.success:
             logger.error(f"Target assigment failed: {opt}")
             return Assignment({})
 
-        x_opt = opt.x.reshape((len(a), len(b)))
-        target_indices = x_opt.argmax(axis=1)
-        result = Assignment[TKey, TValue](
-            {
-                u: b[target_indices[i]]
-                for i, u in enumerate(a)
-                if cost_array[target_indices[i], i] < IMPOSSIBLE_TASK_COST
-            }
-        )
+        result = Assignment({ai: bj for (ai, bj), wij in zip(pairs, opt.x) if wij > 0.5})
+
         return result

@@ -67,6 +67,7 @@ class PhantomBot(BotBase):
     observations = dict[int, Observation]()
 
     _did_extractor_trick = False
+    _previous_assignment = Assignment[Unit, Unit]({})
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -260,7 +261,9 @@ class PhantomBot(BotBase):
             air_pathing=self.mediator.get_map_data_object.get_clean_air_grid(),
             retreat_targets=frozenset(retreat_targets),
             attack_targets=frozenset(attack_targets),
+            previous_assignment=self._previous_assignment,
         )
+        self._previous_assignment = combat.optimal_targeting
 
         creep = self.creep.update(self, combat)
         inject = self.inject = self.inject.update(self.units(UnitTypeId.QUEEN), self.townhalls.ready)
