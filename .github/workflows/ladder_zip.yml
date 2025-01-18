@@ -45,7 +45,7 @@ jobs:
           path: out
       - name: Store Bot ID Key
         run: |
-          key="UPLOAD_BOT_ID_${github.ref_name}"
+          key="UPLOAD_BOT_ID_${{ github.ref_name }}"
           echo "UPLOAD_BOT_ID_KEY=$key" >> "${GITHUB_ENV}"
           echo $key
       - name: Upload to AIArena
