@@ -4,14 +4,6 @@ from functools import cached_property
 
 from scipy.stats import norm
 
-from river import compose
-from river import linear_model
-from river import preprocessing
-
-model = compose.Pipeline(
-    ('scale', preprocessing.StandardScaler()),
-    ('lin_reg', linear_model.LinearRegression())
-)
 
 @dataclass(frozen=True)
 class NormalParameter:
