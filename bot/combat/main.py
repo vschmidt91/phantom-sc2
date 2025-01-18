@@ -287,7 +287,7 @@ class Combat:
             kill_time = np.divide(b.health + b.shield, dps)
             risk = travel_time + kill_time  # + kill_time ?
             b_value = self.bot.calculate_unit_value(b.type_id)
-            reward = 1 + 5 * b_value.minerals + 12 * b_value.vespene
+            reward = self.bot.mineral_weight * b_value.minerals + self.bot.vespene_weight * b_value.vespene
 
             return min(1e8, np.divide(risk, reward))
 

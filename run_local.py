@@ -1,3 +1,5 @@
+import gzip
+import json
 import lzma
 import os
 import pickle
@@ -8,20 +10,19 @@ from typing import Iterable
 import datetime
 
 import click
+from loguru import logger
 from sc2 import maps
 from sc2.data import AIBuild, Difficulty, Race
 from sc2.main import run_game
 from sc2.player import AbstractPlayer, Bot, Computer
-
-from ladder import run_ladder_game
 
 sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 
 from bot.main import PhantomBot
-from bot.ai.game import Game
-# from bot.ai.replay import Replay
+from bot.parameter.constants import DATA_A_PRIORI
+from bot.parameter.main import BotData, BotDataUpdate
 
 MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
 MAP_FILE_EXT: str = "SC2Map"
@@ -62,6 +63,8 @@ def create_opponents(difficulty) -> Iterable[AbstractPlayer]:
 
 
 @click.command()
+@click.option("--data-file", default="resources/data/params.pkl.gz", envvar="DATA_FILE")
+@click.option("--data-json-file", default="resources/data/params.json", envvar="DATA_JSON_FILE")
 @click.option("--save-replay", default="resources/replays/local", envvar="SAVE_REPLAY")
 @click.option("--realtime", default=False, envvar="REALTIME")
 @click.option("--debug", default=True, envvar="DEBUG")
@@ -70,6 +73,8 @@ def create_opponents(difficulty) -> Iterable[AbstractPlayer]:
 @click.option("--difficulty", default=Difficulty.CheatInsane.name, type=click.Choice([x.name for x in Difficulty]), envvar="DIFFICULTY")
 @click.option("--build", default=AIBuild.Rush.name, type=click.Choice([x.name for x in AIBuild]), envvar="BUILD")
 def run_local(
+    data_file: str,
+    data_json_file: str,
     save_replay: str,
     realtime: bool,
     debug: bool,
@@ -79,7 +84,17 @@ def run_local(
     build: str,
 ):
 
-    ai = PhantomBot()
+    data = DATA_A_PRIORI
+    if data_file:
+        try:
+            with gzip.GzipFile(data_file, "rb") as f:
+                data = pickle.load(f)
+        except Exception as e:
+            logger.error(f"Error loading data file: {e}")
+    parameters = data.sample_parameters()
+    print(f"{parameters=}")
+
+    ai = PhantomBot(parameters=parameters)
     ai.config["Debug"] = debug
 
     name = type(ai).__name__
@@ -107,6 +122,21 @@ def run_local(
         save_replay_as=replay_path,
     )
     print(f"Game finished: {result}")
+
+    print("Updating parameters...")
+    update = BotDataUpdate(
+        parameters=parameters,
+        result=result,
+    )
+    new_data = data + update
+    if data_file:
+        try:
+            with gzip.GzipFile(data_file, "wb") as f:
+                pickle.dump(new_data, f)
+            with open(data_json_file, "w") as f:
+                json.dump(new_data.to_dict(), f, indent=4)
+        except Exception as e:
+            logger.error(f"Error storing data file: {e}")
 
 
 if __name__ == "__main__":

@@ -1,16 +1,11 @@
+import gzip
+import json
 import lzma
 import os
 import pickle
-import random
 import sys
-from pathlib import Path
-from typing import Iterable
-import datetime
-
-from sc2 import maps
-from sc2.data import AIBuild, Difficulty, Race
-from sc2.main import run_game
-from sc2.player import AbstractPlayer, Bot, Computer
+from sc2.data import Race
+from sc2.player import Bot
 
 from ladder import run_ladder_game
 
@@ -19,9 +14,39 @@ sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 
 from bot.main import PhantomBot
+from bot.parameter.constants import DATA_A_PRIORI
+from bot.parameter.main import BotDataUpdate
+
+DATA_FILE = "data/params.pkl.gz"
+DATA_JSON_FILE = "data/params.json"
 
 
 if __name__ == "__main__":
-    bot = Bot(Race.Zerg, PhantomBot(), 'PhantomBot')
+
+    data = DATA_A_PRIORI
+    try:
+        with gzip.GzipFile(DATA_FILE, "rb") as f:
+            data = pickle.load(f)
+    except Exception as e:
+        print(f"Error loading data file: {e}")
+    parameters = data.sample_parameters()
+    print(f"{parameters=}")
+
+    ai = PhantomBot(parameters=parameters)
+    bot = Bot(Race.Zerg, ai, 'PhantomBot')
     result, opponent_id = run_ladder_game(bot)
     print(result, " against opponent ", opponent_id)
+
+    print("Updating parameters...")
+    update = BotDataUpdate(
+        parameters=parameters,
+        result=result,
+    )
+    new_data = data + update
+    try:
+        with gzip.GzipFile(DATA_FILE, "wb") as f:
+            pickle.dump(new_data, f)
+        with open(DATA_JSON_FILE, "w") as f:
+            json.dump(new_data.to_dict(), f, indent=4)
+    except Exception as e:
+        print(f"Error storing data file: {e}")

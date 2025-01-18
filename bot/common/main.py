@@ -1,3 +1,4 @@
+import math
 import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -36,6 +37,7 @@ from bot.common.constants import (
 )
 from bot.common.cost import Cost, CostManager
 from bot.common.utils import center, get_intersections, project_point_onto_line
+from bot.parameter.constants import PARAM_MINERAL_WEIGHT, PARAM_VESPENE_WEIGHT
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 
@@ -47,13 +49,22 @@ class BotBase(AresBot, ABC):
     pending_by_type = defaultdict[MacroId, list[Unit]](list)
     speedmining_positions = dict[Point2, Point2]()
 
-    def __init__(self, game_step_override: int | None = None) -> None:
+    def __init__(self, parameters: dict[str, float], game_step_override: int | None = None) -> None:
         super().__init__(game_step_override=game_step_override)
+        self.parameters = parameters
         self.cost = CostManager(self.calculate_cost, self.calculate_supply_cost)
 
     @abstractmethod
     def planned_by_type(self, item: MacroId) -> Iterable:
         raise NotImplementedError()
+
+    @property
+    def mineral_weight(self) -> float:
+        return math.exp(self.parameters[PARAM_MINERAL_WEIGHT])
+
+    @property
+    def vespene_weight(self) -> float:
+        return math.exp(self.parameters[PARAM_VESPENE_WEIGHT])
 
     @cache
     def dps_fast(self, unit: UnitTypeId) -> float:

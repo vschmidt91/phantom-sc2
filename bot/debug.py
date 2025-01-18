@@ -7,8 +7,6 @@ from abc import ABC
 from dataclasses import dataclass
 
 from loguru import logger
-from numpy.random import uniform
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
