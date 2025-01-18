@@ -1,6 +1,8 @@
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - dev
 
 jobs:
   build:
@@ -41,8 +43,11 @@ jobs:
         with:
           name: ladder-zip
           path: out
+      - name: Store Bot ID Key
+        run: |
+          echo "UPLOAD_BOT_ID_KEY=UPLOAD_BOT_ID_${github.ref_name@U}" >> "${GITHUB_ENV}"
       - name: Upload to AIArena
         env:
           UPLOAD_API_TOKEN: ${{ secrets.UPLOAD_API_TOKEN }}
-          UPLOAD_BOT_ID: ${{ secrets.UPLOAD_BOT_ID }}
+          UPLOAD_BOT_ID: ${{ secrets[format('{0}', env.UPLOAD_BOT_ID_KEY)] }}
         run: poetry run python scripts/upload_to_ai_arena.py
