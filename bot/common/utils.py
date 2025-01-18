@@ -219,3 +219,7 @@ def combine_comparers[T](fns: list[Callable[[T, T], int]]) -> Callable[[T, T], i
         return 0
 
     return combined
+
+
+def logit_to_probability(x: float):
+    return 1 / (1 + math.exp(-x))

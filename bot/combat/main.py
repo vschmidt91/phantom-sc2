@@ -36,7 +36,6 @@ class Combat:
     retreat_targets: frozenset[Point2]
     attack_targets: frozenset[Point2]
     previous_assignment: Assignment[Unit, Unit]
-    target_assignment_max_duration = 30
 
     def retreat_with(self, unit: Unit, limit=7) -> Action | None:
         # return Move(
@@ -121,7 +120,7 @@ class Combat:
         y = round(unit.position.y)
         confidence = self.confidence[x, y]
 
-        def time_to_kill(u: Unit) -> float:
+        def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
             if hp == 0.0:
                 return np.inf
@@ -129,14 +128,13 @@ class Combat:
             if dps == 0.0:
                 return np.inf
             kill_time = hp / dps
-            v = self.bot.calculate_unit_value(u.type_id)
-            unit_value = 5 * v.minerals + 12 * v.vespene
-            return unit_value / kill_time
+            unit_value = self.bot.calculate_unit_value_weighted(u.type_id)
+            return kill_time / unit_value
 
         target_key = cmp_to_key(
             combine_comparers(
                 [
-                    lambda a, b: int(np.sign(np.nan_to_num(time_to_kill(a) - time_to_kill(b), posinf=+1, neginf=-1))),
+                    lambda a, b: int(np.sign(np.nan_to_num(cost_fn(b) - cost_fn(a), posinf=+1, neginf=-1))),
                     lambda a, b: b.tag - a.tag,
                 ]
             )
@@ -285,9 +283,8 @@ class Combat:
             else:
                 dps = 1e-8
             kill_time = np.divide(b.health + b.shield, dps)
-            risk = travel_time + kill_time  # + kill_time ?
-            b_value = self.bot.calculate_unit_value(b.type_id)
-            reward = self.bot.mineral_weight * b_value.minerals + self.bot.vespene_weight * b_value.vespene
+            risk = travel_time + kill_time
+            reward = self.bot.calculate_unit_value_weighted(b.type_id)
 
             return min(1e8, np.divide(risk, reward))
 

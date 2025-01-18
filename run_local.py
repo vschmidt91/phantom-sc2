@@ -12,7 +12,7 @@ import datetime
 import click
 from loguru import logger
 from sc2 import maps
-from sc2.data import AIBuild, Difficulty, Race
+from sc2.data import AIBuild, Difficulty, Race, Result
 from sc2.main import run_game
 from sc2.player import AbstractPlayer, Bot, Computer
 
@@ -21,7 +21,7 @@ sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 
 from bot.main import PhantomBot
-from bot.parameter.constants import DATA_A_PRIORI
+from bot.parameter.constants import PARAM_PRIORS
 from bot.parameter.main import BotData, BotDataUpdate
 
 MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
@@ -63,8 +63,8 @@ def create_opponents(difficulty) -> Iterable[AbstractPlayer]:
 
 
 @click.command()
-@click.option("--data-file", default="resources/data/params.pkl.gz", envvar="DATA_FILE")
-@click.option("--data-json-file", default="resources/data/params.json", envvar="DATA_JSON_FILE")
+@click.option("--data-file", default="data/params.pkl.gz", envvar="DATA_FILE")
+@click.option("--data-json-file", default="data/params.json", envvar="DATA_JSON_FILE")
 @click.option("--save-replay", default="resources/replays/local", envvar="SAVE_REPLAY")
 @click.option("--realtime", default=False, envvar="REALTIME")
 @click.option("--debug", default=True, envvar="DEBUG")
@@ -84,7 +84,7 @@ def run_local(
     build: str,
 ):
 
-    data = DATA_A_PRIORI
+    data = PARAM_PRIORS
     if data_file:
         try:
             with gzip.GzipFile(data_file, "rb") as f:
@@ -115,12 +115,15 @@ def run_local(
     opponent = Computer(Race[race], Difficulty[difficulty], AIBuild[build])
 
     print("Starting local game...")
-    result = run_game(
-        maps.get(random.choice(map_choices)),
-        [bot, opponent],
-        realtime=realtime,
-        save_replay_as=replay_path,
-    )
+    try:
+        result = run_game(
+            maps.get(random.choice(map_choices)),
+            [bot, opponent],
+            realtime=realtime,
+            save_replay_as=replay_path,
+        )
+    except Exception as e:
+        result = Result.Defeat
     print(f"Game finished: {result}")
 
     print("Updating parameters...")

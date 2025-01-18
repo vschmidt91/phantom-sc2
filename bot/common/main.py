@@ -36,8 +36,8 @@ from bot.common.constants import (
     ZERG_RANGED_UPGRADES,
 )
 from bot.common.cost import Cost, CostManager
-from bot.common.utils import center, get_intersections, project_point_onto_line
-from bot.parameter.constants import PARAM_MINERAL_WEIGHT, PARAM_VESPENE_WEIGHT
+from bot.common.utils import center, get_intersections, project_point_onto_line, logit_to_probability
+from bot.parameter.constants import PARAM_COST_WEIGHTING
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 
@@ -59,12 +59,8 @@ class BotBase(AresBot, ABC):
         raise NotImplementedError()
 
     @property
-    def mineral_weight(self) -> float:
-        return math.exp(self.parameters[PARAM_MINERAL_WEIGHT])
-
-    @property
-    def vespene_weight(self) -> float:
-        return math.exp(self.parameters[PARAM_VESPENE_WEIGHT])
+    def cost_weighting(self) -> float:
+        return logit_to_probability(self.parameters[PARAM_COST_WEIGHTING])
 
     @cache
     def dps_fast(self, unit: UnitTypeId) -> float:
@@ -74,6 +70,10 @@ class BotBase(AresBot, ABC):
             return max(units[0].ground_dps, units[0].air_dps)
         else:
             return 0.0
+
+    def calculate_unit_value_weighted(self, unit_type: UnitTypeId) -> float:
+        cost = self.calculate_unit_value(unit_type)
+        return self.cost_weighting * cost.minerals + (1 - self.cost_weighting) * cost.vespene
 
     @property
     def townhall_at(self) -> dict[Point2, Unit]:
