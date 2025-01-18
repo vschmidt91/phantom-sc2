@@ -44,12 +44,13 @@ jobs:
           name: ladder-zip
           path: out
       - name: Store Bot ID Key
+        id: get-bot-id-key
         run: |
-          key="UPLOAD_BOT_ID_${{ github.ref_name }}"
-          echo "UPLOAD_BOT_ID_KEY=$key" >> "${GITHUB_ENV}"
-          echo $key
+          echo "UPLOAD_BOT_ID_KEY=UPLOAD_BOT_ID_${REF_NAME@U}" >> "${GITHUB_OUTPUT}"
+        env:
+          REF_NAME: ${{ github.ref_name }}
       - name: Upload to AIArena
         env:
           UPLOAD_API_TOKEN: ${{ secrets.UPLOAD_API_TOKEN }}
-          UPLOAD_BOT_ID: ${{ secrets[format('{0}', env.UPLOAD_BOT_ID_KEY)] }}
+          UPLOAD_BOT_ID: ${{ secrets[steps.get-bot-id-key.outputs.UPLOAD_BOT_ID_KEY] }}
         run: poetry run python scripts/upload_to_ai_arena.py
