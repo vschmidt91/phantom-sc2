@@ -328,7 +328,7 @@ class PhantomBot(BotBase):
                 scout_cost = 1.0 if t.is_burrowed or t.is_cloaked else 100.0
                 distance_others = sum(v.distance_to(t) for v in overseers) / len(overseers)
                 distance_self = u.distance_to(t)
-                return scout_cost * distance_self / distance_others
+                return scout_cost * distance_self / max(1.0, distance_others)
 
             targets = Assignment.distribute(
                 overseers,
