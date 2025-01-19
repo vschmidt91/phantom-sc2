@@ -35,17 +35,8 @@ class Combat:
     air_pathing: np.ndarray
     retreat_targets: frozenset[Point2]
     attack_targets: frozenset[Point2]
-    previous_assignment: Assignment[Unit, Unit]
 
     def retreat_with(self, unit: Unit, limit=7) -> Action | None:
-        # return Move(
-        #     unit,
-        #     self.bot.mediator.find_closest_safe_spot(
-        #         from_pos=unit.position,
-        #         grid=self.bot.mediator.get_air_grid if unit.is_flying else self.bot.mediator.get_ground_grid,
-        #         radius=limit,
-        #     ),
-        # )
         x = round(unit.position.x)
         y = round(unit.position.y)
         if unit.is_flying:
@@ -70,18 +61,6 @@ class Combat:
         )
 
     def advance_with(self, unit: Unit, target: Unit) -> Action | None:
-        # x = round(unit.position.x)
-        # y = round(unit.position.y)
-        # if unit.is_flying:
-        #     attack_map = self.attack_air
-        # else:
-        #     attack_map = self.attack_ground
-        # if attack_map.dist[x, y] == np.inf:
-        #     target = min(list(self.attack_targets), key=lambda p: unit.distance_to(p))
-        #     return Move(unit, target)
-        # attack_path = attack_map.get_path((x, y), limit)
-        # return Move(unit, Point2(attack_path[-1]).offset(HALF))
-
         if unit.is_flying:
             grid = self.bot.mediator.get_air_avoidance_grid
         else:
@@ -148,28 +127,70 @@ class Combat:
 
         if not (target := self.optimal_targeting.get(unit)):
             return None
+
         unit_range = unit.air_range if target.is_flying else unit.ground_range
-        if not (retreat := self.retreat_with(unit)):
-            return AttackMove(unit, target.position)
-        elif is_melee:
-            if 0 < confidence:
-                # return self.advance_with(unit)
-                return AttackMove(unit, target.position)
-            else:
-                return retreat
-        elif 0.5 < confidence:
-            return self.advance_with(unit, target)
-        elif confidence < -0.5:
-            return retreat
-        elif unit.weapon_ready:
-            if unit.radius + unit.distance_to(target) + target.radius < unit_range + unit.distance_to_weapon_ready:
-                return AttackMove(unit, target.position)
-            else:
-                return self.advance_with(unit, target)
-        elif 0 == self.enemy_presence.dps[x, y]:
-            return self.advance_with(unit, target)
-        else:
-            return retreat
+        target_range = target.air_range if unit.is_flying else target.ground_range
+        range_advantage = unit_range - target_range
+        effective_range = unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready
+        grid = self.bot.mediator.get_air_avoidance_grid if unit.is_flying else self.bot.mediator.get_ground_avoidance_grid
+        attack_path = self.bot.mediator.get_map_data_object.pathfind(
+            start=unit.position,
+            goal=target.position,
+            grid=grid,
+            sensitivity=1,
+        )
+        if len(attack_path) < 2:
+            return Attack(unit, target)
+        advance_point = attack_path[1]
+
+        if 0 == self.enemy_presence.dps[advance_point]:
+            return Move(unit, advance_point)
+
+        safe_spot = None
+        for p in attack_path:
+            under_fire = 0 < self.enemy_presence.dps[p]
+            confident = 0 < self.confidence[p]
+            if under_fire:
+                if confident:
+                    if safe_spot:
+                        return Move(unit, safe_spot)
+                    else:
+                        return Attack(unit, target)
+                elif safe_spot:
+                    return Move(unit, safe_spot)
+                else:
+                    return self.retreat_with(unit)
+            safe_spot = p
+
+        return None
+
+        # attack_point = next(
+        #     (p for p in attack_path if unit.distance_to(p) < effective_range),
+        #     next(iter(attack_path), unit.position)
+        # )
+        # confidence = self.confidence[attack_point.rounded]
+        #
+        # if not (retreat := self.retreat_with(unit)):
+        #     return AttackMove(unit, target.position)
+        # elif is_melee:
+        #     if 0 < confidence:
+        #         # return self.advance_with(unit)
+        #         return AttackMove(unit, target.position)
+        #     else:
+        #         return retreat
+        # elif 0.5 < confidence:
+        #     return self.advance_with(unit, target)
+        # elif confidence < -0.5:
+        #     return retreat
+        # elif unit.weapon_ready:
+        #     if unit.radius + unit.distance_to(target) + target.radius < unit_range + unit.distance_to_weapon_ready:
+        #         return AttackMove(unit, target.position)
+        #     else:
+        #         return self.advance_with(unit, target)
+        # elif 0 == self.enemy_presence.dps[x, y]:
+        #     return self.advance_with(unit, target)
+        # else:
+        #     return retreat
 
     def do_unburrow(self, unit: Unit) -> Action | None:
         p = tuple[int, int](unit.position.rounded)
@@ -214,10 +235,10 @@ class Combat:
             px, py = unit.position.rounded
             if 0 < dps:
                 r = 0.0
-                # r += 2 * unit.radius
-                # r += 1
-                # r += max(unit.ground_range, unit.air_range)
-                r += unit.sight_range
+                r += 2 * unit.radius
+                r += 1
+                r += max(unit.ground_range, unit.air_range)
+                # r += unit.sight_range
                 dx, dy = disk(r)
                 d = px + dx, py + dy
                 health_map[d] += unit.shield + unit.health
@@ -265,10 +286,6 @@ class Combat:
         return DijkstraPathing(self.pathing + self.threat_level, self.attack_targets_rounded)
 
     @cached_property
-    def num_units_assigned_to(self) -> Counter[Unit]:
-        return Counter[Unit](self.previous_assignment.values())
-
-    @cached_property
     def optimal_targeting(self) -> Assignment[Unit, Unit]:
 
         def cost_fn(a: Unit, b: Unit) -> float:
@@ -288,25 +305,10 @@ class Combat:
 
             return min(1e8, np.divide(risk, reward))
 
-        # optimal_assigned = self.units.amount / max(1, self.enemy_units.amount)
-        #
-        # def loss_fn(a: dict[tuple[Unit, Unit], float]) -> float:
-        #     loss = 0.0
-        #     for (ai, bj), wij in a.items():
-        #         if 0 != wij:
-        #             loss += wij * distance_metric(ai, bj)
-        #     weight_by_target = {k: sum(w for _, w in g) for k, g in itertools.groupby(a.items(), lambda v: v[0][1])}
-        #     for bj, nj in weight_by_target.items():
-        #         loss += 5 * (nj - optimal_assigned)**2
-        #     return loss
-
         assignment = Assignment.distribute(
             self.units,
             self.enemy_units,
             cost_fn,
         )
-
-        # if self.units and self.enemy_units and not assignment:
-        #     assignment = Assignment({u: cy_closest_to(u.position, self.enemy_units) for u in self.units})
 
         return assignment
