@@ -50,3 +50,10 @@ class NormalParameters:
     @cached_property
     def distribution(self):
         return multivariate_normal(mean=self.mean, cov=self.covariance)
+
+    def to_dict(self):
+        return {
+            "mean": self.mean.tolist(),
+            "deviation": self.deviation.tolist(),
+            "evidence": self.evidence,
+        }

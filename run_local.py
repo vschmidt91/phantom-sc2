@@ -84,7 +84,7 @@ def run_local(
     build: str,
 ):
 
-    data = PARAM_PRIORS
+    data = BotData.from_priors(PARAM_PRIORS)
     if data_file:
         try:
             with gzip.GzipFile(data_file, "rb") as f:

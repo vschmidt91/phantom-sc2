@@ -15,7 +15,7 @@ sys.path.append("ares-sc2")
 
 from bot.main import PhantomBot
 from bot.parameter.constants import PARAM_PRIORS
-from bot.parameter.main import BotDataUpdate
+from bot.parameter.main import BotDataUpdate, BotData
 
 DATA_FILE = "data/params.pkl.gz"
 DATA_JSON_FILE = "data/params.json"
@@ -23,7 +23,7 @@ DATA_JSON_FILE = "data/params.json"
 
 if __name__ == "__main__":
 
-    data = PARAM_PRIORS
+    data = BotData.from_priors(PARAM_PRIORS)
     try:
         with gzip.GzipFile(DATA_FILE, "rb") as f:
             data = pickle.load(f)
