@@ -139,8 +139,10 @@ class Combat:
             grid=grid,
             sensitivity=1,
         )
+        if not attack_path:
+            return None
         if len(attack_path) < 2:
-            return Attack(unit, target)
+            return None
         advance_point = attack_path[1]
 
         if 0 == self.enemy_presence.dps[advance_point]:
