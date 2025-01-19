@@ -1,11 +1,11 @@
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 from sc2.data import Result
 
-from bot.parameter.multivariate_normal import NormalParameters
 from bot.parameter.constants import PARAMETER_NAMES, ParameterPrior
+from bot.parameter.multivariate_normal import NormalParameters
 
 
 @dataclass(frozen=True)
@@ -23,9 +23,7 @@ class BotData:
     def __add__(self, update: BotDataUpdate) -> "BotData":
         parameters = self.parameters
         if update.result == Result.Victory:
-            values = np.array([
-                update.parameters[k] for k in PARAMETER_NAMES
-            ])
+            values = np.array([update.parameters[k] for k in PARAMETER_NAMES])
             parameters += NormalParameters.from_values([values])
         return BotData(parameters=parameters, names=self.names)
 

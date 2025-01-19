@@ -1,4 +1,3 @@
-import math
 import re
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -36,7 +35,12 @@ from bot.common.constants import (
     ZERG_RANGED_UPGRADES,
 )
 from bot.common.cost import Cost, CostManager
-from bot.common.utils import center, get_intersections, project_point_onto_line, logit_to_probability
+from bot.common.utils import (
+    center,
+    get_intersections,
+    logit_to_probability,
+    project_point_onto_line,
+)
 from bot.parameter.constants import PARAM_COST_WEIGHTING
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId

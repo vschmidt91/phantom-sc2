@@ -1,9 +1,8 @@
-import math
 from dataclasses import dataclass
 from functools import cached_property
 
 import numpy as np
-from scipy.stats import norm, multivariate_normal
+from scipy.stats import multivariate_normal
 
 
 def square_vector(v: np.ndarray) -> np.ndarray:

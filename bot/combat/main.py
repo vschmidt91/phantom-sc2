@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from functools import cached_property, cmp_to_key
-from typing import Callable, Counter
+from typing import Callable
 
 import numpy as np
 from ares import UnitTreeQueryType
@@ -12,7 +12,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bot.combat.presence import Presence
-from bot.common.action import Action, Attack, AttackMove, HoldPosition, Move, UseAbility
+from bot.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from bot.common.assignment import Assignment
 from bot.common.constants import HALF, MAX_UNIT_RADIUS
 from bot.common.main import BotBase
@@ -132,7 +132,9 @@ class Combat:
         target_range = target.air_range if unit.is_flying else target.ground_range
         range_advantage = unit_range - target_range
         effective_range = unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready
-        grid = self.bot.mediator.get_air_avoidance_grid if unit.is_flying else self.bot.mediator.get_ground_avoidance_grid
+        grid = (
+            self.bot.mediator.get_air_avoidance_grid if unit.is_flying else self.bot.mediator.get_ground_avoidance_grid
+        )
         attack_path = self.bot.mediator.get_map_data_object.pathfind(
             start=unit.position,
             goal=target.position,
