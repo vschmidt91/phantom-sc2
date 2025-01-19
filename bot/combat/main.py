@@ -108,7 +108,7 @@ class Combat:
                 return np.inf
             kill_time = hp / dps
             unit_value = self.bot.calculate_unit_value_weighted(u.type_id)
-            return kill_time / unit_value
+            return kill_time / (1 + unit_value)
 
         target_key = cmp_to_key(
             combine_comparers(
