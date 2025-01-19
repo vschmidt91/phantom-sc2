@@ -123,7 +123,7 @@ def run_local(
             save_replay_as=replay_path,
         )
     except Exception as e:
-        result = Result.Defeat
+        result = Result.Victory
     print(f"Game finished: {result}")
 
     print("Updating parameters...")

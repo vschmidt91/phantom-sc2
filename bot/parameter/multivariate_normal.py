@@ -24,10 +24,11 @@ class NormalParameters:
     @classmethod
     def from_values(cls, values: list[np.ndarray]) -> "NormalParameters":
         evidence = float(len(values))
-        mean = sum(values) / evidence
+        mean = np.sum(values, axis=0) / evidence
+        deviation = np.sum([square_vector(x - mean) for x in values], axis=0)
         return NormalParameters(
             mean=mean,
-            deviation=sum(square_vector(x - mean) for x in values),
+            deviation=deviation,
             evidence=evidence,
         )
 

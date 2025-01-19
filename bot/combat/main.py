@@ -95,10 +95,6 @@ class Combat:
 
     def fight_with(self, unit: Unit) -> Action | None:
 
-        x = round(unit.position.x)
-        y = round(unit.position.y)
-        confidence = self.confidence[x, y]
-
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
             if hp == 0.0:
@@ -123,15 +119,9 @@ class Combat:
             if target := max(self.shootable_targets.get(unit, []), key=target_key, default=None):
                 return Attack(unit, target)
 
-        is_melee = unit.ground_range < 1
-
         if not (target := self.optimal_targeting.get(unit)):
             return None
 
-        unit_range = unit.air_range if target.is_flying else unit.ground_range
-        target_range = target.air_range if unit.is_flying else target.ground_range
-        range_advantage = unit_range - target_range
-        effective_range = unit.radius + unit_range + target.radius + unit.distance_to_weapon_ready
         grid = (
             self.bot.mediator.get_air_avoidance_grid if unit.is_flying else self.bot.mediator.get_ground_avoidance_grid
         )

@@ -7,12 +7,10 @@ class ParameterPrior:
     variance: float
 
 
+PARAM_DUMMY = "dummy"
 PARAM_COST_WEIGHTING = "cost_weighting"
 
-PARAMETER_NAMES = [
-    PARAM_COST_WEIGHTING,
-]
-
 PARAM_PRIORS = {
+    PARAM_DUMMY: ParameterPrior(0, 1),
     PARAM_COST_WEIGHTING: ParameterPrior(0, 1),
 }
