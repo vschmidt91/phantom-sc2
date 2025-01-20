@@ -28,8 +28,8 @@ jobs:
         run: poetry run pip install -U pip
       - name: Install requirements
         run: poetry install --no-root
-      - name: Show poetry location
-        run: poetry env info -p
+      - name: Copy selected python modules
+        run: poetry run python scripts/copy_modules.py
       - name: Compile Cython
         run: poetry run python scripts/compile_cython.py
       - name: Save commit hash
