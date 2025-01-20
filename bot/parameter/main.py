@@ -1,11 +1,11 @@
+import math
 from dataclasses import dataclass
 from typing import Any
 
-import numpy as np
+from river.proba import MultivariateGaussian
 from sc2.data import Result
 
 from bot.parameter.constants import ParameterPrior
-from bot.parameter.multivariate_normal import NormalParameters
 
 
 @dataclass(frozen=True)
@@ -17,35 +17,33 @@ class BotDataUpdate:
 @dataclass(frozen=True)
 class BotData:
 
-    parameters: NormalParameters
-    names: list[str]
+    parameters: MultivariateGaussian
 
     def __add__(self, update: BotDataUpdate) -> "BotData":
         parameters = self.parameters
         if update.result == Result.Victory:
-            values = np.array([update.parameters[k] for k in self.names])
-            parameters += NormalParameters.from_values([values])
-        return BotData(parameters=parameters, names=self.names)
+            parameters.update(update.parameters)
+        return BotData(parameters=parameters)
 
     def sample_parameters(self) -> dict[str, float]:
-        values = np.atleast_1d(self.parameters.distribution.rvs())
-        return dict(zip(self.names, values))
+        return self.parameters.sample()
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "parameters": self.parameters.to_dict(),
-            "names": self.names,
+            "mean": self.parameters.mu,
+            "covariance": self.parameters.var.to_dict(),
         }
 
     @classmethod
     def from_priors(cls, priors: dict[str, ParameterPrior]) -> "BotData":
-        mean = np.array([p.mean for p in priors.values()])
-        variance = np.array([p.variance for p in priors.values()])
+        parameters = MultivariateGaussian()
+        parameters.update({k: p.mean for k, p in priors.items()})
+        delta = math.sqrt(len(priors))
+        for i in range(len(priors)):
+            for d in delta, -delta:
+                parameters.update(
+                    {k: p.mean + (d * p.sigma if i == j else 0.0) for j, (k, p) in enumerate(priors.items())}
+                )
         return BotData(
-            parameters=NormalParameters(
-                mean=mean,
-                deviation=np.diag(variance),
-                evidence=1,
-            ),
-            names=list(priors.keys()),
+            parameters=parameters,
         )

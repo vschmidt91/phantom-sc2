@@ -4,7 +4,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class ParameterPrior:
     mean: float
-    variance: float
+    sigma: float
 
 
 PARAM_DUMMY = "dummy"
