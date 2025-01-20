@@ -3,6 +3,8 @@ Zips the relevant files and directories so that Bot can be updated
 to ladder or tournaments.
 TODO: check all files and folders are present before zipping
 """
+import importlib
+import inspect
 import os
 import platform
 import shutil
@@ -61,6 +63,10 @@ ZIP_DIRECTORIES: Dict[str, Dict] = {
     "cython-extensions-sc2": {"zip_all": False, "folder_to_zip": "cython_extensions"},
 }
 
+ZIP_MODULES: list[str] = [
+    "river",
+]
+
 
 def zip_dir(dir_path, zip_file):
     """
@@ -79,6 +85,18 @@ def zip_dir(dir_path, zip_file):
                 path.join(root, file),
                 path.relpath(path.join(root, file), path.join(dir_path, "..")),
             )
+
+
+def zip_module(module_name, zip_file):
+    """
+    Will determine the installation location of a module and copy it to zipfile
+    @param module_name: module to include in the zip
+    @param zip_file: output file
+    @return:
+    """
+    module = importlib.import_module(module_name)
+    module_path = os.path.dirname(inspect.getfile(module))
+    zip_dir(module_path, zip_file)
 
 
 def zip_files_and_directories(zipfile_name: str) -> None:
@@ -106,6 +124,9 @@ def zip_files_and_directories(zipfile_name: str) -> None:
         _path: str = path.join(ROOT_DIRECTORY, single_file)
         if path.isfile(_path):
             zip_file.write(_path, single_file)
+
+    for module in ZIP_MODULES:
+        zip_module(module, zip_file)
 
     # close the zip file
     zip_file.close()
