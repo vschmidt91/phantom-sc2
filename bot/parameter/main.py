@@ -32,6 +32,7 @@ class BotData:
         return {
             "mean": self.parameters.mu,
             "covariance": self.parameters.var.to_dict(),
+            "evidence": self.parameters.n_samples,
         }
 
     @classmethod
