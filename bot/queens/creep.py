@@ -23,7 +23,6 @@ _BASE_SIZE = (5, 5)
 
 @dataclass(frozen=True)
 class CreepSpreadContext:
-    context: BotBase
     creep: np.ndarray
     visibility: np.ndarray
     pathing: np.ndarray
@@ -127,7 +126,6 @@ class CreepSpread:
         bases = frozenset(base_list)
 
         return CreepSpreadContext(
-            context,
             creep,
             visibility,
             pathing,
