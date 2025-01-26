@@ -1,10 +1,13 @@
 import math
 import os
 import random
+import time
 from itertools import chain, product
 from typing import AsyncGenerator, Iterable, TypeAlias
 
 import numpy as np
+import pandas as pd
+
 from ares import DEBUG
 from cython_extensions import cy_closest_to
 from loguru import logger
@@ -49,7 +52,26 @@ from bot.resources.context import HarvesterAssignment, ResourceContext
 from bot.resources.main import update_resources
 from bot.resources.report import ResourceReport
 
+from river import datasets
+from river import neural_net as nn
+from river import optim
+from river import preprocessing as pp
+
 BlockedPositions: TypeAlias = Assignment[Point2, float]
+
+model = (
+    pp.StandardScaler() |
+    nn.MLPRegressor(
+        hidden_dims=(30,),
+        activations=(
+            nn.activations.ReLU,
+            nn.activations.ReLU,
+            nn.activations.Identity
+        ),
+        optimizer=optim.SGD(1e-3),
+        seed=42
+    )
+)
 
 
 class PhantomBot(BotBase):
@@ -95,6 +117,18 @@ class PhantomBot(BotBase):
         await super().on_step(iteration)
         await self.do_step()
         await self.debug.on_step_end()
+
+        # for epoch in range(10):
+        start = time.time()
+        for _ in range(10):
+            xb = pd.DataFrame(np.random.uniform(size=(10, 100)))
+            yb = pd.DataFrame(np.random.uniform(size=(10, 10)))
+            y_pred = model.predict_many(xb)
+            model.learn_many(xb, yb)
+
+        model.predict_many(xb)
+        end = time.time()
+        print(f"model training took: {round((end - start) * 1000, 3)}ms")
 
     # async def on_before_start(self):
     #     await super().on_before_start()
