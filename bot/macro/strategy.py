@@ -14,6 +14,7 @@ from bot.common.constants import (
 )
 from bot.common.main import BotBase
 from bot.common.unit_composition import UnitComposition
+from common.observation import Observation
 
 
 @total_ordering
@@ -29,8 +30,7 @@ class StrategyTier(enum.Enum):
 
 @dataclass(frozen=True)
 class Strategy:
-    context: BotBase
-    max_harvesters: int
+    obs: Observation
 
     @cached_property
     def composition_deficit(self) -> UnitComposition:
@@ -38,7 +38,7 @@ class Strategy:
 
     @cached_property
     def composition(self) -> UnitComposition:
-        return UnitComposition.of(self.context.all_own_units)
+        return UnitComposition.of(self.obs.bot.all_own_units)
 
     @cached_property
     def composition_target(self) -> UnitComposition:
@@ -46,7 +46,7 @@ class Strategy:
 
     @cached_property
     def enemy_composition(self) -> UnitComposition:
-        return UnitComposition.of(self.context.all_enemy_units)
+        return UnitComposition.of(self.obs.bot.all_enemy_units)
 
     def filter_upgrade(self, upgrade: UpgradeId) -> bool:
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
@@ -56,27 +56,25 @@ class Strategy:
         elif upgrade == UpgradeId.BURROW:
             return self.tier >= StrategyTier.Hatch
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
-            return 0 < self.context.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False)
+            return 0 < self.obs.bot.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False)
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
-            return 0 < self.context.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False)
+            return 0 < self.obs.bot.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False)
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL3:
-            return 0 < self.context.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False)
+            return 0 < self.obs.bot.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False)
         elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
-            return 0 < self.context.count(UnitTypeId.GREATERSPIRE, include_planned=False)
+            return 0 < self.obs.bot.count(UnitTypeId.GREATERSPIRE, include_planned=False)
         elif upgrade == UpgradeId.OVERLORDSPEED:
             return self.tier >= StrategyTier.Lair
         else:
             return True
 
     def can_build(self, t: UnitTypeId) -> bool:
-        return not any(self.context.get_missing_requirements(t))
+        return not any(self.obs.bot.get_missing_requirements(t))
 
     @cached_property
     def army_composition(self) -> UnitComposition:
-        if self.context.tech_requirement_progress(UnitTypeId.ZERGLING) < 0.8:
+        if self.obs.bot.tech_requirement_progress(UnitTypeId.ZERGLING) < 0.8:
             return UnitComposition({})
-        saturation = self.context.state.score.food_used_economy / self.max_harvesters
-        ratio = 2.5 * max(1 - self.confidence_global, saturation)
         ratio = 2.0
         composition = self.counter_composition
         composition += {
@@ -91,7 +89,7 @@ class Strategy:
     @cached_property
     def counter_composition(self) -> UnitComposition:
         def total_cost(t: UnitTypeId) -> float:
-            return self.context.cost.of(t).total_resources
+            return self.obs.bot.cost.of(t).total_resources
 
         composition = defaultdict[UnitTypeId, float](float)
         for enemy_type, count in self.enemy_composition.items():
@@ -103,21 +101,21 @@ class Strategy:
 
     @cached_property
     def tier(self) -> StrategyTier:
-        if self.context.supply_workers < 32 or self.context.townhalls.amount < 3:
+        if self.obs.bot.supply_workers < 32 or self.obs.bot.townhalls.amount < 3:
             return StrategyTier.Zero
-        elif self.context.supply_workers < 66 or self.context.townhalls.amount < 4:
+        elif self.obs.bot.supply_workers < 66 or self.obs.bot.townhalls.amount < 4:
             return StrategyTier.Hatch
-        elif self.context.supply_workers < 80 or self.context.townhalls.amount < 5:
+        elif self.obs.bot.supply_workers < 80 or self.obs.bot.townhalls.amount < 5:
             return StrategyTier.Lair
         return StrategyTier.Hive
 
     @cached_property
     def force_global(self) -> float:
-        return self.context.cost.of_composition(self.composition).total_resources
+        return self.obs.bot.cost.of_composition(self.composition).total_resources
 
     @cached_property
     def enemy_force_global(self) -> float:
-        return self.context.cost.of_composition(self.enemy_composition).total_resources
+        return self.obs.bot.cost.of_composition(self.enemy_composition).total_resources
 
     @cached_property
     def confidence_global(self) -> float:
@@ -125,8 +123,8 @@ class Strategy:
 
     @cached_property
     def macro_composition(self) -> UnitComposition:
-        harvester_target = self.max_harvesters
-        queen_target = max(0, min(12, (1 + self.context.townhalls.amount)))
+        harvester_target = max(1, min(80, self.obs.max_harvesters))
+        queen_target = max(0, min(12, (1 + self.obs.bot.townhalls.amount)))
         composition = UnitComposition(
             {
                 UnitTypeId.DRONE: harvester_target,
@@ -146,7 +144,7 @@ class Strategy:
             composition += {UnitTypeId.OVERSEER: 2}
             composition += {UnitTypeId.EVOLUTIONCHAMBER: 1}
             composition += {UnitTypeId.GREATERSPIRE: 1}
-            if self.context.count(UnitTypeId.GREATERSPIRE, include_planned=False) == 0:
+            if self.obs.bot.count(UnitTypeId.GREATERSPIRE, include_planned=False) == 0:
                 composition += {UnitTypeId.GREATERSPIRE: 1}
             else:
                 composition += {UnitTypeId.SPIRE: 1}

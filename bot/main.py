@@ -17,7 +17,6 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sklearn.metrics import pairwise_distances
 
-from bot.ai.observation import Observation
 from bot.combat.corrosive_biles import CorrosiveBiles
 from bot.combat.dodge import Dodge
 from bot.combat.main import Combat
@@ -48,6 +47,7 @@ from bot.queens.transfuse import do_transfuse_single
 from bot.resources.context import HarvesterAssignment, ResourceContext
 from bot.resources.main import update_resources
 from bot.resources.report import ResourceReport
+from common.observation import Observation
 
 BlockedPositions: TypeAlias = Assignment[Point2, float]
 
@@ -60,14 +60,11 @@ class PhantomBot(BotBase):
     build_order = OVERHATCH
     harvester_assignment = HarvesterAssignment({})
     version = UNKNOWN_VERSION
-    _blocked_positions = BlockedPositions({})
+    blocked_positions = BlockedPositions({})
     replay_tags = set[str]()
-    max_harvesters = 16
-    inject = Inject(InjectAssignment({}))
-    observations = dict[int, Observation]()
+    inject = Inject()
 
-    _did_extractor_trick = False
-    _previous_assignment = Assignment[Unit, Unit]({})
+    did_extractor_trick = False
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -134,22 +131,12 @@ class PhantomBot(BotBase):
 
     async def do_step(self) -> None:
 
-        for action in self.state.actions_unit_commands:
-            self.corrosive_biles.handle_action(action)
+        observation = Observation(self)
 
-        observation = Observation(
-            game_loop=self.state.game_loop,
-            composition=UnitComposition.of(self.all_own_units),
-            enemy_composition=UnitComposition.of(self.all_enemy_units),
-        )
-        self.observations[self.state.game_loop] = observation
-        strategy = Strategy(
-            context=self,
-            max_harvesters=max(1, min(80, self.max_harvesters)),  # TODO: exclude mined out resources,
-        )
-        for plan in self.macro(strategy):
+        strategy = Strategy(observation)
+        for plan in self.macro(observation, strategy):
             self.planner.add(plan)
-        async for action in self.micro(strategy):
+        async for action in self.micro(observation, strategy):
             success = await action.execute(self)
             if not success:
                 await self.add_replay_tag("action_failed")
@@ -160,14 +147,14 @@ class PhantomBot(BotBase):
             self.replay_tags.add(tag)
             await self.client.chat_send(f"Tag:{tag}", True)
 
-    def macro(self, strategy: Strategy) -> Iterable[MacroPlan]:
+    def macro(self, observation: Observation, strategy: Strategy) -> Iterable[MacroPlan]:
         if (build_order_actions := self.run_build_order()) is not None:
             return build_order_actions
         return chain(
             self.make_composition(strategy.composition_target),
             self.make_tech(strategy),
             self.morph_overlord(),
-            self.expand(),
+            self.expand(observation),
         )
 
     def optimal_gas_ratio(self, composition: UnitComposition) -> float:
@@ -221,13 +208,14 @@ class PhantomBot(BotBase):
 
     async def micro(
         self,
+        observation: Observation,
         strategy: Strategy,
     ) -> AsyncGenerator[Action, None]:
 
-        if not self._did_extractor_trick and self.supply_left <= 0:
+        if not self.did_extractor_trick and self.supply_left <= 0:
             for gas in self.gas_buildings.not_ready:
                 yield UseAbility(gas, AbilityId.CANCEL)
-                self._did_extractor_trick = True
+                self.did_extractor_trick = True
 
         retreat_targets = list[Point2]()
         attack_targets = list[Point2]()
@@ -263,13 +251,14 @@ class PhantomBot(BotBase):
             attack_targets=frozenset(attack_targets),
         )
 
-        creep = self.creep.update(self, combat)
-        inject = self.inject = self.inject.update(self.units(UnitTypeId.QUEEN), self.townhalls.ready)
+        creep_mask = combat.confidence >= 0
+        creep = self.creep.step(observation, creep_mask)
+        inject = self.inject.step(self.units(UnitTypeId.QUEEN), self.townhalls.ready)
         should_inject = self.supply_used + self.larva.amount < 200
         should_spread_creep = self.creep.active_tumor_count < 10
 
-        blocked_positions = self._blocked_positions = self.update_blocked_positions(self._blocked_positions)
-        planned_actions = await self.planner.get_actions(self, set(blocked_positions), combat)
+        self.update_blocked_positions()
+        planned_actions = await self.planner.get_actions(self, set(self.blocked_positions), combat)
 
         def should_harvest(u: Unit) -> bool:
             if self.is_micro_map:
@@ -304,17 +293,18 @@ class PhantomBot(BotBase):
         )
         resource_report = update_resources(resource_context)
         self.harvester_assignment = resource_report.assignment
-        self.max_harvesters = resource_context.max_harvesters
         for plan in self.build_gasses(resource_report):
             self.planner.add(plan)
 
         dodge = self._dodge = self._dodge.update(self)
 
+        corrosive_biles = self.corrosive_biles.step(observation)
+
         def micro_queen(q: Unit) -> Action | None:
             return (
                 do_transfuse_single(q, combat.units)
                 or (combat.fight_with(q) if 0 < combat.enemy_presence.dps[q.position.rounded] else None)
-                or (inject.inject_with(q) if should_inject else None)
+                or (inject.get(q) if should_inject else None)
                 or (creep.spread_with_queen(q) if should_spread_creep else None)
                 or (combat.retreat_with(q) if not self.has_creep(q) else None)
                 or combat.fight_with(q)
@@ -375,13 +365,13 @@ class PhantomBot(BotBase):
                 dodge.dodge_with(u)
                 or (combat.do_burrow(u) if u.type_id in {UnitTypeId.ROACH} else None)
                 or (combat.do_unburrow(u) if u.type_id in {UnitTypeId.ROACHBURROWED} else None)
-                or (self.corrosive_biles.get_action(self, u) if u.type_id in {UnitTypeId.RAVAGER} else None)
+                or (corrosive_biles.actions.get(u) if u.type_id in {UnitTypeId.RAVAGER} else None)
                 or (micro_queen(u) if unit.type_id in {UnitTypeId.QUEEN} else None)
                 or combat.fight_with(u)
                 or self.search_with(u)
             )
 
-        scout_actions = self.get_scouting(blocked_positions).get_actions()
+        scout_actions = self.get_scouting(self.blocked_positions).get_actions()
 
         for action in planned_actions.values():
             yield action
@@ -389,8 +379,9 @@ class PhantomBot(BotBase):
             yield action
         for worker in harvesters:
             yield micro_harvester(worker) or DoNothing()
-        for tumor in self.creep.get_active_tumors(self):
-            yield creep.spread_with_tumor(tumor) or DoNothing()
+        for tumor in observation.units({UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMOR}):
+            if self.creep.is_active(observation, tumor):
+                yield creep.spread_with_tumor(tumor) or DoNothing()
         for action in micro_overseers(self.units(UnitTypeId.OVERSEER)):
             yield action
         for unit in self.units(UnitTypeId.OVERLORD):
@@ -423,7 +414,7 @@ class PhantomBot(BotBase):
 
     def run_build_order(self) -> list[MacroPlan] | None:
         for i, step in enumerate(self.build_order.steps):
-            if step.cancel and self._did_extractor_trick:
+            if step.cancel and self.did_extractor_trick:
                 pass
             elif self.count(step.unit, include_planned=False) >= step.count:
                 pass
@@ -449,7 +440,7 @@ class PhantomBot(BotBase):
             return None
         return Move(unit, target)
 
-    def update_blocked_positions(self, blocked_positions: BlockedPositions) -> BlockedPositions:
+    def update_blocked_positions(self) -> None:
         for error in self.state.action_errors:
             if (
                 error.result == ActionResult.CantBuildLocationInvalid.value
@@ -457,13 +448,12 @@ class PhantomBot(BotBase):
             ):
                 if unit := self.unit_tag_dict.get(error.unit_tag):
                     p = unit.position.rounded
-                    if p not in blocked_positions:
-                        blocked_positions += {p: self.time}
+                    if p not in self.blocked_positions:
+                        self.blocked_positions += {p: self.time}
                         logger.info(f"Detected blocked base {p}")
-        for position, blocked_since in blocked_positions.items():
+        for position, blocked_since in self.blocked_positions.items():
             if blocked_since + 60 < self.time:
-                blocked_positions -= {position}
-        return blocked_positions
+                self.blocked_positions -= {position}
 
     def make_composition(self, composition: UnitComposition) -> Iterable[MacroPlan]:
         if 200 <= self.supply_used:
@@ -513,14 +503,14 @@ class PhantomBot(BotBase):
             return
         yield MacroPlan(UnitTypeId.OVERLORD, priority=1)
 
-    def expand(self) -> Iterable[MacroPlan]:
+    def expand(self, observation: Observation) -> Iterable[MacroPlan]:
 
         if self.time < 50:
             return
         if 2 == self.townhalls.amount and 2 > self.count(UnitTypeId.QUEEN, include_planned=False):
             return
 
-        worker_max = self.max_harvesters
+        worker_max = observation.max_harvesters
         saturation = max(0, min(1, self.state.score.food_used_economy / max(1, worker_max)))
         if 2 < self.townhalls.amount and 4 / 5 > saturation:
             return

@@ -115,15 +115,12 @@ def run_local(
     opponent = Computer(Race[race], Difficulty[difficulty], AIBuild[build])
 
     print("Starting local game...")
-    try:
-        result = run_game(
-            maps.get(random.choice(map_choices)),
-            [bot, opponent],
-            realtime=realtime,
-            save_replay_as=replay_path,
-        )
-    except Exception as e:
-        result = Result.Victory
+    result = run_game(
+        maps.get(random.choice(map_choices)),
+        [bot, opponent],
+        realtime=realtime,
+        save_replay_as=replay_path,
+    )
     print(f"Game finished: {result}")
 
     print("Updating parameters...")
