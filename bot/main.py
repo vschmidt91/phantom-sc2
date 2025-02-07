@@ -36,18 +36,18 @@ from bot.common.constants import (
     WITH_TECH_EQUIVALENTS,
 )
 from bot.common.main import BotBase
+from bot.common.observation import Observation
 from bot.common.unit_composition import UnitComposition
 from bot.debug import Debug, DebugBase, DebugDummy
 from bot.macro.build_order import OVERHATCH
 from bot.macro.planner import MacroId, MacroPlan, MacroPlanner
 from bot.macro.strategy import Strategy
 from bot.queens.creep import CreepSpread
-from bot.queens.inject import Inject, InjectAssignment
+from bot.queens.inject import Inject
 from bot.queens.transfuse import do_transfuse_single
 from bot.resources.context import HarvesterAssignment, ResourceContext
 from bot.resources.main import update_resources
 from bot.resources.report import ResourceReport
-from common.observation import Observation
 
 BlockedPositions: TypeAlias = Assignment[Point2, float]
 
@@ -379,7 +379,9 @@ class PhantomBot(BotBase):
             yield action
         for worker in harvesters:
             yield micro_harvester(worker) or DoNothing()
-        for tumor in observation.units({UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMOR}):
+        for tumor in observation.units(
+            {UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMOR}
+        ):
             if self.creep.is_active(observation, tumor):
                 yield creep.spread_with_tumor(tumor) or DoNothing()
         for action in micro_overseers(self.units(UnitTypeId.OVERSEER)):

@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import Iterable, TypeAlias
 
 from loguru import logger

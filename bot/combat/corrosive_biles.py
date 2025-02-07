@@ -1,22 +1,19 @@
 from dataclasses import dataclass
 
-from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
 from bot.common.action import Action, UseAbility
 from bot.common.constants import CHANGELINGS, COOLDOWN
-from bot.common.main import BotBase
-from bot.common.assignment import Assignment
-from common.observation import Observation
+from bot.common.observation import Observation
 
 _ABILITY = AbilityId.EFFECT_CORROSIVEBILE
 
 
 @dataclass(frozen=True)
 class CorrosiveBilesReport:
-    actions: Assignment[Unit, Action]
+    actions: dict[Unit, Action]
 
 
 class CorrosiveBiles:
@@ -30,9 +27,7 @@ class CorrosiveBiles:
                 if action.exact_id == _ABILITY:
                     self.bile_last_used[ravager.tag] = action.game_loop
 
-        actions = {
-            r: a for r in ravagers if (a := self.step_unit(obs, r))
-        }
+        actions = {r: a for r in ravagers if (a := self.step_unit(obs, r))}
         return CorrosiveBilesReport(actions)
 
     def step_unit(self, obs: Observation, unit: Unit) -> Action | None:

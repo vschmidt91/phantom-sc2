@@ -3,9 +3,7 @@ from functools import cached_property
 
 import numpy as np
 from sc2.game_state import ActionRawUnitCommand
-from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2
-from sc2.unit import Unit
 from sc2.units import Units
 
 from bot.common.main import BotBase
@@ -33,24 +31,20 @@ class Observation:
         )
 
     @cached_property
-    def creep(self) -> np.ndarray[bool]:
+    def creep(self) -> np.ndarray:
         return self.bot.state.creep.data_numpy.T == 1
 
     @cached_property
-    def visibility(self) -> np.ndarray[bool]:
+    def visibility(self) -> np.ndarray:
         return self.bot.state.visibility.data_numpy.T == 2
 
     @cached_property
-    def pathing(self) -> np.ndarray[bool]:
+    def pathing(self) -> np.ndarray:
         return self.bot.mediator.get_map_data_object.get_pyastar_grid() == 1.0
 
     @cached_property
     def unit_commands(self) -> dict[int, ActionRawUnitCommand]:
-        return {
-            u: a
-            for a in self.bot.state.actions_unit_commands
-            for u in a.unit_tags
-        }
+        return {u: a for a in self.bot.state.actions_unit_commands for u in a.unit_tags}
 
     @cached_property
     def bases(self) -> frozenset[Point2]:

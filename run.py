@@ -12,7 +12,6 @@ from ladder import run_ladder_game
 sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
-sys.path.append("river")
 
 from bot.main import PhantomBot
 from bot.parameter.constants import PARAM_PRIORS
