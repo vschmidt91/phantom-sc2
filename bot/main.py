@@ -279,9 +279,10 @@ class PhantomBot(BotBase):
 
         if self.is_micro_map:
             resources_to_harvest = Units([], self)
+            gas_ratio = 0.0
         else:
             resources_to_harvest = self.all_taken_resources.filter(should_harvest_resource)
-        gas_ratio = self.optimal_gas_ratio(strategy.composition_deficit)
+            gas_ratio = self.optimal_gas_ratio(strategy.composition_deficit)
         resource_context = ResourceContext(
             self,
             self.harvester_assignment,
