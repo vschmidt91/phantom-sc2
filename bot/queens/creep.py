@@ -108,11 +108,9 @@ class CreepSpread:
             creation_step = self.created_at_step.setdefault(t.tag, obs.game_loop)
             if t.tag in self.spread_at_step:
                 return False
-            if obs.game_loop < creation_step + _TUMOR_COOLDOWN:
-                return False
-            return True
+            return creation_step + _TUMOR_COOLDOWN <= obs.game_loop
 
-        all_tumors = obs.units({UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMOR})
+        all_tumors = obs.structures({UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMOR})
         active_tumors = {t for t in all_tumors if is_active(t)}
 
         return CreepSpreadStep(
