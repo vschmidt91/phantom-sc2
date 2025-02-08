@@ -37,7 +37,7 @@ from bot.common.constants import (
 from bot.common.main import BotBase
 from bot.common.observation import Observation
 from bot.common.unit_composition import UnitComposition
-from bot.debug import Debug, DebugBase, DebugDummy
+from bot.debug import Debug
 from bot.macro.build_order import OVERHATCH
 from bot.macro.planner import MacroId, MacroPlan, MacroPlanner
 from bot.macro.strategy import Strategy
@@ -55,7 +55,7 @@ class PhantomBot(BotBase):
     creep = CreepSpread()
     corrosive_biles = CorrosiveBiles()
     planner = MacroPlanner()
-    debug: DebugBase = DebugDummy()
+    debug: Debug | None = None
     inject = Inject()
     dodge = Dodge()
 
@@ -85,7 +85,8 @@ class PhantomBot(BotBase):
         if iteration == 0:
             if self.config[DEBUG]:  # local only: skip first iteration like on the ladder
                 return
-        await self.debug.on_step_start()
+        if self.debug:
+            await self.debug.on_step_start()
         await super().on_step(iteration)
 
         observation = Observation(self)
@@ -104,7 +105,8 @@ class PhantomBot(BotBase):
                 await self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
 
-        await self.debug.on_step_end()
+        if self.debug:
+            await self.debug.on_step_end()
 
     # async def on_before_start(self):
     #     await super().on_before_start()

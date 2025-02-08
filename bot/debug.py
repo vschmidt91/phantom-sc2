@@ -15,31 +15,8 @@ from bot.common.main import BotBase
 from bot.macro.planner import MacroPlan
 
 
-class DebugBase(ABC):
-    async def on_start(self) -> None:
-        raise NotImplementedError()
-
-    async def on_step_start(self) -> None:
-        raise NotImplementedError()
-
-    async def on_step_end(self) -> None:
-        raise NotImplementedError()
-
-
 @dataclass(frozen=True)
-class DebugDummy(DebugBase):
-    async def on_start(self) -> None:
-        pass
-
-    async def on_step_start(self) -> None:
-        pass
-
-    async def on_step_end(self) -> None:
-        pass
-
-
-@dataclass(frozen=True)
-class Debug(DebugBase):
+class Debug:
     bot: BotBase
     profiler = cProfile.Profile()
 
