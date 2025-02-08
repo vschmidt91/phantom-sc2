@@ -31,7 +31,6 @@ from bot.common.constants import (
     ENERGY_COST,
     GAS_BY_RACE,
     REQUIREMENTS,
-    UNKNOWN_VERSION,
     VERSION_FILE,
     WITH_TECH_EQUIVALENTS,
 )
@@ -57,14 +56,12 @@ class PhantomBot(BotBase):
     corrosive_biles = CorrosiveBiles()
     planner = MacroPlanner()
     debug: DebugBase = DebugDummy()
-    build_order = OVERHATCH
-    harvester_assignment = HarvesterAssignment({})
-    version = UNKNOWN_VERSION
-    blocked_positions = BlockedPositions({})
-    replay_tags = set[str]()
     inject = Inject()
 
-    did_extractor_trick = False
+    harvester_assignment = HarvesterAssignment({})
+    blocked_positions = BlockedPositions({})
+    build_order = OVERHATCH
+    replay_tags = set[str]()
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -85,12 +82,28 @@ class PhantomBot(BotBase):
                 await self.add_replay_tag(f"version_{f.read()}")
 
     async def on_step(self, iteration: int):
-        if self.config[DEBUG]:
-            if iteration == 0:  # local only: skip first iteration like on the ladder
+        if iteration == 0:
+            if self.config[DEBUG]:  # local only: skip first iteration like on the ladder
                 return
         await self.debug.on_step_start()
         await super().on_step(iteration)
-        await self.do_step()
+
+        observation = Observation(self)
+        strategy = Strategy(observation)
+        actions = [a async for a in self.micro(observation, strategy)]
+        if build_order := self.build_order.execute(observation):
+            actions.extend(build_order.actions)
+            for plan in build_order.plans:
+                self.planner.add(plan)
+        else:
+            for plan in self.macro(observation, strategy):
+                self.planner.add(plan)
+        for action in actions:
+            success = await action.execute(self)
+            if not success:
+                await self.add_replay_tag("action_failed")
+                logger.error(f"Action failed: {action}")
+
         await self.debug.on_step_end()
 
     # async def on_before_start(self):
@@ -129,27 +142,12 @@ class PhantomBot(BotBase):
     # ^^^^^^^^^^
     # CALLBACKS ========================================================================================================
 
-    async def do_step(self) -> None:
-
-        observation = Observation(self)
-
-        strategy = Strategy(observation)
-        for plan in self.macro(observation, strategy):
-            self.planner.add(plan)
-        async for action in self.micro(observation, strategy):
-            success = await action.execute(self)
-            if not success:
-                await self.add_replay_tag("action_failed")
-                logger.error(f"Action failed: {action}")
-
     async def add_replay_tag(self, tag: str) -> None:
         if tag not in self.replay_tags:
             self.replay_tags.add(tag)
             await self.client.chat_send(f"Tag:{tag}", True)
 
     def macro(self, observation: Observation, strategy: Strategy) -> Iterable[MacroPlan]:
-        if (build_order_actions := self.run_build_order()) is not None:
-            return build_order_actions
         return chain(
             self.make_composition(strategy.composition_target),
             self.make_tech(strategy),
@@ -212,11 +210,6 @@ class PhantomBot(BotBase):
         strategy: Strategy,
     ) -> AsyncGenerator[Action, None]:
 
-        if not self.did_extractor_trick and self.supply_left <= 0:
-            for gas in self.gas_buildings.not_ready:
-                yield UseAbility(gas, AbilityId.CANCEL)
-                self.did_extractor_trick = True
-
         retreat_targets = list[Point2]()
         attack_targets = list[Point2]()
 
@@ -255,7 +248,7 @@ class PhantomBot(BotBase):
         creep = self.creep.step(observation, creep_mask)
         inject = self.inject.step(self.units(UnitTypeId.QUEEN), self.townhalls.ready)
         should_inject = self.supply_used + self.larva.amount < 200
-        should_spread_creep = self.creep.active_tumor_count < 10
+        should_spread_creep = self.creep.unspread_tumor_count < 10
 
         self.update_blocked_positions()
         planned_actions = await self.planner.get_actions(self, set(self.blocked_positions), combat)
@@ -380,11 +373,8 @@ class PhantomBot(BotBase):
             yield action
         for worker in harvesters:
             yield micro_harvester(worker) or DoNothing()
-        for tumor in observation.units(
-            {UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMOR}
-        ):
-            if self.creep.is_active(observation, tumor):
-                yield creep.spread_with_tumor(tumor) or DoNothing()
+        for tumor in creep.active_tumors:
+            yield creep.spread_with_tumor(tumor) or DoNothing()
         for action in micro_overseers(self.units(UnitTypeId.OVERSEER)):
             yield action
         for unit in self.units(UnitTypeId.OVERLORD):
@@ -414,18 +404,6 @@ class PhantomBot(BotBase):
 
     def planned_by_type(self, item: MacroId) -> Iterable:
         return self.planner.planned_by_type(item)
-
-    def run_build_order(self) -> list[MacroPlan] | None:
-        for i, step in enumerate(self.build_order.steps):
-            if step.cancel and self.did_extractor_trick:
-                pass
-            elif self.count(step.unit, include_planned=False) >= step.count:
-                pass
-            elif self.count(step.unit) < step.count:
-                return [MacroPlan(step.unit, priority=-i)]
-            else:
-                return []
-        return None
 
     def search_with(self, unit: Unit) -> Action | None:
         if not unit.is_idle:

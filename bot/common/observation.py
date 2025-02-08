@@ -18,6 +18,14 @@ class Observation:
         return self.bot.units
 
     @property
+    def structures(self) -> Units:
+        return self.bot.structures
+
+    @property
+    def enemy_units(self) -> Units:
+        return self.bot.all_enemy_units
+
+    @property
     def game_loop(self):
         return self.bot.state.game_loop
 

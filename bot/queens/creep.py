@@ -23,6 +23,7 @@ _BASE_SIZE = (5, 5)
 class CreepSpreadStep:
     obs: Observation
     mask: np.ndarray
+    active_tumors: set[Unit]
 
     @property
     def prevent_blocking(self):
@@ -79,9 +80,9 @@ class CreepSpreadStep:
         return None
 
     def spread_with_queen(self, queen: Unit) -> Action | None:
-        if queen.energy < ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN]:
-            return None
-        return self._place_tumor(queen, 12, full_circle=True)
+        if ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN] <= queen.energy:
+            return self._place_tumor(queen, 12, full_circle=True)
+        return None
 
     def spread_with_tumor(self, tumor: Unit) -> Action | None:
         return self._place_tumor(tumor, 10)
@@ -89,22 +90,12 @@ class CreepSpreadStep:
 
 class CreepSpread:
 
-    created_at_step: dict[int, int] = dict()
-    spread_at_step: dict[int, int] = dict()
+    created_at_step = dict[int, int]()
+    spread_at_step = dict[int, int]()
 
     @property
-    def active_tumor_count(self):
+    def unspread_tumor_count(self):
         return len(self.created_at_step) - len(self.spread_at_step)
-
-    def is_active(self, obs: Observation, tumor: Unit) -> bool:
-        if not (creation_step := self.created_at_step.get(tumor.tag)):
-            return False
-        if tumor.tag in self.spread_at_step:
-            return False
-        if obs.game_loop < creation_step + _TUMOR_COOLDOWN:
-            return False
-        else:
-            return True
 
     def step(self, obs: Observation, mask: np.ndarray) -> CreepSpreadStep:
 
@@ -113,11 +104,19 @@ class CreepSpread:
                 if cmd.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
                     self.spread_at_step[t] = obs.game_loop
 
-        tumors = obs.units({UnitTypeId.CREEPTUMORBURROWED})
-        for tumor in tumors:
-            self.created_at_step.setdefault(tumor.tag, obs.game_loop)
+        def is_active(t: Unit) -> bool:
+            creation_step = self.created_at_step.setdefault(t.tag, obs.game_loop)
+            if t.tag in self.spread_at_step:
+                return False
+            if obs.game_loop < creation_step + _TUMOR_COOLDOWN:
+                return False
+            return True
+
+        all_tumors = obs.units({UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMOR})
+        active_tumors = {t for t in all_tumors if is_active(t)}
 
         return CreepSpreadStep(
             obs,
             mask,
+            active_tumors,
         )
