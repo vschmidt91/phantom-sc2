@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from functools import cached_property
 
 import numpy as np
 from loguru import logger
@@ -10,7 +9,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from bot.common.action import Action, Move, UseAbility
-from bot.common.main import BotBase
+from bot.common.observation import Observation
 
 
 @dataclass(frozen=True)
@@ -44,33 +43,52 @@ class DodgeItem:
 
 
 @dataclass(frozen=True)
-class Dodge:
-
-    context: BotBase
-    effects: dict[DodgeItem, float]
-    units: dict[DodgeItem, float]
+class DodgeResult:
+    observation: Observation
+    items: dict[DodgeItem, float]
 
     safety_distance: float = 1.0
     safety_time = 0.1
     min_distance = 1e-3
 
-    @cached_property
-    def all_items(self) -> dict[DodgeItem, float]:
-        return self.units | self.effects
+    def dodge_with(self, unit: Unit) -> Action | None:
+        for item, time_of_impact in self.items.items():
+            if action := self._dodge_item(unit, item, time_of_impact):
+                return action
+        return None
 
-    def update(self, context: BotBase) -> "Dodge":
+    def _dodge_item(self, unit: Unit, item: DodgeItem, time_of_impact: float) -> Action | None:
+        time_remaining = max(0.0, time_of_impact - self.observation.bot.time - self.safety_time)
+        distance_bonus = 1.4 * unit.movement_speed * time_remaining
+        distance_have = unit.distance_to(item.position)
+        distance_want = item.circle.radius + unit.radius
+        if distance_have + distance_bonus >= distance_want + self.safety_distance:
+            return None
+        if unit.is_burrowed and not self.observation.bot.can_move(unit):
+            return UseAbility(unit, AbilityId.BURROWUP)
+        dodge_from = item.position
+        if distance_have < self.min_distance:
+            dodge_from += Point2(np.random.normal(loc=0.0, scale=self.min_distance, size=2))
+        target = dodge_from.towards(unit, distance_want + self.safety_distance)
+        return Move(unit, target)
+
+
+class Dodge:
+    effects = dict[DodgeItem, float]()
+
+    def step(self, observation: Observation) -> DodgeResult:
 
         effects = dict(self.effects)
 
         units = {
-            DodgeItem(unit.position, circle): context.time
-            for unit in context.all_enemy_units
+            DodgeItem(unit.position, circle): observation.bot.time
+            for unit in observation.bot.all_enemy_units
             for circle in DODGE_UNITS.get(unit.type_id, [])
         }
 
         active_effects: set[DodgeItem] = set()
-        for effect in context.state.effects:
-            time_of_impact = context.time + EFFECT_DELAY.get(effect.id, 0.0)
+        for effect in observation.bot.state.effects:
+            time_of_impact = observation.bot.time + EFFECT_DELAY.get(effect.id, 0.0)
             for position in effect.positions:
                 for circle in DODGE_EFFECTS.get(effect.id, []):
                     item = DodgeItem(position, circle)
@@ -79,30 +97,9 @@ class Dodge:
 
         # remove old effects that impacted
         for item, time_of_impact in list(effects.items()):
-            if time_of_impact < context.time:
+            if time_of_impact < observation.bot.time:
                 del effects[item]
                 if item in active_effects:
                     logger.error(f"Effect impacted earlier than expected: {item}")
 
-        return Dodge(context=context, effects=effects, units=units)
-
-    def dodge_with(self, unit: Unit) -> Action | None:
-        for item, time_of_impact in self.all_items.items():
-            if action := self._dodge_item(unit, item, time_of_impact):
-                return action
-        return None
-
-    def _dodge_item(self, unit: Unit, item: DodgeItem, time_of_impact: float) -> Action | None:
-        time_remaining = max(0.0, time_of_impact - self.context.time - self.safety_time)
-        distance_bonus = 1.4 * unit.movement_speed * time_remaining
-        distance_have = unit.distance_to(item.position)
-        distance_want = item.circle.radius + unit.radius
-        if distance_have + distance_bonus >= distance_want + self.safety_distance:
-            return None
-        if unit.is_burrowed and not self.context.can_move(unit):
-            return UseAbility(unit, AbilityId.BURROWUP)
-        dodge_from = item.position
-        if distance_have < self.min_distance:
-            dodge_from += Point2(np.random.normal(loc=0.0, scale=self.min_distance, size=2))
-        target = dodge_from.towards(unit, distance_want + self.safety_distance)
-        return Move(unit, target)
+        return DodgeResult(observation, self.effects | units)

@@ -57,6 +57,7 @@ class PhantomBot(BotBase):
     planner = MacroPlanner()
     debug: DebugBase = DebugDummy()
     inject = Inject()
+    dodge = Dodge()
 
     harvester_assignment = HarvesterAssignment({})
     blocked_positions = BlockedPositions({})
@@ -65,7 +66,6 @@ class PhantomBot(BotBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._dodge = Dodge(self, effects={}, units={})
 
     # CALLBACKS ========================================================================================================
     # vvvvvvvvv
@@ -290,7 +290,7 @@ class PhantomBot(BotBase):
         for plan in self.build_gasses(resource_report):
             self.planner.add(plan)
 
-        dodge = self._dodge = self._dodge.update(self)
+        dodge = self.dodge.step(observation)
 
         corrosive_biles = self.corrosive_biles.step(observation)
 
