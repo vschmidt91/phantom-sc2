@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from functools import cached_property, cmp_to_key
 from typing import Callable
@@ -307,11 +308,16 @@ class Combat:
 
             return min(1e8, np.divide(risk, reward))
 
+        if self.enemy_units:
+            max_assigned = 2 * math.ceil(len(self.units) / len(self.enemy_units))
+        else:
+            max_assigned = 1
+
         assignment = Assignment.distribute(
             self.units,
             self.enemy_units,
             cost_fn,
-            # max_assigned=len(self.units),
+            max_assigned=max_assigned,
         )
 
         return assignment
