@@ -3,7 +3,6 @@ import lzma
 import os
 import pickle
 import pstats
-from abc import ABC
 from dataclasses import dataclass
 
 from loguru import logger

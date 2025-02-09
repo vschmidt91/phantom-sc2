@@ -24,6 +24,68 @@ DpsProvider = Callable[[UnitTypeId], float]
 
 
 @dataclass(frozen=True)
+class CombatPrediction:
+    survival_time: dict[Unit, float]
+
+
+@dataclass(frozen=True)
+class CombatPredictor:
+    units: Units
+    enemy_units: Units
+
+    @cached_property
+    def prediction(self, step_time: float = 0.2, max_steps: int = 100) -> CombatPrediction:
+
+        def calculate_dps(u: Unit, v: Unit) -> float:
+            return u.air_dps if v.is_flying else u.ground_dps
+
+        health = np.array([u.health + u.shield for u in self.units])
+        enemy_health = np.array([u.health + u.shield for u in self.enemy_units])
+
+        t = 0.0
+
+        survival = np.array([t for u in self.units])
+        enemy_survival = np.array([t for u in self.enemy_units])
+        for _ in range(max_steps):
+
+            dps = np.array([[calculate_dps(u, v) for v in self.enemy_units] for u in self.units])
+            enemy_dps = np.array([[calculate_dps(v, u) for v in self.enemy_units] for u in self.units])
+
+            alive = 0 < health
+            enemy_alive = 0 < enemy_health
+
+            def calculate_attack_weight(u: Unit, v: Unit) -> float:
+                return 1 / u.distance_to_squared(v)
+
+            attack_weight = np.array([[calculate_attack_weight(u, v) for v in self.enemy_units] for u in self.units])
+            enemy_attack_weight = np.array(
+                [[calculate_attack_weight(v, u) for v in self.enemy_units] for u in self.units]
+            )
+
+            attack_probability = attack_weight / np.sum(attack_weight, axis=1, keepdims=True)
+            enemy_attack_probability = enemy_attack_weight / np.sum(enemy_attack_weight, axis=0, keepdims=True)
+
+            dmg = alive @ (attack_probability * dps)
+            enemy_dmg = (enemy_attack_probability * enemy_dps) @ enemy_alive
+
+            health -= enemy_dmg * step_time
+            enemy_health -= dmg * step_time
+
+            alive = 0 < health
+            enemy_alive = 0 < enemy_health
+
+            t += step_time
+            survival = np.where(alive, t, survival)
+            enemy_survival = np.where(enemy_alive, t, enemy_survival)
+
+            if not any(alive) or not any(enemy_alive):
+                break
+
+        survival_time = dict(zip(self.units, survival)) | dict(zip(self.enemy_units, enemy_survival))
+        return CombatPrediction(survival_time)
+
+
+@dataclass(frozen=True)
 class Combat:
     bot: BotBase
     strategy: Strategy
@@ -35,6 +97,10 @@ class Combat:
     air_pathing: np.ndarray
     retreat_targets: frozenset[Point2]
     attack_targets: frozenset[Point2]
+
+    @cached_property
+    def prediction(self) -> CombatPrediction:
+        return CombatPredictor(self.units, self.enemy_units).prediction
 
     def retreat_with(self, unit: Unit, limit=7) -> Action | None:
         x = round(unit.position.x)
@@ -143,7 +209,10 @@ class Combat:
         safe_spot = None
         for p in attack_path:
             under_fire = 0 < self.enemy_presence.dps[p]
-            confident = 0 < self.confidence[p]
+
+            # confident = 0 < self.confidence[p]
+            confident = self.prediction.survival_time[target] < self.prediction.survival_time[unit]
+
             if under_fire:
                 if confident:
                     if safe_spot:

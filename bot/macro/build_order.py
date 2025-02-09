@@ -41,7 +41,7 @@ class Make(BuildOrder):
 class ExtractorTrick(BuildOrder):
     unit_type = UnitTypeId.EXTRACTOR
     at_supply = 14
-    min_minerals = 40
+    min_minerals = 50
 
     def execute(self, obs: Observation) -> BuildOrderStep | None:
         if self.at_supply == obs.bot.supply_used and obs.bot.supply_left <= 0:
@@ -72,7 +72,7 @@ OVERHATCH = BuildOrderChain(
         ExtractorTrick(),
         Make(UnitTypeId.OVERLORD, 2),
         Make(UnitTypeId.HATCHERY, 2),
-        Make(UnitTypeId.DRONE, 16),
+        Make(UnitTypeId.DRONE, 17),
         Make(UnitTypeId.EXTRACTOR, 1),
         Make(UnitTypeId.SPAWNINGPOOL, 1),
     ]
