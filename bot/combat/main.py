@@ -79,11 +79,11 @@ class Combat:
         return None
 
     @cached_property
-    def shootable_targets(self) -> dict[Unit, Units]:
+    def shootable_targets(self) -> dict[Unit, list[Unit]]:
 
         units = self.bot.all_own_units_slim
         ground_ranges = [u.radius + u.ground_range + MAX_UNIT_RADIUS for u in units]
-        air_ranges = [u.radius + u.ground_range + MAX_UNIT_RADIUS for u in units]
+        air_ranges = [u.radius + u.air_range + MAX_UNIT_RADIUS for u in units]
 
         ground_candidates = self.bot.mediator.get_units_in_range(
             start_points=units,
@@ -95,7 +95,7 @@ class Combat:
             distances=air_ranges,
             query_tree=UnitTreeQueryType.EnemyFlying,
         )
-        targets = {u: filter(u.target_in_range, a | b) for u, a, b in zip(units, ground_candidates, air_candidates)}
+        targets = {u: list(filter(u.target_in_range, a | b)) for u, a, b in zip(units, ground_candidates, air_candidates)}
         return targets
 
     def fight_with(self, unit: Unit) -> Action | None:
