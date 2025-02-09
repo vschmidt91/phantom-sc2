@@ -17,7 +17,7 @@ class CombatPredictor:
     enemy_units: Units
 
     @cached_property
-    def prediction(self, step_time: float = 0.5, max_steps: int = 100) -> CombatPrediction:
+    def prediction(self, step_time: float = 1.0, max_steps: int = 20) -> CombatPrediction:
 
         def calculate_dps(u: Unit, v: Unit) -> float:
             return u.air_dps if v.is_flying else u.ground_dps
