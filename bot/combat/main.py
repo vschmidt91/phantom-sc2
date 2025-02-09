@@ -372,6 +372,7 @@ class Combat:
             self.units,
             self.enemy_units,
             cost_fn,
+            max_assigned=len(self.units),
         )
 
         return assignment
