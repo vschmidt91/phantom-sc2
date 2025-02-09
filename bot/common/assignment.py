@@ -128,7 +128,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
             method="highs",
             bounds=(0.0, 1.0),
             options=dict(maxiter=maxiter),
-            integrality=True,
+            integrality=False,
         )
 
         if not opt.success:
