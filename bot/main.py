@@ -38,7 +38,7 @@ from bot.common.main import BotBase
 from bot.common.observation import Observation
 from bot.common.unit_composition import UnitComposition
 from bot.debug import Debug
-from bot.macro.build_order import OVERHATCH
+from bot.macro.build_order import OVERHATCH, HATCH_FIRST
 from bot.macro.planner import MacroId, MacroPlan, MacroPlanner
 from bot.macro.strategy import Strategy
 from bot.queens.creep import CreepSpread
@@ -61,7 +61,7 @@ class PhantomBot(BotBase):
 
     harvester_assignment = HarvesterAssignment({})
     blocked_positions = BlockedPositions({})
-    build_order = OVERHATCH
+    build_order = HATCH_FIRST
     replay_tags = set[str]()
 
     def __init__(self, *args, **kwargs) -> None:
