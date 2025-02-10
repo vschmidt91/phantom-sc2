@@ -17,39 +17,50 @@ class CombatPredictor:
     enemy_units: Units
 
     @cached_property
-    def prediction(self, step_time: float = 1.0, max_steps: int = 20) -> CombatPrediction:
+    def prediction(self, step_time: float = 0.3, max_steps: int = 100) -> CombatPrediction:
 
         def calculate_dps(u: Unit, v: Unit) -> float:
             return u.air_dps if v.is_flying else u.ground_dps
 
+        dps = np.array([[calculate_dps(u, v) for v in self.enemy_units] for u in self.units])
+        enemy_dps = np.array([[calculate_dps(v, u) for v in self.enemy_units] for u in self.units])
+
+        def calculate_required_distance(u: Unit, v: Unit) -> float:
+            base_range = u.radius + (u.air_range if v.is_flying else u.ground_range) + v.radius
+            distance = u.distance_to(v)
+            return max(0.0, distance - base_range)
+
+        required_distance = np.array(
+            [[calculate_required_distance(u, v) for v in self.enemy_units] for u in self.units]
+        )
+        enemy_required_distance = np.array(
+            [[calculate_required_distance(v, u) for v in self.enemy_units] for u in self.units]
+        )
+
         health = np.array([u.health + u.shield for u in self.units])
         enemy_health = np.array([u.health + u.shield for u in self.enemy_units])
 
+        movement_speed = np.array([u.movement_speed for u in self.units])
+        enemy_movement_speed = np.array([u.movement_speed for u in self.enemy_units])
+
+        movement_speed = np.repeat(movement_speed[..., None], len(self.enemy_units), axis=1)
+        enemy_movement_speed = np.repeat(enemy_movement_speed[None, ...], len(self.units), axis=0)
+
         t = 0.0
+
+        alive = np.array([True for u in self.units])
+        enemy_alive = np.array([True for u in self.enemy_units])
 
         survival = np.array([t for u in self.units])
         enemy_survival = np.array([t for u in self.enemy_units])
+
         for _ in range(max_steps):
 
-            def calculate_attack_weight(u: Unit, v: Unit) -> float:
-                base_range = u.radius + (u.air_range if v.is_flying else u.ground_range)
-                distance = u.distance_to(v)
+            potential_distance = 1e-3 + t * movement_speed
+            enemy_potential_distance = 1e-3 + t * enemy_movement_speed
 
-                required_distance = max(0.0, distance - base_range)
-                potential_distance = 1e-3 + t * u.movement_speed
-
-                return np.clip(1 - required_distance / potential_distance, 0, 1)
-
-            dps = np.array([[calculate_dps(u, v) for v in self.enemy_units] for u in self.units])
-            enemy_dps = np.array([[calculate_dps(v, u) for v in self.enemy_units] for u in self.units])
-
-            alive = 0 < health
-            enemy_alive = 0 < enemy_health
-
-            attack_weight = np.array([[calculate_attack_weight(u, v) for v in self.enemy_units] for u in self.units])
-            enemy_attack_weight = np.array(
-                [[calculate_attack_weight(v, u) for v in self.enemy_units] for u in self.units]
-            )
+            attack_weight = np.clip(1 - required_distance / potential_distance, 0, 1)
+            enemy_attack_weight = np.clip(1 - enemy_required_distance / enemy_potential_distance, 0, 1)
 
             attack_probability = np.nan_to_num(attack_weight / np.sum(attack_weight, axis=1, keepdims=True))
             enemy_attack_probability = np.nan_to_num(
@@ -69,9 +80,6 @@ class CombatPredictor:
             enemy_survival = np.where(enemy_alive, t, enemy_survival)
 
             t += step_time
-
-            if not any(alive) or not any(enemy_alive):
-                break
 
         survival_time = dict(zip(self.units, survival)) | dict(zip(self.enemy_units, enemy_survival))
         return CombatPrediction(survival_time)

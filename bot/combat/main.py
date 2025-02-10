@@ -96,7 +96,9 @@ class Combat:
             distances=air_ranges,
             query_tree=UnitTreeQueryType.EnemyFlying,
         )
-        targets = {u: list(filter(u.target_in_range, a | b)) for u, a, b in zip(units, ground_candidates, air_candidates)}
+        targets = {
+            u: list(filter(u.target_in_range, a | b)) for u, a, b in zip(units, ground_candidates, air_candidates)
+        }
         return targets
 
     def fight_with(self, unit: Unit) -> Action | None:
