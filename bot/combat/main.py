@@ -305,7 +305,7 @@ class Combat:
             else:
                 dps = 1e-8
             kill_time = np.divide(b.health + b.shield, dps)
-            risk = travel_time + 0.1 * kill_time
+            risk = min(1e8, travel_time + 0.1 * kill_time)
             reward = self.bot.calculate_unit_value_weighted(b.type_id)
 
             return np.log1p(risk) - np.log1p(reward)
