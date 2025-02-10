@@ -308,7 +308,7 @@ class Combat:
             risk = travel_time + 0.1 * kill_time
             reward = self.bot.calculate_unit_value_weighted(b.type_id)
 
-            return min(1e8, np.divide(risk, reward))
+            return np.log1p(risk) - np.log1p(reward)
 
         if self.enemy_units:
             optimal_assigned = len(self.units) / len(self.enemy_units)
