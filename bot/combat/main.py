@@ -312,7 +312,8 @@ class Combat:
 
         if self.enemy_units:
             optimal_assigned = len(self.units) / len(self.enemy_units)
-            max_assigned = math.ceil(math.sqrt(optimal_assigned * len(self.enemy_units)))
+            medium_assigned = math.sqrt(len(self.units))
+            max_assigned = math.ceil(max(medium_assigned, optimal_assigned))
         else:
             max_assigned = 1
 
