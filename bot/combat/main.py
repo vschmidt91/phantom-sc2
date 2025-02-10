@@ -311,7 +311,8 @@ class Combat:
             return min(1e8, np.divide(risk, reward))
 
         if self.enemy_units:
-            max_assigned = 3 * math.ceil(len(self.units) / len(self.enemy_units))
+            optimal_assigned = len(self.units) / len(self.enemy_units)
+            max_assigned = math.ceil(math.sqrt(optimal_assigned * len(self.enemy_units)))
         else:
             max_assigned = 1
 
