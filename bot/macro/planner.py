@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from itertools import chain
 from typing import Iterable, TypeAlias
 
-from combat.action import CombatAction
 from loguru import logger
 from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.ability_id import AbilityId
@@ -14,6 +13,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
+from bot.combat.action import CombatAction
 from bot.common.action import Action, HoldPosition, Move, UseAbility
 from bot.common.constants import (
     ALL_MACRO_ABILITIES,

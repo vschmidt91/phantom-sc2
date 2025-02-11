@@ -4,20 +4,21 @@ from functools import cached_property, cmp_to_key
 
 import numpy as np
 from ares import UnitTreeQueryType
-from combat.predictor import CombatPrediction, CombatPredictor
-from combat.presence import Presence
-from common.action import Action, Attack, HoldPosition, Move, UseAbility
-from common.assignment import Assignment
-from common.constants import CIVILIANS, HALF, MAX_UNIT_RADIUS, WORKERS
-from common.observation import Observation
-from common.utils import Point, can_attack, combine_comparers, disk
-from cython.dijkstra_pathing import DijkstraPathing
-from macro.strategy import Strategy
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
+
+from bot.combat.predictor import CombatPrediction, CombatPredictor
+from bot.combat.presence import Presence
+from bot.common.action import Action, Attack, HoldPosition, Move, UseAbility
+from bot.common.assignment import Assignment
+from bot.common.constants import CIVILIANS, HALF, MAX_UNIT_RADIUS, WORKERS
+from bot.common.observation import Observation
+from bot.common.utils import Point, can_attack, combine_comparers, disk
+from bot.cython.dijkstra_pathing import DijkstraPathing
+from bot.macro.strategy import Strategy
 
 
 @dataclass(frozen=True)

@@ -6,7 +6,6 @@ from typing import AsyncGenerator, Iterable, TypeAlias
 
 import numpy as np
 from ares import DEBUG
-from corrosive_biles import CorrosiveBile
 from cython_extensions import cy_closest_to
 from loguru import logger
 from sc2.data import ActionResult
@@ -16,7 +15,6 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
-from scout import Scout
 
 from bot.combat.action import CombatAction
 from bot.combat.dodge import DodgeState
@@ -34,6 +32,7 @@ from bot.common.constants import (
 from bot.common.main import BotBase
 from bot.common.observation import Observation
 from bot.common.unit_composition import UnitComposition
+from bot.corrosive_biles import CorrosiveBile
 from bot.debug import Debug
 from bot.macro.build_order import HATCH_FIRST
 from bot.macro.planner import MacroId, MacroPlan, MacroState
@@ -44,6 +43,7 @@ from bot.queens.transfuse import transfuse_with
 from bot.resources.action import ResourceAction
 from bot.resources.observation import HarvesterAssignment, ResourceObservation
 from bot.resources.state import ResourceState
+from bot.scout import Scout
 
 BlockedPositions: TypeAlias = Assignment[Point2, float]
 
