@@ -101,7 +101,7 @@ ROACH_RUSH = BuildOrderChain(
         Make(UnitTypeId.QUEEN, 1),
         Make(UnitTypeId.DRONE, 19),
         Make(UnitTypeId.ROACHWARREN, 1),
-        Make(UnitTypeId.OVERLORD, 4),
-        Make(UnitTypeId.ROACH, 8),
+        Make(UnitTypeId.OVERLORD, 3),
+        Make(UnitTypeId.ROACH, 7),
     ]
 )
