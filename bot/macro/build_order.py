@@ -50,7 +50,7 @@ class ExtractorTrick(BuildOrder):
                     return BuildOrderStep([MacroPlan(self.unit_type)], [])
                 else:
                     return BuildOrderStep([], [])
-            units = obs.structures(self.unit_type)
+            units = obs.structures(self.unit_type).not_ready
             return BuildOrderStep([], [UseAbility(u, AbilityId.CANCEL) for u in units])
         return None
 
@@ -72,7 +72,7 @@ OVERHATCH = BuildOrderChain(
         ExtractorTrick(),
         Make(UnitTypeId.OVERLORD, 2),
         Make(UnitTypeId.HATCHERY, 2),
-        Make(UnitTypeId.DRONE, 17),
+        Make(UnitTypeId.DRONE, 16),
         Make(UnitTypeId.EXTRACTOR, 1),
         Make(UnitTypeId.SPAWNINGPOOL, 1),
     ]
@@ -87,5 +87,21 @@ HATCH_FIRST = BuildOrderChain(
         Make(UnitTypeId.DRONE, 17),
         Make(UnitTypeId.EXTRACTOR, 1),
         Make(UnitTypeId.SPAWNINGPOOL, 1),
+    ]
+)
+
+ROACH_RUSH = BuildOrderChain(
+    [
+        Make(UnitTypeId.DRONE, 14),
+        Make(UnitTypeId.OVERLORD, 2),
+        Make(UnitTypeId.SPAWNINGPOOL, 1),
+        Make(UnitTypeId.DRONE, 17),
+        Make(UnitTypeId.HATCHERY, 2),
+        Make(UnitTypeId.EXTRACTOR, 1),
+        Make(UnitTypeId.QUEEN, 1),
+        Make(UnitTypeId.DRONE, 19),
+        Make(UnitTypeId.ROACHWARREN, 1),
+        Make(UnitTypeId.OVERLORD, 4),
+        Make(UnitTypeId.ROACH, 8),
     ]
 )

@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from functools import cached_property
 
 from loguru import logger
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
 
@@ -15,6 +16,7 @@ from bot.resources.observation import HarvesterAssignment, ResourceObservation
 class ResourceAction:
     observation: ResourceObservation
     old_assignment: HarvesterAssignment
+    roach_rushing = True  # TODO
 
     @cached_property
     def next_assignment(self) -> HarvesterAssignment:
@@ -29,6 +31,8 @@ class ResourceAction:
 
     @cached_property
     def gas_target(self) -> int:
+        if self.roach_rushing and self.observation.bot.count(UnitTypeId.ROACH, include_planned=False) < 8:
+            return 3 * self.observation.gas_buildings.ready.amount
         return math.ceil(len(self.old_assignment) * self.observation.gas_ratio)
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:

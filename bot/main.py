@@ -34,7 +34,7 @@ from bot.common.observation import Observation
 from bot.common.unit_composition import UnitComposition
 from bot.corrosive_biles import CorrosiveBile
 from bot.debug import Debug
-from bot.macro.build_order import HATCH_FIRST
+from bot.macro.build_order import ROACH_RUSH
 from bot.macro.planner import MacroId, MacroPlan, MacroState
 from bot.macro.strategy import Strategy
 from bot.queens.creep import CreepState
@@ -59,7 +59,7 @@ class PhantomBot(BotBase):
     resource_state = ResourceState(HarvesterAssignment({}))
     blocked_positions = BlockedPositions({})
 
-    build_order = HATCH_FIRST
+    build_order = ROACH_RUSH
     replay_tags = set[str]()
 
     def __init__(self, *args, **kwargs) -> None:
