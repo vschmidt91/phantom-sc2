@@ -16,7 +16,7 @@ from bot.combat.predictor import CombatPrediction, CombatPredictor
 from bot.combat.presence import Presence
 from bot.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from bot.common.assignment import Assignment
-from bot.common.constants import HALF, MAX_UNIT_RADIUS
+from bot.common.constants import HALF, MAX_UNIT_RADIUS, WORKERS, CIVILIANS
 from bot.common.main import BotBase
 from bot.common.utils import Point, can_attack, combine_comparers, disk
 from bot.cython.dijkstra_pathing import DijkstraPathing
@@ -307,6 +307,10 @@ class Combat:
             kill_time = np.divide(b.health + b.shield, dps)
             risk = min(1e8, travel_time + 0.1 * kill_time)
             reward = self.bot.calculate_unit_value_weighted(b.type_id)
+            if b.type_id in WORKERS:
+                reward *= 7
+            if b.type_id not in CIVILIANS:
+                reward *= 3
 
             return np.log1p(risk) - np.log1p(reward)
 

@@ -20,7 +20,10 @@ class CombatPredictor:
     def prediction(self, step_time: float = 0.3, max_steps: int = 100) -> CombatPrediction:
 
         def calculate_dps(u: Unit, v: Unit) -> float:
-            return u.air_dps if v.is_flying else u.ground_dps
+            try:
+                return u.calculate_dps_vs_target(v)
+            except:
+                return 0.0
 
         dps = np.array([[calculate_dps(u, v) for v in self.enemy_units] for u in self.units])
         enemy_dps = np.array([[calculate_dps(v, u) for v in self.enemy_units] for u in self.units])
