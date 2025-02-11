@@ -1,11 +1,12 @@
 import math
 import os
 import random
-from itertools import chain, product
+from itertools import chain
 from typing import AsyncGenerator, Iterable, TypeAlias
 
 import numpy as np
 from ares import DEBUG
+from corrosive_biles import CorrosiveBile
 from cython_extensions import cy_closest_to
 from loguru import logger
 from sc2.data import ActionResult
@@ -15,19 +16,15 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
-from sklearn.metrics import pairwise_distances
+from scout import Scout
 
-from bot.combat.corrosive_biles import CorrosiveBiles
-from bot.combat.dodge import Dodge
-from bot.combat.main import Combat
-from bot.combat.scout import Scout
+from bot.combat.action import CombatAction
+from bot.combat.dodge import DodgeState
 from bot.common.action import Action, DoNothing, Move, UseAbility
 from bot.common.assignment import Assignment
 from bot.common.constants import (
     ALL_MACRO_ABILITIES,
     CHANGELINGS,
-    CIVILIANS,
-    ENEMY_CIVILIANS,
     ENERGY_COST,
     GAS_BY_RACE,
     REQUIREMENTS,
@@ -38,29 +35,30 @@ from bot.common.main import BotBase
 from bot.common.observation import Observation
 from bot.common.unit_composition import UnitComposition
 from bot.debug import Debug
-from bot.macro.build_order import OVERHATCH, HATCH_FIRST
-from bot.macro.planner import MacroId, MacroPlan, MacroPlanner
+from bot.macro.build_order import HATCH_FIRST
+from bot.macro.planner import MacroId, MacroPlan, MacroState
 from bot.macro.strategy import Strategy
-from bot.queens.creep import CreepSpread
-from bot.queens.inject import Inject
-from bot.queens.transfuse import do_transfuse_single
-from bot.resources.context import HarvesterAssignment, ResourceContext
-from bot.resources.main import update_resources
-from bot.resources.report import ResourceReport
+from bot.queens.creep import CreepState
+from bot.queens.inject import InjectState
+from bot.queens.transfuse import transfuse_with
+from bot.resources.action import ResourceAction
+from bot.resources.observation import HarvesterAssignment, ResourceObservation
+from bot.resources.state import ResourceState
 
 BlockedPositions: TypeAlias = Assignment[Point2, float]
 
 
 class PhantomBot(BotBase):
-    creep = CreepSpread()
-    corrosive_biles = CorrosiveBiles()
-    planner = MacroPlanner()
-    debug: Debug | None = None
-    inject = Inject()
-    dodge = Dodge()
 
-    harvester_assignment = HarvesterAssignment({})
+    creep = CreepState()
+    corrosive_biles = CorrosiveBile()
+    planner = MacroState()
+    debug: Debug | None = None
+    inject = InjectState()
+    dodge = DodgeState()
+    resource_state = ResourceState(HarvesterAssignment({}))
     blocked_positions = BlockedPositions({})
+
     build_order = HATCH_FIRST
     replay_tags = set[str]()
 
@@ -183,77 +181,21 @@ class PhantomBot(BotBase):
         scouts = self.units({UnitTypeId.OVERLORD, UnitTypeId.OVERSEER})
         return Scout(self, scouts, frozenset(scout_targets), frozenset(blocked_positions))
 
-    async def get_distance_matrix(self, a: Units, b: Units) -> dict[tuple[Unit, Unit], float]:
-        if not a:
-            return {}
-        if not b:
-            return {}
-        pairs = list(product(a, b))
-        distance_pairs = [[a, b.position] for [a, b] in pairs]
-        distance_results = await self.client.query_pathings(distance_pairs)
-        distance_matrix = dict(zip(pairs, distance_results))
-        return distance_matrix
-
-    def get_distance_matrix_approx(self, a: Units, b: Units) -> dict[tuple[Unit, Unit], float]:
-        if not a:
-            return {}
-        if not b:
-            return {}
-        distances = pairwise_distances(
-            [ai.position for ai in a],
-            [bj.position for bj in b],
-        )
-        distance_matrix = {(ai, bj): distances[i, j] for (i, ai), (j, bj) in product(enumerate(a), enumerate(b))}
-        return distance_matrix
-
     async def micro(
         self,
         observation: Observation,
         strategy: Strategy,
     ) -> AsyncGenerator[Action, None]:
 
-        retreat_targets = list[Point2]()
-        attack_targets = list[Point2]()
+        combat = CombatAction(observation, strategy)
 
-        if self.is_micro_map:
-            retreat_targets.append(self.game_info.map_center)
-            attack_targets.extend(u.position for u in self.enemy_units)
-            units = self.units
-            enemy_units = self.enemy_units
-        else:
-            retreat_targets.extend(self.in_mineral_line(b) for b in self.bases_taken)
-            if not retreat_targets:
-                retreat_targets.append(self.start_location)
-            attack_targets.extend(p.position for p in self.enemy_structures)
-            if not attack_targets:
-                attack_targets.extend(self.enemy_start_locations)
-            units = self.units.exclude_type(CIVILIANS)
-            enemy_units = self.all_enemy_units.exclude_type(ENEMY_CIVILIANS)
-
-        # distance_matrix = await self.get_distance_matrix(units, enemy_units)
-        distance_matrix = self.get_distance_matrix_approx(units, enemy_units)
-
-        combat = Combat(
-            bot=self,
-            strategy=strategy,
-            units=units,
-            enemy_units=enemy_units,
-            dps=self.dps_fast,
-            pathing=self.mediator.get_map_data_object.get_pyastar_grid(),
-            distance_matrix=distance_matrix,
-            air_pathing=self.mediator.get_map_data_object.get_clean_air_grid(),
-            retreat_targets=frozenset(retreat_targets),
-            attack_targets=frozenset(attack_targets),
-        )
-
-        creep_mask = combat.confidence >= 0
-        creep = self.creep.step(observation, creep_mask)
+        creep = self.creep.step(observation, 0 <= combat.confidence)
         inject = self.inject.step(self.units(UnitTypeId.QUEEN), self.townhalls.ready)
         should_inject = self.supply_used + self.larva.amount < 200
         should_spread_creep = self.creep.unspread_tumor_count < 10
 
         self.update_blocked_positions()
-        planned_actions = await self.planner.get_actions(self, set(self.blocked_positions), combat)
+        planned_actions = await self.planner.get_actions(observation, set(self.blocked_positions), combat)
 
         def should_harvest(u: Unit) -> bool:
             if self.is_micro_map:
@@ -278,18 +220,16 @@ class PhantomBot(BotBase):
         else:
             resources_to_harvest = self.all_taken_resources.filter(should_harvest_resource)
             gas_ratio = self.optimal_gas_ratio(strategy.composition_deficit)
-        resource_context = ResourceContext(
+        resource_observation = ResourceObservation(
             self,
-            self.harvester_assignment,
             harvesters,
             self.gas_buildings.ready,
             resources_to_harvest.vespene_geyser,
             resources_to_harvest.mineral_field,
             gas_ratio,
         )
-        resource_report = update_resources(resource_context)
-        self.harvester_assignment = resource_report.assignment
-        for plan in self.build_gasses(resource_report):
+        resource_action = self.resource_state.step(resource_observation)
+        for plan in self.build_gasses(resource_action):
             self.planner.add(plan)
 
         dodge = self.dodge.step(observation)
@@ -298,7 +238,7 @@ class PhantomBot(BotBase):
 
         def micro_queen(q: Unit) -> Action | None:
             return (
-                do_transfuse_single(q, combat.units)
+                transfuse_with(q, observation.units)
                 or (combat.fight_with(q) if 0 < combat.enemy_presence.dps[q.position.rounded] else None)
                 or (inject.get(q) if should_inject else None)
                 or (creep.spread_with_queen(q) if should_spread_creep else None)
@@ -316,7 +256,7 @@ class PhantomBot(BotBase):
 
             targets = Assignment.distribute(
                 overseers,
-                combat.enemy_units,
+                observation.enemy_units,
                 cost,
             )
             for u in overseers:
@@ -345,7 +285,7 @@ class PhantomBot(BotBase):
             return (
                 dodge.dodge_with(u)
                 or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
-                or resource_report.gather_with(u, self.townhalls.ready)
+                or resource_action.gather_with(u, self.townhalls.ready)
             )
 
         def micro_overlord(u: Unit) -> Action | None:
@@ -383,7 +323,7 @@ class PhantomBot(BotBase):
             yield micro_overlord(unit) or DoNothing()
         for unit in self.units(CHANGELINGS):
             yield self.search_with(unit) or DoNothing()
-        for unit in combat.units:
+        for unit in observation.units:
             if unit in scout_actions:
                 pass
             elif unit in planned_actions:
@@ -394,12 +334,12 @@ class PhantomBot(BotBase):
             if structure.health_percentage < 0.1:
                 yield UseAbility(structure, AbilityId.CANCEL)
 
-    def build_gasses(self, resources: ResourceReport) -> Iterable[MacroPlan]:
+    def build_gasses(self, resources: ResourceAction) -> Iterable[MacroPlan]:
         gas_type = GAS_BY_RACE[self.race]
         gas_depleted = self.gas_buildings.filter(lambda g: not g.has_vespene).amount
         gas_pending = self.count(gas_type, include_actual=False)
-        gas_have = resources.context.gas_buildings.amount
-        gas_max = resources.context.vespene_geysers.amount
+        gas_have = resources.observation.gas_buildings.amount
+        gas_max = resources.observation.vespene_geysers.amount
         gas_want = min(gas_max, gas_depleted + math.ceil((resources.gas_target - 1) / 3))
         if gas_have + gas_pending < gas_want:
             yield MacroPlan(gas_type)

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from itertools import chain
 from typing import Iterable, TypeAlias
 
+from combat.action import CombatAction
 from loguru import logger
 from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.ability_id import AbilityId
@@ -13,7 +14,6 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bot.combat.main import Combat
 from bot.common.action import Action, HoldPosition, Move, UseAbility
 from bot.common.constants import (
     ALL_MACRO_ABILITIES,
@@ -24,6 +24,7 @@ from bot.common.constants import (
 )
 from bot.common.cost import Cost, CostManager
 from bot.common.main import BotBase
+from bot.common.observation import Observation
 from bot.common.utils import PlacementNotFoundException
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
@@ -39,70 +40,72 @@ class MacroPlan:
     commanded: bool = False
 
 
-class MacroPlanner:
-    _unassigned_plans = list[MacroPlan]()
-    _assigned_plans = dict[int, MacroPlan]()
+class MacroState:
+    unassigned_plans = list[MacroPlan]()
+    assigned_plans = dict[int, MacroPlan]()
 
     @property
     def plan_count(self) -> int:
-        return len(self._unassigned_plans) + len(self._assigned_plans)
+        return len(self.unassigned_plans) + len(self.assigned_plans)
 
     def add(self, plan: MacroPlan) -> None:
-        self._unassigned_plans.append(plan)
+        self.unassigned_plans.append(plan)
         logger.info(f"Adding {plan=}")
 
     def enumerate_plans(self) -> Iterable[MacroPlan]:
-        return chain(self._assigned_plans.values(), self._unassigned_plans)
+        return chain(self.assigned_plans.values(), self.unassigned_plans)
 
     def planned_by_type(self, item: MacroId) -> Iterable[MacroPlan]:
         return (plan for plan in self.enumerate_plans() if plan.item == item)
 
     def assign_unassigned_plans(self, trainers: Units) -> None:
         trainer_set = set(trainers)
-        for plan in list(self._unassigned_plans):
+        for plan in list(self.unassigned_plans):
             if trainer := self.find_trainer(trainer_set, plan.item):
                 logger.info(f"Assigning {trainer=} for {plan=}")
-                if plan in self._unassigned_plans:
-                    self._unassigned_plans.remove(plan)
-                self._assigned_plans[trainer.tag] = plan
+                if plan in self.unassigned_plans:
+                    self.unassigned_plans.remove(plan)
+                self.assigned_plans[trainer.tag] = plan
                 trainer_set.remove(trainer)
 
-    async def get_actions(self, context: BotBase, blocked_positions: set[Point2], combat: Combat) -> dict[Unit, Action]:
+    async def get_actions(
+        self, obs: Observation, blocked_positions: set[Point2], combat: CombatAction
+    ) -> dict[Unit, Action]:
 
-        self._handle_actions(context)
-        self.assign_unassigned_plans(context.all_own_units)  # TODO: narrow this down
+        self._handle_actions(obs.bot)
+        self.assign_unassigned_plans(obs.bot.all_own_units)  # TODO: narrow this down
 
         actions = dict[Unit, Action]()
-        reserve = context.cost.zero
-        plans_prioritized = sorted(self._assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
+        reserve = obs.bot.cost.zero
+        plans_prioritized = sorted(self.assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
         for i, (tag, plan) in enumerate(plans_prioritized):
 
             if plan.commanded and plan.executed:
-                del self._assigned_plans[tag]
+                del self.assigned_plans[tag]
                 logger.info(f"Successfully executed {plan=}")
                 continue
 
-            trainer = context.unit_tag_dict.get(tag)
+            trainer = obs.bot.unit_tag_dict.get(tag)
             if not trainer:
-                del self._assigned_plans[tag]
-                self._unassigned_plans.append(plan)
+                del self.assigned_plans[tag]
+                self.unassigned_plans.append(plan)
                 logger.info(f"{trainer} is MIA for {plan}")
                 continue
 
             if trainer.type_id == UnitTypeId.EGG:
-                del self._assigned_plans[tag]
-                self._unassigned_plans.append(plan)
+                del self.assigned_plans[tag]
+                self.unassigned_plans.append(plan)
                 logger.info(f"{trainer} is an egg")
                 continue
 
             ability = MACRO_INFO.get(trainer.type_id, {}).get(plan.item, {}).get("ability")
             if not ability:
-                del self._assigned_plans[tag]
-                self._unassigned_plans.append(plan)
+                del self.assigned_plans[tag]
+                self.unassigned_plans.append(plan)
                 logger.info(f"{trainer=} is unable to execute {plan=}")
                 continue
 
-            if any(context.get_missing_requirements(plan.item)):
+            if any(obs.bot.get_missing_requirements(plan.item)):
                 continue
 
             # reset target on failure
@@ -117,23 +120,23 @@ class MacroPlanner:
                 plan.executed = False
 
             if isinstance(plan.target, Point2):
-                if not await context.can_place_single(plan.item, plan.target):
+                if not await obs.bot.can_place_single(plan.item, plan.target):
                     plan.target = None
                     plan.commanded = False
                     plan.executed = False
 
             if not plan.target:
                 try:
-                    plan.target = await self.get_target(context, trainer, plan, blocked_positions)
+                    plan.target = await self.get_target(obs, trainer, plan, blocked_positions)
                 except PlacementNotFoundException:
                     continue
 
-            cost = context.cost.of(plan.item)
-            eta = get_eta(context, reserve, cost)
+            cost = obs.bot.cost.of(plan.item)
+            eta = get_eta(obs.bot, reserve, cost)
 
             if eta < math.inf:
-                expected_income = context.income * eta
-                needs_to_reserve = Cost.max(context.cost.zero, cost - expected_income)
+                expected_income = obs.bot.income * eta
+                needs_to_reserve = Cost.max(obs.bot.cost.zero, cost - expected_income)
                 reserve += needs_to_reserve
 
             if eta == 0.0:
@@ -142,7 +145,7 @@ class MacroPlanner:
             elif plan.target:
                 if trainer.is_carrying_resource:
                     actions[trainer] = UseAbility(trainer, AbilityId.HARVEST_RETURN)
-                elif action := await premove(context, trainer, plan.target.position, eta):
+                elif action := await premove(obs.bot, trainer, plan.target.position, eta):
                     actions[trainer] = action
                 elif action := combat.fight_with(trainer):
                     actions[trainer] = action
@@ -151,24 +154,24 @@ class MacroPlanner:
 
     def get_total_cost(self, cost: CostManager) -> Cost:
         costs = []
-        costs.extend([cost.of(plan.item) for plan in self._unassigned_plans])
-        costs.extend(cost.of(plan.item) for plan in self._assigned_plans.values())
+        costs.extend([cost.of(plan.item) for plan in self.unassigned_plans])
+        costs.extend(cost.of(plan.item) for plan in self.assigned_plans.values())
         return sum(costs, cost.zero)
 
     async def get_target(
-        self, context: BotBase, trainer: Unit, objective: MacroPlan, blocked_positions: set[Point2]
+        self, obs: Observation, trainer: Unit, objective: MacroPlan, blocked_positions: set[Point2]
     ) -> Unit | Point2 | None:
-        gas_type = GAS_BY_RACE[context.race]
+        gas_type = GAS_BY_RACE[obs.bot.race]
         if objective.item == gas_type:
-            exclude_positions = {geyser.position for geyser in context.gas_buildings}
+            exclude_positions = {geyser.position for geyser in obs.bot.gas_buildings}
             exclude_tags = {
                 order.target
-                for unit in context.workers
+                for unit in obs.bot.workers
                 for order in unit.orders
                 if order.ability.exact_id == AbilityId.ZERGBUILD_EXTRACTOR
             }
             exclude_tags.update({p.target.tag for p in self.planned_by_type(gas_type) if isinstance(p.target, Unit)})
-            owned_geysers = [g for b in context.bases_taken for g in context.expansion_locations_dict[b].vespene_geyser]
+            owned_geysers = [g for b in obs.bases_taken for g in obs.bot.expansion_locations_dict[b].vespene_geyser]
             geysers = [
                 geyser
                 for geyser in owned_geysers
@@ -186,7 +189,7 @@ class MacroPlanner:
         # data = MACRO_INFO[trainer.unit.type_id][objective.item]
 
         if "requires_placement_position" in data:
-            position = await get_target_position(context, objective.item, blocked_positions)
+            position = await get_target_position(obs, objective.item, blocked_positions)
             if not position:
                 raise PlacementNotFoundException()
             return position
@@ -203,7 +206,7 @@ class MacroPlanner:
                 trainer.type_id in trainer_types
                 and trainer.is_ready
                 and (trainer.is_idle or not trainer.is_structure)
-                and trainer.tag not in self._assigned_plans
+                and trainer.tag not in self.assigned_plans
             )
         ]
 
@@ -229,11 +232,11 @@ class MacroPlanner:
             # commands issued to a specific larva will be received by a random one
             # therefore, a direct lookup will often be incorrect
             # instead, all plans are checked for a match
-            for t, p in self._assigned_plans.items():
+            for t, p in self.assigned_plans.items():
                 if item == p.item and not p.executed:
                     tag = t
                     break
-        if plan := self._assigned_plans.get(tag):
+        if plan := self.assigned_plans.get(tag):
             if item == plan.item:
                 plan.executed = True
                 logger.info(f"Executed {plan} through {action}")
@@ -274,20 +277,20 @@ def get_eta(context: BotBase, reserve: Cost, cost: Cost) -> float:
     )
 
 
-async def get_target_position(context: BotBase, target: UnitTypeId, blocked_positions: set[Point2]) -> Point2 | None:
-    data = context.game_data.units[target.value]
+async def get_target_position(obs: Observation, target: UnitTypeId, blocked_positions: set[Point2]) -> Point2 | None:
+    data = obs.bot.game_data.units[target.value]
     if target in {UnitTypeId.HATCHERY}:
         candidates = [
-            b for b in context.expansion_locations_list if b not in blocked_positions and b not in context.townhall_at
+            b for b in obs.bot.expansion_locations_list if b not in blocked_positions and b not in obs.bot.townhall_at
         ]
         if not candidates:
             return None
-        loss_positions = {context.in_mineral_line(b) for b in context.bases_taken} | {context.start_location}
-        loss_positions_enemy = {context.in_mineral_line(s) for s in context.enemy_start_locations}
+        loss_positions = {obs.bot.in_mineral_line(b) for b in obs.bases_taken} | {obs.bot.start_location}
+        loss_positions_enemy = {obs.bot.in_mineral_line(s) for s in obs.bot.enemy_start_locations}
 
         async def loss_fn(p: Point2) -> float:
-            distances = await context.client.query_pathings([[p, q] for q in loss_positions])
-            distances_enemy = await context.client.query_pathings([[p, q] for q in loss_positions_enemy])
+            distances = await obs.bot.client.query_pathings([[p, q] for q in loss_positions])
+            distances_enemy = await obs.bot.client.query_pathings([[p, q] for q in loss_positions_enemy])
             return max(distances) - min(distances_enemy)
 
         c_min = candidates[0]
@@ -299,14 +302,14 @@ async def get_target_position(context: BotBase, target: UnitTypeId, blocked_posi
                 c_min = c
         return c_min
 
-    bases = list(context.expansion_locations_dict.items())
+    bases = list(obs.bot.expansion_locations_dict.items())
     random.shuffle(bases)
     for pos, resources in bases:
-        if not (base := context.townhall_at.get(pos)):
+        if not (base := obs.bot.townhall_at.get(pos)):
             continue
         if not base.is_ready:
             continue
-        position = pos.towards_with_random_angle(context.behind_mineral_line(pos), 10)
+        position = pos.towards_with_random_angle(obs.bot.behind_mineral_line(pos), 10)
         offset = data.footprint_radius % 1
         position = position.rounded.offset((offset, offset))
         return position

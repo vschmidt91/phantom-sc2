@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum, auto
 from functools import cached_property
 
 import numpy as np
@@ -6,8 +7,15 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 
+class CombatOutcome(Enum):
+    Win = auto()
+    Loss = auto()
+    Tie = auto()
+
+
 @dataclass(frozen=True)
 class CombatPrediction:
+    outcome: CombatOutcome
     survival_time: dict[Unit, float]
 
 
@@ -17,13 +25,10 @@ class CombatPredictor:
     enemy_units: Units
 
     @cached_property
-    def prediction(self, step_time: float = 0.3, max_steps: int = 100) -> CombatPrediction:
+    def prediction(self, step_time: float = 0.1, max_steps: int = 600) -> CombatPrediction:
 
         def calculate_dps(u: Unit, v: Unit) -> float:
-            try:
-                return u.calculate_dps_vs_target(v)
-            except:
-                return 0.0
+            return u.air_dps if v.is_flying else u.ground_dps
 
         dps = np.array([[calculate_dps(u, v) for v in self.enemy_units] for u in self.units])
         enemy_dps = np.array([[calculate_dps(v, u) for v in self.enemy_units] for u in self.units])
@@ -57,7 +62,8 @@ class CombatPredictor:
         survival = np.array([t for u in self.units])
         enemy_survival = np.array([t for u in self.enemy_units])
 
-        for _ in range(max_steps):
+        outcome = CombatOutcome.Tie
+        for i in range(max_steps):
 
             potential_distance = 1e-3 + t * movement_speed
             enemy_potential_distance = 1e-3 + t * enemy_movement_speed
@@ -79,10 +85,17 @@ class CombatPredictor:
             alive = 0 < health
             enemy_alive = 0 < enemy_health
 
+            if not (alive * np.max(dps, 1)).any():
+                outcome = CombatOutcome.Loss
+                break
+            if not (enemy_alive * np.max(enemy_dps, 0)).any():
+                outcome = CombatOutcome.Win
+                break
+
             survival = np.where(alive, t, survival)
             enemy_survival = np.where(enemy_alive, t, enemy_survival)
 
             t += step_time
 
         survival_time = dict(zip(self.units, survival)) | dict(zip(self.enemy_units, enemy_survival))
-        return CombatPrediction(survival_time)
+        return CombatPrediction(outcome, survival_time)

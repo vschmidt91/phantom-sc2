@@ -4,3 +4,6 @@ lint:
 	black -S bot
 	flake8 bot
 	mypy bot
+
+profile:
+	python -m snakeviz .\profiling.prof

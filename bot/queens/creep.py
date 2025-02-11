@@ -20,7 +20,7 @@ _BASE_SIZE = (5, 5)
 
 
 @dataclass(frozen=True)
-class CreepSpreadStep:
+class CreepAction:
     obs: Observation
     mask: np.ndarray
     active_tumors: set[Unit]
@@ -35,7 +35,7 @@ class CreepSpreadStep:
 
     @cached_property
     def placement_map(self) -> np.ndarray:
-        m = self.obs.creep & self.obs.visibility & self.obs.pathing & self.mask
+        m = self.obs.creep & self.obs.visibility & (self.obs.pathing == 1) & self.mask
         for b in self.prevent_blocking:
             x, y = (Point2(b) - 0.5 * Point2(_BASE_SIZE)).rounded
             r = rectangle((x, y), extent=_BASE_SIZE, shape=self.obs.creep.shape)
@@ -44,7 +44,7 @@ class CreepSpreadStep:
 
     @cached_property
     def value_map(self) -> np.ndarray:
-        m = (~self.obs.creep & self.obs.pathing).astype(float)
+        m = (~self.obs.creep & (self.obs.pathing == 1)).astype(float)
         for b in self.reward_blocking:
             x, y = (Point2(b) - 0.5 * Point2(_BASE_SIZE)).rounded
             r = rectangle((x, y), extent=_BASE_SIZE, shape=self.obs.creep.shape)
@@ -53,7 +53,7 @@ class CreepSpreadStep:
 
     @cached_property
     def value_map_blurred(self) -> np.ndarray:
-        return gaussian_filter(self.value_map, 3) * self.obs.pathing.astype(float)
+        return gaussian_filter(self.value_map, 3) * self.obs.pathing
 
     def _place_tumor(self, unit: Unit, r: int, full_circle=False) -> Action | None:
 
@@ -88,7 +88,7 @@ class CreepSpreadStep:
         return self._place_tumor(tumor, 10)
 
 
-class CreepSpread:
+class CreepState:
 
     created_at_step = dict[int, int]()
     spread_at_step = dict[int, int]()
@@ -97,7 +97,7 @@ class CreepSpread:
     def unspread_tumor_count(self):
         return len(self.created_at_step) - len(self.spread_at_step)
 
-    def step(self, obs: Observation, mask: np.ndarray) -> CreepSpreadStep:
+    def step(self, obs: Observation, mask: np.ndarray) -> CreepAction:
 
         for t in set(self.created_at_step) - set(self.spread_at_step):
             if cmd := obs.unit_commands.get(t):
@@ -113,7 +113,7 @@ class CreepSpread:
         all_tumors = obs.structures({UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMOR})
         active_tumors = {t for t in all_tumors if is_active(t)}
 
-        return CreepSpreadStep(
+        return CreepAction(
             obs,
             mask,
             active_tumors,

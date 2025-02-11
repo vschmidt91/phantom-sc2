@@ -28,9 +28,8 @@ def split_initial_workers(patches: Units, harvesters: Units, townhall: Unit) -> 
 
 
 @dataclass(frozen=True)
-class ResourceContext:
+class ResourceObservation:
     bot: BotBase
-    old_assignment: HarvesterAssignment
     harvesters: Units
     gas_buildings: Units
     vespene_geysers: Units

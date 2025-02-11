@@ -10,7 +10,7 @@ from bot.common.constants import ENERGY_COST
 TRANSFUSE_ABILITY = AbilityId.TRANSFUSION_TRANSFUSION
 
 
-def do_transfuse_single(unit: Unit, targets: Iterable[Unit]) -> Action | None:
+def transfuse_with(unit: Unit, targets: Iterable[Unit]) -> Action | None:
 
     if unit.energy < ENERGY_COST[TRANSFUSE_ABILITY]:
         return None

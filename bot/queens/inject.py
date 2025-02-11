@@ -11,7 +11,7 @@ from bot.common.constants import ENERGY_COST
 InjectAssignment: TypeAlias = Assignment[int, int]
 
 
-class Inject:
+class InjectState:
 
     assignment = InjectAssignment({})
 

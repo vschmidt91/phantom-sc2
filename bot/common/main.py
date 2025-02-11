@@ -102,10 +102,6 @@ class BotBase(AresBot, ABC):
     def behind_mineral_line(self, base: Point2) -> Point2:
         return base.towards(self.in_mineral_line(base), 10.0)
 
-    @property
-    def bases_taken(self) -> set[Point2]:
-        return {b for b in self.expansion_locations_list if (th := self.townhall_at.get(b)) and th.is_ready}
-
     def count(
         self, item: MacroId, include_pending: bool = True, include_planned: bool = True, include_actual: bool = True
     ) -> int:

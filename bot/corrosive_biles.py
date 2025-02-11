@@ -12,15 +12,15 @@ _ABILITY = AbilityId.EFFECT_CORROSIVEBILE
 
 
 @dataclass(frozen=True)
-class CorrosiveBilesReport:
+class CorrosiveBileAction:
     actions: dict[Unit, Action]
 
 
-class CorrosiveBiles:
+class CorrosiveBile:
 
     bile_last_used = dict[int, int]()
 
-    def step(self, obs: Observation) -> CorrosiveBilesReport:
+    def step(self, obs: Observation) -> CorrosiveBileAction:
         ravagers = obs.units({UnitTypeId.RAVAGER})
         for ravager in ravagers:
             if action := obs.unit_commands.get(ravager.tag):
@@ -28,7 +28,7 @@ class CorrosiveBiles:
                     self.bile_last_used[ravager.tag] = action.game_loop
 
         actions = {r: a for r in ravagers if (a := self.step_unit(obs, r))}
-        return CorrosiveBilesReport(actions)
+        return CorrosiveBileAction(actions)
 
     def step_unit(self, obs: Observation, unit: Unit) -> Action | None:
 

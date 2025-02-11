@@ -43,7 +43,7 @@ class DodgeItem:
 
 
 @dataclass(frozen=True)
-class DodgeResult:
+class DodgeAction:
     observation: Observation
     items: dict[DodgeItem, float]
 
@@ -73,10 +73,10 @@ class DodgeResult:
         return Move(unit, target)
 
 
-class Dodge:
+class DodgeState:
     effects = dict[DodgeItem, float]()
 
-    def step(self, observation: Observation) -> DodgeResult:
+    def step(self, observation: Observation) -> DodgeAction:
 
         effects = dict(self.effects)
 
@@ -102,4 +102,4 @@ class Dodge:
                 if item in active_effects:
                     logger.error(f"Effect impacted earlier than expected: {item}")
 
-        return DodgeResult(observation, self.effects | units)
+        return DodgeAction(observation, self.effects | units)
