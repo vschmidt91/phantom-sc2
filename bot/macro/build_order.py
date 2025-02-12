@@ -5,8 +5,8 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 
 from bot.common.action import Action, UseAbility
-from bot.common.observation import Observation
 from bot.macro.state import MacroPlan
+from bot.observation import Observation
 
 
 @dataclass(frozen=True)

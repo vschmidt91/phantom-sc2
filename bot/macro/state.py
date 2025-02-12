@@ -24,8 +24,8 @@ from bot.common.constants import (
 )
 from bot.common.cost import Cost, CostManager
 from bot.common.main import BotBase
-from bot.common.observation import Observation
 from bot.common.utils import PlacementNotFoundException
+from bot.observation import Observation
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 

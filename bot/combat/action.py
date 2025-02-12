@@ -15,10 +15,10 @@ from bot.combat.presence import Presence
 from bot.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from bot.common.assignment import Assignment
 from bot.common.constants import CIVILIANS, HALF, MAX_UNIT_RADIUS
-from bot.common.observation import Observation
 from bot.common.utils import Point, can_attack, combine_comparers, disk
 from bot.cython.dijkstra_pathing import DijkstraPathing
 from bot.macro.strategy import Strategy
+from bot.observation import Observation
 
 
 @dataclass(frozen=True)

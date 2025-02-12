@@ -12,8 +12,8 @@ from bot.common.constants import (
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
 )
-from bot.common.observation import Observation
 from bot.common.unit_composition import UnitComposition
+from bot.observation import Observation
 
 
 @total_ordering

@@ -1,13 +1,11 @@
 import math
 import os
 import random
-from functools import cached_property
 from itertools import chain
-from typing import AsyncGenerator, Iterable, TypeAlias
+from typing import AsyncGenerator, Iterable
 
 import numpy as np
 from ares import DEBUG
-from common.cost import CostManager
 from cython_extensions import cy_closest_to
 from loguru import logger
 from sc2.data import ActionResult
@@ -27,20 +25,19 @@ from bot.common.constants import (
     CHANGELINGS,
     ENERGY_COST,
     GAS_BY_RACE,
-    MINING_RADIUS,
     REQUIREMENTS,
     VERSION_FILE,
     WITH_TECH_EQUIVALENTS,
 )
-from bot.common.main import BotBase
-from bot.common.observation import Observation
+from bot.common.cost import CostManager
+from bot.common.main import BlockedPositions, BotBase
 from bot.common.unit_composition import UnitComposition
-from bot.common.utils import get_intersections, project_point_onto_line
 from bot.corrosive_biles import CorrosiveBile
 from bot.debug import Debug
 from bot.macro.build_order import HATCH_FIRST
 from bot.macro.state import MacroId, MacroPlan, MacroState
 from bot.macro.strategy import Strategy
+from bot.observation import Observation
 from bot.queens.creep import CreepState
 from bot.queens.inject import InjectState
 from bot.queens.transfuse import transfuse_with
@@ -49,17 +46,15 @@ from bot.resources.observation import HarvesterAssignment, ResourceObservation
 from bot.resources.state import ResourceState
 from bot.scout import Scout
 
-BlockedPositions: TypeAlias = Assignment[Point2, float]
-
 
 class PhantomBot(BotBase):
 
-    creep = CreepState()
+    debug: Debug | None = None
+    dodge = DodgeState()
     corrosive_biles = CorrosiveBile()
     planner = MacroState()
-    debug: Debug | None = None
+    creep = CreepState()
     inject = InjectState()
-    dodge = DodgeState()
     resource_state = ResourceState(HarvesterAssignment({}))
     blocked_positions = BlockedPositions({})
     build_order = HATCH_FIRST
@@ -145,35 +140,6 @@ class PhantomBot(BotBase):
 
     # ^^^^^^^^^^
     # CALLBACKS ========================================================================================================
-
-    @cached_property
-    def speedmining_positions(self) -> dict[Point2, Point2]:
-        result = dict[Point2, Point2]()
-        for pos, resources in self.expansion_locations_dict.items():
-            for patch in resources.mineral_field:
-                target = patch.position.towards(pos, MINING_RADIUS)
-                for patch2 in resources.mineral_field:
-                    if patch.position == patch2.position:
-                        continue
-                    position = project_point_onto_line(target, target - pos, patch2.position)
-                    distance1 = patch.position.distance_to(pos)
-                    distance2 = patch2.position.distance_to(pos)
-                    if distance1 < distance2:
-                        continue
-                    if MINING_RADIUS <= patch2.position.distance_to(position):
-                        continue
-                    intersections = list(
-                        get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS)
-                    )
-                    if intersections:
-                        intersection1, intersection2 = intersections
-                        if intersection1.distance_to(pos) < intersection2.distance_to(pos):
-                            target = intersection1
-                        else:
-                            target = intersection2
-                        break
-                result[patch.position] = target
-        return result
 
     async def add_replay_tag(self, tag: str) -> None:
         if tag not in self.replay_tags:

@@ -6,7 +6,7 @@ from sc2.unit import Unit
 
 from bot.common.action import Action, UseAbility
 from bot.common.constants import CHANGELINGS, COOLDOWN
-from bot.common.observation import Observation
+from bot.observation import Observation
 
 _ABILITY = AbilityId.EFFECT_CORROSIVEBILE
 
