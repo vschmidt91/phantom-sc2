@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from functools import cached_property, cmp_to_key
 
 import numpy as np
+from sc2.ids.unit_typeid import UnitTypeId
+
 from ares import UnitTreeQueryType
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
@@ -52,7 +54,8 @@ class CombatAction:
             return frozenset(attack_targets)
 
     def retreat_with(self, unit: Unit, limit=7) -> Action | None:
-        return self.retreat_with_ares(unit, limit=limit)
+        if unit.type_id not in {UnitTypeId.QUEEN}:
+            return self.retreat_with_ares(unit, limit=limit)
         x = round(unit.position.x)
         y = round(unit.position.y)
         if unit.is_flying:
