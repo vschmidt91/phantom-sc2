@@ -9,7 +9,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from bot.common.action import Action, Move, UseAbility
-from bot.common.observation import Observation
+from bot.observation import Observation
 
 
 @dataclass(frozen=True)
@@ -78,7 +78,7 @@ class DodgeState:
 
     def step(self, observation: Observation) -> DodgeAction:
 
-        effects = dict(self.effects)
+        effects = self.effects
 
         units = {
             DodgeItem(unit.position, circle): observation.bot.time
