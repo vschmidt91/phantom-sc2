@@ -16,7 +16,7 @@ from bot.resources.observation import HarvesterAssignment, ResourceObservation
 class ResourceAction:
     observation: ResourceObservation
     old_assignment: HarvesterAssignment
-    roach_rushing = False  # TODO
+    roach_rushing = True  # TODO
 
     @cached_property
     def next_assignment(self) -> HarvesterAssignment:
@@ -31,7 +31,7 @@ class ResourceAction:
 
     @cached_property
     def gas_target(self) -> int:
-        if self.roach_rushing and self.observation.bot.count(UnitTypeId.ROACH, include_planned=False) < 8:
+        if self.roach_rushing and self.observation.observation.count(UnitTypeId.ROACH, include_planned=False) < 7:
             return 3 * self.observation.gas_buildings.ready.amount
         return math.ceil(len(self.old_assignment) * self.observation.gas_ratio)
 
@@ -51,7 +51,7 @@ class ResourceAction:
         elif 2 <= len(unit.orders):
             return DoNothing()
         elif unit.is_gathering:
-            return GatherAction(unit, target, self.observation.bot.speedmining_positions.get(target_pos))
+            return GatherAction(unit, target, self.observation.observation.bot.speedmining_positions.get(target_pos))
         elif unit.is_returning:
             assert any(return_targets)
             return_target = min(return_targets, key=lambda th: th.distance_to(unit))

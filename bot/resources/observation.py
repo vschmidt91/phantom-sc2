@@ -10,8 +10,8 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bot.common.assignment import Assignment
-from bot.common.main import BotBase
 from bot.resources.utils import remaining
+from observation import Observation
 
 HarvesterAssignment: TypeAlias = Assignment[int, Point2]
 
@@ -29,7 +29,7 @@ def split_initial_workers(patches: Units, harvesters: Units, townhall: Unit) -> 
 
 @dataclass(frozen=True)
 class ResourceObservation:
-    bot: BotBase
+    observation: Observation
     harvesters: Units
     gas_buildings: Units
     vespene_geysers: Units
@@ -75,7 +75,7 @@ class ResourceObservation:
 
     @cached_property
     def workers_in_geysers(self) -> int:
-        return int(self.bot.supply_workers) - self.bot.workers.amount
+        return int(self.observation.bot.supply_workers) - self.observation.bot.workers.amount
 
     # cache
     def harvester_target_at(self, p: Point2) -> int:
@@ -110,7 +110,7 @@ class ResourceObservation:
 
     def update_assignment(self, assignment: HarvesterAssignment) -> HarvesterAssignment:
         if not any(assignment):
-            return split_initial_workers(self.mineral_fields, self.harvesters, self.bot.townhalls[0])
+            return split_initial_workers(self.mineral_fields, self.harvesters, self.observation.bot.townhalls[0])
         else:
             return self.update_changes(assignment)
 

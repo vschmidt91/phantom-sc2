@@ -34,7 +34,7 @@ from bot.common.main import BlockedPositions, BotBase
 from bot.common.unit_composition import UnitComposition
 from bot.corrosive_biles import CorrosiveBile
 from bot.debug import Debug
-from bot.macro.build_order import HATCH_FIRST
+from bot.macro.build_order import HATCH_FIRST, ROACH_RUSH
 from bot.macro.state import MacroId, MacroPlan, MacroState
 from bot.macro.strategy import Strategy
 from bot.observation import Observation
@@ -57,7 +57,7 @@ class PhantomBot(BotBase):
     inject = InjectState()
     resource_state = ResourceState(HarvesterAssignment({}))
     blocked_positions = BlockedPositions({})
-    build_order = HATCH_FIRST
+    build_order = ROACH_RUSH
     replay_tags = set[str]()
 
     def __init__(self, *args, **kwargs) -> None:
@@ -220,7 +220,7 @@ class PhantomBot(BotBase):
             resources_to_harvest = observation.all_taken_resources.filter(should_harvest_resource)
             gas_ratio = self.optimal_gas_ratio(observation, strategy.composition_deficit)
         resource_observation = ResourceObservation(
-            self,
+            observation,
             harvesters,
             self.gas_buildings.ready,
             resources_to_harvest.vespene_geyser,

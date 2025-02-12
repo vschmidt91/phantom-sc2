@@ -52,6 +52,7 @@ class CombatAction:
             return frozenset(attack_targets)
 
     def retreat_with(self, unit: Unit, limit=7) -> Action | None:
+        return self.retreat_with_ares(unit, limit=limit)
         x = round(unit.position.x)
         y = round(unit.position.y)
         if unit.is_flying:
