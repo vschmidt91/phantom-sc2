@@ -292,7 +292,7 @@ class CombatAction:
                 dps = 1e-8
             kill_time = np.divide(b.health + b.shield, dps)
             risk = min(1e8, travel_time + 0.1 * kill_time)
-            reward = self.observation.bot.calculate_unit_value_weighted(b.type_id)
+            reward = max(1e-8, self.observation.bot.calculate_unit_value_weighted(b.type_id))
             # if b.type_id in WORKERS:
             #     reward *= 7
             if b.type_id not in CIVILIANS:
