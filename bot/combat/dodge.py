@@ -64,7 +64,7 @@ class DodgeAction:
         distance_want = item.circle.radius + unit.radius
         if distance_have + distance_bonus >= distance_want + self.safety_distance:
             return None
-        if unit.is_burrowed and not self.observation.bot.can_move(unit):
+        if unit.is_burrowed and not self.observation.can_move(unit):
             return UseAbility(unit, AbilityId.BURROWUP)
         dodge_from = item.position
         if distance_have < self.min_distance:

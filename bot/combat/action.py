@@ -29,10 +29,10 @@ class CombatAction:
 
     @cached_property
     def retreat_targets(self) -> frozenset[Point2]:
-        if self.observation.is_micro_map:
+        if self.observation.bot.is_micro_map:
             return frozenset([self.observation.map_center])
         else:
-            retreat_targets = [self.observation.bot.in_mineral_line(b) for b in self.observation.bases_taken]
+            retreat_targets = [self.observation.in_mineral_line(b) for b in self.observation.bases_taken]
             if not retreat_targets:
                 retreat_targets.append(self.observation.start_location)
             return frozenset(retreat_targets)
@@ -43,7 +43,7 @@ class CombatAction:
 
     @cached_property
     def attack_targets(self) -> frozenset[Point2]:
-        if self.observation.is_micro_map:
+        if self.observation.bot.is_micro_map:
             return frozenset({u.position for u in self.observation.enemy_units} or {self.observation.map_center})
         else:
             attack_targets = [p.position for p in self.observation.enemy_structures]
@@ -124,7 +124,7 @@ class CombatAction:
             if dps == 0.0:
                 return np.inf
             kill_time = hp / dps
-            unit_value = self.observation.bot.calculate_unit_value_weighted(u.type_id)
+            unit_value = self.observation.calculate_unit_value_weighted(u.type_id)
             return kill_time / (1 + unit_value)
 
         target_key = cmp_to_key(

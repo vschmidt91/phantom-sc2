@@ -55,20 +55,20 @@ class Strategy:
         elif upgrade == UpgradeId.BURROW:
             return self.tier >= StrategyTier.Hatch
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
-            return 0 < self.obs.bot.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False)
+            return 0 < self.obs.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False)
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
-            return 0 < self.obs.bot.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False)
+            return 0 < self.obs.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False)
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL3:
-            return 0 < self.obs.bot.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False)
+            return 0 < self.obs.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False)
         elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
-            return 0 < self.obs.bot.count(UnitTypeId.GREATERSPIRE, include_planned=False)
+            return 0 < self.obs.count(UnitTypeId.GREATERSPIRE, include_planned=False)
         elif upgrade == UpgradeId.OVERLORDSPEED:
             return self.tier >= StrategyTier.Lair
         else:
             return True
 
     def can_build(self, t: UnitTypeId) -> bool:
-        return not any(self.obs.bot.get_missing_requirements(t))
+        return not any(self.obs.get_missing_requirements(t))
 
     @cached_property
     def army_composition(self) -> UnitComposition:
@@ -143,7 +143,7 @@ class Strategy:
             composition += {UnitTypeId.OVERSEER: 2}
             composition += {UnitTypeId.EVOLUTIONCHAMBER: 1}
             composition += {UnitTypeId.GREATERSPIRE: 1}
-            if self.obs.bot.count(UnitTypeId.GREATERSPIRE, include_planned=False) == 0:
+            if self.obs.count(UnitTypeId.GREATERSPIRE, include_planned=False) == 0:
                 composition += {UnitTypeId.GREATERSPIRE: 1}
             else:
                 composition += {UnitTypeId.SPIRE: 1}

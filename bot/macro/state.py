@@ -105,7 +105,7 @@ class MacroState:
                 logger.info(f"{trainer=} is unable to execute {plan=}")
                 continue
 
-            if any(obs.bot.get_missing_requirements(plan.item)):
+            if any(obs.get_missing_requirements(plan.item)):
                 continue
 
             # reset target on failure
@@ -132,10 +132,10 @@ class MacroState:
                     continue
 
             cost = obs.bot.cost.of(plan.item)
-            eta = get_eta(obs.bot, reserve, cost)
+            eta = get_eta(obs, reserve, cost)
 
             if eta < math.inf:
-                expected_income = obs.bot.income * eta
+                expected_income = obs.income * eta
                 needs_to_reserve = Cost.max(obs.bot.cost.zero, cost - expected_income)
                 reserve += needs_to_reserve
 
@@ -263,9 +263,9 @@ async def premove(context: BotBase, unit: Unit, target: Point2, eta: float) -> A
     return None
 
 
-def get_eta(context: BotBase, reserve: Cost, cost: Cost) -> float:
-    deficit = reserve + cost - context.bank
-    eta = deficit / context.income
+def get_eta(observation: Observation, reserve: Cost, cost: Cost) -> float:
+    deficit = reserve + cost - observation.bank
+    eta = deficit / observation.income
     return max(
         (
             0.0,
@@ -281,12 +281,12 @@ async def get_target_position(obs: Observation, target: UnitTypeId, blocked_posi
     data = obs.bot.game_data.units[target.value]
     if target in {UnitTypeId.HATCHERY}:
         candidates = [
-            b for b in obs.bot.expansion_locations_list if b not in blocked_positions and b not in obs.bot.townhall_at
+            b for b in obs.bot.expansion_locations_list if b not in blocked_positions and b not in obs.townhall_at
         ]
         if not candidates:
             return None
-        loss_positions = {obs.bot.in_mineral_line(b) for b in obs.bases_taken} | {obs.bot.start_location}
-        loss_positions_enemy = {obs.bot.in_mineral_line(s) for s in obs.bot.enemy_start_locations}
+        loss_positions = {obs.in_mineral_line(b) for b in obs.bases_taken} | {obs.bot.start_location}
+        loss_positions_enemy = {obs.in_mineral_line(s) for s in obs.bot.enemy_start_locations}
 
         async def loss_fn(p: Point2) -> float:
             distances = await obs.bot.client.query_pathings([[p, q] for q in loss_positions])
@@ -305,11 +305,11 @@ async def get_target_position(obs: Observation, target: UnitTypeId, blocked_posi
     bases = list(obs.bot.expansion_locations_dict.items())
     random.shuffle(bases)
     for pos, resources in bases:
-        if not (base := obs.bot.townhall_at.get(pos)):
+        if not (base := obs.townhall_at.get(pos)):
             continue
         if not base.is_ready:
             continue
-        position = pos.towards_with_random_angle(obs.bot.behind_mineral_line(pos), 10)
+        position = pos.towards_with_random_angle(obs.behind_mineral_line(pos), 10)
         offset = data.footprint_radius % 1
         position = position.rounded.offset((offset, offset))
         return position

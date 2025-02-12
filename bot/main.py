@@ -1,11 +1,13 @@
 import math
 import os
 import random
+from functools import cached_property
 from itertools import chain
 from typing import AsyncGenerator, Iterable, TypeAlias
 
 import numpy as np
 from ares import DEBUG
+from common.cost import CostManager
 from cython_extensions import cy_closest_to
 from loguru import logger
 from sc2.data import ActionResult
@@ -25,6 +27,7 @@ from bot.common.constants import (
     CHANGELINGS,
     ENERGY_COST,
     GAS_BY_RACE,
+    MINING_RADIUS,
     REQUIREMENTS,
     VERSION_FILE,
     WITH_TECH_EQUIVALENTS,
@@ -32,6 +35,7 @@ from bot.common.constants import (
 from bot.common.main import BotBase
 from bot.common.observation import Observation
 from bot.common.unit_composition import UnitComposition
+from bot.common.utils import get_intersections, project_point_onto_line
 from bot.corrosive_biles import CorrosiveBile
 from bot.debug import Debug
 from bot.macro.build_order import HATCH_FIRST
@@ -63,6 +67,7 @@ class PhantomBot(BotBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self.cost = CostManager(self)
 
     # CALLBACKS ========================================================================================================
     # vvvvvvvvv
@@ -141,6 +146,35 @@ class PhantomBot(BotBase):
     # ^^^^^^^^^^
     # CALLBACKS ========================================================================================================
 
+    @cached_property
+    def speedmining_positions(self) -> dict[Point2, Point2]:
+        result = dict[Point2, Point2]()
+        for pos, resources in self.expansion_locations_dict.items():
+            for patch in resources.mineral_field:
+                target = patch.position.towards(pos, MINING_RADIUS)
+                for patch2 in resources.mineral_field:
+                    if patch.position == patch2.position:
+                        continue
+                    position = project_point_onto_line(target, target - pos, patch2.position)
+                    distance1 = patch.position.distance_to(pos)
+                    distance2 = patch2.position.distance_to(pos)
+                    if distance1 < distance2:
+                        continue
+                    if MINING_RADIUS <= patch2.position.distance_to(position):
+                        continue
+                    intersections = list(
+                        get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS)
+                    )
+                    if intersections:
+                        intersection1, intersection2 = intersections
+                        if intersection1.distance_to(pos) < intersection2.distance_to(pos):
+                            target = intersection1
+                        else:
+                            target = intersection2
+                        break
+                result[patch.position] = target
+        return result
+
     async def add_replay_tag(self, tag: str) -> None:
         if tag not in self.replay_tags:
             self.replay_tags.add(tag)
@@ -148,17 +182,17 @@ class PhantomBot(BotBase):
 
     def macro(self, observation: Observation, strategy: Strategy) -> Iterable[MacroPlan]:
         return chain(
-            self.make_composition(strategy.composition_target),
-            self.make_tech(strategy),
-            self.morph_overlord(),
+            self.make_composition(observation, strategy.composition_target),
+            self.make_tech(observation, strategy),
+            self.morph_overlord(observation),
             self.expand(observation),
         )
 
-    def optimal_gas_ratio(self, composition: UnitComposition) -> float:
+    def optimal_gas_ratio(self, observation: Observation, composition: UnitComposition) -> float:
         required = self.cost.zero
         required += self.planner.get_total_cost(self.cost)
         required += self.cost.of_composition(composition)
-        required -= self.bank
+        required -= observation.bank
 
         if required.minerals <= 0 and required.vespene <= 0:
             return 1.0
@@ -217,8 +251,8 @@ class PhantomBot(BotBase):
             resources_to_harvest = Units([], self)
             gas_ratio = 0.0
         else:
-            resources_to_harvest = self.all_taken_resources.filter(should_harvest_resource)
-            gas_ratio = self.optimal_gas_ratio(strategy.composition_deficit)
+            resources_to_harvest = observation.all_taken_resources.filter(should_harvest_resource)
+            gas_ratio = self.optimal_gas_ratio(observation, strategy.composition_deficit)
         resource_observation = ResourceObservation(
             self,
             harvesters,
@@ -228,7 +262,7 @@ class PhantomBot(BotBase):
             gas_ratio,
         )
         resource_action = self.resource_state.step(resource_observation)
-        for plan in self.build_gasses(resource_action):
+        for plan in self.build_gasses(observation, resource_action):
             self.planner.add(plan)
 
         dodge = self.dodge.step(observation)
@@ -333,10 +367,10 @@ class PhantomBot(BotBase):
             if structure.health_percentage < 0.1:
                 yield UseAbility(structure, AbilityId.CANCEL)
 
-    def build_gasses(self, resources: ResourceAction) -> Iterable[MacroPlan]:
+    def build_gasses(self, observation: Observation, resources: ResourceAction) -> Iterable[MacroPlan]:
         gas_type = GAS_BY_RACE[self.race]
         gas_depleted = self.gas_buildings.filter(lambda g: not g.has_vespene).amount
-        gas_pending = self.count(gas_type, include_actual=False)
+        gas_pending = observation.count(gas_type, include_actual=False)
         gas_have = resources.observation.gas_buildings.amount
         gas_max = resources.observation.vespene_geysers.amount
         gas_want = min(gas_max, gas_depleted + math.ceil((resources.gas_target - 1) / 3))
@@ -377,19 +411,19 @@ class PhantomBot(BotBase):
             if blocked_since + 60 < self.time:
                 self.blocked_positions -= {position}
 
-    def make_composition(self, composition: UnitComposition) -> Iterable[MacroPlan]:
+    def make_composition(self, observation: Observation, composition: UnitComposition) -> Iterable[MacroPlan]:
         if 200 <= self.supply_used:
             return
         for unit in composition:
             target = composition[unit]
-            have = self.count(unit)
+            have = observation.count(unit)
             if target < 1:
                 continue
             elif target <= have:
                 continue
-            if any(self.get_missing_requirements(unit)):
+            if any(observation.get_missing_requirements(unit)):
                 continue
-            priority = -self.count(unit, include_planned=False) / target
+            priority = -observation.count(unit, include_planned=False) / target
             if any(self.planned_by_type(unit)):
                 for plan in self.planned_by_type(unit):
                     if plan.priority == math.inf:
@@ -399,11 +433,11 @@ class PhantomBot(BotBase):
             else:
                 yield MacroPlan(unit, priority=priority)
 
-    def make_tech(self, strategy: Strategy) -> Iterable[MacroPlan]:
+    def make_tech(self, observation: Observation, strategy: Strategy) -> Iterable[MacroPlan]:
         upgrades = [
             u
             for unit, count in strategy.composition_target.items()
-            for u in self.upgrades_by_unit(unit)
+            for u in observation.upgrades_by_unit(unit)
             if strategy.filter_upgrade(u)
         ]
         upgrades.append(UpgradeId.ZERGLINGMOVEMENTSPEED)
@@ -412,15 +446,15 @@ class PhantomBot(BotBase):
         targets.update(r for item in set(targets) for r in REQUIREMENTS[item])
         for target in targets:
             if equivalents := WITH_TECH_EQUIVALENTS.get(target):
-                target_met = any(self.count(t) for t in equivalents)
+                target_met = any(observation.count(t) for t in equivalents)
             else:
-                target_met = bool(self.count(target))
+                target_met = bool(observation.count(target))
             if not target_met:
                 yield MacroPlan(target, priority=-0.5)
 
-    def morph_overlord(self) -> Iterable[MacroPlan]:
-        supply = self.supply_cap + self.supply_pending / 2 + self.supply_planned
-        supply_target = min(200.0, self.supply_used + 2 + 20 * self.income.larva)
+    def morph_overlord(self, observation: Observation) -> Iterable[MacroPlan]:
+        supply = self.supply_cap + observation.supply_pending / 2 + observation.supply_planned
+        supply_target = min(200.0, self.supply_used + 2 + 20 * observation.income.larva)
         if supply_target <= supply:
             return
         yield MacroPlan(UnitTypeId.OVERLORD, priority=1)
@@ -429,7 +463,7 @@ class PhantomBot(BotBase):
 
         if self.time < 50:
             return
-        if 2 == self.townhalls.amount and 2 > self.count(UnitTypeId.QUEEN, include_planned=False):
+        if 2 == self.townhalls.amount and 2 > observation.count(UnitTypeId.QUEEN, include_planned=False):
             return
 
         worker_max = observation.max_harvesters
@@ -442,7 +476,7 @@ class PhantomBot(BotBase):
             if plan.priority < math.inf:
                 plan.priority = priority
 
-        if 0 < self.count(UnitTypeId.HATCHERY, include_actual=False):
+        if 0 < observation.count(UnitTypeId.HATCHERY, include_actual=False):
             return
         yield MacroPlan(UnitTypeId.HATCHERY, priority=priority, max_distance=None)
 

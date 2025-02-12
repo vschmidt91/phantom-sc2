@@ -29,8 +29,8 @@ class Make(BuildOrder):
     target: int
 
     def execute(self, obs: Observation) -> BuildOrderStep | None:
-        if obs.bot.count(self.unit, include_planned=False) < self.target:
-            if obs.bot.count(self.unit) < self.target:
+        if obs.count(self.unit, include_planned=False) < self.target:
+            if obs.count(self.unit) < self.target:
                 return BuildOrderStep([MacroPlan(self.unit)], [])
             else:
                 return BuildOrderStep([], [])
@@ -45,7 +45,7 @@ class ExtractorTrick(BuildOrder):
 
     def execute(self, obs: Observation) -> BuildOrderStep | None:
         if self.at_supply == obs.bot.supply_used and obs.bot.supply_left <= 0:
-            if 0 == obs.bot.count(self.unit_type):
+            if 0 == obs.count(self.unit_type):
                 if self.min_minerals < obs.bot.minerals:
                     return BuildOrderStep([MacroPlan(self.unit_type)], [])
                 else:
