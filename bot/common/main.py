@@ -41,7 +41,7 @@ from bot.common.utils import (
     logit_to_probability,
     project_point_onto_line,
 )
-from bot.parameter.constants import PARAM_COST_WEIGHTING
+from bot.data.constants import PARAM_COST_WEIGHTING
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 

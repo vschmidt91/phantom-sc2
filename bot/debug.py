@@ -11,11 +11,12 @@ from sc2.unit import Unit
 
 # from bot.ai.replay import load_replays
 from bot.common.main import BotBase
-from bot.macro.planner import MacroPlan
+from bot.macro.state import MacroPlan
 
 
 @dataclass(frozen=True)
 class Debug:
+
     bot: BotBase
     profiler = cProfile.Profile()
 

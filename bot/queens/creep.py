@@ -21,6 +21,7 @@ _BASE_SIZE = (5, 5)
 
 @dataclass(frozen=True)
 class CreepAction:
+
     obs: Observation
     mask: np.ndarray
     active_tumors: set[Unit]

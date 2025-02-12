@@ -21,8 +21,8 @@ from sc2.player import AbstractPlayer, Bot, Computer
 sys.path.append("ares-sc2")
 
 from bot.main import PhantomBot
-from bot.parameter.constants import PARAM_PRIORS
-from bot.parameter.main import BotData, BotDataUpdate
+from bot.data.constants import PARAM_PRIORS
+from bot.data.state import DataState, DataUpdate
 
 MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
 MAP_FILE_EXT: str = "SC2Map"
@@ -84,7 +84,7 @@ def run_local(
     build: str,
 ):
 
-    data = BotData.from_priors(PARAM_PRIORS)
+    data = DataState.from_priors(PARAM_PRIORS)
     if data_file:
         try:
             with gzip.GzipFile(data_file, "rb") as f:
@@ -124,7 +124,7 @@ def run_local(
     print(f"Game finished: {result}")
 
     print("Updating parameters...")
-    update = BotDataUpdate(
+    update = DataUpdate(
         parameters=parameters,
         result=result,
     )

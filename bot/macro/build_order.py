@@ -6,7 +6,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 
 from bot.common.action import Action, UseAbility
 from bot.common.observation import Observation
-from bot.macro.planner import MacroPlan
+from bot.macro.state import MacroPlan
 
 
 @dataclass(frozen=True)

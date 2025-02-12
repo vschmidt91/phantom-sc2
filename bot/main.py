@@ -35,7 +35,7 @@ from bot.common.unit_composition import UnitComposition
 from bot.corrosive_biles import CorrosiveBile
 from bot.debug import Debug
 from bot.macro.build_order import HATCH_FIRST
-from bot.macro.planner import MacroId, MacroPlan, MacroState
+from bot.macro.state import MacroId, MacroPlan, MacroState
 from bot.macro.strategy import Strategy
 from bot.queens.creep import CreepState
 from bot.queens.inject import InjectState
@@ -58,7 +58,6 @@ class PhantomBot(BotBase):
     dodge = DodgeState()
     resource_state = ResourceState(HarvesterAssignment({}))
     blocked_positions = BlockedPositions({})
-
     build_order = HATCH_FIRST
     replay_tags = set[str]()
 

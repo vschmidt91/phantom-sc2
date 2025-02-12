@@ -13,6 +13,7 @@ _ABILITY = AbilityId.EFFECT_CORROSIVEBILE
 
 @dataclass(frozen=True)
 class CorrosiveBileAction:
+
     actions: dict[Unit, Action]
 
 
