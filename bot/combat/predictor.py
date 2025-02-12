@@ -6,6 +6,9 @@ import numpy as np
 from sc2.unit import Unit
 from sc2.units import Units
 
+from bot.common.constants import DPS_OVERRIDE
+from bot.common.utils import can_attack
+
 
 class CombatOutcome(Enum):
     Win = auto()
@@ -25,9 +28,13 @@ class CombatPredictor:
     enemy_units: Units
 
     @cached_property
-    def prediction(self, step_time: float = 0.1, max_steps: int = 600) -> CombatPrediction:
+    def prediction(self, step_time: float = 0.3, max_steps: int = 300) -> CombatPrediction:
 
         def calculate_dps(u: Unit, v: Unit) -> float:
+            if dps := DPS_OVERRIDE.get(u.type_id):
+                return dps
+            if not can_attack(u, v):
+                return 0.0
             return u.air_dps if v.is_flying else u.ground_dps
 
         dps = np.array([[calculate_dps(u, v) for v in self.enemy_units] for u in self.units])

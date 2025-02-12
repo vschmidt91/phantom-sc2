@@ -293,12 +293,12 @@ class CombatAction:
             kill_time = np.divide(b.health + b.shield, dps)
             risk = min(1e8, travel_time + 0.1 * kill_time)
             reward = self.observation.bot.calculate_unit_value_weighted(b.type_id)
-            if b.type_id in WORKERS:
-                reward *= 7
+            # if b.type_id in WORKERS:
+            #     reward *= 7
             if b.type_id not in CIVILIANS:
                 reward *= 3
 
-            return np.log1p(risk) - np.log1p(reward)
+            return np.divide(risk, reward)
 
         if self.observation.enemy_units:
             optimal_assigned = len(self.observation.units) / len(self.observation.enemy_units)
