@@ -16,7 +16,7 @@ from bot.resources.observation import HarvesterAssignment, ResourceObservation
 class ResourceAction:
     observation: ResourceObservation
     old_assignment: HarvesterAssignment
-    roach_rushing = True  # TODO
+    roach_rushing = False  # TODO
 
     @cached_property
     def next_assignment(self) -> HarvesterAssignment:

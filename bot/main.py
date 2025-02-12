@@ -57,7 +57,7 @@ class PhantomBot(BotBase):
     inject = InjectState()
     resource_state = ResourceState(HarvesterAssignment({}))
     blocked_positions = BlockedPositions({})
-    build_order = ROACH_RUSH
+    build_order = HATCH_FIRST
     replay_tags = set[str]()
 
     def __init__(self, *args, **kwargs) -> None:
