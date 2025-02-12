@@ -10,8 +10,8 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bot.common.assignment import Assignment
+from bot.observation import Observation
 from bot.resources.utils import remaining
-from observation import Observation
 
 HarvesterAssignment: TypeAlias = Assignment[int, Point2]
 

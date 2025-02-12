@@ -34,7 +34,7 @@ from bot.common.main import BlockedPositions, BotBase
 from bot.common.unit_composition import UnitComposition
 from bot.corrosive_biles import CorrosiveBile
 from bot.debug import Debug
-from bot.macro.build_order import HATCH_FIRST, ROACH_RUSH
+from bot.macro.build_order import HATCH_FIRST
 from bot.macro.state import MacroId, MacroPlan, MacroState
 from bot.macro.strategy import Strategy
 from bot.observation import Observation
