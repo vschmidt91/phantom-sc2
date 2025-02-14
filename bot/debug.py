@@ -59,8 +59,6 @@ class Debug:
         # )
 
     async def on_step_start(self) -> None:
-        # if self.bot.actual_iteration > 100:
-        #     await self.bot.client.leave()
         for error in self.bot.state.action_errors:
             logger.debug(f"{error=}")
         self.profiler.enable()

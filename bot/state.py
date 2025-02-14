@@ -68,6 +68,18 @@ class BotState:
             if blocked_since + 60 < observation.bot.time:
                 self.blocked_positions -= {position}
 
+        bases = []
+        scout_targets = list[Point2]()
+        if not observation.is_micro_map:
+            bases.extend(observation.bot.expansion_locations_list)
+            bases_sorted = sorted(bases, key=lambda b: b.distance_to(observation.bot.start_location))
+            scout_targets.extend(bases_sorted[1: len(bases_sorted) // 2])
+        for pos in bases:
+            pos = 0.5 * (pos + observation.bot.start_location)
+            scout_targets.insert(1, pos)
+        scouts = observation.units({UnitTypeId.OVERLORD, UnitTypeId.OVERSEER})
+        scouting = Scout(observation.bot, scouts, frozenset(scout_targets), frozenset(self.blocked_positions))
+
         strategy = Strategy(observation)
 
         if not observation.is_micro_map:
@@ -254,8 +266,7 @@ class BotState:
                 return None
             return Move(unit, target)
 
-        scout_actions = self.get_scouting(observation, self.blocked_positions).get_actions()
-
+        scout_actions = scouting.get_actions()
         for action in macro_actions.values():
             yield action
         for action in scout_actions.values():
@@ -280,16 +291,3 @@ class BotState:
         for structure in observation.structures.not_ready:
             if structure.health_percentage < 0.1:
                 yield UseAbility(structure, AbilityId.CANCEL)
-
-    def get_scouting(self, observation: Observation, blocked_positions: BlockedPositions) -> Scout:
-        bases = []
-        scout_targets = list[Point2]()
-        if not observation.is_micro_map:
-            bases.extend(observation.bot.expansion_locations_list)
-            bases_sorted = sorted(bases, key=lambda b: b.distance_to(observation.bot.start_location))
-            scout_targets.extend(bases_sorted[1 : len(bases_sorted) // 2])
-        for pos in bases:
-            pos = 0.5 * (pos + observation.bot.start_location)
-            scout_targets.insert(1, pos)
-        scouts = observation.units({UnitTypeId.OVERLORD, UnitTypeId.OVERSEER})
-        return Scout(observation.bot, scouts, frozenset(scout_targets), frozenset(blocked_positions))
