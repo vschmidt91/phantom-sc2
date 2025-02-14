@@ -1,18 +1,15 @@
 import math
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Callable
+from typing import Protocol
 
 import numpy as np
 from sc2.game_data import Cost as SC2Cost
 from sc2.ids.unit_typeid import UnitTypeId
 
 from bot.common.constants import LARVA_COST
-from bot.common.main import BotBase, MacroId
 from bot.common.unit_composition import UnitComposition
-
-MineralVespeneCostProvider = Callable[[UnitTypeId], SC2Cost]
-SupplyCostProvider = Callable[[UnitTypeId], float]
+from bot.common.utils import MacroId
 
 
 @dataclass(frozen=True)
@@ -75,10 +72,19 @@ class Cost:
         return f"Cost({self.minerals}M, {self.vespene}G, {self.supply}F, {self.larva}L)"
 
 
+class CostContext(Protocol):
+
+    def calculate_cost(self, item: UnitTypeId) -> SC2Cost:
+        raise NotImplementedError()
+
+    def calculate_supply_cost(self, item: UnitTypeId) -> float:
+        raise NotImplementedError()
+
+
 @dataclass
 class CostManager:
 
-    bot: BotBase
+    context: CostContext
     _cache = dict[MacroId, Cost]()
 
     @cached_property
@@ -89,8 +95,8 @@ class CostManager:
         if cached := self._cache.get(item):
             return cached
         try:
-            cost = self.bot.calculate_cost(item)
-            supply = self.bot.calculate_supply_cost(item)
+            cost = self.context.calculate_cost(item)
+            supply = self.context.calculate_supply_cost(item)
         except Exception:
             return self.zero
         larva = LARVA_COST.get(item, 0.0)

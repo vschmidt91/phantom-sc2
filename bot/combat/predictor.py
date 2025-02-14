@@ -11,9 +11,9 @@ from bot.common.utils import can_attack
 
 
 class CombatOutcome(Enum):
-    Win = auto()
-    Loss = auto()
-    Tie = auto()
+    Victory = auto()
+    Defeat = auto()
+    Draw = auto()
 
 
 @dataclass(frozen=True)
@@ -29,6 +29,18 @@ class CombatPredictor:
 
     @cached_property
     def prediction(self, step_time: float = 0.3, max_steps: int = 300) -> CombatPrediction:
+
+        max_duration = step_time * max_steps
+        if not any(self.units):
+            return CombatPrediction(
+                outcome=CombatOutcome.Defeat,
+                survival_time={u: max_duration for u in self.enemy_units},
+            )
+        if not any(self.enemy_units):
+            return CombatPrediction(
+                outcome=CombatOutcome.Victory,
+                survival_time={u: max_duration for u in self.units},
+            )
 
         def calculate_dps(u: Unit, v: Unit) -> float:
             if dps := DPS_OVERRIDE.get(u.type_id):
@@ -69,7 +81,7 @@ class CombatPredictor:
         survival = np.array([t for u in self.units])
         enemy_survival = np.array([t for u in self.enemy_units])
 
-        outcome = CombatOutcome.Tie
+        outcome = CombatOutcome.Draw
         for i in range(max_steps):
 
             potential_distance = 1e-3 + t * movement_speed
@@ -93,10 +105,10 @@ class CombatPredictor:
             enemy_alive = 0 < enemy_health
 
             if not (alive * np.max(dps, 1)).any():
-                outcome = CombatOutcome.Loss
+                outcome = CombatOutcome.Defeat
                 break
             if not (enemy_alive * np.max(enemy_dps, 0)).any():
-                outcome = CombatOutcome.Win
+                outcome = CombatOutcome.Victory
                 break
 
             survival = np.where(alive, t, survival)

@@ -4,15 +4,12 @@ from functools import cached_property
 from typing import Iterable, TypeAlias
 
 from ares import AresBot
-from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 
 from bot.common.assignment import Assignment
 from bot.common.constants import MICRO_MAP_REGEX, MINING_RADIUS
-from bot.common.utils import get_intersections, project_point_onto_line
-
-MacroId: TypeAlias = UnitTypeId | UpgradeId
+from bot.common.cost import CostManager
+from bot.common.utils import MacroId, get_intersections, project_point_onto_line
 
 BlockedPositions: TypeAlias = Assignment[Point2, float]
 
@@ -22,6 +19,7 @@ class BotBase(AresBot, ABC):
     def __init__(self, parameters: dict[str, float], game_step_override: int | None = None) -> None:
         super().__init__(game_step_override=game_step_override)
         self.parameters = parameters
+        self.cost = CostManager(self)
 
     @abstractmethod
     def planned_by_type(self, item: MacroId) -> Iterable:

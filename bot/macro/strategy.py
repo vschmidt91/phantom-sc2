@@ -2,17 +2,21 @@ import enum
 from collections import defaultdict
 from dataclasses import dataclass
 from functools import cached_property, total_ordering
+from typing import Iterable
 
 import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
 from bot.common.constants import (
+    REQUIREMENTS,
     UNIT_COUNTER_DICT,
+    WITH_TECH_EQUIVALENTS,
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
 )
 from bot.common.unit_composition import UnitComposition
+from bot.macro.state import MacroId, MacroPlan
 from bot.observation import Observation
 
 
@@ -148,3 +152,51 @@ class Strategy:
             else:
                 composition += {UnitTypeId.SPIRE: 1}
         return composition
+
+    def make_tech(self) -> Iterable[MacroPlan]:
+        upgrades = [
+            u
+            for unit, count in self.composition_target.items()
+            for u in self.obs.upgrades_by_unit(unit)
+            if self.filter_upgrade(u)
+        ]
+        upgrades.append(UpgradeId.ZERGLINGMOVEMENTSPEED)
+        targets: set[MacroId] = set(upgrades)
+        targets.update(self.composition_target.keys())
+        targets.update(r for item in set(targets) for r in REQUIREMENTS[item])
+        for target in targets:
+            if equivalents := WITH_TECH_EQUIVALENTS.get(target):
+                target_met = any(self.obs.count(t) for t in equivalents)
+            else:
+                target_met = bool(self.obs.count(target))
+            if not target_met:
+                yield MacroPlan(target, priority=-0.5)
+
+    def expand(self) -> Iterable[MacroPlan]:
+
+        if self.obs.bot.time < 50:
+            return
+        if 2 == self.obs.bot.townhalls.amount and 2 > self.obs.count(UnitTypeId.QUEEN, include_planned=False):
+            return
+
+        worker_max = self.obs.max_harvesters
+        saturation = max(0, min(1, self.obs.bot.state.score.food_used_economy / max(1, worker_max)))
+        if 2 < self.obs.bot.townhalls.amount and 4 / 5 > saturation:
+            return
+
+        priority = 5 * (saturation - 1)
+        # TODO: prioritize everything on the fly
+        # for plan in self.macro.planned_by_type(UnitTypeId.HATCHERY):
+        #     if plan.priority < math.inf:
+        #         plan.priority = priority
+
+        if 0 < self.obs.count(UnitTypeId.HATCHERY, include_actual=False):
+            return
+        yield MacroPlan(UnitTypeId.HATCHERY, priority=priority, max_distance=None)
+
+    def morph_overlord(self) -> Iterable[MacroPlan]:
+        supply = self.obs.bot.supply_cap + self.obs.supply_pending / 2 + self.obs.supply_planned
+        supply_target = min(200.0, self.obs.bot.supply_used + 2 + 20 * self.obs.income.larva)
+        if supply_target <= supply:
+            return
+        yield MacroPlan(UnitTypeId.OVERLORD, priority=1)

@@ -17,7 +17,7 @@ class CorrosiveBileAction:
     actions: dict[Unit, Action]
 
 
-class CorrosiveBile:
+class CorrosiveBileState:
 
     bile_last_used = dict[int, int]()
 

@@ -15,6 +15,7 @@ from sc2.units import Units
 
 from bot.combat.action import CombatAction
 from bot.common.action import Action, HoldPosition, Move, UseAbility
+from bot.common.assignment import Assignment
 from bot.common.constants import (
     ALL_MACRO_ABILITIES,
     GAS_BY_RACE,
@@ -24,10 +25,13 @@ from bot.common.constants import (
 )
 from bot.common.cost import Cost, CostManager
 from bot.common.main import BotBase
+from bot.common.unit_composition import UnitComposition
 from bot.common.utils import PlacementNotFoundException
 from bot.observation import Observation
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
+
+MacroAction: TypeAlias = Assignment[Unit, Action]
 
 
 @dataclass
@@ -43,6 +47,28 @@ class MacroPlan:
 class MacroState:
     unassigned_plans = list[MacroPlan]()
     assigned_plans = dict[int, MacroPlan]()
+
+    def make_composition(self, observation: Observation, composition: UnitComposition) -> Iterable[MacroPlan]:
+        if 200 <= observation.bot.supply_used:
+            return
+        for unit in composition:
+            target = composition[unit]
+            have = observation.count(unit)
+            if target < 1:
+                continue
+            elif target <= have:
+                continue
+            if any(observation.get_missing_requirements(unit)):
+                continue
+            priority = -observation.count(unit, include_planned=False) / target
+            if any(self.planned_by_type(unit)):
+                for plan in self.planned_by_type(unit):
+                    if plan.priority == math.inf:
+                        continue
+                    plan.priority = priority
+                    break
+            else:
+                yield MacroPlan(unit, priority=priority)
 
     @property
     def plan_count(self) -> int:
@@ -68,14 +94,12 @@ class MacroState:
                 self.assigned_plans[trainer.tag] = plan
                 trainer_set.remove(trainer)
 
-    async def get_actions(
-        self, obs: Observation, blocked_positions: set[Point2], combat: CombatAction
-    ) -> dict[Unit, Action]:
+    async def step(self, obs: Observation, blocked_positions: set[Point2], combat: CombatAction) -> MacroAction:
 
-        self._handle_actions(obs.bot)
+        self.handle_actions(obs.bot)
         self.assign_unassigned_plans(obs.bot.all_own_units)  # TODO: narrow this down
 
-        actions = dict[Unit, Action]()
+        actions = Assignment[Unit, Action]({})
         reserve = obs.bot.cost.zero
         plans_prioritized = sorted(self.assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
         for i, (tag, plan) in enumerate(plans_prioritized):
@@ -141,14 +165,14 @@ class MacroState:
 
             if eta == 0.0:
                 plan.commanded = True
-                actions[trainer] = UseAbility(trainer, ability, target=plan.target)
+                actions += {trainer: UseAbility(trainer, ability, target=plan.target)}
             elif plan.target:
                 if trainer.is_carrying_resource:
-                    actions[trainer] = UseAbility(trainer, AbilityId.HARVEST_RETURN)
+                    actions += {trainer: UseAbility(trainer, AbilityId.HARVEST_RETURN)}
                 elif action := await premove(obs.bot, trainer, plan.target.position, eta):
-                    actions[trainer] = action
+                    actions += {trainer: action}
                 elif action := combat.fight_with(trainer):
-                    actions[trainer] = action
+                    actions += {trainer: action}
 
         return actions
 
@@ -216,12 +240,12 @@ class MacroState:
 
         return None
 
-    def _handle_actions(self, context: BotBase) -> None:
+    def handle_actions(self, context: BotBase) -> None:
         for action in context.state.actions_unit_commands:
             for tag in action.unit_tags:
-                self._handle_action(context, action, tag)
+                self.handle_action(context, action, tag)
 
-    def _handle_action(self, context: BotBase, action: ActionRawUnitCommand, tag: int) -> None:
+    def handle_action(self, context: BotBase, action: ActionRawUnitCommand, tag: int) -> None:
         unit = context.unit_tag_dict.get(tag)
 
         if not (item := ITEM_BY_ABILITY.get(action.exact_id)):

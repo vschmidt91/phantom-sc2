@@ -17,7 +17,6 @@ from bot.common.assignment import Assignment
 from bot.common.constants import CIVILIANS, HALF, MAX_UNIT_RADIUS
 from bot.common.utils import Point, can_attack, combine_comparers, disk
 from bot.cython.dijkstra_pathing import DijkstraPathing
-from bot.macro.strategy import Strategy
 from bot.observation import Observation
 
 
@@ -25,7 +24,6 @@ from bot.observation import Observation
 class CombatAction:
 
     observation: Observation
-    strategy: Strategy
 
     @cached_property
     def retreat_targets(self) -> frozenset[Point2]:
@@ -168,7 +166,6 @@ class CombatAction:
         for p in attack_path:
             under_fire = 0 < self.enemy_presence.dps[p]
 
-            # confident = 0 < self.confidence[p]
             confident = self.prediction.survival_time[target] <= self.prediction.survival_time[unit]
 
             if under_fire:

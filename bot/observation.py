@@ -35,8 +35,8 @@ from bot.common.constants import (
     ZERG_RANGED_UPGRADES,
 )
 from bot.common.cost import Cost
-from bot.common.main import BotBase, MacroId
-from bot.common.utils import center, logit_to_probability
+from bot.common.main import BotBase
+from bot.common.utils import MacroId, center, logit_to_probability
 from bot.data.constants import PARAM_COST_WEIGHTING
 
 
@@ -59,16 +59,32 @@ class Observation:
             return self.bot.all_enemy_units.exclude_type(ENEMY_CIVILIANS)
 
     @property
+    def gas_buildings(self) -> Units:
+        return self.bot.gas_buildings
+
+    @property
+    def is_micro_map(self) -> bool:
+        return self.bot.is_micro_map
+
+    @property
     def structures(self) -> Units:
         return self.bot.structures
+
+    @property
+    def workers(self) -> Units:
+        return self.bot.workers
+
+    @property
+    def townhalls(self) -> Units:
+        return self.bot.townhalls
 
     @property
     def enemy_structures(self) -> Units:
         return self.bot.enemy_structures
 
     @cached_property
-    def enemy_start_locations(self) -> frozenset[Point2]:
-        return frozenset(self.bot.enemy_start_locations)
+    def enemy_start_locations(self) -> list[Point2]:
+        return self.bot.enemy_start_locations
 
     @property
     def game_loop(self):

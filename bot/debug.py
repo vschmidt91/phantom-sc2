@@ -72,7 +72,7 @@ class Debug:
             logger.info("dump profiling")
             stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
             stats.dump_stats(filename="profiling.prof")
-        for i, (t, plan) in enumerate(self.bot.planner.assigned_plans.items()):
+        for i, (t, plan) in enumerate(self.bot.agent.macro.assigned_plans.items()):
             self._debug_draw_plan(self.bot.unit_tag_dict.get(t), plan, index=i)
 
     def _debug_draw_plan(
