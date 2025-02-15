@@ -16,7 +16,6 @@ from sc2.units import Units
 
 from bot.combat.action import CombatAction
 from bot.combat.dodge import DodgeState
-from bot.combat.predictor import CombatOutcome
 from bot.common.action import Action, DoNothing, Move, UseAbility
 from bot.common.assignment import Assignment
 from bot.common.constants import (
@@ -27,7 +26,7 @@ from bot.common.constants import (
 )
 from bot.common.main import BlockedPositions
 from bot.corrosive_biles import CorrosiveBileState
-from bot.macro.build_order import HATCH_FIRST, POOL_FIRST
+from bot.macro.build_order import POOL_FIRST
 from bot.macro.state import MacroPlan, MacroState
 from bot.macro.strategy import Strategy
 from bot.observation import Observation
@@ -234,7 +233,11 @@ class BotState:
             return (
                 dodge.dodge_with(u)
                 or (combat.do_burrow(u) if u.type_id in {UnitTypeId.ROACH, UnitTypeId.RAVAGER} else None)
-                or (combat.do_unburrow(u) if u.type_id in {UnitTypeId.ROACHBURROWED, UnitTypeId.RAVAGERBURROWED} else None)
+                or (
+                    combat.do_unburrow(u)
+                    if u.type_id in {UnitTypeId.ROACHBURROWED, UnitTypeId.RAVAGERBURROWED}
+                    else None
+                )
                 or (corrosive_biles.actions.get(u) if u.type_id in {UnitTypeId.RAVAGER} else None)
                 or (micro_queen(u) if unit.type_id in {UnitTypeId.QUEEN} else None)
                 # or (

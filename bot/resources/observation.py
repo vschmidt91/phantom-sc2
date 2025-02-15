@@ -1,9 +1,7 @@
-import itertools
 from dataclasses import dataclass
 from functools import cached_property
 from typing import TypeAlias
 
-import numpy as np
 from loguru import logger
 from sc2.position import Point2
 from sc2.unit import Unit

@@ -3,16 +3,15 @@ from dataclasses import dataclass
 from functools import cached_property, cmp_to_key
 
 import numpy as np
-from sc2.ids.unit_typeid import UnitTypeId
-
 from ares import UnitTreeQueryType
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bot.combat.predictor import CombatPrediction, CombatPredictor, CombatOutcome
+from bot.combat.predictor import CombatOutcome, CombatPrediction, CombatPredictor
 from bot.combat.presence import Presence
 from bot.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from bot.common.assignment import Assignment

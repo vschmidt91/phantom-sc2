@@ -6,7 +6,6 @@ from itertools import product
 import numpy as np
 from ares.consts import GAS_BUILDINGS
 from loguru import logger
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
 from scipy.optimize import linprog
@@ -73,7 +72,10 @@ class ResourceAction:
         return_distance = np.array([self.observation.observation.bot.return_distances[r.position] for r in resources])
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
 
-        reward = np.array([2.0 if h.order_target == r.tag else 1.0 for h, r in pairs]) / (1e-8 + harvester_to_resource + 3 * return_distance).flatten()
+        reward = (
+            np.array([2.0 if h.order_target == r.tag else 1.0 for h, r in pairs])
+            / (1e-8 + harvester_to_resource + 3 * return_distance).flatten()
+        )
 
         opt = linprog(
             c=-reward,
@@ -82,7 +84,6 @@ class ResourceAction:
             A_eq=A_eq,
             b_eq=b_eq,
             method="highs",
-
         )
 
         if not opt.success:
