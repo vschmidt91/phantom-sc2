@@ -26,7 +26,7 @@ from bot.common.constants import (
 )
 from bot.common.main import BlockedPositions
 from bot.corrosive_biles import CorrosiveBileState
-from bot.macro.build_order import POOL_FIRST
+from bot.macro.build_order import HATCH_FIRST
 from bot.macro.state import MacroPlan, MacroState
 from bot.macro.strategy import Strategy
 from bot.observation import Observation
@@ -47,7 +47,7 @@ class BotState:
     corrosive_biles = CorrosiveBileState()
     dodge = DodgeState()
     blocked_positions = BlockedPositions({})
-    build_order = POOL_FIRST
+    build_order = HATCH_FIRST
 
     async def step(self, observation: Observation) -> AsyncGenerator[Action, None]:
 

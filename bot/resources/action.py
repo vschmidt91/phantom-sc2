@@ -73,7 +73,7 @@ class ResourceAction:
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
 
         reward = (
-            np.array([2.0 if h.order_target == r.tag else 1.0 for h, r in pairs])
+            np.array([1.2 if h.order_target == r.tag else 1.0 for h, r in pairs])
             / (1e-8 + harvester_to_resource + 3 * return_distance).flatten()
         )
 

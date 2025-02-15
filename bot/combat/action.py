@@ -297,7 +297,7 @@ class CombatAction:
             risk = min(1e8, travel_time + 0.1 * kill_time)
             reward = max(1e-8, self.observation.calculate_unit_value_weighted(b.type_id))
             if a.order_target == b.tag:
-                reward *= 2
+                reward *= 1.2
             # if b.type_id in WORKERS:
             #     reward *= 7
             if b.type_id not in CIVILIANS:
