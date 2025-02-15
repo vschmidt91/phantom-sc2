@@ -121,10 +121,12 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
 
         opt = linprog(
             c=np.array([cost_fn(*p) for p in pairs]),
-            A_ub=np.array([[1.0 if bj == bk else 0.0 for ai, bj in pairs] for bk in b]),
+            # A_ub=np.array([[1.0 if bj == bk else 0.0 for ai, bj in pairs] for bk in b]),
+            A_ub=np.tile(np.eye(len(b), len(b)), (1, len(a))),
             b_ub=np.full(len(b), max_assigned),
-            A_eq=np.array([[1.0 if ai == ak else 0.0 for ai, bj in pairs] for ak in a]),
-            b_eq=np.ones(len(a)),
+            # A_eq=np.array([[1.0 if ai == ak else 0.0 for ai, bj in pairs] for ak in a]),
+            A_eq=np.repeat(np.eye(len(a), len(a)), len(b), axis=1),
+            b_eq=np.full(len(a), 1.0),
             method="highs",
             bounds=(0.0, 1.0),
             options=dict(maxiter=maxiter),

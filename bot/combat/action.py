@@ -12,7 +12,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bot.combat.predictor import CombatPrediction, CombatPredictor
+from bot.combat.predictor import CombatPrediction, CombatPredictor, CombatOutcome
 from bot.combat.presence import Presence
 from bot.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from bot.common.assignment import Assignment
@@ -169,7 +169,10 @@ class CombatAction:
         for p in attack_path:
             under_fire = 0 < self.enemy_presence.dps[p]
 
-            confident = self.prediction.survival_time[target] <= self.prediction.survival_time[unit]
+            confident = (
+                self.prediction.survival_time[target] <= self.prediction.survival_time[unit]
+                and self.prediction.outcome == CombatOutcome.Victory
+            )
 
             if under_fire:
                 if confident:
@@ -294,6 +297,8 @@ class CombatAction:
             kill_time = np.divide(b.health + b.shield, dps)
             risk = min(1e8, travel_time + 0.1 * kill_time)
             reward = max(1e-8, self.observation.calculate_unit_value_weighted(b.type_id))
+            if a.order_target == b.tag:
+                reward *= 2
             # if b.type_id in WORKERS:
             #     reward *= 7
             if b.type_id not in CIVILIANS:

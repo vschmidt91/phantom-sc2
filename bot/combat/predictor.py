@@ -28,7 +28,7 @@ class CombatPredictor:
     enemy_units: Units
 
     @cached_property
-    def prediction(self, step_time: float = 0.3, max_steps: int = 300) -> CombatPrediction:
+    def prediction(self, step_time: float = 0.1, max_steps: int = 100) -> CombatPrediction:
 
         max_duration = step_time * max_steps
         if not any(self.units):
@@ -84,8 +84,8 @@ class CombatPredictor:
         outcome = CombatOutcome.Draw
         for i in range(max_steps):
 
-            potential_distance = 1e-3 + t * movement_speed
-            enemy_potential_distance = 1e-3 + t * enemy_movement_speed
+            potential_distance = 1. + t * movement_speed
+            enemy_potential_distance = 1. + t * enemy_movement_speed
 
             attack_weight = np.clip(1 - required_distance / potential_distance, 0, 1)
             enemy_attack_weight = np.clip(1 - enemy_required_distance / enemy_potential_distance, 0, 1)

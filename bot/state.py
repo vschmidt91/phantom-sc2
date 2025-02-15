@@ -27,7 +27,7 @@ from bot.common.constants import (
 )
 from bot.common.main import BlockedPositions
 from bot.corrosive_biles import CorrosiveBileState
-from bot.macro.build_order import HATCH_FIRST
+from bot.macro.build_order import HATCH_FIRST, POOL_FIRST
 from bot.macro.state import MacroPlan, MacroState
 from bot.macro.strategy import Strategy
 from bot.observation import Observation
@@ -48,7 +48,7 @@ class BotState:
     corrosive_biles = CorrosiveBileState()
     dodge = DodgeState()
     blocked_positions = BlockedPositions({})
-    build_order = HATCH_FIRST
+    build_order = POOL_FIRST
 
     async def step(self, observation: Observation) -> AsyncGenerator[Action, None]:
 
@@ -104,7 +104,7 @@ class BotState:
         macro_actions = await self.macro.step(observation, set(self.blocked_positions), combat)
 
         should_inject = observation.bot.supply_used + observation.bot.larva.amount < 200
-        should_spread_creep = self.creep.unspread_tumor_count < 10
+        should_spread_creep = self.creep.unspread_tumor_count < 20
 
         def should_harvest(u: Unit) -> bool:
             if observation.is_micro_map:

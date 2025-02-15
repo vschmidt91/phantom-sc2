@@ -21,7 +21,6 @@ from bot.resources.observation import HarvesterAssignment, ResourceObservation
 @dataclass(frozen=True)
 class ResourceAction:
     observation: ResourceObservation
-    roach_rushing = False  # TODO
 
     @cached_property
     def harvester_assignment(self) -> HarvesterAssignment:
@@ -74,10 +73,10 @@ class ResourceAction:
         return_distance = np.array([self.observation.observation.bot.return_distances[r.position] for r in resources])
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
 
-        c = np.array([-1.0 for _ in pairs]) / (1 + harvester_to_resource + 3 * return_distance).flatten()
+        reward = np.array([2.0 if h.order_target == r.tag else 1.0 for h, r in pairs]) / (1e-8 + harvester_to_resource + 3 * return_distance).flatten()
 
         opt = linprog(
-            c=c,
+            c=-reward,
             A_ub=A_ub,
             b_ub=b_ub,
             A_eq=A_eq,
@@ -101,8 +100,6 @@ class ResourceAction:
 
     @cached_property
     def gas_target(self) -> int:
-        if self.roach_rushing and self.observation.observation.count(UnitTypeId.ROACH, include_planned=False) < 7:
-            return 3 * self.observation.gas_buildings.ready.amount
         return math.ceil(self.observation.harvesters.amount * self.observation.gas_ratio)
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:

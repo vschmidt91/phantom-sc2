@@ -90,18 +90,18 @@ HATCH_FIRST = BuildOrderChain(
     ]
 )
 
-ROACH_RUSH = BuildOrderChain(
+POOL_FIRST = BuildOrderChain(
     [
         Make(UnitTypeId.DRONE, 14),
         Make(UnitTypeId.OVERLORD, 2),
         Make(UnitTypeId.SPAWNINGPOOL, 1),
         Make(UnitTypeId.DRONE, 17),
         Make(UnitTypeId.HATCHERY, 2),
-        Make(UnitTypeId.EXTRACTOR, 1),
         Make(UnitTypeId.QUEEN, 1),
+        Make(UnitTypeId.EXTRACTOR, 1),
         Make(UnitTypeId.DRONE, 19),
         Make(UnitTypeId.ROACHWARREN, 1),
-        Make(UnitTypeId.OVERLORD, 3),
-        Make(UnitTypeId.ROACH, 7),
+        # Make(UnitTypeId.OVERLORD, 3),
+        # Make(UnitTypeId.ROACH, 7),
     ]
 )
