@@ -170,7 +170,7 @@ class CombatAction:
 
             confident = (
                 self.prediction.survival_time[target] <= self.prediction.survival_time[unit]
-                and self.prediction.outcome == CombatOutcome.Victory
+                and self.prediction.outcome in {CombatOutcome.Victory, CombatOutcome.Draw}
             )
 
             if under_fire:
