@@ -52,6 +52,10 @@ class Observation:
             return self.bot.units.exclude_type(CIVILIANS)
 
     @property
+    def overseers(self) -> Units:
+        return self.bot.units({UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE})
+
+    @property
     def enemy_units(self) -> Units:
         if self.bot.is_micro_map:
             return self.bot.enemy_units

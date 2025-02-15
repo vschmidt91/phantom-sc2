@@ -280,7 +280,7 @@ class BotState:
             yield micro_harvester(worker) or DoNothing()
         for tumor in creep.active_tumors:
             yield creep.spread_with_tumor(tumor) or DoNothing()
-        for action in micro_overseers(observation.units(UnitTypeId.OVERSEER)):
+        for action in micro_overseers(observation.overseers):
             yield action
         for unit in observation.units(UnitTypeId.OVERLORD):
             yield micro_overlord(unit) or DoNothing()
