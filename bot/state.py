@@ -34,8 +34,8 @@ from bot.observation import Observation
 from bot.queens.creep import CreepState
 from bot.queens.inject import InjectState
 from bot.queens.transfuse import transfuse_with
-from bot.resources.observation import HarvesterAssignment, ResourceObservation
-from bot.resources.state import ResourceState
+from bot.resources.action import ResourceAction
+from bot.resources.observation import ResourceObservation
 from bot.scout import Scout
 
 
@@ -47,7 +47,6 @@ class BotState:
     inject = InjectState()
     corrosive_biles = CorrosiveBileState()
     dodge = DodgeState()
-    resources = ResourceState(HarvesterAssignment({}))
     blocked_positions = BlockedPositions({})
     build_order = HATCH_FIRST
 
@@ -73,7 +72,7 @@ class BotState:
         if not observation.is_micro_map:
             bases.extend(observation.bot.expansion_locations_list)
             bases_sorted = sorted(bases, key=lambda b: b.distance_to(observation.bot.start_location))
-            scout_targets.extend(bases_sorted[1: len(bases_sorted) // 2])
+            scout_targets.extend(bases_sorted[1 : len(bases_sorted) // 2])
         for pos in bases:
             pos = 0.5 * (pos + observation.bot.start_location)
             scout_targets.insert(1, pos)
@@ -131,7 +130,13 @@ class BotState:
             resources_to_harvest = observation.all_taken_resources.filter(should_harvest_resource)
 
             required = observation.bot.cost.zero
-            required += self.macro.get_total_cost(observation.bot.cost)
+            required += sum(
+                (observation.bot.cost.of(plan.item) for plan in self.macro.unassigned_plans), observation.bot.cost.zero
+            )
+            required += sum(
+                (observation.bot.cost.of(plan.item) for plan in self.macro.assigned_plans.values()),
+                observation.bot.cost.zero,
+            )
             required += observation.bot.cost.of_composition(strategy.composition_deficit)
             required -= observation.bank
 
@@ -143,7 +148,7 @@ class BotState:
                 optimal_gas_ratio = vespene_trips / (mineral_trips + vespene_trips)
             gas_ratio = optimal_gas_ratio
 
-        resources = self.resources.step(
+        resources = ResourceAction(
             ResourceObservation(
                 observation,
                 harvesters,

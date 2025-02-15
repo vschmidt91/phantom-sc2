@@ -1,13 +1,19 @@
 import math
 from dataclasses import dataclass
 from functools import cached_property
+from itertools import product
 
+import numpy as np
+from ares.consts import GAS_BUILDINGS
 from loguru import logger
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
+from scipy.optimize import linprog
+from sklearn.metrics import pairwise_distances
 
 from bot.common.action import Action, DoNothing, Smart
+from bot.common.assignment import Assignment
 from bot.resources.gather import GatherAction, ReturnResource
 from bot.resources.observation import HarvesterAssignment, ResourceObservation
 
@@ -15,17 +21,81 @@ from bot.resources.observation import HarvesterAssignment, ResourceObservation
 @dataclass(frozen=True)
 class ResourceAction:
     observation: ResourceObservation
-    old_assignment: HarvesterAssignment
     roach_rushing = False  # TODO
 
     @cached_property
-    def next_assignment(self) -> HarvesterAssignment:
+    def harvester_assignment(self) -> HarvesterAssignment:
         if not self.observation.mineral_fields:
             return HarvesterAssignment({})
+        #
+        # assignment = self.old_assignment
+        # assignment = self.observation.update_assignment(assignment)
+        # assignment = self.observation.update_balance(assignment, self.gas_target)
 
-        assignment = self.old_assignment
-        assignment = self.observation.update_assignment(assignment)
-        assignment = self.observation.update_balance(assignment, self.gas_target)
+        harvesters = self.observation.harvesters
+        resources = list(self.observation.mineral_fields + self.observation.gas_buildings)
+
+        mineral_max = sum(self.observation.harvester_target_at(p) for p in self.observation.mineral_field_at)
+        gas_max = sum(self.observation.harvester_target_at(p) for p in self.observation.gas_building_at)
+        gas_target = min(self.gas_target, gas_max)
+        harvester_max = mineral_max + gas_target
+        if harvester_max < len(harvesters):
+            harvesters = sorted(harvesters, key=lambda u: u.tag)[:harvester_max]
+
+        if not any(harvesters):
+            return Assignment({})
+        if not any(resources):
+            return Assignment({})
+
+        pairs = list(product(harvesters, resources))
+
+        # limit harvesters per resource
+        A_ub1 = np.tile(np.eye(len(resources), len(resources)), (1, len(harvesters)))
+        b_ub1 = np.full((len(resources)), 2.0)
+
+        # limit assignment per harvester
+        A_ub2 = np.repeat(np.eye(len(harvesters), len(harvesters)), len(resources), axis=1)
+        b_ub2 = np.full((len(harvesters)), 1.0)
+
+        A_ub = np.concatenate((A_ub1, A_ub2), axis=0)
+        b_ub = np.concatenate((b_ub1, b_ub2), axis=0)
+
+        # enforce gas target
+        is_gas_building = np.array([1.0 if r.type_id in GAS_BUILDINGS else 0.0 for r in resources])
+        A_eq = np.tile(is_gas_building, len(harvesters)).reshape((1, -1))
+        # A_eq1 = np.repeat(is_gas_building[None, ...], len(harvesters), axis=0).flatten()
+        # A_eq = np.array([A_eq1])
+        b_eq = np.array([gas_target])
+
+        harvester_to_resource = pairwise_distances(
+            [h.position for h in harvesters],
+            [r.position for r in resources],
+        )
+
+        return_distance = np.array([self.observation.observation.bot.return_distances[r.position] for r in resources])
+        return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
+
+        c = np.array([-1.0 for _ in pairs]) / (1 + harvester_to_resource + return_distance).flatten()
+
+        opt = linprog(
+            c=c,
+            A_ub=A_ub,
+            b_ub=b_ub,
+            A_eq=A_eq,
+            b_eq=b_eq,
+            method="highs",
+        )
+
+        if not opt.success:
+            logger.error(f"Target assigment failed: {opt}")
+            return Assignment({})
+
+        x_opt = opt.x.reshape(harvester_to_resource.shape)
+        indices = x_opt.argmax(axis=1)
+        assignment = HarvesterAssignment(
+            {h.tag: resources[idx].position for (i, h), idx in zip(enumerate(harvesters), indices) if 0 < x_opt[i, idx]}
+        )
+        # assignment = Assignment({h.tag: r.position for (h, r), w in zip(pairs, opt.x) if w > 0.5})
 
         return assignment
 
@@ -33,11 +103,11 @@ class ResourceAction:
     def gas_target(self) -> int:
         if self.roach_rushing and self.observation.observation.count(UnitTypeId.ROACH, include_planned=False) < 7:
             return 3 * self.observation.gas_buildings.ready.amount
-        return math.ceil(len(self.old_assignment) * self.observation.gas_ratio)
+        return math.ceil(self.observation.harvesters.amount * self.observation.gas_ratio)
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
-        if not (target_pos := self.next_assignment.get(unit.tag)):
-            logger.error(f"Unassinged harvester {unit}")
+        if not (target_pos := self.harvester_assignment.get(unit.tag)):
+            # logger.error(f"Unassinged harvester {unit}")
             return None
         if not (target := self.observation.resource_at.get(target_pos)):
             logger.error(f"No resource found at {target_pos}")

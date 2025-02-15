@@ -23,7 +23,7 @@ from bot.common.constants import (
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
     MACRO_INFO,
 )
-from bot.common.cost import Cost, CostManager
+from bot.common.cost import Cost
 from bot.common.main import BotBase
 from bot.common.unit_composition import UnitComposition
 from bot.common.utils import PlacementNotFoundException
@@ -175,12 +175,6 @@ class MacroState:
                     actions += {trainer: action}
 
         return actions
-
-    def get_total_cost(self, cost: CostManager) -> Cost:
-        costs = []
-        costs.extend([cost.of(plan.item) for plan in self.unassigned_plans])
-        costs.extend(cost.of(plan.item) for plan in self.assigned_plans.values())
-        return sum(costs, cost.zero)
 
     async def get_target(
         self, obs: Observation, trainer: Unit, objective: MacroPlan, blocked_positions: set[Point2]

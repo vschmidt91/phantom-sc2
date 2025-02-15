@@ -16,7 +16,7 @@ class ScoutAction(Action):
 
     async def execute(self, bot: BotBase) -> bool:
         if self.unit.distance_to(self.target) < self.unit.radius + self.unit.sight_range:
-            return self.unit.hold_position()
+            return self.unit.move(self.target)
         else:
             return self.unit.move(self.target)
 

@@ -80,9 +80,11 @@ class ResourceObservation:
     # cache
     def harvester_target_at(self, p: Point2) -> int:
         if geyser := self.vespene_geyser_at.get(p):
-            if not remaining(geyser):
-                return 0
-            return 3
+            if remaining(geyser):
+                if gas_building := self.gas_building_at.get(p):
+                    if gas_building.is_ready:
+                        return 2
+            return 0
         elif patch := self.mineral_field_at.get(p):
             if not remaining(patch):
                 return 0

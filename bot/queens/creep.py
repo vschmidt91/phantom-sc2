@@ -54,7 +54,7 @@ class CreepAction:
 
     @cached_property
     def value_map_blurred(self) -> np.ndarray:
-        return gaussian_filter(self.value_map, 3) * self.obs.pathing
+        return gaussian_filter(self.value_map, 3) * (self.obs.pathing == 1).astype(float)
 
     def _place_tumor(self, unit: Unit, r: int, full_circle=False) -> Action | None:
 

@@ -30,17 +30,25 @@ class BotBase(AresBot, ABC):
         return re.match(MICRO_MAP_REGEX, self.game_info.map_name)
 
     @cached_property
+    def return_distances(self) -> dict[Point2, float]:
+        return {
+            r.position: r.distance_to(base)
+            for base, resources in self.expansion_locations_dict.items()
+            for r in resources
+        }
+
+    @cached_property
     def speedmining_positions(self) -> dict[Point2, Point2]:
         result = dict[Point2, Point2]()
-        for pos, resources in self.expansion_locations_dict.items():
+        for base_position, resources in self.expansion_locations_dict.items():
             for patch in resources.mineral_field:
-                target = patch.position.towards(pos, MINING_RADIUS)
+                target = patch.position.towards(base_position, MINING_RADIUS)
                 for patch2 in resources.mineral_field:
                     if patch.position == patch2.position:
                         continue
-                    position = project_point_onto_line(target, target - pos, patch2.position)
-                    distance1 = patch.position.distance_to(pos)
-                    distance2 = patch2.position.distance_to(pos)
+                    position = project_point_onto_line(target, target - base_position, patch2.position)
+                    distance1 = patch.position.distance_to(base_position)
+                    distance2 = patch2.position.distance_to(base_position)
                     if distance1 < distance2:
                         continue
                     if MINING_RADIUS <= patch2.position.distance_to(position):
@@ -50,7 +58,7 @@ class BotBase(AresBot, ABC):
                     )
                     if intersections:
                         intersection1, intersection2 = intersections
-                        if intersection1.distance_to(pos) < intersection2.distance_to(pos):
+                        if intersection1.distance_to(base_position) < intersection2.distance_to(base_position):
                             target = intersection1
                         else:
                             target = intersection2
