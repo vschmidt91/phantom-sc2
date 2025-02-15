@@ -117,4 +117,7 @@ class CombatPredictor:
             t += step_time
 
         survival_time = dict(zip(self.units, survival)) | dict(zip(self.enemy_units, enemy_survival))
+
+
+
         return CombatPrediction(outcome, survival_time)

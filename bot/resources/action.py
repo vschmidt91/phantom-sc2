@@ -27,17 +27,15 @@ class ResourceAction:
     def harvester_assignment(self) -> HarvesterAssignment:
         if not self.observation.mineral_fields:
             return HarvesterAssignment({})
-        #
-        # assignment = self.old_assignment
-        # assignment = self.observation.update_assignment(assignment)
-        # assignment = self.observation.update_balance(assignment, self.gas_target)
 
         harvesters = self.observation.harvesters
         resources = list(self.observation.mineral_fields + self.observation.gas_buildings)
 
         mineral_max = sum(self.observation.harvester_target_at(p) for p in self.observation.mineral_field_at)
+
         gas_max = sum(self.observation.harvester_target_at(p) for p in self.observation.gas_building_at)
-        gas_target = min(self.gas_target, gas_max)
+        gas_target = max(0, min(self.gas_target - self.observation.workers_in_geysers, gas_max))
+
         harvester_max = mineral_max + gas_target
         if harvester_max < len(harvesters):
             harvesters = sorted(harvesters, key=lambda u: u.tag)[:harvester_max]
@@ -51,11 +49,12 @@ class ResourceAction:
 
         # limit harvesters per resource
         A_ub1 = np.tile(np.eye(len(resources), len(resources)), (1, len(harvesters)))
-        b_ub1 = np.full((len(resources)), 2.0)
+        # b_ub1 = np.array([2.0 if r.is_mineral_field else 3.0 for r in resources])
+        b_ub1 = np.full(len(resources), 2.0)
 
         # limit assignment per harvester
         A_ub2 = np.repeat(np.eye(len(harvesters), len(harvesters)), len(resources), axis=1)
-        b_ub2 = np.full((len(harvesters)), 1.0)
+        b_ub2 = np.full(len(harvesters), 1.0)
 
         A_ub = np.concatenate((A_ub1, A_ub2), axis=0)
         b_ub = np.concatenate((b_ub1, b_ub2), axis=0)
@@ -75,7 +74,7 @@ class ResourceAction:
         return_distance = np.array([self.observation.observation.bot.return_distances[r.position] for r in resources])
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
 
-        c = np.array([-1.0 for _ in pairs]) / (1 + harvester_to_resource + return_distance).flatten()
+        c = np.array([-1.0 for _ in pairs]) / (1 + harvester_to_resource + 3 * return_distance).flatten()
 
         opt = linprog(
             c=c,
@@ -84,6 +83,7 @@ class ResourceAction:
             A_eq=A_eq,
             b_eq=b_eq,
             method="highs",
+
         )
 
         if not opt.success:

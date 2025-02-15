@@ -110,3 +110,4 @@ class Debug:
         self.bot.client.debug_text_screen(
             f"{1 + index} {round(eta or 0, 1)} {plan.item.name}", (0.01, 0.1 + 0.01 * index)
         )
+

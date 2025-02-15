@@ -233,17 +233,17 @@ class BotState:
         def micro_unit(u: Unit) -> Action | None:
             return (
                 dodge.dodge_with(u)
-                or (combat.do_burrow(u) if u.type_id in {UnitTypeId.ROACH} else None)
-                or (combat.do_unburrow(u) if u.type_id in {UnitTypeId.ROACHBURROWED} else None)
+                or (combat.do_burrow(u) if u.type_id in {UnitTypeId.ROACH, UnitTypeId.RAVAGER} else None)
+                or (combat.do_unburrow(u) if u.type_id in {UnitTypeId.ROACHBURROWED, UnitTypeId.RAVAGERBURROWED} else None)
                 or (corrosive_biles.actions.get(u) if u.type_id in {UnitTypeId.RAVAGER} else None)
                 or (micro_queen(u) if unit.type_id in {UnitTypeId.QUEEN} else None)
-                or (
-                    combat.retreat_with(u)
-                    if combat.prediction.outcome == CombatOutcome.Defeat
-                    and not observation.bot.has_creep(u)
-                    and not observation.is_micro_map
-                    else None
-                )
+                # or (
+                #     combat.retreat_with(u)
+                #     if combat.prediction.outcome == CombatOutcome.Defeat
+                #     and not observation.bot.has_creep(u)
+                #     and not observation.is_micro_map
+                #     else None
+                # )
                 or combat.fight_with(u)
                 or search_with(u)
             )

@@ -84,7 +84,7 @@ HATCH_FIRST = BuildOrderChain(
         Make(UnitTypeId.OVERLORD, 2),
         Make(UnitTypeId.DRONE, 16),
         Make(UnitTypeId.HATCHERY, 2),
-        Make(UnitTypeId.DRONE, 17),
+        Make(UnitTypeId.DRONE, 18),
         Make(UnitTypeId.EXTRACTOR, 1),
         Make(UnitTypeId.SPAWNINGPOOL, 1),
     ]
