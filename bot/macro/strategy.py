@@ -87,6 +87,10 @@ class Strategy:
         composition = UnitComposition({k: v for k, v in composition.items() if 0 < v})
         if sum(composition.values()) < 1:
             composition += {UnitTypeId.ZERGLING: 1}
+        banking = min(self.obs.bot.minerals, self.obs.bot.vespene)
+        if sum(composition.values()) < banking / 100:
+            composition += {UnitTypeId.HYDRALISK: banking / 100}
+            composition += {UnitTypeId.BROODLORD: banking / 100}
         return composition * ratio
 
     @cached_property
