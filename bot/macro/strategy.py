@@ -139,7 +139,7 @@ class Strategy:
             }
         )
         burrowed_enemies = self.obs.enemy_units.filter(lambda u: u.is_burrowed)
-        composition += {UnitTypeId.OVERSEER: max(10, len(burrowed_enemies))}
+        composition += {UnitTypeId.OVERSEER: min(10, len(burrowed_enemies))}
         if self.tier >= StrategyTier.Zero:
             pass
         if self.tier >= StrategyTier.Hatch:
