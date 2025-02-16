@@ -138,17 +138,19 @@ class Strategy:
                 UnitTypeId.QUEEN: queen_target,
             }
         )
+        burrowed_enemies = self.obs.enemy_units.filter(lambda u: u.is_burrowed)
+        composition += {UnitTypeId.OVERSEER: max(10, len(burrowed_enemies))}
         if self.tier >= StrategyTier.Zero:
             pass
         if self.tier >= StrategyTier.Hatch:
             composition += {UnitTypeId.ROACHWARREN: 1}
-            composition += {UnitTypeId.OVERSEER: 1}
+            composition += {UnitTypeId.OVERSEER: 2}
         if self.tier >= StrategyTier.Lair:
             composition += {UnitTypeId.OVERSEER: 2}
             composition += {UnitTypeId.HYDRALISKDEN: 1}
             composition += {UnitTypeId.EVOLUTIONCHAMBER: 1}
         if self.tier >= StrategyTier.Hive:
-            composition += {UnitTypeId.OVERSEER: 2}
+            composition += {UnitTypeId.OVERSEER: 4}
             composition += {UnitTypeId.EVOLUTIONCHAMBER: 1}
             composition += {UnitTypeId.GREATERSPIRE: 1}
             if self.obs.count(UnitTypeId.GREATERSPIRE, include_planned=False) == 0:
