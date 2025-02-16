@@ -1,8 +1,6 @@
 from dataclasses import dataclass
-from functools import cached_property
 
 import numpy as np
-from scipy.stats import multivariate_normal
 
 
 def square_vector(v: np.ndarray) -> np.ndarray:
@@ -42,14 +40,6 @@ class NormalParameters:
             evidence=total_evidence,
             deviation=total_deviation,
         )
-
-    @cached_property
-    def covariance(self) -> np.ndarray:
-        return self.deviation / self.evidence
-
-    @cached_property
-    def distribution(self):
-        return multivariate_normal(mean=self.mean, cov=self.covariance)
 
     def to_dict(self):
         return {

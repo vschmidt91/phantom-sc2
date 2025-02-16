@@ -1,14 +1,9 @@
-import dataclasses
-import enum
-import json
 import math
-import time
 from functools import cache
 from typing import Callable, Iterable, TypeAlias
 
 import numpy as np
 import skimage.draw
-from loguru import logger
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -63,12 +58,6 @@ def get_intersections(position1: Point2, radius1: float, position2: Point2, radi
         yield middle - orthogonal
 
 
-async def chain_async(*streams):
-    for stream in streams:
-        async for item in stream:
-            yield item
-
-
 def center(points: Iterable[Point2]) -> Point2:
     x_sum = 0.0
     y_sum = 0.0
@@ -80,14 +69,6 @@ def center(points: Iterable[Point2]) -> Point2:
     x_sum /= num_points
     y_sum /= num_points
     return Point2((x_sum, y_sum))
-
-
-def time_to_reach(unit: Unit, target: Point2) -> float:
-    distance = unit.position.distance_to(target)
-    movement_speed = 1.4 * unit.movement_speed
-    if movement_speed == 0:
-        return np.inf
-    return distance / movement_speed
 
 
 def line(x0: int, y0: int, x1: int, y1: int) -> list[tuple[int, int]]:
@@ -147,35 +128,6 @@ FLOOD_FILL_OFFSETS = {
 }
 
 
-def flood_fill(weight: np.ndarray, origins: Iterable[Point2]):
-    distance = np.full(weight.shape, np.inf)
-    for origin in origins:
-        distance[origin] = 0
-
-    front = set(origins)
-    while front:
-        next_front = set()
-        for point in front:
-            point_distance = distance[point]
-            for offset in FLOOD_FILL_OFFSETS:
-                offset_norm = np.linalg.norm(offset)
-                if offset_norm == 0.0:
-                    continue
-                neighbour = point + offset
-                neighbour_distance = point_distance + offset_norm * weight[neighbour.rounded]
-                if neighbour in origins:
-                    continue
-                if np.isinf(neighbour_distance):
-                    continue
-                if distance[neighbour] <= neighbour_distance:
-                    continue
-                distance[neighbour] = neighbour_distance
-                next_front.add(neighbour)
-        front = next_front
-
-    return distance
-
-
 @cache
 def disk(radius: float) -> tuple[np.ndarray, np.ndarray]:
     r = int(radius + 0.5)
@@ -183,31 +135,6 @@ def disk(radius: float) -> tuple[np.ndarray, np.ndarray]:
     n = 2 * r + 1
     dx, dy = skimage.draw.disk(center=p, radius=radius, shape=(n, n))
     return dx - r, dy - r
-
-
-class JSONDataclassEncoder(json.JSONEncoder):
-    def default(self, o):
-        if dataclasses.is_dataclass(o):
-            return dataclasses.asdict(o)
-        elif isinstance(o, enum.Enum):
-            return o.value
-        return super().default(o)
-
-
-def dither(obj) -> float:
-    return (hash(obj) & 0xFFFFFFFF) / 2**32
-
-
-def timeit(f):
-    def timed(*args, **kw):
-        ts = time.time()
-        result = f(*args, **kw)
-        te = time.time()
-
-        logger.debug(f"{f.__name__}({args}, {kw}) took {te - ts}")
-        return result
-
-    return timed
 
 
 def combine_comparers[T](fns: list[Callable[[T, T], int]]) -> Callable[[T, T], int]:

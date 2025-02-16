@@ -80,19 +80,6 @@ class CombatAction:
             ),
         )
 
-    def advance_with(self, unit: Unit, target: Unit) -> Action | None:
-        if unit.is_flying:
-            grid = self.observation.bot.mediator.get_air_avoidance_grid
-        else:
-            grid = self.observation.bot.mediator.get_ground_avoidance_grid
-        if path := self.observation.bot.mediator.find_path_next_point(
-            start=unit.position,
-            target=target.position,
-            grid=grid,
-        ):
-            return Move(unit, path.offset(HALF))
-        return None
-
     @cached_property
     def shootable_targets(self) -> dict[Unit, list[Unit]]:
 
@@ -255,10 +242,6 @@ class CombatAction:
         return [(int(p[0]), int(p[1])) for p in self.retreat_targets]
 
     @cached_property
-    def attack_targets_rounded(self) -> list[Point]:
-        return [(int(p[0]), int(p[1])) for p in self.attack_targets]
-
-    @cached_property
     def retreat_air(self) -> DijkstraPathing:
         return DijkstraPathing(
             self.observation.air_pathing.astype(float) + self.threat_level, self.retreat_targets_rounded
@@ -267,16 +250,6 @@ class CombatAction:
     @cached_property
     def retreat_ground(self) -> DijkstraPathing:
         return DijkstraPathing(self.observation.pathing.astype(float) + self.threat_level, self.retreat_targets_rounded)
-
-    @cached_property
-    def attack_air(self) -> DijkstraPathing:
-        return DijkstraPathing(
-            self.observation.air_pathing.astype(float) + self.threat_level, self.attack_targets_rounded
-        )
-
-    @cached_property
-    def attack_ground(self) -> DijkstraPathing:
-        return DijkstraPathing(self.observation.pathing.astype(float) + self.threat_level, self.attack_targets_rounded)
 
     @cached_property
     def optimal_targeting(self) -> Assignment[Unit, Unit]:

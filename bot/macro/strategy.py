@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from functools import cached_property, total_ordering
 from typing import Iterable
 
-import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
@@ -117,18 +116,6 @@ class Strategy:
         return StrategyTier.Hive
 
     @cached_property
-    def force_global(self) -> float:
-        return self.obs.bot.cost.of_composition(self.composition).total_resources
-
-    @cached_property
-    def enemy_force_global(self) -> float:
-        return self.obs.bot.cost.of_composition(self.enemy_composition).total_resources
-
-    @cached_property
-    def confidence_global(self) -> float:
-        return np.log1p(self.force_global) - np.log1p(self.enemy_force_global)
-
-    @cached_property
     def macro_composition(self) -> UnitComposition:
         harvester_target = max(1, min(80, self.obs.max_harvesters))
         queen_target = max(0, min(12, (1 + self.obs.bot.townhalls.amount)))
@@ -198,7 +185,7 @@ class Strategy:
 
         if 0 < self.obs.count(UnitTypeId.HATCHERY, include_actual=False):
             return
-        yield MacroPlan(UnitTypeId.HATCHERY, priority=priority, max_distance=None)
+        yield MacroPlan(UnitTypeId.HATCHERY, priority=priority)
 
     def morph_overlord(self) -> Iterable[MacroPlan]:
         supply = self.obs.bot.supply_cap + self.obs.supply_pending / 2 + self.obs.supply_planned

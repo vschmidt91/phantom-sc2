@@ -39,7 +39,6 @@ class MacroPlan:
     item: MacroId
     target: Unit | Point2 | None = None
     priority: float = 0.0
-    max_distance: int | None = 4
     executed: bool = False
     commanded: bool = False
 
@@ -69,10 +68,6 @@ class MacroState:
                     break
             else:
                 yield MacroPlan(unit, priority=priority)
-
-    @property
-    def plan_count(self) -> int:
-        return len(self.unassigned_plans) + len(self.assigned_plans)
 
     def add(self, plan: MacroPlan) -> None:
         self.unassigned_plans.append(plan)
@@ -260,14 +255,6 @@ class MacroState:
                 logger.info(f"Executed {plan} through {action}")
         elif action.exact_id in ALL_MACRO_ABILITIES:
             logger.info(f"Unplanned {action}")
-
-
-def compare_plans(plan_a: MacroPlan, plan_b: MacroPlan) -> int:
-    if plan_a.priority < plan_b.priority:
-        return -1
-    elif plan_b.priority < plan_a.priority:
-        return +1
-    return 0
 
 
 async def premove(context: BotBase, unit: Unit, target: Point2, eta: float) -> Action | None:

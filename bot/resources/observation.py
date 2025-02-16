@@ -14,17 +14,6 @@ from bot.resources.utils import remaining
 HarvesterAssignment: TypeAlias = Assignment[int, Point2]
 
 
-def split_initial_workers(patches: Units, harvesters: Units, townhall: Unit) -> HarvesterAssignment:
-    def cost(h: Unit, p: Unit) -> float:
-        # simulate 3 mining trips
-        initial_distance = h.distance_to(p) - h.radius - p.radius
-        mining_distance = p.distance_to(townhall) - p.radius - townhall.radius
-        return initial_distance + 6 * mining_distance
-
-    a = Assignment.distribute(harvesters, patches, cost)
-    return HarvesterAssignment({u.tag: p.position for u, p in a.items()})
-
-
 @dataclass(frozen=True)
 class ResourceObservation:
     observation: Observation
@@ -49,10 +38,6 @@ class ResourceObservation:
     @cached_property
     def vespene_geyser_at(self) -> dict[Point2, Unit]:
         return {g.position: g for g in self.vespene_geysers}
-
-    @cached_property
-    def gas_positions(self) -> frozenset[Point2]:
-        return frozenset(self.gas_building_at)
 
     @cached_property
     def workers_in_geysers(self) -> int:

@@ -28,7 +28,6 @@ class Scout:
     units: Units
     scout_positions: frozenset[Point2]
     detect_positions: frozenset[Point2]
-    scout_enemy_natural = False
 
     @cached_property
     def detectors(self) -> list[Unit]:

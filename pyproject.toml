@@ -33,6 +33,7 @@ scipy = "~1.14.1"
 click = "^8.1.8"
 river = "^0.22.0"
 absolufy-imports = "^0.3.1"
+vulture = "^2.14"
 
 
 [build-system]

@@ -20,10 +20,8 @@ from sklearn.metrics import pairwise_distances
 
 from bot.common.constants import (
     CIVILIANS,
-    DPS_OVERRIDE,
     ENEMY_CIVILIANS,
     ITEM_BY_ABILITY,
-    RANGE_UPGRADES,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
     WITH_TECH_EQUIVALENTS,
@@ -161,15 +159,6 @@ class Observation:
     def cost_weighting(self) -> float:
         return logit_to_probability(self.bot.parameters[PARAM_COST_WEIGHTING])
 
-    @cache
-    def dps_fast(self, unit: UnitTypeId) -> float:
-        if dps := DPS_OVERRIDE.get(unit):
-            return dps
-        elif units := self.bot.all_units(unit):
-            return max(units[0].ground_dps, units[0].air_dps)
-        else:
-            return 0.0
-
     def calculate_unit_value_weighted(self, unit_type: UnitTypeId) -> float:
         cost = self.bot.calculate_unit_value(unit_type)
         return self.cost_weighting * cost.minerals + (1 - self.cost_weighting) * cost.vespene
@@ -236,25 +225,6 @@ class Observation:
             self.supply_income,  # TODO: iterate over pending
             larva_per_second,
         )
-
-    async def initialize_bases(self) -> list[Point2]:
-
-        bs = self.bot.expansion_locations_list
-        base_distances = await self.bot.client.query_pathings([[self.start_location, b] for b in bs])
-        distance_of_base = dict(zip(bs, base_distances))
-        distance_of_base[self.start_location] = 0
-        for b in self.enemy_start_locations:
-            distance_of_base[b] = np.inf
-
-        start_bases = {self.start_location, *self.enemy_start_locations}
-        bases = []
-        for position, resources in self.bot.expansion_locations_dict.items():
-            if position not in start_bases and not await self.bot.can_place_single(UnitTypeId.HATCHERY, position):
-                continue
-            bases.append(position)
-
-        bases.sort(key=lambda b: distance_of_base[b.position])
-        return bases
 
     @cached_property
     def actual_by_type(self) -> dict[MacroId, list[Unit]]:
@@ -345,20 +315,6 @@ class Observation:
             and required_upgrade not in self.bot.state.upgrades
         ):
             yield required_upgrade
-
-    def get_unit_range(self, unit: Unit, ground: bool = True, air: bool = True) -> float:
-        unit_range = 0.0
-        if ground:
-            unit_range = max(unit_range, unit.ground_range)
-        if air:
-            unit_range = max(unit_range, unit.air_range)
-
-        if unit.is_mine and (boni := RANGE_UPGRADES.get(unit.type_id)):
-            for upgrade, bonus in boni.items():
-                if upgrade in self.bot.state.upgrades:
-                    unit_range += bonus
-
-        return unit_range
 
     def can_move(self, unit: Unit) -> bool:
         if unit.is_burrowed:

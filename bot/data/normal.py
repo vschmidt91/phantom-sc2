@@ -1,8 +1,5 @@
-import math
 from dataclasses import dataclass
 from functools import cached_property
-
-from scipy.stats import norm
 
 
 @dataclass(frozen=True)
@@ -46,12 +43,3 @@ class NormalParameter:
     @cached_property
     def variance(self) -> float:
         return self.deviation / self.evidence
-
-    @cached_property
-    def scale(self) -> float:
-        return math.sqrt(self.variance)
-
-    @cached_property
-    def distribution(self):
-        return norm(loc=self.mean, scale=self.scale)
-        # return t(df=self.degrees_of_freedom, loc=self.mean, scale=self.scale)
