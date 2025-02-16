@@ -168,10 +168,9 @@ class CombatAction:
         for p in attack_path:
             under_fire = 0 < self.enemy_presence.dps[p]
 
-            confident = (
-                self.prediction.survival_time[target] <= self.prediction.survival_time[unit]
-                and self.prediction.outcome in {CombatOutcome.Victory, CombatOutcome.Draw}
-            )
+            confident = self.prediction.survival_time[target] <= self.prediction.survival_time[
+                unit
+            ] and self.prediction.outcome in {CombatOutcome.Victory, CombatOutcome.Draw}
 
             if under_fire:
                 if confident:

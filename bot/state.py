@@ -10,6 +10,7 @@ from loguru import logger
 from sc2.data import ActionResult
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
@@ -140,7 +141,10 @@ class BotState:
             required -= observation.bank
 
             if required.minerals <= 0 and required.vespene <= 0:
-                optimal_gas_ratio = 1.0
+                # TODO
+                optimal_gas_ratio = (
+                    0.5 if observation.bot.already_pending_upgrade(UpgradeId.ZERGLINGMOVEMENTSPEED) else 0.0
+                )
             else:
                 mineral_trips = max(0.0, required.minerals / 5)
                 vespene_trips = max(0.0, required.vespene / 4)
@@ -163,7 +167,7 @@ class BotState:
         gas_pending = observation.count(gas_type, include_actual=False)
         gas_have = resources.observation.gas_buildings.amount
         gas_max = resources.observation.vespene_geysers.amount
-        gas_want = min(gas_max, gas_depleted + math.ceil((resources.gas_target - 1) / 3))
+        gas_want = min(gas_max, gas_depleted + math.ceil((resources.gas_target - 1) / 2))
         if gas_have + gas_pending < gas_want:
             self.macro.add(MacroPlan(gas_type))
 
@@ -233,11 +237,7 @@ class BotState:
             return (
                 dodge.dodge_with(u)
                 or (combat.do_burrow(u) if u.type_id in {UnitTypeId.ROACH} else None)
-                or (
-                    combat.do_unburrow(u)
-                    if u.type_id in {UnitTypeId.ROACHBURROWED}
-                    else None
-                )
+                or (combat.do_unburrow(u) if u.type_id in {UnitTypeId.ROACHBURROWED} else None)
                 or (corrosive_biles.actions.get(u) if u.type_id in {UnitTypeId.RAVAGER} else None)
                 or (micro_queen(u) if unit.type_id in {UnitTypeId.QUEEN} else None)
                 # or (

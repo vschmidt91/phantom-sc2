@@ -138,8 +138,8 @@ class Strategy:
                 UnitTypeId.QUEEN: queen_target,
             }
         )
-        burrowed_enemies = self.obs.enemy_units.filter(lambda u: u.is_burrowed)
-        composition += {UnitTypeId.OVERSEER: min(10, len(burrowed_enemies))}
+        if burrowed_enemies := self.obs.enemy_units.filter(lambda u: u.is_burrowed):
+            composition += {UnitTypeId.OVERSEER: min(10, len(burrowed_enemies) // 3)}
         if self.tier >= StrategyTier.Zero:
             pass
         if self.tier >= StrategyTier.Hatch:
@@ -166,7 +166,7 @@ class Strategy:
             for u in self.obs.upgrades_by_unit(unit)
             if self.filter_upgrade(u)
         ]
-        upgrades.append(UpgradeId.ZERGLINGMOVEMENTSPEED)
+        # upgrades.append(UpgradeId.ZERGLINGMOVEMENTSPEED)
         targets: set[MacroId] = set(upgrades)
         targets.update(self.composition_target.keys())
         targets.update(r for item in set(targets) for r in REQUIREMENTS[item])
@@ -176,7 +176,7 @@ class Strategy:
             else:
                 target_met = bool(self.obs.count(target))
             if not target_met:
-                yield MacroPlan(target, priority=-0.5)
+                yield MacroPlan(target, priority=+0.5)
 
     def expand(self) -> Iterable[MacroPlan]:
 
@@ -187,10 +187,10 @@ class Strategy:
 
         worker_max = self.obs.max_harvesters
         saturation = max(0, min(1, self.obs.bot.state.score.food_used_economy / max(1, worker_max)))
-        if 2 < self.obs.bot.townhalls.amount and 4 / 5 > saturation:
+        if 2 < self.obs.bot.townhalls.amount and 2 / 3 > saturation:
             return
 
-        priority = 5 * (saturation - 1)
+        priority = 3 * (saturation - 1)
         # TODO: prioritize everything on the fly
         # for plan in self.macro.planned_by_type(UnitTypeId.HATCHERY):
         #     if plan.priority < math.inf:

@@ -6,6 +6,7 @@ from itertools import product
 import numpy as np
 from ares.consts import GAS_BUILDINGS
 from loguru import logger
+from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
 from sc2.units import Units
 from scipy.optimize import linprog
@@ -32,7 +33,14 @@ class ResourceAction:
         mineral_max = sum(self.observation.harvester_target_at(p) for p in self.observation.mineral_field_at)
 
         gas_max = sum(self.observation.harvester_target_at(p) for p in self.observation.gas_building_at)
-        gas_target = max(0, min(self.gas_target - self.observation.workers_in_geysers, gas_max))
+
+        if self.observation.observation.bot.already_pending_upgrade(UpgradeId.ZERGLINGMOVEMENTSPEED):
+            gas_target = self.gas_target
+        elif self.observation.observation.bot.vespene < 100:
+            gas_target = gas_max
+        else:
+            gas_target = 0
+        gas_target = max(0, min(gas_target - self.observation.workers_in_geysers, gas_max))
 
         harvester_max = mineral_max + gas_target
         if harvester_max < len(harvesters):

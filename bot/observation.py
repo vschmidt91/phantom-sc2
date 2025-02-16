@@ -262,6 +262,8 @@ class Observation:
         for unit in self.bot.all_own_units:
             if unit.is_ready:
                 result[unit.type_id].append(unit)
+        for upgrade in self.bot.state.upgrades:
+            result[upgrade].append(upgrade)
         return result
 
     @cached_property
@@ -275,22 +277,6 @@ class Observation:
             else:
                 result[unit.type_id].append(unit)
         return result
-
-    def update_tables(self):
-        self.actual_by_type.clear()
-        self.pending_by_type.clear()
-
-        for unit in self.bot.all_own_units:
-            if unit.is_ready:
-                self.actual_by_type[unit.type_id].append(unit)
-                for order in unit.orders:
-                    if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
-                        self.pending_by_type[item].append(unit)
-            else:
-                self.pending_by_type[unit.type_id].append(unit)
-
-        for upgrade in self.bot.state.upgrades:
-            self.actual_by_type[upgrade] = [self.bot.all_units[0]]
 
     def is_unit_missing(self, unit: UnitTypeId) -> bool:
         if unit in {
