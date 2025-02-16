@@ -108,11 +108,11 @@ class Strategy:
 
     @cached_property
     def tier(self) -> StrategyTier:
-        if self.obs.bot.supply_workers < 32 or self.obs.bot.townhalls.amount < 2:
+        if self.obs.bot.supply_workers < 32 or self.obs.bot.townhalls.amount < 3:
             return StrategyTier.Zero
-        elif self.obs.bot.supply_workers < 66 or self.obs.bot.townhalls.amount < 3:
+        elif self.obs.bot.supply_workers < 66 or self.obs.bot.townhalls.amount < 4:
             return StrategyTier.Hatch
-        elif self.obs.bot.supply_workers < 80 or self.obs.bot.townhalls.amount < 4:
+        elif self.obs.bot.supply_workers < 80 or self.obs.bot.townhalls.amount < 5:
             return StrategyTier.Lair
         return StrategyTier.Hive
 
