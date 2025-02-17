@@ -4,20 +4,19 @@ from typing import Iterable
 from ares import DEBUG
 from loguru import logger
 
-from bot.common.action import Action
+from bot.agent import Agent
 from bot.common.constants import VERSION_FILE
 from bot.common.main import BotBase
 from bot.debug import Debug
 from bot.macro.state import MacroId
 from bot.observation import Observation
-from bot.state import BotState
 
 
 class PhantomBot(BotBase):
 
     debug: Debug | None = None
     replay_tags = set[str]()
-    agent = BotState()
+    agent = Agent()
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -42,23 +41,18 @@ class PhantomBot(BotBase):
                 await self.add_replay_tag(f"version_{f.read()}")
 
     async def on_step(self, iteration: int):
-        if iteration == 0:
-            if self.config[DEBUG]:  # local only: skip first iteration like on the ladder
-                return
-        if self.debug:
-            await self.debug.on_step_start()
         await super().on_step(iteration)
 
-        observation = Observation(self)
-        actions = list[Action]()
-        actions.extend([a async for a in self.agent.step(observation)])
+        # local only: skip first iteration like on the ladder
+        if iteration == 0 and self.config[DEBUG]:
+            return
 
-        for action in actions:
-            success = await action.execute(self)
-            if not success:
+        if self.debug:
+            await self.debug.on_step_start()
+        async for action in self.agent.step(Observation(self)):
+            if not await action.execute(self):
                 await self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
-
         if self.debug:
             await self.debug.on_step_end()
 

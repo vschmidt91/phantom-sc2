@@ -12,7 +12,7 @@ from sc2.units import Units
 from scipy.optimize import linprog
 from sklearn.metrics import pairwise_distances
 
-from bot.common.action import Action, DoNothing, Smart
+from bot.common.action import Action, Smart
 from bot.common.assignment import Assignment
 from bot.resources.gather import GatherAction, ReturnResource
 from bot.resources.observation import HarvesterAssignment, ResourceObservation
@@ -81,7 +81,7 @@ class ResourceAction:
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
 
         reward = (
-            np.array([1.2 if h.order_target == r.tag else 1.0 for h, r in pairs])
+            np.array([1.1 if h.order_target == r.tag else 1.0 for h, r in pairs])
             / (1e-8 + harvester_to_resource + 3 * return_distance).flatten()
         )
 
@@ -125,7 +125,7 @@ class ResourceAction:
         if unit.is_idle:
             return Smart(unit, target)
         elif 2 <= len(unit.orders):
-            return DoNothing()
+            return None
         elif unit.is_gathering:
             return GatherAction(unit, target, self.observation.observation.bot.speedmining_positions.get(target_pos))
         elif unit.is_returning:

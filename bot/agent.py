@@ -16,8 +16,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bot.combat.action import CombatAction
-from bot.combat.dodge import DodgeState
-from bot.common.action import Action, DoNothing, Move, UseAbility
+from bot.common.action import Action, Move, UseAbility
 from bot.common.assignment import Assignment
 from bot.common.constants import (
     ALL_MACRO_ABILITIES,
@@ -27,6 +26,7 @@ from bot.common.constants import (
 )
 from bot.common.main import BlockedPositions
 from bot.corrosive_biles import CorrosiveBileState
+from bot.dodge import DodgeState
 from bot.macro.build_order import HATCH_FIRST
 from bot.macro.state import MacroPlan, MacroState
 from bot.macro.strategy import Strategy
@@ -40,7 +40,7 @@ from bot.scout import Scout
 
 
 @dataclass
-class BotState:
+class Agent:
 
     macro = MacroState()
     creep = CreepState()
@@ -98,7 +98,7 @@ class BotState:
                     self.macro.add(plan)
 
         combat = CombatAction(observation)
-        creep = self.creep.step(observation, 0 <= combat.confidence)
+        creep = self.creep.step(observation, np.less_equal(0.0, combat.confidence))
         inject_actions = self.inject.step(observation.units(UnitTypeId.QUEEN), observation.townhalls.ready)
         dodge = self.dodge.step(observation)
         macro_actions = await self.macro.step(observation, set(self.blocked_positions), combat)
@@ -280,22 +280,27 @@ class BotState:
         for action in scout_actions.values():
             yield action
         for worker in harvesters:
-            yield micro_harvester(worker) or DoNothing()
+            if a := micro_harvester(worker):
+                yield a
         for tumor in creep.active_tumors:
-            yield creep.spread_with_tumor(tumor) or DoNothing()
+            if a := creep.spread_with_tumor(tumor):
+                yield a
         for action in micro_overseers(observation.overseers):
             yield action
         for unit in observation.units(UnitTypeId.OVERLORD):
-            yield micro_overlord(unit) or DoNothing()
+            if a := micro_overlord(unit):
+                yield a
         for unit in observation.units(CHANGELINGS):
-            yield search_with(unit) or DoNothing()
+            if a := search_with(unit):
+                yield a
         for unit in observation.units:
             if unit in scout_actions:
                 pass
             elif unit in macro_actions:
                 pass
             else:
-                yield micro_unit(unit) or DoNothing()
+                if a := micro_unit(unit):
+                    yield a
         for structure in observation.structures.not_ready:
             if structure.health_percentage < 0.1:
                 yield UseAbility(structure, AbilityId.CANCEL)

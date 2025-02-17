@@ -80,8 +80,8 @@ class Strategy:
         ratio = 2.0
         composition = self.counter_composition
         composition += {
-            UnitTypeId.RAVAGER: composition[UnitTypeId.ROACH] / 13,
-            UnitTypeId.CORRUPTOR: composition[UnitTypeId.BROODLORD] / 8,
+            UnitTypeId.RAVAGER: composition[UnitTypeId.ROACH] / 21,
+            UnitTypeId.CORRUPTOR: composition[UnitTypeId.BROODLORD] / 13,
         }
         composition = UnitComposition({k: v for k, v in composition.items() if 0 < v})
         if sum(composition.values()) < 1:

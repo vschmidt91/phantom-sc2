@@ -49,8 +49,8 @@ class CombatPredictor:
                 return 0.0
             return u.air_dps if v.is_flying else u.ground_dps
 
-        dps = np.array([[calculate_dps(u, v) for v in self.enemy_units] for u in self.units])
-        enemy_dps = np.array([[calculate_dps(v, u) for v in self.enemy_units] for u in self.units])
+        dps = step_time * np.array([[calculate_dps(u, v) for v in self.enemy_units] for u in self.units])
+        enemy_dps = step_time * np.array([[calculate_dps(v, u) for v in self.enemy_units] for u in self.units])
 
         def calculate_required_distance(u: Unit, v: Unit) -> float:
             base_range = u.radius + (u.air_range if v.is_flying else u.ground_range) + v.radius
@@ -84,8 +84,9 @@ class CombatPredictor:
         outcome = CombatOutcome.Draw
         for i in range(max_steps):
 
-            potential_distance = 1.0 + t * movement_speed
-            enemy_potential_distance = 1.0 + t * enemy_movement_speed
+            potential_distance_constant = 1.0
+            potential_distance = potential_distance_constant + t * movement_speed
+            enemy_potential_distance = potential_distance_constant + t * enemy_movement_speed
 
             attack_weight = np.clip(1 - required_distance / potential_distance, 0, 1)
             enemy_attack_weight = np.clip(1 - enemy_required_distance / enemy_potential_distance, 0, 1)
@@ -95,19 +96,16 @@ class CombatPredictor:
                 enemy_attack_weight / np.sum(enemy_attack_weight, axis=0, keepdims=True)
             )
 
-            dmg = alive @ (attack_probability * dps)
-            enemy_dmg = (enemy_attack_probability * enemy_dps) @ enemy_alive
-
-            health -= enemy_dmg * step_time
-            enemy_health -= dmg * step_time
+            health -= (enemy_attack_probability * enemy_dps) @ enemy_alive
+            enemy_health -= alive @ (attack_probability * dps)
 
             alive = 0 < health
             enemy_alive = 0 < enemy_health
 
-            if not (alive * np.max(dps, 1)).any():
+            if not alive.any():
                 outcome = CombatOutcome.Defeat
                 break
-            if not (enemy_alive * np.max(enemy_dps, 0)).any():
+            if not enemy_alive.any():
                 outcome = CombatOutcome.Victory
                 break
 
@@ -115,6 +113,20 @@ class CombatPredictor:
             enemy_survival = np.where(enemy_alive, t, enemy_survival)
 
             t += step_time
+        #
+        # positions = [u.position for u in self.units]
+        # internal_distances = pairwise_distances(positions, positions)
+        # enemy_positions = [u.position for u in self.enemy_units]
+        # enemy_internal_distances = pairwise_distances(enemy_positions, enemy_positions)
+        #
+        # distance_constant = 1.
+        # mixing = np.reciprocal(distance_constant + internal_distances)
+        # mixing = np.nan_to_num(mixing / np.sum(mixing, axis=1, keepdims=True))
+        # survival = survival @ mixing
+        #
+        # enemy_mixing = np.reciprocal(distance_constant + enemy_internal_distances)
+        # enemy_mixing = np.nan_to_num(enemy_mixing / np.sum(enemy_mixing, axis=1, keepdims=True))
+        # enemy_survival = enemy_survival @ enemy_mixing
 
         survival_time = dict(zip(self.units, survival)) | dict(zip(self.enemy_units, enemy_survival))
 
