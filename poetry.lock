@@ -167,7 +167,7 @@ files = [
 
 [[package]]
 name = "ares-sc2"
-version = "2.33.2"
+version = "2.34.0"
 description = ""
 optional = false
 python-versions = ">=3.10, <3.13"

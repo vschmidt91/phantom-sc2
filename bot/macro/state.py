@@ -1,5 +1,4 @@
 import math
-import random
 from dataclasses import dataclass
 from itertools import chain
 from typing import Iterable, TypeAlias
@@ -24,7 +23,6 @@ from bot.common.constants import (
     MACRO_INFO,
 )
 from bot.common.cost import Cost
-from bot.common.main import BotBase
 from bot.common.unit_composition import UnitComposition
 from bot.common.utils import PlacementNotFoundException
 from bot.observation import Observation
@@ -48,7 +46,7 @@ class MacroState:
     assigned_plans = dict[int, MacroPlan]()
 
     def make_composition(self, observation: Observation, composition: UnitComposition) -> Iterable[MacroPlan]:
-        if 200 <= observation.bot.supply_used:
+        if 200 <= observation.supply_used:
             return
         for unit in composition:
             target = composition[unit]
@@ -91,11 +89,11 @@ class MacroState:
 
     async def step(self, obs: Observation, blocked_positions: set[Point2], combat: CombatAction) -> MacroAction:
 
-        self.handle_actions(obs.bot)
-        self.assign_unassigned_plans(obs.bot.all_own_units)  # TODO: narrow this down
+        self.handle_actions(obs)
+        self.assign_unassigned_plans(obs.units)  # TODO: narrow this down
 
         actions = Assignment[Unit, Action]({})
-        reserve = obs.bot.cost.zero
+        reserve = obs.cost.zero
         plans_prioritized = sorted(self.assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
         for i, (tag, plan) in enumerate(plans_prioritized):
 
@@ -104,7 +102,7 @@ class MacroState:
                 logger.info(f"Successfully executed {plan=}")
                 continue
 
-            trainer = obs.bot.unit_tag_dict.get(tag)
+            trainer = obs.unit_by_tag.get(tag)
             if not trainer:
                 del self.assigned_plans[tag]
                 self.unassigned_plans.append(plan)
@@ -139,7 +137,7 @@ class MacroState:
                 plan.executed = False
 
             if isinstance(plan.target, Point2):
-                if not await obs.bot.can_place_single(plan.item, plan.target):
+                if not await obs.can_place_single(plan.item, plan.target):
                     plan.target = None
                     plan.commanded = False
                     plan.executed = False
@@ -150,12 +148,12 @@ class MacroState:
                 except PlacementNotFoundException:
                     continue
 
-            cost = obs.bot.cost.of(plan.item)
+            cost = obs.cost.of(plan.item)
             eta = get_eta(obs, reserve, cost)
 
             if eta < math.inf:
                 expected_income = obs.income * eta
-                needs_to_reserve = Cost.max(obs.bot.cost.zero, cost - expected_income)
+                needs_to_reserve = Cost.max(obs.cost.zero, cost - expected_income)
                 reserve += needs_to_reserve
 
             if eta == 0.0:
@@ -164,7 +162,7 @@ class MacroState:
             elif plan.target:
                 if trainer.is_carrying_resource:
                     actions += {trainer: UseAbility(trainer, AbilityId.HARVEST_RETURN)}
-                elif action := await premove(obs.bot, trainer, plan.target.position, eta):
+                elif action := await premove(obs, trainer, plan.target.position, eta):
                     actions += {trainer: action}
                 elif action := combat.fight_with(trainer):
                     actions += {trainer: action}
@@ -174,20 +172,19 @@ class MacroState:
     async def get_target(
         self, obs: Observation, trainer: Unit, objective: MacroPlan, blocked_positions: set[Point2]
     ) -> Unit | Point2 | None:
-        gas_type = GAS_BY_RACE[obs.bot.race]
+        gas_type = GAS_BY_RACE[obs.race]
         if objective.item == gas_type:
-            exclude_positions = {geyser.position for geyser in obs.bot.gas_buildings}
+            exclude_positions = {geyser.position for geyser in obs.gas_buildings}
             exclude_tags = {
                 order.target
-                for unit in obs.bot.workers
+                for unit in obs.workers
                 for order in unit.orders
                 if order.ability.exact_id == AbilityId.ZERGBUILD_EXTRACTOR
             }
             exclude_tags.update({p.target.tag for p in self.planned_by_type(gas_type) if isinstance(p.target, Unit)})
-            owned_geysers = [g for b in obs.bases_taken for g in obs.bot.expansion_locations_dict[b].vespene_geyser]
             geysers = [
                 geyser
-                for geyser in owned_geysers
+                for geyser in obs.geyers_taken
                 if (geyser.position not in exclude_positions and geyser and geyser.tag not in exclude_tags)
             ]
             if not any(geysers):
@@ -229,14 +226,12 @@ class MacroState:
 
         return None
 
-    def handle_actions(self, context: BotBase) -> None:
-        for action in context.state.actions_unit_commands:
-            for tag in action.unit_tags:
-                self.handle_action(context, action, tag)
+    def handle_actions(self, obs: Observation) -> None:
+        for tag, action in obs.actions_unit_commands.items():
+            self.handle_action(obs, action, tag)
 
-    def handle_action(self, context: BotBase, action: ActionRawUnitCommand, tag: int) -> None:
-        unit = context.unit_tag_dict.get(tag)
-
+    def handle_action(self, obs: Observation, action: ActionRawUnitCommand, tag: int) -> None:
+        unit = obs.unit_by_tag.get(tag)
         if not (item := ITEM_BY_ABILITY.get(action.exact_id)):
             return
         elif item in {UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMOR, UnitTypeId.CHANGELING}:
@@ -257,8 +252,8 @@ class MacroState:
             logger.info(f"Unplanned {action}")
 
 
-async def premove(context: BotBase, unit: Unit, target: Point2, eta: float) -> Action | None:
-    distance = await context.client.query_pathing(unit, target) or 0.0
+async def premove(obs: Observation, unit: Unit, target: Point2, eta: float) -> Action | None:
+    distance = await obs.query_pathing(unit, target) or 0.0
     movement_eta = 1.5 + distance / (1.4 * unit.movement_speed)
     if eta <= movement_eta:
         if 1e-3 < unit.distance_to(target):
@@ -283,19 +278,17 @@ def get_eta(observation: Observation, reserve: Cost, cost: Cost) -> float:
 
 
 async def get_target_position(obs: Observation, target: UnitTypeId, blocked_positions: set[Point2]) -> Point2 | None:
-    data = obs.bot.game_data.units[target.value]
+    data = obs.unit_data(target)
     if target in {UnitTypeId.HATCHERY}:
-        candidates = [
-            b for b in obs.bot.expansion_locations_list if b not in blocked_positions and b not in obs.townhall_at
-        ]
+        candidates = [b for b in obs.bases if b not in blocked_positions and b not in obs.townhall_at]
         if not candidates:
             return None
-        loss_positions = {obs.in_mineral_line(b) for b in obs.bases_taken} | {obs.bot.start_location}
-        loss_positions_enemy = {obs.in_mineral_line(s) for s in obs.bot.enemy_start_locations}
+        loss_positions = {obs.in_mineral_line(b) for b in obs.bases_taken} | {obs.start_location}
+        loss_positions_enemy = {obs.in_mineral_line(s) for s in obs.enemy_start_locations}
 
         async def loss_fn(p: Point2) -> float:
-            distances = await obs.bot.client.query_pathings([[p, q] for q in loss_positions])
-            distances_enemy = await obs.bot.client.query_pathings([[p, q] for q in loss_positions_enemy])
+            distances = await obs.query_pathings([[p, q] for q in loss_positions])
+            distances_enemy = await obs.query_pathings([[p, q] for q in loss_positions_enemy])
             return max(distances) - min(distances_enemy)
 
         c_min = candidates[0]
@@ -307,9 +300,7 @@ async def get_target_position(obs: Observation, target: UnitTypeId, blocked_posi
                 c_min = c
         return c_min
 
-    bases = list(obs.bot.expansion_locations_dict.items())
-    random.shuffle(bases)
-    for pos, resources in bases:
+    for pos in obs.bases:
         if not (base := obs.townhall_at.get(pos)):
             continue
         if not base.is_ready:

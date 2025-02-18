@@ -46,8 +46,8 @@ class Debug:
         #     num_points -= 1
         # await self.bot.client.debug_create_unit(
         #     [
-        #         [UnitTypeId.ROACH, 5, self.bot.game_info.map_center, 1],
-        #         [UnitTypeId.ROACH, 5, self.bot.game_info.map_center, 2],
+        #         [UnitTypeId.RAVAGER, 5, self.bot.game_info.map_center, 1],
+        #         [UnitTypeId.RAVAGER, 5, self.bot.game_info.map_center, 2],
         #         [UnitTypeId.OVERSEER, 1, self.bot.game_info.map_center, 1],
         #         [UnitTypeId.OVERSEER, 1, self.bot.game_info.map_center, 2],
         #     ]

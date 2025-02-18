@@ -26,7 +26,6 @@ class ScoutAction(Action):
 @dataclass(frozen=True)
 class Scout:
 
-    context: BotBase
     units: Units
     scout_positions: frozenset[Point2]
     detect_positions: frozenset[Point2]

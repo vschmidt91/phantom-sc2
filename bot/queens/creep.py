@@ -36,7 +36,7 @@ class CreepAction:
 
     @cached_property
     def placement_map(self) -> np.ndarray:
-        m = self.obs.creep & self.obs.visibility & (self.obs.pathing == 1) & self.mask
+        m = self.obs.creep & self.obs.vision & (self.obs.pathing == 1) & self.mask
         for b in self.prevent_blocking:
             x, y = (Point2(b) - 0.5 * Point2(_BASE_SIZE)).rounded
             r = rectangle((x, y), extent=_BASE_SIZE, shape=self.obs.creep.shape)

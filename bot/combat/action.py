@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from functools import cached_property, cmp_to_key
 
 import numpy as np
-from ares import UnitTreeQueryType
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -15,8 +14,8 @@ from bot.combat.predictor import CombatOutcome, CombatPrediction, CombatPredicto
 from bot.combat.presence import Presence
 from bot.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from bot.common.assignment import Assignment
-from bot.common.constants import CIVILIANS, HALF, MAX_UNIT_RADIUS
-from bot.common.utils import Point, combine_comparers, disk, can_attack
+from bot.common.constants import CIVILIANS, HALF
+from bot.common.utils import Point, can_attack, combine_comparers, disk
 from bot.cython.dijkstra_pathing import DijkstraPathing
 from bot.observation import Observation
 
@@ -28,7 +27,7 @@ class CombatAction:
 
     @cached_property
     def retreat_targets(self) -> frozenset[Point2]:
-        if self.observation.bot.is_micro_map:
+        if self.observation.is_micro_map:
             return frozenset([self.observation.map_center])
         else:
             retreat_targets = [self.observation.in_mineral_line(b) for b in self.observation.bases_taken]
@@ -38,12 +37,12 @@ class CombatAction:
 
     @cached_property
     def prediction(self) -> CombatPrediction:
-        return CombatPredictor(self.observation.units, self.observation.enemy_units).prediction
+        return CombatPredictor(self.observation.combatants, self.observation.enemy_combatants).prediction
 
     @cached_property
     def attack_targets(self) -> frozenset[Point2]:
-        if self.observation.bot.is_micro_map:
-            return frozenset({u.position for u in self.observation.enemy_units} or {self.observation.map_center})
+        if self.observation.is_micro_map:
+            return frozenset({u.position for u in self.observation.enemy_combatants} or {self.observation.map_center})
         else:
             attack_targets = [p.position for p in self.observation.enemy_structures]
             if not attack_targets:
@@ -69,38 +68,12 @@ class CombatAction:
     def retreat_with_ares(self, unit: Unit, limit=5) -> Action | None:
         return Move(
             unit,
-            self.observation.bot.mediator.find_closest_safe_spot(
-                from_pos=unit.position,
-                grid=(
-                    self.observation.bot.mediator.get_air_grid
-                    if unit.is_flying
-                    else self.observation.bot.mediator.get_ground_grid
-                ),
-                radius=limit,
+            self.observation.find_safe_spot(
+                unit.position,
+                unit.is_flying,
+                limit,
             ),
         )
-
-    @cached_property
-    def shootable_targets(self) -> dict[Unit, list[Unit]]:
-
-        units = self.observation.units
-        ground_ranges = [u.radius + u.ground_range + MAX_UNIT_RADIUS for u in units]
-        air_ranges = [u.radius + u.air_range + MAX_UNIT_RADIUS for u in units]
-
-        ground_candidates = self.observation.bot.mediator.get_units_in_range(
-            start_points=units,
-            distances=ground_ranges,
-            query_tree=UnitTreeQueryType.EnemyGround,
-        )
-        air_candidates = self.observation.bot.mediator.get_units_in_range(
-            start_points=units,
-            distances=air_ranges,
-            query_tree=UnitTreeQueryType.EnemyFlying,
-        )
-        targets = {
-            u: list(filter(u.target_in_range, a | b)) for u, a, b in zip(units, ground_candidates, air_candidates)
-        }
-        return targets
 
     def fight_with(self, unit: Unit) -> Action | None:
 
@@ -125,34 +98,29 @@ class CombatAction:
         )
 
         if unit.weapon_ready:
-            if target := max(self.shootable_targets.get(unit, []), key=target_key, default=None):
+            if target := max(self.observation.shootable_targets.get(unit, []), key=target_key, default=None):
                 return Attack(unit, target)
 
         if not (target := self.optimal_targeting.get(unit)):
             return None
 
-        grid = (
-            self.observation.bot.mediator.get_air_avoidance_grid
-            if unit.is_flying
-            else self.observation.bot.mediator.get_ground_avoidance_grid
-        )
-        attack_path = self.observation.bot.mediator.get_map_data_object.pathfind(
-            start=unit.position,
-            goal=target.position,
-            grid=grid,
-            sensitivity=1,
-        )
-        if not attack_path:
-            return None
-        if len(attack_path) < 3:
-            return None
-        advance_point = attack_path[2]
+        attack_path = self.observation.find_path(
+            unit.position,
+            target.position,
+            unit.is_flying,
+        ).rounded
+        # if not attack_path:
+        #     return None
+        # if len(attack_path) < 3:
+        #     return None
+        # advance_point = attack_path[2]
+        advance_point = attack_path
 
         if 0 == self.enemy_presence.dps[advance_point]:
             return Move(unit, advance_point)
 
         safe_spot = None
-        for p in attack_path:
+        for p in [attack_path]:
             under_fire = 0 < self.enemy_presence.dps[p]
 
             confident = self.prediction.survival_time[target] <= self.prediction.survival_time[
@@ -178,14 +146,14 @@ class CombatAction:
         confidence = self.confidence[p]
         if unit.health_percentage == 1 and (0 < confidence or 0 == self.enemy_presence.dps[p]):
             return UseAbility(unit, AbilityId.BURROWUP)
-        elif UpgradeId.TUNNELINGCLAWS not in self.observation.bot.state.upgrades:
+        elif UpgradeId.TUNNELINGCLAWS not in self.observation.upgrades:
             return None
         elif 0 < self.enemy_presence.dps[p]:
             return self.retreat_with(unit)
         return HoldPosition(unit)
 
     def do_burrow(self, unit: Unit) -> Action | None:
-        if UpgradeId.BURROW not in self.observation.bot.state.upgrades:
+        if UpgradeId.BURROW not in self.observation.upgrades:
             return None
         elif 0.3 < unit.health_percentage:
             return None
@@ -197,11 +165,11 @@ class CombatAction:
 
     @cached_property
     def presence(self) -> Presence:
-        return self.get_combat_presence(self.observation.units)
+        return self.get_combat_presence(self.observation.combatants)
 
     @cached_property
     def enemy_presence(self) -> Presence:
-        return self.get_combat_presence(self.observation.enemy_units)
+        return self.get_combat_presence(self.observation.enemy_combatants)
 
     def get_combat_presence(self, units: Units) -> Presence:
         dps_map = np.zeros_like(self.observation.pathing, dtype=float)
@@ -277,16 +245,16 @@ class CombatAction:
 
             return np.divide(risk, reward)
 
-        if self.observation.enemy_units:
-            optimal_assigned = len(self.observation.units) / len(self.observation.enemy_units)
-            medium_assigned = math.sqrt(len(self.observation.units))
+        if self.observation.enemy_combatants:
+            optimal_assigned = len(self.observation.combatants) / len(self.observation.enemy_combatants)
+            medium_assigned = math.sqrt(len(self.observation.combatants))
             max_assigned = math.ceil(max(medium_assigned, optimal_assigned))
         else:
             max_assigned = 1
 
         assignment = Assignment.distribute(
-            self.observation.units,
-            self.observation.enemy_units,
+            self.observation.combatants,
+            self.observation.enemy_combatants,
             cost_fn,
             max_assigned=max_assigned,
         )

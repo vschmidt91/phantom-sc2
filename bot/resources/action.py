@@ -6,7 +6,6 @@ from itertools import product
 import numpy as np
 from ares.consts import GAS_BUILDINGS
 from loguru import logger
-from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
 from sc2.units import Units
 from scipy.optimize import linprog
@@ -34,13 +33,13 @@ class ResourceAction:
 
         gas_max = sum(self.observation.harvester_target_at(p) for p in self.observation.gas_building_at)
 
-        if self.observation.observation.bot.already_pending_upgrade(UpgradeId.ZERGLINGMOVEMENTSPEED):
+        if self.observation.observation.researched_speed:
             gas_target = self.gas_target
-        elif self.observation.observation.bot.vespene < 100:
+        elif self.observation.observation.bank.vespene < 100:
             gas_target = gas_max
         else:
             gas_target = 0
-        gas_target = max(0, min(gas_target - self.observation.workers_in_geysers, gas_max))
+        gas_target = max(0, min(gas_target - self.observation.observation.workers_in_geysers, gas_max))
 
         harvester_max = mineral_max + gas_target
         if harvester_max < len(harvesters):
@@ -77,7 +76,7 @@ class ResourceAction:
             [r.position for r in resources],
         )
 
-        return_distance = np.array([self.observation.observation.bot.return_distances[r.position] for r in resources])
+        return_distance = np.array([self.observation.observation.return_distances[r.position] for r in resources])
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
 
         reward = (
@@ -127,7 +126,7 @@ class ResourceAction:
         elif 2 <= len(unit.orders):
             return None
         elif unit.is_gathering:
-            return GatherAction(unit, target, self.observation.observation.bot.speedmining_positions.get(target_pos))
+            return GatherAction(unit, target, self.observation.observation.speedmining_positions.get(target_pos))
         elif unit.is_returning:
             assert any(return_targets)
             return_target = min(return_targets, key=lambda th: th.distance_to(unit))

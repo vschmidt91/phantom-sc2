@@ -58,7 +58,7 @@ class DodgeAction:
         return None
 
     def _dodge_item(self, unit: Unit, item: DodgeItem, time_of_impact: float) -> Action | None:
-        time_remaining = max(0.0, time_of_impact - self.observation.bot.time - self.safety_time)
+        time_remaining = max(0.0, time_of_impact - self.observation.time - self.safety_time)
         distance_bonus = 1.4 * unit.movement_speed * time_remaining
         distance_have = unit.distance_to(item.position)
         distance_want = item.circle.radius + unit.radius
@@ -81,14 +81,14 @@ class DodgeState:
         effects = self.effects
 
         units = {
-            DodgeItem(unit.position, circle): observation.bot.time
-            for unit in observation.bot.all_enemy_units
+            DodgeItem(unit.position, circle): observation.time
+            for unit in observation.enemy_combatants
             for circle in DODGE_UNITS.get(unit.type_id, [])
         }
 
         active_effects: set[DodgeItem] = set()
-        for effect in observation.bot.state.effects:
-            time_of_impact = observation.bot.time + EFFECT_DELAY.get(effect.id, 0.0)
+        for effect in observation.effects:
+            time_of_impact = observation.time + EFFECT_DELAY.get(effect.id, 0.0)
             for position in effect.positions:
                 for circle in DODGE_EFFECTS.get(effect.id, []):
                     item = DodgeItem(position, circle)
@@ -97,7 +97,7 @@ class DodgeState:
 
         # remove old effects that impacted
         for item, time_of_impact in list(effects.items()):
-            if time_of_impact < observation.bot.time:
+            if time_of_impact < observation.time:
                 del effects[item]
                 if item in active_effects:
                     logger.error(f"Effect impacted earlier than expected: {item}")

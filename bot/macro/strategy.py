@@ -40,7 +40,7 @@ class Strategy:
 
     @cached_property
     def composition(self) -> UnitComposition:
-        return UnitComposition.of(self.obs.bot.all_own_units)
+        return UnitComposition.of(self.obs.units)
 
     @cached_property
     def composition_target(self) -> UnitComposition:
@@ -48,7 +48,7 @@ class Strategy:
 
     @cached_property
     def enemy_composition(self) -> UnitComposition:
-        return UnitComposition.of(self.obs.bot.all_enemy_units)
+        return UnitComposition.of(self.obs.enemy_units)
 
     def filter_upgrade(self, upgrade: UpgradeId) -> bool:
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
@@ -75,8 +75,11 @@ class Strategy:
 
     @cached_property
     def army_composition(self) -> UnitComposition:
-        if self.obs.bot.tech_requirement_progress(UnitTypeId.ZERGLING) < 0.8:
+        # force droning up to 21
+        if not self.obs.structures({UnitTypeId.SPAWNINGPOOL}).ready:
             return UnitComposition({})
+        # if self.obs.bot.tech_requirement_progress(UnitTypeId.ZERGLING) < 0.8:
+        #     return UnitComposition({})
         ratio = 2.0
         composition = self.counter_composition
         composition += {
@@ -86,7 +89,7 @@ class Strategy:
         composition = UnitComposition({k: v for k, v in composition.items() if 0 < v})
         if sum(composition.values()) < 1:
             composition += {UnitTypeId.ZERGLING: 1}
-        banking = max(0, min(self.obs.bot.minerals, self.obs.bot.vespene) - 1000)
+        banking = max(0.0, min(self.obs.bank.minerals, self.obs.bank.vespene) - 1000)
         if sum(composition.values()) < banking / 100:
             composition += {UnitTypeId.HYDRALISK: banking / 100}
             composition += {UnitTypeId.BROODLORD: banking / 100}
@@ -95,7 +98,7 @@ class Strategy:
     @cached_property
     def counter_composition(self) -> UnitComposition:
         def total_cost(t: UnitTypeId) -> float:
-            return self.obs.bot.cost.of(t).total_resources
+            return self.obs.cost.of(t).total_resources
 
         composition = defaultdict[UnitTypeId, float](float)
         for enemy_type, count in self.enemy_composition.items():
@@ -107,25 +110,25 @@ class Strategy:
 
     @cached_property
     def tier(self) -> StrategyTier:
-        if self.obs.bot.supply_workers < 32 or self.obs.bot.townhalls.amount < 3:
+        if self.obs.supply_workers < 32 or self.obs.townhalls.amount < 3:
             return StrategyTier.Zero
-        elif self.obs.bot.supply_workers < 66 or self.obs.bot.townhalls.amount < 4:
+        elif self.obs.supply_workers < 66 or self.obs.townhalls.amount < 4:
             return StrategyTier.Hatch
-        elif self.obs.bot.supply_workers < 80 or self.obs.bot.townhalls.amount < 5:
+        elif self.obs.supply_workers < 80 or self.obs.townhalls.amount < 5:
             return StrategyTier.Lair
         return StrategyTier.Hive
 
     @cached_property
     def macro_composition(self) -> UnitComposition:
         harvester_target = max(1, min(80, self.obs.max_harvesters))
-        queen_target = max(0, min(12, (1 + self.obs.bot.townhalls.amount)))
+        queen_target = max(0, min(12, (1 + self.obs.townhalls.amount)))
         composition = UnitComposition(
             {
                 UnitTypeId.DRONE: harvester_target,
                 UnitTypeId.QUEEN: queen_target,
             }
         )
-        if burrowed_enemies := self.obs.enemy_units.filter(lambda u: u.is_burrowed):
+        if burrowed_enemies := self.obs.enemy_combatants.filter(lambda u: u.is_burrowed):
             composition += {UnitTypeId.OVERSEER: min(10, len(burrowed_enemies) // 3)}
         if self.tier >= StrategyTier.Zero:
             pass
@@ -167,14 +170,14 @@ class Strategy:
 
     def expand(self) -> Iterable[MacroPlan]:
 
-        if self.obs.bot.time < 50:
+        if self.obs.time < 50:
             return
-        if 2 == self.obs.bot.townhalls.amount and 2 > self.obs.count(UnitTypeId.QUEEN, include_planned=False):
+        if 2 == self.obs.townhalls.amount and 2 > self.obs.count(UnitTypeId.QUEEN, include_planned=False):
             return
 
         worker_max = self.obs.max_harvesters
-        saturation = max(0, min(1, self.obs.bot.state.score.food_used_economy / max(1, worker_max)))
-        if 2 < self.obs.bot.townhalls.amount and 2 / 3 > saturation:
+        saturation = max(0.0, min(1.0, self.obs.supply_workers / max(1, worker_max)))
+        if 2 < self.obs.townhalls.amount and 2 / 3 > saturation:
             return
 
         priority = 3 * (saturation - 1)
@@ -188,8 +191,8 @@ class Strategy:
         yield MacroPlan(UnitTypeId.HATCHERY, priority=priority)
 
     def morph_overlord(self) -> Iterable[MacroPlan]:
-        supply = self.obs.bot.supply_cap + self.obs.supply_pending / 2 + self.obs.supply_planned
-        supply_target = min(200.0, self.obs.bot.supply_used + 2 + 20 * self.obs.income.larva)
+        supply = self.obs.supply_cap + self.obs.supply_pending / 2 + self.obs.supply_planned
+        supply_target = min(200.0, self.obs.supply_used + 2 + 20 * self.obs.income.larva)
         if supply_target <= supply:
             return
         yield MacroPlan(UnitTypeId.OVERLORD, priority=1)

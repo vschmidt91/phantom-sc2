@@ -44,9 +44,9 @@ class ExtractorTrick(BuildOrder):
     min_minerals = 50
 
     def execute(self, obs: Observation) -> BuildOrderStep | None:
-        if self.at_supply == obs.bot.supply_used and obs.bot.supply_left <= 0:
+        if self.at_supply == obs.supply_used and obs.bank.supply <= 0:
             if 0 == obs.count(self.unit_type):
-                if self.min_minerals < obs.bot.minerals:
+                if self.min_minerals < obs.bank.minerals:
                     return BuildOrderStep([MacroPlan(self.unit_type)], [])
                 else:
                     return BuildOrderStep([], [])
@@ -84,6 +84,7 @@ HATCH_FIRST = BuildOrderChain(
         Make(UnitTypeId.OVERLORD, 2),
         Make(UnitTypeId.DRONE, 16),
         Make(UnitTypeId.HATCHERY, 2),
+        Make(UnitTypeId.DRONE, 17),
         Make(UnitTypeId.EXTRACTOR, 1),
         Make(UnitTypeId.DRONE, 18),
         Make(UnitTypeId.SPAWNINGPOOL, 1),

@@ -30,14 +30,6 @@ class BotBase(AresBot, ABC):
         return re.match(MICRO_MAP_REGEX, self.game_info.map_name)
 
     @cached_property
-    def return_distances(self) -> dict[Point2, float]:
-        return {
-            r.position: r.distance_to(base)
-            for base, resources in self.expansion_locations_dict.items()
-            for r in resources
-        }
-
-    @cached_property
     def speedmining_positions(self) -> dict[Point2, Point2]:
         result = dict[Point2, Point2]()
         for base_position, resources in self.expansion_locations_dict.items():

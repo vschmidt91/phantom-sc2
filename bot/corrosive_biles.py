@@ -22,7 +22,7 @@ class CorrosiveBileState:
     bile_last_used = dict[int, int]()
 
     def step(self, obs: Observation) -> CorrosiveBileAction:
-        ravagers = obs.units({UnitTypeId.RAVAGER})
+        ravagers = obs.combatants({UnitTypeId.RAVAGER})
         for ravager in ravagers:
             if action := obs.unit_commands.get(ravager.tag):
                 if action.exact_id == _ABILITY:
@@ -34,7 +34,7 @@ class CorrosiveBileState:
     def step_unit(self, obs: Observation, unit: Unit) -> Action | None:
 
         def filter_target(t: Unit) -> bool:
-            if not obs.bot.is_visible(t.position):
+            if not obs.is_visible(t):
                 return False
             elif not unit.in_ability_cast_range(_ABILITY, t.position):
                 return False
@@ -55,7 +55,7 @@ class CorrosiveBileState:
             if obs.game_loop < last_used + COOLDOWN[AbilityId.EFFECT_CORROSIVEBILE]:
                 return None
 
-        targets = obs.bot.all_enemy_units.filter(filter_target)
+        targets = obs.enemy_units.filter(filter_target)
         if not any(targets):
             return None
 

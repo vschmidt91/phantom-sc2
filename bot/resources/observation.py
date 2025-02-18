@@ -39,11 +39,6 @@ class ResourceObservation:
     def vespene_geyser_at(self) -> dict[Point2, Unit]:
         return {g.position: g for g in self.vespene_geysers}
 
-    @cached_property
-    def workers_in_geysers(self) -> int:
-        # TODO: consider dropperlords, nydus, ...
-        return int(self.observation.bot.supply_workers) - self.observation.bot.workers.amount
-
     # cache
     def harvester_target_at(self, p: Point2) -> int:
         if geyser := self.vespene_geyser_at.get(p):
