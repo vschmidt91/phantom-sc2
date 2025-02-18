@@ -16,7 +16,7 @@ from bot.combat.presence import Presence
 from bot.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from bot.common.assignment import Assignment
 from bot.common.constants import CIVILIANS, HALF, MAX_UNIT_RADIUS
-from bot.common.utils import Point, combine_comparers, disk
+from bot.common.utils import Point, combine_comparers, disk, can_attack
 from bot.cython.dijkstra_pathing import DijkstraPathing
 from bot.observation import Observation
 
@@ -261,13 +261,12 @@ class CombatAction:
             travel_distance = max(0.0, d - a.radius - b.radius - r - a.distance_to_weapon_ready)
 
             travel_time = np.divide(travel_distance, a.movement_speed)
-            # if can_attack(a, b):
-            #     dps = a.air_dps if b.is_flying else a.ground_dps
-            # else:
-            #     dps = 1e-8
-            # kill_time = np.divide(b.health + b.shield, dps)
-            # risk = min(1e8, travel_time + kill_time)
-            risk = min(1e8, travel_time)
+            if can_attack(a, b):
+                dps = a.air_dps if b.is_flying else a.ground_dps
+            else:
+                dps = 1e-8
+            kill_time = np.divide(b.health + b.shield, dps)
+            risk = min(1e8, travel_time + 0.1 * kill_time)
             reward = max(1e-8, self.observation.calculate_unit_value_weighted(b.type_id))
             if a.order_target == b.tag:
                 reward *= 1.2
