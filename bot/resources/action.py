@@ -33,11 +33,9 @@ class ResourceAction:
 
         gas_max = sum(self.observation.harvester_target_at(p) for p in self.observation.gas_building_at)
 
-        if self.observation.observation.supply_used >= 36:
-            # if self.observation.observation.researched_speed:
+        if self.observation.observation.researched_speed:
             gas_target = self.gas_target
-        elif self.observation.observation.bank.vespene < 175:
-            # elif self.observation.observation.bank.vespene < 100:
+        elif self.observation.observation.bank.vespene < 100:
             gas_target = gas_max
         else:
             gas_target = 0
@@ -56,8 +54,8 @@ class ResourceAction:
 
         # limit harvesters per resource
         A_ub1 = np.tile(np.eye(len(resources), len(resources)), (1, len(harvesters)))
-        b_ub1 = np.array([2.0 if r.is_mineral_field else 3.0 for r in resources])
-        # b_ub1 = np.full(len(resources), 2.0)
+        # b_ub1 = np.array([2.0 if r.is_mineral_field else 3.0 for r in resources])
+        b_ub1 = np.full(len(resources), 2.0)
 
         # limit assignment per harvester
         A_ub2 = np.repeat(np.eye(len(harvesters), len(harvesters)), len(resources), axis=1)

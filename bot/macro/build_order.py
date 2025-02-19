@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable
 
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -35,28 +34,6 @@ class Make(BuildOrder):
                 return BuildOrderStep([MacroPlan(self.unit)], [])
             else:
                 return BuildOrderStep([], [])
-        return None
-
-
-@dataclass(frozen=True)
-class Condition(BuildOrder):
-    unit: UnitTypeId
-    target: int
-    step: BuildOrder
-
-    def execute(self, obs: Observation) -> BuildOrderStep | None:
-        if obs.count(self.unit, include_planned=False) >= self.target:
-            return None
-        return self.step.execute(obs)
-
-
-@dataclass(frozen=True)
-class WaitUntil(BuildOrder):
-    condition: Callable[[Observation], bool]
-
-    def execute(self, obs: Observation) -> BuildOrderStep | None:
-        if not self.condition(obs):
-            return BuildOrderStep([], [])
         return None
 
 
@@ -117,17 +94,15 @@ HATCH_FIRST = BuildOrderChain(
 POOL_FIRST = BuildOrderChain(
     [
         Make(UnitTypeId.DRONE, 14),
-        Condition(UnitTypeId.OVERLORD, 2, ExtractorTrick()),
         Make(UnitTypeId.OVERLORD, 2),
         Make(UnitTypeId.SPAWNINGPOOL, 1),
-        Condition(UnitTypeId.HATCHERY, 2, Make(UnitTypeId.DRONE, 17)),
-        Make(UnitTypeId.EXTRACTOR, 1),
-        WaitUntil(lambda obs: obs.structures(UnitTypeId.EXTRACTOR)),
+        Make(UnitTypeId.DRONE, 17),
         Make(UnitTypeId.HATCHERY, 2),
         Make(UnitTypeId.QUEEN, 1),
-        Make(UnitTypeId.DRONE, 18),
+        Make(UnitTypeId.EXTRACTOR, 1),
+        Make(UnitTypeId.DRONE, 19),
         Make(UnitTypeId.ROACHWARREN, 1),
-        Make(UnitTypeId.OVERLORD, 3),
-        Make(UnitTypeId.ROACH, 8),
+        # Make(UnitTypeId.OVERLORD, 3),
+        # Make(UnitTypeId.ROACH, 7),
     ]
 )
