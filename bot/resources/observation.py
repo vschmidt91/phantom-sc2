@@ -45,7 +45,7 @@ class ResourceObservation:
             if remaining(geyser):
                 if gas_building := self.gas_building_at.get(p):
                     if gas_building.is_ready:
-                        return 2
+                        return 3
             return 0
         elif patch := self.mineral_field_at.get(p):
             if not remaining(patch):
