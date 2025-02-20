@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Callable
 
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -35,6 +36,16 @@ class Make(BuildOrder):
             else:
                 return BuildOrderStep([], [])
         return None
+
+
+@dataclass(frozen=True)
+class WaitUntil(BuildOrder):
+    condition: Callable[[Observation], bool]
+
+    def execute(self, obs: Observation) -> BuildOrderStep | None:
+        if self.condition(obs):
+            return None
+        return BuildOrderStep([], [])
 
 
 @dataclass(frozen=True)
@@ -86,7 +97,8 @@ HATCH_FIRST = BuildOrderChain(
         Make(UnitTypeId.HATCHERY, 2),
         Make(UnitTypeId.DRONE, 17),
         Make(UnitTypeId.EXTRACTOR, 1),
-        Make(UnitTypeId.DRONE, 18),
+        WaitUntil(lambda obs: obs.gas_buildings),
+        # Make(UnitTypeId.DRONE, 18),
         Make(UnitTypeId.SPAWNINGPOOL, 1),
     ]
 )
