@@ -1,5 +1,4 @@
 lint:
-	absolufy-imports --application-directories bot
 	autoflake -i -r bot
 	isort bot
 	black -S bot
@@ -7,4 +6,4 @@ lint:
 	mypy bot
 
 profile:
-	python -m snakeviz .\profiling.prof
+	python -m snakeviz resources\profiling.prof

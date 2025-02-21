@@ -13,41 +13,13 @@ sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 sys.path.append("river")
+sys.path.append("src")
 
-from bot.main import PhantomBot
-from bot.data.constants import PARAM_PRIORS
-from bot.data.state import DataUpdate, DataState
-
-DATA_FILE = "data/params.pkl.gz"
-DATA_JSON_FILE = "data/params.json"
-
+from main import PhantomBot
 
 if __name__ == "__main__":
 
-    data = DataState.from_priors(PARAM_PRIORS)
-    try:
-        with gzip.GzipFile(DATA_FILE, "rb") as f:
-            data = pickle.load(f)
-    except Exception as e:
-        print(f"Error loading data file: {e}")
-    parameters = data.sample_parameters()
-    print(f"{parameters=}")
-
-    ai = PhantomBot(parameters=parameters)
+    ai = PhantomBot()
     bot = Bot(Race.Zerg, ai, 'PhantomBot')
     result, opponent_id = run_ladder_game(bot)
     print(result, " against opponent ", opponent_id)
-
-    print("Updating parameters...")
-    update = DataUpdate(
-        parameters=parameters,
-        result=result,
-    )
-    new_data = data + update
-    try:
-        with gzip.GzipFile(DATA_FILE, "wb") as f:
-            pickle.dump(new_data, f)
-        with open(DATA_JSON_FILE, "w") as f:
-            json.dump(new_data.to_dict(), f, indent=4)
-    except Exception as e:
-        print(f"Error storing data file: {e}")
