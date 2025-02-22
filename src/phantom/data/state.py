@@ -5,7 +5,7 @@ from typing import Any
 from river.proba import MultivariateGaussian
 from sc2.data import Result
 
-from src.data.constants import ParameterPrior
+from phantom.data.constants import ParameterPrior
 
 
 @dataclass(frozen=True)

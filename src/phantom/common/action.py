@@ -5,7 +5,7 @@ from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from src.common.main import BotBase
+from phantom.common.main import BotBase
 
 
 class Action(ABC):

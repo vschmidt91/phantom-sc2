@@ -7,16 +7,16 @@ from typing import Iterable
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
-from src.common.constants import (
+from phantom.common.constants import (
     REQUIREMENTS,
     UNIT_COUNTER_DICT,
     WITH_TECH_EQUIVALENTS,
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
 )
-from src.common.unit_composition import UnitComposition
-from src.macro.state import MacroId, MacroPlan
-from src.observation import Observation
+from phantom.common.unit_composition import UnitComposition
+from phantom.macro.state import MacroId, MacroPlan
+from phantom.observation import Observation
 
 
 @total_ordering

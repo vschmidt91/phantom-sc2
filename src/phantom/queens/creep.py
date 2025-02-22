@@ -9,10 +9,10 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from scipy.ndimage import gaussian_filter
 
-from src.common.action import Action, UseAbility
-from src.common.constants import ENERGY_COST
-from src.common.utils import circle, circle_perimeter, line, rectangle
-from src.observation import Observation
+from phantom.common.action import Action, UseAbility
+from phantom.common.constants import ENERGY_COST
+from phantom.common.utils import circle, circle_perimeter, line, rectangle
+from phantom.observation import Observation
 
 TUMOR_RANGE = 10
 _TUMOR_COOLDOWN = 304

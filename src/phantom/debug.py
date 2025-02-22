@@ -10,8 +10,8 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
 # from bot.ai.replay import load_replays
-from src.common.main import BotBase
-from src.macro.state import MacroPlan
+from phantom.common.main import BotBase
+from phantom.macro.state import MacroPlan
 
 
 @dataclass(frozen=True)

@@ -7,9 +7,9 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from src.common.assignment import Assignment
-from src.observation import Observation
-from src.resources.utils import remaining
+from phantom.common.assignment import Assignment
+from phantom.observation import Observation
+from phantom.resources.utils import remaining
 
 HarvesterAssignment: TypeAlias = Assignment[int, Point2]
 

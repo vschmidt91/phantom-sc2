@@ -7,10 +7,10 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from src.common.action import Action
-from src.common.assignment import Assignment
-from src.common.main import BotBase
-from src.observation import Observation
+from phantom.common.action import Action
+from phantom.common.assignment import Assignment
+from phantom.common.main import BotBase
+from phantom.observation import Observation
 
 
 @dataclass

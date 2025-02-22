@@ -6,8 +6,8 @@ import numpy as np
 from sc2.unit import Unit
 from sc2.units import Units
 
-from src.common.constants import DPS_OVERRIDE
-from src.common.utils import can_attack
+from phantom.common.constants import DPS_OVERRIDE
+from phantom.common.utils import can_attack
 
 
 class CombatOutcome(Enum):

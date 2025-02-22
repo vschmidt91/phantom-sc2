@@ -12,26 +12,26 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
 
-from src.combat.action import CombatAction
-from src.common.action import Action, Move, UseAbility
-from src.common.assignment import Assignment
-from src.common.constants import (
+from phantom.combat.action import CombatAction
+from phantom.common.action import Action, Move, UseAbility
+from phantom.common.assignment import Assignment
+from phantom.common.constants import (
     ALL_MACRO_ABILITIES,
     CHANGELINGS,
     ENERGY_COST,
     GAS_BY_RACE,
 )
-from src.corrosive_biles import CorrosiveBileState
-from src.dodge import DodgeState
-from src.macro.build_order import HATCH_FIRST
-from src.macro.state import MacroPlan, MacroState
-from src.macro.strategy import Strategy
-from src.observation import Observation
-from src.queens.creep import CreepState
-from src.queens.transfuse import transfuse_with
-from src.resources.action import ResourceAction
-from src.resources.observation import ResourceObservation
-from src.scout import ScoutState
+from phantom.corrosive_biles import CorrosiveBileState
+from phantom.dodge import DodgeState
+from phantom.macro.build_order import HATCH_FIRST
+from phantom.macro.state import MacroPlan, MacroState
+from phantom.macro.strategy import Strategy
+from phantom.observation import Observation
+from phantom.queens.creep import CreepState
+from phantom.queens.transfuse import transfuse_with
+from phantom.resources.action import ResourceAction
+from phantom.resources.observation import ResourceObservation
+from phantom.scout import ScoutState
 
 
 @dataclass

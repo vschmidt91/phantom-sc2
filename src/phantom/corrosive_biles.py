@@ -4,9 +4,9 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
-from src.common.action import Action, UseAbility
-from src.common.constants import CHANGELINGS, COOLDOWN
-from src.observation import Observation
+from phantom.common.action import Action, UseAbility
+from phantom.common.constants import CHANGELINGS, COOLDOWN
+from phantom.observation import Observation
 
 _ABILITY = AbilityId.EFFECT_CORROSIVEBILE
 

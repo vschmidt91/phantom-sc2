@@ -4,8 +4,8 @@ from functools import cached_property
 
 import numpy as np
 
-from src.common.utils import Point
-from src.cython.cy_dijkstra import cy_dijkstra  # type: ignore
+from phantom.common.utils import Point
+from phantom.cython.cy_dijkstra import cy_dijkstra  # type: ignore
 
 
 @dataclass(frozen=True)

@@ -11,10 +11,10 @@ from sc2.units import Units
 from scipy.optimize import linprog
 from sklearn.metrics import pairwise_distances
 
-from src.common.action import Action, Smart
-from src.common.assignment import Assignment
-from src.resources.gather import GatherAction, ReturnResource
-from src.resources.observation import HarvesterAssignment, ResourceObservation
+from phantom.common.action import Action, Smart
+from phantom.common.assignment import Assignment
+from phantom.resources.gather import GatherAction, ReturnResource
+from phantom.resources.observation import HarvesterAssignment, ResourceObservation
 
 
 @dataclass(frozen=True)

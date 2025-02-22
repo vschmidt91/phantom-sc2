@@ -10,7 +10,7 @@ link_args = []
 include_dirs = [numpy.get_include()]
 libraries = []
 
-INPUT_DIR = "src/cython/"
+INPUT_DIR = "src/phantom/cython/"
 
 
 def build():

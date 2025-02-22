@@ -10,14 +10,14 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from src.combat.predictor import CombatPrediction, CombatPredictor
-from src.combat.presence import Presence
-from src.common.action import Action, Attack, HoldPosition, Move, UseAbility
-from src.common.assignment import Assignment
-from src.common.constants import CIVILIANS, HALF, WORKERS
-from src.common.utils import Point, can_attack, combine_comparers, disk
-from src.cython.dijkstra_pathing import DijkstraPathing
-from src.observation import Observation
+from phantom.combat.predictor import CombatPrediction, CombatPredictor
+from phantom.combat.presence import Presence
+from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
+from phantom.common.assignment import Assignment
+from phantom.common.constants import CIVILIANS, HALF, WORKERS
+from phantom.common.utils import Point, can_attack, combine_comparers, disk
+from phantom.cython.dijkstra_pathing import DijkstraPathing
+from phantom.observation import Observation
 
 
 @dataclass(frozen=True)

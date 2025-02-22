@@ -4,8 +4,8 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.unit import Unit
 
-from src.common.action import Action, UseAbility
-from src.common.constants import ENERGY_COST
+from phantom.common.action import Action, UseAbility
+from phantom.common.constants import ENERGY_COST
 
 TRANSFUSE_ABILITY = AbilityId.TRANSFUSION_TRANSFUSION
 

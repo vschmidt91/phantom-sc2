@@ -9,13 +9,13 @@ from ares import DEBUG
 from loguru import logger
 from sc2.data import Result
 
-from src.agent import Agent
-from src.common.main import BotBase
-from src.data.constants import PARAM_PRIORS
-from src.data.state import DataState, DataUpdate
-from src.debug import Debug
-from src.macro.state import MacroId
-from src.observation import Observation
+from phantom.agent import Agent
+from phantom.common.main import BotBase
+from phantom.data.constants import PARAM_PRIORS
+from phantom.data.state import DataState, DataUpdate
+from phantom.debug import Debug
+from phantom.macro.state import MacroId
+from phantom.observation import Observation
 
 
 class PhantomBot(BotBase):

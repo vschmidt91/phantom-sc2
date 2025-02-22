@@ -6,9 +6,9 @@ from typing import Iterable
 from ares import AresBot
 from sc2.position import Point2
 
-from src.common.constants import MICRO_MAP_REGEX, MINING_RADIUS
-from src.common.cost import CostManager
-from src.common.utils import MacroId, get_intersections, project_point_onto_line
+from phantom.common.constants import MICRO_MAP_REGEX, MINING_RADIUS
+from phantom.common.cost import CostManager
+from phantom.common.utils import MacroId, get_intersections, project_point_onto_line
 
 
 class BotBase(AresBot, ABC):

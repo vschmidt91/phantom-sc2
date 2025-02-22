@@ -3,8 +3,8 @@ from dataclasses import dataclass
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from src.common.action import Action
-from src.common.main import BotBase
+from phantom.common.action import Action
+from phantom.common.main import BotBase
 
 
 @dataclass

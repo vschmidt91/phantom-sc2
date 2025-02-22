@@ -22,7 +22,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sklearn.metrics import pairwise_distances
 
-from src.common.constants import (
+from phantom.common.constants import (
     CIVILIANS,
     ENEMY_CIVILIANS,
     ITEM_BY_ABILITY,
@@ -37,10 +37,10 @@ from src.common.constants import (
     ZERG_MELEE_UPGRADES,
     ZERG_RANGED_UPGRADES,
 )
-from src.common.cost import Cost, CostManager
-from src.common.main import BotBase
-from src.common.utils import MacroId, center, logit_to_probability
-from src.data.constants import PARAM_COST_WEIGHTING
+from phantom.common.cost import Cost, CostManager
+from phantom.common.main import BotBase
+from phantom.common.utils import MacroId, center, logit_to_probability
+from phantom.data.constants import PARAM_COST_WEIGHTING
 
 
 @dataclass(frozen=True)

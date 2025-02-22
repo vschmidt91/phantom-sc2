@@ -5,9 +5,9 @@ from typing import Callable
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 
-from src.common.action import Action, UseAbility
-from src.macro.state import MacroPlan
-from src.observation import Observation
+from phantom.common.action import Action, UseAbility
+from phantom.macro.state import MacroPlan
+from phantom.observation import Observation
 
 
 @dataclass(frozen=True)

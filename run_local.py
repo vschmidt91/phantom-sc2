@@ -1,8 +1,4 @@
-import gzip
-import json
-import lzma
 import os
-import pickle
 import random
 import sys
 from pathlib import Path
@@ -10,17 +6,17 @@ from typing import Iterable
 import datetime
 
 import click
-from loguru import logger
 from sc2 import maps
-from sc2.data import AIBuild, Difficulty, Race, Result
+from sc2.data import AIBuild, Difficulty, Race
 from sc2.main import run_game
 from sc2.player import AbstractPlayer, Bot, Computer
 
 sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
+sys.path.append("src")
 
-from src.main import PhantomBot
+from phantom import PhantomBot
 
 MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
 MAP_FILE_EXT: str = "SC2Map"

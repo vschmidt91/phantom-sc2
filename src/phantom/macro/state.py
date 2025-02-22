@@ -12,20 +12,20 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from src.combat.action import CombatAction
-from src.common.action import Action, HoldPosition, Move, UseAbility
-from src.common.assignment import Assignment
-from src.common.constants import (
+from phantom.combat.action import CombatAction
+from phantom.common.action import Action, HoldPosition, Move, UseAbility
+from phantom.common.assignment import Assignment
+from phantom.common.constants import (
     ALL_MACRO_ABILITIES,
     GAS_BY_RACE,
     ITEM_BY_ABILITY,
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
     MACRO_INFO,
 )
-from src.common.cost import Cost
-from src.common.unit_composition import UnitComposition
-from src.common.utils import PlacementNotFoundException
-from src.observation import Observation
+from phantom.common.cost import Cost
+from phantom.common.unit_composition import UnitComposition
+from phantom.common.utils import PlacementNotFoundException
+from phantom.observation import Observation
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 
