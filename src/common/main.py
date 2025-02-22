@@ -1,17 +1,14 @@
 import re
 from abc import ABC, abstractmethod
 from functools import cached_property
-from typing import Iterable, TypeAlias
+from typing import Iterable
 
 from ares import AresBot
 from sc2.position import Point2
 
-from src.common.assignment import Assignment
 from src.common.constants import MICRO_MAP_REGEX, MINING_RADIUS
 from src.common.cost import CostManager
 from src.common.utils import MacroId, get_intersections, project_point_onto_line
-
-BlockedPositions: TypeAlias = Assignment[Point2, float]
 
 
 class BotBase(AresBot, ABC):

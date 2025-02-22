@@ -1,16 +1,20 @@
 from dataclasses import dataclass
-from functools import cached_property
 
+from loguru import logger
+from sc2.data import ActionResult
+from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
-from sc2.units import Units
 
 from src.common.action import Action
+from src.common.assignment import Assignment
 from src.common.main import BotBase
+from src.observation import Observation
 
 
 @dataclass
-class ScoutAction(Action):
+class ScoutPosition(Action):
     unit: Unit
     target: Point2
 
@@ -24,26 +28,50 @@ class ScoutAction(Action):
 
 
 @dataclass(frozen=True)
-class Scout:
+class ScoutAction:
+    actions: dict[Unit, ScoutPosition]
 
-    units: Units
-    scout_positions: frozenset[Point2]
-    detect_positions: frozenset[Point2]
 
-    @cached_property
-    def detectors(self) -> list[Unit]:
-        return [u for u in self.units if u.is_detector]
+class ScoutState:
 
-    @cached_property
-    def nondetectors(self) -> list[Unit]:
-        return [u for u in self.units if not u.is_detector]
+    blocked_positions = dict[Point2, float]()
 
-    def get_actions(self) -> dict[Unit, ScoutAction]:
-        detectors = sorted(self.detectors, key=lambda u: u.tag)
-        nondetectors = sorted(self.nondetectors, key=lambda u: u.tag)
-        scout_positions = sorted(self.scout_positions, key=lambda p: hash(p))
-        detect_positions = sorted(self.detect_positions, key=lambda p: hash(p))
+    def step(self, observation: Observation) -> ScoutAction:
 
-        return {unit: ScoutAction(unit, target) for unit, target in zip(detectors, detect_positions)} | {
-            unit: ScoutAction(unit, target) for unit, target in zip(nondetectors, scout_positions)
-        }
+        for p, blocked_since in list(self.blocked_positions.items()):
+            if blocked_since + 60 < observation.time:
+                del self.blocked_positions[p]
+
+        for error in observation.action_errors:
+            if (
+                error.result == ActionResult.CantBuildLocationInvalid.value
+                and error.ability_id == AbilityId.ZERGBUILD_HATCHERY.value
+            ):
+                if unit := observation.unit_by_tag.get(error.unit_tag):
+                    p = unit.position.rounded
+                    if p not in self.blocked_positions:
+                        self.blocked_positions[p] = observation.time
+                        logger.info(f"Detected blocked base {p}")
+
+        def filter_base(b: Point2) -> bool:
+            if observation.is_visible(b):
+                return False
+            distance_to_enemy = min(b.distance_to(e) for e in observation.enemy_start_locations)
+            if distance_to_enemy < b.distance_to(observation.start_location):
+                return False
+            return True
+
+        scout_targets = list(filter(filter_base, observation.bases))
+        detect_targets = list(self.blocked_positions)
+
+        def cost_fn(u: Unit, p: Point2) -> float:
+            return u.distance_to(p)
+
+        detectors = observation.units({UnitTypeId.OVERSEER})
+        nondetectors = observation.units({UnitTypeId.OVERLORD})
+
+        scout_actions = Assignment.distribute(nondetectors, scout_targets, cost_fn)
+        detect_actions = Assignment.distribute(detectors, detect_targets, cost_fn)
+        actions = {u: ScoutPosition(u, p) for u, p in (scout_actions + detect_actions).items()}
+
+        return ScoutAction(actions)

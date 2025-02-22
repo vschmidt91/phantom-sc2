@@ -6,11 +6,9 @@ from typing import AsyncGenerator, Iterable
 
 import numpy as np
 from cython_extensions import cy_closest_to
-from loguru import logger
-from sc2.data import ActionResult
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
@@ -23,7 +21,6 @@ from src.common.constants import (
     ENERGY_COST,
     GAS_BY_RACE,
 )
-from src.common.main import BlockedPositions
 from src.corrosive_biles import CorrosiveBileState
 from src.dodge import DodgeState
 from src.macro.build_order import HATCH_FIRST
@@ -31,11 +28,10 @@ from src.macro.state import MacroPlan, MacroState
 from src.macro.strategy import Strategy
 from src.observation import Observation
 from src.queens.creep import CreepState
-from src.queens.inject import InjectState
 from src.queens.transfuse import transfuse_with
 from src.resources.action import ResourceAction
 from src.resources.observation import ResourceObservation
-from src.scout import Scout
+from src.scout import ScoutState
 
 
 @dataclass
@@ -43,41 +39,14 @@ class Agent:
 
     macro = MacroState()
     creep = CreepState()
-    inject = InjectState()
     corrosive_biles = CorrosiveBileState()
     dodge = DodgeState()
-    blocked_positions = BlockedPositions({})
+    scout = ScoutState()
     build_order = HATCH_FIRST
 
     async def step(self, observation: Observation) -> AsyncGenerator[Action, None]:
 
-        # Update blocked positions
-        for error in observation.action_errors:
-            if (
-                error.result == ActionResult.CantBuildLocationInvalid.value
-                and error.ability_id == AbilityId.ZERGBUILD_HATCHERY.value
-            ):
-                if unit := observation.unit_by_tag.get(error.unit_tag):
-                    p = unit.position.rounded
-                    if p not in self.blocked_positions:
-                        self.blocked_positions += {p: observation.time}
-                        logger.info(f"Detected blocked base {p}")
-        for position, blocked_since in self.blocked_positions.items():
-            if blocked_since + 60 < observation.time:
-                self.blocked_positions -= {position}
-
-        bases = list[Point2]()
-        scout_targets = list[Point2]()
-        if not observation.is_micro_map:
-            bases.extend(observation.bases)
-            bases_sorted = sorted(bases, key=lambda b: b.distance_to(observation.start_location))
-            scout_targets.extend(bases_sorted[1 : len(bases_sorted) // 2])
-        for pos in bases:
-            pos = 0.5 * (pos + observation.start_location)
-            scout_targets.insert(1, pos)
-        scouts = observation.units({UnitTypeId.OVERLORD, UnitTypeId.OVERSEER})
-        scouting = Scout(scouts, frozenset(scout_targets), frozenset(self.blocked_positions))
-
+        scout = self.scout.step(observation)
         strategy = Strategy(observation)
 
         if not observation.is_micro_map:
@@ -98,9 +67,14 @@ class Agent:
 
         combat = CombatAction(observation)
         creep = self.creep.step(observation, np.less_equal(0.0, combat.confidence))
-        inject_actions = self.inject.step(observation.combatants(UnitTypeId.QUEEN), observation.townhalls.ready)
+
+        inject_assignment = Assignment.distribute(
+            observation.units({UnitTypeId.QUEEN}),
+            observation.townhalls.ready,
+            cost_fn=lambda q, t: q.distance_to(t),
+        )
         dodge = self.dodge.step(observation)
-        macro_actions = await self.macro.step(observation, set(self.blocked_positions), combat)
+        macro_actions = await self.macro.step(observation, set(self.scout.blocked_positions), combat)
 
         should_inject = observation.supply_used + observation.bank.larva < 200
         should_spread_creep = self.creep.unspread_tumor_count < 20
@@ -172,12 +146,23 @@ class Agent:
 
         corrosive_biles = self.corrosive_biles.step(observation)
 
+        def inject_with_queen(q: Unit) -> Action | None:
+            if not should_inject:
+                return None
+            if q.energy < ENERGY_COST[AbilityId.EFFECT_INJECTLARVA]:
+                return None
+            if target := inject_assignment.get(q):
+                if target.has_buff(BuffId.QUEENSPAWNLARVATIMER):
+                    return None
+                return UseAbility(q, AbilityId.EFFECT_INJECTLARVA, target=target)
+            return None
+
         def micro_queen(q: Unit) -> Action | None:
             x, y = q.position.rounded
             return (
                 transfuse_with(q, observation.units)
                 or (combat.fight_with(q) if 0 < combat.enemy_presence.dps[x, y] else None)
-                or (inject_actions.get(q) if should_inject else None)
+                or inject_with_queen(q)
                 or (creep.spread_with_queen(q) if should_spread_creep else None)
                 or (combat.retreat_with(q) if not observation.creep[x, y] else None)
                 or combat.fight_with(q)
@@ -198,7 +183,7 @@ class Agent:
             )
             for u in overseers:
 
-                def scout() -> Action | None:
+                def scout_with_overseer() -> Action | None:
                     if target := targets.get(u):
                         target_point = observation.find_path(
                             start=u.position,
@@ -212,8 +197,8 @@ class Agent:
                     dodge.dodge_with(u)
                     or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
                     or spawn_changeling(u)
-                    or scout_actions.get(u)
-                    or scout()
+                    or scout.actions.get(u)
+                    or scout_with_overseer()
                     # or combat.advance_with(u)
                 ):
                     yield action
@@ -229,7 +214,7 @@ class Agent:
             return (
                 dodge.dodge_with(u)
                 or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
-                or scout_actions.get(u)
+                or scout.actions.get(u)
                 or search_with(u)
             )
 
@@ -273,10 +258,9 @@ class Agent:
                 return None
             return Move(unit, target)
 
-        scout_actions = scouting.get_actions()
         for action in macro_actions.values():
             yield action
-        for action in scout_actions.values():
+        for action in scout.actions.values():
             yield action
         for worker in harvesters:
             if a := micro_harvester(worker):
@@ -293,7 +277,7 @@ class Agent:
             if a := search_with(unit):
                 yield a
         for unit in observation.combatants:
-            if unit in scout_actions:
+            if unit in scout.actions:
                 pass
             elif unit in macro_actions:
                 pass

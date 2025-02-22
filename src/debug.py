@@ -55,7 +55,7 @@ class Debug:
         # )
         # await self.bot.client.debug_create_unit(
         #     [
-        #         [UnitTypeId.OVERSEER, 3, self.bot.game_info.player_start_location, 1],
+        #         [UnitTypeId.QUEEN, 3, self.bot.game_info.player_start_location, 1],
         #     ]
         # )
 

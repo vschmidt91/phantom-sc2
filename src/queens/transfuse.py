@@ -15,19 +15,15 @@ def transfuse_with(unit: Unit, targets: Iterable[Unit]) -> Action | None:
     if unit.energy < ENERGY_COST[TRANSFUSE_ABILITY]:
         return None
 
-    eligible_targets = [
-        t
-        for t in targets
-        if (
-            t.tag != unit.tag
-            and unit.in_ability_cast_range(TRANSFUSE_ABILITY, t)
+    def eligible(t: Unit) -> bool:
+        return (
+            t.health + 75 <= t.health_max
             and BuffId.TRANSFUSION not in t.buffs
-            and t.health + 75 <= t.health_max
+            and t.tag != unit.tag
+            and unit.in_ability_cast_range(TRANSFUSE_ABILITY, t)
         )
-    ]
 
-    if not any(eligible_targets):
-        return None
+    if target := min(filter(eligible, targets), key=lambda t: t.health_percentage, default=None):
+        return UseAbility(unit, TRANSFUSE_ABILITY, target=target)
 
-    target = min(eligible_targets, key=lambda t: t.health_percentage, default=None)
-    return UseAbility(unit, TRANSFUSE_ABILITY, target=target)
+    return None

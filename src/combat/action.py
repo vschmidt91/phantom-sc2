@@ -10,11 +10,11 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from src.combat.predictor import CombatOutcome, CombatPrediction, CombatPredictor
+from src.combat.predictor import CombatPrediction, CombatPredictor
 from src.combat.presence import Presence
 from src.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from src.common.assignment import Assignment
-from src.common.constants import CIVILIANS, HALF
+from src.common.constants import CIVILIANS, HALF, WORKERS
 from src.common.utils import Point, can_attack, combine_comparers, disk
 from src.cython.dijkstra_pathing import DijkstraPathing
 from src.observation import Observation
@@ -97,7 +97,7 @@ class CombatAction:
             )
         )
 
-        if unit.weapon_ready:
+        if unit.type_id not in {UnitTypeId.ZERGLING} and unit.weapon_ready:
             if target := max(self.observation.shootable_targets.get(unit, []), key=target_key, default=None):
                 return Attack(unit, target)
 
@@ -109,37 +109,18 @@ class CombatAction:
             target.position,
             unit.is_flying,
         ).rounded
-        # if not attack_path:
-        #     return None
-        # if len(attack_path) < 3:
-        #     return None
-        # advance_point = attack_path[2]
-        advance_point = attack_path
 
-        if 0 == self.enemy_presence.dps[advance_point]:
-            return Move(unit, advance_point)
-
-        safe_spot = None
-        for p in [attack_path]:
-            under_fire = 0 < self.enemy_presence.dps[p]
-
-            confident = self.prediction.survival_time[target] <= self.prediction.survival_time[
-                unit
-            ] and self.prediction.outcome in {CombatOutcome.Victory, CombatOutcome.Draw}
-
-            if under_fire:
-                if confident:
-                    if safe_spot:
-                        return Move(unit, safe_spot)
-                    else:
-                        return Attack(unit, target)
-                elif safe_spot:
-                    return Move(unit, safe_spot)
-                else:
-                    return self.retreat_with(unit)
-            safe_spot = p
-
-        return None
+        confident = self.prediction.survival_time[target] <= self.prediction.survival_time[unit]
+        if 0 == self.enemy_presence.dps[attack_path]:
+            if confident:
+                return UseAbility(unit, AbilityId.ATTACK, attack_path)
+            return Move(unit, attack_path)
+        elif confident:
+            if unit.type_id in {UnitTypeId.ZERGLING}:
+                return UseAbility(unit, AbilityId.ATTACK, target.position)
+            return Attack(unit, target)
+        else:
+            return self.retreat_with(unit)
 
     def do_unburrow(self, unit: Unit) -> Action | None:
         p = tuple[int, int](unit.position.rounded)
@@ -237,9 +218,11 @@ class CombatAction:
             risk = min(1e8, travel_time + 0.1 * kill_time)
             reward = max(1e-8, self.observation.calculate_unit_value_weighted(b.type_id))
             if a.order_target == b.tag:
-                reward *= 1.2
-            # if b.type_id in WORKERS:
-            #     reward *= 7
+                reward *= 1.5
+            if b.is_structure:
+                reward /= 5
+            if b.type_id in WORKERS:
+                reward *= 3
             if b.type_id not in CIVILIANS:
                 reward *= 3
 

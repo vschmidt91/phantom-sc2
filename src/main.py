@@ -5,15 +5,14 @@ import pickle
 from functools import cached_property
 from typing import Iterable
 
-from sc2.data import Result
-
 from ares import DEBUG
 from loguru import logger
+from sc2.data import Result
 
-from data.constants import PARAM_PRIORS
-from data.state import DataState, DataUpdate
 from src.agent import Agent
 from src.common.main import BotBase
+from src.data.constants import PARAM_PRIORS
+from src.data.state import DataState, DataUpdate
 from src.debug import Debug
 from src.macro.state import MacroId
 from src.observation import Observation
@@ -87,19 +86,21 @@ class PhantomBot(BotBase):
     #
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)
-        print("Updating parameters...")
-        update = DataUpdate(
-            parameters=self.parameters,
-            result=game_result,
-        )
-        new_data = self.data + update
-        try:
-            with gzip.GzipFile(self.data_path, "wb") as f:
-                pickle.dump(new_data, f)
-            with open(self.data_json_path, "w") as f:
-                json.dump(new_data.to_dict(), f, indent=4)
-        except Exception as e:
-            print(f"Error storing data file: {e}")
+
+        if self.parameters:
+            print("Updating parameters...")
+            update = DataUpdate(
+                parameters=self.parameters,
+                result=game_result,
+            )
+            new_data = self.data + update
+            try:
+                with gzip.GzipFile(self.data_path, "wb") as f:
+                    pickle.dump(new_data, f)
+                with open(self.data_json_path, "w") as f:
+                    json.dump(new_data.to_dict(), f, indent=4)
+            except Exception as e:
+                print(f"Error storing data file: {e}")
 
     # async def on_building_construction_started(self, unit: Unit):
     #     await super().on_building_construction_started(unit)

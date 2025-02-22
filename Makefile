@@ -1,9 +1,9 @@
 lint:
-	autoflake -i -r bot
-	isort bot
-	black -S bot
-	flake8 bot
-	mypy bot
+	autoflake -i -r src
+	isort src
+	black -S src
+	flake8 src
+	mypy src
 
 profile:
 	python -m snakeviz resources\profiling.prof
