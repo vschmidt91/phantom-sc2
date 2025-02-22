@@ -20,40 +20,6 @@ from phantom.debug import PhantomBotDebug
 
 MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
 MAP_FILE_EXT: str = "SC2Map"
-MAP_VETOS: list[str] = [
-    "PlateauMicro_2",
-    "BotMicroArena_6",
-    "Tier1MicroAIArena_v4",
-    "Tier2MicroAIArena_v4",
-]
-OUTPUT_DIR = os.path.join("resources", "games")
-
-RACES = [
-    Race.Protoss,
-    # Race.Terran,
-    # Race.Zerg,
-    # Race.Random,
-]
-
-BUILDS = [
-    AIBuild.Rush,
-    # AIBuild.Timing,
-    # AIBuild.Power,
-    # AIBuild.Macro,
-    # AIBuild.Air,
-]
-
-DIFFICULTY = Difficulty.VeryHard
-REAL_TIME = False
-RESULT_PATH = 'results.json'
-SEED = 123
-
-
-def create_opponents(difficulty) -> Iterable[AbstractPlayer]:
-
-    for race in RACES:
-        for build in BUILDS:
-            yield Computer(race, difficulty, ai_build=build)
 
 
 @click.command()
@@ -76,10 +42,9 @@ def run_local(
     bot = Bot(Race.Zerg, ai, "PhantomBot")
 
     replay_path: str | None = None
-    timestamp = f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S}"
     if save_replay:
-        replay_path = os.path.join(save_replay, f"{timestamp}.SC2REPLAY")
-        os.makedirs(replay_path, exist_ok=True)
+        replay_path = os.path.join(save_replay, f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S}.SC2REPLAY")
+        os.makedirs(save_replay, exist_ok=True)
 
     map_choices = [
         p.name.replace(f".{MAP_FILE_EXT}", "")

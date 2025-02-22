@@ -171,10 +171,19 @@ class Agent:
         def micro_overseers(overseers: Units) -> Iterable[Action]:
 
             def cost(u: Unit, t: Unit) -> float:
-                scout_cost = 1.0 if t.is_burrowed or t.is_cloaked else 100.0
-                distance_others = sum(v.distance_to(t) for v in overseers) / len(overseers)
+                scout_value = 1.0
+                if t.is_structure:
+                    scout_value /= 10
+                if t.is_burrowed or t.is_cloaked:
+                    scout_value *= 10
+                distance_others = np.mean([v.distance_to(t) for v in overseers])
+                distance_bases = np.mean([b.distance_to(t) for b in observation.bases_taken])
                 distance_self = u.distance_to(t)
-                return scout_cost * distance_self / max(1.0, distance_others)
+
+                risk = distance_self + distance_bases
+                reward = distance_others * scout_value
+
+                return risk / max(1e-8, reward)
 
             targets = Assignment.distribute(
                 overseers,

@@ -44,12 +44,12 @@ class PhantomBotDebug(PhantomBot):
         #         ]
         #     )
         #     num_points -= 1
-        # await self.bot.client.debug_create_unit(
+        # await self.client.debug_create_unit(
         #     [
-        #         [UnitTypeId.RAVAGER, 5, self.bot.game_info.map_center, 1],
-        #         [UnitTypeId.RAVAGER, 5, self.bot.game_info.map_center, 2],
-        #         [UnitTypeId.OVERSEER, 1, self.bot.game_info.map_center, 1],
-        #         [UnitTypeId.OVERSEER, 1, self.bot.game_info.map_center, 2],
+        #         [UnitTypeId.RAVAGER, 5, self.game_info.map_center, 1],
+        #         [UnitTypeId.RAVAGER, 5, self.game_info.map_center, 2],
+        #         [UnitTypeId.OVERSEER, 1, self.game_info.map_center, 1],
+        #         [UnitTypeId.OVERSEER, 1, self.game_info.map_center, 2],
         #     ]
         # )
         # await self.bot.client.debug_create_unit(
