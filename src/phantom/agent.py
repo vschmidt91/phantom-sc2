@@ -177,7 +177,10 @@ class Agent:
                 if t.is_burrowed or t.is_cloaked:
                     scout_value *= 10
                 distance_others = np.mean([v.distance_to(t) for v in overseers])
-                distance_bases = np.mean([b.distance_to(t) for b in observation.bases_taken])
+                if observation.is_micro_map:
+                    distance_bases = 0.
+                else:
+                    distance_bases = np.mean([b.distance_to(t) for b in observation.bases_taken])
                 distance_self = u.distance_to(t)
 
                 risk = distance_self + distance_bases
