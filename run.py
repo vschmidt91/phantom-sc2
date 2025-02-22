@@ -7,9 +7,10 @@ from ladder import run_ladder_game
 sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
+sys.path.append("src")
 sys.path.append("river")
 
-from src.phantom import PhantomBot
+from phantom import PhantomBot
 
 if __name__ == "__main__":
 

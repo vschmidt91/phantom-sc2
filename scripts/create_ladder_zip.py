@@ -55,7 +55,7 @@ else:
     ROOT_DIRECTORY = "./"
 
 ZIP_DIRECTORIES: Dict[str, Dict] = {
-    "bot": {"zip_all": True, "folder_to_zip": "bot"},
+    "src": {"zip_all": True, "folder_to_zip": "src"},
     "ares-sc2": {"zip_all": True, "folder_to_zip": ""},
     "python-sc2": {"zip_all": False, "folder_to_zip": "sc2"},
     # "sc2_helper": {"zip_all": True, "folder_to_zip": "sc2_helper"},
