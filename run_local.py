@@ -16,7 +16,7 @@ sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 sys.path.append("src")
 
-from phantom import PhantomBot
+from phantom.debug import PhantomBotDebug
 
 MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
 MAP_FILE_EXT: str = "SC2Map"
@@ -57,32 +57,23 @@ def create_opponents(difficulty) -> Iterable[AbstractPlayer]:
 
 
 @click.command()
-@click.option("--data-file", default="data/params.pkl.gz", envvar="DATA_FILE")
-@click.option("--data-json-file", default="data/params.json", envvar="DATA_JSON_FILE")
 @click.option("--save-replay", default="resources/replays/local", envvar="SAVE_REPLAY")
 @click.option("--realtime", default=False, envvar="REALTIME")
-@click.option("--debug", default=True, envvar="DEBUG")
 @click.option("--map-pattern", default="*AIE", envvar="MAP_PATTERN")
 @click.option("--race", default=Race.Random.name, type=click.Choice([x.name for x in Race]), envvar="RACE")
 @click.option("--difficulty", default=Difficulty.CheatInsane.name, type=click.Choice([x.name for x in Difficulty]), envvar="DIFFICULTY")
 @click.option("--build", default=AIBuild.Rush.name, type=click.Choice([x.name for x in AIBuild]), envvar="BUILD")
 def run_local(
-    data_file: str,
-    data_json_file: str,
     save_replay: str,
     realtime: bool,
-    debug: bool,
     map_pattern: str,
     race: str,
     difficulty: str,
     build: str,
 ):
 
-    ai = PhantomBot()
-    ai.config["Debug"] = debug
-
-    name = type(ai).__name__
-    bot = Bot(Race.Zerg, ai, name)
+    ai = PhantomBotDebug()
+    bot = Bot(Race.Zerg, ai, "PhantomBot")
 
     replay_path: str | None = None
     timestamp = f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S}"

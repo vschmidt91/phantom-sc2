@@ -13,16 +13,14 @@ from phantom.agent import Agent
 from phantom.common.main import BotBase
 from phantom.data.constants import PARAM_PRIORS
 from phantom.data.state import DataState, DataUpdate
-from phantom.debug import Debug
 from phantom.macro.state import MacroId
 from phantom.observation import Observation
 
 
 class PhantomBot(BotBase):
 
-    debug: Debug | None = None
-    replay_tags = set[str]()
     agent = Agent()
+    replay_tags = set[str]()
     version_path = "version.txt"
     data_path = "data/params.pkl.gz"
     data_json_path = "data/params.json"
@@ -57,10 +55,6 @@ class PhantomBot(BotBase):
         self.parameters = self.data.sample_parameters()
         print(f"{self.parameters=}")
 
-        if self.config[DEBUG]:
-            self.debug = Debug(self)
-            await self.debug.on_start()
-
         if os.path.exists(self.version_path):
             with open(self.version_path) as f:
                 await self.add_replay_tag(f"version_{self.version}")
@@ -72,14 +66,10 @@ class PhantomBot(BotBase):
         if iteration == 0 and self.config[DEBUG]:
             return
 
-        if self.debug:
-            await self.debug.on_step_start()
         async for action in self.agent.step(Observation(self)):
             if not await action.execute(self):
                 await self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
-        if self.debug:
-            await self.debug.on_step_end()
 
     # async def on_before_start(self):
     #     await super().on_before_start()

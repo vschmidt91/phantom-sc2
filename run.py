@@ -15,6 +15,6 @@ from phantom import PhantomBot
 if __name__ == "__main__":
 
     ai = PhantomBot()
-    bot = Bot(Race.Zerg, ai, 'PhantomBot')
+    bot = Bot(Race.Zerg, ai, "PhantomBot")
     result, opponent_id = run_ladder_game(bot)
     print(result, " against opponent ", opponent_id)

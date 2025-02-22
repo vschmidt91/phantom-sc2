@@ -17,7 +17,7 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.position import Point2, Point3
+from sc2.position import Point2, Point3, Size
 from sc2.unit import Unit
 from sc2.units import Units
 from sklearn.metrics import pairwise_distances
@@ -59,6 +59,10 @@ class Observation:
     @property
     def action_errors(self) -> list[ActionError]:
         return self.bot.state.action_errors
+
+    @property
+    def map_size(self) -> Size:
+        return self.bot.game_info.map_size
 
     @property
     def supply_workers(self) -> float:

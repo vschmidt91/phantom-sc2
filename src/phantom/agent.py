@@ -22,12 +22,12 @@ from phantom.common.constants import (
     GAS_BY_RACE,
 )
 from phantom.corrosive_biles import CorrosiveBileState
+from phantom.creep import CreepState
 from phantom.dodge import DodgeState
 from phantom.macro.build_order import HATCH_FIRST
 from phantom.macro.state import MacroPlan, MacroState
 from phantom.macro.strategy import Strategy
 from phantom.observation import Observation
-from phantom.queens.creep import CreepState
 from phantom.queens.transfuse import transfuse_with
 from phantom.resources.action import ResourceAction
 from phantom.resources.observation import ResourceObservation
