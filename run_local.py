@@ -19,7 +19,6 @@ from sc2.player import AbstractPlayer, Bot, Computer
 sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
-sys.path.append("src")
 
 from src.main import PhantomBot
 

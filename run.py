@@ -13,7 +13,6 @@ sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 sys.path.append("river")
-sys.path.append("src")
 
 from src.main import PhantomBot
 
