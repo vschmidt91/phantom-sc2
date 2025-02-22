@@ -15,7 +15,7 @@ sys.path.append("ares-sc2")
 sys.path.append("river")
 sys.path.append("src")
 
-from main import PhantomBot
+from src.main import PhantomBot
 
 if __name__ == "__main__":
 
