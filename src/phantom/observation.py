@@ -266,13 +266,10 @@ class Observation:
         distance_matrix = {(ai, bj): distances[i, j] for (i, ai), (j, bj) in product(enumerate(a), enumerate(b))}
         return distance_matrix
 
-    @property
-    def cost_weighting(self) -> float:
-        return logit_to_probability(self.bot.parameters[PARAM_COST_WEIGHTING])
-
     def calculate_unit_value_weighted(self, unit_type: UnitTypeId) -> float:
+        # TODO: learn value as parameters
         cost = self.bot.calculate_unit_value(unit_type)
-        return self.cost_weighting * cost.minerals + (1 - self.cost_weighting) * cost.vespene
+        return cost.minerals + 2 * cost.vespene
 
     @property
     def townhall_at(self) -> dict[Point2, Unit]:

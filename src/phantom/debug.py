@@ -60,6 +60,8 @@ class PhantomBotDebug(PhantomBot):
 
     async def on_step(self, iteration: int) -> None:
 
+        await self.client.debug_kill_unit(self.townhalls)
+
         for error in self.state.action_errors:
             logger.debug(f"{error=}")
 

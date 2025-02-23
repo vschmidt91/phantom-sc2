@@ -17,13 +17,27 @@ from phantom.common.assignment import Assignment
 from phantom.common.constants import CIVILIANS, HALF, WORKERS
 from phantom.common.utils import Point, can_attack, combine_comparers, disk
 from phantom.cython.dijkstra_pathing import DijkstraPathing
+from phantom.data.normal import NormalParameter
 from phantom.observation import Observation
+
+
+@dataclass(frozen=True)
+class CombatParameters:
+    target_stickiness: NormalParameter
+    dummy: NormalParameter
+
+
+CombatPrior = CombatParameters(
+    NormalParameter(-1., .3, 1.),
+    NormalParameter(0., 1., 1.),
+)
 
 
 @dataclass(frozen=True)
 class CombatAction:
 
     observation: Observation
+    parameters: CombatParameters
 
     @cached_property
     def retreat_targets(self) -> frozenset[Point2]:
@@ -203,6 +217,8 @@ class CombatAction:
     @cached_property
     def optimal_targeting(self) -> Assignment[Unit, Unit]:
 
+        target_stickiness_reward = 1 + math.exp(self.parameters.target_stickiness.mean)
+
         def cost_fn(a: Unit, b: Unit) -> float:
 
             d = self.observation.distance_matrix[a, b]
@@ -218,7 +234,7 @@ class CombatAction:
             risk = min(1e8, travel_time + 0.1 * kill_time)
             reward = max(1e-8, self.observation.calculate_unit_value_weighted(b.type_id))
             if a.order_target == b.tag:
-                reward *= 1.5
+                reward *= target_stickiness_reward
             if b.is_structure:
                 reward /= 5
             if b.type_id in WORKERS:

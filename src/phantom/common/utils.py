@@ -1,6 +1,7 @@
 import math
+from dataclasses import fields
 from functools import cache
-from typing import Callable, Iterable, TypeAlias
+from typing import Callable, Iterable, TypeAlias, Type
 
 import numpy as np
 import skimage.draw
@@ -19,6 +20,14 @@ class PlacementNotFoundException(Exception):
 
 
 Point: TypeAlias = tuple[int, int]
+
+
+def dataclass_from_dict(cls: Type, parameters: dict[str, float]):
+    field_names = {f.name for f in fields(cls)}
+    return cls(**{
+        k: v for k, v in parameters.items()
+        if k in field_names
+    })
 
 
 def unit_value(u: Unit, d: np.ndarray) -> float:

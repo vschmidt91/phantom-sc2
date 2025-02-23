@@ -2,7 +2,7 @@ import math
 import random
 from dataclasses import dataclass
 from itertools import chain
-from typing import AsyncGenerator, Iterable
+from typing import AsyncGenerator, Iterable, TypeAlias
 
 import numpy as np
 from cython_extensions import cy_closest_to
@@ -28,15 +28,17 @@ from phantom.macro.build_order import HATCH_FIRST
 from phantom.macro.state import MacroPlan, MacroState
 from phantom.macro.strategy import Strategy
 from phantom.observation import Observation
-from phantom.queens.transfuse import transfuse_with
+from phantom.parameters import AgentParameters
+from phantom.transfuse import TransfuseAction
 from phantom.resources.action import ResourceAction
 from phantom.resources.observation import ResourceObservation
 from phantom.scout import ScoutState
 
 
-@dataclass
+@dataclass(frozen=True)
 class Agent:
 
+    parameters: AgentParameters
     macro = MacroState()
     creep = CreepState()
     corrosive_biles = CorrosiveBileState()
@@ -65,7 +67,8 @@ class Agent:
                 ):
                     self.macro.add(plan)
 
-        combat = CombatAction(observation)
+        combat = CombatAction(observation, self.parameters.combat)
+        transfuse = TransfuseAction(observation)
         creep = self.creep.step(observation, np.less_equal(0.0, combat.confidence))
 
         inject_assignment = Assignment.distribute(
@@ -160,7 +163,7 @@ class Agent:
         def micro_queen(q: Unit) -> Action | None:
             x, y = q.position.rounded
             return (
-                transfuse_with(q, observation.units)
+                transfuse.transfuse_with(q)
                 or (combat.fight_with(q) if 0 < combat.enemy_presence.dps[x, y] else None)
                 or inject_with_queen(q)
                 or (creep.spread_with_queen(q) if should_spread_creep else None)

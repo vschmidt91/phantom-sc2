@@ -24,6 +24,7 @@ MAP_FILE_EXT: str = "SC2Map"
 
 @click.command()
 @click.option("--save-replay", default="resources/replays/local", envvar="SAVE_REPLAY")
+@click.option("--training", default=True, envvar="TRAINING")
 @click.option("--realtime", default=False, envvar="REALTIME")
 @click.option("--map-pattern", default="*AIE", envvar="MAP_PATTERN")
 @click.option("--race", default=Race.Random.name, type=click.Choice([x.name for x in Race]), envvar="RACE")
@@ -31,6 +32,7 @@ MAP_FILE_EXT: str = "SC2Map"
 @click.option("--build", default=AIBuild.Rush.name, type=click.Choice([x.name for x in AIBuild]), envvar="BUILD")
 def run_local(
     save_replay: str,
+    training: bool,
     realtime: bool,
     map_pattern: str,
     race: str,
@@ -39,6 +41,7 @@ def run_local(
 ):
 
     ai = PhantomBotDebug()
+    ai.training = training
     bot = Bot(Race.Zerg, ai, "PhantomBot")
 
     replay_path: str | None = None
