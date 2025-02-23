@@ -62,7 +62,7 @@ class PhantomBot(BotBase):
         else:
             self.parameter_values = self.data.parameters.mean
         parameter_dict = dict(zip(self.data.parameter_names, self.parameter_values))
-        paramater_distributions = {k: NormalParameter(v, 0, 0) for k, v in parameter_dict.items()}
+        paramater_distributions = {k: NormalParameter(float(v), 0, 0) for k, v in parameter_dict.items()}
         parameters = AgentParameters.from_dict(paramater_distributions)
         print(f"{parameters=}")
         self.agent = Agent(parameters)
