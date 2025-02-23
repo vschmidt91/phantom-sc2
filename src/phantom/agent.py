@@ -179,17 +179,17 @@ class Agent:
                     scout_value /= 10
                 if t.is_burrowed or t.is_cloaked:
                     scout_value *= 10
-                distance_others = np.mean([v.distance_to(t) for v in overseers])
+                distance_others = max((v.distance_to(t) for v in overseers), default=0.0)
                 if observation.is_micro_map:
                     distance_bases = 0.0
                 else:
-                    distance_bases = np.mean([b.distance_to(t) for b in observation.bases_taken])
+                    distance_bases = max((b.distance_to(t) for b in observation.bases_taken), default=0.0)
                 distance_self = u.distance_to(t)
 
                 risk = distance_self + distance_bases
-                reward = distance_others * scout_value
+                reward = 1e-3 + distance_others * scout_value
 
-                return risk / max(1e-8, reward)
+                return risk / reward
 
             targets = Assignment.distribute(
                 overseers,
