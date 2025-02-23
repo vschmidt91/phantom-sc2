@@ -31,6 +31,8 @@ class StrategyParameters:
     tech_priority: NormalParameter
     hydras_when_banking: NormalParameter
     lings_when_banking: NormalParameter
+    queens_per_hatch: NormalParameter
+    queens_limit: NormalParameter
 
 
 StrategyPrior = StrategyParameters(
@@ -43,6 +45,8 @@ StrategyPrior = StrategyParameters(
     tech_priority=NormalParameter.prior(-0.5, 0.1),
     hydras_when_banking=NormalParameter.prior(10, 1),
     lings_when_banking=NormalParameter.prior(10, 1),
+    queens_per_hatch=NormalParameter.prior(1.5, .1),
+    queens_limit=NormalParameter.prior(12, 1),
 )
 
 
@@ -157,7 +161,7 @@ class Strategy:
     @cached_property
     def macro_composition(self) -> UnitComposition:
         harvester_target = max(1, min(80, self.obs.max_harvesters))
-        queen_target = max(0, min(12, (1 + self.obs.townhalls.amount)))
+        queen_target = max(0., min(self.param.queens_limit.mean, self.param.queens_per_hatch.mean * self.obs.townhalls.amount))
         composition = UnitComposition(
             {
                 UnitTypeId.DRONE: harvester_target,
