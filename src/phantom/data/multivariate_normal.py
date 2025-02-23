@@ -2,6 +2,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from phantom.data.normal import NormalParameter
+
 
 def square_vector(v: np.ndarray) -> np.ndarray:
     """
@@ -30,6 +32,14 @@ class NormalParameters:
             evidence=evidence,
         )
 
+    @classmethod
+    def from_independent(cls, params: list[NormalParameter]) -> "NormalParameters":
+        return NormalParameters(
+            mean=np.array([p.mean for p in params]),
+            deviation=np.diag([p.deviation for p in params]),
+            evidence=float(np.mean([p.evidence for p in params])),
+        )
+
     def __add__(self, other: "NormalParameters") -> "NormalParameters":
         total_evidence = self.evidence + other.evidence
         total_mean = (self.mean * self.evidence + other.mean * other.evidence) / total_evidence
@@ -41,9 +51,12 @@ class NormalParameters:
             deviation=total_deviation,
         )
 
-    def to_dict(self):
+    def to_json(self):
         return {
             "mean": self.mean.tolist(),
             "deviation": self.deviation.tolist(),
             "evidence": self.evidence,
         }
+
+    def sample(self) -> np.ndarray:
+        return np.random.multivariate_normal(self.mean, self.deviation)

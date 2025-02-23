@@ -39,8 +39,7 @@ from phantom.common.constants import (
 )
 from phantom.common.cost import Cost, CostManager
 from phantom.common.main import BotBase
-from phantom.common.utils import MacroId, center, logit_to_probability
-from phantom.data.constants import PARAM_COST_WEIGHTING
+from phantom.common.utils import MacroId, center
 
 
 @dataclass(frozen=True)

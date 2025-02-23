@@ -24,12 +24,10 @@ from phantom.observation import Observation
 @dataclass(frozen=True)
 class CombatParameters:
     target_stickiness: NormalParameter
-    dummy: NormalParameter
 
 
 CombatPrior = CombatParameters(
-    NormalParameter(-1., .3, 1.),
-    NormalParameter(0., 1., 1.),
+    NormalParameter(-1.0, 0.1, 1.0),
 )
 
 

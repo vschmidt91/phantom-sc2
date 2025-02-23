@@ -1,7 +1,7 @@
 import math
 from dataclasses import fields
 from functools import cache
-from typing import Callable, Iterable, TypeAlias, Type
+from typing import Callable, Iterable, Type, TypeAlias
 
 import numpy as np
 import skimage.draw
@@ -24,10 +24,7 @@ Point: TypeAlias = tuple[int, int]
 
 def dataclass_from_dict(cls: Type, parameters: dict[str, float]):
     field_names = {f.name for f in fields(cls)}
-    return cls(**{
-        k: v for k, v in parameters.items()
-        if k in field_names
-    })
+    return cls(**{k: v for k, v in parameters.items() if k in field_names})
 
 
 def unit_value(u: Unit, d: np.ndarray) -> float:

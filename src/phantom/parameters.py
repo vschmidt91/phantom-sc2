@@ -1,26 +1,29 @@
-from dataclasses import dataclass, asdict, fields
+from dataclasses import dataclass, fields
 
 from phantom.combat.action import CombatParameters, CombatPrior
 from phantom.common.utils import dataclass_from_dict
+from phantom.macro.strategy import StrategyParameters, StrategyPrior
 
 
 @dataclass(frozen=True)
 class AgentParameters:
     combat: CombatParameters
+    strategy: StrategyParameters
 
     @classmethod
     def from_dict(cls, parameters):
         return AgentParameters(
             combat=dataclass_from_dict(CombatParameters, parameters),
+            strategy=dataclass_from_dict(StrategyParameters, parameters),
         )
 
     def to_dict(self):
         result = {}
-        for field in fields(self):
-            v = getattr(self, field.name)
-            for field2 in fields(v):
-                result[field2.name] = getattr(v, field2.name)
+        for f in fields(self.combat):
+            result[f.name] = getattr(self.combat, f.name)
+        for f in fields(self.strategy):
+            result[f.name] = getattr(self.strategy, f.name)
         return result
 
 
-AgentParameterPrior = AgentParameters(CombatPrior)
+AgentPrior = AgentParameters(CombatPrior, StrategyPrior)

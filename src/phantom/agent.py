@@ -2,7 +2,7 @@ import math
 import random
 from dataclasses import dataclass
 from itertools import chain
-from typing import AsyncGenerator, Iterable, TypeAlias
+from typing import AsyncGenerator, Iterable
 
 import numpy as np
 from cython_extensions import cy_closest_to
@@ -29,10 +29,10 @@ from phantom.macro.state import MacroPlan, MacroState
 from phantom.macro.strategy import Strategy
 from phantom.observation import Observation
 from phantom.parameters import AgentParameters
-from phantom.transfuse import TransfuseAction
 from phantom.resources.action import ResourceAction
 from phantom.resources.observation import ResourceObservation
 from phantom.scout import ScoutState
+from phantom.transfuse import TransfuseAction
 
 
 @dataclass(frozen=True)
@@ -49,7 +49,7 @@ class Agent:
     async def step(self, observation: Observation) -> AsyncGenerator[Action, None]:
 
         scout = self.scout.step(observation)
-        strategy = Strategy(observation)
+        strategy = Strategy(observation, self.parameters.strategy)
 
         if not observation.is_micro_map:
 
@@ -181,7 +181,7 @@ class Agent:
                     scout_value *= 10
                 distance_others = np.mean([v.distance_to(t) for v in overseers])
                 if observation.is_micro_map:
-                    distance_bases = 0.
+                    distance_bases = 0.0
                 else:
                     distance_bases = np.mean([b.distance_to(t) for b in observation.bases_taken])
                 distance_self = u.distance_to(t)

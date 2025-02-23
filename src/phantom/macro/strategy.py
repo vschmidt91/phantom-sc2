@@ -15,8 +15,35 @@ from phantom.common.constants import (
     ZERG_FLYER_UPGRADES,
 )
 from phantom.common.unit_composition import UnitComposition
+from phantom.data.normal import NormalParameter
 from phantom.macro.state import MacroId, MacroPlan
 from phantom.observation import Observation
+
+
+@dataclass(frozen=True)
+class StrategyParameters:
+    counter_factor: NormalParameter
+    ravager_mixin: NormalParameter
+    corruptor_mixin: NormalParameter
+    tier1_drone_count: NormalParameter
+    tier2_drone_count: NormalParameter
+    tier3_drone_count: NormalParameter
+    tech_priority: NormalParameter
+    hydras_when_banking: NormalParameter
+    lings_when_banking: NormalParameter
+
+
+StrategyPrior = StrategyParameters(
+    counter_factor=NormalParameter(2, 0.1, 1),
+    ravager_mixin=NormalParameter(21, 1, 1),
+    corruptor_mixin=NormalParameter(13, 1, 1),
+    tier1_drone_count=NormalParameter(32, 1, 1),
+    tier2_drone_count=NormalParameter(66, 1, 1),
+    tier3_drone_count=NormalParameter(80, 1, 1),
+    tech_priority=NormalParameter(-0.5, 0.1, 1),
+    hydras_when_banking=NormalParameter(10, 1, 1),
+    lings_when_banking=NormalParameter(10, 1, 1),
+)
 
 
 @total_ordering
@@ -33,6 +60,7 @@ class StrategyTier(enum.Enum):
 @dataclass(frozen=True)
 class Strategy:
     obs: Observation
+    param: StrategyParameters
 
     @cached_property
     def composition_deficit(self) -> UnitComposition:
@@ -76,24 +104,32 @@ class Strategy:
     @cached_property
     def army_composition(self) -> UnitComposition:
         # force droning up to 21
+        # TODO: check if necessary
         if not self.obs.structures({UnitTypeId.SPAWNINGPOOL}).ready:
             return UnitComposition({})
-        # if self.obs.bot.tech_requirement_progress(UnitTypeId.ZERGLING) < 0.8:
-        #     return UnitComposition({})
-        ratio = 2.0
         composition = self.counter_composition
         composition += {
-            UnitTypeId.RAVAGER: composition[UnitTypeId.ROACH] / 21,
-            UnitTypeId.CORRUPTOR: composition[UnitTypeId.BROODLORD] / 13,
+            UnitTypeId.RAVAGER: composition[UnitTypeId.ROACH] / self.param.ravager_mixin.mean,
+            UnitTypeId.CORRUPTOR: composition[UnitTypeId.BROODLORD] / self.param.corruptor_mixin.mean,
         }
         composition = UnitComposition({k: v for k, v in composition.items() if 0 < v})
         if sum(composition.values()) < 1:
             composition += {UnitTypeId.ZERGLING: 1}
-        banking = max(0.0, min(self.obs.bank.minerals, self.obs.bank.vespene) - 1000)
-        if sum(composition.values()) < banking / 100:
-            composition += {UnitTypeId.HYDRALISK: banking / 100}
-            composition += {UnitTypeId.BROODLORD: banking / 100}
-        return composition * ratio
+        can_afford_hydras = min(
+            self.obs.bank.minerals / 100,
+            self.obs.bank.vespene / 50,
+            self.obs.bank.larva,
+        )
+        can_afford_lings = min(
+            self.obs.bank.minerals / 50,
+            self.obs.bank.larva,
+        )
+        if self.param.hydras_when_banking.mean < can_afford_hydras:
+            composition += {UnitTypeId.HYDRALISK: can_afford_hydras}
+            composition += {UnitTypeId.BROODLORD: can_afford_hydras}  # for good measure
+        elif self.param.lings_when_banking.mean < can_afford_lings:
+            composition += {UnitTypeId.ZERGLING: can_afford_lings}
+        return composition * self.param.counter_factor.mean
 
     @cached_property
     def counter_composition(self) -> UnitComposition:
@@ -110,11 +146,11 @@ class Strategy:
 
     @cached_property
     def tier(self) -> StrategyTier:
-        if self.obs.supply_workers < 32 or self.obs.townhalls.amount < 3:
+        if self.obs.supply_workers < self.param.tier1_drone_count.mean or self.obs.townhalls.amount < 3:
             return StrategyTier.Zero
-        elif self.obs.supply_workers < 66 or self.obs.townhalls.amount < 4:
+        elif self.obs.supply_workers < self.param.tier2_drone_count.mean or self.obs.townhalls.amount < 4:
             return StrategyTier.Hatch
-        elif self.obs.supply_workers < 80 or self.obs.townhalls.amount < 5:
+        elif self.obs.supply_workers < self.param.tier3_drone_count.mean or self.obs.townhalls.amount < 5:
             return StrategyTier.Lair
         return StrategyTier.Hive
 
@@ -142,7 +178,7 @@ class Strategy:
         if self.tier >= StrategyTier.Hive:
             composition += {UnitTypeId.OVERSEER: 4}
             composition += {UnitTypeId.EVOLUTIONCHAMBER: 1}
-            composition += {UnitTypeId.GREATERSPIRE: 1}
+            composition += {UnitTypeId.GREATERSPIRE: 1}  # TODO: check if necessary
             if self.obs.count(UnitTypeId.GREATERSPIRE, include_planned=False) == 0:
                 composition += {UnitTypeId.GREATERSPIRE: 1}
             else:
@@ -166,7 +202,7 @@ class Strategy:
             else:
                 target_met = bool(self.obs.count(target))
             if not target_met:
-                yield MacroPlan(target, priority=+0.5)
+                yield MacroPlan(target, priority=self.param.tech_priority.mean)
 
     def expand(self) -> Iterable[MacroPlan]:
 

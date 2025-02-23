@@ -10,20 +10,19 @@ from loguru import logger
 from sc2.data import Result
 
 from phantom.agent import Agent
-from phantom.combat.action import CombatParameters, CombatPrior
 from phantom.common.main import BotBase
-from phantom.data.constants import PARAM_PRIORS
+from phantom.data.multivariate_normal import NormalParameters
 from phantom.data.normal import NormalParameter
 from phantom.data.state import DataState
 from phantom.macro.state import MacroId
 from phantom.observation import Observation
-from phantom.parameters import AgentParameters, AgentParameterPrior
+from phantom.parameters import AgentParameters, AgentPrior
 
 
 class PhantomBot(BotBase):
 
     agent: Agent | None = None
-    data = DataState()
+    data: DataState | None = None
     replay_tags = set[str]()
     version_path = "version.txt"
     data_path = "data/params.pkl.gz"
@@ -49,19 +48,21 @@ class PhantomBot(BotBase):
     async def on_start(self) -> None:
         await super().on_start()
 
-        self.data = DataState()
         try:
             with gzip.GzipFile(self.data_path, "rb") as f:
                 self.data = pickle.load(f)
-        except Exception as e:
-            print(f"Error loading data file, using default values")
-            self.data.initialize(AgentParameterPrior.to_dict())
+        except Exception:
+            print("Error loading data file, using default values.")
+            priors = AgentPrior.to_dict()
+            prior_distribution = NormalParameters.from_independent(priors.values())
+            self.data = DataState(prior_distribution, list(priors.keys()))
 
         if self.training:
-            parameter_values = self.data.parameters.sample()
+            self.parameter_values = self.data.parameters.sample()
         else:
-            parameter_values = self.data.parameters.mu
-        paramater_distributions = {k: NormalParameter(v, 0, 0) for k, v in parameter_values.items()}
+            self.parameter_values = self.data.parameters.mean
+        parameter_dict = dict(zip(self.data.parameter_names, self.parameter_values))
+        paramater_distributions = {k: NormalParameter(v, 0, 0) for k, v in parameter_dict.items()}
         parameters = AgentParameters.from_dict(paramater_distributions)
         print(f"{parameters=}")
         self.agent = Agent(parameters)
@@ -88,15 +89,14 @@ class PhantomBot(BotBase):
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)
 
-        if self.training:
+        if self.agent and self.training:
             print("Updating parameters...")
-            parameter_values = {k: v.mean for k, v in self.agent.parameters.to_dict().items()}
-            self.data.update(parameter_values, game_result)
+            self.data.update(self.parameter_values, game_result)
             try:
                 with gzip.GzipFile(self.data_path, "wb") as f:
                     pickle.dump(self.data, f)
                 with open(self.data_json_path, "w") as f:
-                    json.dump(self.data.to_dict(), f, indent=4)
+                    json.dump(self.data.to_json(), f, indent=4)
             except Exception as e:
                 print(f"Error storing data file: {e}")
 

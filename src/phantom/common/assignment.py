@@ -12,6 +12,12 @@ TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
 
 
+LINPROG_OPTIONS = {
+    # "maxiter": 256,
+    "time_limit": 10e-3,
+}
+
+
 @dataclass(frozen=True)
 class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
 
@@ -52,7 +58,6 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         b: list[TValue],
         cost_fn: Callable[[TKey, TValue], float],
         max_assigned: int | None = None,
-        maxiter: int = 1_000,
     ) -> "Assignment[TKey, TValue]":
 
         if not a:
@@ -65,7 +70,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         if max_assigned is None:
             max_assigned = math.ceil(len(a) / len(b))
 
-        opt = linprog(
+        res = linprog(
             c=np.array([cost_fn(*p) for p in pairs]),
             # A_ub=np.array([[1.0 if bj == bk else 0.0 for ai, bj in pairs] for bk in b]),
             A_ub=np.tile(np.eye(len(b), len(b)), (1, len(a))),
@@ -75,14 +80,14 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
             b_eq=np.full(len(a), 1.0),
             method="highs",
             bounds=(0.0, 1.0),
-            options=dict(maxiter=maxiter),
+            options=LINPROG_OPTIONS,
             integrality=0,
         )
 
-        if not opt.success:
-            logger.error(f"Target assigment failed: {opt}")
+        if res.x is None:
+            logger.error(f"Target assigment failed: {res.message}")
             return Assignment({})
 
-        result = Assignment({ai: bj for (ai, bj), wij in zip(pairs, opt.x) if wij > 0.5})
+        result = Assignment({ai: bj for (ai, bj), wij in zip(pairs, res.x) if wij > 0.5})
 
         return result

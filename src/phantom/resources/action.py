@@ -12,7 +12,7 @@ from scipy.optimize import linprog
 from sklearn.metrics import pairwise_distances
 
 from phantom.common.action import Action, Smart
-from phantom.common.assignment import Assignment
+from phantom.common.assignment import LINPROG_OPTIONS, Assignment
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
 
@@ -84,20 +84,21 @@ class ResourceAction:
             / (1e-8 + harvester_to_resource + 3 * return_distance).flatten()
         )
 
-        opt = linprog(
+        res = linprog(
             c=-reward,
             A_ub=A_ub,
             b_ub=b_ub,
             A_eq=A_eq,
             b_eq=b_eq,
             method="highs",
+            options=LINPROG_OPTIONS,
         )
 
-        if not opt.success:
-            logger.error(f"Target assigment failed: {opt}")
+        if res.x is None:
+            logger.error(f"Target assigment failed: {res.message}")
             return Assignment({})
 
-        x_opt = opt.x.reshape(harvester_to_resource.shape)
+        x_opt = res.x.reshape(harvester_to_resource.shape)
         indices = x_opt.argmax(axis=1)
         assignment = HarvesterAssignment(
             {h.tag: resources[idx].position for (i, h), idx in zip(enumerate(harvesters), indices) if 0 < x_opt[i, idx]}
