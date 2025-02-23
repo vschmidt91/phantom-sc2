@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from functools import cached_property
 
 import numpy as np
 
@@ -58,5 +59,9 @@ class NormalParameters:
             "evidence": self.evidence,
         }
 
+    @cached_property
+    def covariance(self) -> np.ndarray:
+        return self.deviation / self.evidence
+
     def sample(self) -> np.ndarray:
-        return np.random.multivariate_normal(self.mean, self.deviation)
+        return np.random.multivariate_normal(self.mean, self.covariance)
