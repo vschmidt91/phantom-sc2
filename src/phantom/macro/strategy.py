@@ -33,6 +33,7 @@ class StrategyParameters:
     lings_when_banking: NormalParameter
     queens_per_hatch: NormalParameter
     queens_limit: NormalParameter
+    drone_limit: NormalParameter
 
 
 StrategyPrior = StrategyParameters(
@@ -47,6 +48,7 @@ StrategyPrior = StrategyParameters(
     lings_when_banking=NormalParameter.prior(10, 1),
     queens_per_hatch=NormalParameter.prior(1.5, .1),
     queens_limit=NormalParameter.prior(12, 1),
+    drone_limit=NormalParameter.prior(80, 3),
 )
 
 
@@ -160,7 +162,7 @@ class Strategy:
 
     @cached_property
     def macro_composition(self) -> UnitComposition:
-        harvester_target = max(1, min(80, self.obs.max_harvesters))
+        harvester_target = max(1., min(self.param.drone_limit.mean, self.obs.max_harvesters))
         queen_target = max(0., min(self.param.queens_limit.mean, self.param.queens_per_hatch.mean * self.obs.townhalls.amount))
         composition = UnitComposition(
             {
