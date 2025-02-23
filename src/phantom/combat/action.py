@@ -27,7 +27,7 @@ class CombatParameters:
 
 
 CombatPrior = CombatParameters(
-    NormalParameter(-1.0, 0.1, 1.0),
+    NormalParameter.prior(-1.0, 0.1),
 )
 
 

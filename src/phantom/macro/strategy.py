@@ -34,15 +34,15 @@ class StrategyParameters:
 
 
 StrategyPrior = StrategyParameters(
-    counter_factor=NormalParameter(2, 0.1, 1),
-    ravager_mixin=NormalParameter(21, 1, 1),
-    corruptor_mixin=NormalParameter(13, 1, 1),
-    tier1_drone_count=NormalParameter(32, 1, 1),
-    tier2_drone_count=NormalParameter(66, 1, 1),
-    tier3_drone_count=NormalParameter(80, 1, 1),
-    tech_priority=NormalParameter(-0.5, 0.1, 1),
-    hydras_when_banking=NormalParameter(10, 1, 1),
-    lings_when_banking=NormalParameter(10, 1, 1),
+    counter_factor=NormalParameter.prior(2, 0.1),
+    ravager_mixin=NormalParameter.prior(21, 1),
+    corruptor_mixin=NormalParameter.prior(13, 1),
+    tier1_drone_count=NormalParameter.prior(32, 1),
+    tier2_drone_count=NormalParameter.prior(66, 1),
+    tier3_drone_count=NormalParameter.prior(80, 1),
+    tech_priority=NormalParameter.prior(-0.5, 0.1),
+    hydras_when_banking=NormalParameter.prior(10, 1),
+    lings_when_banking=NormalParameter.prior(10, 1),
 )
 
 

@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from functools import cached_property
 
+from phantom.data.constants import PRIOR_EVIDENCE
+
 
 @dataclass(frozen=True)
 class NormalParameter:
@@ -28,6 +30,10 @@ class NormalParameter:
             deviation=sum((x - mean) ** 2 for x in values),
             evidence=evidence,
         )
+
+    @classmethod
+    def prior(cls, mean: float, deviation: float) -> "NormalParameter":
+        return NormalParameter(mean, deviation, PRIOR_EVIDENCE)
 
     def __add__(self, other: "NormalParameter") -> "NormalParameter":
         total_evidence = self.evidence + other.evidence
