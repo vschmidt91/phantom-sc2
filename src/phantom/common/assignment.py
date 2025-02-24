@@ -13,7 +13,7 @@ TValue = TypeVar("TValue", bound=Hashable)
 
 
 LINPROG_OPTIONS = {
-    # "maxiter": 256,
+    "maxiter": 256,
     "time_limit": 5e-3,
 }
 
