@@ -441,6 +441,14 @@ class Observation:
             for r in resources
         }
 
+    @cached_property
+    def return_point(self) -> dict[Point2, Point2]:
+        return {
+            r.position: base.towards(r, 4)
+            for base, resources in self.bot.expansion_locations_dict.items()
+            for r in resources
+        }
+
     @property
     def supply_planned(self) -> int:
         return sum(

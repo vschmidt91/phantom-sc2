@@ -75,14 +75,15 @@ class ResourceAction:
             [h.position for h in harvesters],
             [r.position for r in resources],
         )
+        harvester_to_return_point = pairwise_distances(
+            [h.position for h in harvesters],
+            [self.observation.observation.return_point[r.position] for r in resources],
+        )
 
         return_distance = np.array([self.observation.observation.return_distances[r.position] for r in resources])
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
 
-        reward = (
-            np.array([1.1 if h.order_target == r.tag else 1.0 for h, r in pairs])
-            / (1e-8 + harvester_to_resource + 3 * return_distance).flatten()
-        )
+        reward = np.reciprocal(harvester_to_resource + harvester_to_return_point + 7 * return_distance).flatten()
 
         res = linprog(
             c=-reward,

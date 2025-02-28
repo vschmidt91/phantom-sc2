@@ -116,14 +116,14 @@ class CombatAction:
         if not (target := self.optimal_targeting.get(unit)):
             return None
 
-        attack_path = self.observation.find_path(
-            unit.position,
-            target.position,
-            unit.is_flying,
-        ).rounded
 
         confident = self.prediction.survival_time[target] <= self.prediction.survival_time[unit]
-        if 0 == self.enemy_presence.dps[attack_path]:
+        if 0 == self.enemy_presence.dps[unit.position.rounded]:
+            attack_path = self.observation.find_path(
+                unit.position,
+                target.position,
+                unit.is_flying,
+            ).rounded
             if confident:
                 return UseAbility(unit, AbilityId.ATTACK, attack_path)
             return Move(unit, attack_path)
