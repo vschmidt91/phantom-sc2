@@ -2,6 +2,7 @@ import os
 import random
 import subprocess
 import sys
+from functools import reduce
 from pathlib import Path
 from typing import Iterable
 import datetime
@@ -16,10 +17,6 @@ sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 sys.path.append("src")
-
-subprocess.check_call("/scripts/compile_cvxpy.sh", cwd="cvxpy", timeout=60, shell=True)
-
-from phantom.debug import PhantomBotDebug
 
 MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
 MAP_FILE_EXT: str = "SC2Map"
@@ -42,6 +39,15 @@ def run_local(
     difficulty: str,
     build: str,
 ):
+
+    CVXPY_CORE_PATH = "cvxpy/cvxp/cvxcore/python/cvxcore.py"
+    with open(CVXPY_CORE_PATH) as fi:
+        src_in = fi.read()
+    src_out = src_in.replace("from . import _cvxcore", "import _cvxcore")
+    with open(CVXPY_CORE_PATH, "w") as fo:
+        fo.write(src_out)
+
+    from phantom.debug import PhantomBotDebug
 
     ai = PhantomBotDebug()
     ai.training = training
