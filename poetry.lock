@@ -741,8 +741,10 @@ testing = ["hypothesis", "pytest"]
 xpress = ["xpress"]
 
 [package.source]
-type = "directory"
-url = "cvxpy"
+type = "git"
+url = "https://github.com/vschmidt91/cvxpy"
+reference = "master"
+resolved_reference = "9c9262cbcc774afc84d449caa2eca95dcbaac425"
 
 [[package]]
 name = "cython"
@@ -4188,4 +4190,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11, <3.13"
-content-hash = "36b6189ea3cdccab4190ec3bde8cad3b4a0f969f71a2d3d57722734bcca7253f"
+content-hash = "4954a650ebfae4ae50193eb7ac586d192c2c6f7b4a342f611720b2663b452d26"
