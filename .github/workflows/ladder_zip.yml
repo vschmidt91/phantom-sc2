@@ -28,12 +28,9 @@ jobs:
         run: poetry run pip install -U pip
       - name: Install requirements
         run: poetry install --no-root
-#      - name: Build cvxpy core
-#        working-directory: ./cvxpy
-#        run: bash rebuild_cvxcore.sh
-#      - name: Fixup cvxpycore import
-#        working-directory: ./cvxpy/cvxpy
-#        run: sed -i 's/from . import _cvxcore/import _cvxcore/' cvxcore/python/cvxcore.py
+      - name: Build cvxpy core
+        working-directory: ./cvxpy
+        run: bash rebuild_cvxcore.sh
       - name: Compile Cython
         run: poetry run python scripts/compile_cython.py
       - name: Save commit hash
