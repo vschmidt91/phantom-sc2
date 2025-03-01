@@ -56,6 +56,7 @@ else:
 
 ZIP_DIRECTORIES: Dict[str, Dict] = {
     "src": {"zip_all": True, "folder_to_zip": "src"},
+    "scripts": {"zip_all": True, "folder_to_zip": "scripts"},
     "ares-sc2": {"zip_all": True, "folder_to_zip": ""},
     "python-sc2": {"zip_all": False, "folder_to_zip": "sc2"},
     # "sc2_helper": {"zip_all": True, "folder_to_zip": "sc2_helper"},
