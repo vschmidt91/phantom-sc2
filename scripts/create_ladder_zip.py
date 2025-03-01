@@ -65,6 +65,7 @@ ZIP_DIRECTORIES: Dict[str, Dict] = {
 
 ZIP_MODULES: list[str] = [
     "river",
+    "cvxpy",
 ]
 
 
