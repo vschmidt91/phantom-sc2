@@ -4,3 +4,6 @@
 [submodule "python-sc2"]
 	path = python-sc2
 	url = https://github.com/BurnySc2/python-sc2
+[submodule "cvxpy"]
+	path = cvxpy
+	url = https://github.com/cvxpy/cvxpy.git

@@ -61,12 +61,11 @@ ZIP_DIRECTORIES: Dict[str, Dict] = {
     # "sc2_helper": {"zip_all": True, "folder_to_zip": "sc2_helper"},
     "SC2MapAnalysis": {"zip_all": False, "folder_to_zip": "map_analyzer"},
     "cython-extensions-sc2": {"zip_all": False, "folder_to_zip": "cython_extensions"},
+    "cvxpy": {"zip_all": True, "folder_to_zip": ""},
 }
 
 ZIP_MODULES: list[str] = [
     "river",
-    "cvxpy",
-    "scs",
 ]
 
 
