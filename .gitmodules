@@ -6,4 +6,4 @@
 	url = https://github.com/BurnySc2/python-sc2
 [submodule "cvxpy"]
 	path = cvxpy
-	url = https://github.com/cvxpy/cvxpy.git
+	url = https://github.com/vschmidt91/cvxpy
