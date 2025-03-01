@@ -17,7 +17,7 @@ jobs:
         run: git submodule update --init --recursive
       # install libstdc++
       - name: Install libstdc++
-        run: sudo apt install -y libstdc++6=12.2.0-14
+        run: sudo apt update && sudo apt install -y libstdc++6=12.2.0-14
       # install poetry
       - name: Install poetry
         run: pipx install poetry
