@@ -76,7 +76,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         c = (
             cost_fn
             if isinstance(cost_fn, np.ndarray)
-            else np.array([[min(1e8, cost_fn(ai, bj)) for ai in a] for bj in b])
+            else np.array([[min(1e8, cost_fn(ai, bj)) for bj in b] for ai in a])
         )
 
         x = cp.Variable((len(a), len(b)), 'x')
