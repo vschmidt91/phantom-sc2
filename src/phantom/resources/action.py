@@ -88,11 +88,8 @@ class ResourceAction:
             b_ub=b_ub,
             A_eq=sp.sparse.csr_matrix(A_eq),
             b_eq=b_eq,
-            method="interior-point",
-            # options=dict(sparse=True),
-            options=dict(maxiter=100, sparse=True, disp=False, tol=1e-3),
-            # method="interior-point",
-            # options=LINPROG_OPTIONS,
+            method="highs",
+            # options=dict(maxiter=100, sparse=True, disp=False, tol=1e-3),
         )
 
         if res.x is None:
