@@ -15,7 +15,7 @@ from phantom.combat.presence import Presence
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.assignment import Assignment
 from phantom.common.constants import CIVILIANS, HALF, WORKERS
-from phantom.common.utils import Point, can_attack, combine_comparers, disk
+from phantom.common.utils import Point, combine_comparers, disk
 from phantom.cython.dijkstra_pathing import DijkstraPathing
 from phantom.data.normal import NormalParameter
 from phantom.observation import Observation
@@ -223,14 +223,10 @@ class CombatAction:
             r = a.air_range if b.is_flying else a.ground_range
             travel_distance = max(0.0, d - a.radius - b.radius - r - a.distance_to_weapon_ready)
 
-            travel_time = np.divide(travel_distance, a.movement_speed)
-            if can_attack(a, b):
-                dps = a.air_dps if b.is_flying else a.ground_dps
-            else:
-                dps = 1e-8
-            kill_time = np.divide(b.health + b.shield, dps)
-            risk = min(1e8, travel_time + 0.1 * kill_time)
-            reward = max(1e-8, self.observation.calculate_unit_value_weighted(b.type_id))
+            time_to_reach = np.divide(travel_distance, a.movement_speed)
+            time_to_kill = np.divide(b.health + b.shield, a.air_dps if b.is_flying else a.ground_dps)
+            risk = min(60, time_to_reach + time_to_kill)
+            reward = 1 + self.observation.calculate_unit_value_weighted(b.type_id)
             if a.order_target == b.tag:
                 reward *= target_stickiness_reward
             if b.is_structure:
@@ -249,11 +245,15 @@ class CombatAction:
         else:
             max_assigned = 1
 
-        assignment = Assignment.distribute(
-            self.observation.combatants,
-            self.observation.enemy_combatants,
-            cost_fn,
-            max_assigned=max_assigned,
+        assignment = (
+            Assignment.distribute(
+                self.observation.combatants,
+                self.observation.enemy_combatants,
+                cost_fn,
+                max_assigned=max_assigned,
+            )
+            if self.observation.combatants and self.observation.enemy_combatants
+            else Assignment({})
         )
 
         return assignment

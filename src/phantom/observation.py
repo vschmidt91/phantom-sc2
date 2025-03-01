@@ -415,6 +415,7 @@ class Observation:
             start=start,
             target=target,
             grid=grid,
+            smoothing=True,
         )
 
     def find_safe_spot(self, start: Point2, air: bool = False, limit: int = 7) -> Point2:

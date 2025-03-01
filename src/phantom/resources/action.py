@@ -12,7 +12,7 @@ from scipy.optimize import linprog
 from sklearn.metrics import pairwise_distances
 
 from phantom.common.action import Action, Smart
-from phantom.common.assignment import LINPROG_OPTIONS, Assignment
+from phantom.common.assignment import Assignment
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
 
@@ -50,15 +50,12 @@ class ResourceAction:
         if not any(resources):
             return Assignment({})
 
-        pairs = list(product(harvesters, resources))
-
         # limit harvesters per resource
-        A_ub1 = np.tile(np.eye(len(resources), len(resources)), (1, len(harvesters)))
-        # b_ub1 = np.array([2.0 if r.is_mineral_field else 3.0 for r in resources])
+        A_ub1 = np.tile(np.identity(len(resources)), (1, len(harvesters)))
         b_ub1 = np.full(len(resources), 2.0)
 
         # limit assignment per harvester
-        A_ub2 = np.repeat(np.eye(len(harvesters), len(harvesters)), len(resources), axis=1)
+        A_ub2 = np.repeat(np.identity(len(harvesters)), len(resources), axis=1)
         b_ub2 = np.full(len(harvesters), 1.0)
 
         A_ub = np.concatenate((A_ub1, A_ub2), axis=0)
@@ -67,8 +64,6 @@ class ResourceAction:
         # enforce gas target
         is_gas_building = np.array([1.0 if r.type_id in GAS_BUILDINGS else 0.0 for r in resources])
         A_eq = np.tile(is_gas_building, len(harvesters)).reshape((1, -1))
-        # A_eq1 = np.repeat(is_gas_building[None, ...], len(harvesters), axis=0).flatten()
-        # A_eq = np.array([A_eq1])
         b_eq = np.array([gas_target])
 
         harvester_to_resource = pairwise_distances(
@@ -91,8 +86,8 @@ class ResourceAction:
             b_ub=b_ub,
             A_eq=A_eq,
             b_eq=b_eq,
-            method="highs",
-            options=LINPROG_OPTIONS,
+            # method="interior-point",
+            # options=LINPROG_OPTIONS,
         )
 
         if res.x is None:
@@ -104,7 +99,6 @@ class ResourceAction:
         assignment = HarvesterAssignment(
             {h.tag: resources[idx].position for (i, h), idx in zip(enumerate(harvesters), indices) if 0 < x_opt[i, idx]}
         )
-        # assignment = Assignment({h.tag: r.position for (h, r), w in zip(pairs, opt.x) if w > 0.5})
 
         return assignment
 

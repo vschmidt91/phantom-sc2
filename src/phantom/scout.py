@@ -6,6 +6,7 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
+from sklearn.metrics import pairwise_distances
 
 from phantom.common.action import Action
 from phantom.common.assignment import Assignment
@@ -70,8 +71,30 @@ class ScoutState:
         detectors = observation.units({UnitTypeId.OVERSEER})
         nondetectors = observation.units({UnitTypeId.OVERLORD})
 
-        scout_actions = Assignment.distribute(nondetectors, scout_targets, cost_fn)
-        detect_actions = Assignment.distribute(detectors, detect_targets, cost_fn)
+        scout_actions = (
+            Assignment.distribute(
+                nondetectors,
+                scout_targets,
+                pairwise_distances(
+                    [u.position for u in nondetectors],
+                    scout_targets,
+                ),
+            )
+            if nondetectors and scout_targets
+            else Assignment({})
+        )
+        detect_actions = (
+            Assignment.distribute(
+                detectors,
+                detect_targets,
+                pairwise_distances(
+                    [u.position for u in detectors],
+                    detect_targets,
+                ),
+            )
+            if detectors and detect_targets
+            else Assignment({})
+        )
         actions = {u: ScoutPosition(u, p) for u, p in (scout_actions + detect_actions).items()}
 
         return ScoutAction(actions)

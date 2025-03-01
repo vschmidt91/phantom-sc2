@@ -11,6 +11,7 @@ from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
+from sklearn.metrics import pairwise_distances
 
 from phantom.combat.action import CombatAction
 from phantom.common.action import Action, Move, UseAbility
@@ -71,10 +72,19 @@ class Agent:
         transfuse = TransfuseAction(observation)
         creep = self.creep.step(observation, np.less_equal(0.0, combat.confidence))
 
-        inject_assignment = Assignment.distribute(
-            observation.units({UnitTypeId.QUEEN}),
-            observation.townhalls.ready,
-            cost_fn=lambda q, t: q.distance_to(t),
+        injecters = observation.units({UnitTypeId.QUEEN})
+        injected_targets = observation.townhalls.ready
+        inject_assignment = (
+            Assignment.distribute(
+                injecters,
+                injected_targets,
+                pairwise_distances(
+                    [a.position for a in injecters],
+                    [b.position for b in injected_targets],
+                ),
+            )
+            if injecters and injected_targets
+            else Assignment({})
         )
         dodge = self.dodge.step(observation)
         macro_actions = await self.macro.step(observation, set(self.scout.blocked_positions), combat)
@@ -191,10 +201,17 @@ class Agent:
 
                 return risk / reward
 
-            targets = Assignment.distribute(
-                overseers,
-                observation.enemy_combatants,
-                cost,
+            targets = (
+                Assignment.distribute(
+                    overseers,
+                    observation.enemy_combatants,
+                    pairwise_distances(
+                        [a.position for a in overseers],
+                        [b.position for b in observation.enemy_combatants],
+                    ),
+                )
+                if overseers and observation.enemy_combatants
+                else Assignment({})
             )
             for u in overseers:
 

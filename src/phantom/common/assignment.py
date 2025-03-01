@@ -5,6 +5,7 @@ from itertools import product
 from typing import Callable, Collection, Generic, Hashable, Iterator, Mapping, TypeVar
 
 import numpy as np
+import scipy as sp
 from loguru import logger
 from scipy.optimize import linprog
 
@@ -56,8 +57,9 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         cls,
         a: list[TKey],
         b: list[TValue],
-        cost_fn: Callable[[TKey, TValue], float],
+        cost_fn: Callable[[TKey, TValue], float] | np.ndarray,
         max_assigned: int | None = None,
+        verbose=False,
     ) -> "Assignment[TKey, TValue]":
 
         if not a:
@@ -65,29 +67,39 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         if not b:
             return Assignment[TKey, TValue]({})
 
-        pairs = list(product(a, b))
-
         if max_assigned is None:
             max_assigned = math.ceil(len(a) / len(b))
 
+        A_ub = sp.sparse.hstack([sp.sparse.identity(len(b))] * len(a))
+        b_ub = np.full(len(b), max_assigned)
+
+        A_eq = sp.sparse.csr_matrix(np.repeat(np.identity(len(a)), len(b), axis=1))
+        b_eq = np.full(len(a), 1.0)
+
+        c = (
+            cost_fn.flatten()
+            if isinstance(cost_fn, np.ndarray)
+            else np.array([min(1e8, cost_fn(*p)) for p in product(a, b)])
+        )
         res = linprog(
-            c=np.array([cost_fn(*p) for p in pairs]),
-            # A_ub=np.array([[1.0 if bj == bk else 0.0 for ai, bj in pairs] for bk in b]),
-            A_ub=np.tile(np.eye(len(b), len(b)), (1, len(a))),
-            b_ub=np.full(len(b), max_assigned),
-            # A_eq=np.array([[1.0 if ai == ak else 0.0 for ai, bj in pairs] for ak in a]),
-            A_eq=np.repeat(np.eye(len(a), len(a)), len(b), axis=1),
-            b_eq=np.full(len(a), 1.0),
-            method="highs",
-            bounds=(0.0, 1.0),
-            options=LINPROG_OPTIONS,
-            integrality=0,
+            c=c,
+            A_ub=A_ub,
+            b_ub=b_ub,
+            A_eq=A_eq,
+            b_eq=b_eq,
+            method="interior-point",
+            options=dict(maxiter=100, sparse=True, presolve=False, disp=verbose, tol=1e-3, rr=False, ip=True),
+            # bounds=(0.0, 1.0),
+            # options=LINPROG_OPTIONS,
+            # integrality=0,
         )
 
         if res.x is None:
             logger.error(f"Target assigment failed: {res.message}")
             return Assignment({})
 
-        result = Assignment({ai: bj for (ai, bj), wij in zip(pairs, res.x) if wij > 0.5})
+        x_opt = res.x.reshape((len(a), len(b)))
+        indices = x_opt.argmax(axis=1)
+        assignment = Assignment({ai: b[j] for (i, ai), j in zip(enumerate(a), indices) if 0 < x_opt[i, j]})
 
-        return result
+        return assignment
