@@ -28,6 +28,8 @@ jobs:
         run: poetry run pip install -U pip
       - name: Install requirements
         run: poetry install --no-root
+      - name: Install CVXPY
+        run: cd cvxpy && pip install -e .
       - name: Compile Cython
         run: poetry run python scripts/compile_cython.py
       - name: Save commit hash
