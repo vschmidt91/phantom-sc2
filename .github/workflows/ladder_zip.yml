@@ -15,6 +15,9 @@ jobs:
           ref: ${{ github.head_ref }}
       - name: Checkout submodules
         run: git submodule update --init --recursive
+      # install libstdc++
+      - name: Install libstdc++
+        run: sudo apt install -y libstdc++6
       # install poetry
       - name: Install poetry
         run: pipx install poetry
