@@ -1,5 +1,6 @@
 import os
 import random
+import subprocess
 import sys
 from pathlib import Path
 from typing import Iterable
@@ -15,6 +16,8 @@ sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 sys.path.append("src")
+
+subprocess.check_call("/scripts/compile_cvxpy.sh", cwd="cvxpy", timeout=60, shell=True)
 
 from phantom.debug import PhantomBotDebug
 

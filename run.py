@@ -1,3 +1,4 @@
+import subprocess
 import sys
 from sc2.data import Race
 from sc2.player import Bot
@@ -12,9 +13,11 @@ sys.path.append("river")
 sys.path.append("cvxpy")
 sys.path.append("cvxpy/cvxpy")
 
-from phantom import PhantomBot
 
 if __name__ == "__main__":
+
+    subprocess.check_output("scripts/compile_cvxpy.sh", cwd="cvxpy", timeout=60)
+    from phantom import PhantomBot
 
     ai = PhantomBot()
     bot = Bot(Race.Zerg, ai, "PhantomBot")
