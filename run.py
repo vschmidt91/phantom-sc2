@@ -1,3 +1,4 @@
+import pathlib
 import subprocess
 import sys
 from functools import reduce
@@ -18,7 +19,8 @@ sys.path.append("cvxpy/cvxpy")
 
 if __name__ == "__main__":
 
-    CVXPY_CORE_PATH = "cvxpy/cvxp/cvxcore/python/cvxcore.py"
+    BASE_PATH = pathlib.Path(__file__).parent
+    CVXPY_CORE_PATH = (BASE_PATH / "cvxpy" / "cvxpy" / "cvxcore" / "python" / "cvxcore.py").as_posix()
     with open(CVXPY_CORE_PATH) as fi:
         src_in = fi.read()
     src_out = src_in.replace("from . import _cvxcore", "import _cvxcore")
