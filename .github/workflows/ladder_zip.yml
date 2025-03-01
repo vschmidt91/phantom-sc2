@@ -31,7 +31,7 @@ jobs:
       - name: Build cvxpy core
         run: cd cvxpy && bash rebuild_cvxcore.sh
       - name: Fixup cvxpycore import
-        run: sed -i -e 's/from . import _cvxcore/import _cvxcore' /cvxpy/cvxpy/cvxcore/python/cvxcore.py
+        run: sed -i 's/from . import _cvxcore/import _cvxcore' /cvxpy/cvxpy/cvxcore/python/cvxcore.py
       - name: Compile Cython
         run: poetry run python scripts/compile_cython.py
       - name: Save commit hash
