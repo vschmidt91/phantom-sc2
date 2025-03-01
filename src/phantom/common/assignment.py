@@ -88,7 +88,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
             A_eq=A_eq,
             b_eq=b_eq,
             method="interior-point",
-            options=dict(maxiter=100, sparse=True, presolve=False, disp=verbose, tol=1e-3, rr=False, ip=True),
+            options=dict(maxiter=100, sparse=True, disp=verbose, tol=1e-3),
             # bounds=(0.0, 1.0),
             # options=LINPROG_OPTIONS,
             # integrality=0,

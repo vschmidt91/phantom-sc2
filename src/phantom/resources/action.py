@@ -1,9 +1,9 @@
 import math
 from dataclasses import dataclass
 from functools import cached_property
-from itertools import product
 
 import numpy as np
+import scipy as sp
 from ares.consts import GAS_BUILDINGS
 from loguru import logger
 from sc2.unit import Unit
@@ -51,41 +51,46 @@ class ResourceAction:
             return Assignment({})
 
         # limit harvesters per resource
-        A_ub1 = np.tile(np.identity(len(resources)), (1, len(harvesters)))
-        b_ub1 = np.full(len(resources), 2.0)
+        # A_ub = np.tile(np.identity(len(resources)), (1, len(harvesters)))
+        A_ub = sp.sparse.hstack([sp.sparse.identity(len(resources))] * len(harvesters))
+        b_ub = np.full(len(resources), 2.0)
 
-        # limit assignment per harvester
-        A_ub2 = np.repeat(np.identity(len(harvesters)), len(resources), axis=1)
-        b_ub2 = np.full(len(harvesters), 1.0)
-
-        A_ub = np.concatenate((A_ub1, A_ub2), axis=0)
-        b_ub = np.concatenate((b_ub1, b_ub2), axis=0)
+        # enforce assignment per harvester
+        A_eq1 = np.repeat(np.identity(len(harvesters)), len(resources), axis=1)
+        b_eq1 = np.full(len(harvesters), 1.0)
 
         # enforce gas target
         is_gas_building = np.array([1.0 if r.type_id in GAS_BUILDINGS else 0.0 for r in resources])
-        A_eq = np.tile(is_gas_building, len(harvesters)).reshape((1, -1))
-        b_eq = np.array([gas_target])
+        A_eq2 = np.tile(is_gas_building, len(harvesters)).reshape((1, -1))
+        b_eq2 = np.array([gas_target])
+
+        A_eq = np.concatenate((A_eq1, A_eq2), axis=0)
+        b_eq = np.concatenate((b_eq1, b_eq2), axis=0)
 
         harvester_to_resource = pairwise_distances(
             [h.position for h in harvesters],
-            [r.position for r in resources],
+            [self.observation.observation.speedmining_positions.get(r.position, r.position) for r in resources],
         )
-        harvester_to_return_point = pairwise_distances(
-            [h.position for h in harvesters],
-            [self.observation.observation.return_point[r.position] for r in resources],
-        )
+        # harvester_to_return_point = pairwise_distances(
+        #     [h.position for h in harvesters],
+        #     [self.observation.observation.return_point[r.position] for r in resources],
+        # )
 
         return_distance = np.array([self.observation.observation.return_distances[r.position] for r in resources])
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
 
-        reward = np.reciprocal(harvester_to_resource + harvester_to_return_point + 7 * return_distance).flatten()
+        # cost = (harvester_to_resource + harvester_to_return_point + 7 * return_distance).flatten()
+        cost = (harvester_to_resource + return_distance).flatten()
 
         res = linprog(
-            c=-reward,
-            A_ub=A_ub,
+            c=cost,
+            A_ub=sp.sparse.csr_matrix(A_ub),
             b_ub=b_ub,
-            A_eq=A_eq,
+            A_eq=sp.sparse.csr_matrix(A_eq),
             b_eq=b_eq,
+            method="interior-point",
+            # options=dict(sparse=True),
+            options=dict(maxiter=100, sparse=True, disp=False, tol=1e-3),
             # method="interior-point",
             # options=LINPROG_OPTIONS,
         )
@@ -96,11 +101,9 @@ class ResourceAction:
 
         x_opt = res.x.reshape(harvester_to_resource.shape)
         indices = x_opt.argmax(axis=1)
-        assignment = HarvesterAssignment(
-            {h.tag: resources[idx].position for (i, h), idx in zip(enumerate(harvesters), indices) if 0 < x_opt[i, idx]}
-        )
+        a = Assignment({h: resources[idx] for (i, h), idx in zip(enumerate(harvesters), indices) if 0 < x_opt[i, idx]})
 
-        return assignment
+        return HarvesterAssignment({h.tag: r.position for h, r in a.items()})
 
     @cached_property
     def gas_target(self) -> int:
