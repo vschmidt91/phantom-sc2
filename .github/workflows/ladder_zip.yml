@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: python:3.12-slim-bookworm
     steps:
       # check-out repo
       - name: Checkout repository
@@ -15,9 +15,6 @@ jobs:
           ref: ${{ github.head_ref }}
       - name: Checkout submodules
         run: git submodule update --init --recursive
-      # install libstdc++
-      - name: Install libstdc++
-        run: sudo apt update && sudo apt install -y libstdc++6=12.2.0-14
       # install poetry
       - name: Install poetry
         run: pipx install poetry
