@@ -10,6 +10,8 @@ from loguru import logger
 from scipy.optimize import linprog
 import cvxpy as cp
 
+logger.info(f"{cp.installed_solvers()=}")
+
 TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
 
@@ -87,7 +89,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
             0 <= x,
         ]
         problem = cp.Problem(cp.Minimize(cp.vdot(w, x)), constraints)
-        problem.solve(solver='SCS')
+        problem.solve()
         x_opt = x.value
 
 
