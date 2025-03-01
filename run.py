@@ -16,7 +16,7 @@ sys.path.append("cvxpy/cvxpy")
 
 if __name__ == "__main__":
 
-    subprocess.check_output("scripts/compile_cvxpy.sh", cwd="cvxpy", timeout=60)
+    subprocess.check_output("scripts/compile_cvxpy.sh", timeout=60)
     from phantom import PhantomBot
 
     ai = PhantomBot()
