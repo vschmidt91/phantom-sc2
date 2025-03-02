@@ -18,6 +18,7 @@ sys.path.append("cvxpy")
 sys.path.append("cvxpy/cvxpy")
 sys.path.append("scs")
 sys.path.append("osqp")
+sys.path.append("cvxopt")
 
 from phantom import PhantomBot
 
