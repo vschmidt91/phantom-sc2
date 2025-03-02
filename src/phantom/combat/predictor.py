@@ -5,7 +5,6 @@ from functools import cached_property
 import numpy as np
 from sc2.unit import Unit
 from sc2.units import Units
-from sklearn.metrics import pairwise_distances
 
 from phantom.common.constants import DPS_OVERRIDE
 from phantom.common.utils import can_attack
