@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Callable, Collection, Generic, Hashable, Iterator, Mapping, TypeVar
 
-import cvxpy
 import cvxpy as cp
 import numpy as np
 from loguru import logger
