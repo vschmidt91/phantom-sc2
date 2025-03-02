@@ -43,7 +43,7 @@ jobs:
         with:
           args: unzip -qq bot.zip -d out
       - name: Fixup cvxpycore import
-        run: sed -i 's/from . import _cvxcore/import _cvxcore/' out/cvxpy/cvxpy/cvxcore/python/cvxcore.py
+        run: sed -i 's/from . import _cvxcore/import _cvxcore/' out/cvxpy/cvxcore/python/cvxcore.py
       - uses: actions/upload-artifact@v4
         with:
           name: ladder-zip
