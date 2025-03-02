@@ -1,14 +1,21 @@
+import pathlib
+import subprocess
 import sys
+from functools import reduce
+
 from sc2.data import Race
 from sc2.player import Bot
 
 from ladder import run_ladder_game
+
 
 sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 sys.path.append("src")
 sys.path.append("river")
+sys.path.append("cvxpy")
+sys.path.append("osqp")
 
 from phantom import PhantomBot
 

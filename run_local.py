@@ -1,6 +1,11 @@
+import importlib
+import inspect
 import os
 import random
+import pathlib
+import subprocess
 import sys
+from functools import reduce
 from pathlib import Path
 from typing import Iterable
 import datetime
@@ -9,7 +14,7 @@ import click
 from sc2 import maps
 from sc2.data import AIBuild, Difficulty, Race
 from sc2.main import run_game
-from sc2.player import AbstractPlayer, Bot, Computer
+from sc2.player import Bot, Computer
 
 sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
@@ -39,6 +44,14 @@ def run_local(
     difficulty: str,
     build: str,
 ):
+
+    # BASE_PATH = pathlib.Path(__file__).parent
+    # CVXPY_CORE_PATH = (BASE_PATH / "cvxpy" / "cvxpy" / "cvxcore" / "python" / "cvxcore.py").as_posix()
+    # with open(CVXPY_CORE_PATH) as fi:
+    #     src_in = fi.read()
+    # src_out = src_in.replace("from . import _cvxcore", "import _cvxcore")
+    # with open(CVXPY_CORE_PATH, "w") as fo:
+    #     fo.write(src_out)
 
     ai = PhantomBotDebug()
     ai.training = training

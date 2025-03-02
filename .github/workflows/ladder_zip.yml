@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       # check-out repo
       - name: Checkout repository
@@ -28,6 +28,9 @@ jobs:
         run: poetry run pip install -U pip
       - name: Install requirements
         run: poetry install --no-root
+#      - name: Build cvxpy core
+#        working-directory: ./cvxpy
+#        run: bash rebuild_cvxcore.sh
       - name: Compile Cython
         run: poetry run python scripts/compile_cython.py
       - name: Save commit hash

@@ -1,13 +1,13 @@
 import math
 from dataclasses import dataclass
 from functools import cached_property
-from itertools import product
 from typing import Callable, Collection, Generic, Hashable, Iterator, Mapping, TypeVar
 
+import cvxpy as cp
 import numpy as np
-import scipy as sp
 from loguru import logger
-from scipy.optimize import linprog
+
+logger.info(f"{cp.installed_solvers()=}")
 
 TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
@@ -70,35 +70,55 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         if max_assigned is None:
             max_assigned = math.ceil(len(a) / len(b))
 
-        A_ub = sp.sparse.hstack([sp.sparse.identity(len(b))] * len(a))
-        b_ub = np.full(len(b), max_assigned)
-
-        A_eq = sp.sparse.csr_matrix(np.repeat(np.identity(len(a)), len(b), axis=1))
-        b_eq = np.full(len(a), 1.0)
-
         c = (
-            cost_fn.flatten()
+            cost_fn
             if isinstance(cost_fn, np.ndarray)
-            else np.array([min(1e8, cost_fn(*p)) for p in product(a, b)])
-        )
-        res = linprog(
-            c=c,
-            A_ub=A_ub,
-            b_ub=b_ub,
-            A_eq=A_eq,
-            b_eq=b_eq,
-            method="highs",
-            # options=dict(maxiter=100, sparse=True, disp=verbose, tol=1e-3),
-            # bounds=(0.0, 1.0),
-            # options=LINPROG_OPTIONS,
-            # integrality=0,
+            else np.array([[min(1e8, cost_fn(ai, bj)) for bj in b] for ai in a])
         )
 
-        if res.x is None:
-            logger.error(f"Target assigment failed: {res.message}")
-            return Assignment({})
+        x = cp.Variable((len(a), len(b)), 'x')
+        w = cp.Parameter((len(a), len(b)), name='w')
+        w.value = c
 
-        x_opt = res.x.reshape((len(a), len(b)))
+        constraints = [
+            cp.sum(x, 0) <= max_assigned,  # enforce even distribution
+            cp.sum(x, 1) == 1,
+            0 <= x,
+        ]
+        problem = cp.Problem(cp.Minimize(cp.vdot(w, x)), constraints)
+        try:
+            problem.solve(solver="OSQP")
+        except cp.error.SolverError as e:
+            logger.error(f"Solver Error: {str(e)}")
+            problem.solve(solver="SCIPY")
+        x_opt = x.value
+
+        # A_ub = sp.sparse.hstack([sp.sparse.identity(len(b))] * len(a))
+        # b_ub = np.full(len(b), max_assigned)
+        #
+        # A_eq = sp.sparse.csr_matrix(np.repeat(np.identity(len(a)), len(b), axis=1))
+        # b_eq = np.full(len(a), 1.0)
+        #
+        # c = (
+        #     cost_fn.flatten()
+        #     if isinstance(cost_fn, np.ndarray)
+        #     else np.array([min(1e8, cost_fn(*p)) for p in product(a, b)])
+        # )
+        # res = linprog(
+        #     c=c,
+        #     A_ub=A_ub,
+        #     b_ub=b_ub,
+        #     A_eq=A_eq,
+        #     b_eq=b_eq,
+        #     method="highs",
+        # )
+        #
+        # if res.x is None:
+        #     logger.error(f"Target assigment failed: {res.message}")
+        #     return Assignment({})
+        #
+        # x_opt = res.x.reshape((len(a), len(b)))
+
         indices = x_opt.argmax(axis=1)
         assignment = Assignment({ai: b[j] for (i, ai), j in zip(enumerate(a), indices) if 0 < x_opt[i, j]})
 
