@@ -6,13 +6,16 @@ TODO: check all files and folders are present before zipping
 import importlib
 import inspect
 import os
+import pathlib
 import platform
 import shutil
 import site
+import tempfile
 import zipfile
+from distutils.dir_util import copy_tree
 from os import path, remove, walk
 from subprocess import Popen, run
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Callable
 
 import yaml
 
@@ -68,6 +71,18 @@ ZIP_MODULES: list[str] = [
     "cvxpy",
     "scs",
 ]
+def fix_cvxpy_import(module_dir: str) -> None:
+    core_path = pathlib.Path(module_dir) / "cvxcore" / "python" / "cvxcore.py"
+    with open(core_path) as fi:
+        src_in = fi.read()
+    src_out = src_in.replace("from . import _cvxcore", "import _cvxcore")
+    with open(core_path, "w") as fo:
+        fo.write(src_out)
+
+MODULE_CALLBACKS: dict[str, Callable] = {
+    "cvxpy": fix_cvxpy_import,
+}
+
 
 
 def zip_dir(dir_path, zip_file):
@@ -98,7 +113,15 @@ def zip_module(module_name, zip_file):
     """
     module = importlib.import_module(module_name)
     module_path = os.path.dirname(inspect.getfile(module))
-    zip_dir(module_path, zip_file)
+
+    if callback := MODULE_CALLBACKS.get(module_name):
+        with tempfile.TemporaryDirectory() as temp_file:
+            temp_dir = os.path.join(temp_file, module_name)
+            shutil.copytree(module_path, temp_dir)
+            callback(temp_dir)
+            zip_dir(temp_dir, zip_file)
+    else:
+        zip_dir(module_path, zip_file)
 
 
 def zip_files_and_directories(zipfile_name: str) -> None:
