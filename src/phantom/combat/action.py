@@ -116,6 +116,9 @@ class CombatAction:
         if not (target := self.optimal_targeting.get(unit)):
             return None
 
+        if unit.type_id in {UnitTypeId.BANELING}:
+            return Move(unit, target.position)
+
         attack_path = self.observation.find_path(
             unit.position,
             target.position,
