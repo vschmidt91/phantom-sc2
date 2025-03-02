@@ -17,6 +17,7 @@ sys.path.append("river")
 sys.path.append("cvxpy")
 sys.path.append("cvxpy/cvxpy")
 sys.path.append("scs")
+sys.path.append("osqp")
 
 if __name__ == "__main__":
 

@@ -35,6 +35,7 @@ river = "^0.22.0"
 absolufy-imports = "^0.3.1"
 vulture = "^2.14"
 cvxpy = "^1.6.2"
+osqp = "^0.6.7.post3"
 
 
 [build-system]
