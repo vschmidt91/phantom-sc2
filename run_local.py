@@ -1,3 +1,5 @@
+import importlib
+import inspect
 import os
 import random
 import pathlib
@@ -21,6 +23,9 @@ sys.path.append("src")
 
 MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
 MAP_FILE_EXT: str = "SC2Map"
+
+_cvxcore = importlib.import_module("_cvxcore")
+module_path = os.path.dirname(inspect.getfile(_cvxcore))
 
 
 @click.command()

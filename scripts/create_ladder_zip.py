@@ -113,16 +113,20 @@ def zip_module(module_name, zip_file):
     @return:
     """
     module = importlib.import_module(module_name)
-    module_path = os.path.dirname(inspect.getfile(module))
+    module_file = inspect.getfile(module)
 
-    if callback := MODULE_CALLBACKS.get(module_name):
-        with tempfile.TemporaryDirectory() as temp_file:
-            temp_dir = os.path.join(temp_file, module_name)
-            shutil.copytree(module_path, temp_dir)
-            callback(temp_dir)
-            zip_dir(temp_dir, zip_file)
+    if module_file.endswith(".pyd"):
+        zip_file.write(module_file, path.basename(module_file))
     else:
-        zip_dir(module_path, zip_file)
+        module_dir = os.path.dirname(module_file)
+        if callback := MODULE_CALLBACKS.get(module_name):
+            with tempfile.TemporaryDirectory() as temp_file:
+                temp_dir = os.path.join(temp_file, module_name)
+                shutil.copytree(module_dir, temp_dir)
+                callback(temp_dir)
+                zip_dir(temp_dir, zip_file)
+        else:
+            zip_dir(module_dir, zip_file)
 
 
 def zip_files_and_directories(zipfile_name: str) -> None:
