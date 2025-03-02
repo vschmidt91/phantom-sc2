@@ -19,14 +19,14 @@ sys.path.append("cvxpy/cvxpy")
 sys.path.append("scs")
 
 if __name__ == "__main__":
-
-    BASE_PATH = pathlib.Path(__file__).parent
-    CVXPY_CORE_PATH = (BASE_PATH / "cvxpy" / "cvxpy" / "cvxcore" / "python" / "cvxcore.py").as_posix()
-    with open(CVXPY_CORE_PATH) as fi:
-        src_in = fi.read()
-    src_out = src_in.replace("from . import _cvxcore", "import _cvxcore")
-    with open(CVXPY_CORE_PATH, "w") as fo:
-        fo.write(src_out)
+    #
+    # BASE_PATH = pathlib.Path(__file__).parent
+    # CVXPY_CORE_PATH = (BASE_PATH / "cvxpy" / "cvxpy" / "cvxcore" / "python" / "cvxcore.py").as_posix()
+    # with open(CVXPY_CORE_PATH) as fi:
+    #     src_in = fi.read()
+    # src_out = src_in.replace("from . import _cvxcore", "import _cvxcore")
+    # with open(CVXPY_CORE_PATH, "w") as fo:
+    #     fo.write(src_out)
 
     from phantom import PhantomBot
 
