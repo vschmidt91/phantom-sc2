@@ -117,17 +117,17 @@ class CombatPredictor:
         #
         # positions = [u.position for u in self.units]
         # internal_distances = pairwise_distances(positions, positions)
-        enemy_positions = [u.position for u in self.enemy_units]
-        enemy_internal_distances = pairwise_distances(enemy_positions, enemy_positions)
+        # enemy_positions = [u.position for u in self.enemy_units]
+        # enemy_internal_distances = pairwise_distances(enemy_positions, enemy_positions)
         #
-        distance_constant = 1.
+        # distance_constant = 1.
         # mixing = np.reciprocal(distance_constant + internal_distances)
         # mixing = np.nan_to_num(mixing / np.sum(mixing, axis=1, keepdims=True))
         # survival = survival @ mixing
         #
-        enemy_mixing = np.reciprocal(distance_constant + enemy_internal_distances)
-        enemy_mixing = np.nan_to_num(enemy_mixing / np.sum(enemy_mixing, axis=1, keepdims=True))
-        enemy_survival = enemy_survival @ enemy_mixing
+        # enemy_mixing = np.reciprocal(distance_constant + enemy_internal_distances)
+        # enemy_mixing = np.nan_to_num(enemy_mixing / np.sum(enemy_mixing, axis=1, keepdims=True))
+        # enemy_survival = enemy_survival @ enemy_mixing
 
         survival_time = dict(zip(self.units, survival)) | dict(zip(self.enemy_units, enemy_survival))
 
