@@ -115,7 +115,7 @@ def zip_module(module_name, zip_file):
     module = importlib.import_module(module_name)
     module_file = inspect.getfile(module)
 
-    if module_file.endswith(".pyd"):
+    if module_file.endswith((".pyd", ".so")):
         zip_file.write(module_file, path.basename(module_file))
     else:
         module_dir = os.path.dirname(module_file)
