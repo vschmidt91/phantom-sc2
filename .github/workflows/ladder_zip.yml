@@ -18,7 +18,7 @@ jobs:
 #      - name: Update apt
 #        run: sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test && sudo apt-get -qq update
       - name: Install libopenblas
-        run: sudo apt-get -qq update && sudo apt-get install -y libopenblas-dev
+        run: sudo apt-get -qq update && sudo apt-get install -y libopenblas-dev && sudo update-alternatives --config libblas.so.3
       # install poetry
       - name: Install poetry
         run: pipx install poetry
