@@ -19,7 +19,7 @@ jobs:
         run: sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test && sudo apt-get -qq update
       # install libstdc++
       - name: Install libstdc++
-        run: sudo apt-get install --only-upgrade libstdc++6
+        run: sudo apt-get install libstdc++6=12.2
       # install poetry
       - name: Install poetry
         run: pipx install poetry
