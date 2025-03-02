@@ -7,8 +7,6 @@ from typing import Callable, Collection, Generic, Hashable, Iterator, Mapping, T
 import numpy as np
 import scipy as sp
 from loguru import logger
-from scipy.optimize import linprog
-import osqp
 import cvxpy as cp
 
 logger.info(f"{cp.installed_solvers()=}")
@@ -90,7 +88,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
             0 <= x,
         ]
         problem = cp.Problem(cp.Minimize(cp.vdot(w, x)), constraints)
-        problem.solve()
+        problem.solve(solver="OSQP")
         x_opt = x.value
 
 

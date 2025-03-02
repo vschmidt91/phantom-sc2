@@ -14,18 +14,17 @@ import click
 from sc2 import maps
 from sc2.data import AIBuild, Difficulty, Race
 from sc2.main import run_game
-from sc2.player import AbstractPlayer, Bot, Computer
+from sc2.player import Bot, Computer
 
 sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 sys.path.append("src")
 
+from phantom.debug import PhantomBotDebug
+
 MAPS_PATH: str = "C:\\Program Files (x86)\\StarCraft II\\Maps"
 MAP_FILE_EXT: str = "SC2Map"
-
-_cvxcore = importlib.import_module("_cvxcore")
-module_path = os.path.dirname(inspect.getfile(_cvxcore))
 
 
 @click.command()
@@ -53,8 +52,6 @@ def run_local(
     # src_out = src_in.replace("from . import _cvxcore", "import _cvxcore")
     # with open(CVXPY_CORE_PATH, "w") as fo:
     #     fo.write(src_out)
-
-    from phantom.debug import PhantomBotDebug
 
     ai = PhantomBotDebug()
     ai.training = training
