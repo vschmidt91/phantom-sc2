@@ -19,9 +19,10 @@ sys.path.append("cvxpy/cvxpy")
 sys.path.append("scs")
 sys.path.append("osqp")
 
+from phantom import PhantomBot
+
 if __name__ == "__main__":
 
-    from phantom import PhantomBot
 
     ai = PhantomBot()
     bot = Bot(Race.Zerg, ai, "PhantomBot")

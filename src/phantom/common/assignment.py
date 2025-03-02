@@ -8,6 +8,7 @@ import numpy as np
 import scipy as sp
 from loguru import logger
 from scipy.optimize import linprog
+import osqp
 import cvxpy as cp
 
 logger.info(f"{cp.installed_solvers()=}")
