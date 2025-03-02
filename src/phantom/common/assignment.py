@@ -93,6 +93,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
             problem.solve(solver="OSQP")
         except cp.error.SolverError as e:
             logger.error(f"Solver Error: {str(e)}")
+            problem.solve(solver="SCIPY")
         x_opt = x.value
 
 
