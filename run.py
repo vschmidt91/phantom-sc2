@@ -9,7 +9,6 @@ sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 sys.path.append("src")
 sys.path.append("river")
-sys.path.append("cvxpy")
 
 from phantom import PhantomBot
 
