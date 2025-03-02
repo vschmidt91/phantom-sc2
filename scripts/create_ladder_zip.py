@@ -69,6 +69,7 @@ ZIP_DIRECTORIES: Dict[str, Dict] = {
 ZIP_MODULES: list[str] = [
     "river",
     "cvxpy",
+    "_cvxcore",
     "scs",
 ]
 def fix_cvxpy_import(module_dir: str) -> None:
