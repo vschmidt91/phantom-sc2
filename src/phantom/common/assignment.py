@@ -88,7 +88,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
             0 <= x,
         ]
         problem = cp.Problem(cp.Minimize(cp.vdot(w, x)), constraints)
-        problem.solve(solver="OSQP")
+        problem.solve(solver="OSQP", verbose=True)
         x_opt = x.value
 
 
