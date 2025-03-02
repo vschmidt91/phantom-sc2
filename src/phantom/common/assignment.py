@@ -90,7 +90,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         ]
         problem = cp.Problem(cp.Minimize(cp.vdot(w, x)), constraints)
         try:
-            problem.solve(solver="OSQP", verbose=True)
+            problem.solve(solver="OSQP")
         except cp.error.SolverError as e:
             logger.error(f"Solver Error: {str(e)}")
         x_opt = x.value
