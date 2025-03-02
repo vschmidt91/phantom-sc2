@@ -4,6 +4,7 @@ from functools import cached_property
 from itertools import product
 from typing import Callable, Collection, Generic, Hashable, Iterator, Mapping, TypeVar
 
+import cvxpy
 import numpy as np
 import scipy as sp
 from loguru import logger
@@ -88,7 +89,10 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
             0 <= x,
         ]
         problem = cp.Problem(cp.Minimize(cp.vdot(w, x)), constraints)
-        problem.solve(solver="OSQP", verbose=True)
+        try:
+            problem.solve(solver="OSQP", verbose=True)
+        except cp.error.SolverError as e:
+            logger.error(f"Solver Error: {str(e)}")
         x_opt = x.value
 
 
