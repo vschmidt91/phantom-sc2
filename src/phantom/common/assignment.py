@@ -84,7 +84,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         b: list[TValue],
         cost_fn: Callable[[TKey, TValue], float] | np.ndarray,
         max_assigned: int | None = None,
-        verbose=True,
+        verbose=False,
     ) -> "Assignment[TKey, TValue]":
 
         if not a:
