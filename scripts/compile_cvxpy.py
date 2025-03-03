@@ -24,7 +24,7 @@ if __name__ == '__main__':
     output_dir = "bin"
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        for log_n in range(1, 8):
+        for log_n in range(3, 9):
 
             n = 2 ** log_n
             m = n

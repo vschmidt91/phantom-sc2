@@ -21,7 +21,7 @@ def cpg_solve(b, c, t, g, gw):
 
     n, m = c.shape
 
-    log_n = max(1, math.ceil(math.log(max(n, m), 2)))
+    log_n = max(3, math.ceil(math.log(max(n, m), 2)))
     N = 2 ** log_n
 
     prefix = f"assign{log_n}"
