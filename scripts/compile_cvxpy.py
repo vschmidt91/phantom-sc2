@@ -14,8 +14,7 @@ sys.path.append("ares-sc2")
 
 SOLVER = "OSQP"
 SOLVER_OPTIONS = dict(
-    time_limit=1e-3,
-    max_iter=10,
+    time_limit=10e-3,
 )
 
 from cvxpygen import cpg
