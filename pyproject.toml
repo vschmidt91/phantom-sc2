@@ -37,6 +37,7 @@ vulture = "^2.14"
 cvxpy = "^1.6.2"
 cvxpygen = { git = "https://github.com/vschmidt91/cvxpygen", branch = "master" }
 osqp = ">=0.6.7.post3"
+ecos = "^2.0.14"
 
 
 [build-system]

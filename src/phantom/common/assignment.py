@@ -17,6 +17,53 @@ TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
 
 
+@cache
+def get_problem(n, m):
+    x = cp.Variable((n, m), 'x')
+    w = cp.Parameter((n, m), name='w')
+    b = cp.Parameter(m, name='b')
+    gw = cp.Parameter(m, name='gw')
+    g = cp.Parameter(1, name='g')
+    t = cp.Parameter(n, name='t')
+
+    objective = cp.Minimize(cp.vdot(w, x))
+    constraints = [
+        cp.sum(x, 0) <= b,  # enforce even distribution
+        cp.sum(x, 1) == t,
+        cp.vdot(cp.sum(x, 0), gw) == g,
+        0 <= x,
+    ]
+    problem = cp.Problem(objective, constraints)
+    return problem
+
+
+def cp_solve(b, c, t, g, gw):
+
+    n, m = c.shape
+    problem = get_problem(n, m)
+    problem.param_dict["w"].value = c
+    problem.param_dict["t"].value = t
+    problem.param_dict["b"].value = b
+    problem.param_dict["g"].value = [g]
+    problem.param_dict["gw"].value = gw
+    tol = 1e-4
+    tol_inacc = 1e-2
+    options = {
+        "max_iters": 100,
+        "abstol": tol,
+        "reltol": tol,
+        "feastol": tol,
+        "reltol_inacc": tol_inacc,
+        "abstol_inacc": tol_inacc,
+        "feastol_inacc": tol_inacc,
+    }
+    problem.solve(solver="ECOS",
+                  # verbose=True,
+                  **options)
+    x = problem.var_dict["x"].value
+    return x
+
+
 def cpg_solve(b, c, t, g, gw):
 
     n, m = c.shape
@@ -43,7 +90,6 @@ def cpg_solve(b, c, t, g, gw):
     par.gw = list(np.pad(gw, (0, N - gw.shape[0])).flatten(order="F"))
     par.g = float(g)
 
-    # solve
     res = module.solve(upd, par)
     x = np.array(res.cpg_prim.x).reshape((N, N), order='F')[:n, :m]
     return x
@@ -112,7 +158,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         g = 0.0
 
         try:
-            x_opt = cpg_solve(d, c, t, g, gw)
+            x_opt = cp_solve(d, c, t, g, gw)
         except cp.error.SolverError as e:
             logger.error(f"Solver Error: {str(e)}")
             return Assignment({})

@@ -13,7 +13,7 @@ from scipy.optimize import linprog
 from sklearn.metrics import pairwise_distances
 
 from phantom.common.action import Action, Smart
-from phantom.common.assignment import Assignment, cpg_solve
+from phantom.common.assignment import Assignment, cpg_solve, cp_solve
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
 
@@ -75,7 +75,7 @@ class ResourceAction:
         # cost = (harvester_to_resource + harvester_to_return_point + 7 * return_distance).flatten()
         cost = harvester_to_resource + return_distance
 
-        x_opt = cpg_solve(b, cost, t, g, gw)
+        x_opt = cp_solve(b, cost, t, g, gw)
         indices = x_opt.argmax(axis=1)
         a = Assignment({h: resources[idx] for (i, h), idx in zip(enumerate(harvesters), indices) if 0 < x_opt[i, idx]})
 

@@ -72,6 +72,7 @@ ZIP_MODULES: list[str] = [
     "cvxpygen",
     # "scs",
     # "_scs_direct",
+    "ecos",
     "osqp",
     "qdldl",
 ]

@@ -12,7 +12,7 @@ sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 
-SOLVER = "OSQP"
+SOLVER = "ECOS"
 SOLVER_OPTIONS = dict(
     time_limit=10e-3,
 )

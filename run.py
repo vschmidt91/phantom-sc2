@@ -13,6 +13,7 @@ sys.path.append("src")
 sys.path.append("bin")
 sys.path.append("cvxpy")
 sys.path.append("osqp")
+sys.path.append("ecos")
 
 from phantom import PhantomBot
 
