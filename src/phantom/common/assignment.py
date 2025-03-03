@@ -50,7 +50,7 @@ def cp_solve(b, c, t, g, gw):
     tol_inacc = 1e-2
     options = {
         "max_iters": 100,
-        "time_limit": 10e-3,
+        # "time_limit": 10e-3,
         "abstol": tol,
         "reltol": tol,
         "feastol": tol,
