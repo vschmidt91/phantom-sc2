@@ -12,6 +12,12 @@ sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 
+SOLVER = "OSQP"
+SOLVER_OPTIONS = dict(
+    time_limit=1e-3,
+    max_iter=10,
+)
+
 from cvxpygen import cpg
 
 if __name__ == '__main__':
@@ -34,6 +40,7 @@ if __name__ == '__main__':
             constraints = [
                 cp.sum(x, 0) <= b,  # enforce even distribution
                 cp.sum(x, 1) == t,
+                cp.vdot(cp.sum(x, 0), gw) == g,
                 0 <= x,
             ]
             problem = cp.Problem(objective, constraints)
@@ -41,24 +48,7 @@ if __name__ == '__main__':
             problem_name = f"assign{log_n}"
             problem_dir = f"{temp_dir}/{problem_name}"
             try:
-                cpg.generate_code(problem, code_dir=problem_dir, prefix=problem_name, solver='OSQP')
-            except ModuleNotFoundError:
-                pass
-            for file in glob(f"{problem_dir}/cpg_module.*"):
-                output_path = f"{output_dir}/{problem_name}/{os.path.basename(file)}"
-                os.makedirs(os.path.dirname(output_path), exist_ok=True)
-                shutil.move(file, output_path)
-
-            constraints_harvest = [
-                *constraints,
-                cp.vdot(cp.sum(x, 0), gw) == g,
-            ]
-            problem_harvest = cp.Problem(objective, constraints_harvest)
-
-            problem_name = f"harvest{log_n}"
-            problem_dir = f"{temp_dir}/{problem_name}"
-            try:
-                cpg.generate_code(problem_harvest, code_dir=problem_dir, prefix=problem_name, solver='OSQP')
+                cpg.generate_code(problem, code_dir=problem_dir, prefix=problem_name, solver=SOLVER, solver_opts=SOLVER_OPTIONS)
             except ModuleNotFoundError:
                 pass
             for file in glob(f"{problem_dir}/cpg_module.*"):

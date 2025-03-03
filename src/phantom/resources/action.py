@@ -13,41 +13,9 @@ from scipy.optimize import linprog
 from sklearn.metrics import pairwise_distances
 
 from phantom.common.action import Action, Smart
-from phantom.common.assignment import Assignment
+from phantom.common.assignment import Assignment, cpg_solve
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
-
-
-def cpg_solve(b, c, t, g, gw):
-
-    n, m = c.shape
-
-    log_n = max(1, math.ceil(math.log(max(n, m), 2)))
-    N = 2 ** log_n
-
-    prefix = f"harvest{log_n}"
-    module_name = f"{prefix}.cpg_module"
-    module = importlib.import_module(module_name)
-
-    par = getattr(module, f"{prefix}_cpg_params")()
-    upd = getattr(module, f"{prefix}_cpg_updated")()
-
-    for p in ["w", "b", "t", "g", "gw"]:
-        try:
-            setattr(upd, p, True)
-        except AttributeError:
-            raise AttributeError(f"{p} is not a parameter.")
-
-    par.w = list(np.pad(c, ((0, N - c.shape[0]), (0, N - c.shape[1])), constant_values=1.0).flatten(order="F"))
-    par.b = list(np.pad(b, (0, N - b.shape[0])).flatten(order="F"))
-    par.t = list(np.pad(t, (0, N - t.shape[0])).flatten(order="F"))
-    par.gw = list(np.pad(gw, (0, N - gw.shape[0])).flatten(order="F"))
-    par.g = float(g)
-
-    # solve
-    res = module.solve(upd, par)
-    x = np.array(res.cpg_prim.x).reshape((N, N), order='F')[:n, :m]
-    return x
 
 
 @dataclass(frozen=True)

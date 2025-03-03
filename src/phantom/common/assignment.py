@@ -17,14 +17,7 @@ TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
 
 
-LINPROG_OPTIONS = {
-    "solver": "OSQP",
-    # "eps_abs": 1e-2,
-    "time_limit": 10e-3,
-}
-
-
-def cpg_solve(b, c, t):
+def cpg_solve(b, c, t, g, gw):
 
     n, m = c.shape
 
@@ -38,7 +31,7 @@ def cpg_solve(b, c, t):
     par = getattr(module, f"{prefix}_cpg_params")()
     upd = getattr(module, f"{prefix}_cpg_updated")()
 
-    for p in ["w", "b", "t"]:
+    for p in ["w", "b", "t", "g", "gw"]:
         try:
             setattr(upd, p, True)
         except AttributeError:
@@ -47,6 +40,8 @@ def cpg_solve(b, c, t):
     par.w = list(np.pad(c, ((0, N - c.shape[0]), (0, N - c.shape[1])), constant_values=1.0).flatten(order="F"))
     par.b = list(np.pad(b, (0, N - b.shape[0])).flatten(order="F"))
     par.t = list(np.pad(t, (0, N - t.shape[0])).flatten(order="F"))
+    par.gw = list(np.pad(gw, (0, N - gw.shape[0])).flatten(order="F"))
+    par.g = float(g)
 
     # solve
     res = module.solve(upd, par)
@@ -113,9 +108,11 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
             else np.array([[min(1e8, cost_fn(ai, bj)) for bj in b] for ai in a])
         )
         t = np.full(len(a), 1.0)
+        gw = np.full(len(b), 0.0)
+        g = 0.0
 
         try:
-            x_opt = cpg_solve(d, c, t)
+            x_opt = cpg_solve(d, c, t, g, gw)
         except cp.error.SolverError as e:
             logger.error(f"Solver Error: {str(e)}")
             return Assignment({})
