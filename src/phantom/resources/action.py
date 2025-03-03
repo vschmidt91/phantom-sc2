@@ -1,3 +1,4 @@
+import importlib
 import math
 from dataclasses import dataclass
 from functools import cached_property
@@ -15,6 +16,38 @@ from phantom.common.action import Action, Smart
 from phantom.common.assignment import Assignment
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
+
+
+def cpg_solve(b, c, t, g, gw):
+
+    n, m = c.shape
+
+    log_n = max(1, math.ceil(math.log(max(n, m), 2)))
+    N = 2 ** log_n
+
+    prefix = f"harvest{log_n}"
+    module_name = f"{prefix}.cpg_module"
+    module = importlib.import_module(module_name)
+
+    par = getattr(module, f"{prefix}_cpg_params")()
+    upd = getattr(module, f"{prefix}_cpg_updated")()
+
+    for p in ["w", "b", "t", "g", "gw"]:
+        try:
+            setattr(upd, p, True)
+        except AttributeError:
+            raise AttributeError(f"{p} is not a parameter.")
+
+    par.w = list(np.pad(c, ((0, N - c.shape[0]), (0, N - c.shape[1])), constant_values=1.0).flatten(order="F"))
+    par.b = list(np.pad(b, (0, N - b.shape[0])).flatten(order="F"))
+    par.t = list(np.pad(t, (0, N - t.shape[0])).flatten(order="F"))
+    par.gw = list(np.pad(gw, (0, N - gw.shape[0])).flatten(order="F"))
+    par.g = float(g)
+
+    # solve
+    res = module.solve(upd, par)
+    x = np.array(res.cpg_prim.x).reshape((N, N), order='F')[:n, :m]
+    return x
 
 
 @dataclass(frozen=True)
@@ -51,21 +84,13 @@ class ResourceAction:
             return Assignment({})
 
         # limit harvesters per resource
-        # A_ub = np.tile(np.identity(len(resources)), (1, len(harvesters)))
-        A_ub = sp.sparse.hstack([sp.sparse.identity(len(resources))] * len(harvesters))
-        b_ub = np.full(len(resources), 2.0)
-
-        # enforce assignment per harvester
-        A_eq1 = np.repeat(np.identity(len(harvesters)), len(resources), axis=1)
-        b_eq1 = np.full(len(harvesters), 1.0)
+        b = np.full(len(resources), 2.0)
+        t = np.full(len(harvesters), 1.0)
 
         # enforce gas target
         is_gas_building = np.array([1.0 if r.type_id in GAS_BUILDINGS else 0.0 for r in resources])
-        A_eq2 = np.tile(is_gas_building, len(harvesters)).reshape((1, -1))
-        b_eq2 = np.array([gas_target])
-
-        A_eq = np.concatenate((A_eq1, A_eq2), axis=0)
-        b_eq = np.concatenate((b_eq1, b_eq2), axis=0)
+        gw = is_gas_building
+        g = gas_target
 
         harvester_to_resource = pairwise_distances(
             [h.position for h in harvesters],
@@ -80,23 +105,9 @@ class ResourceAction:
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
 
         # cost = (harvester_to_resource + harvester_to_return_point + 7 * return_distance).flatten()
-        cost = (harvester_to_resource + return_distance).flatten()
+        cost = harvester_to_resource + return_distance
 
-        res = linprog(
-            c=cost,
-            A_ub=sp.sparse.csr_matrix(A_ub),
-            b_ub=b_ub,
-            A_eq=sp.sparse.csr_matrix(A_eq),
-            b_eq=b_eq,
-            method="highs",
-            # options=dict(maxiter=100, sparse=True, disp=False, tol=1e-3),
-        )
-
-        if res.x is None:
-            logger.error(f"Target assigment failed: {res.message}")
-            return Assignment({})
-
-        x_opt = res.x.reshape(harvester_to_resource.shape)
+        x_opt = cpg_solve(b, cost, t, g, gw)
         indices = x_opt.argmax(axis=1)
         a = Assignment({h: resources[idx] for (i, h), idx in zip(enumerate(harvesters), indices) if 0 < x_opt[i, idx]})
 

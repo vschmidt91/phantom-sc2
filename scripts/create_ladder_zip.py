@@ -70,6 +70,7 @@ ZIP_MODULES: list[str] = [
     "river",
     "cvxpy",
     "_cvxcore",
+    "cvxpygen",
     # "scs",
     # "_scs_direct",
     "osqp",
@@ -119,7 +120,7 @@ def zip_module(module_name, zip_file):
     module_file = inspect.getfile(module)
 
     if module_file.endswith((".pyd", ".so")):
-        zip_file.write(module_file, path.basename(module_file))
+        zip_file.write(module_file, os.path.join("bin", path.basename(module_file)))
     else:
         module_dir = os.path.dirname(module_file)
         if callback := MODULE_CALLBACKS.get(module_name):

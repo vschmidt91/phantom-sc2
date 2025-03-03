@@ -1,10 +1,14 @@
+import importlib
 import math
+import time
 from dataclasses import dataclass
 from functools import cached_property, cache
 from typing import Callable, Collection, Generic, Hashable, Iterator, Mapping, TypeVar
 
 import cvxpy as cp
 import numpy as np
+from cvxpy.problems.problem import SolverStats
+from cvxpy.reductions import Solution
 from loguru import logger
 
 logger.info(f"{cp.installed_solvers()=}")
@@ -20,27 +24,34 @@ LINPROG_OPTIONS = {
 }
 
 
-@cache
-def get_assignment_problem(n: int, m: int) -> cp.Problem:
+def cpg_solve(b, c, t):
 
-    x = cp.Variable((n, m), 'x')
-    w = cp.Parameter((n, m), name='w')
-    b = cp.Parameter(m, name='b')
-    x.value = np.zeros((n, m))
-    b.value = np.ones(m)
-    w.value = np.ones((n, m))
+    n, m = c.shape
 
-    constraints = [
-        cp.sum(x, 0) <= b,  # enforce even distribution
-        cp.sum(x, 1) == 1,
-        0 <= x,
-    ]
-    problem = cp.Problem(cp.Minimize(cp.vdot(w, x)), constraints)
-    try:
-        problem.solve(solver="OSQP", max_iter=1)
-    except cp.error.SolverError:
-        pass
-    return problem
+    log_n = max(1, math.ceil(math.log(max(n, m), 2)))
+    N = 2 ** log_n
+
+    prefix = f"assign{log_n}"
+    module_name = f"{prefix}.cpg_module"
+    module = importlib.import_module(module_name)
+
+    par = getattr(module, f"{prefix}_cpg_params")()
+    upd = getattr(module, f"{prefix}_cpg_updated")()
+
+    for p in ["w", "b", "t"]:
+        try:
+            setattr(upd, p, True)
+        except AttributeError:
+            raise AttributeError(f"{p} is not a parameter.")
+
+    par.w = list(np.pad(c, ((0, N - c.shape[0]), (0, N - c.shape[1])), constant_values=1.0).flatten(order="F"))
+    par.b = list(np.pad(b, (0, N - b.shape[0])).flatten(order="F"))
+    par.t = list(np.pad(t, (0, N - t.shape[0])).flatten(order="F"))
+
+    # solve
+    res = module.solve(upd, par)
+    x = np.array(res.cpg_prim.x).reshape((N, N), order='F')[:n, :m]
+    return x
 
 
 
@@ -95,20 +106,21 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         if max_assigned is None:
             max_assigned = math.ceil(len(a) / len(b))
 
-        problem = get_assignment_problem(len(a), len(b))
-        problem.param_dict["b"].value = np.full(len(b), max_assigned)
-        problem.param_dict["w"].value = (
+        d = np.full(len(b), max_assigned)
+        c = (
             cost_fn
             if isinstance(cost_fn, np.ndarray)
             else np.array([[min(1e8, cost_fn(ai, bj)) for bj in b] for ai in a])
         )
+        t = np.full(len(a), 1.0)
+
         try:
-            problem.solve(verbose=verbose, **LINPROG_OPTIONS)
+            x_opt = cpg_solve(d, c, t)
         except cp.error.SolverError as e:
             logger.error(f"Solver Error: {str(e)}")
             return Assignment({})
 
-        x_opt = problem.var_dict["x"].value
+        # x_opt = problem.var_dict["x"].value
         indices = x_opt.argmax(axis=1)
         assignment = Assignment({ai: b[j] for (i, ai), j in zip(enumerate(a), indices) if 0 < x_opt[i, j]})
 
