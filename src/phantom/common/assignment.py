@@ -46,8 +46,8 @@ def cp_solve(b, c, t, g, gw):
     problem.param_dict["b"].value = b
     problem.param_dict["g"].value = [g]
     problem.param_dict["gw"].value = gw
-    tol = 1e-4
-    tol_inacc = 1e-2
+    tol = 1e-6
+    tol_inacc = 1e-3
     options = {
         "max_iters": 100,
         # "time_limit": 10e-3,
