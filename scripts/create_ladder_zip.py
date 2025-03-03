@@ -73,6 +73,7 @@ ZIP_MODULES: list[str] = [
     # "scs",
     # "_scs_direct",
     "ecos",
+    "_ecos",
     "osqp",
     "qdldl",
 ]
