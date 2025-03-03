@@ -12,7 +12,6 @@ import shutil
 import site
 import tempfile
 import zipfile
-from distutils.dir_util import copy_tree
 from os import path, remove, walk
 from subprocess import Popen, run
 from typing import Dict, List, Tuple, Callable
@@ -59,6 +58,7 @@ else:
 
 ZIP_DIRECTORIES: Dict[str, Dict] = {
     "src": {"zip_all": True, "folder_to_zip": "src"},
+    "bin": {"zip_all": True, "folder_to_zip": "bin"},
     "ares-sc2": {"zip_all": True, "folder_to_zip": ""},
     "python-sc2": {"zip_all": False, "folder_to_zip": "sc2"},
     # "sc2_helper": {"zip_all": True, "folder_to_zip": "sc2_helper"},
@@ -70,6 +70,7 @@ ZIP_MODULES: list[str] = [
     "river",
     "cvxpy",
     "_cvxcore",
+    "cvxpygen",
     # "scs",
     # "_scs_direct",
     "osqp",
@@ -119,7 +120,7 @@ def zip_module(module_name, zip_file):
     module_file = inspect.getfile(module)
 
     if module_file.endswith((".pyd", ".so")):
-        zip_file.write(module_file, path.basename(module_file))
+        zip_file.write(module_file, os.path.join("bin", path.basename(module_file)))
     else:
         module_dir = os.path.dirname(module_file)
         if callback := MODULE_CALLBACKS.get(module_name):

@@ -1,3 +1,4 @@
+import importlib
 import math
 from dataclasses import dataclass
 from functools import cached_property
@@ -12,7 +13,7 @@ from scipy.optimize import linprog
 from sklearn.metrics import pairwise_distances
 
 from phantom.common.action import Action, Smart
-from phantom.common.assignment import Assignment
+from phantom.common.assignment import Assignment, cpg_solve
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
 
@@ -51,21 +52,13 @@ class ResourceAction:
             return Assignment({})
 
         # limit harvesters per resource
-        # A_ub = np.tile(np.identity(len(resources)), (1, len(harvesters)))
-        A_ub = sp.sparse.hstack([sp.sparse.identity(len(resources))] * len(harvesters))
-        b_ub = np.full(len(resources), 2.0)
-
-        # enforce assignment per harvester
-        A_eq1 = np.repeat(np.identity(len(harvesters)), len(resources), axis=1)
-        b_eq1 = np.full(len(harvesters), 1.0)
+        b = np.full(len(resources), 2.0)
+        t = np.full(len(harvesters), 1.0)
 
         # enforce gas target
         is_gas_building = np.array([1.0 if r.type_id in GAS_BUILDINGS else 0.0 for r in resources])
-        A_eq2 = np.tile(is_gas_building, len(harvesters)).reshape((1, -1))
-        b_eq2 = np.array([gas_target])
-
-        A_eq = np.concatenate((A_eq1, A_eq2), axis=0)
-        b_eq = np.concatenate((b_eq1, b_eq2), axis=0)
+        gw = is_gas_building
+        g = gas_target
 
         harvester_to_resource = pairwise_distances(
             [h.position for h in harvesters],
@@ -80,23 +73,9 @@ class ResourceAction:
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
 
         # cost = (harvester_to_resource + harvester_to_return_point + 7 * return_distance).flatten()
-        cost = (harvester_to_resource + return_distance).flatten()
+        cost = harvester_to_resource + return_distance
 
-        res = linprog(
-            c=cost,
-            A_ub=sp.sparse.csr_matrix(A_ub),
-            b_ub=b_ub,
-            A_eq=sp.sparse.csr_matrix(A_eq),
-            b_eq=b_eq,
-            method="highs",
-            # options=dict(maxiter=100, sparse=True, disp=False, tol=1e-3),
-        )
-
-        if res.x is None:
-            logger.error(f"Target assigment failed: {res.message}")
-            return Assignment({})
-
-        x_opt = res.x.reshape(harvester_to_resource.shape)
+        x_opt = cpg_solve(b, cost, t, g, gw)
         indices = x_opt.argmax(axis=1)
         a = Assignment({h: resources[idx] for (i, h), idx in zip(enumerate(harvesters), indices) if 0 < x_opt[i, idx]})
 

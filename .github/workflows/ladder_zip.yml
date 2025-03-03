@@ -33,6 +33,8 @@ jobs:
 #        run: bash rebuild_cvxcore.sh
       - name: Compile Cython
         run: poetry run python scripts/compile_cython.py
+      - name: Compile cvxpy
+        run: poetry run python scripts/compile_cvxpy.py
       - name: Save commit hash
         run: echo ${{ github.sha }} >> version.txt
       - name: Compile ladder zip

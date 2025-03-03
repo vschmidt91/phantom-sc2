@@ -1,10 +1,14 @@
+import importlib
 import math
+import time
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cached_property, cache
 from typing import Callable, Collection, Generic, Hashable, Iterator, Mapping, TypeVar
 
 import cvxpy as cp
 import numpy as np
+from cvxpy.problems.problem import SolverStats
+from cvxpy.reductions import Solution
 from loguru import logger
 
 logger.info(f"{cp.installed_solvers()=}")
@@ -13,10 +17,37 @@ TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
 
 
-LINPROG_OPTIONS = {
-    # "maxiter": 256,
-    "time_limit": 5e-3,
-}
+def cpg_solve(b, c, t, g, gw):
+
+    n, m = c.shape
+
+    log_n = max(3, math.ceil(math.log(max(n, m), 2)))
+    N = 2 ** log_n
+
+    prefix = f"assign{log_n}"
+    module_name = f"{prefix}.cpg_module"
+    module = importlib.import_module(module_name)
+
+    par = getattr(module, f"{prefix}_cpg_params")()
+    upd = getattr(module, f"{prefix}_cpg_updated")()
+
+    for p in ["w", "b", "t", "g", "gw"]:
+        try:
+            setattr(upd, p, True)
+        except AttributeError:
+            raise AttributeError(f"{p} is not a parameter.")
+
+    par.w = list(np.pad(c, ((0, N - c.shape[0]), (0, N - c.shape[1])), constant_values=1.0).flatten(order="F"))
+    par.b = list(np.pad(b, (0, N - b.shape[0])).flatten(order="F"))
+    par.t = list(np.pad(t, (0, N - t.shape[0])).flatten(order="F"))
+    par.gw = list(np.pad(gw, (0, N - gw.shape[0])).flatten(order="F"))
+    par.g = float(g)
+
+    # solve
+    res = module.solve(upd, par)
+    x = np.array(res.cpg_prim.x).reshape((N, N), order='F')[:n, :m]
+    return x
+
 
 
 @dataclass(frozen=True)
@@ -70,55 +101,23 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         if max_assigned is None:
             max_assigned = math.ceil(len(a) / len(b))
 
+        d = np.full(len(b), max_assigned)
         c = (
             cost_fn
             if isinstance(cost_fn, np.ndarray)
             else np.array([[min(1e8, cost_fn(ai, bj)) for bj in b] for ai in a])
         )
+        t = np.full(len(a), 1.0)
+        gw = np.full(len(b), 0.0)
+        g = 0.0
 
-        x = cp.Variable((len(a), len(b)), 'x')
-        w = cp.Parameter((len(a), len(b)), name='w')
-        w.value = c
-
-        constraints = [
-            cp.sum(x, 0) <= max_assigned,  # enforce even distribution
-            cp.sum(x, 1) == 1,
-            0 <= x,
-        ]
-        problem = cp.Problem(cp.Minimize(cp.vdot(w, x)), constraints)
         try:
-            problem.solve(solver="OSQP")
+            x_opt = cpg_solve(d, c, t, g, gw)
         except cp.error.SolverError as e:
             logger.error(f"Solver Error: {str(e)}")
-            problem.solve(solver="SCIPY")
-        x_opt = x.value
+            return Assignment({})
 
-        # A_ub = sp.sparse.hstack([sp.sparse.identity(len(b))] * len(a))
-        # b_ub = np.full(len(b), max_assigned)
-        #
-        # A_eq = sp.sparse.csr_matrix(np.repeat(np.identity(len(a)), len(b), axis=1))
-        # b_eq = np.full(len(a), 1.0)
-        #
-        # c = (
-        #     cost_fn.flatten()
-        #     if isinstance(cost_fn, np.ndarray)
-        #     else np.array([min(1e8, cost_fn(*p)) for p in product(a, b)])
-        # )
-        # res = linprog(
-        #     c=c,
-        #     A_ub=A_ub,
-        #     b_ub=b_ub,
-        #     A_eq=A_eq,
-        #     b_eq=b_eq,
-        #     method="highs",
-        # )
-        #
-        # if res.x is None:
-        #     logger.error(f"Target assigment failed: {res.message}")
-        #     return Assignment({})
-        #
-        # x_opt = res.x.reshape((len(a), len(b)))
-
+        # x_opt = problem.var_dict["x"].value
         indices = x_opt.argmax(axis=1)
         assignment = Assignment({ai: b[j] for (i, ai), j in zip(enumerate(a), indices) if 0 < x_opt[i, j]})
 
