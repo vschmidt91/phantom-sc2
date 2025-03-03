@@ -12,7 +12,6 @@ import shutil
 import site
 import tempfile
 import zipfile
-from distutils.dir_util import copy_tree
 from os import path, remove, walk
 from subprocess import Popen, run
 from typing import Dict, List, Tuple, Callable
@@ -59,6 +58,7 @@ else:
 
 ZIP_DIRECTORIES: Dict[str, Dict] = {
     "src": {"zip_all": True, "folder_to_zip": "src"},
+    "bin": {"zip_all": True, "folder_to_zip": "bin"},
     "ares-sc2": {"zip_all": True, "folder_to_zip": ""},
     "python-sc2": {"zip_all": False, "folder_to_zip": "sc2"},
     # "sc2_helper": {"zip_all": True, "folder_to_zip": "sc2_helper"},
