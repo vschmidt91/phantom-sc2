@@ -796,12 +796,13 @@ xpress = ["xpress"]
 
 [[package]]
 name = "cvxpygen"
-version = "0.4.2"
+version = "0.4.3"
 description = "Code generation with CVXPY"
 optional = false
 python-versions = ">=3.9"
-files = []
-develop = false
+files = [
+    {file = "cvxpygen-0.4.3.tar.gz", hash = "sha256:7f33a5359c466ba3a90de2109e051539bc71fc06c60a02f15538d1061e7e41a5"},
+]
 
 [package.dependencies]
 clarabel = ">=0.6.0"
@@ -815,12 +816,6 @@ scipy = ">=1.13.1"
 
 [package.extras]
 dev = ["pytest (==6.2.4)"]
-
-[package.source]
-type = "git"
-url = "https://github.com/vschmidt91/cvxpygen"
-reference = "master"
-resolved_reference = "56fb1ea4c5641c81ce9d091dab35f6006c3009f8"
 
 [[package]]
 name = "cython"
@@ -4303,4 +4298,4 @@ propcache = ">=0.2.0"
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11, <3.13"
-content-hash = "67b6fa09133a9674a70849b9753a444047b9b591b4630fb49ab1424491a6ecd8"
+content-hash = "c6ab23458672e9da96c9a22533564199e03fdc377dac1b07b41b55420a1e7a2b"

@@ -74,8 +74,8 @@ ZIP_MODULES: list[str] = [
     # "_scs_direct",
     "ecos",
     "_ecos",
-    "osqp",
-    "qdldl",
+    # "osqp",
+    # "qdldl",
 ]
 def fix_cvxpy_import(module_dir: str) -> None:
     core_path = pathlib.Path(module_dir) / "cvxcore" / "python" / "cvxcore.py"
