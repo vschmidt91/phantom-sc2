@@ -1,15 +1,19 @@
 import os
 
 import requests
+from requests.adapters import HTTPAdapter, Retry
+
 
 API_TOKEN_ENV: str = "UPLOAD_API_TOKEN"
 BOT_ID_ENV: str = "UPLOAD_BOT_ID"
 ZIPFILE_NAME: str = "bot.zip"
 WIKI_FILE_NAME: str = "WIKI.md"
+BASE_URL = "https://aiarena.net"
 
 token = os.environ.get(API_TOKEN_ENV)
 bot_id = os.environ.get(BOT_ID_ENV)
-url = f"https://aiarena.net/api/bots/{bot_id}/"
+url = f"{BASE_URL}/api/bots/{bot_id}/"
+RETRIES = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
 
 print("Uploading bot")
 with (
@@ -28,6 +32,10 @@ with (
     request_files = {
         "bot_zip": bot_zip,
     }
+
+    # configure retries in case AIArena does not respond
+    session = requests.Session()
+    session.mount(BASE_URL, HTTPAdapter(max_retries=RETRIES))
     response = requests.patch(url, headers=request_headers, data=request_data, files=request_files)
 
     print(response)
