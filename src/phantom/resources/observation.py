@@ -24,6 +24,15 @@ class ResourceObservation:
     gas_ratio: float
 
     @cached_property
+    def gather_hash(self) -> int:
+        return hash((
+            frozenset(self.harvesters),
+            frozenset(self.gas_buildings),
+            frozenset(self.mineral_fields),
+            self.gas_ratio,
+        ))
+
+    @cached_property
     def resource_at(self) -> dict[Point2, Unit]:
         return self.mineral_field_at | self.gas_building_at
 

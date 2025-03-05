@@ -32,6 +32,7 @@ from phantom.observation import Observation
 from phantom.parameters import AgentParameters
 from phantom.resources.action import ResourceAction
 from phantom.resources.observation import ResourceObservation
+from phantom.resources.state import ResourceState
 from phantom.scout import ScoutState
 from phantom.transfuse import TransfuseAction
 
@@ -45,6 +46,7 @@ class Agent:
     corrosive_biles = CorrosiveBileState()
     dodge = DodgeState()
     scout = ScoutState()
+    resources = ResourceState()
     build_order = HATCH_FIRST
 
     async def step(self, observation: Observation) -> AsyncGenerator[Action, None]:
@@ -135,7 +137,7 @@ class Agent:
                 optimal_gas_ratio = vespene_trips / (mineral_trips + vespene_trips)
             gas_ratio = optimal_gas_ratio
 
-        resources = ResourceAction(
+        resources = self.resources.step(
             ResourceObservation(
                 observation,
                 harvesters,

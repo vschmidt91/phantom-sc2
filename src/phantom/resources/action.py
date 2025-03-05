@@ -21,9 +21,19 @@ from phantom.resources.observation import HarvesterAssignment, ResourceObservati
 @dataclass(frozen=True)
 class ResourceAction:
     observation: ResourceObservation
+    previous_assignment: HarvesterAssignment
+    previous_hash: int
 
     @cached_property
     def harvester_assignment(self) -> HarvesterAssignment:
+        if self.observation.gather_hash == self.previous_hash:
+            return self.previous_assignment
+        else:
+            return self.get_optimal_assignment()
+
+
+    def get_optimal_assignment(self):
+
         if not self.observation.mineral_fields:
             return HarvesterAssignment({})
 
