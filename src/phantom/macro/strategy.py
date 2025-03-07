@@ -31,6 +31,7 @@ class StrategyParameters:
     tech_priority: NormalParameter
     hydras_when_banking: NormalParameter
     lings_when_banking: NormalParameter
+    queens_when_banking: NormalParameter
     queens_per_hatch: NormalParameter
     queens_limit: NormalParameter
 
@@ -45,6 +46,7 @@ StrategyPrior = StrategyParameters(
     tech_priority=NormalParameter.prior(-0.5, 0.1),
     hydras_when_banking=NormalParameter.prior(10, 1),
     lings_when_banking=NormalParameter.prior(10, 1),
+    queens_when_banking=NormalParameter.prior(3, 1),
     queens_per_hatch=NormalParameter.prior(1.5, 0.1),
     queens_limit=NormalParameter.prior(12, 1),
 )
@@ -128,11 +130,15 @@ class Strategy:
             self.obs.bank.minerals / 50,
             self.obs.bank.larva,
         )
+        can_afford_queens = self.obs.bank.minerals / 150
         if self.param.hydras_when_banking.mean < can_afford_hydras:
             composition += {UnitTypeId.HYDRALISK: can_afford_hydras}
             composition += {UnitTypeId.BROODLORD: can_afford_hydras}  # for good measure
-        elif self.param.lings_when_banking.mean < can_afford_lings:
-            composition += {UnitTypeId.ZERGLING: can_afford_lings}
+        else:
+            if self.param.lings_when_banking.mean < can_afford_lings:
+                composition += {UnitTypeId.ZERGLING: can_afford_lings}
+            if self.param.queens_when_banking.mean < can_afford_queens:
+                composition += {UnitTypeId.QUEEN: can_afford_queens}
         return composition * self.param.counter_factor.mean
 
     @cached_property

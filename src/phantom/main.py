@@ -48,23 +48,19 @@ class PhantomBot(BotBase):
     async def on_start(self) -> None:
         await super().on_start()
 
+        priors = AgentPrior.to_dict()
         try:
             with gzip.GzipFile(self.data_path, "rb") as f:
                 self.data = pickle.load(f)
-        except Exception:
-            print("Error loading data file, using default values.")
-            priors = AgentPrior.to_dict()
+        except Exception as e:
+            logger.error(f"Error loading data file, using default values: {e}")
             prior_distribution = NormalParameters.from_independent(priors.values())
             self.data = DataState(prior_distribution, list(priors.keys()))
 
-        if self.training:
-            self.parameter_values = self.data.parameters.sample()
-        else:
-            self.parameter_values = self.data.parameters.mean
+        self.parameter_values = self.data.parameters.sample() if self.training else self.data.parameters.mean
         parameter_dict = dict(zip(self.data.parameter_names, self.parameter_values))
-        paramater_distributions = {k: NormalParameter(float(v), 0, 0) for k, v in parameter_dict.items()}
-        parameters = AgentParameters.from_dict(paramater_distributions)
-        print(f"{parameters=}")
+        parameter_distributions = {k: NormalParameter(float(v), 0, 0) for k, v in parameter_dict.items()}
+        parameters = AgentParameters.from_dict(parameter_distributions | priors)
         self.agent = Agent(parameters)
 
         if os.path.exists(self.version_path):
