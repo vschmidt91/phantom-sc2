@@ -5,6 +5,7 @@ from functools import cached_property
 import numpy as np
 from sc2.unit import Unit
 from sc2.units import Units
+from sklearn.metrics import pairwise_distances
 
 from phantom.common.constants import DPS_OVERRIDE
 from phantom.common.utils import can_attack
@@ -20,6 +21,7 @@ class CombatOutcome(Enum):
 class CombatPrediction:
     outcome: CombatOutcome
     survival_time: dict[Unit, float]
+    nearby_enemy_survival_time: dict[Unit, float]
 
 
 @dataclass(frozen=True)
@@ -128,6 +130,15 @@ class CombatPredictor:
         # enemy_mixing = np.nan_to_num(enemy_mixing / np.sum(enemy_mixing, axis=1, keepdims=True))
         # enemy_survival = enemy_survival @ enemy_mixing
 
+        distances = pairwise_distances(
+            [u.position for u in self.units],
+            [u.position for u in self.enemy_units],
+        )
+        mixing = np.reciprocal(1 + distances)
+        mixing = np.nan_to_num(mixing / np.sum(mixing, axis=1, keepdims=True))
+        nearby_enemy_survival = mixing @ enemy_survival
+        nearby_enemy_survival_time = dict(zip(self.units, nearby_enemy_survival))
+
         survival_time = dict(zip(self.units, survival)) | dict(zip(self.enemy_units, enemy_survival))
 
-        return CombatPrediction(outcome, survival_time)
+        return CombatPrediction(outcome, survival_time, nearby_enemy_survival_time)

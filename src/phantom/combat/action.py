@@ -73,9 +73,10 @@ class CombatAction:
         if retreat_map.dist[x, y] == np.inf:
             return self.retreat_with_ares(unit, limit=limit)
         retreat_path = retreat_map.get_path((x, y), limit)
-        if len(retreat_path) < limit:
+        retreat_point = Point2(retreat_path[-1]).offset(HALF)
+        if unit.distance_to(retreat_point) < limit:
             return self.retreat_with_ares(unit, limit=limit)
-        return Move(unit, Point2(retreat_path[2]).offset(HALF))
+        return Move(unit, retreat_point)
 
     def retreat_with_ares(self, unit: Unit, limit=5) -> Action | None:
         return Move(
@@ -125,7 +126,8 @@ class CombatAction:
             unit.is_flying,
         ).rounded
 
-        confident = self.prediction.survival_time[target] <= self.prediction.survival_time[unit]
+        # confident = self.prediction.survival_time[target] <= self.prediction.survival_time[unit]
+        confident = self.prediction.nearby_enemy_survival_time[unit] <= self.prediction.survival_time[unit]
         if 0 == self.enemy_presence.dps[attack_path]:
             if confident:
                 return UseAbility(unit, AbilityId.ATTACK, attack_path)
@@ -208,12 +210,12 @@ class CombatAction:
     @cached_property
     def retreat_air(self) -> DijkstraPathing:
         return DijkstraPathing(
-            self.observation.air_pathing.astype(float) + self.threat_level, self.retreat_targets_rounded
+            self.observation.bot.mediator.get_air_grid, self.retreat_targets_rounded
         )
 
     @cached_property
     def retreat_ground(self) -> DijkstraPathing:
-        return DijkstraPathing(self.observation.pathing.astype(float) + self.threat_level, self.retreat_targets_rounded)
+        return DijkstraPathing(self.observation.bot.mediator.get_ground_grid, self.retreat_targets_rounded)
 
     @cached_property
     def optimal_targeting(self) -> Assignment[Unit, Unit]:
