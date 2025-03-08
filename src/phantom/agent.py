@@ -30,7 +30,6 @@ from phantom.macro.state import MacroPlan, MacroState
 from phantom.macro.strategy import Strategy
 from phantom.observation import Observation
 from phantom.parameters import AgentParameters
-from phantom.resources.action import ResourceAction
 from phantom.resources.observation import ResourceObservation
 from phantom.resources.state import ResourceState
 from phantom.scout import ScoutState
@@ -106,8 +105,13 @@ class Agent:
             return True  # get on with it!
 
         def should_harvest_resource(r: Unit) -> bool:
-            p = r.position.rounded
-            return 0 <= combat.confidence[p] or 0 == combat.enemy_presence.dps[p]
+            check_points = [r.position.rounded]
+            if return_point := observation.return_point.get(r.position):
+                check_points.append(return_point.rounded)
+            for p in check_points:
+                if combat.confidence[p] < 0 < combat.enemy_presence.dps[p]:
+                    return False
+            return True
 
         harvesters = observation.workers.filter(should_harvest)
 
