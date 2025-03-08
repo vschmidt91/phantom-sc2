@@ -60,7 +60,9 @@ def cp_solve(b, c, t, g, gw):
         # verbose=True,
         **options,
     )
-    x = problem.var_dict["x"].value or np.zeros((n, m))
+    x = problem.var_dict["x"].value
+    if x is None:
+        x = np.zeros((n, m))
     return x
 
 
