@@ -1,7 +1,10 @@
-lint:
-	autoflake -i -r src
+fix:
 	isort src
-	black -S src
+	black src
+
+check:
+	isort --check src
+	black --check src
 	flake8 src
 	mypy src
 

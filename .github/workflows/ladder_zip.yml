@@ -28,6 +28,8 @@ jobs:
         run: poetry run pip install -U pip
       - name: Install requirements
         run: poetry install --no-root
+      - name: Linting and Typechecking
+        run: make check
 #      - name: Build cvxpy core
 #        working-directory: ./cvxpy
 #        run: bash rebuild_cvxcore.sh
