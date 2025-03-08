@@ -1,14 +1,11 @@
 import importlib
 import math
-import time
 from dataclasses import dataclass
-from functools import cached_property, cache
+from functools import cache, cached_property
 from typing import Callable, Collection, Generic, Hashable, Iterator, Mapping, TypeVar
 
 import cvxpy as cp
 import numpy as np
-from cvxpy.problems.problem import SolverStats
-from cvxpy.reductions import Solution
 from loguru import logger
 
 logger.info(f"{cp.installed_solvers()=}")
@@ -58,9 +55,11 @@ def cp_solve(b, c, t, g, gw):
         "abstol_inacc": tol_inacc,
         "feastol_inacc": tol_inacc,
     }
-    problem.solve(solver="ECOS",
-                  # verbose=True,
-                  **options)
+    problem.solve(
+        solver="ECOS",
+        # verbose=True,
+        **options,
+    )
     x = problem.var_dict["x"].value
     return x
 
@@ -70,7 +69,7 @@ def cpg_solve(b, c, t, g, gw):
     n, m = c.shape
 
     log_n = max(4, math.ceil(math.log(max(n, m), 2)))
-    N = 2 ** log_n
+    N = 2**log_n
 
     prefix = f"assign{log_n}"
     module_name = f"{prefix}.cpg_module"
@@ -94,7 +93,6 @@ def cpg_solve(b, c, t, g, gw):
     res = module.solve(upd, par)
     x = np.array(res.cpg_prim.x).reshape((N, N), order='F')[:n, :m]
     return x
-
 
 
 @dataclass(frozen=True)

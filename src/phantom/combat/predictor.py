@@ -39,11 +39,13 @@ class CombatPredictor:
             return CombatPrediction(
                 outcome=CombatOutcome.Defeat,
                 survival_time={u: max_duration for u in self.enemy_units},
+                nearby_enemy_survival_time={},
             )
         if not any(self.enemy_units):
             return CombatPrediction(
                 outcome=CombatOutcome.Victory,
                 survival_time={u: max_duration for u in self.units},
+                nearby_enemy_survival_time={u: 0.0 for u in self.units},
             )
 
         def calculate_dps(u: Unit, v: Unit) -> float:

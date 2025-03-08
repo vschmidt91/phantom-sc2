@@ -1,19 +1,16 @@
-import importlib
 import math
 from dataclasses import dataclass
 from functools import cached_property
 
 import numpy as np
-import scipy as sp
 from ares.consts import GAS_BUILDINGS
 from loguru import logger
 from sc2.unit import Unit
 from sc2.units import Units
-from scipy.optimize import linprog
 from sklearn.metrics import pairwise_distances
 
-from phantom.common.action import Action, Smart, DoNothing
-from phantom.common.assignment import Assignment, cpg_solve, cp_solve
+from phantom.common.action import Action, DoNothing, Smart
+from phantom.common.assignment import Assignment, cp_solve
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
 
@@ -30,7 +27,6 @@ class ResourceAction:
             return self.previous_assignment
         else:
             return self.get_optimal_assignment()
-
 
     def get_optimal_assignment(self):
 
@@ -91,8 +87,6 @@ class ResourceAction:
 
         # cost = (harvester_to_resource + harvester_to_return_point + 7 * return_distance).flatten()
         cost = harvester_to_resource + return_distance + assignment_cost
-
-
 
         x_opt = cp_solve(b, cost, t, g, gw)
         indices = x_opt.argmax(axis=1)

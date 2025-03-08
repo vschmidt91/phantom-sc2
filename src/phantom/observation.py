@@ -435,7 +435,7 @@ class Observation:
         if near:
             target = np.clip(
                 np.random.normal((near.x, near.y), scale),
-                (0., 0.),
+                (0.0, 0.0),
                 (a.right, a.top),
             )
         else:

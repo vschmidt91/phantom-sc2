@@ -21,8 +21,6 @@ from phantom.parameters import AgentParameters, AgentPrior
 
 class PhantomBot(BotBase):
 
-    agent: Agent | None = None
-    data: DataState | None = None
     replay_tags = set[str]()
     version_path = "version.txt"
     data_path = "data/params.pkl.gz"
@@ -31,6 +29,21 @@ class PhantomBot(BotBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+
+        priors = AgentPrior.to_dict()
+        try:
+            with gzip.GzipFile(self.data_path, "rb") as f:
+                self.data = pickle.load(f)
+        except Exception as e:
+            logger.error(f"Error loading data file, using default values: {e}")
+            prior_distribution = NormalParameters.from_independent(priors.values())
+            self.data = DataState(prior_distribution, list(priors.keys()))
+
+        self.parameter_values = self.data.parameters.sample() if self.training else self.data.parameters.mean
+        parameter_dict = dict(zip(self.data.parameter_names, self.parameter_values))
+        parameter_distributions = {k: NormalParameter(float(v), 0, 0) for k, v in parameter_dict.items()}
+        parameters = AgentParameters.from_dict(parameter_distributions | priors)
+        self.agent = Agent(parameters)
 
     async def add_replay_tag(self, tag: str) -> None:
         if tag not in self.replay_tags:
@@ -48,24 +61,8 @@ class PhantomBot(BotBase):
     async def on_start(self) -> None:
         await super().on_start()
 
-        priors = AgentPrior.to_dict()
-        try:
-            with gzip.GzipFile(self.data_path, "rb") as f:
-                self.data = pickle.load(f)
-        except Exception as e:
-            logger.error(f"Error loading data file, using default values: {e}")
-            prior_distribution = NormalParameters.from_independent(priors.values())
-            self.data = DataState(prior_distribution, list(priors.keys()))
-
-        self.parameter_values = self.data.parameters.sample() if self.training else self.data.parameters.mean
-        parameter_dict = dict(zip(self.data.parameter_names, self.parameter_values))
-        parameter_distributions = {k: NormalParameter(float(v), 0, 0) for k, v in parameter_dict.items()}
-        parameters = AgentParameters.from_dict(parameter_distributions | priors)
-        self.agent = Agent(parameters)
-
         if os.path.exists(self.version_path):
-            with open(self.version_path) as f:
-                await self.add_replay_tag(f"version_{self.version}")
+            await self.add_replay_tag(f"version_{self.version}")
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)

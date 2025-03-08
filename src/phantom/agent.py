@@ -285,11 +285,13 @@ class Agent:
         def drone_scout(unit: Unit) -> Action | None:
             if not (unit.is_idle or unit.is_gathering or unit.is_returning):
                 return None
-            if not (target_base := min(
-                filter(lambda b: not observation.is_visible(b), observation.bases),
-                key=lambda b: unit.distance_to(b),
-                default=None
-            )):
+            if not (
+                target_base := min(
+                    filter(lambda b: not observation.is_visible(b), observation.bases),
+                    key=lambda b: unit.distance_to(b),
+                    default=None,
+                )
+            ):
                 return None
             # target = unit.position.towards_with_random_angle(
             #     p=random.choice(observation.enemy_start_locations),
