@@ -30,8 +30,10 @@ class CombatPredictor:
     enemy_units: Units
 
     @cached_property
-    def prediction(self, step_time: float = 0.1, max_steps: int = 100) -> CombatPrediction:
+    def prediction(self) -> CombatPrediction:
 
+        step_time = 0.1
+        max_steps = 100
         max_duration = step_time * max_steps
         if not any(self.units):
             return CombatPrediction(

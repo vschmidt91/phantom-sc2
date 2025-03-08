@@ -49,7 +49,7 @@ def cp_solve(b, c, t, g, gw):
     tol = 1e-6
     tol_inacc = 1e-3
     options = {
-        "max_iters": 100,
+        "max_iters": 256,
         # "time_limit": 10e-3,
         "abstol": tol,
         "reltol": tol,
