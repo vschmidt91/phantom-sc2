@@ -429,10 +429,18 @@ class Observation:
             radius=limit,
         )
 
-    def random_point(self) -> Point2:
+    def random_point(self, near: Point2 | None) -> Point2:
         a = self.bot.game_info.playable_area
-        target = Point2(np.random.uniform((a.x, a.y), (a.right, a.top)))
-        return target
+        scale = min(self.bot.game_info.map_size) / 5
+        if near:
+            target = np.clip(
+                np.random.normal((near.x, near.y), scale),
+                (0., 0.),
+                (a.right, a.top),
+            )
+        else:
+            target = np.random.uniform((a.x, a.y), (a.right, a.top))
+        return Point2(target)
 
     @cached_property
     def return_distances(self) -> dict[Point2, float]:

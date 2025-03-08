@@ -246,6 +246,7 @@ class Agent:
                 dodge.dodge_with(u)
                 or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
                 or resources.gather_with(u, observation.townhalls.ready)
+                or (drone_scout(u) if observation.townhalls.ready.amount < 2 else search_with(u))
             )
 
         def micro_overlord(u: Unit) -> Action | None:
@@ -281,15 +282,34 @@ class Agent:
                 return None
             return UseAbility(unit, AbilityId.SPAWNCHANGELING_SPAWNCHANGELING)
 
+        def drone_scout(unit: Unit) -> Action | None:
+            if not (unit.is_idle or unit.is_gathering or unit.is_returning):
+                return None
+            if not (target_base := min(
+                filter(lambda b: not observation.is_visible(b), observation.bases),
+                key=lambda b: unit.distance_to(b),
+                default=None
+            )):
+                return None
+            # target = unit.position.towards_with_random_angle(
+            #     p=random.choice(observation.enemy_start_locations),
+            #     distance=random.normalvariate(10, 10))
+            target = observation.random_point(near=target_base)
+            if observation.is_visible(target):
+                return None
+            if not observation.pathing[target.rounded]:
+                return None
+            return Move(unit, target)
+
         def search_with(unit: Unit) -> Action | None:
-            if not unit.is_idle:
+            if not (unit.is_idle or unit.is_gathering or unit.is_returning):
                 return None
             elif observation.time < 8 * 60 and observation.enemy_start_locations:
                 return Move(unit, random.choice(observation.enemy_start_locations))
             elif observation.enemy_combatants:
                 target = cy_closest_to(unit.position, observation.enemy_combatants)
                 return Move(unit, target.position)
-            target = observation.random_point()
+            target = observation.random_point(near=unit.position)
             if observation.is_visible(target):
                 return None
             if not observation.pathing[target.position.rounded] and not unit.is_flying:

@@ -12,7 +12,7 @@ from sc2.units import Units
 from scipy.optimize import linprog
 from sklearn.metrics import pairwise_distances
 
-from phantom.common.action import Action, Smart
+from phantom.common.action import Action, Smart, DoNothing
 from phantom.common.assignment import Assignment, cpg_solve, cp_solve
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
@@ -46,7 +46,7 @@ class ResourceAction:
 
         if self.observation.observation.researched_speed:
             gas_target = self.gas_target
-        elif self.observation.observation.bank.vespene < 100:
+        elif self.observation.observation.bank.vespene < 96:
             gas_target = gas_max
         else:
             gas_target = 0
@@ -82,8 +82,17 @@ class ResourceAction:
         return_distance = np.array([self.observation.observation.return_distances[r.position] for r in resources])
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
 
+        assignment_cost = np.ones((len(harvesters), len(resources)))
+        resource_index_by_position = {r.position: i for i, r in enumerate(resources)}
+        for i, hi in enumerate(harvesters):
+            if ti := self.previous_assignment.get(hi.tag):
+                if (j := resource_index_by_position.get(ti)) is not None:
+                    assignment_cost[i, j] = 0.0
+
         # cost = (harvester_to_resource + harvester_to_return_point + 7 * return_distance).flatten()
-        cost = harvester_to_resource + return_distance
+        cost = harvester_to_resource + return_distance + assignment_cost
+
+
 
         x_opt = cp_solve(b, cost, t, g, gw)
         indices = x_opt.argmax(axis=1)
@@ -109,7 +118,7 @@ class ResourceAction:
         if unit.is_idle:
             return Smart(unit, target)
         elif 2 <= len(unit.orders):
-            return None
+            return DoNothing()
         elif unit.is_gathering:
             return GatherAction(unit, target, self.observation.observation.speedmining_positions.get(target_pos))
         elif unit.is_returning:
