@@ -1,12 +1,12 @@
 fix:
-	python -m isort src
-	python -m black src
+	poetry run python -m isort src
+	poetry run python -m black src
 
 check:
-	python -m isort --check src
-	python -m black --check src
-	python -m flake8 src
-	python -m mypy src
+	poetry run python -m isort --check src
+	poetry run python -m black --check src
+	poetry run python -m flake8 src
+	poetry run python -m mypy src
 
 profile:
-	python -m snakeviz resources\profiling.prof
+	poetry run python -m snakeviz resources\profiling.prof
