@@ -111,9 +111,11 @@ POOL_FIRST = BuildOrderChain(
         Make(UnitTypeId.DRONE, 17),
         Make(UnitTypeId.HATCHERY, 2),
         Make(UnitTypeId.QUEEN, 1),
+        Make(UnitTypeId.ZERGLING, 1),
         Make(UnitTypeId.EXTRACTOR, 1),
-        Make(UnitTypeId.DRONE, 19),
         Make(UnitTypeId.ROACHWARREN, 1),
+        # Make(UnitTypeId.DRONE, 19),
+        # Make(UnitTypeId.ROACHWARREN, 1),
         # Make(UnitTypeId.OVERLORD, 3),
         # Make(UnitTypeId.ROACH, 7),
     ]
