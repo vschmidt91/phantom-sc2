@@ -127,7 +127,8 @@ class CombatAction:
         ).rounded
 
         # confident = self.prediction.survival_time[target] <= self.prediction.survival_time[unit]
-        confident = self.prediction.nearby_enemy_survival_time[unit] <= self.prediction.survival_time[unit]
+        # confident = self.prediction.nearby_enemy_survival_time[unit] <= self.prediction.survival_time[unit]
+        confident = self.prediction.nearby_enemy_survival_time[unit] <= self.prediction.nearby_enemy_survival_time[target]
         if 0 == self.enemy_presence.dps[attack_path]:
             if confident:
                 return UseAbility(unit, AbilityId.ATTACK, attack_path)

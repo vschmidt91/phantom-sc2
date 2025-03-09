@@ -143,6 +143,11 @@ class CombatPredictor:
         nearby_enemy_survival = mixing @ enemy_survival
         nearby_enemy_survival_time = dict(zip(self.units, nearby_enemy_survival))
 
+        mixing = np.reciprocal(1 + distances)
+        mixing = np.nan_to_num(mixing / np.sum(mixing, axis=0, keepdims=True))
+        nearby_survival = survival @ mixing
+        nearby_survival_time = dict(zip(self.enemy_units, nearby_survival))
+
         survival_time = dict(zip(self.units, survival)) | dict(zip(self.enemy_units, enemy_survival))
 
-        return CombatPrediction(outcome, survival_time, nearby_enemy_survival_time)
+        return CombatPrediction(outcome, survival_time, nearby_survival_time | nearby_enemy_survival_time)
