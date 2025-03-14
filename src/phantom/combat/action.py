@@ -215,7 +215,7 @@ class CombatAction:
         return DijkstraPathing(
             self.observation.bot.mediator.get_air_grid,
             self.retreat_targets_rounded,
-            [0. for _ in self.retreat_targets_rounded],
+            [0.0 for _ in self.retreat_targets_rounded],
         )
 
     @cached_property
@@ -223,7 +223,7 @@ class CombatAction:
         return DijkstraPathing(
             self.observation.bot.mediator.get_ground_grid,
             self.retreat_targets_rounded,
-            [0. for _ in self.retreat_targets_rounded],
+            [0.0 for _ in self.retreat_targets_rounded],
         )
 
     @cached_property
