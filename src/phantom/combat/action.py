@@ -131,12 +131,7 @@ class CombatAction:
         # confident = (
         #     self.prediction.nearby_enemy_survival_time[unit] <= self.prediction.nearby_enemy_survival_time[target]
         # )
-        if 0 == self.enemy_presence.dps[unit.position.rounded]:
-            return Attack(unit, target)
-            # if confident:
-            #     return UseAbility(unit, AbilityId.ATTACK, attack_path)
-            # return Move(unit, attack_path)
-        elif confident:
+        if confident or not self.enemy_presence.dps[unit.position.rounded]:
             if unit.type_id in {UnitTypeId.ZERGLING}:
                 return UseAbility(unit, AbilityId.ATTACK, target.position)
             return Attack(unit, target)
