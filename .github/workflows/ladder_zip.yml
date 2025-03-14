@@ -30,13 +30,8 @@ jobs:
         run: poetry install --no-root
       - name: Linting and Typechecking
         run: make check
-#      - name: Build cvxpy core
-#        working-directory: ./cvxpy
-#        run: bash rebuild_cvxcore.sh
       - name: Compile Cython
         run: poetry run python scripts/compile_cython.py
-#      - name: Compile cvxpy
-#        run: poetry run python scripts/compile_cvxpy.py
       - name: Save commit hash
         run: echo ${{ github.sha }} >> version.txt
       - name: Compile ladder zip

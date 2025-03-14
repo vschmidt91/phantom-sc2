@@ -212,11 +212,19 @@ class CombatAction:
 
     @cached_property
     def retreat_air(self) -> DijkstraPathing:
-        return DijkstraPathing(self.observation.bot.mediator.get_air_grid, self.retreat_targets_rounded)
+        return DijkstraPathing(
+            self.observation.bot.mediator.get_air_grid,
+            self.retreat_targets_rounded,
+            [0. for _ in self.retreat_targets_rounded],
+        )
 
     @cached_property
     def retreat_ground(self) -> DijkstraPathing:
-        return DijkstraPathing(self.observation.bot.mediator.get_ground_grid, self.retreat_targets_rounded)
+        return DijkstraPathing(
+            self.observation.bot.mediator.get_ground_grid,
+            self.retreat_targets_rounded,
+            [0. for _ in self.retreat_targets_rounded],
+        )
 
     @cached_property
     def optimal_targeting(self) -> Assignment[Unit, Unit]:
