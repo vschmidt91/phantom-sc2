@@ -33,6 +33,7 @@ dependencies = [
     "cvxpy>=1.6.2",
     "ecos>=2.0.14",
     "cvxpygen>=0.4.3",
+    "cython-extensions-sc2 @ git+https://github.com/AresSC2/cython-extensions-sc2.git",
 ]
 
 [tool.poetry.dependencies]

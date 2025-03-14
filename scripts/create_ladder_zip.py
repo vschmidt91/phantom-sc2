@@ -70,7 +70,7 @@ ZIP_MODULES: list[str] = [
     "_cvxcore",
     "cvxpygen",
     "sc2",
-    "cython_extensions",
+    # "cython_extensions",
     "map_analyzer",
     # "scs",
     # "_scs_direct",

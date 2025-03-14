@@ -733,6 +733,22 @@ files = [
 ]
 
 [[package]]
+name = "cython-extensions-sc2"
+version = "0.4.6"
+description = ""
+optional = false
+python-versions = ">=3.10,<3.13"
+groups = ["main"]
+files = []
+develop = false
+
+[package.source]
+type = "git"
+url = "https://github.com/AresSC2/cython-extensions-sc2.git"
+reference = "HEAD"
+resolved_reference = "466fac61162276be9f9da15c50b22d528bdb6c4d"
+
+[[package]]
 name = "debugpy"
 version = "1.8.13"
 description = "An implementation of the Debug Adapter Protocol for Python"
@@ -3645,4 +3661,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.13"
-content-hash = "4316b97d4bfbcbe6baf477fff4aac1c4503857f70cc2d5aa73701cbc60c416e5"
+content-hash = "61be39f606fd6ce3cb70574c98cb84b738606af861924529547b398392888d1a"
