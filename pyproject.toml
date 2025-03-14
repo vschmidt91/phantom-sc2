@@ -8,7 +8,6 @@ packages = [{include = "ares-sc2/src/ares"}]
 
 [tool.poetry.dependencies]
 ares-sc2 = { path = "ares-sc2", develop = false }
-burnysc2 = { git = "https://github.com/august-k/python-sc2", branch = "develop" }
 python = ">=3.11, <3.13"
 black = "^24.4.2"
 isort = "^5.12.0"

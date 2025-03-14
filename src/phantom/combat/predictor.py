@@ -32,8 +32,8 @@ class CombatPredictor:
     @cached_property
     def prediction(self) -> CombatPrediction:
 
-        step_time = 0.1
-        max_steps = 100
+        step_time = 0.2
+        max_steps = 50
         max_duration = step_time * max_steps
         if not any(self.units):
             return CombatPrediction(
@@ -54,6 +54,9 @@ class CombatPredictor:
             if not can_attack(u, v):
                 return 0.0
             return u.air_dps if v.is_flying else u.ground_dps
+        
+        def inf_to_zero(a: np.ndarray) -> np.ndarray:
+            return np.where(a == np.inf, 0.0, a)
 
         dps = step_time * np.array([[calculate_dps(u, v) for v in self.enemy_units] for u in self.units])
         enemy_dps = step_time * np.array([[calculate_dps(v, u) for v in self.enemy_units] for u in self.units])
@@ -97,8 +100,8 @@ class CombatPredictor:
             attack_weight = np.clip(1 - required_distance / potential_distance, 0, 1)
             enemy_attack_weight = np.clip(1 - enemy_required_distance / enemy_potential_distance, 0, 1)
 
-            attack_probability = np.nan_to_num(attack_weight / np.sum(attack_weight, axis=1, keepdims=True))
-            enemy_attack_probability = np.nan_to_num(
+            attack_probability = inf_to_zero(attack_weight / np.sum(attack_weight, axis=1, keepdims=True))
+            enemy_attack_probability = inf_to_zero(
                 enemy_attack_weight / np.sum(enemy_attack_weight, axis=0, keepdims=True)
             )
 
@@ -127,11 +130,11 @@ class CombatPredictor:
         #
         # distance_constant = 1.
         # mixing = np.reciprocal(distance_constant + internal_distances)
-        # mixing = np.nan_to_num(mixing / np.sum(mixing, axis=1, keepdims=True))
+        # mixing = inf_to_zero(mixing / np.sum(mixing, axis=1, keepdims=True))
         # survival = survival @ mixing
         #
         # enemy_mixing = np.reciprocal(distance_constant + enemy_internal_distances)
-        # enemy_mixing = np.nan_to_num(enemy_mixing / np.sum(enemy_mixing, axis=1, keepdims=True))
+        # enemy_mixing = inf_to_zero(enemy_mixing / np.sum(enemy_mixing, axis=1, keepdims=True))
         # enemy_survival = enemy_survival @ enemy_mixing
 
         distances = pairwise_distances(
@@ -140,8 +143,8 @@ class CombatPredictor:
         )
         nearby_weighting = np.reciprocal(1 + distances)
 
-        nearby_enemy_survival = np.nan_to_num((nearby_weighting @ enemy_survival) / np.sum(nearby_weighting, axis=1))
-        nearby_survival = np.nan_to_num((survival @ nearby_weighting) / np.sum(nearby_weighting, axis=0))
+        nearby_enemy_survival = inf_to_zero((nearby_weighting @ enemy_survival) / np.sum(nearby_weighting, axis=1))
+        nearby_survival = inf_to_zero((survival @ nearby_weighting) / np.sum(nearby_weighting, axis=0))
 
         survival_time = dict(zip(self.units, survival)) | dict(zip(self.enemy_units, enemy_survival))
         nearby_survival_time = dict(zip(self.enemy_units, nearby_survival)) | dict(
