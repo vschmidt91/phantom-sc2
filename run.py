@@ -6,16 +6,8 @@ from sc2.player import Bot
 
 from ladder import run_ladder_game
 
-
-sys.path.append("ares-sc2/src/ares")
-sys.path.append("ares-sc2/src")
-sys.path.append("ares-sc2")
 sys.path.append("src")
 sys.path.append("lib")
-
-for lib in os.scandir("lib"):
-    if lib.is_dir():
-        sys.path.append(f"lib/{lib.name}")
 
 from phantom import PhantomBot
 

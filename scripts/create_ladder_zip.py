@@ -59,8 +59,9 @@ else:
     ROOT_DIRECTORY = "./"
 
 ZIP_DIRECTORIES: Dict[str, Dict] = {
-    "src": {"zip_all": True },
-    "ares-sc2": {"zip_all": False, "folder_to_zip": "lib"},
+    "src": {"zip_all": True},
+    "ares-sc2/src/ares": {"zip_all": False, "folder_to_zip": "lib"},
+    "ares-sc2/sc2_helper": {"zip_all": False, "folder_to_zip": "lib"},
     # "python-sc2": {"zip_all": False, "folder_to_zip": "sc2"},
     # "sc2_helper": {"zip_all": True, "folder_to_zip": "sc2_helper"},
     # "SC2MapAnalysis": {"zip_all": False, "folder_to_zip": "map_analyzer"},
@@ -68,6 +69,7 @@ ZIP_DIRECTORIES: Dict[str, Dict] = {
 }
 
 ZIP_MODULES: list[str] = [
+    # "ares-sc2",
     "cvxpy",
     "_cvxcore",
     "cvxpygen",
@@ -81,6 +83,8 @@ ZIP_MODULES: list[str] = [
     # "osqp",
     # "qdldl",
 ]
+
+
 def fix_cvxpy_import(module_dir: str) -> None:
     core_path = pathlib.Path(module_dir) / "cvxcore" / "python" / "cvxcore.py"
     with open(core_path) as fi:
@@ -89,10 +93,10 @@ def fix_cvxpy_import(module_dir: str) -> None:
     with open(core_path, "w") as fo:
         fo.write(src_out)
 
+
 MODULE_CALLBACKS: dict[str, Callable] = {
     "cvxpy": fix_cvxpy_import,
 }
-
 
 
 def zip_dir(dir_path, zip_file, prefix: str | None = None):
