@@ -54,7 +54,7 @@ class CombatPredictor:
             if not can_attack(u, v):
                 return 0.0
             return u.air_dps if v.is_flying else u.ground_dps
-        
+
         def inf_to_zero(a: np.ndarray) -> np.ndarray:
             return np.where(a == np.inf, 0.0, a)
 
