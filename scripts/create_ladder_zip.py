@@ -4,10 +4,12 @@ to ladder or tournaments.
 TODO: check all files and folders are present before zipping
 """
 import importlib
+from importlib.util import find_spec
 import inspect
 import os
 import pathlib
 import platform
+import pkgutil
 import shutil
 import site
 import tempfile
@@ -70,7 +72,7 @@ ZIP_MODULES: list[str] = [
     "_cvxcore",
     "cvxpygen",
     "sc2",
-    # "cython_extensions",
+    "cython_extensions",
     "map_analyzer",
     # "scs",
     # "_scs_direct",
@@ -119,8 +121,8 @@ def zip_module(module_name, zip_file):
     @param zip_file: output file
     @return:
     """
-    module = importlib.import_module(module_name)
-    module_file = inspect.getfile(module)
+    spec = find_spec(module_name)
+    module_file = spec.origin
 
     if module_file.endswith((".pyd", ".so")):
         zip_file.write(module_file, os.path.join("bin", path.basename(module_file)))
