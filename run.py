@@ -1,3 +1,4 @@
+import os
 import sys
 
 from sc2.data import Race
@@ -10,10 +11,11 @@ sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")
 sys.path.append("src")
-sys.path.append("bin")
-sys.path.append("cvxpy")
-sys.path.append("osqp")
-sys.path.append("ecos")
+sys.path.append("lib")
+
+for lib in os.scandir("lib"):
+    if lib.is_dir():
+        sys.path.append(f"lib/{lib.name}")
 
 from phantom import PhantomBot
 

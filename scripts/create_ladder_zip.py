@@ -59,8 +59,8 @@ else:
     ROOT_DIRECTORY = "./"
 
 ZIP_DIRECTORIES: Dict[str, Dict] = {
-    "src": {"zip_all": True, "folder_to_zip": "src"},
-    "ares-sc2": {"zip_all": True, "folder_to_zip": ""},
+    "src": {"zip_all": True },
+    "ares-sc2": {"zip_all": False, "folder_to_zip": "lib"},
     # "python-sc2": {"zip_all": False, "folder_to_zip": "sc2"},
     # "sc2_helper": {"zip_all": True, "folder_to_zip": "sc2_helper"},
     # "SC2MapAnalysis": {"zip_all": False, "folder_to_zip": "map_analyzer"},
@@ -95,22 +95,26 @@ MODULE_CALLBACKS: dict[str, Callable] = {
 
 
 
-def zip_dir(dir_path, zip_file):
+def zip_dir(dir_path, zip_file, prefix: str | None = None):
     """
     Will walk through a directory recursively and add all folders and files to zipfile
     @param dir_path:
     @param zip_file:
     @return:
     """
+    base_path = path.join(dir_path, "..")
     for root, _, files in walk(dir_path):
         if any(exclude in root for exclude in EXCLUDE):
             continue
         for file in files:
             if file.lower().endswith(FILETYPES_TO_IGNORE):
                 continue
+            target_path = path.relpath(path.join(root, file), base_path)
+            if prefix:
+                target_path = path.join(prefix, target_path)
             zip_file.write(
                 path.join(root, file),
-                path.relpath(path.join(root, file), path.join(dir_path, "..")),
+                target_path,
             )
 
 
@@ -125,7 +129,7 @@ def zip_module(module_name, zip_file):
     module_file = spec.origin
 
     if module_file.endswith((".pyd", ".so")):
-        zip_file.write(module_file, os.path.join("bin", path.basename(module_file)))
+        zip_file.write(module_file, os.path.join("lib", path.basename(module_file)))
     else:
         module_dir = os.path.dirname(module_file)
         if callback := MODULE_CALLBACKS.get(module_name):
@@ -133,9 +137,9 @@ def zip_module(module_name, zip_file):
                 temp_dir = os.path.join(temp_file, module_name)
                 shutil.copytree(module_dir, temp_dir)
                 callback(temp_dir)
-                zip_dir(temp_dir, zip_file)
+                zip_dir(temp_dir, zip_file, "lib")
         else:
-            zip_dir(module_dir, zip_file)
+            zip_dir(module_dir, zip_file, "lib")
 
 
 def zip_files_and_directories(zipfile_name: str) -> None:
@@ -155,8 +159,8 @@ def zip_files_and_directories(zipfile_name: str) -> None:
         if values["zip_all"]:
             zip_dir(path.join(ROOT_DIRECTORY, directory), zip_file)
         else:
-            path_to_dir = path.join(ROOT_DIRECTORY, directory, values["folder_to_zip"])
-            zip_dir(path_to_dir, zip_file)
+            # path_to_dir = path.join(ROOT_DIRECTORY, directory, values["folder_to_zip"])
+            zip_dir(path.join(ROOT_DIRECTORY, directory), zip_file, values["folder_to_zip"])
 
     # write individual files
     for single_file in ZIP_FILES:
