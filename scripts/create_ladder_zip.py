@@ -58,18 +58,20 @@ else:
 
 ZIP_DIRECTORIES: Dict[str, Dict] = {
     "src": {"zip_all": True, "folder_to_zip": "src"},
-    "bin": {"zip_all": True, "folder_to_zip": "bin"},
     "ares-sc2": {"zip_all": True, "folder_to_zip": ""},
-    "python-sc2": {"zip_all": False, "folder_to_zip": "sc2"},
+    # "python-sc2": {"zip_all": False, "folder_to_zip": "sc2"},
     # "sc2_helper": {"zip_all": True, "folder_to_zip": "sc2_helper"},
-    "SC2MapAnalysis": {"zip_all": False, "folder_to_zip": "map_analyzer"},
-    "cython-extensions-sc2": {"zip_all": False, "folder_to_zip": "cython_extensions"},
+    # "SC2MapAnalysis": {"zip_all": False, "folder_to_zip": "map_analyzer"},
+    # "cython-extensions-sc2": {"zip_all": False, "folder_to_zip": "cython_extensions"},
 }
 
 ZIP_MODULES: list[str] = [
     "cvxpy",
     "_cvxcore",
     "cvxpygen",
+    "sc2",
+    "cython_extensions",
+    "map_analyzer",
     # "scs",
     # "_scs_direct",
     "ecos",
@@ -249,18 +251,18 @@ def on_error(func, path, exc_info):
 
 
 if __name__ == "__main__":
-    print("Cloning python-sc2...")
-    destination_directory = os.path.join("../", "python-sc2")
-    if os.path.exists(destination_directory):
-        shutil.rmtree(destination_directory, ignore_errors=False, onerror=on_error)
+    # print("Cloning python-sc2...")
+    # destination_directory = os.path.join("../", "python-sc2")
+    # if os.path.exists(destination_directory):
+    #     shutil.rmtree(destination_directory, ignore_errors=False, onerror=on_error)
 
-    # clone python-sc2
-    run("git clone https://github.com/august-k/python-sc2", shell=True)
-    # clone map-analyzer
-    run("git clone https://github.com/raspersc2/SC2MapAnalysis", shell=True)
-    # cython extensions
-    run("git clone https://github.com/AresSC2/cython-extensions-sc2", shell=True)
-    run("cd cython-extensions-sc2 && poetry build", shell=True)
+    # # clone python-sc2
+    # run("git clone https://github.com/august-k/python-sc2", shell=True)
+    # # clone map-analyzer
+    # run("git clone https://github.com/raspersc2/SC2MapAnalysis", shell=True)
+    # # cython extensions
+    # run("git clone https://github.com/AresSC2/cython-extensions-sc2", shell=True)
+    # run("cd cython-extensions-sc2 && poetry build", shell=True)
 
     # clone sc2-helper
     # run("git clone https://github.com/danielvschoor/sc2-helper", shell=True)
@@ -326,14 +328,14 @@ if __name__ == "__main__":
 
     print(f"Cleaning up...")
 
-    destination_directory = os.path.join("./", "python-sc2")
-    if os.path.exists(destination_directory):
-        shutil.rmtree(destination_directory, onerror=on_error)
-    destination_directory = os.path.join("./", "sc2-helper")
-    if os.path.exists(destination_directory):
-        shutil.rmtree(destination_directory, onerror=on_error)
-    destination_directory = os.path.join("./", "SC2MapAnalysis")
-    if os.path.exists(destination_directory):
-        shutil.rmtree(destination_directory, onerror=on_error)
+    # destination_directory = os.path.join("./", "python-sc2")
+    # if os.path.exists(destination_directory):
+    #     shutil.rmtree(destination_directory, onerror=on_error)
+    # destination_directory = os.path.join("./", "sc2-helper")
+    # if os.path.exists(destination_directory):
+    #     shutil.rmtree(destination_directory, onerror=on_error)
+    # destination_directory = os.path.join("./", "SC2MapAnalysis")
+    # if os.path.exists(destination_directory):
+    #     shutil.rmtree(destination_directory, onerror=on_error)
 
     print(f"Ladder zip complete.")
