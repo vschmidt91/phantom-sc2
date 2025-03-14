@@ -144,6 +144,8 @@ class CombatPredictor:
         nearby_survival = np.nan_to_num((survival @ nearby_weighting) / np.sum(nearby_weighting, axis=0))
 
         survival_time = dict(zip(self.units, survival)) | dict(zip(self.enemy_units, enemy_survival))
-        nearby_survival_time = dict(zip(self.enemy_units, nearby_survival)) | dict(zip(self.units, nearby_enemy_survival))
+        nearby_survival_time = dict(zip(self.enemy_units, nearby_survival)) | dict(
+            zip(self.units, nearby_enemy_survival)
+        )
 
         return CombatPrediction(outcome, survival_time, nearby_survival_time)
