@@ -60,11 +60,19 @@ jobs:
           UPLOAD_API_TOKEN: ${{ secrets.UPLOAD_API_TOKEN }}
           UPLOAD_BOT_ID: ${{ secrets[format('UPLOAD_BOT_ID_{0}', github.ref_name)] }}
         run: poetry run python scripts/upload_to_ai_arena.py
+
   run_test_game:
     runs-on: ubuntu-latest
     container:
       image: burnysc2/python-sc2-docker:latest
     steps:
+      - name: Download ladder zip
+        uses: actions/download-artifact@v4
+        with:
+          name: ladder-zip
+      - uses: montudor/action-zip@v1
+        with:
+          args: unzip -qq bot.zip -d out
       - name: Install requirements
         run: |
           python -m pip install --upgrade pip
