@@ -1,4 +1,6 @@
-import sys, subprocess, time
+import subprocess
+import sys
+import time
 
 """
 This script is made as a wrapper for sc2 bots to set a timeout to the bots (in case they can't find the last enemy structure or the game is ending in a draw)

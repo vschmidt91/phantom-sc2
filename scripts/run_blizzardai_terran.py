@@ -4,10 +4,10 @@ from os import path
 sys.path.append(path.join(path.dirname(__file__), ".."))
 
 import sc2
-from sc2 import Race, Difficulty
+from Main import RoachRush
+from sc2 import Difficulty, Race
 from sc2.player import Bot, Computer
 
-from Main import RoachRush
 bot = Bot(Race.Zerg, RoachRush())
 
 # Start game
