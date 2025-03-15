@@ -8,6 +8,8 @@ import os
 import pathlib
 import platform
 import shutil
+import sys
+from platform import python_version
 import tempfile
 import zipfile
 from importlib.util import find_spec
@@ -15,6 +17,7 @@ from os import path, remove, walk
 from typing import Callable
 from urllib import request
 
+PYTHON_VERSION = f"{sys.version_info.major}.{sys.version_info.minor}"
 ZIPFILE_NAME: str = "bot.zip"
 EXCLUDE = list[str]()
 FILETYPES_TO_IGNORE = list[str]()
@@ -49,7 +52,7 @@ if platform.system() == "Windows":
     EXCLUDE.append("map_analyzer\\pickle_gameinfo")
     FILETYPES_TO_IGNORE.extend((".c", ".so", "pyx", "pyi"))
     ZIP_INCLUDE[
-        "https://github.com/AresSC2/cython-extensions-sc2/releases/download/v0.5.0/windows-latest_python3.12.zip"
+        f"https://github.com/AresSC2/cython-extensions-sc2/releases/latest/download/windows-latest_python{PYTHON_VERSION}.zip"
     ] = (
         "cython_extensions",
         "lib",
@@ -58,7 +61,7 @@ else:
     EXCLUDE.append("map_analyzer/pickle_gameinfo")
     FILETYPES_TO_IGNORE.extend((".c", ".pyd", "pyx", "pyi"))
     ZIP_INCLUDE[
-        "https://github.com/AresSC2/cython-extensions-sc2/releases/download/v0.5.0/ubuntu-latest_python3.12.zip"
+        f"https://github.com/AresSC2/cython-extensions-sc2/releases/latest/download/ubuntu-latest_python{PYTHON_VERSION}.zip"
     ] = (
         "cython_extensions",
         "lib",
