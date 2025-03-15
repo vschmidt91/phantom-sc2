@@ -9,20 +9,15 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      # check-out repo
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
           ref: ${{ github.head_ref }}
       - name: Checkout submodules
         run: git submodule update --init --recursive
-      # install poetry
       - name: Install poetry
         run: pipx install poetry
-      # set-up python with cache
-      - name: Setup Python 3.12
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: 'poetry'
@@ -50,8 +45,7 @@ jobs:
     container:
       image: burnysc2/python-sc2-docker:latest
     steps:
-      - name: Download ladder zip
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: ladder-zip
       - name: Install requirements
@@ -70,16 +64,13 @@ jobs:
       - run_test_game
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Setup Python 3.12
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install requests
         run: pip install requests
-      - name: Download build
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: ladder-zip
           path: out
