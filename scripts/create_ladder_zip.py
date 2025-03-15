@@ -12,22 +12,39 @@ import tempfile
 import zipfile
 from importlib.util import find_spec
 from os import path, remove, walk
-from typing import Callable, Dict, List, Tuple
+from typing import Callable
 from urllib import request
 
-MY_BOT_NAME: str = "MyBotName"
 ZIPFILE_NAME: str = "bot.zip"
-
 EXCLUDE = list[str]()
 FILETYPES_TO_IGNORE = list[str]()
 ROOT_DIRECTORY = "./"
 ZIP_INCLUDE = dict[str, tuple[str, str]]()
-
-ZIP_FILES: List[str] = [
+ZIP_FILES: list[str] = [
     "ladder.py",
     "run.py",
     "version.txt",
 ]
+ZIP_DIRECTORIES: dict[str, str | None] = {
+    "src": None,
+    "ares-sc2/src/ares": "lib",
+    "ares-sc2/sc2_helper": "lib",
+}
+ZIP_MODULES: list[str] = [
+    # "ares-sc2",
+    "cvxpy",
+    "_cvxcore",
+    "cvxpygen",
+    "sc2",
+    "map_analyzer",
+    "ecos",
+    "_ecos",
+    # "scs",
+    # "_scs_direct",
+    # "osqp",
+    # "qdldl",
+]
+
 if platform.system() == "Windows":
     EXCLUDE.append("map_analyzer\\pickle_gameinfo")
     FILETYPES_TO_IGNORE.extend((".c", ".so", "pyx", "pyi"))
@@ -46,27 +63,6 @@ else:
         "cython_extensions",
         "lib",
     )
-
-ZIP_DIRECTORIES: Dict[str, Dict] = {
-    "src": {"zip_all": True},
-    "ares-sc2/src/ares": {"zip_all": False, "folder_to_zip": "lib"},
-    "ares-sc2/sc2_helper": {"zip_all": False, "folder_to_zip": "lib"},
-}
-
-ZIP_MODULES: list[str] = [
-    # "ares-sc2",
-    "cvxpy",
-    "_cvxcore",
-    "cvxpygen",
-    "sc2",
-    "map_analyzer",
-    "ecos",
-    "_ecos",
-    # "scs",
-    # "_scs_direct",
-    # "osqp",
-    # "qdldl",
-]
 
 
 def fix_cvxpy_import(module_dir: str) -> None:
@@ -95,7 +91,7 @@ def zip_dir(dir_path, zip_file, prefix: str | None = None):
         if any(exclude in root for exclude in EXCLUDE):
             continue
         for file in files:
-            if file.lower().endswith(FILETYPES_TO_IGNORE):
+            if file.lower().endswith(tuple(FILETYPES_TO_IGNORE)):
                 continue
             target_path = path.relpath(path.join(root, file), base_path)
             if prefix:
@@ -158,12 +154,8 @@ def zip_files_and_directories(zipfile_name: str) -> None:
     zip_file = zipfile.ZipFile(path_to_zipfile, "w", zipfile.ZIP_DEFLATED)
 
     # write directories to the zipfile
-    for directory, values in ZIP_DIRECTORIES.items():
-        if values["zip_all"]:
-            zip_dir(path.join(ROOT_DIRECTORY, directory), zip_file)
-        else:
-            # path_to_dir = path.join(ROOT_DIRECTORY, directory, values["folder_to_zip"])
-            zip_dir(path.join(ROOT_DIRECTORY, directory), zip_file, values["folder_to_zip"])
+    for directory, dst in ZIP_DIRECTORIES.items():
+        zip_dir(path.join(ROOT_DIRECTORY, directory), zip_file, dst)
 
     # write individual files
     for single_file in ZIP_FILES:

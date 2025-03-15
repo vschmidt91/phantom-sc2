@@ -6,7 +6,7 @@ from sc2.player import Bot
 sys.path.append("src")
 sys.path.append("lib")
 
-from phantom import PhantomBot, run_ladder_game
+from phantom import PhantomBot
 from phantom.ladder import run_ladder_game
 
 if __name__ == "__main__":
