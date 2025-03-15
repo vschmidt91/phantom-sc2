@@ -6,8 +6,8 @@ on:
 
 jobs:
   build:
-    name: Build ladder zip
-    runs-on: ubuntu-22.04
+    name: Build
+    runs-on: ubuntu-latest
     steps:
       # check-out repo
       - name: Checkout repository
@@ -82,8 +82,9 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ladder-zip
+          path: out
       - name: Compress
-        run: zip -r bot.zip .
+        run: zip -r bot.zip out
       - name: Upload to AIArena
         env:
           UPLOAD_API_TOKEN: ${{ secrets.UPLOAD_API_TOKEN }}
