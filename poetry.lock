@@ -4374,9 +4374,9 @@ propcache = ">=0.2.0"
 [extras]
 build = ["cython", "requests"]
 dev = ["jupyter", "mpyq", "pandas", "s2protocol", "snakeviz", "tqdm"]
-test = ["autoflake", "black", "flake8", "flake8-isort", "flake8-pyproject", "isort", "mypy", "types-requests", "types-tqdm"]
+test = ["autoflake", "black", "click", "flake8", "flake8-isort", "flake8-pyproject", "isort", "mypy", "types-requests", "types-tqdm"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.13"
-content-hash = "adc0a6593a5575d50a62a81364e1d24fa3b48cf733e0e9374a9fa0178d47ad04"
+content-hash = "598139ea588bc3be6abe9ab388f242f4ccc9b06894e29e99dac567c62b674899"
