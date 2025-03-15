@@ -45,9 +45,8 @@ jobs:
           poetry export --without-hashes --format=requirements.txt > requirements.txt
           docker build -t test_image -f .github/workflows/Dockerfile .
           docker run -it -d --name app1 test_image
-          docker exec -i app1 bash -c "tree"
           docker exec -i app1 bash -c "python ./scripts/travis_test_script.py run_local.py"
-                docker rm -f app1
+          docker rm -f app1
       - uses: actions/upload-artifact@v4
         with:
           name: ladder-zip
