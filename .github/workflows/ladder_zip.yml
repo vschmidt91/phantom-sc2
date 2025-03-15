@@ -59,14 +59,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ladder-zip
+      - name: Install requirements
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
       - name: Run game
         env:
           SC2PATH: "/root/StarCraftII/"
-        run: |
-          tree
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python tests/travis_test_script.py tests/run_test.py
+        run: python tests/travis_test_script.py tests/run_test.py
 
   upload_to_ai_arena:
     name: Upload to AI Arena
@@ -77,6 +77,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Install poetry
+        run: pipx install poetry
       - name: Setup Python 3.12
         uses: actions/setup-python@v5
         with:
