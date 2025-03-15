@@ -4508,4 +4508,4 @@ test = ["autoflake", "black", "flake8", "flake8-isort", "flake8-pyproject", "iso
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.13"
-content-hash = "3b757f70794544fd6017ac8bacf9b86c4e933759385c096131380cf77329369d"
+content-hash = "03bcbb784cb9f473c02eef0e3e7098fd32fb18cf60e411d3945b579768bc13ab"
