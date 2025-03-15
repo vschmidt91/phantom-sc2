@@ -35,7 +35,7 @@ jobs:
       - name: Compile Cython
         run: poetry run python scripts/compile_cython.py
       - name: Save commit hash
-        run: echo ${{ github.sha }} >> version.txt
+        run: echo ${{ github.sha }} > version.txt
       - name: Save requirements.txt
         run: poetry export --without-hashes --format=requirements.txt > requirements.txt
       - name: Compile ladder zip
@@ -59,14 +59,14 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ladder-zip
-      - name: display files
-        run: tree
-      - name: Install requirements
+          path: "/root/python-sc2-docker"
+      - name: Run game
+        working-directory: /root/python-sc2-docker
         run: |
+          tree
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-      - name: Run game
-        run: python tests/travis_test_script.py tests/run_test.py
+          python tests/travis_test_script.py tests/run_test.py
 
   upload_to_ai_arena:
     name: Upload to AI Arena
