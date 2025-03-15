@@ -62,6 +62,7 @@ jobs:
         run: poetry run python scripts/upload_to_ai_arena.py
 
   run_test_game:
+    needs: build
     runs-on: ubuntu-latest
     container:
       image: burnysc2/python-sc2-docker:latest
