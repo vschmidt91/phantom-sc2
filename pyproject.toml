@@ -1,50 +1,52 @@
 [project]
 name = "phantom"
-version = "3.0.0"
+version = "3.0.1"
 description = "StarCraft II Bot playing Zerg Macro"
 authors = [
     {name = "Volker Schmidt", email = "volker.schmidt91@gmail.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.11, <3.13"
-# packages = [{include = "ares-sc2/src/ares"}]
 dependencies = [
+    "aiohttp (>=3.11.13,<4.0.0)",
+    "cvxpy>=1.6.2",
+    "cvxpygen>=0.4.3",
+    "cython-extensions-sc2 @ git+https://github.com/AresSC2/cython-extensions-sc2.git",
+    "ecos>=2.0.14",
+    "map-analyzer @ git+https://github.com/raspersc2/SC2MapAnalysis.git",
     "scikit-image>=0.24.0",
     "scipy>=1.14.1",
     "river>=0.22.0",
-    "cvxpy>=1.6.2",
-    "ecos>=2.0.14",
-    "cvxpygen>=0.4.3",
-    "cython-extensions-sc2 @ git+https://github.com/AresSC2/cython-extensions-sc2.git",
-    "map-analyzer @ git+https://github.com/raspersc2/SC2MapAnalysis.git",
-    "aiohttp (>=3.11.13,<4.0.0)",
+    "burnysc2 (>=7.0.5,<8.0.0)",
 ]
 
 [project.optional-dependencies]
-# development dependency groups
 dev = [
     "jupyter>=1.0.0",
-    "s2protocol>=5.0.13.92440.4",
     "mpyq>=0.2.5",
     "pandas>=2.2.3",
+    "s2protocol>=5.0.13.92440.4",
     "snakeviz>=2.2.0",
     "tqdm>=4.67.0",
-    "types-tqdm>=4.66.0.20240417",
 ]
 test = [
-    "black>=24.4.2",
-    "isort>=5.12.0",
-    "flake8>=7.1.0",
-    "flake8-pyproject>=1.2.3",
-    "flake8-isort>=6.1.1",
-    "mypy>=1.12.0",
     "autoflake>=2.3.1",
+    "black>=24.4.2",
+    "flake8>=7.1.0",
+    "flake8-isort>=6.1.1",
+    "flake8-pyproject>=1.2.3",
+    "isort>=5.12.0",
+    "mypy>=1.12.0",
     "types-requests (>=2.32.0.20250306,<3.0.0.0)",
+    "types-tqdm>=4.66.0.20240417",
 ]
 build = [
     "cython>=3.0.10",
     "requests (>=2.32.3,<3.0.0)",
 ]
+
+[project.urls]
+Repository = "https://github.com/vschmidt91/phantom-sc2.git"
 
 [tool.poetry.dependencies]
 ares-sc2 = { path = "ares-sc2", develop = false }
@@ -59,18 +61,13 @@ remove-all-unused-imports = true
 [tool.flake8]
 max-line-length = 120
 ignore = ["E203", "W503", "F401"]
-exclude = [
-    "ares-sc2",
-]
 
 [tool.black]
-extend-exclude = 'ares-sc2/*'
 line-length = 120
 skip-string-normalization = true
 
 [tool.isort]
 profile = "black"
-skip_glob = ["ares-sc2/*"]
 
 [[tool.mypy.overrides]]
 module = [
