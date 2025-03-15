@@ -1,7 +1,6 @@
 fix:
 	poetry run python -m isort src scripts
-	poetry run python -m black src
-	poetry run python -m black scripts
+	poetry run python -m black src scripts
 
 check:
 	poetry run python -m isort --check src scripts

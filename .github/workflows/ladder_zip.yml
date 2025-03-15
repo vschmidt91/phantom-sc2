@@ -27,7 +27,7 @@ jobs:
       - name: Update pip
         run: poetry run pip install -U pip
       - name: Install requirements
-        run: poetry install
+        run: poetry install --with build,test
       - name: Linting and Typechecking
         run: make check
       - name: Compile Cython
