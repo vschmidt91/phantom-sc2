@@ -58,8 +58,6 @@ jobs:
           name: ladder-zip
       - name: display files
         run: tree
-      - name: Open unpacked bot
-        run: cd out
       - name: Install requirements
         run: |
           python -m pip install --upgrade pip
