@@ -66,6 +66,7 @@ jobs:
           tree
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
+          ln -s /root/StarCraftII StarCraftII
           python tests/travis_test_script.py tests/run_test.py
 
   upload_to_ai_arena:
