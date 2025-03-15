@@ -16,7 +16,6 @@ dependencies = [
     "ecos>=2.0.14",
     "cvxpygen>=0.4.3",
     "cython-extensions-sc2 @ git+https://github.com/AresSC2/cython-extensions-sc2.git",
-    "burnysc2 (>=7.0.5,<8.0.0)",
     "map-analyzer @ git+https://github.com/raspersc2/SC2MapAnalysis.git",
 ]
 
