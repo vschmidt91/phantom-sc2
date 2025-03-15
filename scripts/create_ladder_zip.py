@@ -155,18 +155,22 @@ def zip_files_and_directories(zipfile_name: str) -> None:
 
     # write directories to the zipfile
     for directory, dst in ZIP_DIRECTORIES.items():
+        print(f"Zipping directory {directory} to {dst}...")
         zip_dir(path.join(ROOT_DIRECTORY, directory), zip_file, dst)
 
     # write individual files
     for single_file in ZIP_FILES:
         _path: str = path.join(ROOT_DIRECTORY, single_file)
         if path.isfile(_path):
+            print(f"Zipping file {single_file}...")
             zip_file.write(_path, single_file)
 
     for module in ZIP_MODULES:
+        print(f"Zipping module {module}...")
         zip_module(module, zip_file)
 
     for url, (src, dst) in ZIP_INCLUDE.items():
+        print(f"Zipping URL {url}/{src} to {dst}...")
         zip_url(url, zip_file, dst, src)
 
     # close the zip file
