@@ -7,7 +7,6 @@ from sc2.unit import Unit
 
 @dataclass(frozen=True)
 class UnitComposition(Mapping[UnitTypeId, float]):
-
     _items: dict[UnitTypeId, float]
 
     def __add__(self, other: Mapping[UnitTypeId, float]) -> "UnitComposition":

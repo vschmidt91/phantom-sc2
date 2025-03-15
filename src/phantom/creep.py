@@ -21,7 +21,6 @@ _BASE_SIZE = (5, 5)
 
 @dataclass(frozen=True)
 class CreepAction:
-
     obs: Observation
     mask: np.ndarray
     active_tumors: set[Unit]
@@ -57,7 +56,6 @@ class CreepAction:
         return gaussian_filter(self.value_map, 3) * (self.obs.pathing == 1).astype(float)
 
     def _place_tumor(self, unit: Unit, r: int, full_circle=False) -> Action | None:
-
         x0 = round(unit.position.x)
         y0 = round(unit.position.y)
 
@@ -90,7 +88,6 @@ class CreepAction:
 
 
 class CreepState:
-
     created_at_step = dict[int, int]()
     spread_at_step = dict[int, int]()
 
@@ -99,7 +96,6 @@ class CreepState:
         return len(self.created_at_step) - len(self.spread_at_step)
 
     def step(self, obs: Observation, mask: np.ndarray) -> CreepAction:
-
         for t in set(self.created_at_step) - set(self.spread_at_step):
             if cmd := obs.unit_commands.get(t):
                 if cmd.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:

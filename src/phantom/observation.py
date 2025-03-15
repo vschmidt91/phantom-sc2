@@ -93,7 +93,6 @@ class Observation:
 
     @cached_property
     def shootable_targets(self) -> dict[Unit, list[Unit]]:
-
         units = self.combatants
         ground_ranges = [u.radius + u.ground_range + MAX_UNIT_RADIUS for u in units]
         air_ranges = [u.radius + u.air_range + MAX_UNIT_RADIUS for u in units]
@@ -315,7 +314,6 @@ class Observation:
 
     @property
     def income(self) -> Cost:
-
         larva_per_second = sum(
             sum(
                 (

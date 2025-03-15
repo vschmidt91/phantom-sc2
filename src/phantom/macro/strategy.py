@@ -217,7 +217,6 @@ class Strategy:
                 yield MacroPlan(target, priority=self.param.tech_priority.mean)
 
     def expand(self) -> Iterable[MacroPlan]:
-
         if self.obs.time < 50:
             return
         if 2 == self.obs.townhalls.amount and 2 > self.obs.count(UnitTypeId.QUEEN, include_planned=False):

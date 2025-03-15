@@ -17,7 +17,6 @@ def square_vector(v: np.ndarray) -> np.ndarray:
 
 @dataclass(frozen=True)
 class NormalParameters:
-
     mean: np.ndarray
     deviation: np.ndarray
     evidence: float

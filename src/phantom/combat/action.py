@@ -33,7 +33,6 @@ CombatPrior = CombatParameters(
 
 @dataclass(frozen=True)
 class CombatAction:
-
     observation: Observation
     parameters: CombatParameters
 
@@ -89,7 +88,6 @@ class CombatAction:
         )
 
     def fight_with(self, unit: Unit) -> Action | None:
-
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
             if hp == 0.0:
@@ -224,11 +222,9 @@ class CombatAction:
 
     @cached_property
     def optimal_targeting(self) -> Assignment[Unit, Unit]:
-
         target_stickiness_reward = 1 + math.exp(self.parameters.target_stickiness.mean)
 
         def cost_fn(a: Unit, b: Unit) -> float:
-
             d = self.observation.distance_matrix[a, b]
             r = a.air_range if b.is_flying else a.ground_range
             travel_distance = max(0.0, d - a.radius - b.radius - r - a.distance_to_weapon_ready)

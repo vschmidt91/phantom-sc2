@@ -29,7 +29,6 @@ class ResourceAction:
             return self.get_optimal_assignment()
 
     def get_optimal_assignment(self):
-
         if not self.observation.mineral_fields:
             return HarvesterAssignment({})
 

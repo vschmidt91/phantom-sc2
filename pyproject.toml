@@ -28,12 +28,7 @@ dev = [
     "tqdm>=4.67.0",
 ]
 test = [
-    "autoflake>=2.3.1",
-    "black>=24.4.2",
-    "flake8>=7.1.0",
-    "flake8-isort>=6.1.1",
-    "flake8-pyproject>=1.2.3",
-    "isort>=5.12.0",
+    "ruff (>=0.11.0,<0.12.0)",
     "mypy>=1.12.0",
     "types-requests (>=2.32.0.20250306,<3.0.0.0)",
     "types-tqdm>=4.66.0.20240417",
@@ -62,19 +57,12 @@ poetry-plugin-export = ">=1.8"
 requires = ["poetry-core", "Cython", "numpy", "setuptools"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.autoflake]
-remove-all-unused-imports = true
-
-[tool.flake8]
-max-line-length = 120
-ignore = ["E203", "W503", "F401"]
-
-[tool.black]
+[tool.ruff]
 line-length = 120
-skip-string-normalization = true
 
-[tool.isort]
-profile = "black"
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = ["F401"]
 
 [[tool.mypy.overrides]]
 module = [
@@ -82,6 +70,7 @@ module = [
     "Cython.*",
     "distutils.*",
     "loguru.*",
+    "cvxpy.*",
     "cvxpygen.*",
     "sc2.*",
     "scipy.*",

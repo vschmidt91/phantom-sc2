@@ -9,7 +9,6 @@ from phantom.data.multivariate_normal import NormalParameters
 
 @dataclass
 class DataState:
-
     parameters: NormalParameters
     parameter_names: list[str]
 

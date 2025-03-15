@@ -15,7 +15,6 @@ from phantom.macro.state import MacroPlan
 
 
 class PhantomBotDebug(PhantomBot):
-
     profiler = cProfile.Profile()
     profile_path = "resources/profiling.prof"
     resign_after_iteration: int | None = None
@@ -60,7 +59,6 @@ class PhantomBotDebug(PhantomBot):
         # )
 
     async def on_step(self, iteration: int) -> None:
-
         # await self.client.debug_kill_unit(self.townhalls)
 
         if self.resign_after_iteration is not None:

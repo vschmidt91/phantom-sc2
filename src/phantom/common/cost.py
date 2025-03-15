@@ -73,7 +73,6 @@ class Cost:
 
 
 class CostContext(Protocol):
-
     def calculate_cost(self, item: UnitTypeId) -> SC2Cost:
         raise NotImplementedError()
 
@@ -83,7 +82,6 @@ class CostContext(Protocol):
 
 @dataclass
 class CostManager:
-
     context: CostContext
     _cache = dict[MacroId, Cost]()
 

@@ -13,12 +13,10 @@ _ABILITY = AbilityId.EFFECT_CORROSIVEBILE
 
 @dataclass(frozen=True)
 class CorrosiveBileAction:
-
     actions: dict[Unit, Action]
 
 
 class CorrosiveBileState:
-
     bile_last_used = dict[int, int]()
 
     def step(self, obs: Observation) -> CorrosiveBileAction:
@@ -32,7 +30,6 @@ class CorrosiveBileState:
         return CorrosiveBileAction(actions)
 
     def step_unit(self, obs: Observation, unit: Unit) -> Action | None:
-
         def filter_target(t: Unit) -> bool:
             if not obs.is_visible(t):
                 return False
