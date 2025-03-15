@@ -42,7 +42,7 @@ jobs:
 
       - name: Run test game
         run: |
-          poetry export --without-hashes --format=requirements.txt > requirements.txt
+          poetry export --extras test --without-hashes --format=requirements.txt > requirements.txt
           docker build -t test_image -f .github/workflows/Dockerfile .
           docker run -it -d --name app1 test_image
           docker exec -i app1 bash -c "python ./scripts/travis_test_script.py run_local.py"
