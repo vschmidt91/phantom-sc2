@@ -159,14 +159,12 @@ def zip_url(url, zip_file, target, subdir=None):
         tmp_zip = f"{tmp}/data.zip"
         with open(tmp_zip, "wb") as f:
             f.write(data)
+        src_path = f"{tmp}/out"
         with zipfile.ZipFile(tmp_zip) as f:
-            f.extractall("out")
-        src_path = "out"
+            f.extractall(src_path)
         if subdir:
             src_path = path.join(src_path, subdir)
         zip_dir(src_path, zip_file, target)
-
-
 
 
 def zip_files_and_directories(zipfile_name: str) -> None:
