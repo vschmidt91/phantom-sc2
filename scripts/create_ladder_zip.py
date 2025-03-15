@@ -30,6 +30,7 @@ ZIP_FILES: list[str] = [
 ]
 ZIP_DIRECTORIES: dict[str, str | None] = {
     "src": None,
+    "tests": None,
     "ares-sc2/src/ares": "lib",
     "ares-sc2/sc2_helper": "lib",
 }

@@ -3,7 +3,6 @@ FROM burnysc2/python-sc2-docker:latest
 
 # Copy files from the current commit (the python-sc2 folder) to root
 ADD out /root/python-sc2-docker
-ADD tests /root/python-sc2-docker
 
 # Install the python-sc2 library and its requirements (s2clientprotocol etc.) to python
 WORKDIR /root/python-sc2-docker
