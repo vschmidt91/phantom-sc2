@@ -3,14 +3,12 @@ Zips the relevant files and directories so that Bot can be updated
 to ladder or tournaments.
 TODO: check all files and folders are present before zipping
 """
-import importlib
 from importlib.util import find_spec
-import inspect
 import os
 import pathlib
 import platform
-import pkgutil
 import shutil
+from urllib import request
 import site
 import tempfile
 import zipfile
@@ -47,6 +45,9 @@ if platform.system() == "Windows":
     ]
     FILETYPES_TO_IGNORE: Tuple = (".c", ".so", "pyx", "pyi")
     ROOT_DIRECTORY = "./"
+    ZIP_INCLUDE = {
+        "https://github.com/AresSC2/cython-extensions-sc2/releases/download/v0.5.0/windows-latest_python3.12.zip": ("cython_extensions", "lib"),
+    }
 else:
     EXCLUDE: list[str] = [
         "ares-sc2/build",
@@ -57,6 +58,9 @@ else:
     ]
     FILETYPES_TO_IGNORE: Tuple = (".c", ".pyd", "pyx", "pyi")
     ROOT_DIRECTORY = "./"
+    ZIP_INCLUDE = {
+        "https://github.com/AresSC2/cython-extensions-sc2/releases/download/v0.5.0/ubuntu-latest_python3.12.zip": ("cython_extensions", "lib"),
+    }
 
 ZIP_DIRECTORIES: Dict[str, Dict] = {
     "src": {"zip_all": True},
@@ -74,7 +78,6 @@ ZIP_MODULES: list[str] = [
     "_cvxcore",
     "cvxpygen",
     "sc2",
-    "cython_extensions",
     "map_analyzer",
     # "scs",
     # "_scs_direct",
@@ -92,6 +95,9 @@ def fix_cvxpy_import(module_dir: str) -> None:
     src_out = src_in.replace("from . import _cvxcore", "import _cvxcore")
     with open(core_path, "w") as fo:
         fo.write(src_out)
+
+def build_cython_extensions(module_dir: str) -> None:
+    run(f"cd {module_dir} && poetry build", shell=True)
 
 
 MODULE_CALLBACKS: dict[str, Callable] = {
@@ -137,6 +143,7 @@ def zip_module(module_name, zip_file):
     else:
         module_dir = os.path.dirname(module_file)
         if callback := MODULE_CALLBACKS.get(module_name):
+            print(f"Running callback {callback.__name__}")
             with tempfile.TemporaryDirectory() as temp_file:
                 temp_dir = os.path.join(temp_file, module_name)
                 shutil.copytree(module_dir, temp_dir)
@@ -144,6 +151,22 @@ def zip_module(module_name, zip_file):
                 zip_dir(temp_dir, zip_file, "lib")
         else:
             zip_dir(module_dir, zip_file, "lib")
+
+
+def zip_url(url, zip_file, target, subdir=None):
+    data = request.urlopen(url).read()
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_zip = f"{tmp}/data.zip"
+        with open(tmp_zip, "wb") as f:
+            f.write(data)
+        with zipfile.ZipFile(tmp_zip) as f:
+            f.extractall("out")
+        src_path = "out"
+        if subdir:
+            src_path = path.join(src_path, subdir)
+        zip_dir(src_path, zip_file, target)
+
+
 
 
 def zip_files_and_directories(zipfile_name: str) -> None:
@@ -174,6 +197,9 @@ def zip_files_and_directories(zipfile_name: str) -> None:
 
     for module in ZIP_MODULES:
         zip_module(module, zip_file)
+
+    for url, (src, dst) in ZIP_INCLUDE.items():
+        zip_url(url, zip_file, dst, src)
 
     # close the zip file
     zip_file.close()
@@ -272,7 +298,6 @@ if __name__ == "__main__":
     # run("git clone https://github.com/raspersc2/SC2MapAnalysis", shell=True)
     # # cython extensions
     # run("git clone https://github.com/AresSC2/cython-extensions-sc2", shell=True)
-    # run("cd cython-extensions-sc2 && poetry build", shell=True)
 
     # clone sc2-helper
     # run("git clone https://github.com/danielvschoor/sc2-helper", shell=True)
