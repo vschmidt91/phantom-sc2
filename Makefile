@@ -1,9 +1,13 @@
-lint:
-	autoflake -i -r src
-	isort src
-	black -S src
-	flake8 src
-	mypy src
+fix:
+	poetry run python -m isort src scripts
+	poetry run python -m black src
+	poetry run python -m black scripts
+
+check:
+	poetry run python -m isort --check src scripts
+	poetry run python -m black --check src scripts
+	poetry run python -m flake8 src scripts
+	poetry run python -m mypy src scripts
 
 profile:
-	python -m snakeviz resources\profiling.prof
+	poetry run python -m snakeviz resources\profiling.prof

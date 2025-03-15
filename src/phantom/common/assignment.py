@@ -61,6 +61,8 @@ def cp_solve(b, c, t, g, gw):
         **options,
     )
     x = problem.var_dict["x"].value
+    if x is None:
+        x = np.zeros((n, m))
     return x
 
 

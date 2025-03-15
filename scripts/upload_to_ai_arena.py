@@ -3,7 +3,6 @@ import os
 import requests
 from requests.adapters import HTTPAdapter, Retry
 
-
 API_TOKEN_ENV: str = "UPLOAD_API_TOKEN"
 BOT_ID_ENV: str = "UPLOAD_BOT_ID"
 ZIPFILE_NAME: str = "bot.zip"

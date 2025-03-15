@@ -134,8 +134,7 @@ dmypy.json
 .pyre/
 
 .idea
+/bot.zip
 /version.txt
-/profiling
-/combat_simulation/dataset.xz
 /resources
 /data
