@@ -118,18 +118,19 @@ class CombatAction:
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(unit, target.position)
 
-        # attack_path = self.observation.find_path(
-        #     unit.position,
-        #     target.position,
-        #     unit.is_flying,
-        # ).rounded
+        attack_path = self.observation.find_path(
+            unit.position,
+            target.position,
+            unit.is_flying,
+        ).rounded
 
-        confident = self.prediction.survival_time[target] <= self.prediction.survival_time[unit]
-        # confident = self.prediction.nearby_enemy_survival_time[unit] <= self.prediction.survival_time[unit]
-        # confident = (
-        #     self.prediction.nearby_enemy_survival_time[unit] <= self.prediction.nearby_enemy_survival_time[target]
-        # )
-        if confident or not self.enemy_presence.dps[unit.position.rounded]:
+        # confident = self.prediction.survival_time[target] <= self.prediction.survival_time[unit]
+        confident = self.prediction.nearby_enemy_survival_time[unit] <= self.prediction.survival_time[unit]
+        if 0 == self.enemy_presence.dps[attack_path]:
+            if confident:
+                return UseAbility(unit, AbilityId.ATTACK, attack_path)
+            return Move(unit, attack_path)
+        elif confident:
             if unit.type_id in {UnitTypeId.ZERGLING}:
                 return UseAbility(unit, AbilityId.ATTACK, target.position)
             return Attack(unit, target)
