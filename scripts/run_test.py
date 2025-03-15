@@ -17,7 +17,7 @@ EXPECTED_RESULT = Result.Defeat
 
 if __name__ == "__main__":
     ai = PhantomBotDebug()
-    ai.resign_after_iteration = 1000
+    ai.resign_after_iteration = 10
     bot = Bot(Race.Zerg, ai, "PhantomBot")
 
     result = run_game(
