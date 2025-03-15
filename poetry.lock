@@ -667,7 +667,7 @@ description = "Composable command line interface toolkit"
 optional = true
 python-versions = ">=3.7"
 groups = ["main"]
-markers = "extra == \"test\""
+markers = "extra == \"dev\" or extra == \"test\""
 files = [
     {file = "click-8.1.8-py3-none-any.whl", hash = "sha256:63c132bbbed01578a06712a2d1f497bb62d9c1c0d329b7903a866228027263b2"},
     {file = "click-8.1.8.tar.gz", hash = "sha256:ed53c9d8990d83c2a27deae68e4ee337473f6330c040a31d4225c9574d16096a"},
@@ -4453,10 +4453,10 @@ propcache = ">=0.2.0"
 
 [extras]
 build = ["cvxpy", "cvxpygen", "cython", "cython-extensions-sc2", "ecos", "map-analyzer", "requests"]
-dev = ["jupyter", "mpyq", "pandas", "s2protocol", "snakeviz", "tqdm"]
-test = ["autoflake", "black", "click", "flake8", "flake8-isort", "flake8-pyproject", "isort", "mypy", "types-requests", "types-tqdm"]
+dev = ["click", "jupyter", "mpyq", "pandas", "s2protocol", "snakeviz", "tqdm"]
+test = ["autoflake", "black", "flake8", "flake8-isort", "flake8-pyproject", "isort", "mypy", "types-requests", "types-tqdm"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.13"
-content-hash = "84a594bcb5829733cf41045576c700b36049029490ee7441a4f4d09d0cb5c736"
+content-hash = "71420abd298c0fc7d114be5ea14963d0295447439b602f5d5fbe184e6d81c5b1"

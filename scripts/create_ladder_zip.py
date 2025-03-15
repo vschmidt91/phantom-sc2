@@ -26,6 +26,7 @@ ZIP_FILES: list[str] = [
     "ladder.py",
     "run.py",
     "version.txt",
+    "requirements.txt",
 ]
 ZIP_DIRECTORIES: dict[str, str | None] = {
     "src": None,
