@@ -91,7 +91,7 @@ jobs:
         with:
           name: ladder-zip
       - name: Compress
-        run: zip -r bot.zip out
+        run: zip -r bot.zip .
       - name: Upload to AIArena
         env:
           UPLOAD_API_TOKEN: ${{ secrets.UPLOAD_API_TOKEN }}
