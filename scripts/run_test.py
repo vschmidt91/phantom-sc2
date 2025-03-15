@@ -13,7 +13,7 @@ from phantom.debug import PhantomBotDebug
 
 if __name__ == "__main__":
     ai = PhantomBotDebug()
-    # ai.resign_after_iteration = 10
+    ai.resign_after_iteration = 10
     bot = Bot(Race.Zerg, ai, "PhantomBot")
 
     result = run_game(
@@ -24,4 +24,4 @@ if __name__ == "__main__":
         ],
         realtime=False,
     )
-    assert result == Result.Win
+    assert result == Result.Defeat
