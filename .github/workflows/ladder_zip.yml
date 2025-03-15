@@ -66,7 +66,7 @@ jobs:
       - name: Run game
         env:
           SC2PATH: "/root/StarCraftII/"
-        run: python tests/travis_test_script.py tests/run_test.py
+        run: python scripts/travis_test_script.py scripts/run_test.py
 
   upload_to_ai_arena:
     name: Upload to AI Arena
@@ -77,13 +77,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Install poetry
-        run: pipx install poetry
       - name: Setup Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'poetry'
       - name: Install requests
         run: pip install requests
       - name: Download build

@@ -46,7 +46,7 @@ class Agent:
     dodge = DodgeState()
     scout = ScoutState()
     resources = ResourceState()
-    build_order = POOL_FIRST
+    build_order = HATCH_FIRST
 
     async def step(self, observation: Observation) -> AsyncGenerator[Action, None]:
 
