@@ -49,17 +49,31 @@ ZIP_MODULES: list[str] = [
     # "qdldl",
 ]
 
+FILETYPES_TO_IGNORE.append(".c")
+FILETYPES_TO_IGNORE.append(".pyc")
+FILETYPES_TO_IGNORE.append(".pyi")
+FILETYPES_TO_IGNORE.append(".pyx")
+FILETYPES_TO_IGNORE.append("-darwin.so")
+FILETYPES_TO_IGNORE.append(".xz")
 if platform.system() == "Windows":
-    EXCLUDE.append("map_analyzer\\pickle_gameinfo")
-    FILETYPES_TO_IGNORE.extend((".c", ".so", "pyx", "pyi"))
+    FILETYPES_TO_IGNORE.append(".so")
     CYTHON_EXTENSION_VERSION = "windows"
 else:
-    EXCLUDE.append("map_analyzer/pickle_gameinfo")
-    FILETYPES_TO_IGNORE.extend((".c", ".pyd", "pyx", "pyi"))
+    FILETYPES_TO_IGNORE.append(".pyd")
     CYTHON_EXTENSION_VERSION = "ubuntu"
 
 CYTHON_EXTENSION_RELEASE = "https://github.com/AresSC2/cython-extensions-sc2/releases/latest/download"
 FETCH_ZIP[f"{CYTHON_EXTENSION_RELEASE}/{CYTHON_EXTENSION_VERSION}-latest_python{PYTHON_VERSION}.zip"] = "lib"
+
+IGNORE_PATTERNS = shutil.ignore_patterns(*["*" + ext for ext in FILETYPES_TO_IGNORE])
+
+def copyfile(src, dst):
+    if any(src.endswith(ext) for ext in FILETYPES_TO_IGNORE):
+        return
+    shutil.copyfile(src, dst)
+
+def copytree(src, dst):
+    shutil.copytree(src, dst, dirs_exist_ok=True, ignore=IGNORE_PATTERNS)
 
 
 if __name__ == "__main__":
@@ -80,13 +94,13 @@ if __name__ == "__main__":
         target = path.join(output_dir, dst or directory)
         print(f"Copying {directory=} to {target=}...")
         # os.makedirs(target, exist_ok=True)
-        shutil.copytree(directory, target, dirs_exist_ok=True)
+        copytree(directory, target)
 
     # write individual files
     for single_file in ZIP_FILES:
         print(f"Copying {single_file=}...")
         if path.isfile(single_file):
-            shutil.copyfile(single_file, path.join(output_dir, single_file))
+            copyfile(single_file, path.join(output_dir, single_file))
         else:
             print(f"File not found")
 
@@ -97,11 +111,11 @@ if __name__ == "__main__":
         module_file = spec.origin or f"{spec.submodule_search_locations[0]}/__init__.py"
 
         if module_file.endswith((".pyd", ".so")):
-            shutil.copyfile(module_file, path.join(target, path.basename(module_file)))
+            copyfile(module_file, path.join(target, path.basename(module_file)))
         else:
             module_dir = os.path.dirname(module_file)
             module_target = os.path.join(target, module)
-            shutil.copytree(module_dir, module_target, dirs_exist_ok=True)
+            copytree(module_dir, module_target)
 
     print("Fixing CVXPY import...")
     core_path = path.join(output_dir, "lib", "cvxpy", "cvxcore", "python", "cvxcore.py")
@@ -117,4 +131,4 @@ if __name__ == "__main__":
             r = requests.get(url)
             z = zipfile.ZipFile(BytesIO(r.content))
             z.extractall(tmp)
-            shutil.copytree(tmp,  path.join(output_dir, dst), dirs_exist_ok=True)
+            copytree(tmp,  path.join(output_dir, dst))
