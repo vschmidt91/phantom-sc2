@@ -9,15 +9,9 @@ readme = "README.md"
 requires-python = ">=3.11, <3.13"
 dependencies = [
     "aiohttp (>=3.11.13,<4.0.0)",
-    "cvxpy>=1.6.2",
-    "cvxpygen>=0.4.3",
-    "cython-extensions-sc2 @ git+https://github.com/AresSC2/cython-extensions-sc2.git",
-    "ecos>=2.0.14",
-    "map-analyzer @ git+https://github.com/raspersc2/SC2MapAnalysis.git",
     "scikit-image>=0.24.0",
     "scipy>=1.14.1",
     "river>=0.22.0",
-    "burnysc2 (>=7.0.5,<8.0.0)",
     "pyyaml (>=6.0.2,<7.0.0)",
 ]
 
@@ -43,7 +37,13 @@ test = [
     "types-tqdm>=4.66.0.20240417",
 ]
 build = [
+    "burnysc2 (>=7.0.5,<8.0.0)",
+    "cvxpy>=1.6.2",
+    "cvxpygen>=0.4.3",
     "cython>=3.0.10",
+    "cython-extensions-sc2 @ git+https://github.com/AresSC2/cython-extensions-sc2.git",
+    "ecos>=2.0.14",
+    "map-analyzer @ git+https://github.com/raspersc2/SC2MapAnalysis.git",
     "requests (>=2.32.3,<3.0.0)",
 ]
 

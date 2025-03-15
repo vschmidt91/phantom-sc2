@@ -12,6 +12,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          submodules: recursive
           ref: ${{ github.head_ref }}
       - name: Checkout submodules
         run: git submodule update --init --recursive

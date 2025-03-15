@@ -424,9 +424,10 @@ css = ["tinycss2 (>=1.1.0,<1.5)"]
 name = "burnysc2"
 version = "7.0.5"
 description = "A StarCraft II API Client for Python 3"
-optional = false
+optional = true
 python-versions = "<3.13,>=3.9"
 groups = ["main"]
+markers = "extra == \"build\""
 files = [
     {file = "burnysc2-7.0.5-py3-none-any.whl", hash = "sha256:cab015e08cc6715aef7deb0436dcd135b8e027065aa3f8f050e8f686afa36285"},
     {file = "burnysc2-7.0.5.tar.gz", hash = "sha256:f41077c3a94c806c54ecbf43a39ca8ee1679de6d56ca1b75b4323721aae1b454"},
@@ -643,9 +644,10 @@ files = [
 name = "clarabel"
 version = "0.10.0"
 description = "Clarabel Conic Interior Point Solver for Rust / Python"
-optional = false
+optional = true
 python-versions = ">=3.9"
 groups = ["main"]
+markers = "extra == \"build\""
 files = [
     {file = "clarabel-0.10.0-cp39-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:ac0375778b351ed0a6a209a3a671e438181f640e98ea56761acf44681f05f211"},
     {file = "clarabel-0.10.0-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:385c29169918a0fbf7eaece919db381120519241d9806f65b291444ef52deccc"},
@@ -679,9 +681,10 @@ colorama = {version = "*", markers = "platform_system == \"Windows\""}
 name = "cmake"
 version = "3.31.6"
 description = "CMake is an open-source, cross-platform family of tools designed to build, test and package software"
-optional = false
+optional = true
 python-versions = ">=3.7"
 groups = ["main"]
+markers = "extra == \"build\""
 files = [
     {file = "cmake-3.31.6-py3-none-macosx_10_10_universal2.whl", hash = "sha256:da9d4fd9abd571fd016ddb27da0428b10277010b23bb21e3678f8b9e96e1686e"},
     {file = "cmake-3.31.6-py3-none-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:689441fc74fbb03673c67e20d4636614a231634d5e803387cd213d2cdf9675fc"},
@@ -708,10 +711,10 @@ files = [
 name = "colorama"
 version = "0.4.6"
 description = "Cross-platform colored terminal text."
-optional = false
+optional = true
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
 groups = ["main"]
-markers = "(extra == \"dev\" or extra == \"test\") and platform_system == \"Windows\" or sys_platform == \"win32\""
+markers = "sys_platform == \"win32\" and (extra == \"dev\" or extra == \"build\") or platform_system == \"Windows\" and (extra == \"dev\" or extra == \"test\")"
 files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
@@ -740,9 +743,10 @@ test = ["pytest"]
 name = "cvxpy"
 version = "1.6.3"
 description = "A domain-specific language for modeling convex optimization problems in Python."
-optional = false
+optional = true
 python-versions = ">=3.9"
 groups = ["main"]
+markers = "extra == \"build\""
 files = [
     {file = "cvxpy-1.6.3-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:8ad615a9a0599223c4b138642dfef7015209a9600f59acebd678340f8b8975e4"},
     {file = "cvxpy-1.6.3-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:633230205c3419a70041acc41e7aa3f43e00f13109a17b84a8b571765e595651"},
@@ -806,9 +810,10 @@ xpress = ["xpress"]
 name = "cvxpygen"
 version = "0.4.4"
 description = "Code generation with CVXPY"
-optional = false
+optional = true
 python-versions = ">=3.9"
 groups = ["main"]
+markers = "extra == \"build\""
 files = [
     {file = "cvxpygen-0.4.4.tar.gz", hash = "sha256:ef2c50a8cf829f35e0ee528799e45c660cf22dd877b70c8430095101e9eb048e"},
 ]
@@ -905,9 +910,10 @@ files = [
 name = "cython-extensions-sc2"
 version = "0.4.6"
 description = ""
-optional = false
+optional = true
 python-versions = ">=3.10,<3.13"
 groups = ["main"]
+markers = "extra == \"build\""
 files = []
 develop = false
 
@@ -984,9 +990,10 @@ files = [
 name = "ecos"
 version = "2.0.14"
 description = "This is the Python package for ECOS: Embedded Cone Solver. See Github page for more information."
-optional = false
+optional = true
 python-versions = "*"
 groups = ["main"]
+markers = "extra == \"build\""
 files = [
     {file = "ecos-2.0.14-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:d16f8c97c42a18be77530b4d0090d8dd38105ae311518fc58a66c5c403d79672"},
     {file = "ecos-2.0.14-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f9a977976ec618261456d6c9cd4ec7b7745607e448e78cd0c851190c6cc515ef"},
@@ -1493,9 +1500,10 @@ testing = ["Django", "attrs", "colorama", "docopt", "pytest (<9.0.0)"]
 name = "jinja2"
 version = "3.1.6"
 description = "A very fast and expressive template engine."
-optional = false
+optional = true
 python-versions = ">=3.7"
 groups = ["main"]
+markers = "extra == \"dev\" or extra == \"build\""
 files = [
     {file = "jinja2-3.1.6-py3-none-any.whl", hash = "sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67"},
     {file = "jinja2-3.1.6.tar.gz", hash = "sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d"},
@@ -1511,9 +1519,10 @@ i18n = ["Babel (>=2.7)"]
 name = "joblib"
 version = "1.4.2"
 description = "Lightweight pipelining with Python functions"
-optional = false
+optional = true
 python-versions = ">=3.8"
 groups = ["main"]
+markers = "extra == \"build\""
 files = [
     {file = "joblib-1.4.2-py3-none-any.whl", hash = "sha256:06d478d5674cbc267e7496a410ee875abd68e4340feff4490bcb7afb88060ae6"},
     {file = "joblib-1.4.2.tar.gz", hash = "sha256:2382c5816b2636fbd20a09e0f4e9dad4736765fdfb7dca582943b9c1366b3f0e"},
@@ -1903,9 +1912,10 @@ test = ["pytest (>=7.4)", "pytest-cov (>=4.1)"]
 name = "loguru"
 version = "0.7.3"
 description = "Python logging made (stupidly) simple"
-optional = false
+optional = true
 python-versions = "<4.0,>=3.5"
 groups = ["main"]
+markers = "extra == \"build\""
 files = [
     {file = "loguru-0.7.3-py3-none-any.whl", hash = "sha256:31a33c10c8e1e10422bfd431aeb5d351c7cf7fa671e3c4df004162264b28220c"},
     {file = "loguru-0.7.3.tar.gz", hash = "sha256:19480589e77d47b8d85b2c827ad95d49bf31b0dcde16593892eb51dd18706eb6"},
@@ -1922,9 +1932,10 @@ dev = ["Sphinx (==8.1.3) ; python_version >= \"3.11\"", "build (==1.2.2) ; pytho
 name = "map-analyzer"
 version = "0.2.0"
 description = ""
-optional = false
+optional = true
 python-versions = ">=3.10,<3.13"
 groups = ["main"]
+markers = "extra == \"build\""
 files = []
 develop = false
 
@@ -1941,9 +1952,10 @@ resolved_reference = "6dec29742cfb68c6ad77b1d223be87fa2fa8913c"
 name = "markupsafe"
 version = "3.0.2"
 description = "Safely add untrusted strings to HTML/XML markup."
-optional = false
+optional = true
 python-versions = ">=3.9"
 groups = ["main"]
+markers = "extra == \"dev\" or extra == \"build\""
 files = [
     {file = "MarkupSafe-3.0.2-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:7e94c425039cde14257288fd61dcfb01963e658efbc0ff54f5306b06054700f8"},
     {file = "MarkupSafe-3.0.2-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:9e2d922824181480953426608b81967de705c3cef4d1af983af849d7bd619158"},
@@ -2054,9 +2066,10 @@ files = [
 name = "mpyq"
 version = "0.2.5"
 description = "A Python library for extracting MPQ (MoPaQ) files."
-optional = false
+optional = true
 python-versions = "*"
 groups = ["main"]
+markers = "extra == \"dev\" or extra == \"build\""
 files = [
     {file = "mpyq-0.2.5.tar.gz", hash = "sha256:30aaf5962be569f3f2b53978060cd047434ee4f5a215925dd6ff0fef04ec0007"},
 ]
@@ -2461,9 +2474,10 @@ files = [
 name = "osqp"
 version = "1.0.0b3"
 description = "OSQP: The Operator Splitting QP Solver"
-optional = false
+optional = true
 python-versions = ">=3.8"
 groups = ["main"]
+markers = "extra == \"build\""
 files = [
     {file = "osqp-1.0.0b3-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:ab1943bcd85ab4315c520e2a74195c7aac3dd3da9d4abcee8323bc93fb38394a"},
     {file = "osqp-1.0.0b3-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:88e44aab497f88d3d5ce667efc553b79e84790fb546e12a17b63d70cdb57488b"},
@@ -2786,9 +2800,10 @@ type = ["mypy (>=1.11.2)"]
 name = "portpicker"
 version = "1.6.0"
 description = "A library to choose unique available network ports."
-optional = false
+optional = true
 python-versions = ">=3.6"
 groups = ["main"]
+markers = "extra == \"build\""
 files = [
     {file = "portpicker-1.6.0-py3-none-any.whl", hash = "sha256:b2787a41404cf7edbe29b07b9e0ed863b09f2665dcc01c1eb0c2261c1e7d0755"},
     {file = "portpicker-1.6.0.tar.gz", hash = "sha256:bd507fd6f96f65ee02781f2e674e9dc6c99bbfa6e3c39992e3916204c9d431fa"},
@@ -2941,9 +2956,10 @@ files = [
 name = "protobuf"
 version = "3.20.3"
 description = "Protocol Buffers"
-optional = false
+optional = true
 python-versions = ">=3.7"
 groups = ["main"]
+markers = "extra == \"build\""
 files = [
     {file = "protobuf-3.20.3-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:f4bd856d702e5b0d96a00ec6b307b0f51c1982c2bf9c0052cf9019e9a544ba99"},
     {file = "protobuf-3.20.3-cp310-cp310-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:9aae4406ea63d825636cc11ffb34ad3379335803216ee3a856787bcf5ccc751e"},
@@ -2973,9 +2989,10 @@ files = [
 name = "psutil"
 version = "7.0.0"
 description = "Cross-platform lib for process and system monitoring in Python.  NOTE: the syntax of this script MUST be kept compatible with Python 2.7."
-optional = false
+optional = true
 python-versions = ">=3.6"
 groups = ["main"]
+markers = "extra == \"dev\" or extra == \"build\""
 files = [
     {file = "psutil-7.0.0-cp36-abi3-macosx_10_9_x86_64.whl", hash = "sha256:101d71dc322e3cffd7cea0650b09b3d08b8e7c4109dd6809fe452dfd00e58b25"},
     {file = "psutil-7.0.0-cp36-abi3-macosx_11_0_arm64.whl", hash = "sha256:39db632f6bb862eeccf56660871433e111b6ea58f2caea825571951d4b6aa3da"},
@@ -3026,9 +3043,10 @@ tests = ["pytest"]
 name = "pybind11"
 version = "2.13.6"
 description = "Seamless operability between C++11 and Python"
-optional = false
+optional = true
 python-versions = ">=3.7"
 groups = ["main"]
+markers = "extra == \"build\""
 files = [
     {file = "pybind11-2.13.6-py3-none-any.whl", hash = "sha256:237c41e29157b962835d356b370ededd57594a26d5894a795960f0047cb5caf5"},
     {file = "pybind11-2.13.6.tar.gz", hash = "sha256:ba6af10348c12b24e92fa086b39cfba0eff619b61ac77c406167d813b096d39a"},
@@ -3354,9 +3372,10 @@ cffi = {version = "*", markers = "implementation_name == \"pypy\""}
 name = "qdldl"
 version = "0.1.7.post5"
 description = "QDLDL, a free LDL factorization routine."
-optional = false
+optional = true
 python-versions = "*"
 groups = ["main"]
+markers = "extra == \"build\""
 files = [
     {file = "qdldl-0.1.7.post5-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:882658853edd24a7d16912af29e77320e061b150b4ed7cf94fd01907f2e925b4"},
     {file = "qdldl-0.1.7.post5-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:e30a80d71ab5889a1e169304b12bc3ab69210775f6428153873584ff8dfb50e5"},
@@ -3643,9 +3662,10 @@ files = [
 name = "s2clientprotocol"
 version = "5.0.14.93333.0"
 description = "StarCraft II - client protocol."
-optional = false
+optional = true
 python-versions = "*"
 groups = ["main"]
+markers = "extra == \"build\""
 files = [
     {file = "s2clientprotocol-5.0.14.93333.0-py2.py3-none-any.whl", hash = "sha256:f3d40aa76f78c51e0cad8efdb220910d4d0540fa00ed1b4cdfe7994f6ffa238d"},
 ]
@@ -3790,9 +3810,10 @@ test = ["Cython", "array-api-strict (>=2.0,<2.1.1)", "asv", "gmpy2", "hypothesis
 name = "scs"
 version = "3.2.7.post2"
 description = "Splitting conic solver"
-optional = false
+optional = true
 python-versions = ">=3.7"
 groups = ["main"]
+markers = "extra == \"build\""
 files = [
     {file = "scs-3.2.7.post2-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:b7271ff566ac9df929c8cf7d1b024b89c3882b541c21a7a6d9aa94480822bccb"},
     {file = "scs-3.2.7.post2-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:eb2997f53ef3426934599517c6e0e77f4f05cc23c3aa2380fd176c7fd22bc0c8"},
@@ -3862,9 +3883,10 @@ win32 = ["pywin32 ; sys_platform == \"win32\""]
 name = "setuptools"
 version = "76.0.0"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
-optional = false
+optional = true
 python-versions = ">=3.9"
 groups = ["main"]
+markers = "extra == \"dev\" or extra == \"build\""
 files = [
     {file = "setuptools-76.0.0-py3-none-any.whl", hash = "sha256:199466a166ff664970d0ee145839f5582cb9bca7a0a3a2e795b6a9cb2308e9c6"},
     {file = "setuptools-76.0.0.tar.gz", hash = "sha256:43b4ee60e10b0d0ee98ad11918e114c70701bc6051662a9a675a0496c1a158f4"},
@@ -4261,10 +4283,10 @@ files = [
 name = "win32-setctime"
 version = "1.2.0"
 description = "A small Python utility to set file creation time on Windows"
-optional = false
+optional = true
 python-versions = ">=3.5"
 groups = ["main"]
-markers = "sys_platform == \"win32\""
+markers = "extra == \"build\" and sys_platform == \"win32\""
 files = [
     {file = "win32_setctime-1.2.0-py3-none-any.whl", hash = "sha256:95d644c4e708aba81dc3704a116d8cbc974d70b3bdb8be1d150e36be6e9d1390"},
     {file = "win32_setctime-1.2.0.tar.gz", hash = "sha256:ae1fdf948f5640aae05c511ade119313fb6a30d7eabe25fef9764dca5873c4c0"},
@@ -4371,11 +4393,11 @@ multidict = ">=4.0"
 propcache = ">=0.2.0"
 
 [extras]
-build = ["cython", "requests"]
+build = ["burnysc2", "cvxpy", "cvxpygen", "cython", "cython-extensions-sc2", "ecos", "map-analyzer", "requests"]
 dev = ["jupyter", "mpyq", "pandas", "s2protocol", "snakeviz", "tqdm"]
 test = ["autoflake", "black", "click", "flake8", "flake8-isort", "flake8-pyproject", "isort", "mypy", "types-requests", "types-tqdm"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.13"
-content-hash = "078ab194384cae2b612ffbd8aae09605ff1d814b04424472f90cd0fd908815aa"
+content-hash = "5789215b11cbb22b958be7a71afd62b9069d7126309cac768a55908ee6675b45"
