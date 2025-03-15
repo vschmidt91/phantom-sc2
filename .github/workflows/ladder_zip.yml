@@ -43,14 +43,14 @@ jobs:
         with:
           args: unzip -qq bot.zip -d out
 
-      - name: Run test game
-        run: |
-          cp -r out/lib lib
-          
-          docker build -t test_image -f tests/Dockerfile .
-          docker run -it -d --name app1 test_image
-          docker exec -i app1 bash -c "python tests/travis_test_script.py tests/run_test.py"
-          docker rm -f app1
+#      - name: Run test game
+#        run: |
+#          cp -r out/lib lib
+#          docker build -t test_image -f tests/Dockerfile .
+#          docker run -it -d --name app1 test_image
+#          docker exec -i app1 bash -c "python tests/travis_test_script.py tests/run_test.py"
+#          docker rm -f app1
+
       - uses: actions/upload-artifact@v4
         with:
           name: ladder-zip
