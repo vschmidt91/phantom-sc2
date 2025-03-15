@@ -77,7 +77,6 @@ class DodgeState:
     effects = dict[DodgeItem, float]()
 
     def step(self, observation: Observation) -> DodgeAction:
-
         effects = self.effects
 
         units = {

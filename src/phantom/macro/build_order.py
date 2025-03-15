@@ -17,7 +17,6 @@ class BuildOrderStep:
 
 
 class BuildOrder(ABC):
-
     @abstractmethod
     def execute(self, obs: Observation) -> BuildOrderStep | None:
         raise NotImplementedError()
@@ -25,7 +24,6 @@ class BuildOrder(ABC):
 
 @dataclass(frozen=True)
 class Make(BuildOrder):
-
     unit: UnitTypeId
     target: int
 

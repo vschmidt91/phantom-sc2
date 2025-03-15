@@ -16,12 +16,12 @@ TValue = TypeVar("TValue", bound=Hashable)
 
 @cache
 def get_problem(n, m):
-    x = cp.Variable((n, m), 'x')
-    w = cp.Parameter((n, m), name='w')
-    b = cp.Parameter(m, name='b')
-    gw = cp.Parameter(m, name='gw')
-    g = cp.Parameter(1, name='g')
-    t = cp.Parameter(n, name='t')
+    x = cp.Variable((n, m), "x")
+    w = cp.Parameter((n, m), name="w")
+    b = cp.Parameter(m, name="b")
+    gw = cp.Parameter(m, name="gw")
+    g = cp.Parameter(1, name="g")
+    t = cp.Parameter(n, name="t")
 
     objective = cp.Minimize(cp.vdot(w, x))
     constraints = [
@@ -35,7 +35,6 @@ def get_problem(n, m):
 
 
 def cp_solve(b, c, t, g, gw):
-
     n, m = c.shape
     problem = get_problem(n, m)
     problem.param_dict["w"].value = c
@@ -67,7 +66,6 @@ def cp_solve(b, c, t, g, gw):
 
 
 def cpg_solve(b, c, t, g, gw):
-
     n, m = c.shape
 
     log_n = max(4, math.ceil(math.log(max(n, m), 2)))
@@ -93,13 +91,12 @@ def cpg_solve(b, c, t, g, gw):
     par.g = float(g)
 
     res = module.solve(upd, par)
-    x = np.array(res.cpg_prim.x).reshape((N, N), order='F')[:n, :m]
+    x = np.array(res.cpg_prim.x).reshape((N, N), order="F")[:n, :m]
     return x
 
 
 @dataclass(frozen=True)
 class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
-
     _items: dict[TKey, TValue]
 
     def assign(self, other: Mapping[TKey, TValue]) -> "Assignment":
@@ -139,7 +136,6 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
         max_assigned: int | None = None,
         verbose=False,
     ) -> "Assignment[TKey, TValue]":
-
         if not a:
             return Assignment[TKey, TValue]({})
         if not b:

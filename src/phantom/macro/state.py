@@ -88,7 +88,6 @@ class MacroState:
                 trainer_set.remove(trainer)
 
     async def step(self, obs: Observation, blocked_positions: set[Point2], combat: CombatAction) -> MacroAction:
-
         self.handle_actions(obs)
         self.assign_unassigned_plans(obs.units)  # TODO: narrow this down
 
@@ -96,7 +95,6 @@ class MacroState:
         reserve = obs.cost.zero
         plans_prioritized = sorted(self.assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
         for i, (tag, plan) in enumerate(plans_prioritized):
-
             if plan.commanded and plan.executed:
                 del self.assigned_plans[tag]
                 logger.info(f"Successfully executed {plan=}")

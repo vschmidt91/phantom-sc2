@@ -20,7 +20,6 @@ from phantom.parameters import AgentParameters, AgentPrior
 
 
 class PhantomBot(BotBase):
-
     replay_tags = set[str]()
     version_path = "version.txt"
     data_path = "data/params.pkl.gz"

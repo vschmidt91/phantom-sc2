@@ -1,67 +1,68 @@
 [project]
 name = "phantom"
-version = "3.0.0"
+version = "3.0.1"
 description = "StarCraft II Bot playing Zerg Macro"
 authors = [
     {name = "Volker Schmidt", email = "volker.schmidt91@gmail.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.11, <3.13"
-# packages = [{include = "ares-sc2/src/ares"}]
 dependencies = [
-    "black>=24.4.2",
-    "isort>=5.12.0",
-    "requests>=2.32.3",
+    "aiohttp (>=3.11.13,<4.0.0)",
+    "burnysc2 (>=7.0.5,<8.0.0)",
     "scikit-image>=0.24.0",
-    "jupyter>=1.0.0",
-    "snakeviz>=2.2.0",
-    "cython>=3.0.10",
-    "setuptools>=75.3.0",
-    "flake8>=7.1.0",
-    "flake8-pyproject>=1.2.3",
-    "flake8-isort>=6.1.1",
-    "mypy>=1.12.0",
-    "autoflake>=2.3.1",
-    "mpyq>=0.2.5",
-    "s2protocol>=5.0.13.92440.4",
-    "pandas>=2.2.3",
-    "tqdm>=4.67.0",
-    "types-tqdm>=4.66.0.20240417",
     "scipy>=1.14.1",
     "river>=0.22.0",
-    "cvxpy>=1.6.2",
-    "ecos>=2.0.14",
-    "cvxpygen>=0.4.3",
-    "cython-extensions-sc2 @ git+https://github.com/AresSC2/cython-extensions-sc2.git",
-    "burnysc2 (>=7.0.5,<8.0.0)",
-    "map-analyzer @ git+https://github.com/raspersc2/SC2MapAnalysis.git",
+    "pyyaml (>=6.0.2,<7.0.0)",
+    "scikit-learn (>=1.6.1,<2.0.0)",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "click (>=8.1.8,<9.0.0)",
+    "jupyter>=1.0.0",
+    "mpyq>=0.2.5",
+    "pandas>=2.2.3",
+    "s2protocol>=5.0.13.92440.4",
+    "snakeviz>=2.2.0",
+    "tqdm>=4.67.0",
+]
+test = [
+    "ruff (>=0.11.0,<0.12.0)",
+    "mypy>=1.12.0",
+    "types-requests (>=2.32.0.20250306,<3.0.0.0)",
+    "types-tqdm>=4.66.0.20240417",
+]
+build = [
+    "cvxpy>=1.6.2",
+    "cvxpygen>=0.4.3",
+    "cython>=3.0.10",
+    "cython-extensions-sc2 @ git+https://github.com/AresSC2/cython-extensions-sc2.git",
+    "ecos>=2.0.14",
+    "map-analyzer @ git+https://github.com/raspersc2/SC2MapAnalysis.git",
+    "requests (>=2.32.3,<3.0.0)",
+    "gitpython (>=3.1.44,<4.0.0)",
+]
+
+[project.urls]
+Repository = "https://github.com/vschmidt91/phantom-sc2.git"
 
 [tool.poetry.dependencies]
 ares-sc2 = { path = "ares-sc2", develop = false }
+
+[tool.poetry.requires-plugins]
+poetry-plugin-export = ">=1.8"
 
 [build-system]
 requires = ["poetry-core", "Cython", "numpy", "setuptools"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.autoflake]
-remove-all-unused-imports = true
-
-[tool.flake8]
-max-line-length = 120
-ignore = ["E203", "W503", "F401"]
-exclude = [
-    "ares-sc2",
-]
-
-[tool.black]
-extend-exclude = 'ares-sc2/*'
+[tool.ruff]
 line-length = 120
-skip-string-normalization = true
 
-[tool.isort]
-profile = "black"
-skip_glob = ["ares-sc2/*"]
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = ["F401"]
 
 [[tool.mypy.overrides]]
 module = [
@@ -69,6 +70,7 @@ module = [
     "Cython.*",
     "distutils.*",
     "loguru.*",
+    "cvxpy.*",
     "cvxpygen.*",
     "sc2.*",
     "scipy.*",

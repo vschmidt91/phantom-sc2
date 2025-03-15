@@ -17,21 +17,19 @@ SOLVER_OPTIONS = dict(
     time_limit=10e-3,
 )
 
-if __name__ == '__main__':
-
+if __name__ == "__main__":
     output_dir = "bin"
 
     with tempfile.TemporaryDirectory() as temp_dir:
         for log_n in range(4, 8):
-
             n = 2**log_n
             m = n
-            x = cp.Variable((n, m), 'x')
-            w = cp.Parameter((n, m), name='w')
-            b = cp.Parameter(m, name='b')
-            gw = cp.Parameter(m, name='gw')
-            g = cp.Parameter(1, name='g')
-            t = cp.Parameter(n, name='t')
+            x = cp.Variable((n, m), "x")
+            w = cp.Parameter((n, m), name="w")
+            b = cp.Parameter(m, name="b")
+            gw = cp.Parameter(m, name="gw")
+            g = cp.Parameter(1, name="g")
+            t = cp.Parameter(n, name="t")
 
             objective = cp.Minimize(cp.vdot(w, x))
             constraints = [

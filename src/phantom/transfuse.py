@@ -24,7 +24,6 @@ class TransfuseAction:
         return self.observation.combatants.filter(eligible)
 
     def transfuse_with(self, unit: Unit) -> Action | None:
-
         if unit.energy < ENERGY_COST[self.ability]:
             return None
 

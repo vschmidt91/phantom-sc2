@@ -38,7 +38,6 @@ from phantom.transfuse import TransfuseAction
 
 @dataclass(frozen=True)
 class Agent:
-
     parameters: AgentParameters
     macro = MacroState()
     creep = CreepState()
@@ -49,12 +48,10 @@ class Agent:
     build_order = HATCH_FIRST
 
     async def step(self, observation: Observation) -> AsyncGenerator[Action, None]:
-
         scout = self.scout.step(observation)
         strategy = Strategy(observation, self.parameters.strategy)
 
         if not observation.is_micro_map:
-
             if step := self.build_order.execute(observation):
                 for action in step.actions:
                     yield action
@@ -119,7 +116,6 @@ class Agent:
             resources_to_harvest = observation.resources
             gas_ratio = 0.0
         else:
-
             resources_to_harvest = observation.all_taken_resources.filter(should_harvest_resource)
             required = observation.cost.zero
             required += sum(
@@ -188,7 +184,6 @@ class Agent:
             )
 
         def micro_overseers(overseers: Units) -> Iterable[Action]:
-
             def cost(u: Unit, t: Unit) -> float:
                 scout_value = 1.0
                 if t.is_structure:

@@ -1,0 +1,83 @@
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          ref: ${{ github.head_ref }}
+      - name: Checkout submodules
+        run: git submodule update --init --recursive
+      - name: Install poetry
+        run: pipx install poetry
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'poetry'
+      - name: Update pip
+        run: poetry run pip install -U pip
+      - name: Install requirements
+        run: poetry install --extras test --extras build
+      - name: Compile Cython
+        run: poetry run python scripts/compile_cython.py
+      - name: Linting and Typechecking
+        run: make check
+      - name: Save requirements.txt
+        run: poetry export --without-hashes --format=requirements.txt > requirements.txt
+      - name: Run build
+        run: poetry run python scripts/build.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ladder-zip
+          path: out
+
+  run_test_game:
+    name: Run test game
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: burnysc2/python-sc2-docker:latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ladder-zip
+      - name: Install requirements
+        run: |
+          python -m pip install -U pip
+          python -m pip install -r requirements.txt
+      - name: Run game
+        env:
+          SC2PATH: "/root/StarCraftII/"
+        run: python scripts/travis_test_script.py scripts/run_test.py
+
+  upload_to_ai_arena:
+    name: Upload to AI Arena
+    needs:
+      - build
+      - run_test_game
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install requests
+        run: pip install requests
+      - uses: actions/download-artifact@v4
+        with:
+          name: ladder-zip
+          path: out
+      - name: Compress
+        run: cd out && zip -9 -r ../bot.zip .
+      - name: Upload to AIArena
+        env:
+          UPLOAD_API_TOKEN: ${{ secrets.UPLOAD_API_TOKEN }}
+          UPLOAD_BOT_ID: ${{ secrets[format('UPLOAD_BOT_ID_{0}', github.ref_name)] }}
+        run: python scripts/upload_to_ai_arena.py

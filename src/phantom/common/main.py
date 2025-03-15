@@ -12,7 +12,6 @@ from phantom.common.utils import MacroId, get_intersections, project_point_onto_
 
 
 class BotBase(AresBot, ABC):
-
     def __init__(self, game_step_override: int | None = None) -> None:
         super().__init__(game_step_override=game_step_override)
         self.cost = CostManager(self)

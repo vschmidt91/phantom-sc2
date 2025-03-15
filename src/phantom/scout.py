@@ -34,11 +34,9 @@ class ScoutAction:
 
 
 class ScoutState:
-
     blocked_positions = dict[Point2, float]()
 
     def step(self, observation: Observation) -> ScoutAction:
-
         for p, blocked_since in list(self.blocked_positions.items()):
             if blocked_since + 60 < observation.time:
                 del self.blocked_positions[p]

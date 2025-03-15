@@ -31,7 +31,6 @@ class CombatPredictor:
 
     @cached_property
     def prediction(self) -> CombatPrediction:
-
         step_time = 0.2
         max_steps = 50
         max_duration = step_time * max_steps
@@ -92,7 +91,6 @@ class CombatPredictor:
 
         outcome = CombatOutcome.Draw
         for i in range(max_steps):
-
             potential_distance_constant = 1.0
             potential_distance = potential_distance_constant + t * movement_speed
             enemy_potential_distance = potential_distance_constant + t * enemy_movement_speed
