@@ -6,10 +6,6 @@ from distutils.core import Distribution, Extension
 import numpy
 from Cython.Build import cythonize
 
-link_args = []
-include_dirs = [numpy.get_include()]
-libraries = []
-
 INPUT_DIR = "src/phantom/cython/"
 
 
@@ -20,6 +16,7 @@ def build():
             if file.endswith("pyx"):
                 source_files.append(os.path.join(root, file))
 
+    include_dirs = [numpy.get_include()]
     extensions = cythonize(
         Extension(
             name="cy_dijkstra",

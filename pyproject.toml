@@ -66,7 +66,10 @@ skip_glob = ["ares-sc2/*"]
 [[tool.mypy.overrides]]
 module = [
     "ares.*",
+    "Cython.*",
+    "distutils.*",
     "loguru.*",
+    "cvxpygen.*",
     "sc2.*",
     "scipy.*",
     "pandas.*",

@@ -18,8 +18,7 @@ if __name__ == "__main__":
     contents.insert(insert_at_index, 'ares-sc2 = { path = "ares-sc2", develop = false }\n')
 
     with open("pyproject.toml", "w") as f:
-        contents = "".join(contents)
-        f.write(contents)
+        f.write("".join(contents))
 
     run("poetry lock --no-update")
     run("poetry install")

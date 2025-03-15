@@ -1,15 +1,13 @@
-import os
 import sys
 
 from sc2.data import Race
 from sc2.player import Bot
 
-from ladder import run_ladder_game
-
 sys.path.append("src")
 sys.path.append("lib")
 
-from phantom import PhantomBot
+from phantom import PhantomBot, run_ladder_game
+from phantom.ladder import run_ladder_game
 
 if __name__ == "__main__":
 
