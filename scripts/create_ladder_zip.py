@@ -9,7 +9,6 @@ import pathlib
 import platform
 import shutil
 import sys
-from platform import python_version
 import tempfile
 import zipfile
 from importlib.util import find_spec
@@ -51,21 +50,17 @@ ZIP_MODULES: list[str] = [
 if platform.system() == "Windows":
     EXCLUDE.append("map_analyzer\\pickle_gameinfo")
     FILETYPES_TO_IGNORE.extend((".c", ".so", "pyx", "pyi"))
-    ZIP_INCLUDE[
-        f"https://github.com/AresSC2/cython-extensions-sc2/releases/latest/download/windows-latest_python{PYTHON_VERSION}.zip"
-    ] = (
-        "cython_extensions",
-        "lib",
-    )
+    CYTHON_EXTENSION_VERSION = "windows"
 else:
     EXCLUDE.append("map_analyzer/pickle_gameinfo")
     FILETYPES_TO_IGNORE.extend((".c", ".pyd", "pyx", "pyi"))
-    ZIP_INCLUDE[
-        f"https://github.com/AresSC2/cython-extensions-sc2/releases/latest/download/ubuntu-latest_python{PYTHON_VERSION}.zip"
-    ] = (
-        "cython_extensions",
-        "lib",
-    )
+    CYTHON_EXTENSION_VERSION = "ubuntu"
+
+CYTHON_EXTENSION_RELEASE = "https://github.com/AresSC2/cython-extensions-sc2/releases/latest/download"
+ZIP_INCLUDE[f"{CYTHON_EXTENSION_RELEASE}/{CYTHON_EXTENSION_VERSION}-latest_python{PYTHON_VERSION}.zip"] = (
+    "cython_extensions",
+    "lib",
+)
 
 
 def fix_cvxpy_import(module_dir: str) -> None:
