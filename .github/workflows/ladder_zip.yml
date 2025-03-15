@@ -73,6 +73,8 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ladder-zip
+      - name: display files
+        run: tree
       - name: Open unpacked bot
         run: cd out
       - name: Install requirements
