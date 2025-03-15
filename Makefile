@@ -3,10 +3,10 @@ fix:
 	poetry run python -m black src scripts
 
 check:
-	poetry run python -m isort --check src scripts
-	poetry run python -m black --check src scripts
-	poetry run python -m flake8 src scripts
-	poetry run python -m mypy src scripts
+	poetry run python -m isort --check src
+	poetry run python -m black --check src
+	poetry run python -m flake8 src
+	poetry run python -m mypy src
 
 profile:
 	poetry run python -m snakeviz resources\profiling.prof
