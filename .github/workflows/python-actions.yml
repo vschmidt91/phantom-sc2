@@ -1,0 +1,65 @@
+name: Python actions
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+  pull_request:
+    branches:
+      - master
+      - develop
+
+jobs:
+  run_test_bots:
+    name: Run test bots
+
+    # for this purpose, test games can only be run with the headless Sc2 Linux client.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: true
+      matrix:
+        opponents: [ run_blizzard_protoss.py, run_blizzard_zerg.py, run_blizzardai_terran.py ]
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: recursive
+
+    - name: Print directories and files
+      run: |
+        sudo apt-get install tree
+        tree
+    - name: Load and build docker image
+      run: |
+        docker build -t test_image -f .github/workflows/Dockerfile .
+
+    - name: Run bots
+      run: |
+        docker run -it -d --name app1 test_image
+        docker exec -i app1 bash -c "tree"
+        docker exec -i app1 bash -c "python ./test/travis_test_script.py ./test/${{ matrix.opponents }}"
+        docker rm -f app1
+
+#    - name: Run against blizzard ai (terran)
+#      run: |
+#        docker run -it -d --name app1 test_image
+#        docker exec -i app1 bash -c "python ./test/run_blizzardai_terran.py"
+#        docker exec -i app1 bash -c "tree"
+#        docker rm -f app1
+#
+#    - name: Run against blizzard ai (protoss)
+#      run: |
+#        docker run -it -d --name app2 test_image
+#        docker exec -i app2 bash -c "python ./test/run_blizzard_protoss.py"
+#        docker exec -i app2 bash -c "tree"
+#        docker rm -f app2
+#
+#    - name: Run against blizzard ai (zerg)
+#      run: |
+#        docker run -it -d --name app3 test_image
+#        docker exec -i app3 bash -c "python ./test/run_blizzard_zerg.py"
+#        docker exec -i app3 bash -c "tree"
+#        docker rm -f app3
