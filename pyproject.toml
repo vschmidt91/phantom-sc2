@@ -9,10 +9,12 @@ readme = "README.md"
 requires-python = ">=3.11, <3.13"
 dependencies = [
     "aiohttp (>=3.11.13,<4.0.0)",
+    "burnysc2 (>=7.0.5,<8.0.0)",
     "scikit-image>=0.24.0",
     "scipy>=1.14.1",
     "river>=0.22.0",
     "pyyaml (>=6.0.2,<7.0.0)",
+    "scikit-learn (>=1.6.1,<2.0.0)",
 ]
 
 [project.optional-dependencies]
@@ -37,7 +39,6 @@ test = [
     "types-tqdm>=4.66.0.20240417",
 ]
 build = [
-    "burnysc2 (>=7.0.5,<8.0.0)",
     "cvxpy>=1.6.2",
     "cvxpygen>=0.4.3",
     "cython>=3.0.10",

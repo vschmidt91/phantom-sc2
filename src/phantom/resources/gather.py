@@ -16,9 +16,10 @@ class GatherAction(Action):
     async def execute(self, bot: BotBase) -> bool:
         if self.unit.order_target != self.target.tag:
             return self.unit.smart(self.target)
-        move_target = self.speedmining_position or self.target.position.towards(
-            self.unit, self.target.radius + self.unit.radius
-        )
+        if self.speedmining_position is None:
+            move_target = self.target.position.towards(self.unit, self.target.radius + self.unit.radius)
+        else:
+            move_target = self.speedmining_position
         if 0.75 < self.unit.distance_to(move_target) < 1.75:
             return self.unit.move(move_target) and self.unit.smart(self.target, queue=True)
         else:
