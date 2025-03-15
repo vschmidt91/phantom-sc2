@@ -75,6 +75,8 @@ jobs:
       - run_test_game
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
       - name: Setup Python 3.12
         uses: actions/setup-python@v5
         with:
