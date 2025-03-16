@@ -362,10 +362,9 @@ css = ["tinycss2 (>=1.1.0,<1.5)"]
 name = "burnysc2"
 version = "6.5.0"
 description = "A StarCraft II API Client for Python 3"
-optional = true
+optional = false
 python-versions = ">=3.9, <3.13"
 groups = ["main"]
-markers = "extra == \"build\""
 files = []
 develop = false
 
@@ -1920,10 +1919,9 @@ files = [
 name = "mpyq"
 version = "0.2.5"
 description = "A Python library for extracting MPQ (MoPaQ) files."
-optional = true
+optional = false
 python-versions = "*"
 groups = ["main"]
-markers = "extra == \"dev\" or extra == \"build\""
 files = [
     {file = "mpyq-0.2.5.tar.gz", hash = "sha256:30aaf5962be569f3f2b53978060cd047434ee4f5a215925dd6ff0fef04ec0007"},
 ]
@@ -2641,10 +2639,9 @@ type = ["mypy (>=1.11.2)"]
 name = "portpicker"
 version = "1.6.0"
 description = "A library to choose unique available network ports."
-optional = true
+optional = false
 python-versions = ">=3.6"
 groups = ["main"]
-markers = "extra == \"build\""
 files = [
     {file = "portpicker-1.6.0-py3-none-any.whl", hash = "sha256:b2787a41404cf7edbe29b07b9e0ed863b09f2665dcc01c1eb0c2261c1e7d0755"},
     {file = "portpicker-1.6.0.tar.gz", hash = "sha256:bd507fd6f96f65ee02781f2e674e9dc6c99bbfa6e3c39992e3916204c9d431fa"},
@@ -2797,10 +2794,9 @@ files = [
 name = "protobuf"
 version = "3.20.3"
 description = "Protocol Buffers"
-optional = true
+optional = false
 python-versions = ">=3.7"
 groups = ["main"]
-markers = "extra == \"build\""
 files = [
     {file = "protobuf-3.20.3-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:f4bd856d702e5b0d96a00ec6b307b0f51c1982c2bf9c0052cf9019e9a544ba99"},
     {file = "protobuf-3.20.3-cp310-cp310-manylinux_2_12_x86_64.manylinux2010_x86_64.whl", hash = "sha256:9aae4406ea63d825636cc11ffb34ad3379335803216ee3a856787bcf5ccc751e"},
@@ -2830,10 +2826,9 @@ files = [
 name = "psutil"
 version = "7.0.0"
 description = "Cross-platform lib for process and system monitoring in Python.  NOTE: the syntax of this script MUST be kept compatible with Python 2.7."
-optional = true
+optional = false
 python-versions = ">=3.6"
 groups = ["main"]
-markers = "extra == \"dev\" or extra == \"build\""
 files = [
     {file = "psutil-7.0.0-cp36-abi3-macosx_10_9_x86_64.whl", hash = "sha256:101d71dc322e3cffd7cea0650b09b3d08b8e7c4109dd6809fe452dfd00e58b25"},
     {file = "psutil-7.0.0-cp36-abi3-macosx_11_0_arm64.whl", hash = "sha256:39db632f6bb862eeccf56660871433e111b6ea58f2caea825571951d4b6aa3da"},
@@ -3506,10 +3501,9 @@ files = [
 name = "s2clientprotocol"
 version = "5.0.14.93333.0"
 description = "StarCraft II - client protocol."
-optional = true
+optional = false
 python-versions = "*"
 groups = ["main"]
-markers = "extra == \"build\""
 files = [
     {file = "s2clientprotocol-5.0.14.93333.0-py2.py3-none-any.whl", hash = "sha256:f3d40aa76f78c51e0cad8efdb220910d4d0540fa00ed1b4cdfe7994f6ffa238d"},
 ]
@@ -4304,11 +4298,11 @@ multidict = ">=4.0"
 propcache = ">=0.2.0"
 
 [extras]
-build = ["burnysc2", "cvxpy", "cvxpygen", "cython", "cython-extensions-sc2", "ecos", "map-analyzer", "requests"]
+build = ["cvxpy", "cvxpygen", "cython", "cython-extensions-sc2", "ecos", "map-analyzer", "requests"]
 dev = ["click", "jupyter", "mpyq", "pandas", "s2protocol", "snakeviz", "tqdm"]
 test = ["mypy", "ruff", "types-requests", "types-tqdm"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.13"
-content-hash = "27a728f4ee274b4a8642a39d4eccc9e806a812fc9cfde69341f9abcc942133cf"
+content-hash = "0e67e42a656f93732261443860f0e5b73c04ad56fe9a2f9ff9987e818a162101"

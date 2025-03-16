@@ -9,7 +9,7 @@ readme = "README.md"
 requires-python = ">=3.11, <3.13"
 dependencies = [
     "aiohttp (>=3.11.13,<4.0.0)",
-    "loguru (>=0.6.0, <0.7.0)",
+    "burnysc2 @ git+https://github.com/august-k/python-sc2@develop",
     "scikit-image>=0.24.0",
     "scipy>=1.14.1",
     "river>=0.22.0",
@@ -34,7 +34,6 @@ test = [
     "types-tqdm>=4.66.0.20240417",
 ]
 build = [
-    "burnysc2 @ git+https://github.com/august-k/python-sc2@develop",
     "cvxpy>=1.6.2",
     "cvxpygen>=0.4.3",
     "cython>=3.0.10",
