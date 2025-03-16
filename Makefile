@@ -1,6 +1,6 @@
 check:
 	poetry run ruff check phantom scripts
-# 	poetry run python -m mypy phantom
+	poetry run python -m mypy phantom
 
 fix:
 	poetry run ruff check --fix phantom scripts
