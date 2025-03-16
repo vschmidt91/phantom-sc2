@@ -22,7 +22,6 @@ FILETYPES_TO_IGNORE = list[str]()
 ROOT_DIRECTORY = "./"
 FETCH_ZIP = list[str]()
 ZIP_ITEMS: dict[str, str] = {
-    "__init__.py": "__init__.py",
     "run.py": "run.py",
     "requirements.txt": "requirements.txt",
     "phantom": "phantom",
@@ -80,13 +79,15 @@ if __name__ == "__main__":
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
     os.mkdir(output_dir)
-    os.mkdir(os.path.join(output_dir, "lib"))
 
     commit_hash = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("ascii").strip()
     version_file = "version.txt"
     print(f"Copying {commit_hash=} to {version_file=}...")
     with open(os.path.join(output_dir, version_file), "w") as f:
         f.write(commit_hash)
+
+    print("Copying __init__.py...")
+    open(os.path.join(output_dir, "__init__.py"), "a").close()
 
     print("Copying files...")
     for src, dst in ZIP_ITEMS.items():
