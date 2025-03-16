@@ -54,8 +54,8 @@ class CombatPredictor:
                 return 0.0
             return u.air_dps if v.is_flying else u.ground_dps
 
-        def inf_to_zero(a: np.ndarray) -> np.ndarray:
-            return np.where(a == np.inf, 0.0, a)
+        def nan_to_zero(a: np.ndarray) -> np.ndarray:
+            return np.where(a == np.nan, 0.0, a)
 
         dps = step_time * np.array([[calculate_dps(u, v) for v in self.enemy_units] for u in self.units])
         enemy_dps = step_time * np.array([[calculate_dps(v, u) for v in self.enemy_units] for u in self.units])
@@ -98,8 +98,8 @@ class CombatPredictor:
             attack_weight = np.clip(1 - required_distance / potential_distance, 0, 1)
             enemy_attack_weight = np.clip(1 - enemy_required_distance / enemy_potential_distance, 0, 1)
 
-            attack_probability = inf_to_zero(attack_weight / np.sum(attack_weight, axis=1, keepdims=True))
-            enemy_attack_probability = inf_to_zero(
+            attack_probability = nan_to_zero(attack_weight / np.sum(attack_weight, axis=1, keepdims=True))
+            enemy_attack_probability = nan_to_zero(
                 enemy_attack_weight / np.sum(enemy_attack_weight, axis=0, keepdims=True)
             )
 
@@ -141,8 +141,8 @@ class CombatPredictor:
         )
         nearby_weighting = np.reciprocal(1 + distances)
 
-        nearby_enemy_survival = inf_to_zero((nearby_weighting @ enemy_survival) / np.sum(nearby_weighting, axis=1))
-        nearby_survival = inf_to_zero((survival @ nearby_weighting) / np.sum(nearby_weighting, axis=0))
+        nearby_enemy_survival = nan_to_zero((nearby_weighting @ enemy_survival) / np.sum(nearby_weighting, axis=1))
+        nearby_survival = nan_to_zero((survival @ nearby_weighting) / np.sum(nearby_weighting, axis=0))
 
         survival_time = dict(zip(self.units, survival)) | dict(zip(self.enemy_units, enemy_survival))
         nearby_survival_time = dict(zip(self.enemy_units, nearby_survival)) | dict(
