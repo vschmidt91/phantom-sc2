@@ -22,6 +22,7 @@ FILETYPES_TO_IGNORE = list[str]()
 ROOT_DIRECTORY = "./"
 FETCH_ZIP = list[str]()
 ZIP_ITEMS: dict[str, str] = {
+    "__init__.py": "__init__.py",
     "run.py": "run.py",
     "requirements.txt": "requirements.txt",
     "phantom": "phantom",
