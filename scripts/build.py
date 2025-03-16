@@ -106,7 +106,7 @@ if __name__ == "__main__":
     for module in ZIP_MODULES:
         target = output_dir
         spec = find_spec(module)
-        module_file = spec.origin or f"{spec.submodule_search_locations[0]}/__init__.py"
+        module_file = spec.origin
         print(f"Copying {module_file=} to {target=}...")
         if module_file.endswith((".pyd", ".so")):
             copyfile(module_file, os.path.join(target, os.path.basename(module_file)))

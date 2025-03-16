@@ -33,6 +33,7 @@ test = [
     "types-tqdm>=4.66.0.20240417",
 ]
 build = [
+    "burnysc2 @ git+https://github.com/august-k/python-sc2@develop",
     "cvxpy>=1.6.2",
     "cvxpygen>=0.4.3",
     "cython>=3.0.10",
@@ -40,7 +41,6 @@ build = [
     "ecos>=2.0.14",
     "map-analyzer @ git+https://github.com/raspersc2/SC2MapAnalysis.git",
     "requests (>=2.32.3,<3.0.0)",
-    "gitpython (>=3.1.44,<4.0.0)",
 ]
 
 [project.urls]
