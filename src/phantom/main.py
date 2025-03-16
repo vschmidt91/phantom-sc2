@@ -34,7 +34,7 @@ class PhantomBot(BotBase):
             with gzip.GzipFile(self.data_path, "rb") as f:
                 self.data = pickle.load(f)
         except Exception as e:
-            logger.error(f"Error loading data file, using default values: {e}")
+            logger.warning(f"Error loading data file, using default values: {e}")
             prior_distribution = NormalParameters.from_independent(priors.values())
             self.data = DataState(prior_distribution, list(priors.keys()))
 
@@ -90,7 +90,7 @@ class PhantomBot(BotBase):
                 with open(self.data_json_path, "w") as f:
                     json.dump(self.data.to_json(), f, indent=4)
             except Exception as e:
-                logger.error(f"Error storing data file: {e}")
+                logger.warning(f"Unable to save data file: {e}")
 
     # async def on_building_construction_started(self, unit: Unit):
     #     await super().on_building_construction_started(unit)
