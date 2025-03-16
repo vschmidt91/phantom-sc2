@@ -12,14 +12,12 @@ from phantom.cython.cy_dijkstra import cy_dijkstra  # type: ignore
 class DijkstraPathing:
     cost: np.ndarray
     targets: list[Point]
-    rewards: list[float]
 
     @cached_property
     def _pathing(self):
         cost = self.cost.astype(np.float64)
         targets = np.array(self.targets).astype(np.intp)
-        rewards = np.array(self.rewards).astype(np.float64)
-        return cy_dijkstra(cost, targets, rewards)
+        return cy_dijkstra(cost, targets)
 
     @cached_property
     def prev_x(self):

@@ -61,8 +61,8 @@ class CombatAction:
             return frozenset(attack_targets)
 
     def retreat_with(self, unit: Unit, limit=7) -> Action | None:
-        if unit.type_id not in {UnitTypeId.QUEEN}:
-            return self.retreat_with_ares(unit, limit=limit)
+        # if unit.type_id not in {UnitTypeId.QUEEN}:
+        #     return self.retreat_with_ares(unit, limit=limit)
         x = round(unit.position.x)
         y = round(unit.position.y)
         if unit.is_flying:
@@ -118,18 +118,10 @@ class CombatAction:
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(unit, target.position)
 
-        attack_path = self.observation.find_path(
-            unit.position,
-            target.position,
-            unit.is_flying,
-        ).rounded
-
-        # confident = self.prediction.survival_time[target] <= self.prediction.survival_time[unit]
         confident = self.prediction.nearby_enemy_survival_time[unit] <= self.prediction.survival_time[unit]
-        if 0 == self.enemy_presence.dps[attack_path]:
-            if confident:
-                return UseAbility(unit, AbilityId.ATTACK, attack_path)
-            return Move(unit, attack_path)
+        test_position = unit.position.towards(target, 1.5)
+        if 0 == self.enemy_presence.dps[test_position.rounded]:
+            return Attack(unit, target)
         elif confident:
             if unit.type_id in {UnitTypeId.ZERGLING}:
                 return UseAbility(unit, AbilityId.ATTACK, target.position)
@@ -210,7 +202,6 @@ class CombatAction:
         return DijkstraPathing(
             self.observation.bot.mediator.get_air_grid,
             self.retreat_targets_rounded,
-            [0.0 for _ in self.retreat_targets_rounded],
         )
 
     @cached_property
@@ -218,7 +209,6 @@ class CombatAction:
         return DijkstraPathing(
             self.observation.bot.mediator.get_ground_grid,
             self.retreat_targets_rounded,
-            [0.0 for _ in self.retreat_targets_rounded],
         )
 
     @cached_property

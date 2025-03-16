@@ -211,6 +211,10 @@ class Observation:
         return self.bot.mediator.get_map_data_object.get_pyastar_grid()
 
     @cached_property
+    def pathable(self) -> np.ndarray:
+        return self.bot.mediator.get_map_data_object.get_pyastar_grid() == 1.0
+
+    @cached_property
     def air_pathing(self) -> np.ndarray:
         return self.bot.mediator.get_map_data_object.get_clean_air_grid()
 

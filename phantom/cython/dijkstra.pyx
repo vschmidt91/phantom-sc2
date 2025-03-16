@@ -42,7 +42,6 @@ cdef class DijkstraOutput:
 cpdef DijkstraOutput cy_dijkstra(
     DTYPE_t[:, :] cost,
     Py_ssize_t[:, :] targets,
-    DTYPE_t[:] rewards,
 ):
 
 
@@ -62,10 +61,10 @@ cpdef DijkstraOutput cy_dijkstra(
     for i in range(targets.shape[0]):
         x = targets[i, 0]
         y = targets[i, 1]
-        r = rewards[i]
-        u = (-r, (x, y))
+        c = cost[x, y]
+        u = (c, (x, y))
         q.push(u)
-        dist[x, y] = -r
+        dist[x, y] = c
 
     while not q.empty():
         u = q.top()

@@ -179,7 +179,7 @@ class Agent:
                 or (combat.fight_with(q) if 0 < combat.enemy_presence.dps[x, y] else None)
                 or inject_with_queen(q)
                 or (creep.spread_with_queen(q) if should_spread_creep else None)
-                or (combat.retreat_with(q) if not observation.creep[x, y] else None)
+                or (combat.retreat_with(q, limit=2) if not observation.creep[x, y] else None)
                 or combat.fight_with(q)
             )
 
