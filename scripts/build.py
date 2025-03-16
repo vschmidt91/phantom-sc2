@@ -23,6 +23,7 @@ ROOT_DIRECTORY = "./"
 FETCH_ZIP = list[str]()
 ZIP_ITEMS: dict[str, str] = {
     "run.py": "run.py",
+    "run_test.py": "run_test.py",
     "requirements.txt": "requirements.txt",
     "phantom": "phantom",
     "scripts": "scripts",

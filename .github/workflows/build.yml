@@ -55,7 +55,7 @@ jobs:
       - name: Run game
         env:
           SC2PATH: "/root/StarCraftII/"
-        run: python scripts/travis_test_script.py scripts/run_test.py
+        run: python scripts/travis_test_script.py run_test.py
 
   upload_to_ai_arena:
     name: Upload to AI Arena
