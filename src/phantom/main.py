@@ -82,7 +82,7 @@ class PhantomBot(BotBase):
         await super().on_end(game_result)
 
         if self.agent and self.training:
-            print("Updating parameters...")
+            logger.info("Updating parameters...")
             self.data.update(self.parameter_values, game_result)
             try:
                 with gzip.GzipFile(self.data_path, "wb") as f:
@@ -90,7 +90,7 @@ class PhantomBot(BotBase):
                 with open(self.data_json_path, "w") as f:
                     json.dump(self.data.to_json(), f, indent=4)
             except Exception as e:
-                print(f"Error storing data file: {e}")
+                logger.error(f"Error storing data file: {e}")
 
     # async def on_building_construction_started(self, unit: Unit):
     #     await super().on_building_construction_started(unit)
