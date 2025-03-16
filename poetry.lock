@@ -653,10 +653,10 @@ files = [
 name = "colorama"
 version = "0.4.6"
 description = "Cross-platform colored terminal text."
-optional = true
+optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
 groups = ["main"]
-markers = "extra == \"dev\" and platform_system == \"Windows\" or sys_platform == \"win32\" and (extra == \"dev\" or extra == \"build\")"
+markers = "extra == \"dev\" and platform_system == \"Windows\" or sys_platform == \"win32\""
 files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
@@ -1780,10 +1780,9 @@ test = ["pytest (>=7.4)", "pytest-cov (>=4.1)"]
 name = "loguru"
 version = "0.6.0"
 description = "Python logging made (stupidly) simple"
-optional = true
+optional = false
 python-versions = ">=3.5"
 groups = ["main"]
-markers = "extra == \"build\""
 files = [
     {file = "loguru-0.6.0-py3-none-any.whl", hash = "sha256:4e2414d534a2ab57573365b3e6d0234dfb1d84b68b7f3b948e6fb743860a77c3"},
     {file = "loguru-0.6.0.tar.gz", hash = "sha256:066bd06758d0a513e9836fd9c6b5a75bfb3fd36841f4b996bc60b547a309d41c"},
@@ -4195,10 +4194,10 @@ files = [
 name = "win32-setctime"
 version = "1.2.0"
 description = "A small Python utility to set file creation time on Windows"
-optional = true
+optional = false
 python-versions = ">=3.5"
 groups = ["main"]
-markers = "extra == \"build\" and sys_platform == \"win32\""
+markers = "sys_platform == \"win32\""
 files = [
     {file = "win32_setctime-1.2.0-py3-none-any.whl", hash = "sha256:95d644c4e708aba81dc3704a116d8cbc974d70b3bdb8be1d150e36be6e9d1390"},
     {file = "win32_setctime-1.2.0.tar.gz", hash = "sha256:ae1fdf948f5640aae05c511ade119313fb6a30d7eabe25fef9764dca5873c4c0"},
@@ -4312,4 +4311,4 @@ test = ["mypy", "ruff", "types-requests", "types-tqdm"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.13"
-content-hash = "0e14fcbf4e7c3db6ebdb87937408cad5f92c08bb71e8c1dd9c8f3432d48c572d"
+content-hash = "27a728f4ee274b4a8642a39d4eccc9e806a812fc9cfde69341f9abcc942133cf"
