@@ -4298,11 +4298,11 @@ multidict = ">=4.0"
 propcache = ">=0.2.0"
 
 [extras]
-build = ["cvxpy", "cvxpygen", "cython", "cython-extensions-sc2", "ecos", "map-analyzer", "requests"]
+build = ["cvxpygen", "cython", "cython-extensions-sc2", "map-analyzer", "requests"]
 dev = ["click", "jupyter", "mpyq", "pandas", "s2protocol", "snakeviz", "tqdm"]
 test = ["mypy", "ruff", "types-requests", "types-tqdm"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.13"
-content-hash = "0e67e42a656f93732261443860f0e5b73c04ad56fe9a2f9ff9987e818a162101"
+content-hash = "4bee91da8e51e479333a01adaa2142a339181c690d98b706eacedf23e5b76c72"
