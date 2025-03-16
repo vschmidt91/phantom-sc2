@@ -1,10 +1,5 @@
-import sys
-
 from sc2.data import Race
 from sc2.player import Bot
-
-sys.path.append("src")
-sys.path.append("lib")
 
 from phantom import PhantomBot
 from phantom.ladder import run_ladder_game

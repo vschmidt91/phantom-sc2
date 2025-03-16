@@ -6,7 +6,7 @@ from distutils.core import Distribution, Extension
 import numpy
 from Cython.Build import cythonize
 
-INPUT_DIR = "src/phantom/cython/"
+INPUT_DIR = "phantom/cython/"
 
 
 def build():

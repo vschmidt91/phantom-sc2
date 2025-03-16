@@ -10,8 +10,6 @@ from sc2.data import AIBuild, Difficulty, Race
 from sc2.main import run_game
 from sc2.player import Bot, Computer
 
-sys.path.append("src")
-sys.path.append("lib")              # required to import ares
 sys.path.append("ares-sc2")         # required to import sc2_helper
 sys.path.append("ares-sc2/src")     # required to import ares
 

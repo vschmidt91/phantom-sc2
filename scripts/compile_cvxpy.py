@@ -7,7 +7,6 @@ from glob import glob
 import cvxpy as cp
 from cvxpygen import cpg
 
-sys.path.append("src")
 sys.path.append("ares-sc2/src/ares")
 sys.path.append("ares-sc2/src")
 sys.path.append("ares-sc2")

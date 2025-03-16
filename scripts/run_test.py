@@ -1,12 +1,7 @@
-import sys
-
 from sc2 import maps
 from sc2.main import run_game
 from sc2.data import Difficulty, Race, Result
 from sc2.player import Bot, Computer
-
-sys.path.append("src")
-sys.path.append("lib")  # required to import ares
 
 from phantom.debug import PhantomBotDebug
 

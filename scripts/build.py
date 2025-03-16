@@ -20,14 +20,14 @@ PYTHON_VERSION = f"{sys.version_info.major}.{sys.version_info.minor}"
 EXCLUDE = list[str]()
 FILETYPES_TO_IGNORE = list[str]()
 ROOT_DIRECTORY = "./"
-FETCH_ZIP = dict[str, str]()
+FETCH_ZIP = list[str]()
 ZIP_ITEMS: dict[str, str] = {
     "run.py": "run.py",
     "requirements.txt": "requirements.txt",
-    "src": "src",
+    "phantom": "phantom",
     "scripts": "scripts",
-    os.path.join("ares-sc2", "src", "ares"): os.path.join("lib", "ares"),
-    os.path.join("ares-sc2", "sc2_helper"): os.path.join("lib", "sc2_helper"),
+    os.path.join("ares-sc2", "src", "ares"): os.path.join("ares"),
+    os.path.join("ares-sc2", "sc2_helper"): os.path.join("sc2_helper"),
 }
 ZIP_MODULES: list[str] = [
     # "ares-sc2",
@@ -58,7 +58,7 @@ else:
     CYTHON_EXTENSION_VERSION = "ubuntu"
 
 CYTHON_EXTENSION_RELEASE = "https://github.com/AresSC2/cython-extensions-sc2/releases/latest/download"
-FETCH_ZIP[f"{CYTHON_EXTENSION_RELEASE}/{CYTHON_EXTENSION_VERSION}-latest_python{PYTHON_VERSION}.zip"] = "lib"
+FETCH_ZIP.append(f"{CYTHON_EXTENSION_RELEASE}/{CYTHON_EXTENSION_VERSION}-latest_python{PYTHON_VERSION}.zip")
 
 IGNORE_PATTERNS = shutil.ignore_patterns(*["*" + ext for ext in FILETYPES_TO_IGNORE])
 
@@ -101,7 +101,7 @@ if __name__ == "__main__":
 
     print("Copying modules...")
     for module in ZIP_MODULES:
-        target = os.path.join(output_dir, "lib")
+        target = output_dir
         spec = find_spec(module)
         module_file = spec.origin
         print(f"Copying {module_file=} to {target=}...")
@@ -111,7 +111,7 @@ if __name__ == "__main__":
             copytree(os.path.dirname(module_file), os.path.join(target, module))
 
     print("Fixing CVXPY import...")
-    core_path = os.path.join(output_dir, "lib", "cvxpy", "cvxcore", "python", "cvxcore.py")
+    core_path = os.path.join(output_dir, "cvxpy", "cvxcore", "python", "cvxcore.py")
     with open(core_path) as fi:
         src_in = fi.read()
     src_out = src_in.replace("from . import _cvxcore", "import _cvxcore")
@@ -119,8 +119,8 @@ if __name__ == "__main__":
         fo.write(src_out)
 
     print("Fetching URLs...")
-    for url, dst in FETCH_ZIP.items():
-        target = os.path.join(output_dir, dst)
+    for url in FETCH_ZIP:
+        target = output_dir
         print(f"Fetching {url=} to {target=}...")
         with tempfile.TemporaryDirectory() as tmp:
             r = requests.get(url)
