@@ -41,7 +41,7 @@ class ResourceAction:
 
         if self.observation.observation.researched_speed:
             gas_target = self.gas_target
-        elif self.observation.observation.bank.vespene < 96:
+        elif self.observation.observation.bank.vespene < 100:
             gas_target = gas_max
         else:
             gas_target = 0
