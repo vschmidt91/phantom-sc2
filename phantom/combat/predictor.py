@@ -120,20 +120,6 @@ class CombatPredictor:
             enemy_survival = np.where(enemy_alive, t, enemy_survival)
 
             t += step_time
-        #
-        # positions = [u.position for u in self.units]
-        # internal_distances = pairwise_distances(positions, positions)
-        # enemy_positions = [u.position for u in self.enemy_units]
-        # enemy_internal_distances = pairwise_distances(enemy_positions, enemy_positions)
-        #
-        # distance_constant = 1.
-        # mixing = np.reciprocal(distance_constant + internal_distances)
-        # mixing = inf_to_zero(mixing / np.sum(mixing, axis=1, keepdims=True))
-        # survival = survival @ mixing
-        #
-        # enemy_mixing = np.reciprocal(distance_constant + enemy_internal_distances)
-        # enemy_mixing = inf_to_zero(enemy_mixing / np.sum(enemy_mixing, axis=1, keepdims=True))
-        # enemy_survival = enemy_survival @ enemy_mixing
 
         distances = pairwise_distances(
             [u.position for u in self.units],
