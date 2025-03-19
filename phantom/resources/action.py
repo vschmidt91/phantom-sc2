@@ -10,7 +10,7 @@ from sc2.units import Units
 from sklearn.metrics import pairwise_distances
 
 from phantom.common.action import Action, DoNothing, Smart
-from phantom.common.assignment import Assignment, cp_assign_harvesters
+from phantom.common.assignment import Assignment, cp_solve
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
 
@@ -87,7 +87,7 @@ class ResourceAction:
         # cost = (harvester_to_resource + harvester_to_return_point + 7 * return_distance).flatten()
         cost = harvester_to_resource + return_distance + assignment_cost
 
-        x_opt = cp_assign_harvesters(b, cost, t, g, gw)
+        x_opt = cp_solve(b, cost, t, g, gw)
         indices = x_opt.argmax(axis=1)
         a = Assignment({h: resources[idx] for (i, h), idx in zip(enumerate(harvesters), indices) if 0 < x_opt[i, idx]})
 

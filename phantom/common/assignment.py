@@ -13,24 +13,14 @@ logger.info(f"{cp.installed_solvers()=}")
 TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
 
-SOLVER_OPTIONS = dict(
-    solver="SCIPY",
-    requires_grad=False,
-    ignore_dpp=True,
-    scipy_options=dict(
-        time_limit=10e-3,
-        presolve=False,
-    ),
-)
-
 
 @cache
-def harvester_assignment_problem(n, m):
+def get_problem(n, m):
     x = cp.Variable((n, m), "x")
     w = cp.Parameter((n, m), name="w")
     b = cp.Parameter(m, name="b")
     gw = cp.Parameter(m, name="gw")
-    g = cp.Parameter(name="g")
+    g = cp.Parameter(1, name="g")
     t = cp.Parameter(n, name="t")
 
     objective = cp.Minimize(cp.vdot(w, x))
@@ -44,45 +34,31 @@ def harvester_assignment_problem(n, m):
     return problem
 
 
-def cp_assign_harvesters(b, c, t, g, gw):
+def cp_solve(b, c, t, g, gw):
     n, m = c.shape
-    problem = harvester_assignment_problem(n, m)
+    problem = get_problem(n, m)
     problem.param_dict["w"].value = c
     problem.param_dict["t"].value = t
     problem.param_dict["b"].value = b
-    problem.param_dict["g"].value = g
+    problem.param_dict["g"].value = [g]
     problem.param_dict["gw"].value = gw
-    problem.solve(**SOLVER_OPTIONS)
-    x = problem.var_dict["x"].value
-    if x is None:
-        x = np.zeros((n, m))
-    return x
-
-
-@cache
-def assignment_problem(n, m):
-    x = cp.Variable((n, m), "x")
-    w = cp.Parameter((n, m), name="w")
-    b = cp.Parameter(m, name="b")
-    t = cp.Parameter(n, name="t")
-
-    objective = cp.Minimize(cp.vdot(w, x))
-    constraints = [
-        cp.sum(x, 0) <= b,  # enforce even distribution
-        cp.sum(x, 1) == t,
-        0 <= x,
-    ]
-    problem = cp.Problem(objective, constraints)
-    return problem
-
-
-def cp_assign(b, c, t):
-    n, m = c.shape
-    problem = assignment_problem(n, m)
-    problem.param_dict["w"].value = c
-    problem.param_dict["t"].value = t
-    problem.param_dict["b"].value = b
-    problem.solve(**SOLVER_OPTIONS)
+    tol = 1e-6
+    tol_inacc = 1e-3
+    options = {
+        "max_iters": 256,
+        # "time_limit": 10e-3,
+        "abstol": tol,
+        "reltol": tol,
+        "feastol": tol,
+        "reltol_inacc": tol_inacc,
+        "abstol_inacc": tol_inacc,
+        "feastol_inacc": tol_inacc,
+    }
+    problem.solve(
+        solver="ECOS",
+        # verbose=True,
+        **options,
+    )
     x = problem.var_dict["x"].value
     if x is None:
         x = np.zeros((n, m))
@@ -175,9 +151,11 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
             else np.array([[min(1e8, cost_fn(ai, bj)) for bj in b] for ai in a])
         )
         t = np.full(len(a), 1.0)
+        gw = np.full(len(b), 0.0)
+        g = 0.0
 
         try:
-            x_opt = cp_assign(d, c, t)
+            x_opt = cp_solve(d, c, t, g, gw)
         except cp.error.SolverError as e:
             logger.error(f"Solver Error: {str(e)}")
             return Assignment({})

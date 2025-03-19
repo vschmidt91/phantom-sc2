@@ -37,8 +37,8 @@ ZIP_MODULES: list[str] = [
     "cvxpygen",
     "sc2",
     "map_analyzer",
-    # "ecos",
-    # "_ecos",
+    "ecos",
+    "_ecos",
     # "scs",
     # "_scs_direct",
     # "osqp",
@@ -75,6 +75,7 @@ def copytree(src, dst):
 
 
 if __name__ == "__main__":
+
     output_dir = OUTPUT_DIR
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
