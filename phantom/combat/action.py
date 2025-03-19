@@ -10,6 +10,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
+from phantom.common.distribute import distribute
 from phantom.combat.predictor import CombatPrediction, CombatPredictor
 from phantom.combat.presence import Presence
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
@@ -118,11 +119,15 @@ class CombatAction:
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(unit, target.position)
 
-        confident = self.prediction.nearby_enemy_survival_time[unit] <= self.prediction.survival_time[unit]
+        confidence_self = self.prediction.survival_time[unit] - self.prediction.survival_time[target]
+        confidence_nearby = (
+            self.prediction.nearby_enemy_survival_time[target] - self.prediction.nearby_enemy_survival_time[unit]
+        )
+        confidence = confidence_self if self.observation.is_micro_map else confidence_nearby
         test_position = unit.position.towards(target, 1.5)
         if 0 == self.enemy_presence.dps[test_position.rounded]:
             return Attack(unit, target)
-        elif confident:
+        elif 0 < confidence:
             if unit.type_id in {UnitTypeId.ZERGLING}:
                 return UseAbility(unit, AbilityId.ATTACK, target.position)
             return Attack(unit, target)
@@ -235,19 +240,11 @@ class CombatAction:
 
             return np.divide(risk, reward)
 
-        if self.observation.enemy_combatants:
-            optimal_assigned = len(self.observation.combatants) / len(self.observation.enemy_combatants)
-            medium_assigned = math.sqrt(len(self.observation.combatants))
-            max_assigned = math.ceil(max(medium_assigned, optimal_assigned))
-        else:
-            max_assigned = 1
-
         assignment = (
-            Assignment.distribute(
+            distribute(
                 self.observation.combatants,
                 self.observation.enemy_combatants,
                 cost_fn,
-                max_assigned=max_assigned,
             )
             if self.observation.combatants and self.observation.enemy_combatants
             else Assignment({})

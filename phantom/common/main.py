@@ -1,7 +1,9 @@
 import re
 from abc import ABC, abstractmethod
 from functools import cached_property
-from typing import Iterable
+from typing import Iterable, Dict
+
+from sc2.units import Units
 
 from ares import AresBot
 from sc2.position import Point2
@@ -23,6 +25,10 @@ class BotBase(AresBot, ABC):
     @cached_property
     def is_micro_map(self):
         return re.match(MICRO_MAP_REGEX, self.game_info.map_name)
+
+    @cached_property
+    def expansion_resource_positions(self) -> dict[Point2, list[Point2]]:
+        return {b: [r.position for r in rs] for b, rs in self.expansion_locations_dict.items()}
 
     @cached_property
     def speedmining_positions(self) -> dict[Point2, Point2]:

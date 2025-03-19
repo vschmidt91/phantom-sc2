@@ -13,6 +13,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sklearn.metrics import pairwise_distances
 
+from phantom.common.distribute import distribute
 from phantom.combat.action import CombatAction
 from phantom.common.action import Action, Move, UseAbility
 from phantom.common.assignment import Assignment
@@ -73,7 +74,7 @@ class Agent:
         injecters = observation.units({UnitTypeId.QUEEN})
         injected_targets = observation.townhalls.ready
         inject_assignment = (
-            Assignment.distribute(
+            distribute(
                 injecters,
                 injected_targets,
                 pairwise_distances(
@@ -203,7 +204,7 @@ class Agent:
                 return risk / reward
 
             targets = (
-                Assignment.distribute(
+                distribute(
                     overseers,
                     observation.enemy_combatants,
                     pairwise_distances(

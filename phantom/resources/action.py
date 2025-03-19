@@ -1,18 +1,56 @@
 import math
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cached_property, cache
 
 import numpy as np
 from ares.consts import GAS_BUILDINGS
+import cvxpy as cp
 from loguru import logger
 from sc2.unit import Unit
 from sc2.units import Units
 from sklearn.metrics import pairwise_distances
 
+from phantom.common.utils import SOLVER_OPTIONS
 from phantom.common.action import Action, DoNothing, Smart
-from phantom.common.assignment import Assignment, cp_solve
+from phantom.common.assignment import Assignment
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
+
+
+@cache
+def get_problem(n, m):
+    x = cp.Variable((n, m), "x")
+    w = cp.Parameter((n, m), name="w")
+    b = cp.Parameter(m, name="b")
+    gw = cp.Parameter(m, name="gw")
+    g = cp.Parameter(name="g")
+
+    spread_cost = cp.var(cp.sum(x, 0))
+    oversaturation = cp.sum(cp.maximum(0, cp.sum(x, 0) - b))
+    oversaturation_gas = cp.abs(cp.vdot(cp.sum(x, 0), gw) - g)
+    assign_cost = cp.vdot(w, x)
+    objective = cp.Minimize(assign_cost + 10 * spread_cost + 32 * oversaturation_gas + 32 * oversaturation)
+    # objective = cp.Minimize(cp.vdot(w, x))
+    constraints = [
+        cp.sum(x, 1) == 1,
+        0 <= x,
+    ]
+    problem = cp.Problem(objective, constraints)
+    return problem
+
+
+def cp_solve(b, c, g, gw):
+    n, m = c.shape
+    problem = get_problem(n, m)
+    problem.param_dict["w"].value = c
+    problem.param_dict["b"].value = b
+    problem.param_dict["g"].value = g
+    problem.param_dict["gw"].value = gw
+    problem.solve(**SOLVER_OPTIONS)
+    x = problem.var_dict["x"].value
+    if x is None:
+        x = np.zeros((n, m))
+    return x
 
 
 @dataclass(frozen=True)
@@ -58,7 +96,6 @@ class ResourceAction:
 
         # limit harvesters per resource
         b = np.full(len(resources), 2.0)
-        t = np.full(len(harvesters), 1.0)
 
         # enforce gas target
         is_gas_building = np.array([1.0 if r.type_id in GAS_BUILDINGS else 0.0 for r in resources])
@@ -87,7 +124,7 @@ class ResourceAction:
         # cost = (harvester_to_resource + harvester_to_return_point + 7 * return_distance).flatten()
         cost = harvester_to_resource + return_distance + assignment_cost
 
-        x_opt = cp_solve(b, cost, t, g, gw)
+        x_opt = cp_solve(b, cost, g, gw)
         indices = x_opt.argmax(axis=1)
         a = Assignment({h: resources[idx] for (i, h), idx in zip(enumerate(harvesters), indices) if 0 < x_opt[i, idx]})
 

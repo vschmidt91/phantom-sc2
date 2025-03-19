@@ -277,14 +277,19 @@ class Observation:
     def townhall_at(self) -> dict[Point2, Unit]:
         return {b.position: b for b in self.bot.townhalls}
 
-    @property
+    @cached_property
+    def resource_at(self) -> dict[Point2, Unit]:
+        return {r.position: r for r in self.bot.resources}
+
+    @cached_property
     def all_taken_resources(self) -> Units:
         return Units(
-            chain.from_iterable(
-                rs
-                for p, rs in self.bot.expansion_locations_dict.items()
-                if (th := self.townhall_at.get(p)) and th.is_ready
-            ),
+            [
+                self.resource_at[p]
+                for base, rps in self.bot.expansion_resource_positions.items()
+                if (th := self.townhall_at.get(base)) and th.is_ready
+                for p in rps
+            ],
             self.bot,
         )
 

@@ -8,6 +8,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sklearn.metrics import pairwise_distances
 
+from phantom.common.distribute import distribute
 from phantom.common.action import Action
 from phantom.common.assignment import Assignment
 from phantom.common.main import BotBase
@@ -70,7 +71,7 @@ class ScoutState:
         nondetectors = observation.units({UnitTypeId.OVERLORD})
 
         scout_actions = (
-            Assignment.distribute(
+            distribute(
                 nondetectors,
                 scout_targets,
                 pairwise_distances(
@@ -82,7 +83,7 @@ class ScoutState:
             else Assignment({})
         )
         detect_actions = (
-            Assignment.distribute(
+            distribute(
                 detectors,
                 detect_targets,
                 pairwise_distances(
