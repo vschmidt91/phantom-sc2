@@ -10,6 +10,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
+from phantom.common.distribute import distribute
 from phantom.combat.predictor import CombatPrediction, CombatPredictor
 from phantom.combat.presence import Presence
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
@@ -246,7 +247,6 @@ class CombatAction:
             self.observation.combatants,
             self.observation.enemy_combatants,
             cost_fn,
-            max_assigned=max_assigned,
         )
 
         assignment = Assignment({

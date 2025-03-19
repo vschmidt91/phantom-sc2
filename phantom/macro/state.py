@@ -1,4 +1,5 @@
 import math
+import random
 from dataclasses import dataclass
 from itertools import chain
 from typing import Iterable, TypeAlias
@@ -298,12 +299,16 @@ async def get_target_position(obs: Observation, target: UnitTypeId, blocked_posi
                 c_min = c
         return c_min
 
-    for pos in obs.bases:
-        if not (base := obs.townhall_at.get(pos)):
-            continue
-        if not base.is_ready:
-            continue
-        position = pos.towards_with_random_angle(obs.behind_mineral_line(pos), 10)
+    def filter_base(b):
+        if not (th := obs.townhall_at.get(b)):
+            return False
+        if not th.is_ready:
+            return False
+        return True
+
+    if potential_bases := list(filter(filter_base, obs.bases)):
+        base = random.choice(potential_bases)
+        position = base.towards_with_random_angle(obs.behind_mineral_line(base), 10)
         offset = data.footprint_radius % 1
         position = position.rounded.offset((offset, offset))
         return position
