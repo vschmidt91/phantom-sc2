@@ -28,8 +28,6 @@ class BotBase(AresBot, ABC):
 
     @cached_property
     def expansion_resource_positions(self) -> dict[Point2, list[Point2]]:
-        if self.is_micro_map:
-            return {}
         return {b: [r.position for r in rs] for b, rs in self.expansion_locations_dict.items()}
 
     @cached_property
