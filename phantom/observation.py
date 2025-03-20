@@ -285,10 +285,11 @@ class Observation:
     def all_taken_resources(self) -> Units:
         return Units(
             [
-                self.resource_at[p]
-                for base, rps in self.bot.expansion_resource_positions.items()
+                r
+                for base in self.bases
                 if (th := self.townhall_at.get(base)) and th.is_ready
-                for p in rps
+                for p in self.bot.expansion_resource_positions[base]
+                if (r := self.resource_at.get(p))
             ],
             self.bot,
         )
