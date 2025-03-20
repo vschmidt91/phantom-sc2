@@ -116,7 +116,7 @@ class Observation:
     def units(self) -> Units:
         return self.bot.all_own_units
 
-    @cached_property
+    @property
     def combatants(self) -> Units:
         if self.bot.is_micro_map:
             return self.bot.units
@@ -251,8 +251,6 @@ class Observation:
 
     @property
     def bases_taken(self) -> set[Point2]:
-        if self.is_micro_map:
-            return set()
         return {b for b in self.bot.expansion_locations_list if (th := self.townhall_at.get(b)) and th.is_ready}
 
     @cached_property
@@ -281,12 +279,17 @@ class Observation:
 
     @cached_property
     def resource_at(self) -> dict[Point2, Unit]:
-        return {r.position: r for r in self.bot.resources.visible}
+        return {r.position: r for r in self.bot.resources}
 
     @cached_property
     def all_taken_resources(self) -> Units:
         return Units(
-            [self.resource_at[p] for base in self.bases_taken for p in self.bot.expansion_resource_positions[base]],
+            [
+                self.resource_at[p]
+                for base, rps in self.bot.expansion_resource_positions.items()
+                if (th := self.townhall_at.get(base)) and th.is_ready
+                for p in rps
+            ],
             self.bot,
         )
 
@@ -462,7 +465,7 @@ class Observation:
             for r in resources
         }
 
-    @cached_property
+    @property
     def supply_planned(self) -> int:
         return sum(
             provided
