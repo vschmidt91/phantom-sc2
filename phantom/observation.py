@@ -277,11 +277,11 @@ class Observation:
     def townhall_at(self) -> dict[Point2, Unit]:
         return {b.position: b for b in self.bot.townhalls}
 
-    @cached_property
+    @property
     def resource_at(self) -> dict[Point2, Unit]:
         return {r.position: r for r in self.bot.resources}
 
-    @cached_property
+    @property
     def all_taken_resources(self) -> Units:
         return Units(
             [
