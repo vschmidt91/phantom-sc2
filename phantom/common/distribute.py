@@ -19,7 +19,7 @@ def get_problem(n, m):
     x = cp.Variable((n, m), "x")
     c = cp.Parameter((n, m), name="c")
 
-    spread_cost = 100 * cp.var(cp.sum(x, 0))
+    spread_cost = 30 * cp.std(cp.sum(x, 0))
     assign_cost = cp.vdot(c, x)
 
     objective = cp.Minimize(assign_cost + spread_cost)
