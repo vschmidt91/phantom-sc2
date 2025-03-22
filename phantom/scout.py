@@ -68,7 +68,7 @@ class ScoutState:
 
         scout_targets = list[Point2]()
         scout_bases = filter(filter_base, observation.bases)
-        if not self.enemy_natural_scouted:
+        if not observation.is_micro_map and not self.enemy_natural_scouted:
             if observation.is_visible(observation.enemy_natural):
                 self.enemy_natural_scouted = True
             else:
