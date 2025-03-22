@@ -280,11 +280,11 @@ class Observation:
         cost = self.bot.calculate_unit_value(unit_type)
         return cost.minerals + 2 * cost.vespene
 
-    @property
+    @cached_property
     def townhall_at(self) -> dict[Point2, Unit]:
         return {b.position: b for b in self.bot.townhalls}
 
-    @property
+    @cached_property
     def resource_at(self) -> dict[Point2, Unit]:
         return {r.position: r for r in self.bot.resources}
 
