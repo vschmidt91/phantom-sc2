@@ -5,6 +5,7 @@ from typing import Hashable, TypeVar, Callable
 
 import cvxpy as cp
 import numpy as np
+from scipy.optimize import linprog
 from loguru import logger
 
 from phantom.common.assignment import Assignment
@@ -52,6 +53,7 @@ def distribute(
     b: list[TValue],
     cost_fn: Callable[[TKey, TValue], float] | np.ndarray,
     max_assigned: list[int] | int | None = None,
+    lp=False,
 ) -> "Assignment[TKey, TValue]":
     if not a:
         return Assignment[TKey, TValue]({})
@@ -66,6 +68,8 @@ def distribute(
     d = np.array(max_assigned)
 
     try:
+        # if lp:
+        #     x = linprog(c.flatten(), A_ub=)
         x = cp_solve(c, d)
     except cp.error.SolverError as e:
         logger.error(f"Solver Error: {str(e)}")
