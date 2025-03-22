@@ -83,7 +83,7 @@ class Agent:
                     [a.position for a in injecters],
                     [b.position for b in injected_targets],
                 ),
-                max_assigned=1,
+                lp=True,
             )
             if injecters and injected_targets
             else Assignment({})
@@ -213,7 +213,7 @@ class Agent:
                     [a.position for a in overseers],
                     [b.position for b in observation.enemy_combatants],
                 ),
-                max_assigned=1,
+                lp=True,
             )
             for u in overseers:
 

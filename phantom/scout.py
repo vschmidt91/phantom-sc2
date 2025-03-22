@@ -86,7 +86,7 @@ class ScoutState:
                 [u.position for u in nondetectors],
                 scout_targets,
             ),
-            max_assigned=1,
+            lp=True,
         )
         detect_actions = distribute(
             detectors,
@@ -95,7 +95,7 @@ class ScoutState:
                 [u.position for u in detectors],
                 detect_targets,
             ),
-            max_assigned=1,
+            lp=True,
         )
         actions = {u: ScoutPosition(u, p) for u, p in (scout_actions + detect_actions).items()}
 

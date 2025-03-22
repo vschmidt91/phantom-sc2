@@ -70,25 +70,36 @@ def distribute(
 
     try:
         if lp:
+            logger.info(f"{c=}")
+            logger.info(f"{d=}")
             opt = linprog(
                 c=c.flatten(),
                 A_ub=np.tile(np.eye(len(b), len(b)), (1, len(a))),
-                b_ub=np.full(len(b), max_assigned),
+                b_ub=d,
                 A_eq=np.repeat(np.eye(len(a), len(a)), len(b), axis=1),
                 b_eq=np.full(len(a), 1.),
                 method="highs",
-                bounds=(.0, None),
-                # options=dict(maxiter=maxiter),
-                integrality=0,
+                bounds=(0.0, 1.0),
+                options=dict(
+                    # maxiter=32,
+                    disp=True,
+                    # presolve=False,
+                ),
+                # integrality=0,
             )
-        # if lp:
-        #     x = linprog(c.flatten(), A_ub=)
-        x = cp_solve(c, d)
+            if not opt.success:
+                logger.error(f"Target assigment failed: {opt}")
+                return Assignment({})
+            x = opt.x.reshape(c.shape)
+            logger.info(f"{x=}")
+        else:
+            x = cp_solve(c, d)
     except cp.error.SolverError as e:
         logger.error(f"Solver Error: {str(e)}")
         return Assignment({})
 
     indices = x.argmax(axis=1)
+    logger.info(f"{indices=}")
     assignment = Assignment({ai: b[j] for (i, ai), j in zip(enumerate(a), indices) if 0 < x[i, j]})
 
     return assignment

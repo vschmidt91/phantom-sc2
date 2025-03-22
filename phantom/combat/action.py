@@ -249,6 +249,7 @@ class CombatAction:
             self.observation.enemy_combatants,
             cost_fn,
             max_assigned=max_assigned,
+            lp=True,
         )
         assignment = Assignment({a: b for a, b in assignment.items() if can_attack(a, b)})
 
