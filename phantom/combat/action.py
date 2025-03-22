@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from functools import cached_property, cmp_to_key
 
 import numpy as np
+from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -10,6 +11,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
+from phantom.common.distribute import distribute
 from phantom.combat.predictor import CombatPrediction, CombatPredictor
 from phantom.combat.presence import Presence
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
@@ -242,15 +244,12 @@ class CombatAction:
         else:
             max_assigned = 1
 
-        assignment = Assignment.distribute(
+        assignment = distribute(
             self.observation.combatants,
             self.observation.enemy_combatants,
             cost_fn,
             max_assigned=max_assigned,
         )
-
-        assignment = Assignment({
-            a: b for a, b in assignment.items() if can_attack(a, b)
-        })
+        assignment = Assignment({a: b for a, b in assignment.items() if can_attack(a, b)})
 
         return assignment

@@ -5,7 +5,7 @@ from functools import cached_property
 import numpy as np
 from sc2.unit import Unit
 from sc2.units import Units
-from sklearn.metrics import pairwise_distances
+from phantom.common.utils import pairwise_distances
 
 from phantom.common.constants import DPS_OVERRIDE
 from phantom.common.utils import can_attack
@@ -55,7 +55,7 @@ class CombatPredictor:
             return u.air_dps if v.is_flying else u.ground_dps
 
         def nan_to_zero(a: np.ndarray) -> np.ndarray:
-            return np.where(np.isnan(a), 0., a)
+            return np.where(np.isnan(a), 0.0, a)
 
         dps = step_time * np.array([[calculate_dps(u, v) for v in self.enemy_units] for u in self.units])
         enemy_dps = step_time * np.array([[calculate_dps(v, u) for v in self.enemy_units] for u in self.units])

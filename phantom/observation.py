@@ -20,7 +20,6 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3, Size
 from sc2.unit import Unit
 from sc2.units import Units
-from sklearn.metrics import pairwise_distances
 
 from phantom.common.constants import (
     CIVILIANS,
@@ -39,7 +38,7 @@ from phantom.common.constants import (
 )
 from phantom.common.cost import Cost, CostManager
 from phantom.common.main import BotBase
-from phantom.common.utils import MacroId, center
+from phantom.common.utils import MacroId, center, pairwise_distances
 
 
 @dataclass(frozen=True)
@@ -253,6 +252,14 @@ class Observation:
     def bases_taken(self) -> set[Point2]:
         return {b for b in self.bot.expansion_locations_list if (th := self.townhall_at.get(b)) and th.is_ready}
 
+    @property
+    def enemy_natural(self) -> Point2:
+        return self.bot.mediator.get_enemy_nat
+
+    @property
+    def overlord_spots(self) -> list[Point2]:
+        return self.bot.mediator.get_ol_spots
+
     @cached_property
     def distance_matrix(self) -> dict[tuple[Unit, Unit], float]:
         a = self.combatants
@@ -273,18 +280,24 @@ class Observation:
         cost = self.bot.calculate_unit_value(unit_type)
         return cost.minerals + 2 * cost.vespene
 
-    @property
+    @cached_property
     def townhall_at(self) -> dict[Point2, Unit]:
         return {b.position: b for b in self.bot.townhalls}
+
+    @cached_property
+    def resource_at(self) -> dict[Point2, Unit]:
+        return {r.position: r for r in self.bot.resources}
 
     @property
     def all_taken_resources(self) -> Units:
         return Units(
-            chain.from_iterable(
-                rs
-                for p, rs in self.bot.expansion_locations_dict.items()
-                if (th := self.townhall_at.get(p)) and th.is_ready
-            ),
+            [
+                r
+                for base in self.bases
+                if (th := self.townhall_at.get(base)) and th.is_ready
+                for p in self.bot.expansion_resource_positions[base]
+                if (r := self.resource_at.get(p))
+            ],
             self.bot,
         )
 
