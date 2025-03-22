@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from functools import cached_property, cmp_to_key
 
 import numpy as np
+from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -243,14 +244,12 @@ class CombatAction:
         else:
             max_assigned = 1
 
-        assignment = Assignment.distribute(
+        assignment = distribute(
             self.observation.combatants,
             self.observation.enemy_combatants,
             cost_fn,
+            max_assigned=max_assigned,
         )
-
-        assignment = Assignment({
-            a: b for a, b in assignment.items() if can_attack(a, b)
-        })
+        assignment = Assignment({a: b for a, b in assignment.items() if can_attack(a, b)})
 
         return assignment

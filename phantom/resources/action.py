@@ -8,9 +8,8 @@ import cvxpy as cp
 from loguru import logger
 from sc2.unit import Unit
 from sc2.units import Units
-from sklearn.metrics import pairwise_distances
 
-from phantom.common.utils import SOLVER_OPTIONS
+from phantom.common.utils import SOLVER_OPTIONS, pairwise_distances
 from phantom.common.action import Action, DoNothing, Smart
 from phantom.common.assignment import Assignment
 from phantom.resources.gather import GatherAction, ReturnResource

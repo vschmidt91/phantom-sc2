@@ -11,8 +11,8 @@ from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
-from sklearn.metrics import pairwise_distances
 
+from phantom.common.utils import pairwise_distances
 from phantom.common.distribute import distribute
 from phantom.combat.action import CombatAction
 from phantom.common.action import Action, Move, UseAbility
@@ -49,7 +49,6 @@ class Agent:
     build_order = HATCH_FIRST
 
     async def step(self, observation: Observation) -> AsyncGenerator[Action, None]:
-        scout = self.scout.step(observation)
         strategy = Strategy(observation, self.parameters.strategy)
 
         if not observation.is_micro_map:
@@ -71,6 +70,9 @@ class Agent:
         transfuse = TransfuseAction(observation)
         creep = self.creep.step(observation, np.less_equal(0.0, combat.confidence))
 
+        safe_overlord_spots = [p for p in observation.overlord_spots if 0 < combat.confidence[p.rounded]]
+        scout = self.scout.step(observation, safe_overlord_spots)
+
         injecters = observation.units({UnitTypeId.QUEEN})
         injected_targets = observation.townhalls.ready
         inject_assignment = (
@@ -81,6 +83,7 @@ class Agent:
                     [a.position for a in injecters],
                     [b.position for b in injected_targets],
                 ),
+                max_assigned=1,
             )
             if injecters and injected_targets
             else Assignment({})
@@ -203,17 +206,14 @@ class Agent:
 
                 return risk / reward
 
-            targets = (
-                distribute(
-                    overseers,
-                    observation.enemy_combatants,
-                    pairwise_distances(
-                        [a.position for a in overseers],
-                        [b.position for b in observation.enemy_combatants],
-                    ),
-                )
-                if overseers and observation.enemy_combatants
-                else Assignment({})
+            targets = distribute(
+                overseers,
+                observation.enemy_combatants,
+                pairwise_distances(
+                    [a.position for a in overseers],
+                    [b.position for b in observation.enemy_combatants],
+                ),
+                max_assigned=1,
             )
             for u in overseers:
 

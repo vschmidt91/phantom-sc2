@@ -18,23 +18,28 @@ TValue = TypeVar("TValue", bound=Hashable)
 def get_problem(n, m):
     x = cp.Variable((n, m), "x")
     c = cp.Parameter((n, m), name="c")
+    b = cp.Parameter(m, name="b")
 
-    spread_cost = 100 * cp.var(cp.sum(x, 0))
     assign_cost = cp.vdot(c, x)
+    cost_overassign = 1e3 * cp.max(cp.sum(x, 0) - b)
+    objective = cp.Minimize(assign_cost + cost_overassign)
+    # spread_cost = 100 * cp.var(cp.sum(x, 0))
+    # objective = cp.Minimize(assign_cost + spread_cost)
 
-    objective = cp.Minimize(assign_cost + spread_cost)
     constraints = [
         cp.sum(x, 1) == 1.0,
+        # cp.sum(x, 0) == b,
         0 <= x,
     ]
     problem = cp.Problem(objective, constraints)
     return problem
 
 
-def cp_solve(c):
+def cp_solve(c, b):
     n, m = c.shape
     problem = get_problem(n, m)
     problem.param_dict["c"].value = c
+    problem.param_dict["b"].value = b
     problem.solve(**SOLVER_OPTIONS)
     solution = problem.var_dict["x"].value
     if solution is None:
@@ -46,16 +51,22 @@ def distribute(
     a: list[TKey],
     b: list[TValue],
     cost_fn: Callable[[TKey, TValue], float] | np.ndarray,
+    max_assigned: list[int] | int | None = None,
 ) -> "Assignment[TKey, TValue]":
     if not a:
         return Assignment[TKey, TValue]({})
     if not b:
         return Assignment[TKey, TValue]({})
+    if max_assigned is None:
+        max_assigned = math.ceil(len(a) / len(b))
+    if isinstance(max_assigned, int):
+        max_assigned = len(b) * [max_assigned]
 
     c = cost_fn if isinstance(cost_fn, np.ndarray) else np.array([[min(1e8, cost_fn(ai, bj)) for bj in b] for ai in a])
+    d = np.array(max_assigned)
 
     try:
-        x = cp_solve(c)
+        x = cp_solve(c, d)
     except cp.error.SolverError as e:
         logger.error(f"Solver Error: {str(e)}")
         return Assignment({})

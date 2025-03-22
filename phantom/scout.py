@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from itertools import islice
 
 from loguru import logger
 from sc2.data import ActionResult
@@ -6,8 +7,8 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
-from sklearn.metrics import pairwise_distances
 
+from phantom.common.utils import pairwise_distances
 from phantom.common.distribute import distribute
 from phantom.common.action import Action
 from phantom.common.assignment import Assignment
@@ -21,7 +22,7 @@ class ScoutPosition(Action):
     target: Point2
 
     async def execute(self, bot: BotBase) -> bool:
-        if self.unit.distance_to(self.target) < self.unit.radius + self.unit.sight_range:
+        if self.unit.distance_to(self.target) < 0.1:
             if self.unit.is_idle:
                 return True
             return self.unit.stop()
@@ -36,8 +37,9 @@ class ScoutAction:
 
 class ScoutState:
     blocked_positions = dict[Point2, float]()
+    enemy_natural_scouted = False
 
-    def step(self, observation: Observation) -> ScoutAction:
+    def step(self, observation: Observation, safe_overlord_spots: list[Point2]) -> ScoutAction:
         for p, blocked_since in list(self.blocked_positions.items()):
             if blocked_since + 60 < observation.time:
                 del self.blocked_positions[p]
@@ -61,38 +63,39 @@ class ScoutState:
                 return False
             return True
 
-        scout_targets = list(filter(filter_base, observation.bases))
-        detect_targets = list(self.blocked_positions)
-
-        def cost_fn(u: Unit, p: Point2) -> float:
-            return u.distance_to(p)
-
         detectors = observation.units({UnitTypeId.OVERSEER})
         nondetectors = observation.units({UnitTypeId.OVERLORD})
 
-        scout_actions = (
-            distribute(
-                nondetectors,
+        scout_targets = list[Point2]()
+        scout_bases = filter(filter_base, observation.bases)
+        if not self.enemy_natural_scouted:
+            if observation.is_visible(observation.enemy_natural):
+                self.enemy_natural_scouted = True
+            else:
+                scout_targets.append(observation.enemy_natural)
+            scout_targets.extend(islice(scout_bases, len(nondetectors) - len(scout_targets)))
+        else:
+            scout_targets.extend(safe_overlord_spots)
+            scout_targets.extend(scout_bases)
+        detect_targets = list(self.blocked_positions)
+
+        scout_actions = distribute(
+            nondetectors,
+            scout_targets,
+            pairwise_distances(
+                [u.position for u in nondetectors],
                 scout_targets,
-                pairwise_distances(
-                    [u.position for u in nondetectors],
-                    scout_targets,
-                ),
-            )
-            if nondetectors and scout_targets
-            else Assignment({})
+            ),
+            max_assigned=1,
         )
-        detect_actions = (
-            distribute(
-                detectors,
+        detect_actions = distribute(
+            detectors,
+            detect_targets,
+            pairwise_distances(
+                [u.position for u in detectors],
                 detect_targets,
-                pairwise_distances(
-                    [u.position for u in detectors],
-                    detect_targets,
-                ),
-            )
-            if detectors and detect_targets
-            else Assignment({})
+            ),
+            max_assigned=1,
         )
         actions = {u: ScoutPosition(u, p) for u, p in (scout_actions + detect_actions).items()}
 

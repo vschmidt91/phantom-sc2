@@ -14,6 +14,8 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
+from sklearn.metrics import pairwise_distances as pairwise_distances_sklearn
+
 SOLVER_OPTIONS = dict(
     solver="ECOS",
     # verbose=True,
@@ -45,6 +47,12 @@ def can_attack(unit: Unit, target: Unit) -> bool:
         return unit.can_attack_air
     else:
         return unit.can_attack_ground
+
+
+def pairwise_distances(a, b):
+    if not any(a) or not any(b):
+        return []
+    return pairwise_distances_sklearn(a, b)
 
 
 def project_point_onto_line(origin: Point2, direction: Point2, position: Point2) -> Point2:
