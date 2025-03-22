@@ -15,7 +15,7 @@ from phantom.combat.presence import Presence
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.assignment import Assignment
 from phantom.common.constants import CIVILIANS, HALF, WORKERS
-from phantom.common.utils import Point, combine_comparers, disk
+from phantom.common.utils import Point, combine_comparers, disk, can_attack
 from phantom.cython.dijkstra_pathing import DijkstraPathing
 from phantom.data.normal import NormalParameter
 from phantom.observation import Observation
@@ -242,15 +242,15 @@ class CombatAction:
         else:
             max_assigned = 1
 
-        assignment = (
-            Assignment.distribute(
-                self.observation.combatants,
-                self.observation.enemy_combatants,
-                cost_fn,
-                max_assigned=max_assigned,
-            )
-            if self.observation.combatants and self.observation.enemy_combatants
-            else Assignment({})
+        assignment = Assignment.distribute(
+            self.observation.combatants,
+            self.observation.enemy_combatants,
+            cost_fn,
+            max_assigned=max_assigned,
         )
+
+        assignment = Assignment({
+            a: b for a, b in assignment.items() if can_attack(a, b)
+        })
 
         return assignment
