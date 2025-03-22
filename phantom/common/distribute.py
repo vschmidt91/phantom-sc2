@@ -1,6 +1,7 @@
 import math
 from dataclasses import dataclass
 from functools import cache
+from itertools import product
 from typing import Hashable, TypeVar, Callable
 
 import cvxpy as cp
@@ -68,6 +69,18 @@ def distribute(
     d = np.array(max_assigned)
 
     try:
+        if lp:
+            opt = linprog(
+                c=c.flatten(),
+                A_ub=np.tile(np.eye(len(b), len(b)), (1, len(a))),
+                b_ub=np.full(len(b), max_assigned),
+                A_eq=np.repeat(np.eye(len(a), len(a)), len(b), axis=1),
+                b_eq=np.full(len(a), 1.),
+                method="highs",
+                bounds=(.0, None),
+                # options=dict(maxiter=maxiter),
+                integrality=0,
+            )
         # if lp:
         #     x = linprog(c.flatten(), A_ub=)
         x = cp_solve(c, d)
