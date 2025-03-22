@@ -8,7 +8,7 @@ import cvxpy as cp
 import numpy as np
 from loguru import logger
 
-from phantom.common.utils import SOLVER_OPTIONS
+from phantom.common.utils import CVXPY_OPTIONS
 
 logger.info(f"{cp.installed_solvers()=}")
 

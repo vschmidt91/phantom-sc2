@@ -120,11 +120,13 @@ class CombatAction:
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(unit, target.position)
 
-        confident = self.prediction.nearby_enemy_survival_time[unit] <= self.prediction.survival_time[unit]
+        confidence_local = self.prediction.survival_time[unit] - self.prediction.nearby_enemy_survival_time[unit]
+        confidence_target = self.prediction.nearby_enemy_survival_time[target] - self.prediction.survival_time[target]
+        confidence = max(confidence_local, confidence_target)
         test_position = unit.position.towards(target, 1.5)
         if 0 == self.enemy_presence.dps[test_position.rounded]:
             return Attack(unit, target)
-        elif confident:
+        elif 0 < confidence:
             if unit.type_id in {UnitTypeId.ZERGLING}:
                 return UseAbility(unit, AbilityId.ATTACK, target.position)
             return Attack(unit, target)

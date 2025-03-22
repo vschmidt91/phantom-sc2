@@ -10,7 +10,7 @@ from scipy.optimize import linprog
 from loguru import logger
 
 from phantom.common.assignment import Assignment
-from phantom.common.utils import SOLVER_OPTIONS
+from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS
 
 TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
@@ -42,7 +42,7 @@ def cp_solve(c, b):
     problem = get_problem(n, m)
     problem.param_dict["c"].value = c
     problem.param_dict["b"].value = b
-    problem.solve(**SOLVER_OPTIONS)
+    problem.solve(**CVXPY_OPTIONS)
     solution = problem.var_dict["x"].value
     if solution is None:
         raise cp.SolverError()
@@ -70,28 +70,18 @@ def distribute(
 
     try:
         if lp:
-            logger.info(f"{c=}")
-            logger.info(f"{d=}")
             opt = linprog(
                 c=c.flatten(),
                 A_ub=np.tile(np.eye(len(b), len(b)), (1, len(a))),
                 b_ub=d,
                 A_eq=np.repeat(np.eye(len(a), len(a)), len(b), axis=1),
-                b_eq=np.full(len(a), 1.),
-                method="highs",
-                bounds=(0.0, 1.0),
-                options=dict(
-                    # maxiter=32,
-                    disp=True,
-                    # presolve=False,
-                ),
-                # integrality=0,
+                b_eq=np.full(len(a), 1.0),
+                **LINPROG_OPTIONS,
             )
             if not opt.success:
                 logger.error(f"Target assigment failed: {opt}")
                 return Assignment({})
             x = opt.x.reshape(c.shape)
-            logger.info(f"{x=}")
         else:
             x = cp_solve(c, d)
     except cp.error.SolverError as e:
@@ -99,7 +89,6 @@ def distribute(
         return Assignment({})
 
     indices = x.argmax(axis=1)
-    logger.info(f"{indices=}")
     assignment = Assignment({ai: b[j] for (i, ai), j in zip(enumerate(a), indices) if 0 < x[i, j]})
 
     return assignment

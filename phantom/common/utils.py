@@ -16,9 +16,24 @@ from sc2.unit import Unit
 
 from sklearn.metrics import pairwise_distances as pairwise_distances_sklearn
 
-SOLVER_OPTIONS = dict(
+CVXPY_OPTIONS = dict(
     solver="ECOS",
     # verbose=True,
+)
+
+LINPROG_OPTIONS = dict(
+    # method="highs",
+    # bounds=(0.0, None),
+    options=dict(
+        maxiter=100,
+        disp=False,
+        presolve=False,
+        # rr=False,
+        # tol=1e-5,
+        # time_limit=16e-3,
+    ),
+    # x0=None,
+    # integrality=0,
 )
 
 

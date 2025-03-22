@@ -3,14 +3,15 @@ from dataclasses import dataclass
 from functools import cached_property, cache
 
 import numpy as np
+from scipy.optimize import linprog
+
 from ares.consts import GAS_BUILDINGS
 import cvxpy as cp
 from loguru import logger
 from sc2.unit import Unit
 from sc2.units import Units
 
-from common.distribute import distribute
-from phantom.common.utils import SOLVER_OPTIONS, pairwise_distances
+from phantom.common.utils import CVXPY_OPTIONS, pairwise_distances, LINPROG_OPTIONS
 from phantom.common.action import Action, DoNothing, Smart
 from phantom.common.assignment import Assignment
 from phantom.resources.gather import GatherAction, ReturnResource
@@ -46,7 +47,7 @@ def cp_solve(b, c, g, gw):
     problem.param_dict["b"].value = b
     problem.param_dict["g"].value = g
     problem.param_dict["gw"].value = gw
-    problem.solve(**SOLVER_OPTIONS)
+    problem.solve(**CVXPY_OPTIONS)
     x = problem.var_dict["x"].value
     if x is None:
         x = np.zeros((n, m))
@@ -72,8 +73,6 @@ class ResourceAction:
 
         harvesters = self.observation.harvesters
         resources = list(self.observation.mineral_fields + self.observation.gas_buildings)
-        logger.info(f"{harvesters=}")
-        logger.info(f"{resources=}")
 
         mineral_max = sum(self.observation.harvester_target_at(p) for p in self.observation.mineral_field_at)
         gas_max = sum(self.observation.harvester_target_at(p) for p in self.observation.gas_building_at)
@@ -100,8 +99,6 @@ class ResourceAction:
 
         # enforce gas target
         is_gas_building = np.array([1.0 if r.type_id in GAS_BUILDINGS else 0.0 for r in resources])
-        gw = is_gas_building
-        g = gas_target
 
         harvester_to_resource = pairwise_distances(
             [h.position for h in harvesters],
@@ -126,13 +123,37 @@ class ResourceAction:
         cost = harvester_to_resource + return_distance + assignment_cost
 
         # x_opt = cp_solve(b, cost, g, gw)
-        return distribute(
-            harvesters,
-            resources,
-            cost_fn=cost,
-            max_assigned=2,
-            lp=True,
+
+        opt = linprog(
+            c=cost.flatten(),
+            A_ub=np.concat(
+                [
+                    np.tile(np.eye(len(resources), len(resources)), (1, len(harvesters))),
+                    np.expand_dims(np.tile(is_gas_building, len(harvesters)), 0),
+                ]
+            ),
+            b_ub=np.concat([b, [gas_target]]),
+            A_eq=np.repeat(np.eye(len(harvesters), len(harvesters)), len(resources), axis=1),
+            b_eq=np.full(len(harvesters), 1.0),
+            **LINPROG_OPTIONS,
         )
+        if not opt.success:
+            logger.error(f"Target assigment failed: {opt}")
+            return Assignment({})
+        x = opt.x.reshape(cost.shape)
+        indices = x.argmax(axis=1)
+        assignment = Assignment(
+            {ai.tag: resources[j].position for (i, ai), j in zip(enumerate(harvesters), indices) if 0 < x[i, j]}
+        )
+        return assignment
+
+        # return distribute(
+        #     harvesters,
+        #     resources,
+        #     cost_fn=cost,
+        #     max_assigned=2,
+        #     lp=True,
+        # )
 
     @cached_property
     def gas_target(self) -> int:

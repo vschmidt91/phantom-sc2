@@ -6,5 +6,7 @@ fix:
 	poetry run ruff check --fix phantom scripts
 	poetry run ruff format phantom scripts
 
+lint: fix check
+
 profile:
 	poetry run python -m snakeviz resources\profiling.prof
