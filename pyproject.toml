@@ -61,6 +61,7 @@ ignore = ["F401"]
 
 [[tool.mypy.overrides]]
 module = [
+    "phantom.cython.*",
     "ares.*",
     "Cython.*",
     "distutils.*",

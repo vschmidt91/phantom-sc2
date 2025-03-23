@@ -18,8 +18,8 @@ from phantom.combat.presence import Presence
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.assignment import Assignment
 from phantom.common.constants import CIVILIANS, HALF, WORKERS
-from phantom.common.utils import Point, combine_comparers, disk, can_attack
-from phantom.cython.dijkstra_pathing import DijkstraPathing
+from phantom.common.utils import Point, combine_comparers, disk, can_attack, pairwise_distances
+from phantom.cython import cy_dijkstra, DijkstraOutput
 from phantom.data.normal import NormalParameter
 from phantom.observation import Observation
 
@@ -73,7 +73,7 @@ class CombatAction:
             retreat_map = self.retreat_air
         else:
             retreat_map = self.retreat_ground
-        if retreat_map.dist[x, y] == np.inf:
+        if retreat_map.distance[x, y] == np.inf:
             sx, sy = self.observation.map_size.rounded
             search_range = 1
             found = False
@@ -81,7 +81,7 @@ class CombatAction:
                 range(max(0, x - search_range), min(sx - 1, x + search_range + 1)),
                 range(max(0, y - search_range), min(sy - 1, y + search_range + 1)),
             ):
-                if retreat_map.dist[x2, y2] < np.inf:
+                if retreat_map.distance[x2, y2] < np.inf:
                     found = True
                     x, y = x2, y2
                     break
@@ -221,20 +221,20 @@ class CombatAction:
         return [(int(p[0]), int(p[1])) for p in self.retreat_targets]
 
     @cached_property
-    def retreat_air(self) -> DijkstraPathing:
+    def retreat_air(self) -> DijkstraOutput:
         cost = self.observation.bot.mediator.get_air_grid.copy()
-        targets = self.retreat_targets_rounded
+        targets = np.array(self.retreat_targets_rounded)
         # for t in self.retreat_targets_rounded:
         #     cost[t] *= 10
-        return DijkstraPathing(cost, targets)
+        return cy_dijkstra(cost, targets)
 
     @cached_property
-    def retreat_ground(self) -> DijkstraPathing:
+    def retreat_ground(self) -> DijkstraOutput:
         cost = self.observation.bot.mediator.get_ground_grid.copy()
-        targets = self.retreat_targets_rounded
+        targets = np.array(self.retreat_targets_rounded)
         # for t in self.retreat_targets_rounded:
         #     cost[t] *= 10
-        return DijkstraPathing(cost, targets)
+        return cy_dijkstra(cost, targets)
 
     @cached_property
     def optimal_targeting(self) -> Assignment[Unit, Unit]:
@@ -266,8 +266,12 @@ class CombatAction:
 
         cost_outer = np.divide(risk_outer, reward_outer)
 
-        def cost_inner_fn(a: Unit, b: Unit) -> float:
-            d = self.observation.distance_matrix[a, b]
+        distances = pairwise_distances(
+            [u.position for u in units],
+            [u.position for u in enemies],
+        )
+
+        def cost_inner_fn(a: Unit, b: Unit, d: float) -> float:
             r = a.air_range if b.is_flying else a.ground_range
             travel_distance = max(0.0, d - a.radius - b.radius - r - a.distance_to_weapon_ready)
 
@@ -289,7 +293,12 @@ class CombatAction:
         else:
             max_assigned = 1
 
-        cost_inner = np.array([[min(1e8, cost_inner_fn(ai, bj)) for bj in enemies] for ai in units])
+        cost_inner = np.array(
+            [
+                [min(1e8, cost_inner_fn(ai, bj, distances[i, j])) for j, bj in enumerate(enemies)]
+                for i, ai in enumerate(units)
+            ]
+        )
         cost = cost_outer * cost_inner
 
         assignment = distribute(

@@ -260,21 +260,6 @@ class Observation:
     def overlord_spots(self) -> list[Point2]:
         return self.bot.mediator.get_ol_spots
 
-    @cached_property
-    def distance_matrix(self) -> dict[tuple[Unit, Unit], float]:
-        a = self.combatants
-        b = self.enemy_combatants
-        if not a:
-            return {}
-        if not b:
-            return {}
-        distances = pairwise_distances(
-            [ai.position for ai in a],
-            [bj.position for bj in b],
-        )
-        distance_matrix = {(ai, bj): distances[i, j] for (i, ai), (j, bj) in product(enumerate(a), enumerate(b))}
-        return distance_matrix
-
     def calculate_unit_value_weighted(self, unit_type: UnitTypeId) -> float:
         # TODO: learn value as parameters
         cost = self.bot.calculate_unit_value(unit_type)

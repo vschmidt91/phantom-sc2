@@ -149,6 +149,9 @@ class ResourceAction:
                 if (j := resource_index_by_position.get(ti)) is not None:
                     assignment_cost[i, j] = 0.0
 
+        gas_limit = 3.0 if not self.observation.observation.researched_speed else 2.0
+        mineral_limit = 2.0
+
         cost = harvester_to_resource + return_distance + assignment_cost
         opt = linprog(
             c=cost.flatten(),
@@ -160,7 +163,7 @@ class ResourceAction:
             ),
             b_ub=np.concatenate(
                 (
-                    np.array([2.0 for r in resources]),
+                    np.array([gas_limit if r in GAS_BUILDINGS else mineral_limit for r in resources]),
                     np.array([gas_target]),
                 )
             ),

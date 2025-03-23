@@ -67,7 +67,7 @@ class PhantomBot(BotBase):
         await super().on_step(iteration)
 
         # local only: skip first iteration like on the ladder
-        if iteration == 0 and self.config[DEBUG]:
+        if iteration == 0:
             return
 
         async for action in self.agent.step(Observation(self)):

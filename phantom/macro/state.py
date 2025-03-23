@@ -79,10 +79,10 @@ class MacroState:
     def planned_by_type(self, item: MacroId) -> Iterable[MacroPlan]:
         return (plan for plan in self.enumerate_plans() if plan.item == item)
 
-    def assign_unassigned_plans(self, trainers: Units) -> None:
+    async def assign_unassigned_plans(self, obs: Observation, trainers: Units) -> None:
         trainer_set = set(trainers)
         for plan in list(self.unassigned_plans):
-            if trainer := self.find_trainer(trainer_set, plan.item):
+            if trainer := (await self.find_trainer(obs, trainer_set, plan.item)):
                 logger.info(f"Assigning {trainer=} for {plan=}")
                 if plan in self.unassigned_plans:
                     self.unassigned_plans.remove(plan)
@@ -91,7 +91,7 @@ class MacroState:
 
     async def step(self, obs: Observation, blocked_positions: set[Point2], combat: CombatAction) -> MacroAction:
         self.handle_actions(obs)
-        self.assign_unassigned_plans(obs.units)  # TODO: narrow this down
+        await self.assign_unassigned_plans(obs, obs.units)  # TODO: narrow this down
 
         actions = Assignment[Unit, Action]({})
         reserve = obs.cost.zero
@@ -207,7 +207,7 @@ class MacroState:
         else:
             return None
 
-    def find_trainer(self, trainers: Iterable[Unit], item: MacroId) -> Unit | None:
+    async def find_trainer(self, obs: Observation, trainers: Iterable[Unit], item: MacroId) -> Unit | None:
         trainer_types = ITEM_TRAINED_FROM_WITH_EQUIVALENTS[item]
 
         trainers_filtered = [
@@ -220,6 +220,14 @@ class MacroState:
                 and trainer.tag not in self.assigned_plans
             )
         ]
+
+        if item == UnitTypeId.HATCHERY:
+            target_expected = await get_target_position(obs, item, set())
+            return min(
+                trainers_filtered,
+                key=lambda t: t.distance_to(target_expected) if t else 0,
+                default=None,
+            )
 
         if any(trainers_filtered):
             # trainers_filtered.sort(key=lambda t: t.tag)

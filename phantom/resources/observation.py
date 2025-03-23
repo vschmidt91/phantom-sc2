@@ -56,7 +56,11 @@ class ResourceObservation:
             if remaining(geyser):
                 if gas_building := self.gas_building_at.get(p):
                     if gas_building.is_ready:
-                        return 2
+                        # TODO: move somewhere else
+                        if self.observation.researched_speed:
+                            return 2
+                        else:
+                            return 3
             return 0
         elif patch := self.mineral_field_at.get(p):
             if not remaining(patch):
