@@ -50,7 +50,13 @@ class CombatAction:
                 if 0 < self.confidence[p]:
                     retreat_targets.append(p)
             if not retreat_targets:
-                retreat_targets.append(self.observation.start_location)
+                for u in self.observation.combatants:
+                    p = u.position.rounded
+                    if 0 < self.confidence[p]:
+                        retreat_targets.append(p)
+            if not retreat_targets:
+                logger.warning("No retreat targets, falling back to start mineral line")
+                retreat_targets.append(self.observation.in_mineral_line(self.observation.start_location))
             return frozenset(retreat_targets)
 
     @cached_property
@@ -70,26 +76,31 @@ class CombatAction:
     def retreat_with(self, unit: Unit, limit=2) -> Action | None:
         # if unit.type_id not in {UnitTypeId.QUEEN}:
         #     return self.retreat_with_ares(unit, limit=limit)
-        x = round(unit.position.x)
-        y = round(unit.position.y)
+        x0 = round(unit.position.x)
+        y0 = round(unit.position.y)
+        x, y = x0, y0
 
         if unit.is_flying:
             retreat_map = self.retreat_air
         else:
             retreat_map = self.retreat_ground
         if retreat_map.distance[x, y] == np.inf:
-            sx, sy = self.observation.map_size.rounded
-            search_range = 1
             found = False
-            for x2, y2 in product(
-                range(max(0, x - search_range), min(sx - 1, x + search_range + 1)),
-                range(max(0, y - search_range), min(sy - 1, y + search_range + 1)),
-            ):
-                if retreat_map.distance[x2, y2] < np.inf:
-                    found = True
-                    x, y = x2, y2
+            for search_range in [1]:
+                for x2, y2 in product(
+                    range(max(0, x - search_range), min(retreat_map.distance.shape[0] - 1, x + search_range + 1)),
+                    range(max(0, y - search_range), min(retreat_map.distance.shape[1] - 1, y + search_range + 1)),
+                ):
+                    if retreat_map.distance[x2, y2] < np.inf:
+                        found = True
+                        x, y = x2, y2
+                        break
+                if found:
                     break
-            if not found:
+            if found:
+                pass
+                # logger.info(f"infinite distance fixed, moving ({x0=}, {y0=}) to ({x=}, {y=})")
+            else:
                 logger.warning(f"infinite distance and no finite one nearby, falling back to ares retreating: {unit=}")
                 return self.retreat_with_ares(unit, limit=limit)
         retreat_path = retreat_map.get_path((x, y), limit=limit)
@@ -141,15 +152,10 @@ class CombatAction:
             return Move(unit, target.position)
 
         confidence_local = self.prediction.survival_time[unit] - self.prediction.nearby_enemy_survival_time[unit]
-        confidence_target = self.prediction.nearby_enemy_survival_time[target] - self.prediction.survival_time[target]
-        if self.observation.is_micro_map:
-            confidence = max(confidence_local, confidence_target)
-        else:
-            confidence = confidence_local
+        # confidence_target = self.prediction.nearby_enemy_survival_time[target] - self.prediction.survival_time[target]
+        confidence = confidence_local
         test_position = unit.position.towards(target, 1.5)
-        if 0 == self.enemy_presence.dps[test_position.rounded]:
-            return Attack(unit, target)
-        elif 0 < confidence:
+        if 0 < confidence or 0 == self.enemy_presence.dps[test_position.rounded]:
             if unit.type_id in {UnitTypeId.ZERGLING}:
                 return UseAbility(unit, AbilityId.ATTACK, target.position)
             return Attack(unit, target)
@@ -248,8 +254,6 @@ class CombatAction:
         if not any(units) or not any(enemies):
             return Assignment({})
 
-        target_stickiness_reward = 1 + math.exp(self.parameters.target_stickiness.mean)
-
         def reward_of(b: Unit) -> float:
             reward = 1 + self.observation.calculate_unit_value_weighted(b.type_id)
             if b.is_structure:
@@ -277,16 +281,13 @@ class CombatAction:
 
         def cost_inner_fn(a: Unit, b: Unit, d: float) -> float:
             r = a.air_range if b.is_flying else a.ground_range
-            travel_distance = max(0.0, d - a.radius - b.radius - r - a.distance_to_weapon_ready)
+            # travel_distance = max(0.0, d - a.radius - b.radius - r - a.distance_to_weapon_ready)
+            travel_distance = max(0.0, d - a.radius - b.radius - r)
 
             time_to_reach = np.divide(travel_distance, a.movement_speed)
             time_to_kill = np.divide(b.health + b.shield, a.air_dps if b.is_flying else a.ground_dps)
             risk = time_to_reach + time_to_kill
-            reward = 1.0
-            if a.order_target == b.tag:
-                reward *= target_stickiness_reward
-
-            return np.divide(risk, reward)
+            return risk
 
         if self.observation.is_micro_map:
             max_assigned = None

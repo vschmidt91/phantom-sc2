@@ -102,6 +102,7 @@ class ResourceAction:
         elif solution := self.solve():
             return solution
         else:
+            logger.error("Harvester assignment solve failed")
             return self.previous_assignment
 
     def solve(self) -> HarvesterAssignment | None:
@@ -117,6 +118,7 @@ class ResourceAction:
         if self.observation.observation.researched_speed:
             gas_target = self.gas_target
         elif self.observation.observation.bank.vespene < 100:
+            # gas_target = min(gas_max, int(self.observation.observation.supply_workers) - mineral_max)
             gas_target = gas_max
         else:
             gas_target = 0
@@ -156,20 +158,20 @@ class ResourceAction:
         cost = harvester_to_resource + return_distance + assignment_cost
         opt = linprog(
             c=cost.flatten(),
-            A_ub=np.concatenate(
+            A_ub=np.tile(np.eye(len(resources), len(resources)), (1, len(harvesters))),
+            b_ub=np.array([gas_limit if r in GAS_BUILDINGS else mineral_limit for r in resources]),
+            A_eq=np.concatenate(
                 (
-                    np.tile(np.eye(len(resources), len(resources)), (1, len(harvesters))),
+                    np.repeat(np.eye(len(harvesters), len(harvesters)), len(resources), axis=1),
                     np.expand_dims(np.tile(is_gas_building, len(harvesters)), 0),
                 )
             ),
-            b_ub=np.concatenate(
+            b_eq=np.concatenate(
                 (
-                    np.array([gas_limit if r in GAS_BUILDINGS else mineral_limit for r in resources]),
+                    np.full(len(harvesters), 1.0),
                     np.array([gas_target]),
                 )
             ),
-            A_eq=np.repeat(np.eye(len(harvesters), len(harvesters)), len(resources), axis=1),
-            b_eq=np.full(len(harvesters), 1.0),
             **LINPROG_OPTIONS,
         )
         if not opt.success:
