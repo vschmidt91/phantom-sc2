@@ -85,24 +85,25 @@ class CombatAction:
         else:
             retreat_map = self.retreat_ground
         if retreat_map.distance[x, y] == np.inf:
-            found = False
-            for search_range in [1]:
-                for x2, y2 in product(
-                    range(max(0, x - search_range), min(retreat_map.distance.shape[0] - 1, x + search_range + 1)),
-                    range(max(0, y - search_range), min(retreat_map.distance.shape[1] - 1, y + search_range + 1)),
-                ):
-                    if retreat_map.distance[x2, y2] < np.inf:
-                        found = True
-                        x, y = x2, y2
-                        break
-                if found:
-                    break
-            if found:
-                pass
-                # logger.info(f"infinite distance fixed, moving ({x0=}, {y0=}) to ({x=}, {y=})")
-            else:
-                logger.warning(f"infinite distance and no finite one nearby, falling back to ares retreating: {unit=}")
-                return self.retreat_with_ares(unit, limit=limit)
+            return self.retreat_with_ares(unit, limit=limit)
+            # found = False
+            # for search_range in [1]:
+            #     for x2, y2 in product(
+            #         range(max(0, x - search_range), min(retreat_map.distance.shape[0] - 1, x + search_range + 1)),
+            #         range(max(0, y - search_range), min(retreat_map.distance.shape[1] - 1, y + search_range + 1)),
+            #     ):
+            #         if retreat_map.distance[x2, y2] < np.inf:
+            #             found = True
+            #             x, y = x2, y2
+            #             break
+            #     if found:
+            #         break
+            # if found:
+            #     pass
+            #     # logger.info(f"infinite distance fixed, moving ({x0=}, {y0=}) to ({x=}, {y=})")
+            # else:
+            #     logger.warning(f"infinite distance and no finite one nearby, falling back to ares retreating: {unit=}")
+            #     return self.retreat_with_ares(unit, limit=limit)
         retreat_path = retreat_map.get_path((x, y), limit=limit)
         retreat_point = Point2(retreat_path[-1]).offset(HALF)
         # if unit.distance_to(retreat_point) < limit:
@@ -151,11 +152,12 @@ class CombatAction:
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(unit, target.position)
 
-        confidence_local = self.prediction.survival_time[unit] - self.prediction.nearby_enemy_survival_time[unit]
-        # confidence_target = self.prediction.nearby_enemy_survival_time[target] - self.prediction.survival_time[target]
-        confidence = confidence_local
+        max_combat_duration = 16.0
+        confidence = min(max_combat_duration, self.prediction.survival_time[unit]) - min(max_combat_duration, self.prediction.nearby_enemy_survival_time[unit])
         test_position = unit.position.towards(target, 1.5)
-        if 0 < confidence or 0 == self.enemy_presence.dps[test_position.rounded]:
+        if 0 == self.enemy_presence.dps[test_position.rounded]:
+            return Attack(unit, target)
+        elif 0 <= confidence:
             if unit.type_id in {UnitTypeId.ZERGLING}:
                 return UseAbility(unit, AbilityId.ATTACK, target.position)
             return Attack(unit, target)
