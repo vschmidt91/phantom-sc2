@@ -241,6 +241,9 @@ class CombatAction:
         units = self.observation.combatants
         enemies = self.observation.enemy_combatants
 
+        if not any(units) or not any(enemies):
+            return Assignment({})
+
         target_stickiness_reward = 1 + math.exp(self.parameters.target_stickiness.mean)
 
         def reward_of(b: Unit) -> float:
