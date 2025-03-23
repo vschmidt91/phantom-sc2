@@ -1,21 +1,20 @@
 import math
 from dataclasses import dataclass
-from functools import cached_property, cache
+from functools import cache, cached_property
 from itertools import groupby
 
-import numpy as np
-from sc2.position import Point2
-from scipy.optimize import linprog
-
-from ares.consts import GAS_BUILDINGS
 import cvxpy as cp
+import numpy as np
+from ares.consts import GAS_BUILDINGS
 from loguru import logger
+from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
+from scipy.optimize import linprog
 
-from phantom.common.utils import CVXPY_OPTIONS, pairwise_distances, LINPROG_OPTIONS
 from phantom.common.action import Action, DoNothing, Smart
 from phantom.common.assignment import Assignment
+from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS, pairwise_distances
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
 

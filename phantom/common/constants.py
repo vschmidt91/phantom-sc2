@@ -1,10 +1,6 @@
 from itertools import chain
 
-from sc2.constants import (
-    EQUIVALENTS_FOR_TECH_PROGRESS,
-    SPEED_INCREASE_DICT,
-    SPEED_UPGRADE_DICT,
-)
+from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS, SPEED_INCREASE_DICT, SPEED_UPGRADE_DICT
 from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
@@ -136,11 +132,6 @@ CHANGELINGS = {
     UnitTypeId.CHANGELINGZERGLING,
     UnitTypeId.CHANGELINGZERGLINGWINGS,
     UnitTypeId.CHANGELINGZEALOT,
-}
-
-DPS_OVERRIDE = {
-    UnitTypeId.BUNKER: 40,
-    UnitTypeId.PLANETARYFORTRESS: 5,
 }
 
 CIVILIANS = {

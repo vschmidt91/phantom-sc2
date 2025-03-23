@@ -5,10 +5,8 @@ from functools import cached_property
 import numpy as np
 from sc2.unit import Unit
 from sc2.units import Units
-from phantom.common.utils import pairwise_distances
 
-from phantom.common.constants import DPS_OVERRIDE
-from phantom.common.utils import can_attack
+from phantom.common.utils import calculate_dps, pairwise_distances
 
 
 class CombatOutcome(Enum):
@@ -46,13 +44,6 @@ class CombatPredictor:
                 survival_time={u: max_duration for u in self.units},
                 nearby_enemy_survival_time={u: 0.0 for u in self.units},
             )
-
-        def calculate_dps(u: Unit, v: Unit) -> float:
-            if dps := DPS_OVERRIDE.get(u.type_id):
-                return dps
-            if not can_attack(u, v):
-                return 0.0
-            return u.air_dps if v.is_flying else u.ground_dps
 
         def nan_to_zero(a: np.ndarray) -> np.ndarray:
             return np.where(np.isnan(a), 0.0, a)

@@ -1,9 +1,7 @@
-import importlib
-import math
 from dataclasses import dataclass
-from functools import cache, cached_property
+from functools import cached_property
 from itertools import groupby
-from typing import Callable, Collection, Generic, Hashable, Iterator, Mapping, TypeVar
+from typing import Collection, Generic, Hashable, Iterator, Mapping, TypeVar
 
 import cvxpy as cp
 import numpy as np

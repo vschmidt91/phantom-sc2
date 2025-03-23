@@ -66,7 +66,7 @@ class CreepAction:
 
         target = max(targets, key=lambda t: self.value_map_blurred[t])
 
-        if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
+        if unit.is_structure:
             target = unit.position.towards(Point2(target), TUMOR_RANGE).rounded
 
         advance = line(target[0], target[1], x0, y0)

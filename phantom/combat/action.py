@@ -1,7 +1,7 @@
 import math
 from dataclasses import dataclass
-from functools import cached_property, cmp_to_key
-from itertools import product
+from functools import cached_property
+from itertools import chain, product
 
 import numpy as np
 from loguru import logger
@@ -12,14 +12,14 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from phantom.common.distribute import distribute
 from phantom.combat.predictor import CombatPrediction, CombatPredictor
 from phantom.combat.presence import Presence
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.assignment import Assignment
 from phantom.common.constants import CIVILIANS, HALF, WORKERS
-from phantom.common.utils import Point, combine_comparers, disk, can_attack, pairwise_distances
-from phantom.cython import cy_dijkstra, DijkstraOutput
+from phantom.common.distribute import distribute
+from phantom.common.utils import Point, calculate_dps, can_attack, combine_comparers, disk, pairwise_distances
+from phantom.cython import DijkstraOutput, cy_dijkstra
 from phantom.data.normal import NormalParameter
 from phantom.observation import Observation
 
@@ -86,24 +86,6 @@ class CombatAction:
             retreat_map = self.retreat_ground
         if retreat_map.distance[x, y] == np.inf:
             return self.retreat_with_ares(unit, limit=limit)
-            # found = False
-            # for search_range in [1]:
-            #     for x2, y2 in product(
-            #         range(max(0, x - search_range), min(retreat_map.distance.shape[0] - 1, x + search_range + 1)),
-            #         range(max(0, y - search_range), min(retreat_map.distance.shape[1] - 1, y + search_range + 1)),
-            #     ):
-            #         if retreat_map.distance[x2, y2] < np.inf:
-            #             found = True
-            #             x, y = x2, y2
-            #             break
-            #     if found:
-            #         break
-            # if found:
-            #     pass
-            #     # logger.info(f"infinite distance fixed, moving ({x0=}, {y0=}) to ({x=}, {y=})")
-            # else:
-            #     logger.warning(f"infinite distance and no finite one nearby, falling back to ares retreating: {unit=}")
-            #     return self.retreat_with_ares(unit, limit=limit)
         retreat_path = retreat_map.get_path((x, y), limit=limit)
         retreat_point = Point2(retreat_path[-1]).offset(HALF)
         # if unit.distance_to(retreat_point) < limit:
@@ -124,26 +106,11 @@ class CombatAction:
     def fight_with(self, unit: Unit) -> Action | None:
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
-            if hp == 0.0:
-                return np.inf
-            dps = unit.air_dps if u.is_flying else unit.ground_dps
-            if dps == 0.0:
-                return np.inf
-            kill_time = hp / dps
-            unit_value = self.observation.calculate_unit_value_weighted(u.type_id)
-            return kill_time / (1 + unit_value)
-
-        target_key = cmp_to_key(
-            combine_comparers(
-                [
-                    lambda a, b: int(np.sign(np.nan_to_num(cost_fn(b) - cost_fn(a), posinf=+1, neginf=-1))),
-                    lambda a, b: b.tag - a.tag,
-                ]
-            )
-        )
+            dps = calculate_dps(unit, u)
+            return np.divide(hp, dps)
 
         if unit.type_id not in {UnitTypeId.ZERGLING} and unit.weapon_ready:
-            if target := max(self.observation.shootable_targets.get(unit, []), key=target_key, default=None):
+            if target := min(self.observation.shootable_targets.get(unit, []), key=cost_fn, default=None):
                 return Attack(unit, target)
 
         if not (target := self.optimal_targeting.get(unit)):
@@ -152,8 +119,7 @@ class CombatAction:
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(unit, target.position)
 
-        max_combat_duration = 16.0
-        confidence = min(max_combat_duration, self.prediction.survival_time[unit]) - min(max_combat_duration, self.prediction.nearby_enemy_survival_time[unit])
+        confidence = self.prediction.survival_time[unit] - self.prediction.nearby_enemy_survival_time[unit]
         test_position = unit.position.towards(target, 1.5)
         if 0 == self.enemy_presence.dps[test_position.rounded]:
             return Attack(unit, target)
@@ -249,47 +215,34 @@ class CombatAction:
         return cy_dijkstra(cost, targets)
 
     @cached_property
+    def targeting_cost(self) -> np.ndarray:
+        units = self.observation.combatants
+        enemies = self.observation.enemy_combatants
+        distances = pairwise_distances(
+            [u.position for u in units],
+            [u.position for u in enemies],
+        )
+
+        def cost_fn(a: Unit, b: Unit, d: float) -> float:
+            r = a.air_range if b.is_flying else a.ground_range
+            travel_distance = max(0.0, d - a.radius - b.radius - r)
+
+            time_to_reach = np.divide(travel_distance, a.movement_speed)
+            time_to_kill = np.divide(b.health + b.shield, a.air_dps if b.is_flying else a.ground_dps)
+            return time_to_reach + time_to_kill
+
+        cost = np.array(
+            [[min(1e8, cost_fn(ai, bj, distances[i, j])) for j, bj in enumerate(enemies)] for i, ai in enumerate(units)]
+        )
+        return cost
+
+    @cached_property
     def optimal_targeting(self) -> Assignment[Unit, Unit]:
         units = self.observation.combatants
         enemies = self.observation.enemy_combatants
 
         if not any(units) or not any(enemies):
             return Assignment({})
-
-        def reward_of(b: Unit) -> float:
-            reward = 1 + self.observation.calculate_unit_value_weighted(b.type_id)
-            if b.is_structure:
-                reward /= 5.0
-            if b.type_id in WORKERS:
-                reward *= 3.0
-            if b.type_id not in CIVILIANS:
-                reward *= 3.0
-            return reward
-
-        risk_a = np.full(len(units), 1.0)
-        risk_b = np.full(len(enemies), 1.0)
-        risk_outer = np.outer(risk_a, risk_b)
-
-        reward_a = np.full(len(units), 1.0)
-        reward_b = np.array([reward_of(e) for e in enemies])
-        reward_outer = np.outer(reward_a, reward_b)
-
-        cost_outer = np.divide(risk_outer, reward_outer)
-
-        distances = pairwise_distances(
-            [u.position for u in units],
-            [u.position for u in enemies],
-        )
-
-        def cost_inner_fn(a: Unit, b: Unit, d: float) -> float:
-            r = a.air_range if b.is_flying else a.ground_range
-            # travel_distance = max(0.0, d - a.radius - b.radius - r - a.distance_to_weapon_ready)
-            travel_distance = max(0.0, d - a.radius - b.radius - r)
-
-            time_to_reach = np.divide(travel_distance, a.movement_speed)
-            time_to_kill = np.divide(b.health + b.shield, a.air_dps if b.is_flying else a.ground_dps)
-            risk = time_to_reach + time_to_kill
-            return risk
 
         if self.observation.is_micro_map:
             max_assigned = None
@@ -300,14 +253,7 @@ class CombatAction:
         else:
             max_assigned = 1
 
-        cost_inner = np.array(
-            [
-                [min(1e8, cost_inner_fn(ai, bj, distances[i, j])) for j, bj in enumerate(enemies)]
-                for i, ai in enumerate(units)
-            ]
-        )
-        cost = cost_outer * cost_inner
-
+        cost = self.targeting_cost
         assignment = distribute(
             units,
             enemies,

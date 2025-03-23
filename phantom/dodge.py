@@ -79,8 +79,8 @@ class DodgeState:
     def step(self, observation: Observation) -> DodgeAction:
         units = {
             DodgeItem(unit.position, circle): observation.time
-            for unit in observation.enemy_combatants
-            for circle in DODGE_UNITS.get(unit.type_id, [])
+            for unit in observation.enemy_combatants(set(DODGE_UNITS))
+            for circle in DODGE_UNITS[unit.type_id]
         }
 
         active_effects: set[DodgeItem] = set()

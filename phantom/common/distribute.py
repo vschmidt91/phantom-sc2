@@ -1,13 +1,12 @@
 import math
-from dataclasses import dataclass
 from functools import cache
 from itertools import product
-from typing import Hashable, TypeVar, Callable
+from typing import Hashable, TypeVar
 
 import cvxpy as cp
 import numpy as np
-from scipy.optimize import linprog
 from loguru import logger
+from scipy.optimize import linprog
 
 from phantom.common.assignment import Assignment
 from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS

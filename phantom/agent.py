@@ -12,17 +12,12 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
 
-from phantom.common.utils import pairwise_distances
-from phantom.common.distribute import distribute
 from phantom.combat.action import CombatAction
 from phantom.common.action import Action, Move, UseAbility
 from phantom.common.assignment import Assignment
-from phantom.common.constants import (
-    ALL_MACRO_ABILITIES,
-    CHANGELINGS,
-    ENERGY_COST,
-    GAS_BY_RACE,
-)
+from phantom.common.constants import ALL_MACRO_ABILITIES, CHANGELINGS, ENERGY_COST, GAS_BY_RACE
+from phantom.common.distribute import distribute
+from phantom.common.utils import pairwise_distances
 from phantom.corrosive_biles import CorrosiveBileState
 from phantom.creep import CreepState
 from phantom.dodge import DodgeState
@@ -254,12 +249,13 @@ class Agent:
             )
 
         def micro_unit(u: Unit) -> Action | None:
+            unit_type = unit.type_id
             return (
                 dodge.dodge_with(u)
-                or (combat.do_burrow(u) if u.type_id in {UnitTypeId.ROACH} else None)
-                or (combat.do_unburrow(u) if u.type_id in {UnitTypeId.ROACHBURROWED} else None)
-                or (corrosive_biles.actions.get(u) if u.type_id in {UnitTypeId.RAVAGER} else None)
-                or (micro_queen(u) if u.type_id in {UnitTypeId.QUEEN} else None)
+                or (combat.do_burrow(u) if unit_type in {UnitTypeId.ROACH} else None)
+                or (combat.do_unburrow(u) if unit_type in {UnitTypeId.ROACHBURROWED} else None)
+                or (corrosive_biles.actions.get(u) if unit_type in {UnitTypeId.RAVAGER} else None)
+                or (micro_queen(u) if unit_type in {UnitTypeId.QUEEN} else None)
                 # or (
                 #     combat.retreat_with(u)
                 #     if combat.prediction.outcome == CombatOutcome.Defeat

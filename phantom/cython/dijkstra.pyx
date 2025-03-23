@@ -1,7 +1,7 @@
 # distutils: language = c++
 
-from cython import boundscheck, wraparound
 import numpy as np
+from cython import boundscheck, wraparound
 
 from libcpp cimport bool
 from libcpp.pair cimport pair

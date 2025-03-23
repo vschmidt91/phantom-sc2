@@ -13,7 +13,6 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
-
 from sklearn.metrics import pairwise_distances as pairwise_distances_sklearn
 
 CVXPY_OPTIONS = dict(
@@ -187,3 +186,17 @@ def logit_to_probability(x: float):
 
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
+
+
+def calculate_dps(u: Unit, v: Unit) -> float:
+    if dps := DPS_OVERRIDE.get(u.type_id):
+        return dps
+    if not can_attack(u, v):
+        return 0.0
+    return u.air_dps if v.is_flying else u.ground_dps
+
+
+DPS_OVERRIDE = {
+    UnitTypeId.BUNKER: 40,
+    UnitTypeId.PLANETARYFORTRESS: 5,
+}

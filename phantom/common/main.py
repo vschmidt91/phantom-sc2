@@ -1,12 +1,11 @@
 import re
 from abc import ABC, abstractmethod
 from functools import cached_property
-from typing import Iterable, Dict
-
-from sc2.units import Units
+from typing import Iterable
 
 from ares import AresBot
 from sc2.position import Point2
+from sc2.units import Units
 
 from phantom.common.constants import MICRO_MAP_REGEX, MINING_RADIUS
 from phantom.common.cost import CostManager
