@@ -1,8 +1,10 @@
 import math
 from dataclasses import dataclass
 from functools import cached_property, cache
+from itertools import groupby
 
 import numpy as np
+from sc2.position import Point2
 from scipy.optimize import linprog
 
 from ares.consts import GAS_BUILDINGS
@@ -16,6 +18,10 @@ from phantom.common.action import Action, DoNothing, Smart
 from phantom.common.assignment import Assignment
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
+
+
+class SolverError(Exception):
+    pass
 
 
 @cache
@@ -60,14 +66,45 @@ class ResourceAction:
     previous_assignment: HarvesterAssignment
     previous_hash: int
 
+    # @cached_property
+    # def harvesters_in_gas_buildings(self) -> dict[Point2, list[int]]:
+    #     assigned_to_gas_building = {
+    #         p: ts
+    #         for p, ts in self.previous_assignment.inverse
+    #         if p in self.observation.gas_building_at
+    #     }
+    #
+    #     def might_be_in_geyser(t: int, gp: Point2) -> bool:
+    #         if not (g := self.observation.gas_building_at.get(gp)):
+    #             return False
+    #         if t in self.observation.observation.unit_by_tag:
+    #             return False
+    #         if t in self.observation.observation.bot.state.dead_units:
+    #             return False
+    #         # if self.previous_assignment.get(u.tag) != g.position:
+    #         #     return False
+    #         if g.assigned_harvesters == len(assigned_to_gas_building.get(g.position, ())):
+    #             return False
+    #         return True
+    #
+    #     return {
+    #         p: list(filter(
+    #             lambda t: might_be_in_geyser(t, self.previous_assignment.get(t)),
+    #             ts,
+    #         ))
+    #         for p, ts in assigned_to_gas_building.items()
+    #     }
+
     @cached_property
     def harvester_assignment(self) -> HarvesterAssignment:
         if self.observation.gather_hash == self.previous_hash:
             return self.previous_assignment
+        elif solution := self.solve():
+            return solution
         else:
-            return self.get_optimal_assignment()
+            return self.previous_assignment
 
-    def get_optimal_assignment(self):
+    def solve(self) -> HarvesterAssignment | None:
         if not self.observation.mineral_fields:
             return HarvesterAssignment({})
 
@@ -83,7 +120,7 @@ class ResourceAction:
             gas_target = gas_max
         else:
             gas_target = 0
-        gas_target = max(0, min(gas_target - self.observation.observation.workers_in_geysers, gas_max))
+        gas_target = max(0, min(gas_max, gas_target - self.observation.observation.workers_in_geysers))
 
         harvester_max = mineral_max + gas_target
         if harvester_max < len(harvesters):
@@ -95,10 +132,11 @@ class ResourceAction:
             return Assignment({})
 
         # limit harvesters per resource
-        b = np.full(len(resources), 2.0)
+        # b = np.full(len(resources), 2.0)
 
         # enforce gas target
         is_gas_building = np.array([1.0 if r.type_id in GAS_BUILDINGS else 0.0 for r in resources])
+        b = np.array([2.0 if r.type_id in GAS_BUILDINGS else 2.0 for r in resources])
 
         harvester_to_resource = pairwise_distances(
             [h.position for h in harvesters],
@@ -138,8 +176,8 @@ class ResourceAction:
             **LINPROG_OPTIONS,
         )
         if not opt.success:
-            logger.error(f"Target assigment failed: {opt}")
-            return Assignment({})
+            return None
+
         x = opt.x.reshape(cost.shape)
         indices = x.argmax(axis=1)
         assignment = Assignment(

@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from loguru import logger
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 

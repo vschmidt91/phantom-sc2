@@ -62,7 +62,7 @@ class CombatAction:
                 attack_targets.extend(self.observation.enemy_start_locations)
             return frozenset(attack_targets)
 
-    def retreat_with(self, unit: Unit, limit=7) -> Action | None:
+    def retreat_with(self, unit: Unit, limit=2) -> Action | None:
         # if unit.type_id not in {UnitTypeId.QUEEN}:
         #     return self.retreat_with_ares(unit, limit=limit)
         x = round(unit.position.x)
@@ -72,11 +72,13 @@ class CombatAction:
         else:
             retreat_map = self.retreat_ground
         if retreat_map.dist[x, y] == np.inf:
+            logger.warning("infinite distance, falling back to ares retreating")
             return self.retreat_with_ares(unit, limit=limit)
-        retreat_path = retreat_map.get_path((x, y), limit)
+        retreat_path = retreat_map.get_path((x, y), limit=limit)
         retreat_point = Point2(retreat_path[-1]).offset(HALF)
-        if unit.distance_to(retreat_point) < limit:
-            return self.retreat_with_ares(unit, limit=limit)
+        # if unit.distance_to(retreat_point) < limit:
+        #     logger.warning("too close to home, falling back to ares retreating")
+        #     return self.retreat_with_ares(unit, limit=limit)
         return Move(unit, retreat_point)
 
     def retreat_with_ares(self, unit: Unit, limit=5) -> Action | None:
@@ -122,7 +124,10 @@ class CombatAction:
 
         confidence_local = self.prediction.survival_time[unit] - self.prediction.nearby_enemy_survival_time[unit]
         confidence_target = self.prediction.nearby_enemy_survival_time[target] - self.prediction.survival_time[target]
-        confidence = max(confidence_local, confidence_target)
+        if self.observation.is_micro_map:
+            confidence = max(confidence_local, confidence_target)
+        else:
+            confidence = confidence_local
         test_position = unit.position.towards(target, 1.5)
         if 0 == self.enemy_presence.dps[test_position.rounded]:
             return Attack(unit, target)
@@ -203,17 +208,19 @@ class CombatAction:
 
     @cached_property
     def retreat_air(self) -> DijkstraPathing:
-        return DijkstraPathing(
-            self.observation.bot.mediator.get_air_grid,
-            self.retreat_targets_rounded,
-        )
+        cost = self.observation.bot.mediator.get_air_grid.copy()
+        targets = self.retreat_targets_rounded
+        for t in self.retreat_targets_rounded:
+            cost[t] *= 10
+        return DijkstraPathing(cost, targets)
 
     @cached_property
     def retreat_ground(self) -> DijkstraPathing:
-        return DijkstraPathing(
-            self.observation.bot.mediator.get_ground_grid,
-            self.retreat_targets_rounded,
-        )
+        cost = self.observation.bot.mediator.get_ground_grid.copy()
+        targets = self.retreat_targets_rounded
+        for t in self.retreat_targets_rounded:
+            cost[t] *= 10
+        return DijkstraPathing(cost, targets)
 
     @cached_property
     def optimal_targeting(self) -> Assignment[Unit, Unit]:
@@ -239,7 +246,9 @@ class CombatAction:
 
             return np.divide(risk, reward)
 
-        if self.observation.enemy_combatants:
+        if self.observation.is_micro_map:
+            max_assigned = None
+        elif self.observation.enemy_combatants:
             optimal_assigned = len(self.observation.combatants) / len(self.observation.enemy_combatants)
             medium_assigned = math.sqrt(len(self.observation.combatants))
             max_assigned = math.ceil(max(medium_assigned, optimal_assigned))

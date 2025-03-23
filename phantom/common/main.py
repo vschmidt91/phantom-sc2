@@ -18,6 +18,10 @@ class BotBase(AresBot, ABC):
         super().__init__(game_step_override=game_step_override)
         self.cost = CostManager(self)
 
+    @property
+    def empty_units(self):
+        return Units([], self)
+
     @abstractmethod
     def planned_by_type(self, item: MacroId) -> Iterable:
         raise NotImplementedError()

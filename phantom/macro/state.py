@@ -38,8 +38,9 @@ class MacroPlan:
     item: MacroId
     target: Unit | Point2 | None = None
     priority: float = 0.0
-    executed: bool = False
-    commanded: bool = False
+    premoved = False
+    executed = False
+    commanded = False
 
 
 class MacroState:
@@ -161,7 +162,8 @@ class MacroState:
             elif plan.target:
                 if trainer.is_carrying_resource:
                     actions += {trainer: UseAbility(trainer, AbilityId.HARVEST_RETURN)}
-                elif action := await premove(obs, trainer, plan.target.position, eta):
+                elif action := await premove(obs, trainer, plan, eta):
+                    plan.premoved = False
                     actions += {trainer: action}
                 elif action := combat.fight_with(trainer):
                     actions += {trainer: action}
@@ -251,15 +253,22 @@ class MacroState:
             logger.info(f"Unplanned {action}")
 
 
-async def premove(obs: Observation, unit: Unit, target: Point2, eta: float) -> Action | None:
-    distance = await obs.query_pathing(unit, target) or 0.0
-    movement_eta = 1.5 + distance / (1.4 * unit.movement_speed)
-    if eta <= movement_eta:
-        if 1e-3 < unit.distance_to(target):
-            return Move(unit, target)
-        else:
-            return HoldPosition(unit)
-    return None
+async def premove(obs: Observation, unit: Unit, plan: MacroPlan, eta: float) -> Action | None:
+    if not plan.target:
+        return None
+    target = plan.target.position
+    if plan.premoved:
+        do_premove = True
+    else:
+        distance = await obs.query_pathing(unit, target) or 0.0
+        movement_eta = 1.5 + distance / (1.4 * unit.movement_speed)
+        do_premove = eta <= movement_eta
+    if not do_premove:
+        return None
+    plan.premoved = True
+    if 1e-3 < unit.distance_to(target):
+        return Move(unit, target)
+    return HoldPosition(unit)
 
 
 def get_eta(observation: Observation, reserve: Cost, cost: Cost) -> float:

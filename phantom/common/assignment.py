@@ -2,6 +2,7 @@ import importlib
 import math
 from dataclasses import dataclass
 from functools import cache, cached_property
+from itertools import groupby
 from typing import Callable, Collection, Generic, Hashable, Iterator, Mapping, TypeVar
 
 import cvxpy as cp
@@ -13,7 +14,7 @@ from phantom.common.utils import CVXPY_OPTIONS
 logger.info(f"{cp.installed_solvers()=}")
 
 TKey = TypeVar("TKey", bound=Hashable)
-TValue = TypeVar("TValue", bound=Hashable)
+TValue = TypeVar("TValue")
 
 
 @dataclass(frozen=True)
@@ -47,3 +48,7 @@ class Assignment(Generic[TKey, TValue], Mapping[TKey, TValue]):
 
     def __len__(self):
         return len(self._items)
+
+    @cached_property
+    def inverse(self) -> "Assignment[TValue, list[TKey]]":
+        return Assignment({k: [x[0] for x in g] for k, g in groupby(self._items.items(), lambda x: x[1])})

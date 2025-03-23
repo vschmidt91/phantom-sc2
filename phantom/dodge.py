@@ -77,8 +77,6 @@ class DodgeState:
     effects = dict[DodgeItem, float]()
 
     def step(self, observation: Observation) -> DodgeAction:
-        effects = self.effects
-
         units = {
             DodgeItem(unit.position, circle): observation.time
             for unit in observation.enemy_combatants
@@ -92,12 +90,12 @@ class DodgeState:
                 for circle in DODGE_EFFECTS.get(effect.id, []):
                     item = DodgeItem(position, circle)
                     active_effects.add(item)
-                    effects.setdefault(item, time_of_impact)
+                    self.effects.setdefault(item, time_of_impact)
 
         # remove old effects that impacted
-        for item, time_of_impact in list(effects.items()):
+        for item, time_of_impact in list(self.effects.items()):
             if time_of_impact < observation.time:
-                del effects[item]
+                del self.effects[item]
                 if item in active_effects:
                     logger.error(f"Effect impacted earlier than expected: {item}")
 

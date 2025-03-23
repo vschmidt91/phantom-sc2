@@ -91,9 +91,9 @@ HATCH_FIRST = BuildOrderChain(
     [
         Make(UnitTypeId.DRONE, 13),
         Make(UnitTypeId.OVERLORD, 2),
-        Make(UnitTypeId.DRONE, 16),
-        Make(UnitTypeId.HATCHERY, 2),
         Make(UnitTypeId.DRONE, 17),
+        Make(UnitTypeId.HATCHERY, 2),
+        Make(UnitTypeId.DRONE, 18),
         Make(UnitTypeId.EXTRACTOR, 1),
         WaitUntil(lambda obs: obs.gas_buildings),
         # Make(UnitTypeId.DRONE, 18),
