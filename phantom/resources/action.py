@@ -131,21 +131,13 @@ class ResourceAction:
         if not any(resources):
             return Assignment({})
 
-        # limit harvesters per resource
-        # b = np.full(len(resources), 2.0)
-
         # enforce gas target
         is_gas_building = np.array([1.0 if r.type_id in GAS_BUILDINGS else 0.0 for r in resources])
-        b = np.array([2.0 if r.type_id in GAS_BUILDINGS else 2.0 for r in resources])
 
         harvester_to_resource = pairwise_distances(
             [h.position for h in harvesters],
             [self.observation.observation.speedmining_positions.get(r.position, r.position) for r in resources],
         )
-        # harvester_to_return_point = pairwise_distances(
-        #     [h.position for h in harvesters],
-        #     [self.observation.observation.return_point[r.position] for r in resources],
-        # )
 
         return_distance = np.array([self.observation.observation.return_distances[r.position] for r in resources])
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
@@ -157,11 +149,7 @@ class ResourceAction:
                 if (j := resource_index_by_position.get(ti)) is not None:
                     assignment_cost[i, j] = 0.0
 
-        # cost = (harvester_to_resource + harvester_to_return_point + 7 * return_distance).flatten()
         cost = harvester_to_resource + return_distance + assignment_cost
-
-        # x_opt = cp_solve(b, cost, g, gw)
-
         opt = linprog(
             c=cost.flatten(),
             A_ub=np.concatenate(
@@ -170,7 +158,12 @@ class ResourceAction:
                     np.expand_dims(np.tile(is_gas_building, len(harvesters)), 0),
                 )
             ),
-            b_ub=np.concatenate((b, [gas_target])),
+            b_ub=np.concatenate(
+                (
+                    np.array([2.0 for r in resources]),
+                    np.array([gas_target]),
+                )
+            ),
             A_eq=np.repeat(np.eye(len(harvesters), len(harvesters)), len(resources), axis=1),
             b_eq=np.full(len(harvesters), 1.0),
             **LINPROG_OPTIONS,
