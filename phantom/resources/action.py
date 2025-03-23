@@ -164,13 +164,13 @@ class ResourceAction:
 
         opt = linprog(
             c=cost.flatten(),
-            A_ub=np.concat(
-                [
+            A_ub=np.concatenate(
+                (
                     np.tile(np.eye(len(resources), len(resources)), (1, len(harvesters))),
                     np.expand_dims(np.tile(is_gas_building, len(harvesters)), 0),
-                ]
+                )
             ),
-            b_ub=np.concat([b, [gas_target]]),
+            b_ub=np.concatenate((b, [gas_target])),
             A_eq=np.repeat(np.eye(len(harvesters), len(harvesters)), len(resources), axis=1),
             b_eq=np.full(len(harvesters), 1.0),
             **LINPROG_OPTIONS,
