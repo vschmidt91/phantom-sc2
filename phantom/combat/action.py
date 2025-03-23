@@ -44,7 +44,11 @@ class CombatAction:
         if self.observation.is_micro_map:
             return frozenset([self.observation.map_center])
         else:
-            retreat_targets = [self.observation.in_mineral_line(b) for b in self.observation.bases_taken]
+            retreat_targets = list[Point2]()
+            for b in self.observation.bases_taken:
+                p = self.observation.in_mineral_line(b)
+                if 0 < self.confidence[p]:
+                    retreat_targets.append(p)
             if not retreat_targets:
                 retreat_targets.append(self.observation.start_location)
             return frozenset(retreat_targets)
