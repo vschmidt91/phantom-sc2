@@ -57,10 +57,11 @@ class ResourceObservation:
                 if gas_building := self.gas_building_at.get(p):
                     if gas_building.is_ready:
                         # TODO: move somewhere else
-                        if self.observation.researched_speed:
-                            return 2
-                        else:
-                            return 3
+                        # if self.observation.researched_speed:
+                        #     return 2
+                        # else:
+                        #     return 3
+                        return 2
             return 0
         elif patch := self.mineral_field_at.get(p):
             if not remaining(patch):

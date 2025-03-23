@@ -26,7 +26,7 @@ from phantom.common.constants import (
 from phantom.corrosive_biles import CorrosiveBileState
 from phantom.creep import CreepState
 from phantom.dodge import DodgeState
-from phantom.macro.build_order import HATCH_FIRST, POOL_FIRST
+from phantom.macro.build_order import HATCH_FIRST, HATCH_POOL_HATCH, POOL_FIRST
 from phantom.macro.state import MacroPlan, MacroState
 from phantom.macro.strategy import Strategy
 from phantom.observation import Observation
@@ -46,7 +46,7 @@ class Agent:
     dodge = DodgeState()
     scout = ScoutState()
     resources = ResourceState()
-    build_order = HATCH_FIRST
+    build_order = HATCH_POOL_HATCH
 
     async def step(self, observation: Observation) -> AsyncGenerator[Action, None]:
         strategy = Strategy(observation, self.parameters.strategy)

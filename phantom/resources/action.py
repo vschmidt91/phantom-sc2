@@ -150,6 +150,7 @@ class ResourceAction:
                     assignment_cost[i, j] = 0.0
 
         gas_limit = 3.0 if not self.observation.observation.researched_speed else 2.0
+        gas_limit = 2.0
         mineral_limit = 2.0
 
         cost = harvester_to_resource + return_distance + assignment_cost
