@@ -66,8 +66,8 @@ def can_attack(unit: Unit, target: Unit) -> bool:
 
 def pairwise_distances(a, b):
     if not any(a) or not any(b):
-        return []
-    return pairwise_distances_sklearn(a, b)
+        return np.array([])
+    return pairwise_distances_sklearn(a, b, ensure_all_finite=False)
 
 
 def project_point_onto_line(origin: Point2, direction: Point2, position: Point2) -> Point2:

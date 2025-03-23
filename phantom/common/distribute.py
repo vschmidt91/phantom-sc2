@@ -52,8 +52,8 @@ def cp_solve(c, b):
 def distribute(
     a: list[TKey],
     b: list[TValue],
-    cost_fn: Callable[[TKey, TValue], float] | np.ndarray,
-    max_assigned: list[int] | int | None = None,
+    cost: np.ndarray,
+    max_assigned: np.ndarray | int | None = None,
     lp=False,
 ) -> "Assignment[TKey, TValue]":
     if not a:
@@ -63,17 +63,14 @@ def distribute(
     if max_assigned is None:
         max_assigned = math.ceil(len(a) / len(b))
     if isinstance(max_assigned, int):
-        max_assigned = len(b) * [max_assigned]
-
-    c = cost_fn if isinstance(cost_fn, np.ndarray) else np.array([[min(1e8, cost_fn(ai, bj)) for bj in b] for ai in a])
-    d = np.array(max_assigned)
+        max_assigned = np.full(len(b), max_assigned)
 
     try:
         if lp:
             opt = linprog(
-                c=c.flatten(),
+                c=cost.flatten(),
                 A_ub=np.tile(np.eye(len(b), len(b)), (1, len(a))),
-                b_ub=d,
+                b_ub=max_assigned,
                 A_eq=np.repeat(np.eye(len(a), len(a)), len(b), axis=1),
                 b_eq=np.full(len(a), 1.0),
                 **LINPROG_OPTIONS,
@@ -81,9 +78,9 @@ def distribute(
             if not opt.success:
                 logger.error(f"Target assigment failed: {opt}")
                 return Assignment({})
-            x = opt.x.reshape(c.shape)
+            x = opt.x.reshape(cost.shape)
         else:
-            x = cp_solve(c, d)
+            x = cp_solve(cost, max_assigned)
     except cp.error.SolverError as e:
         logger.error(f"Solver Error: {str(e)}")
         return Assignment({})

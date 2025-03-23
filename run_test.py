@@ -8,7 +8,7 @@ from phantom.debug import PhantomBotDebug
 
 if __name__ == "__main__":
     ai = PhantomBotDebug()
-    ai.resign_after_iteration = 256
+    ai.resign_after_iteration = 1000
     bot = Bot(Race.Zerg, ai, "PhantomBot")
 
     result = run_game(

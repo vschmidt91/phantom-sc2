@@ -1,6 +1,7 @@
 import math
 from dataclasses import dataclass
 from functools import cached_property, cmp_to_key
+from itertools import product
 
 import numpy as np
 from loguru import logger
@@ -67,13 +68,26 @@ class CombatAction:
         #     return self.retreat_with_ares(unit, limit=limit)
         x = round(unit.position.x)
         y = round(unit.position.y)
+
         if unit.is_flying:
             retreat_map = self.retreat_air
         else:
             retreat_map = self.retreat_ground
         if retreat_map.dist[x, y] == np.inf:
-            logger.warning("infinite distance, falling back to ares retreating")
-            return self.retreat_with_ares(unit, limit=limit)
+            sx, sy = self.observation.map_size.rounded
+            search_range = 1
+            found = False
+            for x2, y2 in product(
+                range(max(0, x - search_range), min(sx - 1, x + search_range + 1)),
+                range(max(0, y - search_range), min(sy - 1, y + search_range + 1)),
+            ):
+                if retreat_map.dist[x2, y2] < np.inf:
+                    found = True
+                    x, y = x2, y2
+                    break
+            if not found:
+                logger.warning(f"infinite distance and no finite one nearby, falling back to ares retreating: {unit=}")
+                return self.retreat_with_ares(unit, limit=limit)
         retreat_path = retreat_map.get_path((x, y), limit=limit)
         retreat_point = Point2(retreat_path[-1]).offset(HALF)
         # if unit.distance_to(retreat_point) < limit:
@@ -224,41 +238,61 @@ class CombatAction:
 
     @cached_property
     def optimal_targeting(self) -> Assignment[Unit, Unit]:
+        units = self.observation.combatants
+        enemies = self.observation.enemy_combatants
+
         target_stickiness_reward = 1 + math.exp(self.parameters.target_stickiness.mean)
 
-        def cost_fn(a: Unit, b: Unit) -> float:
+        def reward_of(b: Unit) -> float:
+            reward = 1 + self.observation.calculate_unit_value_weighted(b.type_id)
+            if b.is_structure:
+                reward /= 5.0
+            if b.type_id in WORKERS:
+                reward *= 3.0
+            if b.type_id not in CIVILIANS:
+                reward *= 3.0
+            return reward
+
+        risk_a = np.full(len(units), 1.0)
+        risk_b = np.full(len(enemies), 1.0)
+        risk_outer = np.outer(risk_a, risk_b)
+
+        reward_a = np.full(len(units), 1.0)
+        reward_b = np.array([reward_of(e) for e in enemies])
+        reward_outer = np.outer(reward_a, reward_b)
+
+        cost_outer = np.divide(risk_outer, reward_outer)
+
+        def cost_inner_fn(a: Unit, b: Unit) -> float:
             d = self.observation.distance_matrix[a, b]
             r = a.air_range if b.is_flying else a.ground_range
             travel_distance = max(0.0, d - a.radius - b.radius - r - a.distance_to_weapon_ready)
 
             time_to_reach = np.divide(travel_distance, a.movement_speed)
             time_to_kill = np.divide(b.health + b.shield, a.air_dps if b.is_flying else a.ground_dps)
-            risk = min(60, time_to_reach + time_to_kill)
-            reward = 1 + self.observation.calculate_unit_value_weighted(b.type_id)
+            risk = time_to_reach + time_to_kill
+            reward = 1.0
             if a.order_target == b.tag:
                 reward *= target_stickiness_reward
-            if b.is_structure:
-                reward /= 5
-            if b.type_id in WORKERS:
-                reward *= 3
-            if b.type_id not in CIVILIANS:
-                reward *= 3
 
             return np.divide(risk, reward)
 
         if self.observation.is_micro_map:
             max_assigned = None
-        elif self.observation.enemy_combatants:
-            optimal_assigned = len(self.observation.combatants) / len(self.observation.enemy_combatants)
-            medium_assigned = math.sqrt(len(self.observation.combatants))
+        elif enemies:
+            optimal_assigned = len(units) / len(enemies)
+            medium_assigned = math.sqrt(len(units))
             max_assigned = math.ceil(max(medium_assigned, optimal_assigned))
         else:
             max_assigned = 1
 
+        cost_inner = np.array([[min(1e8, cost_inner_fn(ai, bj)) for bj in enemies] for ai in units])
+        cost = cost_outer * cost_inner
+
         assignment = distribute(
-            self.observation.combatants,
-            self.observation.enemy_combatants,
-            cost_fn,
+            units,
+            enemies,
+            cost,
             max_assigned=max_assigned,
             lp=True,
         )
