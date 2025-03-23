@@ -210,16 +210,16 @@ class CombatAction:
     def retreat_air(self) -> DijkstraPathing:
         cost = self.observation.bot.mediator.get_air_grid.copy()
         targets = self.retreat_targets_rounded
-        for t in self.retreat_targets_rounded:
-            cost[t] *= 10
+        # for t in self.retreat_targets_rounded:
+        #     cost[t] *= 10
         return DijkstraPathing(cost, targets)
 
     @cached_property
     def retreat_ground(self) -> DijkstraPathing:
         cost = self.observation.bot.mediator.get_ground_grid.copy()
         targets = self.retreat_targets_rounded
-        for t in self.retreat_targets_rounded:
-            cost[t] *= 10
+        # for t in self.retreat_targets_rounded:
+        #     cost[t] *= 10
         return DijkstraPathing(cost, targets)
 
     @cached_property
