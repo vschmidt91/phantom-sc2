@@ -46,7 +46,7 @@ class CombatAction:
         else:
             retreat_targets = list[Point2]()
             for b in self.observation.bases_taken:
-                p = self.observation.in_mineral_line(b)
+                p = self.observation.in_mineral_line(b).rounded
                 if 0 < self.confidence[p]:
                     retreat_targets.append(p)
             if not retreat_targets:
