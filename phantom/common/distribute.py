@@ -8,6 +8,7 @@ import numpy as np
 from loguru import logger
 from scipy.optimize import linprog
 
+from phantom.cvxpygen.assign.assign import cpg_assign
 from phantom.common.assignment import Assignment
 from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS
 
@@ -66,18 +67,21 @@ def distribute(
 
     try:
         if lp:
-            opt = linprog(
-                c=cost.flatten(),
-                A_ub=np.tile(np.eye(len(b), len(b)), (1, len(a))),
-                b_ub=max_assigned,
-                A_eq=np.repeat(np.eye(len(a), len(a)), len(b), axis=1),
-                b_eq=np.full(len(a), 1.0),
-                **LINPROG_OPTIONS,
-            )
-            if not opt.success:
-                logger.error(f"Target assigment failed: {opt}")
-                return Assignment({})
-            x = opt.x.reshape(cost.shape)
+
+            x = cpg_assign(cost, max_assigned)
+            if x is None:
+                opt = linprog(
+                    c=cost.flatten(),
+                    A_ub=np.tile(np.identity(len(b)), (1, len(a))),
+                    b_ub=max_assigned,
+                    A_eq=np.repeat(np.identity(len(a)), len(b), axis=1),
+                    b_eq=np.full(len(a), 1.0),
+                    **LINPROG_OPTIONS,
+                )
+                if not opt.success:
+                    logger.error(f"Target assigment failed: {opt}")
+                    return Assignment({})
+                x = opt.x.reshape(cost.shape)
         else:
             x = cp_solve(cost, max_assigned)
     except cp.error.SolverError as e:

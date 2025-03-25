@@ -1,7 +1,7 @@
 import os
 import shutil
-from distutils.command.build_ext import build_ext
-from distutils.core import Distribution, Extension
+from setuptools.command.build_ext import build_ext
+from setuptools import Distribution, Extension
 
 import numpy
 from Cython.Build import cythonize
@@ -27,7 +27,7 @@ def build():
     )
 
     distribution = Distribution({"name": "extended", "ext_modules": extensions})
-    distribution.package_dir = "extended"
+    # distribution.package_dir = "extended"
 
     cmd = build_ext(distribution)
     cmd.ensure_finalized()

@@ -19,7 +19,7 @@ from phantom.common.assignment import Assignment
 from phantom.common.constants import CIVILIANS, HALF, WORKERS
 from phantom.common.distribute import distribute
 from phantom.common.utils import Point, calculate_dps, can_attack, combine_comparers, disk, pairwise_distances
-from phantom.cython import DijkstraOutput, cy_dijkstra
+from phantom.cython.cy_dijkstra import DijkstraOutput, cy_dijkstra
 from phantom.data.normal import NormalParameter
 from phantom.observation import Observation
 

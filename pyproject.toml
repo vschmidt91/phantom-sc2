@@ -13,6 +13,7 @@ dependencies = [
     "river>=0.22.0",
     "pyyaml (>=6.0.2,<7.0.0)",
     "scikit-learn (>=1.6.1,<2.0.0)",
+    "jupyter (>=1.1.1,<2.0.0)",
 ]
 
 [project.optional-dependencies]
@@ -20,6 +21,7 @@ dev = [
     "click (>=8.1.8,<9.0.0)",
     "jupyter>=1.0.0",
     "mpyq>=0.2.5",
+    "notebook (>=7.3.3,<8.0.0)",
     "pandas>=2.2.3",
     "s2protocol>=5.0.13.92440.4",
     "snakeviz>=2.2.0",
