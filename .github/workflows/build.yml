@@ -28,7 +28,7 @@ jobs:
       - name: Compile Cython
         run: poetry run python scripts/compile_cython.py
       - name: Compile CVXPYgen
-        run: poetry run python scripts/compile_cvxcpy.py --output-dir=out/phantom/cvxpygen/assign
+        run: poetry run python scripts/compile_cvxpy.py --output-dir=out/phantom/cvxpygen/assign
       - name: Linting and Typechecking
         run: make check
       - name: Save requirements.txt
