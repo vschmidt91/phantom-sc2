@@ -597,7 +597,7 @@ description = "Composable command line interface toolkit"
 optional = true
 python-versions = ">=3.7"
 groups = ["main"]
-markers = "extra == \"dev\""
+markers = "extra == \"build\""
 files = [
     {file = "click-8.1.8-py3-none-any.whl", hash = "sha256:63c132bbbed01578a06712a2d1f497bb62d9c1c0d329b7903a866228027263b2"},
     {file = "click-8.1.8.tar.gz", hash = "sha256:ed53c9d8990d83c2a27deae68e4ee337473f6330c040a31d4225c9574d16096a"},
@@ -643,7 +643,7 @@ description = "Cross-platform colored terminal text."
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
 groups = ["main"]
-markers = "extra == \"dev\" and platform_system == \"Windows\" or sys_platform == \"win32\""
+markers = "(extra == \"dev\" or extra == \"build\") and platform_system == \"Windows\" or sys_platform == \"win32\""
 files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
@@ -4313,11 +4313,11 @@ multidict = ">=4.0"
 propcache = ">=0.2.0"
 
 [extras]
-build = ["cvxpygen", "cython", "cython-extensions-sc2", "map-analyzer", "requests"]
-dev = ["click", "jupyter", "mpyq", "notebook", "pandas", "s2protocol", "snakeviz", "tqdm"]
+build = ["click", "cvxpygen", "cython", "cython-extensions-sc2", "map-analyzer", "requests"]
+dev = ["jupyter", "mpyq", "notebook", "pandas", "s2protocol", "snakeviz", "tqdm"]
 test = ["mypy", "ruff", "types-requests", "types-tqdm"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.13"
-content-hash = "0a52d3df7244ec3152259abb682389caeb7057f3b42c17524d9a866c2b0572da"
+content-hash = "60b309d16cb685828dffc69b61a1abad24518577d56acd069d253d664a34eda5"
