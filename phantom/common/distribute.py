@@ -67,9 +67,10 @@ def distribute(
 
     try:
         if lp:
-
-            x = cpg_assign(cost, max_assigned)
-            if x is None:
+            x_cpg = cpg_assign(cost, max_assigned)
+            if x_cpg is not None:
+                x = x_cpg
+            else:
                 opt = linprog(
                     c=cost.flatten(),
                     A_ub=np.tile(np.identity(len(b)), (1, len(a))),

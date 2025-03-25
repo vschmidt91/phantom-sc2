@@ -16,7 +16,6 @@ from cvxpygen import cpg
 
 
 def compile_problem(n, m, code_dir):
-
     x = cp.Variable((n, m), "x")
     w = cp.Parameter((n, m), name="w")
     b = cp.Parameter(m, name="b")
@@ -38,10 +37,12 @@ def compile_problem(n, m, code_dir):
     )
 
     try:
-        print(subprocess.check_output(
-            [sys.executable, "setup.py", "--quiet", "build_ext", "--inplace"],
-            cwd=code_dir,
-        ))
+        print(
+            subprocess.check_output(
+                [sys.executable, "setup.py", "--quiet", "build_ext", "--inplace"],
+                cwd=code_dir,
+            )
+        )
     except subprocess.CalledProcessError as exc:
         print("Status : FAIL", exc.returncode, exc.output)
 
@@ -56,10 +57,9 @@ def cleanup_problem(problem_dir: str) -> None:
 @click.option("--output-dir", default="phantom/cvxpygen/assign")
 @click.option("--prefix", default="assign")
 def main(output_dir: str, prefix: str):
-
     os.makedirs(output_dir, exist_ok=True)
     for log_n in np.arange(3, 7, 0.5):
-        n = m = int(2 ** log_n)
+        n = m = int(2**log_n)
         problem_name = f"{prefix}_{n}_{m}"
         problem_dir = os.path.join(output_dir, problem_name)
         compile_problem(n, m, problem_dir)
@@ -68,4 +68,3 @@ def main(output_dir: str, prefix: str):
 
 if __name__ == "__main__":
     main()
-
