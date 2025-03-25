@@ -65,15 +65,10 @@ class AssignSolver:
 @cache
 def load_solvers() -> list[AssignSolver]:
     modules = list(pkgutil.iter_modules([BASE_DIR]))
-    logger.info(f"{modules=}")
     solver_modules = [m.name for m in modules if m.ispkg]
-    logger.info(f"{solver_modules=}")
     solvers = [AssignSolver(f) for f in solver_modules]
     logger.info(f"{solvers=}")
     return solvers
-
-
-load_solvers()
 
 
 def cpg_assign(cost: np.ndarray, limit: np.ndarray) -> np.ndarray | None:
