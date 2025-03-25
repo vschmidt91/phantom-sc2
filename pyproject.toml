@@ -18,7 +18,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "click (>=8.1.8,<9.0.0)",
     "jupyter>=1.0.0",
     "mpyq>=0.2.5",
     "notebook (>=7.3.3,<8.0.0)",
@@ -34,6 +33,7 @@ test = [
     "types-tqdm>=4.66.0.20240417",
 ]
 build = [
+    "click (>=8.1.8,<9.0.0)",
     "cvxpygen>=0.4.3",
     "cython>=3.0.10",
     "cython-extensions-sc2 @ git+https://github.com/AresSC2/cython-extensions-sc2.git",
