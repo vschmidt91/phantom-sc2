@@ -56,7 +56,7 @@ def cleanup_problem(problem_dir: str) -> None:
 @click.option("--prefix", default="assign")
 def main(output_dir: str, prefix: str):
     os.makedirs(output_dir, exist_ok=True)
-    for log_n in np.arange(3, 7, 1.0):
+    for log_n in np.linspace(3, 7,  10):
         n = m = int(2**log_n)
         problem_name = f"{prefix}_{n}_{m}"
         problem_dir = os.path.join(output_dir, problem_name)
