@@ -37,12 +37,10 @@ def compile_problem(n, m, code_dir):
     )
 
     try:
-        print(
-            subprocess.check_output(
-                [sys.executable, "setup.py", "--quiet", "build_ext", "--inplace"],
-                cwd=code_dir,
-            )
-        )
+        subprocess.Popen(
+            [sys.executable, "setup.py", "--quiet", "build_ext", "--inplace"],
+            cwd=code_dir,
+        ).wait()
     except subprocess.CalledProcessError as exc:
         print("Status : FAIL", exc.returncode, exc.output)
 
@@ -58,7 +56,7 @@ def cleanup_problem(problem_dir: str) -> None:
 @click.option("--prefix", default="assign")
 def main(output_dir: str, prefix: str):
     os.makedirs(output_dir, exist_ok=True)
-    for log_n in np.arange(3, 7, 0.5):
+    for log_n in np.arange(3, 7, 1.0):
         n = m = int(2**log_n)
         problem_name = f"{prefix}_{n}_{m}"
         problem_dir = os.path.join(output_dir, problem_name)
