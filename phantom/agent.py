@@ -12,12 +12,13 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
 
+from phantom.knowledge import Knowledge
 from phantom.combat.action import CombatAction
 from phantom.common.action import Action, Move, UseAbility
 from phantom.common.assignment import Assignment
 from phantom.common.constants import ALL_MACRO_ABILITIES, CHANGELINGS, ENERGY_COST, GAS_BY_RACE
 from phantom.common.distribute import distribute
-from phantom.common.utils import pairwise_distances
+from phantom.common.utils import pairwise_distances, Point
 from phantom.corrosive_biles import CorrosiveBileState
 from phantom.creep import CreepState
 from phantom.dodge import DodgeState
@@ -35,6 +36,7 @@ from phantom.transfuse import TransfuseAction
 @dataclass(frozen=True)
 class Agent:
     parameters: AgentParameters
+    knowledge: Knowledge
     macro = MacroState()
     creep = CreepState()
     corrosive_biles = CorrosiveBileState()
@@ -101,9 +103,9 @@ class Agent:
             return True  # get on with it!
 
         def should_harvest_resource(r: Unit) -> bool:
-            check_points = [r.position.rounded]
-            if return_point := observation.return_point.get(r.position):
-                check_points.append(return_point.rounded)
+            check_points = [Point(r.position.rounded)]
+            if return_point := self.knowledge.return_point.get(Point(r.position.rounded)):
+                check_points.append(return_point)
             for p in check_points:
                 if combat.confidence[p] < 0 < combat.enemy_presence.dps[p]:
                     return False

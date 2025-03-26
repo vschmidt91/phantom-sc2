@@ -93,8 +93,10 @@ class Observation:
     @cached_property
     def shootable_targets(self) -> dict[Unit, list[Unit]]:
         units = self.combatants
-        ground_ranges = [u.radius + u.ground_range + MAX_UNIT_RADIUS for u in units]
-        air_ranges = [u.radius + u.air_range + MAX_UNIT_RADIUS for u in units]
+        base_ranges = [u.radius for u in units]
+        # base_ranges = [u.radius + MAX_UNIT_RADIUS for u in units]
+        ground_ranges = [b + u.ground_range for u, b in zip(units, base_ranges)]
+        air_ranges = [b + u.air_range for u, b in zip(units, base_ranges)]
 
         ground_candidates = self.bot.mediator.get_units_in_range(
             start_points=units,
@@ -446,14 +448,6 @@ class Observation:
     def return_distances(self) -> dict[Point2, float]:
         return {
             r.position: r.distance_to(base)
-            for base, resources in self.bot.expansion_locations_dict.items()
-            for r in resources
-        }
-
-    @cached_property
-    def return_point(self) -> dict[Point2, Point2]:
-        return {
-            r.position: base.towards(r, 4)
             for base, resources in self.bot.expansion_locations_dict.items()
             for r in resources
         }

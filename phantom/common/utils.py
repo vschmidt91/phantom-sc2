@@ -199,4 +199,5 @@ def calculate_dps(u: Unit, v: Unit) -> float:
 DPS_OVERRIDE = {
     UnitTypeId.BUNKER: 40,
     UnitTypeId.PLANETARYFORTRESS: 5,
+    UnitTypeId.BANELING: 20,
 }

@@ -11,6 +11,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
+from scipy import ndimage
 
 from phantom.combat.predictor import CombatPrediction, CombatPredictor
 from phantom.combat.presence import Presence
@@ -96,9 +97,11 @@ class CombatAction:
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
             dps = calculate_dps(unit, u)
-            return np.divide(hp, dps)
+            reward = self.observation.calculate_unit_value_weighted(u.type_id)
+            return np.divide(hp, dps * reward)
 
-        if unit.type_id not in {UnitTypeId.ZERGLING} and unit.weapon_ready:
+        # if unit.type_id not in {UnitTypeId.ZERGLING} and unit.weapon_ready:
+        if unit.weapon_ready:
             if targets := self.observation.shootable_targets.get(unit):
                 target = min(targets, key=cost_fn)
                 return Attack(unit, target)
@@ -106,10 +109,18 @@ class CombatAction:
         if not (target := self.optimal_targeting.get(unit)):
             return None
 
+        p = Point(unit.position.rounded)
+        q = Point(target.position.rounded)
+        unit_range = unit.air_range if target.is_flying else unit.ground_range
+        target_range = target.air_range if unit.is_flying else target.ground_range
+
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(unit, target.position)
 
-        confidence = self.prediction.survival_time[unit] - self.prediction.nearby_enemy_survival_time[unit]
+        confidence_predictor = self.prediction.survival_time[unit] - self.prediction.nearby_enemy_survival_time[unit]
+        confidence_map = self.confidence_filtered[p]
+        confidence = max(confidence_predictor, confidence_map)
+        # confidence = confidence_map
         test_position = unit.position.towards(target, 1.5)
         if 0 == self.enemy_presence.dps[test_position.rounded]:
             return Attack(unit, target)
@@ -181,6 +192,10 @@ class CombatAction:
         return np.log1p(self.force) - np.log1p(self.enemy_force)
 
     @cached_property
+    def confidence_filtered(self) -> np.ndarray:
+        return ndimage.gaussian_filter(self.confidence, sigma=7.0)
+
+    @cached_property
     def threat_level(self) -> np.ndarray:
         return self.enemy_presence.dps
 
@@ -208,9 +223,9 @@ class CombatAction:
         def cost_fn(a: Unit, b: Unit, d: float) -> float:
             r = a.air_range if b.is_flying else a.ground_range
             travel_distance = max(0.0, d - a.radius - b.radius - r)
-
             time_to_reach = np.divide(travel_distance, a.movement_speed)
-            time_to_kill = np.divide(b.health + b.shield, a.air_dps if b.is_flying else a.ground_dps)
+            dps = calculate_dps(a, b)
+            time_to_kill = np.divide(b.health + b.shield, dps)
             return time_to_reach + time_to_kill
 
         cost = np.array(
