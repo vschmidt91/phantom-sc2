@@ -6,6 +6,7 @@ from typing import Iterable
 
 import numpy as np
 from ares import UnitTreeQueryType
+from cython_extensions import cy_center
 from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
@@ -21,6 +22,7 @@ from sc2.position import Point2, Point3, Size
 from sc2.unit import Unit
 from sc2.units import Units
 
+from phantom.knowledge import Knowledge
 from phantom.common.constants import (
     CIVILIANS,
     ENEMY_CIVILIANS,
@@ -35,10 +37,11 @@ from phantom.common.constants import (
     ZERG_FLYER_UPGRADES,
     ZERG_MELEE_UPGRADES,
     ZERG_RANGED_UPGRADES,
+    HALF,
 )
 from phantom.common.cost import Cost, CostManager
 from phantom.common.main import BotBase
-from phantom.common.utils import MacroId, center, pairwise_distances
+from phantom.common.utils import MacroId, center, pairwise_distances, Point
 
 
 @dataclass(frozen=True)
@@ -187,8 +190,8 @@ class Observation:
         return self.bot.enemy_structures
 
     @cached_property
-    def enemy_start_locations(self) -> list[Point2]:
-        return self.bot.enemy_start_locations
+    def enemy_start_locations(self) -> list[Point]:
+        return [p.rounded for p in self.bot.enemy_start_locations]
 
     @property
     def game_loop(self):
@@ -224,11 +227,11 @@ class Observation:
         return {u: a for a in self.bot.state.actions_unit_commands for u in a.unit_tags}
 
     @cached_property
-    def bases(self) -> frozenset[Point2]:
+    def bases(self) -> list[Point]:
         if self.bot.is_micro_map:
-            return frozenset()
+            return []
         else:
-            return frozenset(self.bot.expansion_locations_list)
+            return [p.rounded for p in self.bot.expansion_locations_list]
 
     @property
     def race(self) -> Race:
@@ -236,7 +239,8 @@ class Observation:
 
     @cached_property
     def geyers_taken(self) -> list[Unit]:
-        return [g for b in self.bases_taken for g in self.bot.expansion_locations_dict[b].vespene_geyser]
+        # return [g for b in self.bases_taken for g in self.bot.expansion_locations_dict[b].vespene_geyser]
+        return self.all_taken_resources.vespene_geyser
 
     @property
     def map_center(self) -> Point2:
@@ -250,9 +254,11 @@ class Observation:
     def supply_used(self) -> float:
         return self.bot.supply_used
 
-    @property
-    def bases_taken(self) -> set[Point2]:
-        return {b for b in self.bot.expansion_locations_list if (th := self.townhall_at.get(b)) and th.is_ready}
+    @cached_property
+    def bases_taken(self) -> set[Point]:
+        return {
+            p for b in self.bot.expansion_locations_list if (th := self.townhall_at.get(p := b.rounded)) and th.is_ready
+        }
 
     @property
     def enemy_natural(self) -> Point2:
@@ -268,14 +274,14 @@ class Observation:
         return cost.minerals + 2 * cost.vespene
 
     @cached_property
-    def townhall_at(self) -> dict[Point2, Unit]:
-        return {b.position: b for b in self.bot.townhalls}
+    def townhall_at(self) -> dict[Point, Unit]:
+        return {b.position.rounded: b for b in self.bot.townhalls}
 
     @cached_property
-    def resource_at(self) -> dict[Point2, Unit]:
-        return {r.position: r for r in self.bot.resources}
+    def resource_at(self) -> dict[Point, Unit]:
+        return {r.position.rounded: r for r in self.bot.resources}
 
-    @property
+    @cached_property
     def all_taken_resources(self) -> Units:
         return Units(
             [
@@ -289,14 +295,13 @@ class Observation:
         )
 
     @cache
-    def in_mineral_line(self, base: Point2) -> Point2:
-        if not (minerals := self.bot.expansion_locations_dict[base].mineral_field):
-            return base
-        return center(m.position for m in minerals)
+    def in_mineral_line(self, base: Point) -> Point:
+        resource_positions = self.bot.expansion_resource_positions[base]
+        return center(resource_positions).rounded
 
     @cache
-    def behind_mineral_line(self, base: Point2) -> Point2:
-        return base.towards(self.in_mineral_line(base), 10.0)
+    def behind_mineral_line(self, base: Point) -> Point2:
+        return Point2(base).offset(HALF).towards(self.in_mineral_line(base), 10.0)
 
     def count(
         self, item: MacroId, include_pending: bool = True, include_planned: bool = True, include_actual: bool = True
@@ -371,7 +376,7 @@ class Observation:
         )
 
     @property
-    def speedmining_positions(self) -> dict[Point2, Point2]:
+    def speedmining_positions(self) -> dict[Point, Point2]:
         return self.bot.speedmining_positions
 
     @property
@@ -443,14 +448,6 @@ class Observation:
         else:
             target = np.random.uniform((a.x, a.y), (a.right, a.top))
         return Point2(target)
-
-    @cached_property
-    def return_distances(self) -> dict[Point2, float]:
-        return {
-            r.position: r.distance_to(base)
-            for base, resources in self.bot.expansion_locations_dict.items()
-            for r in resources
-        }
 
     @property
     def supply_planned(self) -> int:

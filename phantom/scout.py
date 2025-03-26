@@ -9,10 +9,9 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from phantom.common.action import Action
-from phantom.common.assignment import Assignment
 from phantom.common.distribute import distribute
 from phantom.common.main import BotBase
-from phantom.common.utils import pairwise_distances
+from phantom.common.utils import pairwise_distances, Point
 from phantom.observation import Observation
 
 
@@ -36,7 +35,7 @@ class ScoutAction:
 
 
 class ScoutState:
-    blocked_positions = dict[Point2, float]()
+    blocked_positions = dict[Point, float]()
     enemy_natural_scouted = True  # TODO: set back to false when overlords stay safer
 
     def step(self, observation: Observation, safe_overlord_spots: list[Point2]) -> ScoutAction:
@@ -66,16 +65,16 @@ class ScoutState:
         detectors = observation.units({UnitTypeId.OVERSEER})
         nondetectors = observation.units({UnitTypeId.OVERLORD})
 
-        scout_targets = list[Point2]()
+        scout_targets = list[Point]()
         scout_bases = filter(filter_base, observation.bases)
         if not observation.is_micro_map and not self.enemy_natural_scouted:
             if observation.is_visible(observation.enemy_natural):
                 self.enemy_natural_scouted = True
             else:
-                scout_targets.append(observation.enemy_natural)
+                scout_targets.append(observation.enemy_natural.rounded)
             scout_targets.extend(islice(scout_bases, len(nondetectors) - len(scout_targets)))
         else:
-            scout_targets.extend(safe_overlord_spots)
+            scout_targets.extend(p.rounded for p in safe_overlord_spots)
             scout_targets.extend(scout_bases)
         detect_targets = list(self.blocked_positions)
 
@@ -97,6 +96,6 @@ class ScoutState:
             ),
             lp=True,
         )
-        actions = {u: ScoutPosition(u, p) for u, p in (scout_actions + detect_actions).items()}
+        actions = {u: ScoutPosition(u, p) for u, p in (scout_actions | detect_actions).items()}
 
         return ScoutAction(actions)

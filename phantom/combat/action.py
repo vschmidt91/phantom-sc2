@@ -16,7 +16,6 @@ from scipy import ndimage
 from phantom.combat.predictor import CombatPrediction, CombatPredictor
 from phantom.combat.presence import Presence
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
-from phantom.common.assignment import Assignment
 from phantom.common.constants import CIVILIANS, HALF, WORKERS
 from phantom.common.distribute import distribute
 from phantom.common.utils import Point, calculate_dps, can_attack, combine_comparers, disk, pairwise_distances
@@ -47,7 +46,7 @@ class CombatAction:
         else:
             retreat_targets = list()
             for b in self.observation.bases_taken:
-                p = self.observation.in_mineral_line(b).rounded
+                p = self.observation.in_mineral_line(b)
                 if 0 <= self.confidence[p]:
                     retreat_targets.append(p)
             if not retreat_targets:
@@ -57,7 +56,7 @@ class CombatAction:
                 retreat_targets.extend(combatant_positions)
             if not retreat_targets:
                 logger.warning("No retreat targets, falling back to start mineral line")
-                p = self.observation.in_mineral_line(self.observation.start_location).rounded
+                p = self.observation.in_mineral_line(self.observation.start_location.rounded)
                 retreat_targets.append(p)
             return np.array(retreat_targets)
 
@@ -95,27 +94,25 @@ class CombatAction:
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
             dps = calculate_dps(unit, u)
-            reward = self.observation.calculate_unit_value_weighted(u.type_id)
-            return np.divide(hp, dps * reward)
+            # reward = self.observation.calculate_unit_value_weighted(u.type_id)
+            return np.divide(hp, dps)
 
         # if unit.type_id not in {UnitTypeId.ZERGLING} and unit.weapon_ready:
-        if unit.weapon_ready:
-            if targets := self.observation.shootable_targets.get(unit):
-                target = min(targets, key=cost_fn)
-                return Attack(unit, target)
+        # if unit.weapon_ready:
+        #     if targets := self.observation.shootable_targets.get(unit):
+        #         target = min(targets, key=cost_fn)
+        #         return Attack(unit, target)
 
         if not (target := self.optimal_targeting.get(unit)):
             return None
-
-        p = unit.position.rounded
 
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(unit, target.position)
 
         confidence_predictor = self.prediction.survival_time[unit] - self.prediction.nearby_enemy_survival_time[unit]
-        confidence_map = self.confidence_filtered[p]
-        confidence = max(confidence_predictor, confidence_map)
-        # confidence = confidence_map
+        # confidence_map = self.confidence_filtered[p]
+        # confidence = min(confidence_predictor, confidence_map)
+        confidence = confidence_predictor
         test_position = unit.position.towards(target, 1.5)
         if 0 == self.enemy_presence.dps[test_position.rounded]:
             return Attack(unit, target)
@@ -229,12 +226,12 @@ class CombatAction:
         return cost
 
     @cached_property
-    def optimal_targeting(self) -> Assignment[Unit, Unit]:
+    def optimal_targeting(self) -> dict[Unit, Unit]:
         units = self.observation.combatants
         enemies = self.observation.enemy_combatants
 
         if not any(units) or not any(enemies):
-            return Assignment({})
+            return {}
 
         if self.observation.is_micro_map:
             max_assigned = None
@@ -253,6 +250,6 @@ class CombatAction:
             max_assigned=max_assigned,
             lp=True,
         )
-        assignment = Assignment({a: b for a, b in assignment.items() if can_attack(a, b)})
+        assignment = {a: b for a, b in assignment.items() if can_attack(a, b)}
 
         return assignment

@@ -9,11 +9,10 @@ from sc2.units import Units
 
 from ares.consts import GAS_BUILDINGS
 from phantom.common.utils import Point
-from phantom.common.assignment import Assignment
 from phantom.observation import Observation
 from phantom.resources.utils import remaining
 
-HarvesterAssignment: TypeAlias = Assignment[int, Point]
+HarvesterAssignment: TypeAlias = dict[int, Point]
 
 
 @dataclass(frozen=True)

@@ -9,7 +9,6 @@ from loguru import logger
 from scipy.optimize import linprog
 
 from phantom.cvxpygen.assign.assign import cpg_assign
-from phantom.common.assignment import Assignment
 from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS
 
 TKey = TypeVar("TKey", bound=Hashable)
@@ -55,11 +54,11 @@ def distribute(
     cost: np.ndarray,
     max_assigned: np.ndarray | int | None = None,
     lp=False,
-) -> "Assignment[TKey, TValue]":
+) -> dict[TKey, TValue]:
     if not a:
-        return Assignment[TKey, TValue]({})
+        return {}
     if not b:
-        return Assignment[TKey, TValue]({})
+        return {}
     if max_assigned is None:
         max_assigned = math.ceil(len(a) / len(b))
     if isinstance(max_assigned, int):
@@ -81,15 +80,15 @@ def distribute(
                 )
                 if not opt.success:
                     logger.error(f"Target assigment failed: {opt}")
-                    return Assignment({})
+                    return {}
                 x = opt.x.reshape(cost.shape)
         else:
             x = cp_solve(cost, max_assigned)
     except cp.error.SolverError as e:
         logger.error(f"Solver Error: {str(e)}")
-        return Assignment({})
+        return {}
 
     indices = x.argmax(axis=1)
-    assignment = Assignment({ai: b[j] for (i, ai), j in zip(enumerate(a), indices) if 0 < x[i, j]})
+    assignment = {ai: b[j] for (i, ai), j in zip(enumerate(a), indices) if 0 < x[i, j]}
 
     return assignment

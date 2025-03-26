@@ -15,22 +15,22 @@ from sc2.units import Units
 
 from phantom.combat.action import CombatAction
 from phantom.common.action import Action, HoldPosition, Move, UseAbility
-from phantom.common.assignment import Assignment
 from phantom.common.constants import (
     ALL_MACRO_ABILITIES,
     GAS_BY_RACE,
     ITEM_BY_ABILITY,
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
     MACRO_INFO,
+    HALF,
 )
 from phantom.common.cost import Cost
 from phantom.common.unit_composition import UnitComposition
-from phantom.common.utils import PlacementNotFoundException
+from phantom.common.utils import PlacementNotFoundException, Point
 from phantom.observation import Observation
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
 
-MacroAction: TypeAlias = Assignment[Unit, Action]
+MacroAction: TypeAlias = dict[Unit, Action]
 
 
 @dataclass
@@ -89,11 +89,11 @@ class MacroState:
                 self.assigned_plans[trainer.tag] = plan
                 trainer_set.remove(trainer)
 
-    async def step(self, obs: Observation, blocked_positions: set[Point2], combat: CombatAction) -> MacroAction:
+    async def step(self, obs: Observation, blocked_positions: set[Point], combat: CombatAction) -> MacroAction:
         self.handle_actions(obs)
         await self.assign_unassigned_plans(obs, obs.units)  # TODO: narrow this down
 
-        actions = Assignment[Unit, Action]({})
+        actions = dict[Unit, Action]()
         reserve = obs.cost.zero
         plans_prioritized = sorted(self.assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
         for i, (tag, plan) in enumerate(plans_prioritized):
@@ -158,20 +158,20 @@ class MacroState:
 
             if eta == 0.0:
                 plan.commanded = True
-                actions += {trainer: UseAbility(trainer, ability, target=plan.target)}
+                actions[trainer] = UseAbility(trainer, ability, target=plan.target)
             elif plan.target:
                 if trainer.is_carrying_resource:
-                    actions += {trainer: UseAbility(trainer, AbilityId.HARVEST_RETURN)}
+                    actions[trainer] = UseAbility(trainer, AbilityId.HARVEST_RETURN)
                 elif action := await premove(obs, trainer, plan, eta):
                     plan.premoved = False
-                    actions += {trainer: action}
+                    actions[trainer] = action
                 elif action := combat.fight_with(trainer):
-                    actions += {trainer: action}
+                    actions[trainer] = action
 
         return actions
 
     async def get_target(
-        self, obs: Observation, trainer: Unit, objective: MacroPlan, blocked_positions: set[Point2]
+        self, obs: Observation, trainer: Unit, objective: MacroPlan, blocked_positions: set[Point]
     ) -> Unit | Point2 | None:
         gas_type = GAS_BY_RACE[obs.race]
         if objective.item == gas_type:
@@ -186,7 +186,7 @@ class MacroState:
             geysers = [
                 geyser
                 for geyser in obs.geyers_taken
-                if (geyser.position not in exclude_positions and geyser and geyser.tag not in exclude_tags)
+                if (geyser.position not in exclude_positions and geyser.tag not in exclude_tags)
             ]
             if not any(geysers):
                 raise PlacementNotFoundException()
@@ -293,7 +293,7 @@ def get_eta(observation: Observation, reserve: Cost, cost: Cost) -> float:
     )
 
 
-async def get_target_position(obs: Observation, target: UnitTypeId, blocked_positions: set[Point2]) -> Point2 | None:
+async def get_target_position(obs: Observation, target: UnitTypeId, blocked_positions: set[Point]) -> Point2 | None:
     data = obs.unit_data(target)
     if target in {UnitTypeId.HATCHERY}:
         candidates = [b for b in obs.bases if b not in blocked_positions and b not in obs.townhall_at]
@@ -325,7 +325,7 @@ async def get_target_position(obs: Observation, target: UnitTypeId, blocked_posi
 
     if potential_bases := list(filter(filter_base, obs.bases)):
         base = random.choice(potential_bases)
-        position = base.towards_with_random_angle(obs.behind_mineral_line(base), 10)
+        position = Point2(base).offset(HALF).towards_with_random_angle(obs.behind_mineral_line(base), 10)
         offset = data.footprint_radius % 1
         position = position.rounded.offset((offset, offset))
         return position

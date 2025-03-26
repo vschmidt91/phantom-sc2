@@ -12,8 +12,8 @@ from sc2.unit import Unit
 from sc2.units import Units
 from scipy.optimize import linprog
 
+from phantom.knowledge import Knowledge
 from phantom.common.action import Action, DoNothing, Smart
-from phantom.common.assignment import Assignment
 from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS, pairwise_distances, Point
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
@@ -61,38 +61,10 @@ def cp_solve(b, c, g, gw):
 
 @dataclass(frozen=True)
 class ResourceAction:
+    knowledge: Knowledge
     observation: ResourceObservation
     previous_assignment: HarvesterAssignment
     previous_hash: int
-
-    # @cached_property
-    # def harvesters_in_gas_buildings(self) -> dict[Point2, list[int]]:
-    #     assigned_to_gas_building = {
-    #         p: ts
-    #         for p, ts in self.previous_assignment.inverse
-    #         if p in self.observation.gas_building_at
-    #     }
-    #
-    #     def might_be_in_geyser(t: int, gp: Point2) -> bool:
-    #         if not (g := self.observation.gas_building_at.get(gp)):
-    #             return False
-    #         if t in self.observation.observation.unit_by_tag:
-    #             return False
-    #         if t in self.observation.observation.bot.state.dead_units:
-    #             return False
-    #         # if self.previous_assignment.get(u.tag) != g.position:
-    #         #     return False
-    #         if g.assigned_harvesters == len(assigned_to_gas_building.get(g.position, ())):
-    #             return False
-    #         return True
-    #
-    #     return {
-    #         p: list(filter(
-    #             lambda t: might_be_in_geyser(t, self.previous_assignment.get(t)),
-    #             ts,
-    #         ))
-    #         for p, ts in assigned_to_gas_building.items()
-    #     }
 
     @cached_property
     def harvester_assignment(self) -> HarvesterAssignment:
@@ -106,7 +78,7 @@ class ResourceAction:
 
     def solve(self) -> HarvesterAssignment | None:
         if not self.observation.mineral_fields:
-            return HarvesterAssignment({})
+            return {}
 
         harvesters = self.observation.harvesters
         resources = list(self.observation.mineral_fields + self.observation.gas_buildings)
@@ -128,19 +100,19 @@ class ResourceAction:
             harvesters = sorted(harvesters, key=lambda u: u.tag)[:harvester_max]
 
         if not any(harvesters):
-            return Assignment({})
+            return {}
         if not any(resources):
-            return Assignment({})
+            return {}
 
         # enforce gas target
         is_gas_building = np.array([1.0 if r.type_id in GAS_BUILDINGS else 0.0 for r in resources])
 
         harvester_to_resource = pairwise_distances(
             [h.position for h in harvesters],
-            [self.observation.observation.speedmining_positions.get(r.position, r.position) for r in resources],
+            [self.observation.observation.speedmining_positions[r.position.rounded] for r in resources],
         )
 
-        return_distance = np.array([self.observation.observation.return_distances[r.position] for r in resources])
+        return_distance = np.array([self.knowledge.return_distances[r.position.rounded] for r in resources])
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
 
         assignment_cost = np.ones((len(harvesters), len(resources)))
@@ -178,9 +150,9 @@ class ResourceAction:
 
         x = opt.x.reshape(cost.shape)
         indices = x.argmax(axis=1)
-        assignment = Assignment(
-            {ai.tag: resources[j].position.rounded for (i, ai), j in zip(enumerate(harvesters), indices) if 0 < x[i, j]}
-        )
+        assignment = {
+            ai.tag: resources[j].position.rounded for (i, ai), j in zip(enumerate(harvesters), indices) if 0 < x[i, j]
+        }
         return assignment
 
         # return distribute(
@@ -211,7 +183,7 @@ class ResourceAction:
         elif 2 <= len(unit.orders):
             return DoNothing()
         elif unit.is_gathering:
-            return GatherAction(unit, target, self.observation.observation.speedmining_positions.get(target_pos))
+            return GatherAction(unit, target, self.observation.observation.speedmining_positions[target_pos])
         elif unit.is_returning:
             assert any(return_targets)
             return_target = min(return_targets, key=lambda th: th.distance_to(unit))

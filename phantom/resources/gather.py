@@ -13,17 +13,13 @@ from phantom.common.main import BotBase
 class GatherAction(Action):
     unit: Unit
     target: Unit
-    speedmining_position: Point2 | None = None
+    speedmining_position: Point2
 
     async def execute(self, bot: BotBase) -> bool:
         if self.unit.order_target != self.target.tag:
             return self.unit.smart(self.target)
-        if self.speedmining_position is None:
-            move_target = self.target.position.towards(self.unit, self.target.radius + self.unit.radius)
-        else:
-            move_target = self.speedmining_position
-        if 0.75 < self.unit.distance_to(move_target) < 1.75:
-            return self.unit.move(move_target) and self.unit.smart(self.target, queue=True)
+        if 0.75 < self.unit.distance_to(self.speedmining_position) < 1.75:
+            return self.unit.move(self.speedmining_position) and self.unit.smart(self.target, queue=True)
         else:
             return True
 

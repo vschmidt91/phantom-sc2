@@ -3,23 +3,21 @@ from abc import ABC, abstractmethod
 from functools import cached_property
 from typing import Iterable
 
+from loguru import logger
+
 from ares import AresBot
 from sc2.position import Point2
 from sc2.units import Units
 
-from phantom.common.constants import MICRO_MAP_REGEX, MINING_RADIUS
+from phantom.common.constants import MICRO_MAP_REGEX, MINING_RADIUS, MINING_RADIUS_GEYSER
 from phantom.common.cost import CostManager
-from phantom.common.utils import MacroId, get_intersections, project_point_onto_line
+from phantom.common.utils import MacroId, get_intersections, project_point_onto_line, Point
 
 
 class BotBase(AresBot, ABC):
     def __init__(self, game_step_override: int | None = None) -> None:
         super().__init__(game_step_override=game_step_override)
         self.cost = CostManager(self)
-
-    @property
-    def empty_units(self):
-        return Units([], self)
 
     @abstractmethod
     def planned_by_type(self, item: MacroId) -> Iterable:
@@ -30,13 +28,17 @@ class BotBase(AresBot, ABC):
         return re.match(MICRO_MAP_REGEX, self.game_info.map_name)
 
     @cached_property
-    def expansion_resource_positions(self) -> dict[Point2, list[Point2]]:
-        return {b: [r.position for r in rs] for b, rs in self.expansion_locations_dict.items()}
+    def expansion_resource_positions(self) -> dict[Point, list[Point]]:
+        return {b.rounded: [r.position.rounded for r in rs] for b, rs in self.expansion_locations_dict.items()}
 
     @cached_property
-    def speedmining_positions(self) -> dict[Point2, Point2]:
-        result = dict[Point2, Point2]()
+    def speedmining_positions(self) -> dict[Point, Point2]:
+        result = dict[Point, Point2]()
+        worker_radius = self.workers[0].radius
         for base_position, resources in self.expansion_locations_dict.items():
+            for geyser in resources.vespene_geyser:
+                target = geyser.position.towards(base_position, geyser.radius + worker_radius)
+                result[geyser.position.rounded] = target
             for patch in resources.mineral_field:
                 target = patch.position.towards(base_position, MINING_RADIUS)
                 for patch2 in resources.mineral_field:
@@ -59,5 +61,5 @@ class BotBase(AresBot, ABC):
                         else:
                             target = intersection2
                         break
-                result[patch.position] = target
+                result[patch.position.rounded] = target
         return result
