@@ -27,8 +27,8 @@ jobs:
         run: poetry install --no-root --extras test --extras build
       - name: Compile Cython
         run: poetry run python scripts/compile_cython.py
-      - name: Compile CVXPYgen
-        run: poetry run python scripts/compile_cvxpy.py
+#      - name: Compile CVXPYgen
+#        run: poetry run python scripts/compile_cvxpy.py
       - name: Linting and Typechecking
         run: make check
       - name: Save requirements.txt
