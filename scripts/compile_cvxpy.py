@@ -33,7 +33,7 @@ def compile_problem(n, m, code_dir):
         code_dir=code_dir,
         prefix=os.path.basename(code_dir),
         wrapper=False,
-        solver="ECOS",
+        # solver="ECOS",
     )
 
     try:
