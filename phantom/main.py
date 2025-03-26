@@ -9,7 +9,7 @@ from ares import DEBUG
 from loguru import logger
 from sc2.data import Result
 
-from knowledge import Knowledge
+from phantom.knowledge import Knowledge
 from phantom.agent import Agent
 from phantom.common.main import BotBase
 from phantom.data.multivariate_normal import NormalParameters
@@ -29,7 +29,6 @@ class PhantomBot(BotBase):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-
 
         # load data
         priors = AgentPrior.to_dict()

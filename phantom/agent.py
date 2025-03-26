@@ -103,8 +103,8 @@ class Agent:
             return True  # get on with it!
 
         def should_harvest_resource(r: Unit) -> bool:
-            check_points = [Point(r.position.rounded)]
-            if return_point := self.knowledge.return_point.get(Point(r.position.rounded)):
+            check_points = [r.position.rounded]
+            if return_point := self.knowledge.return_point.get(r.position.rounded):
                 check_points.append(return_point)
             for p in check_points:
                 if combat.confidence[p] < 0 < combat.enemy_presence.dps[p]:

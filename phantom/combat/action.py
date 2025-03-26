@@ -41,25 +41,23 @@ class CombatAction:
     parameters: CombatParameters
 
     @cached_property
-    def retreat_targets(self) -> np.array:
+    def retreat_targets(self) -> np.ndarray:
         if self.observation.is_micro_map:
-            return np.array([Point(self.observation.map_center.rounded)])
+            return np.array([self.observation.map_center.rounded])
         else:
-            retreat_targets = list[Point]()
+            retreat_targets = list()
             for b in self.observation.bases_taken:
-                p = Point(self.observation.in_mineral_line(b).rounded)
+                p = self.observation.in_mineral_line(b).rounded
                 if 0 <= self.confidence[p]:
                     retreat_targets.append(p)
             if not retreat_targets:
                 combatant_positions = {
-                    p
-                    for u in self.observation.combatants
-                    if 0 <= self.confidence[p := Point(u.position.rounded)]
+                    p for u in self.observation.combatants if 0 <= self.confidence[p := u.position.rounded]
                 }
                 retreat_targets.extend(combatant_positions)
             if not retreat_targets:
                 logger.warning("No retreat targets, falling back to start mineral line")
-                p = Point(self.observation.in_mineral_line(self.observation.start_location).rounded)
+                p = self.observation.in_mineral_line(self.observation.start_location).rounded
                 retreat_targets.append(p)
             return np.array(retreat_targets)
 
@@ -109,10 +107,7 @@ class CombatAction:
         if not (target := self.optimal_targeting.get(unit)):
             return None
 
-        p = Point(unit.position.rounded)
-        q = Point(target.position.rounded)
-        unit_range = unit.air_range if target.is_flying else unit.ground_range
-        target_range = target.air_range if unit.is_flying else target.ground_range
+        p = unit.position.rounded
 
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(unit, target.position)

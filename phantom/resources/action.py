@@ -144,7 +144,7 @@ class ResourceAction:
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
 
         assignment_cost = np.ones((len(harvesters), len(resources)))
-        resource_index_by_position = {Point(r.position.rounded): i for i, r in enumerate(resources)}
+        resource_index_by_position = {r.position.rounded: i for i, r in enumerate(resources)}
         for i, hi in enumerate(harvesters):
             if ti := self.previous_assignment.get(hi.tag):
                 if (j := resource_index_by_position.get(ti)) is not None:
@@ -179,7 +179,7 @@ class ResourceAction:
         x = opt.x.reshape(cost.shape)
         indices = x.argmax(axis=1)
         assignment = Assignment(
-            {ai.tag: Point(resources[j].position.rounded) for (i, ai), j in zip(enumerate(harvesters), indices) if 0 < x[i, j]}
+            {ai.tag: resources[j].position.rounded for (i, ai), j in zip(enumerate(harvesters), indices) if 0 < x[i, j]}
         )
         return assignment
 

@@ -3,7 +3,7 @@ check:
 	poetry run python -m mypy phantom
 
 fix:
-	poetry run ruff check --fix phantom scripts
+	poetry run ruff check --fix --unsafe-fixes phantom scripts
 	poetry run ruff format phantom scripts
 
 lint: fix check

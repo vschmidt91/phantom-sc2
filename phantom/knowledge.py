@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from functools import cached_property
 
-from common.utils import Point
+from phantom.common.utils import Point
 from phantom.common.main import BotBase
 
 
