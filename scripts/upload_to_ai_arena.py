@@ -9,8 +9,8 @@ ZIPFILE_NAME = "bot.zip"
 WIKI_FILE_NAME = "WIKI.md"
 BASE_URL = "https://aiarena.net"
 
-token = os.environ.get(API_TOKEN_ENV)
-bot_id = os.environ.get(BOT_ID_ENV)
+token = os.environ[API_TOKEN_ENV]
+bot_id = os.environ[BOT_ID_ENV]
 url = f"{BASE_URL}/api/bots/{bot_id}/"
 RETRIES = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
 

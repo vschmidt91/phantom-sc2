@@ -14,7 +14,7 @@ from scipy.optimize import linprog
 
 from phantom.common.action import Action, DoNothing, Smart
 from phantom.common.assignment import Assignment
-from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS, pairwise_distances
+from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS, pairwise_distances, Point
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
 
@@ -111,8 +111,8 @@ class ResourceAction:
         harvesters = self.observation.harvesters
         resources = list(self.observation.mineral_fields + self.observation.gas_buildings)
 
-        mineral_max = sum(self.observation.harvester_target_at(p) for p in self.observation.mineral_field_at)
-        gas_max = sum(self.observation.harvester_target_at(p) for p in self.observation.gas_building_at)
+        mineral_max = 2 * self.observation.mineral_fields.amount
+        gas_max = sum(self.observation.harvester_target_of_gas(g) for g in self.observation.gas_buildings)
 
         if self.observation.observation.researched_speed:
             gas_target = self.gas_target
@@ -144,7 +144,7 @@ class ResourceAction:
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
 
         assignment_cost = np.ones((len(harvesters), len(resources)))
-        resource_index_by_position = {r.position: i for i, r in enumerate(resources)}
+        resource_index_by_position = {Point(r.position.rounded): i for i, r in enumerate(resources)}
         for i, hi in enumerate(harvesters):
             if ti := self.previous_assignment.get(hi.tag):
                 if (j := resource_index_by_position.get(ti)) is not None:
@@ -157,11 +157,11 @@ class ResourceAction:
         cost = harvester_to_resource + return_distance + assignment_cost
         opt = linprog(
             c=cost.flatten(),
-            A_ub=np.tile(np.eye(len(resources), len(resources)), (1, len(harvesters))),
+            A_ub=np.tile(np.identity(len(resources)), (1, len(harvesters))),
             b_ub=np.array([gas_limit if r in GAS_BUILDINGS else mineral_limit for r in resources]),
             A_eq=np.concatenate(
                 (
-                    np.repeat(np.eye(len(harvesters), len(harvesters)), len(resources), axis=1),
+                    np.repeat(np.identity(len(harvesters)), len(resources), axis=1),
                     np.expand_dims(np.tile(is_gas_building, len(harvesters)), 0),
                 )
             ),
@@ -179,7 +179,7 @@ class ResourceAction:
         x = opt.x.reshape(cost.shape)
         indices = x.argmax(axis=1)
         assignment = Assignment(
-            {ai.tag: resources[j].position for (i, ai), j in zip(enumerate(harvesters), indices) if 0 < x[i, j]}
+            {ai.tag: Point(resources[j].position.rounded) for (i, ai), j in zip(enumerate(harvesters), indices) if 0 < x[i, j]}
         )
         return assignment
 

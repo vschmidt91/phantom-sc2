@@ -39,32 +39,20 @@ class HoldPosition(Action):
 @dataclass(frozen=True)
 class Smart(Action):
     unit: Unit
-    target: Point2 | Unit | int | None = None
+    target: Unit
 
     async def execute(self, bot: BotBase) -> bool:
-        target: Point2 | Unit | int | None
-        if isinstance(self.target, int):
-            if not (target := bot.unit_tag_dict.get(self.target)):
-                return False
-        else:
-            target = self.target
-        return self.unit.smart(target=target)
+        return self.unit.smart(target=self.target)
 
 
 @dataclass(frozen=True)
 class UseAbility(Action):
     unit: Unit
     ability: AbilityId
-    target: Point2 | Unit | int | None = None
+    target: Point2 | Unit | None = None
 
     async def execute(self, bot: BotBase) -> bool:
-        target: Point2 | Unit | int | None
-        if isinstance(self.target, int):
-            if not (target := bot.unit_tag_dict.get(self.target)):
-                return False
-        else:
-            target = self.target
-        return self.unit(self.ability, target=target)
+        return self.unit(self.ability, target=self.target)
 
 
 @dataclass(frozen=True)

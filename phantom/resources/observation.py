@@ -7,11 +7,13 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
+from ares.consts import GAS_BUILDINGS
+from common.utils import Point
 from phantom.common.assignment import Assignment
 from phantom.observation import Observation
 from phantom.resources.utils import remaining
 
-HarvesterAssignment: TypeAlias = Assignment[int, Point2]
+HarvesterAssignment: TypeAlias = Assignment[int, Point]
 
 
 @dataclass(frozen=True)
@@ -35,37 +37,30 @@ class ResourceObservation:
         )
 
     @cached_property
-    def resource_at(self) -> dict[Point2, Unit]:
+    def resource_at(self) -> dict[Point, Unit]:
         return self.mineral_field_at | self.gas_building_at
 
     @cached_property
-    def mineral_field_at(self) -> dict[Point2, Unit]:
-        return {r.position: r for r in self.mineral_fields}
+    def mineral_field_at(self) -> dict[Point, Unit]:
+        return {Point(r.position.rounded): r for r in self.mineral_fields}
 
     @cached_property
-    def gas_building_at(self) -> dict[Point2, Unit]:
-        return {g.position: g for g in self.gas_buildings}
+    def gas_building_at(self) -> dict[Point, Unit]:
+        return {Point(g.position.rounded): g for g in self.gas_buildings}
 
     @cached_property
-    def vespene_geyser_at(self) -> dict[Point2, Unit]:
-        return {g.position: g for g in self.vespene_geysers}
+    def vespene_geyser_at(self) -> dict[Point, Unit]:
+        return {Point(g.position.rounded) : g for g in self.vespene_geysers}
 
     # cache
-    def harvester_target_at(self, p: Point2) -> int:
-        if geyser := self.vespene_geyser_at.get(p):
-            if remaining(geyser):
-                if gas_building := self.gas_building_at.get(p):
-                    if gas_building.is_ready:
-                        return 2
-                        # TODO: move somewhere else
-                        # if self.observation.researched_speed:
-                        #     return 2
-                        # else:
-                        #     return 3
-            return 0
-        elif patch := self.mineral_field_at.get(p):
-            if not remaining(patch):
+    def harvester_target_of_gas(self, resource: Unit) -> int:
+        if resource.type_id in GAS_BUILDINGS:
+            if not resource.is_ready:
+                return 0
+            p = Point(resource.position.rounded)
+            geyser = self.vespene_geyser_at[p]
+            if not remaining(geyser):
                 return 0
             return 2
-        logger.error(f"Missing resource at {p}")
-        return 0
+        else:   # resource is mineralpatch
+            return 2

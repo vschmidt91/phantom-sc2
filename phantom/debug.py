@@ -72,9 +72,9 @@ class PhantomBotDebug(PhantomBot):
         await super().on_step(iteration)
         self.profiler.disable()
 
-        stats = pstats.Stats(self.profiler)
         if self.actual_iteration % 100 == 0:
             logger.info("dump profiling")
+            stats = pstats.Stats(self.profiler)
             stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
             stats.dump_stats(filename=self.profile_path)
         for i, (t, plan) in enumerate(self.agent.macro.assigned_plans.items()):

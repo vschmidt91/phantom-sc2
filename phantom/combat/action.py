@@ -40,46 +40,35 @@ class CombatAction:
     parameters: CombatParameters
 
     @cached_property
-    def retreat_targets(self) -> frozenset[Point2]:
+    def retreat_targets(self) -> np.array:
         if self.observation.is_micro_map:
-            return frozenset([self.observation.map_center])
+            return np.array([Point(self.observation.map_center.rounded)])
         else:
-            retreat_targets = list[Point2]()
+            retreat_targets = list[Point]()
             for b in self.observation.bases_taken:
-                p = self.observation.in_mineral_line(b).rounded
-                if 0 < self.confidence[p]:
+                p = Point(self.observation.in_mineral_line(b).rounded)
+                if 0 <= self.confidence[p]:
                     retreat_targets.append(p)
             if not retreat_targets:
-                for u in self.observation.combatants:
-                    p = u.position.rounded
-                    if 0 < self.confidence[p]:
-                        retreat_targets.append(p)
+                combatant_positions = {
+                    p
+                    for u in self.observation.combatants
+                    if 0 <= self.confidence[p := Point(u.position.rounded)]
+                }
+                retreat_targets.extend(combatant_positions)
             if not retreat_targets:
                 logger.warning("No retreat targets, falling back to start mineral line")
-                retreat_targets.append(self.observation.in_mineral_line(self.observation.start_location))
-            return frozenset(retreat_targets)
+                p = Point(self.observation.in_mineral_line(self.observation.start_location).rounded)
+                retreat_targets.append(p)
+            return np.array(retreat_targets)
 
     @cached_property
     def prediction(self) -> CombatPrediction:
         return CombatPredictor(self.observation.combatants, self.observation.enemy_combatants).prediction
 
-    @cached_property
-    def attack_targets(self) -> frozenset[Point2]:
-        if self.observation.is_micro_map:
-            return frozenset({u.position for u in self.observation.enemy_combatants} or {self.observation.map_center})
-        else:
-            attack_targets = [p.position for p in self.observation.enemy_structures]
-            if not attack_targets:
-                attack_targets.extend(self.observation.enemy_start_locations)
-            return frozenset(attack_targets)
-
     def retreat_with(self, unit: Unit, limit=2) -> Action | None:
-        # if unit.type_id not in {UnitTypeId.QUEEN}:
-        #     return self.retreat_with_ares(unit, limit=limit)
-        x0 = round(unit.position.x)
-        y0 = round(unit.position.y)
-        x, y = x0, y0
-
+        x = round(unit.position.x)
+        y = round(unit.position.y)
         if unit.is_flying:
             retreat_map = self.retreat_air
         else:
@@ -110,7 +99,8 @@ class CombatAction:
             return np.divide(hp, dps)
 
         if unit.type_id not in {UnitTypeId.ZERGLING} and unit.weapon_ready:
-            if target := min(self.observation.shootable_targets.get(unit, []), key=cost_fn, default=None):
+            if targets := self.observation.shootable_targets.get(unit):
+                target = min(targets, key=cost_fn)
                 return Attack(unit, target)
 
         if not (target := self.optimal_targeting.get(unit)):
@@ -195,23 +185,15 @@ class CombatAction:
         return self.enemy_presence.dps
 
     @cached_property
-    def retreat_targets_rounded(self) -> list[Point]:
-        return [(int(p[0]), int(p[1])) for p in self.retreat_targets]
-
-    @cached_property
     def retreat_air(self) -> DijkstraOutput:
         cost = self.observation.bot.mediator.get_air_grid.copy()
-        targets = np.array(self.retreat_targets_rounded)
-        # for t in self.retreat_targets_rounded:
-        #     cost[t] *= 10
+        targets = self.retreat_targets
         return cy_dijkstra(cost, targets)
 
     @cached_property
     def retreat_ground(self) -> DijkstraOutput:
         cost = self.observation.bot.mediator.get_ground_grid.copy()
-        targets = np.array(self.retreat_targets_rounded)
-        # for t in self.retreat_targets_rounded:
-        #     cost[t] *= 10
+        targets = self.retreat_targets
         return cy_dijkstra(cost, targets)
 
     @cached_property

@@ -82,7 +82,7 @@ class CombatPredictor:
 
         outcome = CombatOutcome.Draw
         for i in range(max_steps):
-            potential_distance_constant = 1e-3
+            potential_distance_constant = 1.0
             potential_distance = potential_distance_constant + t * movement_speed
             enemy_potential_distance = potential_distance_constant + t * enemy_movement_speed
 
