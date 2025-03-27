@@ -57,7 +57,7 @@ class ResourceObservation:
             if not resource.is_ready:
                 return 0
             p = resource.position.rounded
-            if not (geyser := self.vespene_geyser_at[p]):
+            if not (geyser := self.vespene_geyser_at.get(p)):
                 return 0
             if not remaining(geyser):
                 return 0
