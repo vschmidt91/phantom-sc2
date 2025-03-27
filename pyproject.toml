@@ -76,6 +76,7 @@ module = [
     "cvxpygen.*",
     "sc2.*",
     "scipy.*",
+    "skimage.*",
     "pandas.*",
     "sklearn.*",
     "cython_extensions.*",
