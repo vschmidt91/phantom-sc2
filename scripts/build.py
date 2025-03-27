@@ -22,13 +22,13 @@ FILETYPES_TO_IGNORE = list[str]()
 ROOT_DIRECTORY = "./"
 FETCH_ZIP = list[str]()
 ZIP_ITEMS: dict[str, str] = {
-    "run.py": "run.py",
-    "run_test.py": "run_test.py",
+    os.path.join("scripts", "run.py"): "run.py",
+    os.path.join("resources", "WIKI.md"): "resources/WIKI.md",
     "requirements.txt": "requirements.txt",
     "phantom": "phantom",
     "scripts": "scripts",
-    os.path.join("ares-sc2", "src", "ares"): os.path.join("ares"),
-    os.path.join("ares-sc2", "sc2_helper"): os.path.join("sc2_helper"),
+    os.path.join("ares-sc2", "src", "ares"): "ares",
+    os.path.join("ares-sc2", "sc2_helper"): "sc2_helper",
 }
 ZIP_MODULES: list[str] = [
     # "ares-sc2",

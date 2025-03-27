@@ -1,46 +1,56 @@
-import os
-
+import click
 import requests
+from loguru import logger
 from requests.adapters import HTTPAdapter, Retry
 
-API_TOKEN_ENV = "UPLOAD_API_TOKEN"
-BOT_ID_ENV = "UPLOAD_BOT_ID"
-ZIPFILE_NAME = "bot.zip"
-WIKI_FILE_NAME = "WIKI.md"
-BASE_URL = "https://aiarena.net"
 
-token = os.environ[API_TOKEN_ENV]
-bot_id = os.environ[BOT_ID_ENV]
-url = f"{BASE_URL}/api/bots/{bot_id}/"
-RETRIES = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
-
-print("Uploading bot")
-with (
-    open(ZIPFILE_NAME, "rb") as bot_zip,
-    open(WIKI_FILE_NAME, "r") as wiki,
+@click.command()
+@click.option("--api-token", envvar="UPLOAD_API_TOKEN")
+@click.option("--bot-id", envvar="UPLOAD_BOT_ID")
+@click.option("--bot-path", default="bot.zip")
+@click.option("--wiki-path", default="resources/WIKI.md")
+def main(
+    api_token: str,
+    bot_id: str,
+    bot_path: str,
+    wiki_path: str,
 ):
-    request_headers = {
-        "Authorization": f"Token {token}",
-    }
-    request_data = {
-        # "bot_zip_publicly_downloadable": False,
-        # "bot_data_publicly_downloadable": False,
-        # "bot_data_enabled": True,
-        "wiki_article_content": wiki.read(),
-    }
-    request_files = {
-        "bot_zip": bot_zip,
-    }
+    url = f"https://aiarena.net/api/bots/{bot_id}/"
+    logger.info(f"Uploading {bot_path=} to {url=}")
 
     # configure retries in case AIArena does not respond
     session = requests.Session()
-    session.mount(BASE_URL, HTTPAdapter(max_retries=RETRIES))
-    response = requests.patch(url, headers=request_headers, data=request_data, files=request_files)
+    retries = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
+    session.mount("https://aiarena.net", HTTPAdapter(max_retries=retries))
+    request_headers = {
+        "Authorization": f"Token {api_token}",
+    }
 
-    print(response)
-    print(response.content)
+    with (
+        open(bot_path, "rb") as bot_zip,
+        open(wiki_path, "r") as wiki,
+    ):
+        request_data = {
+            # "bot_zip_publicly_downloadable": False,
+            # "bot_data_publicly_downloadable": False,
+            # "bot_data_enabled": True,
+            "wiki_article_content": wiki.read(),
+        }
+        request_files = {
+            "bot_zip": bot_zip,
+        }
 
-    try:
-        response.raise_for_status()
-    except requests.exceptions.HTTPError as err:
-        raise err
+        response = requests.patch(url, headers=request_headers, data=request_data, files=request_files)
+
+        logger.info(f"{response=}")
+        logger.info(f"{response.content=}")
+
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as error:
+            logger.exception(f"{error=}")
+            raise error
+
+
+if __name__ == "__main__":
+    main()

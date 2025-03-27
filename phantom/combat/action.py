@@ -73,8 +73,6 @@ class CombatAction:
         return CombatPredictor(self.observation.combatants, self.observation.enemy_combatants).prediction
 
     def retreat_with(self, unit: Unit, limit=2) -> Action | None:
-        # if unit.type_id not in {UnitTypeId.QUEEN}:
-        #     return self.retreat_with_ares(unit, limit)
         x = round(unit.position.x)
         y = round(unit.position.y)
         if unit.is_flying:

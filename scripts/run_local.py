@@ -10,8 +10,8 @@ from sc2.data import AIBuild, Difficulty, Race
 from sc2.main import run_game
 from sc2.player import Bot, Computer
 
-sys.path.append("ares-sc2")         # required to import sc2_helper
-sys.path.append("ares-sc2/src")     # required to import ares
+sys.path.append("ares-sc2")  # required to import sc2_helper
+sys.path.append("ares-sc2/src")  # required to import ares
 
 from phantom.debug import PhantomBotDebug
 
@@ -24,7 +24,12 @@ from phantom.debug import PhantomBotDebug
 @click.option("--map-ext", default="SC2Map", envvar="MAP_EXT")
 @click.option("--map-pattern", default="*", envvar="MAP_PATTERN")
 @click.option("--race", default=Race.Random.name, type=click.Choice([x.name for x in Race]), envvar="RACE")
-@click.option("--difficulty", default=Difficulty.CheatInsane.name, type=click.Choice([x.name for x in Difficulty]), envvar="DIFFICULTY")
+@click.option(
+    "--difficulty",
+    default=Difficulty.CheatInsane.name,
+    type=click.Choice([x.name for x in Difficulty]),
+    envvar="DIFFICULTY",
+)
 @click.option("--build", default=AIBuild.Rush.name, type=click.Choice([x.name for x in AIBuild]), envvar="BUILD")
 def run_local(
     save_replay: str,
@@ -37,7 +42,6 @@ def run_local(
     difficulty: str,
     build: str,
 ):
-
     ai = PhantomBotDebug()
     ai.training = training
     bot = Bot(Race.Zerg, ai, "PhantomBot")
@@ -48,9 +52,7 @@ def run_local(
         os.makedirs(save_replay, exist_ok=True)
 
     map_choices = [
-        p.name.replace(f".{map_ext}", "")
-        for p in Path(maps_path).glob(f"{map_pattern}.{map_ext}")
-        if p.is_file()
+        p.name.replace(f".{map_ext}", "") for p in Path(maps_path).glob(f"{map_pattern}.{map_ext}") if p.is_file()
     ]
 
     opponent = Computer(Race[race], Difficulty[difficulty], AIBuild[build])
