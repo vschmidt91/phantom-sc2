@@ -314,7 +314,7 @@ async def get_target_position(obs: Observation, target: UnitTypeId, blocked_posi
             if loss < loss_min:
                 loss_min = loss
                 c_min = c
-        return c_min
+        return Point2(c_min).offset(HALF)
 
     def filter_base(b):
         if not (th := obs.townhall_at.get(b)):

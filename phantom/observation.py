@@ -96,8 +96,8 @@ class Observation:
     @cached_property
     def shootable_targets(self) -> dict[Unit, list[Unit]]:
         units = self.combatants
-        base_ranges = [u.radius for u in units]
-        # base_ranges = [u.radius + MAX_UNIT_RADIUS for u in units]
+        # base_ranges = [u.radius for u in units]
+        base_ranges = [u.radius + MAX_UNIT_RADIUS for u in units]
         ground_ranges = [b + u.ground_range for u, b in zip(units, base_ranges)]
         air_ranges = [b + u.air_range for u, b in zip(units, base_ranges)]
 

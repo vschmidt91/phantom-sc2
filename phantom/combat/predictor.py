@@ -82,11 +82,11 @@ class CombatPredictor:
 
         outcome = CombatOutcome.Draw
         for i in range(max_steps):
-            potential_distance_constant = 1.0
+            potential_distance_constant = 1e-3
             potential_distance = potential_distance_constant + t * movement_speed
             enemy_potential_distance = potential_distance_constant + t * enemy_movement_speed
 
-            attack_weight = np.clip(1 - required_distance / potential_distance, 1e-8, 1)
+            attack_weight = np.clip(1 - required_distance / potential_distance, 0, 1)
             enemy_attack_weight = np.clip(1 - enemy_required_distance / enemy_potential_distance, 0, 1)
 
             attack_probability = nan_to_zero(attack_weight / np.sum(attack_weight, axis=1, keepdims=True))

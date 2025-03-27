@@ -9,7 +9,6 @@ readme = "README.md"
 requires-python = ">=3.11, <3.13"
 dependencies = [
     "burnysc2 @ git+https://github.com/august-k/python-sc2@develop",
-    "scikit-image>=0.24.0",
     "river>=0.22.0",
     "pyyaml (>=6.0.2,<7.0.0)",
     "scikit-learn (>=1.6.1,<2.0.0)",
@@ -22,7 +21,9 @@ dev = [
     "mpyq>=0.2.5",
     "notebook (>=7.3.3,<8.0.0)",
     "pandas>=2.2.3",
+    "plotly (>=6.0.1,<7.0.0)",
     "s2protocol>=5.0.13.92440.4",
+    "scikit-image>=0.24.0",
     "snakeviz>=2.2.0",
     "tqdm>=4.67.0",
 ]

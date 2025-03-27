@@ -18,7 +18,15 @@ from phantom.combat.presence import Presence
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.constants import CIVILIANS, HALF, WORKERS
 from phantom.common.distribute import distribute
-from phantom.common.utils import Point, calculate_dps, can_attack, combine_comparers, disk, pairwise_distances
+from phantom.common.utils import (
+    Point,
+    calculate_dps,
+    can_attack,
+    combine_comparers,
+    disk,
+    pairwise_distances,
+    points_of_structure,
+)
 from phantom.cython.cy_dijkstra import DijkstraOutput, cy_dijkstra
 from phantom.data.normal import NormalParameter
 from phantom.observation import Observation
@@ -65,6 +73,8 @@ class CombatAction:
         return CombatPredictor(self.observation.combatants, self.observation.enemy_combatants).prediction
 
     def retreat_with(self, unit: Unit, limit=2) -> Action | None:
+        # if unit.type_id not in {UnitTypeId.QUEEN}:
+        #     return self.retreat_with_ares(unit, limit)
         x = round(unit.position.x)
         y = round(unit.position.y)
         if unit.is_flying:
@@ -97,11 +107,10 @@ class CombatAction:
             # reward = self.observation.calculate_unit_value_weighted(u.type_id)
             return np.divide(hp, dps)
 
-        # if unit.type_id not in {UnitTypeId.ZERGLING} and unit.weapon_ready:
-        # if unit.weapon_ready:
-        #     if targets := self.observation.shootable_targets.get(unit):
-        #         target = min(targets, key=cost_fn)
-        #         return Attack(unit, target)
+        if unit.ground_range < 1 and unit.weapon_ready:
+            if targets := self.observation.shootable_targets.get(unit):
+                target = min(targets, key=cost_fn)
+                return Attack(unit, target)
 
         if not (target := self.optimal_targeting.get(unit)):
             return None
@@ -110,12 +119,17 @@ class CombatAction:
             return Move(unit, target.position)
 
         confidence_predictor = self.prediction.survival_time[unit] - self.prediction.nearby_enemy_survival_time[unit]
-        # confidence_map = self.confidence_filtered[p]
-        # confidence = min(confidence_predictor, confidence_map)
-        confidence = confidence_predictor
+        confidence_map = self.confidence_filtered[unit.position.rounded]
+        confidence = max(confidence_predictor, confidence_map)
+        # confidence = confidence_predictor
         test_position = unit.position.towards(target, 1.5)
         if 0 == self.enemy_presence.dps[test_position.rounded]:
             return Attack(unit, target)
+            # runby_pathing = self.runby_air if unit.is_flying else self.runby_ground
+            # runby = runby_pathing.get_path(unit.position.rounded, limit=2)
+            # if len(runby) == 1:
+            #     return Attack(unit, target)
+            # return UseAbility(unit, AbilityId.ATTACK, Point2(runby[-1]))
         elif 0 <= confidence:
             if unit.type_id in {UnitTypeId.ZERGLING}:
                 return UseAbility(unit, AbilityId.ATTACK, target.position)
@@ -185,7 +199,10 @@ class CombatAction:
 
     @cached_property
     def confidence_filtered(self) -> np.ndarray:
-        return ndimage.gaussian_filter(self.confidence, sigma=7.0)
+        sigma = 5
+        return np.log1p(ndimage.gaussian_filter(self.force, sigma)) - np.log1p(
+            ndimage.gaussian_filter(self.enemy_force, sigma)
+        )
 
     @cached_property
     def threat_level(self) -> np.ndarray:
@@ -202,6 +219,21 @@ class CombatAction:
         cost = self.observation.bot.mediator.get_ground_grid.copy()
         targets = self.retreat_targets
         return cy_dijkstra(cost, targets)
+
+    @cached_property
+    def runby_targets(self) -> np.ndarray:
+        if self.observation.is_micro_map:
+            return np.array([u.position.rounded for u in self.observation.enemy_combatants])
+        else:
+            return np.array([self.observation.in_mineral_line(p) for p in self.observation.enemy_start_locations])
+
+    @cached_property
+    def runby_ground(self) -> DijkstraOutput:
+        return cy_dijkstra(self.observation.bot.mediator.get_ground_grid, self.runby_targets)
+
+    @cached_property
+    def runby_air(self) -> DijkstraOutput:
+        return cy_dijkstra(self.observation.bot.mediator.get_air_grid, self.runby_targets)
 
     @cached_property
     def targeting_cost(self) -> np.ndarray:

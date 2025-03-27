@@ -181,6 +181,14 @@ def combine_comparers[T](fns: list[Callable[[T, T], int]]) -> Callable[[T, T], i
     return combined
 
 
+def points_of_structure(s: Unit) -> list[Point]:
+    dx, dy = disk(s.radius)
+    px, py = s.position.rounded
+    dx += px
+    dy += py
+    return list(zip(dx, dy))
+
+
 def logit_to_probability(x: float):
     return 1 / (1 + math.exp(-x))
 

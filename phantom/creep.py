@@ -10,7 +10,7 @@ from sc2.unit import Unit
 from scipy.ndimage import gaussian_filter
 
 from phantom.common.action import Action, UseAbility
-from phantom.common.constants import ENERGY_COST
+from phantom.common.constants import ENERGY_COST, HALF
 from phantom.common.utils import circle, circle_perimeter, line, rectangle
 from phantom.observation import Observation
 
@@ -37,7 +37,7 @@ class CreepAction:
     def placement_map(self) -> np.ndarray:
         m = self.obs.creep & self.obs.vision & (self.obs.pathing == 1) & self.mask
         for b in self.prevent_blocking:
-            x, y = (Point2(b) - 0.5 * Point2(_BASE_SIZE)).rounded
+            x, y = (Point2(b).offset(HALF) - 0.5 * Point2(_BASE_SIZE)).rounded
             r = rectangle((x, y), extent=_BASE_SIZE, shape=self.obs.creep.shape)
             m[r] = False
         return m
@@ -46,7 +46,7 @@ class CreepAction:
     def value_map(self) -> np.ndarray:
         m = (~self.obs.creep & (self.obs.pathing == 1)).astype(float)
         for b in self.reward_blocking:
-            x, y = (Point2(b) - 0.5 * Point2(_BASE_SIZE)).rounded
+            x, y = (Point2(b).offset(HALF) - 0.5 * Point2(_BASE_SIZE)).rounded
             r = rectangle((x, y), extent=_BASE_SIZE, shape=self.obs.creep.shape)
             m[r] *= 3
         return m
