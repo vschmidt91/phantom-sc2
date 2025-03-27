@@ -8,7 +8,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.11, <3.13"
 dependencies = [
-    "burnysc2 @ git+https://github.com/august-k/python-sc2@develop",
+    "burnysc2 @ git+https://github.com/august-k/python-sc2.git@develop",
     "river>=0.22.0",
     "pyyaml (>=6.0.2,<7.0.0)",
     "scikit-image>=0.24.0",
@@ -27,8 +27,8 @@ dev = [
     "tqdm>=4.67.0",
 ]
 test = [
-    "ruff (>=0.11.0,<0.12.0)",
     "mypy>=1.12.0",
+    "ruff (>=0.11.0,<0.12.0)",
     "types-requests (>=2.32.0.20250306,<3.0.0.0)",
     "types-tqdm>=4.66.0.20240417",
 ]
