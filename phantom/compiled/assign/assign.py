@@ -32,7 +32,7 @@ class AssignSolver:
 
     @cached_property
     def module(self):
-        return importlib.import_module(f"phantom.cvxpygen.assign.{self.module_path}.cpg_solver")
+        return importlib.import_module(f"phantom.compiled.assign.{self.module_path}.cpg_solver")
 
     @cached_property
     def solver(self):
