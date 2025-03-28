@@ -4,13 +4,13 @@ from requests.adapters import HTTPAdapter, Retry
 
 
 @click.command()
+@click.argument("--bot-path")
 @click.option("--api-token", envvar="UPLOAD_API_TOKEN")
 @click.option("--bot-id", envvar="UPLOAD_BOT_ID")
-@click.option("--bot-path", default="bot.zip")
 def main(
+    bot_path: str,
     api_token: str,
     bot_id: str,
-    bot_path: str,
 ):
     url = f"https://aiarena.net/api/bots/{bot_id}/"
     print(f"Uploading {bot_path=} to {url=}")

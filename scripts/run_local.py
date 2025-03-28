@@ -13,26 +13,27 @@ from sc2.player import Bot, Computer
 sys.path.append("ares-sc2")  # required to import sc2_helper
 sys.path.append("ares-sc2/src")  # required to import ares
 
-from phantom.debug import PhantomBotDebug
+from phantom.debug import PhantomBot, PhantomBotDebug
 
 
 @click.command()
-@click.option("--save-replay", default="resources/replays/local", envvar="SAVE_REPLAY")
-@click.option("--training", default=True, envvar="TRAINING")
-@click.option("--realtime", default=False, envvar="REALTIME")
-@click.option("--maps-path", default="C:\\Program Files (x86)\\StarCraft II\\Maps", envvar="MAPS_PATH")
-@click.option("--map-ext", default="SC2Map", envvar="MAP_EXT")
-@click.option("--map-pattern", default="*", envvar="MAP_PATTERN")
-@click.option("--race", default=Race.Random.name, type=click.Choice([x.name for x in Race]), envvar="RACE")
+@click.option("--save-replay", default="")
+@click.option("--debug", default=True)
+@click.option("--training", default=True)
+@click.option("--realtime", default=False)
+@click.option("--maps-path", default="C:\\Program Files (x86)\\StarCraft II\\Maps")
+@click.option("--map-ext", default="SC2Map")
+@click.option("--map-pattern", default="*")
+@click.option("--race", default=Race.Random.name, type=click.Choice([x.name for x in Race]))
 @click.option(
     "--difficulty",
     default=Difficulty.CheatInsane.name,
     type=click.Choice([x.name for x in Difficulty]),
-    envvar="DIFFICULTY",
 )
-@click.option("--build", default=AIBuild.Rush.name, type=click.Choice([x.name for x in AIBuild]), envvar="BUILD")
+@click.option("--build", default=AIBuild.Rush.name, type=click.Choice([x.name for x in AIBuild]))
 def run_local(
     save_replay: str,
+    debug: bool,
     training: bool,
     realtime: bool,
     maps_path: str,
@@ -42,7 +43,7 @@ def run_local(
     difficulty: str,
     build: str,
 ):
-    ai = PhantomBotDebug()
+    ai = PhantomBotDebug() if debug else PhantomBot()
     ai.training = training
     bot = Bot(Race.Zerg, ai, "PhantomBot")
 

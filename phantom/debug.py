@@ -9,7 +9,7 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
 from phantom.common.utils import points_of_structure
-from phantom import PhantomBot
+from phantom.main import PhantomBot
 
 # from bot.ai.replay import load_replays
 from phantom.macro.state import MacroPlan
@@ -23,9 +23,6 @@ class PhantomBotDebug(PhantomBot):
     async def on_start(self) -> None:
         await super().on_start()
 
-        ps = points_of_structure(self.townhalls[0])
-        logger.debug(len(ps))
-        logger.debug(ps)
         logger.debug("Starting in debug mode")
         # dataset = list(load_replays("resources/games/*.pkl.xz"))
         # for x, y in tqdm(dataset):

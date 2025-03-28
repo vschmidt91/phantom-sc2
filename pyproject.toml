@@ -32,6 +32,7 @@ dev = [
 test = [
     "mypy>=1.12.0",
     "ruff (>=0.11.0,<0.12.0)",
+    "types-pyyaml (>=6.0.12.20250326,<7.0.0.0)",
     "types-requests (>=2.32.0.20250306,<3.0.0.0)",
     "types-tqdm>=4.66.0.20240417",
 ]
@@ -51,6 +52,7 @@ packages = [
     { include = "ares", from="ares-sc2/src"},
 ]
 include = [
+    { path = "run.py", format = ["sdist", "wheel"] },
     { path = "scripts", format = ["sdist", "wheel"] },
     { path = "phantom/cython/*.so", format = ["sdist", "wheel"] },
     { path = "phantom/cython/*.pyd", format = ["sdist", "wheel"] },

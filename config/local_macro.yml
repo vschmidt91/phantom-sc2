@@ -1,0 +1,6 @@
+map_pattern: "*AIE"
+enemy_race: Zerg
+enemy_build: Macro
+debug: True
+training: True
+save_replay: resources/replays/local
