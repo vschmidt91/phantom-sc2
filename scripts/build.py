@@ -24,6 +24,8 @@ INCLUDE_ZIP = list[str]()
 FETCH_ZIP = list[str]()
 ZIP_ITEMS: dict[str, str] = {
     os.path.join("scripts", "run.py"): "run.py",
+    os.path.join("scripts", "run_local.py"): "run_local.py",
+    os.path.join("scripts", "run_test.py"): "run_test.py",
 }
 ZIP_MODULES: list[str] = [
     "cvxpy",
