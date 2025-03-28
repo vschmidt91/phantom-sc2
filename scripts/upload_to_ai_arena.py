@@ -7,12 +7,10 @@ from requests.adapters import HTTPAdapter, Retry
 @click.option("--api-token", envvar="UPLOAD_API_TOKEN")
 @click.option("--bot-id", envvar="UPLOAD_BOT_ID")
 @click.option("--bot-path", default="bot.zip")
-@click.option("--wiki-path", default="resources/WIKI.md")
 def main(
     api_token: str,
     bot_id: str,
     bot_path: str,
-    wiki_path: str,
 ):
     url = f"https://aiarena.net/api/bots/{bot_id}/"
     print(f"Uploading {bot_path=} to {url=}")
@@ -27,13 +25,12 @@ def main(
 
     with (
         open(bot_path, "rb") as bot_zip,
-        open(wiki_path, "r") as wiki,
     ):
         request_data = {
             # "bot_zip_publicly_downloadable": False,
             # "bot_data_publicly_downloadable": False,
             # "bot_data_enabled": True,
-            "wiki_article_content": wiki.read(),
+            # "wiki_article_content": wiki.read(),
         }
         request_files = {
             "bot_zip": bot_zip,
