@@ -65,7 +65,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install dependencies
-        run: pip install -r resources/requirements-ci.txt
+        run: pip install .[build]
       - uses: actions/download-artifact@v4
         with:
           name: ladder-zip
