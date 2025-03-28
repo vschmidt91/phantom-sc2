@@ -52,11 +52,11 @@ def cleanup_problem(problem_dir: str) -> None:
 
 
 @click.command()
-@click.option("--output-dir", default="phantom/cvxpygen/assign")
+@click.option("--output-dir", default="phantom/compiled/assign")
 @click.option("--prefix", default="assign")
 def main(output_dir: str, prefix: str):
     os.makedirs(output_dir, exist_ok=True)
-    for n in [4, 6, 8, 12, 16, 24, 32]:
+    for n in [8, 16, 32]:
         m = n
         problem_name = f"{prefix}_{n}_{m}"
         problem_dir = os.path.join(output_dir, problem_name)

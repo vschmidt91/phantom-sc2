@@ -1,3 +1,7 @@
+zip:
+	poetry run python scripts/compile_cython.py
+	poetry run python scripts/build.py
+
 check:
 	poetry run ruff check phantom scripts
 	poetry run python -m mypy phantom

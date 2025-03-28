@@ -15,6 +15,9 @@ dependencies = [
     "scikit-learn (>=1.6.1,<2.0.0)",
 ]
 
+[project.urls]
+Repository = "https://github.com/vschmidt91/phantom-sc2.git"
+
 [project.optional-dependencies]
 dev = [
     "jupyter>=1.0.0",
@@ -41,8 +44,17 @@ build = [
     "requests (>=2.32.3,<3.0.0)",
 ]
 
-[project.urls]
-Repository = "https://github.com/vschmidt91/phantom-sc2.git"
+[tool.poetry]
+packages = [
+    { include = "phantom" },
+    { include = "sc2_helper", from="ares-sc2" },
+    { include = "ares", from="ares-sc2/src"},
+]
+include = [
+    { path = "scripts", format = ["sdist", "wheel"] },
+    { path = "phantom/cython/*.so", format = ["sdist", "wheel"] },
+    { path = "phantom/cython/*.pyd", format = ["sdist", "wheel"] },
+]
 
 [tool.poetry.dependencies]
 ares-sc2 = { path = "ares-sc2", develop = false }
@@ -67,6 +79,7 @@ ignore = ["F401"]
 [[tool.mypy.overrides]]
 module = [
     "phantom.cython.*",
+    "phantom.compiled.*",
     "ares.*",
     "Cython.*",
     "distutils.*",
@@ -83,9 +96,4 @@ module = [
     "s2protocol.*",
 ]
 ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = [
-    "phantom.cvxpygen.*",
-]
 ignore_errors = true

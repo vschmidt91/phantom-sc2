@@ -6,7 +6,7 @@ from cython import boundscheck, wraparound
 from libcpp cimport bool
 from libcpp.pair cimport pair
 
-ctypedef pair[float, pair[int, int]] Item
+ctypedef pair[float, pair[Py_ssize_t, Py_ssize_t]] Item
 
 cdef Py_ssize_t[8] NEIGHBOURS_X = [-1, 1, 0, 0, -1, 1, -1, 1]
 cdef Py_ssize_t[8] NEIGHBOURS_Y = [0, 0, -1, 1, -1, -1, 1, 1]

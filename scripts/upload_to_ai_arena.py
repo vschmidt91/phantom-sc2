@@ -1,6 +1,5 @@
 import click
 import requests
-from loguru import logger
 from requests.adapters import HTTPAdapter, Retry
 
 
@@ -16,7 +15,7 @@ def main(
     wiki_path: str,
 ):
     url = f"https://aiarena.net/api/bots/{bot_id}/"
-    logger.info(f"Uploading {bot_path=} to {url=}")
+    print(f"Uploading {bot_path=} to {url=}")
 
     # configure retries in case AIArena does not respond
     session = requests.Session()
@@ -42,13 +41,13 @@ def main(
 
         response = requests.patch(url, headers=request_headers, data=request_data, files=request_files)
 
-        logger.info(f"{response=}")
-        logger.info(f"{response.content=}")
+        print(f"{response=}")
+        print(f"{response.content=}")
 
         try:
             response.raise_for_status()
         except requests.exceptions.HTTPError as error:
-            logger.exception(f"{error=}")
+            print(f"{error=}")
             raise error
 
 

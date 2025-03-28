@@ -42,22 +42,21 @@ class AssignSolver:
         return all(a <= b for a, b in zip(shape, self.shape))
 
     def solve(self, cost: np.ndarray, limit: np.ndarray) -> np.ndarray:
-
         cost_param = self.problem.param_dict["w"]
         cost_padded = np.zeros_like(cost_param.value)
-        cost_padded[:cost.shape[0], :cost.shape[1]] = cost
+        cost_padded[: cost.shape[0], : cost.shape[1]] = cost
         cost_param.value = cost_padded
 
         limit_param = self.problem.param_dict["b"]
         limit_padded = np.zeros_like(limit_param.value)
-        limit_padded[:limit.shape[0]] = limit
+        limit_padded[: limit.shape[0]] = limit
         limit_param.value = limit_padded
 
         self.solver(self.problem)
 
         solution_var = self.problem.var_dict["x"]
         solution_padded = solution_var.value
-        solution = solution_padded[:cost.shape[0], :cost.shape[1]]
+        solution = solution_padded[: cost.shape[0], : cost.shape[1]]
 
         return solution
 
@@ -72,7 +71,6 @@ def load_solvers() -> list[AssignSolver]:
 
 
 def cpg_assign(cost: np.ndarray, limit: np.ndarray) -> np.ndarray | None:
-
     assert cost.ndim == 2
     assert limit.ndim == 1
     assert limit.shape[0] == cost.shape[1]

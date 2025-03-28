@@ -25,16 +25,10 @@ jobs:
         run: poetry run pip install -U pip
       - name: Install requirements
         run: poetry install --no-root --extras test --extras build
-      - name: Compile Cython
-        run: poetry run python scripts/compile_cython.py
-#      - name: Compile CVXPYgen
-#        run: poetry run python scripts/compile_cvxpy.py
       - name: Linting and Typechecking
         run: make check
-      - name: Save requirements.txt
-        run: poetry export --without-hashes --format=requirements.txt > requirements.txt
-      - name: Run build
-        run: poetry run python scripts/build.py
+      - name: Compile and Build
+        run: make zip
       - uses: actions/upload-artifact@v4
         with:
           name: ladder-zip

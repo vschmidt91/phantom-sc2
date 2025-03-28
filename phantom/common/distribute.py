@@ -8,7 +8,7 @@ import numpy as np
 from loguru import logger
 from scipy.optimize import linprog
 
-from phantom.cvxpygen.assign.assign import cpg_assign
+from phantom.compiled.assign.assign import cpg_assign
 from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS
 
 TKey = TypeVar("TKey", bound=Hashable)
