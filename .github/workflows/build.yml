@@ -51,8 +51,8 @@ jobs:
           python -m pip install -U pip
           python -m pip install -r requirements.txt
       - name: Run game
-        env:
-          SC2PATH: "/root/StarCraftII/"
+        # env:
+        #   SC2PATH: "/root/StarCraftII/"
         # run: python scripts/travis_test_script.py run.py
         run: python run.py --config config/run/test.yml
 
