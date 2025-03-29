@@ -90,10 +90,12 @@ exclude = [
 
 [[tool.mypy.overrides]]
 module = [
-    "phantom.cython.*",
-    "phantom.compiled.*",
+    "ares.*",
     "cython_extensions.*",
+    "phantom.compiled.*",
+    "phantom.cython.*",
     "sc2.*",
     "scipy.*",
+    "sklearn.*",
 ]
 ignore_missing_imports = true
