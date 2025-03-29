@@ -24,6 +24,7 @@ from utils import CommandWithConfigFile
 @click.option("--zip-archives", multiple=True)
 @click.option("--zip-urls", multiple=True)
 @click.option("--exclude", multiple=True)
+@click.option("--compression-level", default=9)
 def main(
     config,
     input_dir: str,
@@ -32,6 +33,7 @@ def main(
     zip_archives: list[str],
     zip_urls: list[str],
     exclude: list[str],
+    compression_level: int,
 ) -> None:
     for archive_pattern in zip_archives:
         for archive in glob.glob(os.path.join(input_dir, archive_pattern)):
@@ -83,7 +85,7 @@ def main(
             shutil.copytree(tmp, target, dirs_exist_ok=True)
 
     exclude_compiled = [re.compile(fnmatch.translate(p)) for p in exclude]
-    with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_LZMA) as zf:
+    with zipfile.ZipFile(output_path, "w", compresslevel=compression_level) as zf:
         for dirname, subdirs, files in os.walk(input_dir):
             for filename in files:
                 filepath = os.path.join(dirname, filename)
