@@ -1,15 +1,15 @@
 zip:
-	python scripts/compile_cython.py
-	python scripts/build.py out
+	poetry run python scripts/compile_cython.py
+	poetry run python scripts/build.py out
 
 check:
-	ruff check .
-	yamllint -c config/yamllint.yml .
-	mypy .
+	poetry run ruff check .
+	poetry run yamllint -c config/yamllint.yml .
+	poetry run mypy .
 
 fix:
-	ruff check --select I --fix --unsafe-fixes .
-	ruff format .
+	poetry run ruff check --select I --fix --unsafe-fixes .
+	poetry run ruff format .
 
 profile:
-	snakeviz resources/profiling.prof
+	poetry run snakeviz resources/profiling.prof
