@@ -4,6 +4,7 @@ import os
 import pathlib
 import random
 import sys
+from itertools import chain
 
 import aiohttp
 import click
@@ -110,7 +111,8 @@ async def run(
         if maps_path is None:
             logger.info("No maps path provided, falling back to installation folder")
             maps_path = str(Paths.MAPS)
-        map_choices = glob.glob(os.path.join(maps_path, f"{map_pattern}.SC2MAP"))
+        map_globs = [os.path.join(maps_path, f"{map_pattern}.{ext}") for ext in ["SC2MAP", "SC2Map"]]
+        map_choices = list(chain.from_iterable(map(glob.glob, map_globs)))
         map_choice = random.choice(map_choices)
         logger.info(f"Map pick is {map_choice=}")
         opponent = Computer(Race[enemy_race], Difficulty[enemy_difficulty], AIBuild[enemy_build])
