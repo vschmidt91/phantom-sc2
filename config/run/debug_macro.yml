@@ -3,5 +3,6 @@
 map_pattern: "*AIE"
 enemy_race: Zerg
 enemy_build: Macro
-save_replay: resources/replays/local
-bot_config: config/bot/debug.yml
+save_replay: resources\replays\local
+bot_config: config\bot\debug.yml
+log_level: TRACE

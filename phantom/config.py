@@ -13,6 +13,7 @@ class BotConfig:
     debug_draw = False
     profile_path: str | None = None
     save_game_info: str | None = None
+    tag_log_level = "ERROR"
 
     version_path = "version.txt"
     data_path = "data"

@@ -3,10 +3,10 @@ import glob
 import os
 import pathlib
 import random
+import sys
 
 import aiohttp
 import click
-import yaml
 from loguru import logger
 from sc2.client import Client
 from sc2.data import AIBuild, Difficulty, Race
@@ -17,22 +17,10 @@ from sc2.player import Bot, Computer
 from sc2.portconfig import Portconfig
 from sc2.protocol import ConnectionAlreadyClosed
 
-from phantom.common.utils import async_command
+from phantom.common.constants import LOG_LEVEL_OPTIONS
+from phantom.common.utils import CommandWithConfigFile, async_command
 from phantom.config import BotConfig
 from phantom.main import PhantomBot
-
-
-def CommandWithConfigFile(config_file_param_name):
-    class CustomCommandClass(click.Command):
-        def invoke(self, ctx):
-            config_file = ctx.params[config_file_param_name]
-            if config_file is not None:
-                with open(config_file) as f:
-                    config_data = yaml.safe_load(f)
-                ctx.params.update(config_data)
-            return super(CustomCommandClass, self).invoke(ctx)
-
-    return CustomCommandClass
 
 
 @click.command(cls=CommandWithConfigFile("config"))
@@ -53,6 +41,8 @@ def CommandWithConfigFile(config_file_param_name):
     type=click.Choice([x.name for x in Difficulty]),
 )
 @click.option("--enemy-build", default=AIBuild.Rush.name, type=click.Choice([x.name for x in AIBuild]))
+@click.option("--log-level", default="INFO", type=click.Choice(LOG_LEVEL_OPTIONS), envvar="LOGURU_LEVEL")
+@click.option("--log-disable-modules", default=["sc2"], multiple=True)
 @async_command
 async def run(
     config: str,
@@ -68,7 +58,16 @@ async def run(
     enemy_race: str,
     enemy_difficulty: str,
     enemy_build: str,
+    log_level: str,
+    log_disable_modules: list[str],
 ):
+    logger.info("Setting up log handlers")
+    logger.remove()
+    for module in log_disable_modules:
+        logger.debug("Disabling logging for {module=}")
+        logger.disable(module)
+    logger.add(sys.stdout, level=log_level)  # Set different levels for different outputs
+
     logger.info("Setting up bot")
     if bot_config is not None:
         bot_config_value = BotConfig.from_yaml(bot_config)

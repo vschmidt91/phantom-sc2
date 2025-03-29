@@ -75,7 +75,7 @@ class CreepAction:
                 target_point = Point2(p).offset(Point2((0.5, 0.5)))
                 return UseAbility(unit, AbilityId.BUILD_CREEPTUMOR, target_point)
 
-        logger.debug("No creep tumor placement found.")
+        logger.warning("No creep tumor placement found.")
         return None
 
     def spread_with_queen(self, queen: Unit) -> Action | None:

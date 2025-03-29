@@ -4,8 +4,10 @@ from dataclasses import fields
 from functools import cache, wraps
 from typing import Callable, Iterable, Type, TypeAlias
 
+import click
 import numpy as np
 import skimage.draw
+import yaml
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -219,3 +221,16 @@ DPS_OVERRIDE = {
     UnitTypeId.PLANETARYFORTRESS: 5,
     UnitTypeId.BANELING: 20,
 }
+
+
+def CommandWithConfigFile(config_file_param_name):
+    class CustomCommandClass(click.Command):
+        def invoke(self, ctx):
+            config_file = ctx.params[config_file_param_name]
+            if config_file is not None:
+                with open(config_file) as f:
+                    config_data = yaml.safe_load(f)
+                ctx.params.update(config_data)
+            return super(CustomCommandClass, self).invoke(ctx)
+
+    return CustomCommandClass

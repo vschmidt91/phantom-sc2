@@ -4,6 +4,7 @@ import lzma
 import os
 import pickle
 import pstats
+from queue import Empty, Queue
 from typing import Iterable
 
 from loguru import logger
@@ -24,6 +25,7 @@ from phantom.parameters import AgentParameters, AgentPrior
 
 class PhantomBot(BotBase):
     replay_tags = set[str]()
+    replay_tag_queue = Queue[str]()
     version: str | None = None
     profiler = cProfile.Profile()
 
@@ -63,11 +65,8 @@ class PhantomBot(BotBase):
             logger.info("Creating profiler")
             self.profiler = cProfile.Profile()
 
-    async def add_replay_tag(self, replay_tag: str) -> None:
-        if replay_tag not in self.replay_tags:
-            logger.info(f"Adding {replay_tag=}")
-            self.replay_tags.add(replay_tag)
-            await self.client.chat_send(f"Tag:{replay_tag}", True)
+    def add_replay_tag(self, replay_tag: str) -> None:
+        self.replay_tag_queue.put(replay_tag)
 
     def planned_by_type(self, item: MacroId) -> Iterable:
         return self.agent.macro.planned_by_type(item)
@@ -76,8 +75,14 @@ class PhantomBot(BotBase):
         logger.debug("Bot starting")
         await super().on_start()
 
+        def handle_message(message):
+            severity = message.record["level"]
+            self.add_replay_tag(f"log_{severity.name.lower()}")
+
+        logger.add(handle_message, level=self.bot_config.tag_log_level, enqueue=True)
+
         if self.version:
-            await self.add_replay_tag(f"version_{self.version}")
+            self.add_replay_tag(f"version_{self.version}")
 
         if self.bot_config.save_game_info:
             logger.info(f"Saving game info to {self.bot_config.save_game_info}")
@@ -98,8 +103,8 @@ class PhantomBot(BotBase):
                 logger.info(f"Reached iteration {self.bot_config.resign_after_iteration}, resigning.")
                 await self.client.leave()
 
-        # for error in self.state.action_errors:
-        #     logger.debug(f"{error=}")
+        for error in self.state.action_errors:
+            logger.warning(f"{error=}")
 
         if self.bot_config.profile_path:
             self.profiler.enable()
@@ -110,8 +115,15 @@ class PhantomBot(BotBase):
 
         async for action in self.agent.step(Observation(self)):
             if not await action.execute(self):
-                await self.add_replay_tag("action_failed")
+                self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
+
+        while True:
+            try:
+                tag = self.replay_tag_queue.get(block=False)
+                await self._send_replay_tag(tag)
+            except Empty:
+                break
 
         if self.bot_config.profile_path:
             self.profiler.disable()
@@ -206,3 +218,10 @@ class PhantomBot(BotBase):
             self.client.debug_line_out(position_from, position_to, color=font_color)
 
         self.client.debug_text_screen(f"{1 + index} {round(eta or 0, 1)} {plan.item.name}", (0.01, 0.1 + 0.01 * index))
+
+    async def _send_replay_tag(self, replay_tag: str) -> None:
+        if replay_tag in self.replay_tags:
+            return
+        logger.info(f"Adding {replay_tag=}")
+        self.replay_tags.add(replay_tag)
+        await self.client.chat_send(f"Tag:{replay_tag}", True)
