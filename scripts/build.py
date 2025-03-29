@@ -4,9 +4,11 @@ to ladder or tournaments.
 TODO: check all files and folders are present before zipping
 """
 
+import fnmatch
 import glob
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -16,10 +18,10 @@ import zipfile
 from importlib.util import find_spec
 from io import BytesIO
 
-OUTPUT_DIR = "out"
+import click
+
 PYTHON_VERSION = f"{sys.version_info.major}.{sys.version_info.minor}"
-EXCLUDE = list[str]()
-FILETYPES_TO_IGNORE = list[str]()
+IGNORE_GLOBS = list[str]()
 FETCH_ZIP = list[str]()
 ZIP_MODULES: list[str] = [
     "cvxpy",
@@ -31,41 +33,57 @@ ZIP_MODULES: list[str] = [
     "_ecos",
 ]
 
-FILETYPES_TO_IGNORE.append(".c")
-FILETYPES_TO_IGNORE.append(".pyc")
-FILETYPES_TO_IGNORE.append(".pyi")
-FILETYPES_TO_IGNORE.append(".pyx")
-FILETYPES_TO_IGNORE.append("-darwin.so")
-FILETYPES_TO_IGNORE.append(".xz")
+IGNORE_GLOBS.append("*.c")
+IGNORE_GLOBS.append("*__pycache__")
+IGNORE_GLOBS.append("*.pyc")
+IGNORE_GLOBS.append("*.pyi")
+IGNORE_GLOBS.append("*.pyx")
+IGNORE_GLOBS.append("*-darwin.so")
+IGNORE_GLOBS.append("*.xz")
+IGNORE_GLOBS.append("*.dist-info")
 if platform.system() == "Windows":
-    FILETYPES_TO_IGNORE.append(".so")
+    IGNORE_GLOBS.append("**/*.so")
     CYTHON_EXTENSION_VERSION = "windows"
 else:
-    FILETYPES_TO_IGNORE.append(".pyd")
+    IGNORE_GLOBS.append("*.pyd")
     CYTHON_EXTENSION_VERSION = "ubuntu"
 
 CYTHON_EXTENSION_RELEASE = "https://github.com/AresSC2/cython-extensions-sc2/releases/latest/download"
 FETCH_ZIP.append(f"{CYTHON_EXTENSION_RELEASE}/{CYTHON_EXTENSION_VERSION}-latest_python{PYTHON_VERSION}.zip")
 
-IGNORE_PATTERNS = shutil.ignore_patterns(*["*" + ext for ext in FILETYPES_TO_IGNORE])
+IGNORE_PATTERNS = shutil.ignore_patterns(*IGNORE_GLOBS)
+IGNORE_REGEXES = [re.compile(fnmatch.translate(p)) for p in IGNORE_GLOBS]
+
+
+def should_ignore(p):
+    return any(r.match(p) for r in IGNORE_REGEXES)
 
 
 def copyfile(src, dst):
-    if any(src.endswith(ext) for ext in FILETYPES_TO_IGNORE):
+    if should_ignore(src):
         print(f"Skipping {src}")
-        return
-    print(f"Copying file {src=} to {dst=}")
-    os.makedirs(os.path.dirname(dst), exist_ok=True)
-    shutil.copyfile(src, dst)
+    else:
+        print(f"Copying file {src=} to {dst=}")
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copyfile(src, dst)
 
 
 def copytree(src, dst):
-    print(f"Copying directory {src=} to {dst=}")
-    shutil.copytree(src, dst, dirs_exist_ok=True, ignore=IGNORE_PATTERNS)
+    if should_ignore(src):
+        print(f"Skipping {src}")
+    else:
+        print(f"Copying directory {src=} to {dst=}")
+        shutil.copytree(src, dst, dirs_exist_ok=True, ignore=IGNORE_PATTERNS)
 
 
-if __name__ == "__main__":
-    output_dir = OUTPUT_DIR
+def extract(z: zipfile.ZipFile, dst):
+    members = [name for name in z.namelist() if not should_ignore(name)]
+    z.extractall(dst, members=members)
+
+
+@click.command()
+@click.argument("output_dir", type=click.Path())
+def main(output_dir: str) -> None:
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
     os.mkdir(output_dir)
@@ -73,17 +91,13 @@ if __name__ == "__main__":
     subprocess.Popen(["poetry", "build", "--clean", "--format", "wheel", "--output", output_dir]).wait()
     for wheel in glob.glob(os.path.join(output_dir, "*.whl")):
         with zipfile.ZipFile(wheel) as z:
-            z.extractall(output_dir)
+            extract(z, output_dir)
         os.remove(wheel)
 
     print("Creating requirements.txt")
     requirements_path = os.path.join(output_dir, "requirements.txt")
     with open(requirements_path, "wt") as f:
         subprocess.Popen(["poetry", "export", "--without-hashes", "--format=requirements.txt"], stdout=f).wait()
-
-    for wheel in glob.glob(os.path.join("dist", "*.whl")):
-        with zipfile.ZipFile(wheel) as z:
-            z.extractall(output_dir)
 
     commit_hash = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("ascii").strip()
     version_file = "version.txt"
@@ -119,3 +133,7 @@ if __name__ == "__main__":
             with zipfile.ZipFile(BytesIO(r)) as z:
                 z.extractall(tmp)
             copytree(tmp, target)
+
+
+if __name__ == "__main__":
+    main()

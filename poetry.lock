@@ -849,23 +849,6 @@ files = [
 ]
 
 [[package]]
-name = "cython-extensions-sc2"
-version = "0.4.6"
-description = ""
-optional = true
-python-versions = ">=3.10,<3.13"
-groups = ["main"]
-markers = "extra == \"build\""
-files = []
-develop = false
-
-[package.source]
-type = "git"
-url = "https://github.com/AresSC2/cython-extensions-sc2.git"
-reference = "HEAD"
-resolved_reference = "466fac61162276be9f9da15c50b22d528bdb6c4d"
-
-[[package]]
 name = "debugpy"
 version = "1.8.13"
 description = "An implementation of the Debug Adapter Protocol for Python"
@@ -2541,9 +2524,10 @@ testing = ["docopt", "pytest"]
 name = "pathspec"
 version = "0.12.1"
 description = "Utility library for gitignore style pattern matching of file paths."
-optional = false
+optional = true
 python-versions = ">=3.8"
 groups = ["main"]
+markers = "extra == \"test\""
 files = [
     {file = "pathspec-0.12.1-py3-none-any.whl", hash = "sha256:a0d503e138a4c123b27490a4f7beda6a01c6f288df0e4a8b79c7eb0dc7b4cc08"},
     {file = "pathspec-0.12.1.tar.gz", hash = "sha256:a482d51503a1ab33b1c67a6c3813a26953dbdc71c31dacaef9a838c4e29f5712"},
@@ -4387,9 +4371,10 @@ dev = ["black (>=19.3b0) ; python_version >= \"3.6\"", "pytest (>=4.6.2)"]
 name = "yamllint"
 version = "1.37.0"
 description = "A linter for YAML files."
-optional = false
+optional = true
 python-versions = ">=3.9"
 groups = ["main"]
+markers = "extra == \"test\""
 files = [
     {file = "yamllint-1.37.0-py3-none-any.whl", hash = "sha256:c03ab4e79ab4af964c8eb16ac9746880fc76a3bb0ffb14925b9a55220ae7dda0"},
     {file = "yamllint-1.37.0.tar.gz", hash = "sha256:ead81921d4d87216b2528b7a055664708f9fb8267beb0c427cb706ac6ab93580"},
@@ -4500,11 +4485,11 @@ multidict = ">=4.0"
 propcache = ">=0.2.0"
 
 [extras]
-build = ["cvxpygen", "cython", "cython-extensions-sc2", "map-analyzer", "requests"]
+build = ["cvxpygen", "cython", "map-analyzer", "requests"]
 dev = ["jupyter", "mpyq", "notebook", "pandas", "plotly", "s2protocol", "snakeviz", "tqdm"]
-test = ["mypy", "ruff", "types-pyyaml", "types-requests", "types-tqdm"]
+test = ["mypy", "ruff", "types-pyyaml", "types-requests", "types-tqdm", "yamllint"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.13"
-content-hash = "0e58525346878b2a7424303c9ccc45b2154b737de3397e8a0d8736cd363d75d8"
+content-hash = "f6b6de9360b083b5c1c60060654f63cc8a58e30ba0942b73855dc1a020fbff29"

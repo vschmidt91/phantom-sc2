@@ -55,9 +55,10 @@ class AssignSolver:
         self.solver(self.problem)
 
         solution_var = self.problem.var_dict["x"]
-        solution_padded = solution_var.value
-        solution = solution_padded[: cost.shape[0], : cost.shape[1]]
-
+        if solution_padded := solution_var.value:
+            solution = solution_padded[: cost.shape[0], : cost.shape[1]]
+        else:
+            solution = np.zeros_like(cost)
         return solution
 
 

@@ -4,6 +4,7 @@ extends: relaxed
 ignore: |
   .venv
   ares-sc2
+  cython-extensions-sc2
   out
 rules:
   new-lines: disable

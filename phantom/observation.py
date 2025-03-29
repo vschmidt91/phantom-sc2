@@ -6,6 +6,7 @@ from typing import Iterable
 
 import numpy as np
 from ares import UnitTreeQueryType
+from cython_extensions import cy_center
 from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
@@ -21,7 +22,6 @@ from sc2.position import Point2, Point3, Size
 from sc2.unit import Unit
 from sc2.units import Units
 
-from cython_extensions import cy_center
 from phantom.common.constants import (
     CIVILIANS,
     ENEMY_CIVILIANS,

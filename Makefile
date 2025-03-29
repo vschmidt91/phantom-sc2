@@ -1,6 +1,6 @@
 zip:
 	python scripts/compile_cython.py
-	python scripts/build.py
+	python scripts/build.py out
 
 check:
 	ruff check .

@@ -41,7 +41,6 @@ test = [
 build = [
     "cvxpygen>=0.4.3",
     "cython>=3.0.10",
-    "cython-extensions-sc2 @ git+https://github.com/AresSC2/cython-extensions-sc2.git",
     "map-analyzer @ git+https://github.com/raspersc2/SC2MapAnalysis.git",
     "requests (>=2.32.3,<3.0.0)",
 ]
@@ -73,8 +72,7 @@ build-backend = "poetry.core.masonry.api"
 line-length = 120
 exclude = [
     "ares-sc2",
-    "cvxpygen",
-    "cython_extensions",
+    "cython-extensions-sc2",
 ]
 
 [tool.ruff.lint]
@@ -84,36 +82,18 @@ ignore = ["F401"]
 [tool.mypy]
 exclude = [
     "^ares-sc2/",
+    "^cython-extensions-sc2/",
     "^out/",
     "^resources/",
     "^scripts/",
-]
-
-[tool.yamllint]
-ignore = [
-    ".venv",
-    "out",
 ]
 
 [[tool.mypy.overrides]]
 module = [
     "phantom.cython.*",
     "phantom.compiled.*",
-    "ares.*",
-    "Cython.*",
-    "distutils.*",
-    "loguru.*",
-    "cvxpy.*",
-    "cvxpygen.*",
+    "cython_extensions.*",
     "sc2.*",
     "scipy.*",
-    "skimage.*",
-    "resources.*",
-    "pandas.*",
-    "sklearn.*",
-    "cython_extensions.*",
-    "mpyq.*",
-    "s2protocol.*",
 ]
 ignore_missing_imports = true
-ignore_errors = true
