@@ -1,6 +1,6 @@
 import datetime
-import os
-import pathlib
+import glob
+import oss
 import random
 
 import aiohttp
@@ -43,7 +43,7 @@ def CommandWithConfigFile(config_file_param_name):
 @click.option("--OpponentId", "opponent_id")
 @click.option("--RealTime", "realtime", default=False)
 @click.option("--save-replay")
-@click.option("--maps-path", default=Paths.MAPS, type=click.Path())
+@click.option("--maps-path", default=str(Paths.MAPS))
 @click.option("--map-pattern", default="*")
 @click.option("--enemy-race", default=Race.Random.name, type=click.Choice([x.name for x in Race]))
 @click.option(
@@ -62,13 +62,14 @@ async def run(
     opponent_id: str,
     realtime: bool,
     save_replay: str,
-    maps_path: pathlib.Path,
+    maps_path: str,
     map_pattern: str,
     enemy_race: str,
     enemy_difficulty: str,
     enemy_build: str,
 ):
     logger.info("Setting up bot...")
+    logger.info(maps_path)
     if bot_config is not None:
         bot_config_value = BotConfig.from_yaml(bot_config)
     else:
@@ -107,7 +108,7 @@ async def run(
     else:
         logger.info("Starting local game...")
 
-        map_choices = list(maps_path.glob(f"{map_pattern}.SC2MAP"))
+        map_choices = glob.glob(os.path.join(maps_path, f"{map_pattern}.SC2MAP"))
         map_choice = random.choice(map_choices)
         logger.info(f"Map pick is {map_choice=}")
         opponent = Computer(Race[enemy_race], Difficulty[enemy_difficulty], AIBuild[enemy_build])
