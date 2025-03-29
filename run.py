@@ -32,7 +32,7 @@ from phantom.main import PhantomBot
 @click.option("--OpponentId", "opponent_id")
 @click.option("--RealTime", "realtime", default=False)
 @click.option("--save-replay")
-@click.option("--maps-path", default=str(Paths.MAPS))
+@click.option("--maps-path")
 @click.option("--map-pattern", default="*")
 @click.option("--enemy-race", default=Race.Random.name, type=click.Choice([x.name for x in Race]))
 @click.option(
@@ -107,6 +107,9 @@ async def run(
     else:
         logger.info("Starting local game")
 
+        if maps_path is None:
+            logger.info("No maps path provided, falling back to installation folder")
+            maps_path = str(Paths.MAPS)
         map_choices = glob.glob(os.path.join(maps_path, f"{map_pattern}.SC2MAP"))
         map_choice = random.choice(map_choices)
         logger.info(f"Map pick is {map_choice=}")
