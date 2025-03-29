@@ -1,6 +1,7 @@
 ---
 
 zip_modules:
+  - click
   - cvxpy
   - _cvxcore
   - cvxpygen

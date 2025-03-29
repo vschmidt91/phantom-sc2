@@ -67,7 +67,7 @@ async def run(
     logger.info("Setting up log handlers")
     logger.remove()
     for module in log_disable_modules:
-        logger.debug("Disabling logging for {module=}")
+        logger.debug(f"Disabling logging for {module=}")
         logger.disable(module)
     logger.add(sys.stdout, level=log_level)  # Set different levels for different outputs
 
