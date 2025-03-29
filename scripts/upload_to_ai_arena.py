@@ -1,51 +1,61 @@
 import click
-import requests
+from requests import HTTPError, Session
 from requests.adapters import HTTPAdapter, Retry
 
 
 @click.command()
-@click.argument("bot-path")
+@click.argument("bot-zip", type=click.File("rb"))
+@click.option("--wiki", type=click.File("rb"))
 @click.option("--api-token", envvar="UPLOAD_API_TOKEN")
 @click.option("--bot-id", envvar="UPLOAD_BOT_ID")
+@click.option("--bot-zip-publicly-downloadable", type=bool)
+@click.option("--bot-data-publicly-downloadable", type=bool)
+@click.option("--bot-data-enabled", type=bool)
 def main(
-    bot_path: str,
+    bot_zip,
+    wiki,
     api_token: str,
     bot_id: str,
+    bot_zip_publicly_downloadable: bool,
+    bot_data_publicly_downloadable: bool,
+    bot_data_enabled: bool,
 ):
+
     url = f"https://aiarena.net/api/bots/{bot_id}/"
-    print(f"Uploading {bot_path=} to {url=}")
+    print(f"Uploading to {url=}")
 
     # configure retries in case AIArena does not respond
-    session = requests.Session()
+    session = Session()
     retries = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
     session.mount("https://aiarena.net", HTTPAdapter(max_retries=retries))
     request_headers = {
         "Authorization": f"Token {api_token}",
     }
 
-    with (
-        open(bot_path, "rb") as bot_zip,
-    ):
-        request_data = {
-            # "bot_zip_publicly_downloadable": False,
-            # "bot_data_publicly_downloadable": False,
-            # "bot_data_enabled": True,
-            # "wiki_article_content": wiki.read(),
-        }
-        request_files = {
-            "bot_zip": bot_zip,
-        }
+    request_data = {}
+    if bot_zip_publicly_downloadable:
+        request_data["bot_zip_publicly_downloadable"] = bot_zip_publicly_downloadable
+    if bot_data_publicly_downloadable:
+        request_data["bot_data_publicly_downloadable"] = bot_data_publicly_downloadable
+    if bot_data_enabled:
+        request_data["bot_data_enabled"] = bot_data_enabled
+    if wiki:
+        request_data["wiki_article_content"] = wiki.read()
 
-        response = requests.patch(url, headers=request_headers, data=request_data, files=request_files)
+    request_files = {
+        "bot_zip": bot_zip,
+    }
 
-        print(f"{response=}")
-        print(f"{response.content=}")
+    response = session.patch(url, headers=request_headers, data=request_data, files=request_files)
 
-        try:
-            response.raise_for_status()
-        except requests.exceptions.HTTPError as error:
-            print(f"{error=}")
-            raise error
+    print(f"{response=}")
+    print(f"{response.content=}")
+
+    try:
+        response.raise_for_status()
+    except HTTPError as error:
+        print(f"{error=}")
+        raise error
 
 
 if __name__ == "__main__":
