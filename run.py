@@ -1,10 +1,11 @@
 import datetime
 import glob
-import oss
+import os
 import random
 
 import aiohttp
 import click
+import oss
 import yaml
 from loguru import logger
 from sc2.client import Client
@@ -16,8 +17,8 @@ from sc2.player import Bot, Computer
 from sc2.portconfig import Portconfig
 from sc2.protocol import ConnectionAlreadyClosed
 
-from phantom.config import BotConfig
 from phantom.common.utils import async_command
+from phantom.config import BotConfig
 from phantom.main import PhantomBot
 
 
