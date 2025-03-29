@@ -1,4 +1,4 @@
 ---
 
 bot_config: config/bot/test.yml
-maps_path: /root/StarCraftII/maps
+maps_path: ~/StarCraftII/maps
