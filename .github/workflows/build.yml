@@ -52,10 +52,10 @@ jobs:
           python -m pip install -r requirements.txt
           apt-get install --assume-yes --no-install-recommends --no-show-upgraded tree
       - run: tree
-      - run: tree -d /root/StarCraftII/
+      - run: tree /root/StarCraftII/Maps
       - name: Run game
-        # env:
-        #   SC2PATH: "/root/StarCraftII/"
+        env:
+          SC2PATH: "/root/StarCraftII/"
         # run: python scripts/travis_test_script.py run.py
         run: python run.py --config config/run/test.yml
 
