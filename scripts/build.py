@@ -4,34 +4,30 @@ to ladder or tournaments.
 TODO: check all files and folders are present before zipping
 """
 
+import glob
 import os
 import platform
 import shutil
 import sys
 import tempfile
+import urllib.request
 import zipfile
 from importlib.util import find_spec
 from io import BytesIO
-import requests
 import subprocess
 
 OUTPUT_DIR = "out"
 PYTHON_VERSION = f"{sys.version_info.major}.{sys.version_info.minor}"
 EXCLUDE = list[str]()
 FILETYPES_TO_IGNORE = list[str]()
-ROOT_DIRECTORY = "./"
+INCLUDE_ZIP = list[str]()
 FETCH_ZIP = list[str]()
 ZIP_ITEMS: dict[str, str] = {
-    "run.py": "run.py",
-    "run_test.py": "run_test.py",
-    "requirements.txt": "requirements.txt",
-    "phantom": "phantom",
-    "scripts": "scripts",
-    os.path.join("ares-sc2", "src", "ares"): os.path.join("ares"),
-    os.path.join("ares-sc2", "sc2_helper"): os.path.join("sc2_helper"),
+    # os.path.join("scripts", "run_ladder.py"): "run.py",
+    # os.path.join("scripts", "run_local.py"): "run_local.py",
+    # os.path.join("scripts", "run_test.py"): "run_test.py",
 }
 ZIP_MODULES: list[str] = [
-    # "ares-sc2",
     "cvxpy",
     "_cvxcore",
     "cvxpygen",
@@ -39,10 +35,6 @@ ZIP_MODULES: list[str] = [
     "map_analyzer",
     "ecos",
     "_ecos",
-    # "scs",
-    # "_scs_direct",
-    # "osqp",
-    # "qdldl",
 ]
 
 FILETYPES_TO_IGNORE.append(".c")
@@ -67,6 +59,7 @@ IGNORE_PATTERNS = shutil.ignore_patterns(*["*" + ext for ext in FILETYPES_TO_IGN
 def copyfile(src, dst):
     if any(src.endswith(ext) for ext in FILETYPES_TO_IGNORE):
         return
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
     shutil.copyfile(src, dst)
 
 
@@ -75,11 +68,25 @@ def copytree(src, dst):
 
 
 if __name__ == "__main__":
-
     output_dir = OUTPUT_DIR
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
     os.mkdir(output_dir)
+
+    subprocess.Popen(["poetry", "build", "--clean", "--format", "wheel", "--output", output_dir]).wait()
+    for wheel in glob.glob(os.path.join(output_dir, "*.whl")):
+        with zipfile.ZipFile(wheel) as z:
+            z.extractall(output_dir)
+        os.remove(wheel)
+
+    print("Creating requirements.txt...")
+    requirements_path = os.path.join(output_dir, "requirements.txt")
+    with open(requirements_path, "wt") as f:
+        subprocess.Popen(["poetry", "export", "--without-hashes", "--format=requirements.txt"], stdout=f).wait()
+
+    for wheel in glob.glob(os.path.join("dist", "*.whl")):
+        with zipfile.ZipFile(wheel) as z:
+            z.extractall(output_dir)
 
     commit_hash = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("ascii").strip()
     version_file = "version.txt"
@@ -104,6 +111,7 @@ if __name__ == "__main__":
 
     print("Copying modules...")
     for module in ZIP_MODULES:
+        print(f"Copying {module=}")
         target = output_dir
         spec = find_spec(module)
         module_file = spec.origin
@@ -126,7 +134,7 @@ if __name__ == "__main__":
         target = output_dir
         print(f"Fetching {url=} to {target=}...")
         with tempfile.TemporaryDirectory() as tmp:
-            r = requests.get(url)
-            z = zipfile.ZipFile(BytesIO(r.content))
-            z.extractall(tmp)
+            r = urllib.request.urlopen(url).read()
+            with zipfile.ZipFile(BytesIO(r)) as z:
+                z.extractall(tmp)
             copytree(tmp, target)

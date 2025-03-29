@@ -6,26 +6,24 @@ from typing import AsyncGenerator, Iterable
 
 import numpy as np
 from cython_extensions import cy_closest_to
+from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
-from sklearn.metrics import pairwise_distances
 
+from phantom.knowledge import Knowledge
 from phantom.combat.action import CombatAction
 from phantom.common.action import Action, Move, UseAbility
-from phantom.common.assignment import Assignment
-from phantom.common.constants import (
-    ALL_MACRO_ABILITIES,
-    CHANGELINGS,
-    ENERGY_COST,
-    GAS_BY_RACE,
-)
+from phantom.common.constants import ALL_MACRO_ABILITIES, CHANGELINGS, ENERGY_COST, GAS_BY_RACE
+from phantom.common.distribute import distribute
+from phantom.common.utils import pairwise_distances, Point
 from phantom.corrosive_biles import CorrosiveBileState
 from phantom.creep import CreepState
 from phantom.dodge import DodgeState
-from phantom.macro.build_order import HATCH_FIRST, POOL_FIRST
+from phantom.macro.build_order import HATCH_FIRST, HATCH_POOL_HATCH, POOL_FIRST
 from phantom.macro.state import MacroPlan, MacroState
 from phantom.macro.strategy import Strategy
 from phantom.observation import Observation
@@ -36,27 +34,34 @@ from phantom.scout import ScoutState
 from phantom.transfuse import TransfuseAction
 
 
-@dataclass(frozen=True)
+@dataclass
 class Agent:
-    parameters: AgentParameters
     macro = MacroState()
     creep = CreepState()
     corrosive_biles = CorrosiveBileState()
     dodge = DodgeState()
     scout = ScoutState()
-    resources = ResourceState()
-    build_order = HATCH_FIRST
+    build_order = HATCH_POOL_HATCH
+    build_order_completed = False
+
+    def __init__(self, parameters: AgentParameters, knowledge: Knowledge) -> None:
+        self.parameters = parameters
+        self.knowledge = knowledge
+        self.resources = ResourceState(self.knowledge)
 
     async def step(self, observation: Observation) -> AsyncGenerator[Action, None]:
-        scout = self.scout.step(observation)
         strategy = Strategy(observation, self.parameters.strategy)
 
         if not observation.is_micro_map:
-            if step := self.build_order.execute(observation):
-                for action in step.actions:
-                    yield action
-                for plan in step.plans:
-                    self.macro.add(plan)
+            if not self.build_order_completed:
+                if step := self.build_order.execute(observation):
+                    for action in step.actions:
+                        yield action
+                    for plan in step.plans:
+                        self.macro.add(plan)
+                else:
+                    logger.info("Build order completed.")
+                    self.build_order_completed = True
             else:
                 for plan in chain(
                     self.macro.make_composition(observation, strategy.composition_target),
@@ -70,19 +75,19 @@ class Agent:
         transfuse = TransfuseAction(observation)
         creep = self.creep.step(observation, np.less_equal(0.0, combat.confidence))
 
+        safe_overlord_spots = [p for p in observation.overlord_spots if 0 < combat.confidence[p.rounded]]
+        scout = self.scout.step(observation, safe_overlord_spots)
+
         injecters = observation.units({UnitTypeId.QUEEN})
         injected_targets = observation.townhalls.ready
-        inject_assignment = (
-            Assignment.distribute(
-                injecters,
-                injected_targets,
-                pairwise_distances(
-                    [a.position for a in injecters],
-                    [b.position for b in injected_targets],
-                ),
-            )
-            if injecters and injected_targets
-            else Assignment({})
+        inject_assignment = distribute(
+            injecters,
+            injected_targets,
+            pairwise_distances(
+                [a.position for a in injecters],
+                [b.position for b in injected_targets],
+            ),
+            lp=True,
         )
         dodge = self.dodge.step(observation)
         macro_actions = await self.macro.step(observation, set(self.scout.blocked_positions), combat)
@@ -102,9 +107,8 @@ class Agent:
             return True  # get on with it!
 
         def should_harvest_resource(r: Unit) -> bool:
-            check_points = [r.position.rounded]
-            if return_point := observation.return_point.get(r.position):
-                check_points.append(return_point.rounded)
+            p = r.position.rounded
+            check_points = [p, self.knowledge.return_point[p].rounded]
             for p in check_points:
                 if combat.confidence[p] < 0 < combat.enemy_presence.dps[p]:
                     return False
@@ -194,7 +198,7 @@ class Agent:
                 if observation.is_micro_map:
                     distance_bases = 0.0
                 else:
-                    distance_bases = max((b.distance_to(t) for b in observation.bases_taken), default=0.0)
+                    distance_bases = max((Point2(b).distance_to(t) for b in observation.bases_taken), default=0.0)
                 distance_self = u.distance_to(t)
 
                 risk = distance_self + distance_bases
@@ -202,17 +206,14 @@ class Agent:
 
                 return risk / reward
 
-            targets = (
-                Assignment.distribute(
-                    overseers,
-                    observation.enemy_combatants,
-                    pairwise_distances(
-                        [a.position for a in overseers],
-                        [b.position for b in observation.enemy_combatants],
-                    ),
-                )
-                if overseers and observation.enemy_combatants
-                else Assignment({})
+            targets = distribute(
+                overseers,
+                observation.enemy_combatants,
+                pairwise_distances(
+                    [a.position for a in overseers],
+                    [b.position for b in observation.enemy_combatants],
+                ),
+                lp=True,
             )
             for u in overseers:
 
@@ -253,12 +254,13 @@ class Agent:
             )
 
         def micro_unit(u: Unit) -> Action | None:
+            unit_type = unit.type_id
             return (
                 dodge.dodge_with(u)
-                or (combat.do_burrow(u) if u.type_id in {UnitTypeId.ROACH} else None)
-                or (combat.do_unburrow(u) if u.type_id in {UnitTypeId.ROACHBURROWED} else None)
-                or (corrosive_biles.actions.get(u) if u.type_id in {UnitTypeId.RAVAGER} else None)
-                or (micro_queen(u) if u.type_id in {UnitTypeId.QUEEN} else None)
+                or (combat.do_burrow(u) if unit_type in {UnitTypeId.ROACH} else None)
+                or (combat.do_unburrow(u) if unit_type in {UnitTypeId.ROACHBURROWED} else None)
+                or (corrosive_biles.actions.get(u) if unit_type in {UnitTypeId.RAVAGER} else None)
+                or (micro_queen(u) if unit_type in {UnitTypeId.QUEEN} else None)
                 # or (
                 #     combat.retreat_with(u)
                 #     if combat.prediction.outcome == CombatOutcome.Defeat

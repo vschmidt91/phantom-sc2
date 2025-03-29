@@ -1,22 +1,33 @@
 import math
 from dataclasses import dataclass
-from functools import cached_property, cmp_to_key
+from functools import cached_property
+from itertools import chain, product
 
 import numpy as np
+from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
+from scipy import ndimage
 
 from phantom.combat.predictor import CombatPrediction, CombatPredictor
 from phantom.combat.presence import Presence
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
-from phantom.common.assignment import Assignment
 from phantom.common.constants import CIVILIANS, HALF, WORKERS
-from phantom.common.utils import Point, combine_comparers, disk, can_attack
-from phantom.cython.dijkstra_pathing import DijkstraPathing
+from phantom.common.distribute import distribute
+from phantom.common.utils import (
+    Point,
+    calculate_dps,
+    can_attack,
+    combine_comparers,
+    disk,
+    pairwise_distances,
+    points_of_structure,
+)
+from phantom.cython.cy_dijkstra import DijkstraOutput, cy_dijkstra
 from phantom.data.normal import NormalParameter
 from phantom.observation import Observation
 
@@ -37,44 +48,44 @@ class CombatAction:
     parameters: CombatParameters
 
     @cached_property
-    def retreat_targets(self) -> frozenset[Point2]:
+    def retreat_targets(self) -> np.ndarray:
         if self.observation.is_micro_map:
-            return frozenset([self.observation.map_center])
+            return np.array([self.observation.map_center.rounded])
         else:
-            retreat_targets = [self.observation.in_mineral_line(b) for b in self.observation.bases_taken]
+            retreat_targets = list()
+            for b in self.observation.bases_taken:
+                p = self.observation.in_mineral_line(b)
+                if 0 <= self.confidence[p]:
+                    retreat_targets.append(p)
             if not retreat_targets:
-                retreat_targets.append(self.observation.start_location)
-            return frozenset(retreat_targets)
+                combatant_positions = {
+                    p for u in self.observation.combatants if 0 <= self.confidence[p := u.position.rounded]
+                }
+                retreat_targets.extend(combatant_positions)
+            if not retreat_targets:
+                logger.warning("No retreat targets, falling back to start mineral line")
+                p = self.observation.in_mineral_line(self.observation.start_location.rounded)
+                retreat_targets.append(p)
+            return np.array(retreat_targets)
 
     @cached_property
     def prediction(self) -> CombatPrediction:
         return CombatPredictor(self.observation.combatants, self.observation.enemy_combatants).prediction
 
-    @cached_property
-    def attack_targets(self) -> frozenset[Point2]:
-        if self.observation.is_micro_map:
-            return frozenset({u.position for u in self.observation.enemy_combatants} or {self.observation.map_center})
-        else:
-            attack_targets = [p.position for p in self.observation.enemy_structures]
-            if not attack_targets:
-                attack_targets.extend(self.observation.enemy_start_locations)
-            return frozenset(attack_targets)
-
-    def retreat_with(self, unit: Unit, limit=7) -> Action | None:
-        # if unit.type_id not in {UnitTypeId.QUEEN}:
-        #     return self.retreat_with_ares(unit, limit=limit)
+    def retreat_with(self, unit: Unit, limit=2) -> Action | None:
         x = round(unit.position.x)
         y = round(unit.position.y)
         if unit.is_flying:
             retreat_map = self.retreat_air
         else:
             retreat_map = self.retreat_ground
-        if retreat_map.dist[x, y] == np.inf:
+        if retreat_map.distance[x, y] == np.inf:
             return self.retreat_with_ares(unit, limit=limit)
-        retreat_path = retreat_map.get_path((x, y), limit)
+        retreat_path = retreat_map.get_path((x, y), limit=limit)
         retreat_point = Point2(retreat_path[-1]).offset(HALF)
-        if unit.distance_to(retreat_point) < limit:
-            return self.retreat_with_ares(unit, limit=limit)
+        # if unit.distance_to(retreat_point) < limit:
+        #     logger.warning("too close to home, falling back to ares retreating")
+        #     return self.retreat_with_ares(unit, limit=limit)
         return Move(unit, retreat_point)
 
     def retreat_with_ares(self, unit: Unit, limit=5) -> Action | None:
@@ -90,26 +101,13 @@ class CombatAction:
     def fight_with(self, unit: Unit) -> Action | None:
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
-            if hp == 0.0:
-                return np.inf
-            dps = unit.air_dps if u.is_flying else unit.ground_dps
-            if dps == 0.0:
-                return np.inf
-            kill_time = hp / dps
-            unit_value = self.observation.calculate_unit_value_weighted(u.type_id)
-            return kill_time / (1 + unit_value)
+            dps = calculate_dps(unit, u)
+            # reward = self.observation.calculate_unit_value_weighted(u.type_id)
+            return np.divide(hp, dps)
 
-        target_key = cmp_to_key(
-            combine_comparers(
-                [
-                    lambda a, b: int(np.sign(np.nan_to_num(cost_fn(b) - cost_fn(a), posinf=+1, neginf=-1))),
-                    lambda a, b: b.tag - a.tag,
-                ]
-            )
-        )
-
-        if unit.type_id not in {UnitTypeId.ZERGLING} and unit.weapon_ready:
-            if target := max(self.observation.shootable_targets.get(unit, []), key=target_key, default=None):
+        if unit.ground_range < 1 and unit.weapon_ready:
+            if targets := self.observation.shootable_targets.get(unit):
+                target = min(targets, key=cost_fn)
                 return Attack(unit, target)
 
         if not (target := self.optimal_targeting.get(unit)):
@@ -118,11 +116,19 @@ class CombatAction:
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(unit, target.position)
 
-        confident = self.prediction.nearby_enemy_survival_time[unit] <= self.prediction.survival_time[unit]
+        confidence_predictor = self.prediction.survival_time[unit] - self.prediction.nearby_enemy_survival_time[unit]
+        confidence_map = self.confidence_filtered[unit.position.rounded]
+        confidence = max(confidence_predictor, confidence_map)
+        # confidence = confidence_predictor
         test_position = unit.position.towards(target, 1.5)
         if 0 == self.enemy_presence.dps[test_position.rounded]:
             return Attack(unit, target)
-        elif confident:
+            # runby_pathing = self.runby_air if unit.is_flying else self.runby_ground
+            # runby = runby_pathing.get_path(unit.position.rounded, limit=2)
+            # if len(runby) == 1:
+            #     return Attack(unit, target)
+            # return UseAbility(unit, AbilityId.ATTACK, Point2(runby[-1]))
+        elif 0 <= confidence:
             if unit.type_id in {UnitTypeId.ZERGLING}:
                 return UseAbility(unit, AbilityId.ATTACK, target.position)
             return Attack(unit, target)
@@ -190,67 +196,90 @@ class CombatAction:
         return np.log1p(self.force) - np.log1p(self.enemy_force)
 
     @cached_property
+    def confidence_filtered(self) -> np.ndarray:
+        sigma = 5
+        return np.log1p(ndimage.gaussian_filter(self.force, sigma)) - np.log1p(
+            ndimage.gaussian_filter(self.enemy_force, sigma)
+        )
+
+    @cached_property
     def threat_level(self) -> np.ndarray:
         return self.enemy_presence.dps
 
     @cached_property
-    def retreat_targets_rounded(self) -> list[Point]:
-        return [(int(p[0]), int(p[1])) for p in self.retreat_targets]
+    def retreat_air(self) -> DijkstraOutput:
+        cost = self.observation.bot.mediator.get_air_grid.copy()
+        targets = self.retreat_targets
+        return cy_dijkstra(cost, targets)
 
     @cached_property
-    def retreat_air(self) -> DijkstraPathing:
-        return DijkstraPathing(
-            self.observation.bot.mediator.get_air_grid,
-            self.retreat_targets_rounded,
+    def retreat_ground(self) -> DijkstraOutput:
+        cost = self.observation.bot.mediator.get_ground_grid.copy()
+        targets = self.retreat_targets
+        return cy_dijkstra(cost, targets)
+
+    @cached_property
+    def runby_targets(self) -> np.ndarray:
+        if self.observation.is_micro_map:
+            return np.array([u.position.rounded for u in self.observation.enemy_combatants])
+        else:
+            return np.array([self.observation.in_mineral_line(p) for p in self.observation.enemy_start_locations])
+
+    @cached_property
+    def runby_ground(self) -> DijkstraOutput:
+        return cy_dijkstra(self.observation.bot.mediator.get_ground_grid, self.runby_targets)
+
+    @cached_property
+    def runby_air(self) -> DijkstraOutput:
+        return cy_dijkstra(self.observation.bot.mediator.get_air_grid, self.runby_targets)
+
+    @cached_property
+    def targeting_cost(self) -> np.ndarray:
+        units = self.observation.combatants
+        enemies = self.observation.enemy_combatants
+        distances = pairwise_distances(
+            [u.position for u in units],
+            [u.position for u in enemies],
         )
 
-    @cached_property
-    def retreat_ground(self) -> DijkstraPathing:
-        return DijkstraPathing(
-            self.observation.bot.mediator.get_ground_grid,
-            self.retreat_targets_rounded,
-        )
-
-    @cached_property
-    def optimal_targeting(self) -> Assignment[Unit, Unit]:
-        target_stickiness_reward = 1 + math.exp(self.parameters.target_stickiness.mean)
-
-        def cost_fn(a: Unit, b: Unit) -> float:
-            d = self.observation.distance_matrix[a, b]
+        def cost_fn(a: Unit, b: Unit, d: float) -> float:
             r = a.air_range if b.is_flying else a.ground_range
-            travel_distance = max(0.0, d - a.radius - b.radius - r - a.distance_to_weapon_ready)
-
+            travel_distance = max(0.0, d - a.radius - b.radius - r)
             time_to_reach = np.divide(travel_distance, a.movement_speed)
-            time_to_kill = np.divide(b.health + b.shield, a.air_dps if b.is_flying else a.ground_dps)
-            risk = min(60, time_to_reach + time_to_kill)
-            reward = 1 + self.observation.calculate_unit_value_weighted(b.type_id)
-            if a.order_target == b.tag:
-                reward *= target_stickiness_reward
-            if b.is_structure:
-                reward /= 5
-            if b.type_id in WORKERS:
-                reward *= 3
-            if b.type_id not in CIVILIANS:
-                reward *= 3
+            dps = calculate_dps(a, b)
+            time_to_kill = np.divide(b.health + b.shield, dps)
+            return time_to_reach + time_to_kill
 
-            return np.divide(risk, reward)
+        cost = np.array(
+            [[min(1e8, cost_fn(ai, bj, distances[i, j])) for j, bj in enumerate(enemies)] for i, ai in enumerate(units)]
+        )
+        return cost
 
-        if self.observation.enemy_combatants:
-            optimal_assigned = len(self.observation.combatants) / len(self.observation.enemy_combatants)
-            medium_assigned = math.sqrt(len(self.observation.combatants))
+    @cached_property
+    def optimal_targeting(self) -> dict[Unit, Unit]:
+        units = self.observation.combatants
+        enemies = self.observation.enemy_combatants
+
+        if not any(units) or not any(enemies):
+            return {}
+
+        if self.observation.is_micro_map:
+            max_assigned = None
+        elif enemies:
+            optimal_assigned = len(units) / len(enemies)
+            medium_assigned = math.sqrt(len(units))
             max_assigned = math.ceil(max(medium_assigned, optimal_assigned))
         else:
             max_assigned = 1
 
-        assignment = Assignment.distribute(
-            self.observation.combatants,
-            self.observation.enemy_combatants,
-            cost_fn,
+        cost = self.targeting_cost
+        assignment = distribute(
+            units,
+            enemies,
+            cost,
             max_assigned=max_assigned,
+            lp=True,
         )
-
-        assignment = Assignment({
-            a: b for a, b in assignment.items() if can_attack(a, b)
-        })
+        assignment = {a: b for a, b in assignment.items() if can_attack(a, b)}
 
         return assignment

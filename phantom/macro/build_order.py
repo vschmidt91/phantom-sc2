@@ -96,8 +96,23 @@ HATCH_FIRST = BuildOrderChain(
         Make(UnitTypeId.DRONE, 17),
         Make(UnitTypeId.EXTRACTOR, 1),
         WaitUntil(lambda obs: obs.gas_buildings),
-        # Make(UnitTypeId.DRONE, 18),
         Make(UnitTypeId.SPAWNINGPOOL, 1),
+    ]
+)
+
+HATCH_POOL_HATCH = BuildOrderChain(
+    [
+        Make(UnitTypeId.DRONE, 13),
+        Make(UnitTypeId.OVERLORD, 2),
+        Make(UnitTypeId.DRONE, 17),
+        Make(UnitTypeId.HATCHERY, 2),
+        Make(UnitTypeId.DRONE, 18),
+        Make(UnitTypeId.EXTRACTOR, 1),
+        WaitUntil(lambda obs: obs.gas_buildings),
+        Make(UnitTypeId.SPAWNINGPOOL, 1),
+        WaitUntil(lambda obs: obs.structures(UnitTypeId.SPAWNINGPOOL)),
+        Make(UnitTypeId.DRONE, 19),
+        Make(UnitTypeId.HATCHERY, 3),
     ]
 )
 

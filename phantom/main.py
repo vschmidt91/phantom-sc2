@@ -9,6 +9,7 @@ from ares import DEBUG
 from loguru import logger
 from sc2.data import Result
 
+from phantom.knowledge import Knowledge
 from phantom.agent import Agent
 from phantom.common.main import BotBase
 from phantom.data.multivariate_normal import NormalParameters
@@ -20,6 +21,7 @@ from phantom.parameters import AgentParameters, AgentPrior
 
 
 class PhantomBot(BotBase):
+    config: dict = {}
     replay_tags = set[str]()
     version_path = "version.txt"
     data_path = "data/params.pkl.gz"
@@ -29,6 +31,7 @@ class PhantomBot(BotBase):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
+        # load data
         priors = AgentPrior.to_dict()
         try:
             with gzip.GzipFile(self.data_path, "rb") as f:
@@ -38,11 +41,13 @@ class PhantomBot(BotBase):
             prior_distribution = NormalParameters.from_independent(priors.values())
             self.data = DataState(prior_distribution, list(priors.keys()))
 
+        # sample parameters
         self.parameter_values = self.data.parameters.sample() if self.training else self.data.parameters.mean
         parameter_dict = dict(zip(self.data.parameter_names, self.parameter_values))
         parameter_distributions = {k: NormalParameter(float(v), 0, 0) for k, v in parameter_dict.items()}
         parameters = AgentParameters.from_dict(parameter_distributions | priors)
-        self.agent = Agent(parameters)
+        knowledge = Knowledge(self)
+        self.agent = Agent(parameters, knowledge)
 
     async def add_replay_tag(self, tag: str) -> None:
         if tag not in self.replay_tags:
@@ -67,7 +72,7 @@ class PhantomBot(BotBase):
         await super().on_step(iteration)
 
         # local only: skip first iteration like on the ladder
-        if iteration == 0 and self.config[DEBUG]:
+        if iteration == 0:
             return
 
         async for action in self.agent.step(Observation(self)):

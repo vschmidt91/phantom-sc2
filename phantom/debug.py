@@ -8,7 +8,8 @@ from loguru import logger
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
-from phantom import PhantomBot
+from phantom.common.utils import points_of_structure
+from phantom.main import PhantomBot
 
 # from bot.ai.replay import load_replays
 from phantom.macro.state import MacroPlan
@@ -21,6 +22,7 @@ class PhantomBotDebug(PhantomBot):
 
     async def on_start(self) -> None:
         await super().on_start()
+
         logger.debug("Starting in debug mode")
         # dataset = list(load_replays("resources/games/*.pkl.xz"))
         # for x, y in tqdm(dataset):
@@ -72,9 +74,9 @@ class PhantomBotDebug(PhantomBot):
         await super().on_step(iteration)
         self.profiler.disable()
 
-        stats = pstats.Stats(self.profiler)
         if self.actual_iteration % 100 == 0:
             logger.info("dump profiling")
+            stats = pstats.Stats(self.profiler)
             stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
             stats.dump_stats(filename=self.profile_path)
         for i, (t, plan) in enumerate(self.agent.macro.assigned_plans.items()):

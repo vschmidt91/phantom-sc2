@@ -5,10 +5,8 @@ from functools import cached_property
 import numpy as np
 from sc2.unit import Unit
 from sc2.units import Units
-from sklearn.metrics import pairwise_distances
 
-from phantom.common.constants import DPS_OVERRIDE
-from phantom.common.utils import can_attack
+from phantom.common.utils import calculate_dps, pairwise_distances
 
 
 class CombatOutcome(Enum):
@@ -47,15 +45,8 @@ class CombatPredictor:
                 nearby_enemy_survival_time={u: 0.0 for u in self.units},
             )
 
-        def calculate_dps(u: Unit, v: Unit) -> float:
-            if dps := DPS_OVERRIDE.get(u.type_id):
-                return dps
-            if not can_attack(u, v):
-                return 0.0
-            return u.air_dps if v.is_flying else u.ground_dps
-
         def nan_to_zero(a: np.ndarray) -> np.ndarray:
-            return np.where(np.isnan(a), 0., a)
+            return np.where(np.isnan(a), 0.0, a)
 
         dps = step_time * np.array([[calculate_dps(u, v) for v in self.enemy_units] for u in self.units])
         enemy_dps = step_time * np.array([[calculate_dps(v, u) for v in self.enemy_units] for u in self.units])
@@ -63,7 +54,7 @@ class CombatPredictor:
         def calculate_required_distance(u: Unit, v: Unit) -> float:
             base_range = u.radius + (u.air_range if v.is_flying else u.ground_range) + v.radius
             distance = u.distance_to(v)
-            return max(0.0, distance - base_range)
+            return max(0.0, distance - base_range - u.distance_to_weapon_ready)
 
         required_distance = np.array(
             [[calculate_required_distance(u, v) for v in self.enemy_units] for u in self.units]
@@ -91,7 +82,7 @@ class CombatPredictor:
 
         outcome = CombatOutcome.Draw
         for i in range(max_steps):
-            potential_distance_constant = 1.0
+            potential_distance_constant = 1e-3
             potential_distance = potential_distance_constant + t * movement_speed
             enemy_potential_distance = potential_distance_constant + t * enemy_movement_speed
 

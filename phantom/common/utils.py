@@ -13,6 +13,27 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
+from sklearn.metrics import pairwise_distances as pairwise_distances_sklearn
+
+CVXPY_OPTIONS = dict(
+    solver="ECOS",
+    # verbose=True,
+)
+
+LINPROG_OPTIONS = dict(
+    # method="highs",
+    # bounds=(0.0, None),
+    options=dict(
+        maxiter=256,
+        disp=False,
+        presolve=False,
+        # rr=False,
+        # tol=1e-5,
+        # time_limit=16e-3,
+    ),
+    # x0=None,
+    # integrality=0,
+)
 
 
 class PlacementNotFoundException(Exception):
@@ -40,6 +61,12 @@ def can_attack(unit: Unit, target: Unit) -> bool:
         return unit.can_attack_air
     else:
         return unit.can_attack_ground
+
+
+def pairwise_distances(a, b):
+    if not any(a) or not any(b):
+        return np.array([])
+    return pairwise_distances_sklearn(a, b, ensure_all_finite=False)
 
 
 def project_point_onto_line(origin: Point2, direction: Point2, position: Point2) -> Point2:
@@ -154,8 +181,31 @@ def combine_comparers[T](fns: list[Callable[[T, T], int]]) -> Callable[[T, T], i
     return combined
 
 
+def points_of_structure(s: Unit) -> list[Point]:
+    dx, dy = disk(s.radius)
+    px, py = s.position.rounded
+    dx += px
+    dy += py
+    return list(zip(dx, dy))
+
+
 def logit_to_probability(x: float):
     return 1 / (1 + math.exp(-x))
 
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
+
+
+def calculate_dps(u: Unit, v: Unit) -> float:
+    if dps := DPS_OVERRIDE.get(u.type_id):
+        return dps
+    if not can_attack(u, v):
+        return 0.0
+    return u.air_dps if v.is_flying else u.ground_dps
+
+
+DPS_OVERRIDE = {
+    UnitTypeId.BUNKER: 40,
+    UnitTypeId.PLANETARYFORTRESS: 5,
+    UnitTypeId.BANELING: 20,
+}

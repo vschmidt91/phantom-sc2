@@ -25,14 +25,10 @@ jobs:
         run: poetry run pip install -U pip
       - name: Install requirements
         run: poetry install --no-root --extras test --extras build
-      - name: Compile Cython
-        run: poetry run python scripts/compile_cython.py
       - name: Linting and Typechecking
         run: make check
-      - name: Save requirements.txt
-        run: poetry export --without-hashes --format=requirements.txt > requirements.txt
-      - name: Run build
-        run: poetry run python scripts/build.py
+      - name: Compile and Build
+        run: make zip
       - uses: actions/upload-artifact@v4
         with:
           name: ladder-zip
@@ -55,7 +51,7 @@ jobs:
       - name: Run game
         env:
           SC2PATH: "/root/StarCraftII/"
-        run: python scripts/travis_test_script.py run_test.py
+        run: python scripts/travis_test_script.py run.py
 
   upload_to_ai_arena:
     name: Upload to AI Arena
@@ -68,8 +64,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install requests
-        run: pip install requests
+      - name: Install dependencies
+        run: pip install click requests
       - uses: actions/download-artifact@v4
         with:
           name: ladder-zip
@@ -80,4 +76,4 @@ jobs:
         env:
           UPLOAD_API_TOKEN: ${{ secrets.UPLOAD_API_TOKEN }}
           UPLOAD_BOT_ID: ${{ secrets[format('UPLOAD_BOT_ID_{0}', github.ref_name)] }}
-        run: python scripts/upload_to_ai_arena.py
+        run: python scripts/upload_to_ai_arena.py bot.zip
