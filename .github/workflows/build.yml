@@ -34,7 +34,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ladder-zip
-          path: out
+          path: bot.zip
 
   run_test_game:
     name: Run test game

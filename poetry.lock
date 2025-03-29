@@ -4492,4 +4492,4 @@ test = ["mypy", "ruff", "types-pyyaml", "types-requests", "types-tqdm", "yamllin
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.13"
-content-hash = "30dabd8d4a57bab57b4cb350807ef03953bfc97c28d2b22f49a60a9be7fef52b"
+content-hash = "6be628ca08b352b35fafa7840ecd2313b976e045730c872e5f232bfefb1b4c6b"

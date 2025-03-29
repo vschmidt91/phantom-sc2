@@ -20,7 +20,6 @@ def main(
     bot_data_publicly_downloadable: bool,
     bot_data_enabled: bool,
 ):
-
     url = f"https://aiarena.net/api/bots/{bot_id}/"
     print(f"Uploading to {url=}")
 

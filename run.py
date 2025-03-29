@@ -8,6 +8,7 @@ from itertools import chain
 
 import aiohttp
 import click
+import yaml
 from loguru import logger
 from sc2.client import Client
 from sc2.data import AIBuild, Difficulty, Race
@@ -19,9 +20,10 @@ from sc2.portconfig import Portconfig
 from sc2.protocol import ConnectionAlreadyClosed
 
 from phantom.common.constants import LOG_LEVEL_OPTIONS
-from phantom.common.utils import CommandWithConfigFile, async_command
+from phantom.common.utils import async_command
 from phantom.config import BotConfig
 from phantom.main import PhantomBot
+from scripts.utils import CommandWithConfigFile
 
 
 @click.command(cls=CommandWithConfigFile("config"))
@@ -46,7 +48,7 @@ from phantom.main import PhantomBot
 @click.option("--log-disable-modules", default=["sc2"], multiple=True)
 @async_command
 async def run(
-    config: str,
+    config,
     bot_config: str,
     game_port: int,
     start_port: int,
