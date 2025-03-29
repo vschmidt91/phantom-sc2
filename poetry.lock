@@ -4486,10 +4486,10 @@ propcache = ">=0.2.0"
 
 [extras]
 build = ["cvxpygen", "cython", "map-analyzer", "requests"]
-dev = ["jupyter", "mpyq", "notebook", "pandas", "plotly", "s2protocol", "snakeviz", "tqdm"]
+dev = ["jupyter", "notebook", "pandas", "plotly", "s2protocol", "snakeviz", "tqdm"]
 test = ["mypy", "ruff", "types-pyyaml", "types-requests", "types-tqdm", "yamllint"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.13"
-content-hash = "f6b6de9360b083b5c1c60060654f63cc8a58e30ba0942b73855dc1a020fbff29"
+content-hash = "30dabd8d4a57bab57b4cb350807ef03953bfc97c28d2b22f49a60a9be7fef52b"

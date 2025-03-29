@@ -22,7 +22,6 @@ Repository = "https://github.com/vschmidt91/phantom-sc2.git"
 [project.optional-dependencies]
 dev = [
     "jupyter>=1.0.0",
-    "mpyq>=0.2.5",
     "notebook (>=7.3.3,<8.0.0)",
     "pandas>=2.2.3",
     "plotly (>=6.0.1,<7.0.0)",

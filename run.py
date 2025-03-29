@@ -67,9 +67,10 @@ def run(
     enemy_build: str,
 ):
     logger.info("Setting up bot...")
-    logger.info(type(config))
-    logger.info(maps_path)
-    bot_config_value = BotConfig.from_yaml(bot_config)
+    if bot_config is not None:
+        bot_config_value = BotConfig.from_yaml(bot_config)
+    else:
+        bot_config_value = BotConfig()
     bot_config_value.opponent_id = opponent_id
     ai = PhantomBot(bot_config_value)
     race = ai.pick_race()
