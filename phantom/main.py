@@ -25,6 +25,7 @@ from phantom.parameters import AgentParameters, AgentPrior
 class PhantomBot(BotBase):
     replay_tags = set[str]()
     version: str | None = None
+    profiler = cProfile.Profile()
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -100,7 +101,7 @@ class PhantomBot(BotBase):
         # for error in self.state.action_errors:
         #     logger.debug(f"{error=}")
 
-        if self.profiler:
+        if self.bot_config.profile_path:
             self.profiler.enable()
 
         if not self.bot_config.debug_draw:
@@ -112,7 +113,7 @@ class PhantomBot(BotBase):
                 await self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
 
-        if self.profiler and self.bot_config.profile_path:
+        if self.bot_config.profile_path:
             self.profiler.disable()
             if self.actual_iteration % 100 == 0:
                 logger.info(f"Writing profiling to {self.bot_config.profile_path}")

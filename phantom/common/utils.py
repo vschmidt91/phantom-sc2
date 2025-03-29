@@ -1,6 +1,7 @@
+import asyncio
 import math
 from dataclasses import fields
-from functools import cache
+from functools import cache, wraps
 from typing import Callable, Iterable, Type, TypeAlias
 
 import numpy as np
@@ -11,6 +12,7 @@ from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
+from sc2.main import _host_game
 from sc2.position import Point2
 from sc2.unit import Unit
 from sklearn.metrics import pairwise_distances as pairwise_distances_sklearn
@@ -42,6 +44,13 @@ class PlacementNotFoundException(Exception):
 
 Point: TypeAlias = tuple[int, int]
 
+
+
+def async_command(func):
+  @wraps(func)
+  def wrapper(*args, **kwargs):
+    return asyncio.run(func(*args, **kwargs))
+  return wrapper
 
 def dataclass_from_dict(cls: Type, parameters: dict[str, float]):
     field_names = {f.name for f in fields(cls)}

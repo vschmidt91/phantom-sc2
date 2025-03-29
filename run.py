@@ -1,22 +1,23 @@
-import asyncio
 import datetime
 import os
 import pathlib
 import random
-import sys
 
+import aiohttp
 import click
 import yaml
 from loguru import logger
+from sc2.client import Client
 from sc2.data import AIBuild, Difficulty, Race
-from sc2.main import run_game
+from sc2.main import _host_game, _play_game
 from sc2.maps import Map
 from sc2.paths import Paths
 from sc2.player import Bot, Computer
 from sc2.portconfig import Portconfig
+from sc2.protocol import ConnectionAlreadyClosed
 
 from phantom.config import BotConfig
-from phantom.ladder import join_ladder_game
+from phantom.common.utils import async_command
 from phantom.main import PhantomBot
 
 
@@ -51,7 +52,8 @@ def CommandWithConfigFile(config_file_param_name):
     type=click.Choice([x.name for x in Difficulty]),
 )
 @click.option("--enemy-build", default=AIBuild.Rush.name, type=click.Choice([x.name for x in AIBuild]))
-def run(
+@async_command
+async def run(
     config: str,
     bot_config: str,
     game_port: int,
@@ -75,30 +77,42 @@ def run(
     ai = PhantomBot(bot_config_value)
     race = ai.pick_race()
     bot = Bot(race, ai, ai.name)
+    if save_replay:
+        replay_path = os.path.join(save_replay, f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S}.SC2REPLAY")
+        logger.info(f"Saving replay to {replay_path=}")
+        os.makedirs(save_replay, exist_ok=True)
+    else:
+        replay_path = None
 
     if ladder_server:
         logger.info("Starting ladder game...")
         port_config = Portconfig(
             server_ports=[start_port + 2, start_port + 3], player_ports=[[start_port + 4, start_port + 5]]
         )
-        task = join_ladder_game(
-            host=ladder_server, port=game_port, players=[bot], realtime=realtime, portconfig=port_config
-        )
-        result = asyncio.get_event_loop().run_until_complete(task)
+        ws_url = f"ws://{ladder_server}:{game_port}/sc2api"
+        ws_connection = await aiohttp.ClientSession().ws_connect(ws_url)
+        client = Client(ws_connection)
+        game_time_limit = None
+
+        try:
+            result = await _play_game(bot, client, realtime, port_config, game_time_limit)
+            if save_replay:
+                await client.save_replay(replay_path)
+        except ConnectionAlreadyClosed:
+            logger.error("Connection was closed before the game ended")
+            return None
+        finally:
+            await ws_connection.close()
+
     else:
         logger.info("Starting local game...")
-        if save_replay:
-            replay_path = os.path.join(save_replay, f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S}.SC2REPLAY")
-            logger.info(f"Saving replay to {replay_path=}")
-            os.makedirs(save_replay, exist_ok=True)
-        else:
-            replay_path = None
 
         map_choices = list(maps_path.glob(f"{map_pattern}.SC2MAP"))
         map_choice = random.choice(map_choices)
         logger.info(f"Map pick is {map_choice=}")
         opponent = Computer(Race[enemy_race], Difficulty[enemy_difficulty], AIBuild[enemy_build])
-        result = run_game(
+
+        result = await _host_game(
             Map(map_choice),
             [bot, opponent],
             realtime=realtime,
