@@ -89,9 +89,10 @@ def main(
                 filepath = os.path.join(dirname, filename)
                 if any(r.match(filepath) for r in exclude_compiled):
                     print(f"Excluding {filepath=}")
-                else:
-                    print(f"Zipping {filepath=}")
-                    zf.write(filepath)
+                    continue
+                dst = os.path.join(os.path.relpath(dirname, input_dir), filename)
+                print(f"Zipping {filepath=} to {dst=}")
+                zf.write(filepath, dst)
 
 
 if __name__ == "__main__":
