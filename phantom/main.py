@@ -31,7 +31,7 @@ class PhantomBot(BotBase):
         super().__init__(*args, **kwargs)
 
         if os.path.isfile(self.bot_config.version_path):
-            logger.success(f"Reading version from {self.bot_config.version_path}")
+            logger.info(f"Reading version from {self.bot_config.version_path}")
             with open(self.bot_config.version_path) as f:
                 self.version = f.read()
         else:

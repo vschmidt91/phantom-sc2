@@ -1,6 +1,7 @@
 import datetime
 import glob
 import os
+import pathlib
 import random
 
 import aiohttp
@@ -68,8 +69,7 @@ async def run(
     enemy_difficulty: str,
     enemy_build: str,
 ):
-    logger.info("Setting up bot...")
-    logger.info(maps_path)
+    logger.info("Setting up bot")
     if bot_config is not None:
         bot_config_value = BotConfig.from_yaml(bot_config)
     else:
@@ -86,7 +86,7 @@ async def run(
         replay_path = None
 
     if ladder_server:
-        logger.info("Starting ladder game...")
+        logger.info("Starting ladder game")
         port_config = Portconfig(
             server_ports=[start_port + 2, start_port + 3], player_ports=[[start_port + 4, start_port + 5]]
         )
@@ -106,7 +106,7 @@ async def run(
             await ws_connection.close()
 
     else:
-        logger.info("Starting local game...")
+        logger.info("Starting local game")
 
         map_choices = glob.glob(os.path.join(maps_path, f"{map_pattern}.SC2MAP"))
         map_choice = random.choice(map_choices)
@@ -114,7 +114,7 @@ async def run(
         opponent = Computer(Race[enemy_race], Difficulty[enemy_difficulty], AIBuild[enemy_build])
 
         result = await _host_game(
-            Map(map_choice),
+            Map(pathlib.Path(map_choice)),
             [bot, opponent],
             realtime=realtime,
             save_replay_as=replay_path,
