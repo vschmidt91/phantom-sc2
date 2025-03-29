@@ -5,7 +5,6 @@ import random
 
 import aiohttp
 import click
-import oss
 import yaml
 from loguru import logger
 from sc2.client import Client
