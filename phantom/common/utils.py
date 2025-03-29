@@ -45,12 +45,13 @@ class PlacementNotFoundException(Exception):
 Point: TypeAlias = tuple[int, int]
 
 
-
 def async_command(func):
-  @wraps(func)
-  def wrapper(*args, **kwargs):
-    return asyncio.run(func(*args, **kwargs))
-  return wrapper
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return asyncio.run(func(*args, **kwargs))
+
+    return wrapper
+
 
 def dataclass_from_dict(cls: Type, parameters: dict[str, float]):
     field_names = {f.name for f in fields(cls)}
