@@ -8,7 +8,6 @@ from itertools import chain
 
 import aiohttp
 import click
-import yaml
 from loguru import logger
 from sc2.client import Client
 from sc2.data import AIBuild, Difficulty, Race

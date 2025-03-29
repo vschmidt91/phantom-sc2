@@ -80,8 +80,6 @@ class ResourceAction:
         harvesters = self.observation.harvesters
         resources = list(self.observation.mineral_fields + self.observation.gas_buildings)
 
-        if not any(harvesters):
-            return {}
         if not any(resources):
             return {}
 
@@ -100,6 +98,9 @@ class ResourceAction:
         harvester_max = mineral_max + gas_target
         if harvester_max < len(harvesters):
             harvesters = sorted(harvesters, key=lambda u: u.tag)[:harvester_max]
+
+        if not any(harvesters):
+            return {}
 
         # enforce gas target
         is_gas_building = np.array([1.0 if r.type_id in GAS_BUILDINGS else 0.0 for r in resources])
