@@ -24,10 +24,9 @@ from phantom.ladder import join_ladder_game
 
 MAP_EXT = "SC2Map"
 
+
 def CommandWithConfigFile(config_file_param_name):
-
     class CustomCommandClass(click.Command):
-
         def invoke(self, ctx):
             config_file = ctx.params[config_file_param_name]
             if config_file is not None:
@@ -37,6 +36,7 @@ def CommandWithConfigFile(config_file_param_name):
             return super(CustomCommandClass, self).invoke(ctx)
 
     return CustomCommandClass
+
 
 @click.command(cls=CommandWithConfigFile("config"))
 @click.option("--config", type=click.Path())
@@ -79,7 +79,6 @@ def run(
     enemy_difficulty: str,
     enemy_build: str,
 ):
-
     logger.info("Setting up bot...")
     if debug:
         ai = PhantomBotDebug()
@@ -93,15 +92,11 @@ def run(
     if ladder_server:
         logger.info("Starting ladder game...")
         port_config = Portconfig(
-            server_ports=[start_port + 2, start_port + 3],
-            player_ports=[[start_port + 4, start_port + 5]]
+            server_ports=[start_port + 2, start_port + 3], player_ports=[[start_port + 4, start_port + 5]]
         )
         task = join_ladder_game(
-            host=ladder_server,
-            port=game_port,
-            players=[bot],
-            realtime=realtime,
-            portconfig=port_config)
+            host=ladder_server, port=game_port, players=[bot], realtime=realtime, portconfig=port_config
+        )
         result = asyncio.get_event_loop().run_until_complete(task)
     else:
         logger.info("Starting local game...")

@@ -71,12 +71,22 @@ build-backend = "poetry.core.masonry.api"
 [tool.ruff]
 line-length = 120
 exclude = [
+    "ares-sc2",
     "cvxpygen",
+    "cython_extensions",
 ]
 
 [tool.ruff.lint]
 select = ["E", "F"]
 ignore = ["F401"]
+
+[tool.mypy]
+exclude = [
+    "^ares-sc2/",
+    "^out/",
+    "^resources/",
+    "^scripts/",
+]
 
 [[tool.mypy.overrides]]
 module = [
@@ -91,6 +101,7 @@ module = [
     "sc2.*",
     "scipy.*",
     "skimage.*",
+    "resources.*",
     "pandas.*",
     "sklearn.*",
     "cython_extensions.*",

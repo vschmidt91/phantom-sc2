@@ -3,14 +3,14 @@ zip:
 	poetry run python scripts/build.py
 
 check:
-	poetry run ruff check phantom scripts
-	poetry run python -m mypy phantom
+	poetry run ruff check .
+	poetry run mypy .
 
 fix:
-	poetry run ruff check --fix --unsafe-fixes phantom scripts
-	poetry run ruff format phantom scripts
+	poetry run ruff check --fix --unsafe-fixes .
+	poetry run ruff format .
 
 lint: fix check
 
 profile:
-	poetry run python -m snakeviz resources\profiling.prof
+	poetry run snakeviz resources/profiling.prof

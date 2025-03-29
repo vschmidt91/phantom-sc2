@@ -135,6 +135,7 @@ dmypy.json
 
 .idea
 /bot.zip
+/cython_extensions
 /version.txt
 /resources
 /data
