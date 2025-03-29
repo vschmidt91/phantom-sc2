@@ -21,15 +21,15 @@ CVXPY_OPTIONS = dict(
 )
 
 LINPROG_OPTIONS = dict(
-    # method="highs",
+    method="highs",
     # bounds=(0.0, None),
     options=dict(
-        maxiter=256,
-        disp=False,
-        presolve=False,
+        # maxiter=64,
+        # disp=False,
+        # presolve=False,
         # rr=False,
         # tol=1e-5,
-        # time_limit=16e-3,
+        time_limit=10e-3,
     ),
     # x0=None,
     # integrality=0,

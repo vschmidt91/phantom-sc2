@@ -1,5 +1,0 @@
-map_pattern: "*MicroAIArena*"
-race: Zerg
-debug: True
-training: True
-save_replay: resources/replays/local

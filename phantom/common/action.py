@@ -61,7 +61,7 @@ class Attack(Action):
     target: Unit
 
     async def execute(self, bot: BotBase) -> bool:
-        if bot.config["Debug"]:
+        if bot.bot_config.debug_draw:
             bot.client.debug_line_out(
                 self.unit,
                 self.target,

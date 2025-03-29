@@ -11,7 +11,6 @@ import tempfile
 import click
 import cvxpy as cp
 import numpy as np
-
 from cvxpygen import cpg
 
 

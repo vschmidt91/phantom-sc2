@@ -4,7 +4,7 @@ from requests.adapters import HTTPAdapter, Retry
 
 
 @click.command()
-@click.argument("--bot-path")
+@click.argument("bot-path")
 @click.option("--api-token", envvar="UPLOAD_API_TOKEN")
 @click.option("--bot-id", envvar="UPLOAD_BOT_ID")
 def main(

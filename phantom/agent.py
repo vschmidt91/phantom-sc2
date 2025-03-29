@@ -5,7 +5,6 @@ from itertools import chain
 from typing import AsyncGenerator, Iterable
 
 import numpy as np
-from cython_extensions import cy_closest_to
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
@@ -14,15 +13,16 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from phantom.knowledge import Knowledge
+from cython_extensions import cy_closest_to
 from phantom.combat.action import CombatAction
 from phantom.common.action import Action, Move, UseAbility
 from phantom.common.constants import ALL_MACRO_ABILITIES, CHANGELINGS, ENERGY_COST, GAS_BY_RACE
 from phantom.common.distribute import distribute
-from phantom.common.utils import pairwise_distances, Point
+from phantom.common.utils import Point, pairwise_distances
 from phantom.corrosive_biles import CorrosiveBileState
 from phantom.creep import CreepState
 from phantom.dodge import DodgeState
+from phantom.knowledge import Knowledge
 from phantom.macro.build_order import HATCH_FIRST, HATCH_POOL_HATCH, POOL_FIRST
 from phantom.macro.state import MacroPlan, MacroState
 from phantom.macro.strategy import Strategy

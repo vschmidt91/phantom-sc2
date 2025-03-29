@@ -36,6 +36,7 @@ test = [
     "types-pyyaml (>=6.0.12.20250326,<7.0.0.0)",
     "types-requests (>=2.32.0.20250306,<3.0.0.0)",
     "types-tqdm>=4.66.0.20240417",
+    "yamllint (>=1.37.0,<2.0.0)",
 ]
 build = [
     "cvxpygen>=0.4.3",
@@ -86,6 +87,12 @@ exclude = [
     "^out/",
     "^resources/",
     "^scripts/",
+]
+
+[tool.yamllint]
+ignore = [
+    ".venv",
+    "out",
 ]
 
 [[tool.mypy.overrides]]

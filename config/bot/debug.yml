@@ -1,0 +1,6 @@
+---
+
+training: true
+debug: true
+profile_path: resources/profiling.prof
+save_game_info: resources/maps

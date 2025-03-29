@@ -6,7 +6,6 @@ from typing import Iterable
 
 import numpy as np
 from ares import UnitTreeQueryType
-from cython_extensions import cy_center
 from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
@@ -22,10 +21,11 @@ from sc2.position import Point2, Point3, Size
 from sc2.unit import Unit
 from sc2.units import Units
 
-from phantom.knowledge import Knowledge
+from cython_extensions import cy_center
 from phantom.common.constants import (
     CIVILIANS,
     ENEMY_CIVILIANS,
+    HALF,
     ITEM_BY_ABILITY,
     MAX_UNIT_RADIUS,
     REQUIREMENTS_KEYS,
@@ -37,11 +37,11 @@ from phantom.common.constants import (
     ZERG_FLYER_UPGRADES,
     ZERG_MELEE_UPGRADES,
     ZERG_RANGED_UPGRADES,
-    HALF,
 )
 from phantom.common.cost import Cost, CostManager
 from phantom.common.main import BotBase
-from phantom.common.utils import MacroId, center, pairwise_distances, Point
+from phantom.common.utils import MacroId, Point, center, pairwise_distances
+from phantom.knowledge import Knowledge
 
 
 @dataclass(frozen=True)
@@ -96,8 +96,8 @@ class Observation:
     @cached_property
     def shootable_targets(self) -> dict[Unit, list[Unit]]:
         units = self.combatants
-        # base_ranges = [u.radius for u in units]
-        base_ranges = [u.radius + MAX_UNIT_RADIUS for u in units]
+        base_ranges = [u.radius for u in units]
+        # base_ranges = [u.radius + MAX_UNIT_RADIUS for u in units]
         ground_ranges = [b + u.ground_range for u, b in zip(units, base_ranges)]
         air_ranges = [b + u.air_range for u, b in zip(units, base_ranges)]
 

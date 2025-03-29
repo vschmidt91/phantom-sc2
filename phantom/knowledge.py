@@ -3,8 +3,8 @@ from functools import cached_property
 
 from sc2.position import Point2
 
-from phantom.common.utils import Point
 from phantom.common.main import BotBase
+from phantom.common.utils import Point
 
 
 @dataclass(frozen=True)

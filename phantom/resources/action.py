@@ -12,9 +12,9 @@ from sc2.unit import Unit
 from sc2.units import Units
 from scipy.optimize import linprog
 
-from phantom.knowledge import Knowledge
 from phantom.common.action import Action, DoNothing, Smart
-from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS, pairwise_distances, Point
+from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS, Point, pairwise_distances
+from phantom.knowledge import Knowledge
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
 
@@ -77,11 +77,13 @@ class ResourceAction:
             return self.previous_assignment
 
     def solve(self) -> HarvesterAssignment | None:
-        if not self.observation.mineral_fields:
-            return {}
-
         harvesters = self.observation.harvesters
         resources = list(self.observation.mineral_fields + self.observation.gas_buildings)
+
+        if not any(harvesters):
+            return {}
+        if not any(resources):
+            return {}
 
         mineral_max = 2 * self.observation.mineral_fields.amount
         gas_max = sum(self.observation.harvester_target_of_gas(g) for g in self.observation.gas_buildings)
@@ -98,11 +100,6 @@ class ResourceAction:
         harvester_max = mineral_max + gas_target
         if harvester_max < len(harvesters):
             harvesters = sorted(harvesters, key=lambda u: u.tag)[:harvester_max]
-
-        if not any(harvesters):
-            return {}
-        if not any(resources):
-            return {}
 
         # enforce gas target
         is_gas_building = np.array([1.0 if r.type_id in GAS_BUILDINGS else 0.0 for r in resources])

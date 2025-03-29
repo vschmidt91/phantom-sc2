@@ -1,72 +1,89 @@
-import gzip
+import cProfile
 import json
+import lzma
 import os
 import pickle
-from functools import cached_property
+import pstats
 from typing import Iterable
 
-from ares import DEBUG
 from loguru import logger
-from sc2.data import Result
+from sc2.data import Race, Result
+from sc2.position import Point2, Point3
+from sc2.unit import Unit
 
-from phantom.knowledge import Knowledge
 from phantom.agent import Agent
 from phantom.common.main import BotBase
 from phantom.data.multivariate_normal import NormalParameters
 from phantom.data.normal import NormalParameter
 from phantom.data.state import DataState
-from phantom.macro.state import MacroId
+from phantom.knowledge import Knowledge
+from phantom.macro.state import MacroId, MacroPlan
 from phantom.observation import Observation
 from phantom.parameters import AgentParameters, AgentPrior
 
 
 class PhantomBot(BotBase):
-    config: dict = {}
     replay_tags = set[str]()
-    version_path = "version.txt"
-    data_path = "data/params.pkl.gz"
-    data_json_path = "data/params.json"
-    training = True
+    version: str | None = None
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
+        if os.path.isfile(self.bot_config.version_path):
+            logger.success(f"Reading version from {self.bot_config.version_path}")
+            with open(self.bot_config.version_path) as f:
+                self.version = f.read()
+        else:
+            logger.warning(f"Version not found: {self.bot_config.version_path}")
+
         # load data
         priors = AgentPrior.to_dict()
-        try:
-            with gzip.GzipFile(self.data_path, "rb") as f:
-                self.data = pickle.load(f)
-        except Exception as e:
-            logger.warning(f"Error loading data file, using default values: {e}")
-            prior_distribution = NormalParameters.from_independent(priors.values())
-            self.data = DataState(prior_distribution, list(priors.keys()))
+        prior_distribution = NormalParameters.from_independent(priors.values())
+        self.data = DataState(prior_distribution, list(priors.keys()))
+        if os.path.isfile(self.bot_config.params_path):
+            logger.info(f"Reading parameters from {self.bot_config.params_path}")
+            try:
+                with lzma.open(self.bot_config.params_path, "rb") as f:
+                    self.data = pickle.load(f)
+            except Exception as error:
+                logger.warning(error)
+        else:
+            logger.warning(f"Parameters not found: {self.bot_config.params_path}")
 
         # sample parameters
-        self.parameter_values = self.data.parameters.sample() if self.training else self.data.parameters.mean
+        self.parameter_values = self.data.parameters.sample() if self.bot_config.training else self.data.parameters.mean
         parameter_dict = dict(zip(self.data.parameter_names, self.parameter_values))
         parameter_distributions = {k: NormalParameter(float(v), 0, 0) for k, v in parameter_dict.items()}
         parameters = AgentParameters.from_dict(parameter_distributions | priors)
         knowledge = Knowledge(self)
         self.agent = Agent(parameters, knowledge)
 
-    async def add_replay_tag(self, tag: str) -> None:
-        if tag not in self.replay_tags:
-            self.replay_tags.add(tag)
-            await self.client.chat_send(f"Tag:{tag}", True)
+        if self.bot_config.profile_path:
+            logger.info("Creating profiler")
+            self.profiler = cProfile.Profile()
+
+    async def add_replay_tag(self, replay_tag: str) -> None:
+        if replay_tag not in self.replay_tags:
+            logger.info(f"Adding {replay_tag=}")
+            self.replay_tags.add(replay_tag)
+            await self.client.chat_send(f"Tag:{replay_tag}", True)
 
     def planned_by_type(self, item: MacroId) -> Iterable:
         return self.agent.macro.planned_by_type(item)
 
-    @cached_property
-    def version(self) -> str:
-        with open(self.version_path) as f:
-            return f.read()
-
     async def on_start(self) -> None:
+        logger.debug("Bot starting")
         await super().on_start()
 
-        if os.path.exists(self.version_path):
+        if self.version:
             await self.add_replay_tag(f"version_{self.version}")
+
+        if self.bot_config.save_game_info:
+            logger.info(f"Saving game info to {self.bot_config.save_game_info}")
+            output_path = f"{self.bot_config.save_game_info}/{self.game_info.map_name}.xz"
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            with lzma.open(output_path, "wb") as f:
+                pickle.dump(self.game_info, f)
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
@@ -75,28 +92,51 @@ class PhantomBot(BotBase):
         if iteration == 0:
             return
 
+        if self.bot_config.resign_after_iteration is not None:
+            if self.bot_config.resign_after_iteration < iteration:
+                logger.info(f"Reached iteration {self.bot_config.resign_after_iteration}, resigning.")
+                await self.client.leave()
+
+        # for error in self.state.action_errors:
+        #     logger.debug(f"{error=}")
+
+        if self.profiler:
+            self.profiler.enable()
+
+        if not self.bot_config.debug_draw:
+            for i, (t, plan) in enumerate(self.agent.macro.assigned_plans.items()):
+                self._debug_draw_plan(self.unit_tag_dict.get(t), plan, index=i)
+
         async for action in self.agent.step(Observation(self)):
             if not await action.execute(self):
                 await self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
 
-    # async def on_before_start(self):
-    #     await super().on_before_start()
-    #
+        if self.profiler and self.bot_config.profile_path:
+            self.profiler.disable()
+            if self.actual_iteration % 100 == 0:
+                logger.info(f"Writing profiling to {self.bot_config.profile_path}")
+                stats = pstats.Stats(self.profiler)
+                stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
+                stats.dump_stats(filename=self.bot_config.profile_path)
+
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)
 
-        if self.agent and self.training:
+        if self.agent and self.bot_config.training:
             logger.info("Updating parameters...")
             self.data.update(self.parameter_values, game_result)
             try:
-                with gzip.GzipFile(self.data_path, "wb") as f:
+                with lzma.open(self.bot_config.params_path, "wb") as f:
                     pickle.dump(self.data, f)
-                with open(self.data_json_path, "w") as f:
+                with open(self.bot_config.params_json_path, "w") as f:
                     json.dump(self.data.to_json(), f, indent=4)
             except Exception as e:
-                logger.warning(f"Unable to save data file: {e}")
+                logger.error(e)
 
+    # async def on_before_start(self):
+    #     await super().on_before_start()
+    #
     # async def on_building_construction_started(self, unit: Unit):
     #     await super().on_building_construction_started(unit)
     #
@@ -123,3 +163,45 @@ class PhantomBot(BotBase):
     #
     # async def on_upgrade_complete(self, upgrade: UpgradeId):
     #     await super().on_upgrade_complete(upgrade)
+
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__
+
+    def pick_race(self) -> Race:
+        return Race.Zerg
+
+    def _debug_draw_plan(
+        self,
+        unit: Unit | None,
+        plan: MacroPlan,
+        index: int,
+        eta: float = 0.0,
+        font_color=(255, 255, 255),
+        font_size=16,
+    ) -> None:
+        positions = []
+        if isinstance(plan.target, Unit):
+            positions.append(plan.target.position3d)
+        elif isinstance(plan.target, Point3):
+            positions.append(plan.target)
+        elif isinstance(plan.target, Point2):
+            height = self.get_terrain_z_height(plan.target)
+            positions.append(Point3((plan.target.x, plan.target.y, height)))
+
+        if unit:
+            height = self.get_terrain_z_height(unit)
+            positions.append(Point3((unit.position.x, unit.position.y, height)))
+
+        text = f"{plan.item.name} {eta:.2f}"
+
+        for position in positions:
+            self.client.debug_text_world(text, position, color=font_color, size=font_size)
+
+        if len(positions) == 2:
+            position_from, position_to = positions
+            position_from += Point3((0.0, 0.0, 0.1))
+            position_to += Point3((0.0, 0.0, 0.1))
+            self.client.debug_line_out(position_from, position_to, color=font_color)
+
+        self.client.debug_text_screen(f"{1 + index} {round(eta or 0, 1)} {plan.item.name}", (0.01, 0.1 + 0.01 * index))

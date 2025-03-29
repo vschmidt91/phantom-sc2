@@ -1,28 +1,23 @@
 import asyncio
+import datetime
+import os
+import pathlib
 import random
 import sys
-from pathlib import Path
-import datetime
 
+import click
+import yaml
+from loguru import logger
 from sc2.data import AIBuild, Difficulty, Race
 from sc2.main import run_game
 from sc2.maps import Map
 from sc2.paths import Paths
-from sc2.portconfig import Portconfig
 from sc2.player import Bot, Computer
+from sc2.portconfig import Portconfig
 
-import os
-import click
-from loguru import logger
-import yaml
-
-sys.path.append("ares-sc2")  # required to import sc2_helper
-sys.path.append("ares-sc2/src")  # required to import ares
-
-from phantom.debug import PhantomBot, PhantomBotDebug
+from phantom.config import BotConfig
 from phantom.ladder import join_ladder_game
-
-MAP_EXT = "SC2Map"
+from phantom.main import PhantomBot
 
 
 def CommandWithConfigFile(config_file_param_name):
@@ -39,20 +34,16 @@ def CommandWithConfigFile(config_file_param_name):
 
 
 @click.command(cls=CommandWithConfigFile("config"))
-@click.option("--config", type=click.Path())
+@click.option("--config")
+@click.option("--bot-config")
 @click.option("--GamePort", "game_port", type=int)
 @click.option("--StartPort", "start_port", type=int)
 @click.option("--LadderServer", "ladder_server")
 @click.option("--OpponentId", "opponent_id")
 @click.option("--RealTime", "realtime", default=False)
-@click.option("--name", default="PhantomBot")
-@click.option("--save-replay", "save_replay")
-@click.option("--training", default=False)
-@click.option("--debug", default=False)
-@click.option("--resign-after-iteration", type=int)
-@click.option("--maps-path")
+@click.option("--save-replay")
+@click.option("--maps-path", default=Paths.MAPS, type=click.Path())
 @click.option("--map-pattern", default="*")
-@click.option("--race", default=Race.Zerg.name, type=click.Choice([x.name for x in Race]))
 @click.option("--enemy-race", default=Race.Random.name, type=click.Choice([x.name for x in Race]))
 @click.option(
     "--enemy-difficulty",
@@ -62,32 +53,27 @@ def CommandWithConfigFile(config_file_param_name):
 @click.option("--enemy-build", default=AIBuild.Rush.name, type=click.Choice([x.name for x in AIBuild]))
 def run(
     config: str,
+    bot_config: str,
     game_port: int,
     start_port: int,
     ladder_server: str,
     opponent_id: str,
     realtime: bool,
-    name: str,
     save_replay: str,
-    training: bool,
-    debug: bool,
-    resign_after_iteration: int,
-    maps_path: str,
+    maps_path: pathlib.Path,
     map_pattern: str,
-    race: str,
     enemy_race: str,
     enemy_difficulty: str,
     enemy_build: str,
 ):
     logger.info("Setting up bot...")
-    if debug:
-        ai = PhantomBotDebug()
-        ai.resign_after_iteration = resign_after_iteration
-    else:
-        ai = PhantomBot()
-    ai.training = training
-    ai.opponent_id = opponent_id
-    bot = Bot(Race[race], ai, name)
+    logger.info(type(config))
+    logger.info(maps_path)
+    bot_config_value = BotConfig.from_yaml(bot_config)
+    bot_config_value.opponent_id = opponent_id
+    ai = PhantomBot(bot_config_value)
+    race = ai.pick_race()
+    bot = Bot(race, ai, ai.name)
 
     if ladder_server:
         logger.info("Starting ladder game...")
@@ -107,9 +93,7 @@ def run(
         else:
             replay_path = None
 
-        maps_path_value = Path(maps_path) if maps_path else Paths.MAPS
-        map_choices = list(maps_path_value.glob(f"{map_pattern}.{MAP_EXT}"))
-        print(map_pattern)
+        map_choices = list(maps_path.glob(f"{map_pattern}.SC2MAP"))
         map_choice = random.choice(map_choices)
         logger.info(f"Map pick is {map_choice=}")
         opponent = Computer(Race[enemy_race], Difficulty[enemy_difficulty], AIBuild[enemy_build])

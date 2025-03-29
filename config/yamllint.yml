@@ -1,0 +1,10 @@
+---
+
+extends: relaxed
+ignore: |
+  .venv
+  ares-sc2
+  out
+rules:
+  new-lines: disable
+  truthy: disable

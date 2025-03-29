@@ -3,20 +3,21 @@ from abc import ABC, abstractmethod
 from functools import cached_property
 from typing import Iterable
 
-from loguru import logger
-
 from ares import AresBot
+from loguru import logger
 from sc2.position import Point2
 from sc2.units import Units
 
 from phantom.common.constants import MICRO_MAP_REGEX, MINING_RADIUS, MINING_RADIUS_GEYSER
 from phantom.common.cost import CostManager
-from phantom.common.utils import MacroId, get_intersections, project_point_onto_line, Point
+from phantom.common.utils import MacroId, Point, get_intersections, project_point_onto_line
+from phantom.config import BotConfig
 
 
 class BotBase(AresBot, ABC):
-    def __init__(self, game_step_override: int | None = None) -> None:
+    def __init__(self, config: BotConfig, game_step_override: int | None = None) -> None:
         super().__init__(game_step_override=game_step_override)
+        self.bot_config = config
         self.cost = CostManager(self)
 
     @abstractmethod

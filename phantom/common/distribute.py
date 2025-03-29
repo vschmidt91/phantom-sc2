@@ -8,8 +8,8 @@ import numpy as np
 from loguru import logger
 from scipy.optimize import linprog
 
-from phantom.compiled.assign.assign import cpg_assign
 from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS
+from phantom.compiled.assign.assign import cpg_assign
 
 TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
@@ -78,7 +78,7 @@ def distribute(
                     b_eq=np.full(len(a), 1.0),
                     **LINPROG_OPTIONS,
                 )
-                if not opt.success:
+                if opt.x is None:
                     logger.error(f"Target assigment failed: {opt}")
                     return {}
                 x = opt.x.reshape(cost.shape)

@@ -1,11 +1,10 @@
 import os
 import shutil
 
-from setuptools.command.build_ext import build_ext
-from setuptools import Distribution, Extension
-
 import numpy as np
 from Cython.Build import cythonize
+from setuptools import Distribution, Extension
+from setuptools.command.build_ext import build_ext
 
 
 def build():

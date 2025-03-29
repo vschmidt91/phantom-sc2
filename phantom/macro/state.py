@@ -18,10 +18,10 @@ from phantom.common.action import Action, HoldPosition, Move, UseAbility
 from phantom.common.constants import (
     ALL_MACRO_ABILITIES,
     GAS_BY_RACE,
+    HALF,
     ITEM_BY_ABILITY,
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
     MACRO_INFO,
-    HALF,
 )
 from phantom.common.cost import Cost
 from phantom.common.unit_composition import UnitComposition
