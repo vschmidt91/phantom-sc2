@@ -11,7 +11,7 @@ import click
 from loguru import logger
 from sc2.client import Client
 from sc2.data import AIBuild, Difficulty, Race
-from sc2.main import _host_game, _play_game, Result
+from sc2.main import Result, _host_game, _play_game
 from sc2.maps import Map
 from sc2.paths import Paths
 from sc2.player import Bot, Computer
