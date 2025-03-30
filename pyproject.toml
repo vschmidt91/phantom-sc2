@@ -77,8 +77,9 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F"]
-ignore = ["F401"]
+select = ["E", "F", "B"]
+ignore = ["E501"]
+fixable = ["ALL"]
 
 [tool.mypy]
 exclude = [

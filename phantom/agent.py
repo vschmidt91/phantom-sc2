@@ -18,12 +18,12 @@ from phantom.combat.action import CombatAction
 from phantom.common.action import Action, Move, UseAbility
 from phantom.common.constants import ALL_MACRO_ABILITIES, CHANGELINGS, ENERGY_COST, GAS_BY_RACE
 from phantom.common.distribute import distribute
-from phantom.common.utils import Point, pairwise_distances
+from phantom.common.utils import pairwise_distances
 from phantom.corrosive_biles import CorrosiveBileState
 from phantom.creep import CreepState
 from phantom.dodge import DodgeState
 from phantom.knowledge import Knowledge
-from phantom.macro.build_order import HATCH_FIRST, HATCH_POOL_HATCH, POOL_FIRST
+from phantom.macro.build_order import HATCH_POOL_HATCH
 from phantom.macro.state import MacroPlan, MacroState
 from phantom.macro.strategy import Strategy
 from phantom.observation import Observation
@@ -216,26 +216,20 @@ class Agent:
                 lp=True,
             )
             for u in overseers:
-
-                def scout_with_overseer() -> Action | None:
-                    if target := targets.get(u):
-                        target_point = observation.find_path(
-                            start=u.position,
-                            target=target.position,
-                            air=True,
-                        )
-                        return Move(u, target_point)
-                    return None
-
                 if action := (
                     dodge.dodge_with(u)
                     or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
                     or spawn_changeling(u)
                     or scout.actions.get(u)
-                    or scout_with_overseer()
-                    # or combat.advance_with(u)
                 ):
                     yield action
+                elif target := targets.get(u):
+                    target_point = observation.find_path(
+                        start=u.position,
+                        target=target.position,
+                        air=True,
+                    )
+                    yield Move(u, target_point)
 
         def micro_harvester(u: Unit) -> Action | None:
             return (

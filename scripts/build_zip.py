@@ -1,11 +1,9 @@
 import fnmatch
 import glob
 import os
-import platform
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 import urllib.request
 import zipfile
@@ -86,7 +84,7 @@ def main(
 
     exclude_compiled = [re.compile(fnmatch.translate(p)) for p in exclude]
     with zipfile.ZipFile(output_path, "w", compresslevel=compression_level) as zf:
-        for dirname, subdirs, files in os.walk(input_dir):
+        for dirname, _subdirs, files in os.walk(input_dir):
             for filename in files:
                 filepath = os.path.join(dirname, filename)
                 if any(r.match(filepath) for r in exclude_compiled):

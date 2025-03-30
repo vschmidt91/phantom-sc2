@@ -4,11 +4,9 @@ from functools import cached_property
 from typing import Iterable
 
 from ares import AresBot
-from loguru import logger
 from sc2.position import Point2
-from sc2.units import Units
 
-from phantom.common.constants import MICRO_MAP_REGEX, MINING_RADIUS, MINING_RADIUS_GEYSER
+from phantom.common.constants import MICRO_MAP_REGEX, MINING_RADIUS
 from phantom.common.cost import CostManager
 from phantom.common.utils import MacroId, Point, get_intersections, project_point_onto_line
 from phantom.config import BotConfig

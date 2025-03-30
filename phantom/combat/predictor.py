@@ -81,7 +81,7 @@ class CombatPredictor:
         enemy_survival = np.array([t for u in self.enemy_units])
 
         outcome = CombatOutcome.Draw
-        for i in range(max_steps):
+        for _i in range(max_steps):
             potential_distance_constant = 1e-3
             potential_distance = potential_distance_constant + t * movement_speed
             enemy_potential_distance = potential_distance_constant + t * enemy_movement_speed
@@ -121,9 +121,11 @@ class CombatPredictor:
         nearby_enemy_survival = nan_to_zero((nearby_weighting @ enemy_survival) / np.sum(nearby_weighting, axis=1))
         nearby_survival = nan_to_zero((survival @ nearby_weighting) / np.sum(nearby_weighting, axis=0))
 
-        survival_time = dict(zip(self.units, survival)) | dict(zip(self.enemy_units, enemy_survival))
-        nearby_survival_time = dict(zip(self.enemy_units, nearby_survival)) | dict(
-            zip(self.units, nearby_enemy_survival)
+        survival_time = dict(zip(self.units, survival, strict=False)) | dict(
+            zip(self.enemy_units, enemy_survival, strict=False)
+        )
+        nearby_survival_time = dict(zip(self.enemy_units, nearby_survival, strict=False)) | dict(
+            zip(self.units, nearby_enemy_survival, strict=False)
         )
 
         return CombatPrediction(outcome, survival_time, nearby_survival_time)

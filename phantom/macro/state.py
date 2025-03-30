@@ -96,7 +96,7 @@ class MacroState:
         actions = dict[Unit, Action]()
         reserve = obs.cost.zero
         plans_prioritized = sorted(self.assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
-        for i, (tag, plan) in enumerate(plans_prioritized):
+        for _i, (tag, plan) in enumerate(plans_prioritized):
             if plan.commanded and plan.executed:
                 del self.assigned_plans[tag]
                 logger.info(f"Successfully executed {plan=}")

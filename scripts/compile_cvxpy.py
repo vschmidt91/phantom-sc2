@@ -1,16 +1,10 @@
-import glob
-import math
 import os
-import pathlib
-import platform
 import shutil
 import subprocess
 import sys
-import tempfile
 
 import click
 import cvxpy as cp
-import numpy as np
 from cvxpygen import cpg
 
 

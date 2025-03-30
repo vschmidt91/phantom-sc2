@@ -4,17 +4,14 @@ from dataclasses import fields
 from functools import cache, wraps
 from typing import Callable, Iterable, Type, TypeAlias
 
-import click
 import numpy as np
 import skimage.draw
-import yaml
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.main import _host_game
 from sc2.position import Point2
 from sc2.unit import Unit
 from sklearn.metrics import pairwise_distances as pairwise_distances_sklearn
@@ -27,14 +24,15 @@ CVXPY_OPTIONS = dict(
 LINPROG_OPTIONS = dict(
     method="highs",
     # bounds=(0.0, None),
-    options=dict(
-        # maxiter=64,
-        # disp=False,
-        # presolve=False,
-        # rr=False,
-        # tol=1e-5,
-        time_limit=10e-3,
-    ),
+    # options=dict(
+    #     # maxiter=100,
+    #     disp=False,
+    #     presolve=False,
+    #     time_limit=10e-3,
+    #     primal_feasibility_tolerance=1e-3,  # default: 1e-7
+    #     dual_feasibility_tolerance=1e-3,  # default: 1e-7
+    #     ipm_optimality_tolerance=1e-5,  # default: 1e-12
+    # ),
     # x0=None,
     # integrality=0,
 )
@@ -118,19 +116,19 @@ def center(points: Iterable[Point2]) -> Point2:
 
 def line(x0: int, y0: int, x1: int, y1: int) -> list[tuple[int, int]]:
     lx, ly = skimage.draw.line(x0, y0, x1, y1)
-    return [(int(x), int(y)) for x, y in zip(lx, ly)]
+    return [(int(x), int(y)) for x, y in zip(lx, ly, strict=False)]
 
 
 def circle_perimeter(x0: int, y0: int, r: int, shape: tuple) -> list[tuple[int, int]]:
     assert len(shape) == 2
     tx, ty = skimage.draw.circle_perimeter(x0, y0, r, shape=shape)
-    return [(int(x), int(y)) for x, y in zip(tx, ty)]
+    return [(int(x), int(y)) for x, y in zip(tx, ty, strict=False)]
 
 
 def circle(x0: int, y0: int, r: int, shape: tuple) -> list[tuple[int, int]]:
     assert len(shape) == 2
     tx, ty = skimage.draw.ellipse(x0, y0, r, r, shape=shape)
-    return [(int(x), int(y)) for x, y in zip(tx, ty)]
+    return [(int(x), int(y)) for x, y in zip(tx, ty, strict=False)]
 
 
 def rectangle(start: tuple[int, int], extent: tuple[int, int], shape: tuple) -> tuple[np.ndarray, np.ndarray]:
@@ -198,7 +196,7 @@ def points_of_structure(s: Unit) -> list[Point]:
     px, py = s.position.rounded
     dx += px
     dy += py
-    return list(zip(dx, dy))
+    return list(zip(dx, dy, strict=False))
 
 
 def logit_to_probability(x: float):

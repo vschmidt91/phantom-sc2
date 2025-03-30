@@ -1,19 +1,19 @@
 import math
 from dataclasses import dataclass
 from functools import cache, cached_property
-from itertools import groupby
 
 import cvxpy as cp
 import numpy as np
+import scipy
 from ares.consts import GAS_BUILDINGS
 from loguru import logger
-from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 from scipy.optimize import linprog
 
 from phantom.common.action import Action, DoNothing, Smart
-from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS, Point, pairwise_distances
+from phantom.common.distribute import linprog_matrices
+from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS, pairwise_distances
 from phantom.knowledge import Knowledge
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
@@ -125,14 +125,16 @@ class ResourceAction:
         mineral_limit = 2.0
 
         cost = harvester_to_resource + return_distance + assignment_cost
+        matrices = linprog_matrices(len(harvesters), len(resources))
         opt = linprog(
             c=cost.flatten(),
-            A_ub=np.tile(np.identity(len(resources)), (1, len(harvesters))),
+            A_ub=matrices["A_ub"],
             b_ub=np.array([gas_limit if r in GAS_BUILDINGS else mineral_limit for r in resources]),
-            A_eq=np.concatenate(
+            A_eq=scipy.sparse.vstack(
                 (
-                    np.repeat(np.identity(len(harvesters)), len(resources), axis=1),
-                    np.expand_dims(np.tile(is_gas_building, len(harvesters)), 0),
+                    matrices["A_eq"],
+                    # np.repeat(np.identity(len(harvesters)), len(resources), axis=1),
+                    scipy.sparse.coo_array(np.expand_dims(np.tile(is_gas_building, len(harvesters)), 0)),
                 )
             ),
             b_eq=np.concatenate(
@@ -149,7 +151,9 @@ class ResourceAction:
         x = opt.x.reshape(cost.shape)
         indices = x.argmax(axis=1)
         assignment = {
-            ai.tag: resources[j].position.rounded for (i, ai), j in zip(enumerate(harvesters), indices) if 0 < x[i, j]
+            ai.tag: resources[j].position.rounded
+            for (i, ai), j in zip(enumerate(harvesters), indices, strict=False)
+            if 0 < x[i, j]
         }
         return assignment
 

@@ -1,12 +1,11 @@
 from collections import defaultdict
 from dataclasses import dataclass
-from functools import cache, cached_property
-from itertools import chain, product
+from functools import cached_property
+from itertools import chain
 from typing import Iterable
 
 import numpy as np
 from ares import UnitTreeQueryType
-from cython_extensions import cy_center
 from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
@@ -27,7 +26,6 @@ from phantom.common.constants import (
     ENEMY_CIVILIANS,
     HALF,
     ITEM_BY_ABILITY,
-    MAX_UNIT_RADIUS,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
     WITH_TECH_EQUIVALENTS,
@@ -40,8 +38,7 @@ from phantom.common.constants import (
 )
 from phantom.common.cost import Cost, CostManager
 from phantom.common.main import BotBase
-from phantom.common.utils import MacroId, Point, center, pairwise_distances
-from phantom.knowledge import Knowledge
+from phantom.common.utils import MacroId, Point, center
 
 
 @dataclass(frozen=True)
@@ -98,8 +95,8 @@ class Observation:
         units = self.combatants
         base_ranges = [u.radius for u in units]
         # base_ranges = [u.radius + MAX_UNIT_RADIUS for u in units]
-        ground_ranges = [b + u.ground_range for u, b in zip(units, base_ranges)]
-        air_ranges = [b + u.air_range for u, b in zip(units, base_ranges)]
+        ground_ranges = [b + u.ground_range for u, b in zip(units, base_ranges, strict=False)]
+        air_ranges = [b + u.air_range for u, b in zip(units, base_ranges, strict=False)]
 
         ground_candidates = self.bot.mediator.get_units_in_range(
             start_points=units,
@@ -112,7 +109,8 @@ class Observation:
             query_tree=UnitTreeQueryType.EnemyFlying,
         )
         targets = {
-            u: list(filter(u.target_in_range, a | b)) for u, a, b in zip(units, ground_candidates, air_candidates)
+            u: list(filter(u.target_in_range, a | b))
+            for u, a, b in zip(units, ground_candidates, air_candidates, strict=False)
         }
         return targets
 
@@ -294,12 +292,10 @@ class Observation:
             self.bot,
         )
 
-    @cache
     def in_mineral_line(self, base: Point) -> Point:
         resource_positions = self.bot.expansion_resource_positions[base]
         return center(resource_positions).rounded
 
-    @cache
     def behind_mineral_line(self, base: Point) -> Point2:
         return Point2(base).offset(HALF).towards(self.in_mineral_line(base), 10.0)
 
@@ -389,7 +385,6 @@ class Observation:
     def unit_data(self, unit_type_id: UnitTypeId) -> UnitTypeData:
         return self.bot.game_data.units[unit_type_id.value]
 
-    @cache
     def build_time(self, unit_type: UnitTypeId) -> float:
         return self.bot.game_data.units[unit_type.value].cost.time
 

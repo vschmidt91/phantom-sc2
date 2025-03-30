@@ -1,10 +1,10 @@
 import math
 from functools import cache
-from itertools import product
 from typing import Hashable, TypeVar
 
 import cvxpy as cp
 import numpy as np
+import scipy
 from loguru import logger
 from scipy.optimize import linprog
 
@@ -48,6 +48,14 @@ def cp_solve(c, b):
     return solution
 
 
+@cache
+def linprog_matrices(n: int, m: int) -> dict:
+    return dict(
+        A_ub=scipy.sparse.coo_array(np.tile(np.identity(m), (1, n))),
+        A_eq=scipy.sparse.coo_array(np.repeat(np.identity(n), m, axis=1)),
+    )
+
+
 def distribute(
     a: list[TKey],
     b: list[TValue],
@@ -55,6 +63,8 @@ def distribute(
     max_assigned: np.ndarray | int | None = None,
     lp=False,
 ) -> dict[TKey, TValue]:
+    n = len(a)
+    m = len(b)
     if not a:
         return {}
     if not b:
@@ -72,12 +82,12 @@ def distribute(
             else:
                 opt = linprog(
                     c=cost.flatten(),
-                    A_ub=np.tile(np.identity(len(b)), (1, len(a))),
                     b_ub=max_assigned,
-                    A_eq=np.repeat(np.identity(len(a)), len(b), axis=1),
                     b_eq=np.full(len(a), 1.0),
+                    **linprog_matrices(n, m),
                     **LINPROG_OPTIONS,
                 )
+
                 if opt.x is None:
                     logger.error(f"Target assigment failed: {opt}")
                     return {}
@@ -89,6 +99,6 @@ def distribute(
         return {}
 
     indices = x.argmax(axis=1)
-    assignment = {ai: b[j] for (i, ai), j in zip(enumerate(a), indices) if 0 < x[i, j]}
+    assignment = {ai: b[j] for (i, ai), j in zip(enumerate(a), indices, strict=False) if 0 < x[i, j]}
 
     return assignment

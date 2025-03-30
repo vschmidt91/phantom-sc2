@@ -55,7 +55,7 @@ class PhantomBot(BotBase):
 
         # sample parameters
         self.parameter_values = self.data.parameters.sample() if self.bot_config.training else self.data.parameters.mean
-        parameter_dict = dict(zip(self.data.parameter_names, self.parameter_values))
+        parameter_dict = dict(zip(self.data.parameter_names, self.parameter_values, strict=False))
         parameter_distributions = {k: NormalParameter(float(v), 0, 0) for k, v in parameter_dict.items()}
         parameters = AgentParameters.from_dict(parameter_distributions | priors)
         knowledge = Knowledge(self)

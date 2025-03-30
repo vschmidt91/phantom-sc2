@@ -1,5 +1,4 @@
 import os
-import pathlib
 from dataclasses import dataclass
 
 import yaml

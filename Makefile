@@ -9,7 +9,7 @@ check:
 	poetry run mypy .
 
 fix:
-	poetry run ruff check --select I --fix --unsafe-fixes .
+	poetry run ruff check --fix --unsafe-fixes .
 	poetry run ruff format .
 
 profile:

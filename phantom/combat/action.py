@@ -1,7 +1,6 @@
 import math
 from dataclasses import dataclass
 from functools import cached_property
-from itertools import chain, product
 
 import numpy as np
 from loguru import logger
@@ -16,16 +15,13 @@ from scipy import ndimage
 from phantom.combat.predictor import CombatPrediction, CombatPredictor
 from phantom.combat.presence import Presence
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
-from phantom.common.constants import CIVILIANS, HALF, WORKERS
+from phantom.common.constants import HALF
 from phantom.common.distribute import distribute
 from phantom.common.utils import (
-    Point,
     calculate_dps,
     can_attack,
-    combine_comparers,
     disk,
     pairwise_distances,
-    points_of_structure,
 )
 from phantom.cython.cy_dijkstra import DijkstraOutput, cy_dijkstra
 from phantom.data.normal import NormalParameter
@@ -80,15 +76,15 @@ class CombatAction:
         else:
             retreat_map = self.retreat_ground
         if retreat_map.distance[x, y] == np.inf:
-            return self.retreat_with_ares(unit, limit=limit)
+            return self.retreat_with_ares(unit)
         retreat_path = retreat_map.get_path((x, y), limit=limit)
         retreat_point = Point2(retreat_path[-1]).offset(HALF)
-        # if unit.distance_to(retreat_point) < limit:
-        #     logger.warning("too close to home, falling back to ares retreating")
-        #     return self.retreat_with_ares(unit, limit=limit)
+        if unit.distance_to(retreat_point) < 7:
+            logger.warning("too close to home, falling back to ares retreating")
+            return self.retreat_with_ares(unit)
         return Move(unit, retreat_point)
 
-    def retreat_with_ares(self, unit: Unit, limit=5) -> Action | None:
+    def retreat_with_ares(self, unit: Unit, limit=7) -> Action | None:
         return Move(
             unit,
             self.observation.find_safe_spot(
@@ -105,7 +101,7 @@ class CombatAction:
             # reward = self.observation.calculate_unit_value_weighted(u.type_id)
             return np.divide(hp, dps)
 
-        if unit.ground_range < 1 and unit.weapon_ready:
+        if 1 < unit.ground_range and unit.weapon_ready:
             if targets := self.observation.shootable_targets.get(unit):
                 target = min(targets, key=cost_fn)
                 return Attack(unit, target)
