@@ -4,7 +4,6 @@ from functools import cache, cached_property
 
 import cvxpy as cp
 import numpy as np
-import scipy
 from ares.consts import GAS_BUILDINGS
 from loguru import logger
 from sc2.unit import Unit
