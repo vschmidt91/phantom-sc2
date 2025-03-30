@@ -11,7 +11,6 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from phantom.common.action import Action, DoNothing, Smart
-from phantom.common.distribute import distribute
 from phantom.common.utils import pairwise_distances
 from phantom.knowledge import Knowledge
 from phantom.resources.gather import GatherAction, ReturnResource
