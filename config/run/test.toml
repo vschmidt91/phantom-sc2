@@ -1,1 +1,1 @@
-bot_config = "config/bot/test.yml"
+bot_config = "config/bot/test.toml"
