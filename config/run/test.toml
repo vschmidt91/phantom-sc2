@@ -1,1 +1,2 @@
 bot_config = "config/bot/test.toml"
+map_pattern = "Equilibrium513AIE"
