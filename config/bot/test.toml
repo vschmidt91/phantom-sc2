@@ -1,2 +1,1 @@
-resign_after_iteration = 300
-build_order = "HATCH_FIRST"
+build_order = "TEST"

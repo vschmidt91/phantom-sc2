@@ -131,4 +131,15 @@ BUILD_ORDERS = {
             # Make(UnitTypeId.ROACH, 7),
         ]
     ),
+    "TEST": BuildOrderChain(
+        [
+            Make(UnitTypeId.DRONE, 14),
+            Make(UnitTypeId.OVERLORD, 2),
+            Make(UnitTypeId.SPAWNINGPOOL, 1),
+            Make(UnitTypeId.DRONE, 17),
+            Make(UnitTypeId.HATCHERY, 2),
+            Make(UnitTypeId.QUEEN, 1),
+            Make(UnitTypeId.ZERGLING, 100),
+        ]
+    ),
 }
