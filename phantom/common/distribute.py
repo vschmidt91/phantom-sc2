@@ -17,7 +17,6 @@ TValue = TypeVar("TValue", bound=Hashable)
 
 class HighsPyProblem:
     def __init__(self, n: int, m: int) -> None:
-
         h = highspy.Highs()
         h.setOptionValue("presolve", "off")
         h.setOptionValue("log_to_console", "off")

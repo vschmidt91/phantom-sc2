@@ -112,10 +112,10 @@ class CombatAction:
             return Move(unit, target.position)
 
         confidence_predictor = self.prediction.survival_time[unit] - self.prediction.nearby_enemy_survival_time[unit]
-        confidence_target = self.prediction.survival_time[unit] - self.prediction.survival_time[target]
-        confidence_map = self.confidence_filtered[unit.position.rounded]
-        confidence = np.median((confidence_predictor, confidence_target, confidence_map))
-        # confidence = confidence_predictor
+        # confidence_target = self.prediction.survival_time[unit] - self.prediction.survival_time[target]
+        # confidence_map = self.confidence_filtered[unit.position.rounded]
+        # confidence = np.median((confidence_predictor, confidence_target, confidence_map))
+        confidence = confidence_predictor
         test_position = unit.position.towards(target, 1.5)
         if self.enemy_presence.dps[test_position.rounded] == 0:
             return Attack(unit, target)
