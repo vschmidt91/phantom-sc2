@@ -87,7 +87,6 @@ class Agent:
                 [a.position for a in injecters],
                 [b.position for b in injected_targets],
             ),
-            lp=True,
         )
         dodge = self.dodge.step(observation)
         macro_actions = await self.macro.step(observation, set(self.scout.blocked_positions), combat)
@@ -209,7 +208,6 @@ class Agent:
                     [a.position for a in overseers],
                     [b.position for b in observation.enemy_combatants],
                 ),
-                lp=True,
             )
             for u in overseers:
                 if action := (

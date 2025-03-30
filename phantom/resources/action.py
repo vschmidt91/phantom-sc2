@@ -1,17 +1,16 @@
 import math
 from dataclasses import dataclass
-from functools import cache, cached_property
+from functools import cached_property
 
-import cvxpy as cp
 import numpy as np
-from ares.consts import GAS_BUILDINGS
+from cython_extensions import cy_closest_to
 from loguru import logger
 from sc2.unit import Unit
 from sc2.units import Units
-from scipy.optimize import linprog
 
 from phantom.common.action import Action, DoNothing, Smart
-from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS, pairwise_distances
+from phantom.common.distribute import distribute
+from phantom.common.utils import Point, pairwise_distances
 from phantom.knowledge import Knowledge
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
@@ -19,42 +18,6 @@ from phantom.resources.observation import HarvesterAssignment, ResourceObservati
 
 class SolverError(Exception):
     pass
-
-
-@cache
-def get_problem(n, m):
-    x = cp.Variable((n, m), "x")
-    w = cp.Parameter((n, m), name="w")
-    b = cp.Parameter(m, name="b")
-    gw = cp.Parameter(m, name="gw")
-    g = cp.Parameter(name="g")
-
-    spread_cost = cp.var(cp.sum(x, 0))
-    oversaturation = cp.sum(cp.maximum(0, cp.sum(x, 0) - b))
-    oversaturation_gas = cp.abs(cp.vdot(cp.sum(x, 0), gw) - g)
-    assign_cost = cp.vdot(w, x)
-    objective = cp.Minimize(assign_cost + 10 * spread_cost + 32 * oversaturation_gas + 32 * oversaturation)
-    # objective = cp.Minimize(cp.vdot(w, x))
-    constraints = [
-        cp.sum(x, 1) == 1,
-        x >= 0,
-    ]
-    problem = cp.Problem(objective, constraints)
-    return problem
-
-
-def cp_solve(b, c, g, gw):
-    n, m = c.shape
-    problem = get_problem(n, m)
-    problem.param_dict["w"].value = c
-    problem.param_dict["b"].value = b
-    problem.param_dict["g"].value = g
-    problem.param_dict["gw"].value = gw
-    problem.solve(**CVXPY_OPTIONS)
-    x = problem.var_dict["x"].value
-    if x is None:
-        x = np.zeros((n, m))
-    return x
 
 
 @dataclass(frozen=True)
@@ -100,8 +63,45 @@ class ResourceAction:
         if not any(harvesters):
             return {}
 
-        # enforce gas target
-        is_gas_building = np.array([1.0 if r.type_id in GAS_BUILDINGS else 0.0 for r in resources])
+        # harvesters_gas = harvesters[:gas_target]
+        harvesters_minerals = harvesters[gas_target:]
+
+        # targets_gas = self.observation.gas_buildings.filter(lambda g: 0 < self.observation.harvester_target_of_gas(g))
+
+        harvesters_minerals = harvesters
+        harvesters_gas = list[Unit]()
+        for g in self.observation.gas_buildings:
+            p: Point = g.position.rounded
+            test_point = 0.5 * (self.observation.observation.speedmining_positions[p] + self.knowledge.return_point[p])
+
+            assign_target = min(gas_target - len(harvesters_gas), self.observation.harvester_target_of_gas(g))
+            already_assigned = [h for h in harvesters_minerals if self.previous_assignment.get(h.tag) == p]
+
+            assign = []
+            assign.extend(already_assigned[:assign_target])
+            for w in assign:
+                harvesters_minerals.remove(w)
+
+            while len(assign) < assign_target and harvesters_minerals:
+                closest = cy_closest_to(test_point, harvesters_minerals)
+                assign.append(closest)
+                harvesters_minerals.remove(closest)
+
+            harvesters_gas.extend(assign)
+
+        assignment_minerals = self._solve(harvesters_gas, self.observation.gas_buildings)
+        assignment_gas = self._solve(harvesters_minerals, self.observation.mineral_fields)
+        assignment = {h.tag: r.position.rounded for h, r in (assignment_minerals | assignment_gas).items()}
+
+        # print(f"{assignment_gas=}")
+
+        return assignment
+
+    def _solve(self, harvesters: Units, resources: Units) -> dict[Unit, Unit]:
+        if not any(harvesters):
+            return {}
+        if not any(resources):
+            return {}
 
         harvester_to_resource = pairwise_distances(
             [h.position for h in harvesters],
@@ -117,50 +117,14 @@ class ResourceAction:
             if (ti := self.previous_assignment.get(hi.tag)) and (j := resource_index_by_position.get(ti)) is not None:
                 assignment_cost[i, j] = 0.0
 
-        gas_limit = 3.0 if not self.observation.observation.researched_speed else 2.0
-        gas_limit = 2.0
-        mineral_limit = 2.0
-
         cost = harvester_to_resource + return_distance + assignment_cost
-        # matrices = linprog_matrices(len(harvesters), len(resources))
-        opt = linprog(
-            c=cost.flatten(),
-            A_ub=np.tile(np.identity(len(resources)), (1, len(harvesters))),
-            b_ub=np.array([gas_limit if r in GAS_BUILDINGS else mineral_limit for r in resources]),
-            A_eq=np.concatenate(
-                (
-                    # matrices["A_eq"],
-                    np.repeat(np.identity(len(harvesters)), len(resources), axis=1),
-                    np.expand_dims(np.tile(is_gas_building, len(harvesters)), 0),
-                )
-            ),
-            b_eq=np.concatenate(
-                (
-                    np.full(len(harvesters), 1.0),
-                    np.array([gas_target]),
-                )
-            ),
-            **LINPROG_OPTIONS,
+
+        return distribute(
+            harvesters,
+            resources,
+            cost=cost,
+            max_assigned=2,
         )
-        if not opt.success:
-            return None
-
-        x = opt.x.reshape(cost.shape)
-        indices = x.argmax(axis=1)
-        assignment = {
-            ai.tag: resources[j].position.rounded
-            for (i, ai), j in zip(enumerate(harvesters), indices, strict=False)
-            if x[i, j] > 0
-        }
-        return assignment
-
-        # return distribute(
-        #     harvesters,
-        #     resources,
-        #     cost_fn=cost,
-        #     max_assigned=2,
-        #     lp=True,
-        # )
 
     @cached_property
     def gas_target(self) -> int:

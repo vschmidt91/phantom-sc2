@@ -54,7 +54,7 @@ class ResourceObservation:
         if resource.type_id in GAS_BUILDINGS:
             if not resource.is_ready:
                 return 0
-            p = resource.position.rounded
+            p: Point = resource.position.rounded
             if not (geyser := self.vespene_geyser_at.get(p)):
                 return 0
             if not remaining(geyser):

@@ -273,7 +273,6 @@ class CombatAction:
             enemies,
             cost,
             max_assigned=max_assigned,
-            lp=True,
         )
         assignment = {a: b for a, b in assignment.items() if can_attack(a, b)}
 
