@@ -145,66 +145,7 @@ class ResourceAction:
             if x[i, j] > 0
         }
 
-        # harvesters_gas = harvesters[:gas_target]
-        harvesters[gas_target:]
-
-        # targets_gas = self.observation.gas_buildings.filter(lambda g: 0 < self.observation.harvester_target_of_gas(g))
-
-        # harvesters_minerals = harvesters
-        # harvesters_gas = list[Unit]()
-        # for g in self.observation.gas_buildings:
-        #     p: Point = g.position.rounded
-        #     test_point = 0.5 * (self.observation.observation.speedmining_positions[p] + self.knowledge.return_point[p])
-        #
-        #     assign_target = min(gas_target - len(harvesters_gas), self.observation.harvester_target_of_gas(g))
-        #     already_assigned = [h for h in harvesters_minerals if self.previous_assignment.get(h.tag) == p]
-        #
-        #     assign = []
-        #     assign.extend(already_assigned[:assign_target])
-        #     for w in assign:
-        #         harvesters_minerals.remove(w)
-        #
-        #     while len(assign) < assign_target and harvesters_minerals:
-        #         closest = cy_closest_to(test_point, harvesters_minerals)
-        #         assign.append(closest)
-        #         harvesters_minerals.remove(closest)
-        #
-        #     harvesters_gas.extend(assign)
-        #
-        # assignment_minerals = self._solve(harvesters_gas, self.observation.gas_buildings)
-        # assignment_gas = self._solve(harvesters_minerals, self.observation.mineral_fields)
-        # assignment = {h.tag: r.position.rounded for h, r in (assignment_minerals | assignment_gas).items()}
-
         return assignment
-
-    def _solve(self, harvesters: Units, resources: Units) -> dict[Unit, Unit]:
-        if not any(harvesters):
-            return {}
-        if not any(resources):
-            return {}
-
-        harvester_to_resource = pairwise_distances(
-            [h.position for h in harvesters],
-            [self.observation.observation.speedmining_positions[r.position.rounded] for r in resources],
-        )
-
-        return_distance = np.array([self.knowledge.return_distances[r.position.rounded] for r in resources])
-        return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
-
-        assignment_cost = np.ones((len(harvesters), len(resources)))
-        resource_index_by_position = {r.position.rounded: i for i, r in enumerate(resources)}
-        for i, hi in enumerate(harvesters):
-            if (ti := self.previous_assignment.get(hi.tag)) and (j := resource_index_by_position.get(ti)) is not None:
-                assignment_cost[i, j] = 0.0
-
-        cost = harvester_to_resource + return_distance + assignment_cost
-
-        return distribute(
-            harvesters,
-            resources,
-            cost=cost,
-            max_assigned=2,
-        )
 
     @cached_property
     def gas_target(self) -> int:
