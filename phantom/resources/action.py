@@ -1,19 +1,71 @@
 import math
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cache, cached_property
+from itertools import product
 
+import highspy
 import numpy as np
-from cython_extensions import cy_closest_to
+from ares.consts import GAS_BUILDINGS
 from loguru import logger
 from sc2.unit import Unit
 from sc2.units import Units
 
 from phantom.common.action import Action, DoNothing, Smart
 from phantom.common.distribute import distribute
-from phantom.common.utils import Point, pairwise_distances
+from phantom.common.utils import pairwise_distances
 from phantom.knowledge import Knowledge
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
+
+
+class HighsPyProblem:
+    def __init__(self, n: int, m: int) -> None:
+        h = highspy.Highs()
+        h.setOptionValue("presolve", "off")
+        h.setOptionValue("log_to_console", "off")
+
+        vs = {(i, j): h.addVariable(lb=0.0, ub=1.0) for i, j in product(range(n), range(m))}
+        for i in range(n):
+            h.addConstr(sum(vs[i, j] for j in range(m)) == 1.0)
+        for j in range(m):
+            h.addConstr(sum(vs[i, j] for i in range(n)) <= 1.0)
+        h.addConstr(sum(vs[i, j] for i in range(n) for j in range(m)) == 1.0)
+        h.minimize(sum(vs[i, j] for i in range(n) for j in range(m)))
+
+        self.n = n
+        self.m = m
+        self.highspy = h
+        self.lp = h.getLp()
+
+    def solve(self, cost: np.ndarray, limit: np.ndarray, is_gas: np.ndarray, gas_target: int) -> np.ndarray:
+        self.lp.col_cost_ = cost.flatten()
+        self.lp.row_lower_ = np.concatenate(
+            (
+                np.ones(self.n),
+                np.zeros(self.m),
+                np.array([gas_target]),
+            )
+        )
+        self.lp.row_upper_ = np.concatenate(
+            (
+                np.ones(self.n),
+                limit,
+                np.array([gas_target]),
+            )
+        )
+        coeff = np.concatenate([[1.0, 1.0, is_gas[j]] for j in range(self.m)])
+        self.lp.a_matrix_.value_ = np.tile(coeff, self.n)
+        self.highspy.passModel(self.lp)
+        self.highspy.run()
+        solution_flat = list(self.highspy.getSolution().col_value)
+        solution = np.asarray(solution_flat).reshape((self.n, self.m))
+        return solution
+
+
+@cache
+def get_highspy_problem(n, m):
+    logger.debug(f"Creating HighsPyProblem with {n=}, {m=}")
+    return HighsPyProblem(n, m)
 
 
 class SolverError(Exception):
@@ -63,37 +115,65 @@ class ResourceAction:
         if not any(harvesters):
             return {}
 
+        harvester_to_resource = pairwise_distances(
+            [h.position for h in harvesters],
+            [self.observation.observation.speedmining_positions[r.position.rounded] for r in resources],
+        )
+
+        return_distance = np.array([self.knowledge.return_distances[r.position.rounded] for r in resources])
+        return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
+
+        assignment_cost = np.ones((len(harvesters), len(resources)))
+        resource_index_by_position = {r.position.rounded: i for i, r in enumerate(resources)}
+        for i, hi in enumerate(harvesters):
+            if (ti := self.previous_assignment.get(hi.tag)) and (j := resource_index_by_position.get(ti)) is not None:
+                assignment_cost[i, j] = 0.0
+
+        n = len(harvesters)
+        m = len(resources)
+
+        cost = harvester_to_resource + return_distance + assignment_cost
+        limit = np.full(m, 2.0)
+        is_gas = np.array([1.0 if r.type_id in GAS_BUILDINGS else 0.0 for r in resources])
+
+        problem = get_highspy_problem(n, m)
+        x = problem.solve(cost, limit, is_gas, gas_target)
+        indices = x.argmax(axis=1)
+        assignment = {
+            ai.tag: resources[j].position.rounded
+            for (i, ai), j in zip(enumerate(harvesters), indices, strict=False)
+            if x[i, j] > 0
+        }
+
         # harvesters_gas = harvesters[:gas_target]
-        harvesters_minerals = harvesters[gas_target:]
+        harvesters[gas_target:]
 
         # targets_gas = self.observation.gas_buildings.filter(lambda g: 0 < self.observation.harvester_target_of_gas(g))
 
-        harvesters_minerals = harvesters
-        harvesters_gas = list[Unit]()
-        for g in self.observation.gas_buildings:
-            p: Point = g.position.rounded
-            test_point = 0.5 * (self.observation.observation.speedmining_positions[p] + self.knowledge.return_point[p])
-
-            assign_target = min(gas_target - len(harvesters_gas), self.observation.harvester_target_of_gas(g))
-            already_assigned = [h for h in harvesters_minerals if self.previous_assignment.get(h.tag) == p]
-
-            assign = []
-            assign.extend(already_assigned[:assign_target])
-            for w in assign:
-                harvesters_minerals.remove(w)
-
-            while len(assign) < assign_target and harvesters_minerals:
-                closest = cy_closest_to(test_point, harvesters_minerals)
-                assign.append(closest)
-                harvesters_minerals.remove(closest)
-
-            harvesters_gas.extend(assign)
-
-        assignment_minerals = self._solve(harvesters_gas, self.observation.gas_buildings)
-        assignment_gas = self._solve(harvesters_minerals, self.observation.mineral_fields)
-        assignment = {h.tag: r.position.rounded for h, r in (assignment_minerals | assignment_gas).items()}
-
-        # print(f"{assignment_gas=}")
+        # harvesters_minerals = harvesters
+        # harvesters_gas = list[Unit]()
+        # for g in self.observation.gas_buildings:
+        #     p: Point = g.position.rounded
+        #     test_point = 0.5 * (self.observation.observation.speedmining_positions[p] + self.knowledge.return_point[p])
+        #
+        #     assign_target = min(gas_target - len(harvesters_gas), self.observation.harvester_target_of_gas(g))
+        #     already_assigned = [h for h in harvesters_minerals if self.previous_assignment.get(h.tag) == p]
+        #
+        #     assign = []
+        #     assign.extend(already_assigned[:assign_target])
+        #     for w in assign:
+        #         harvesters_minerals.remove(w)
+        #
+        #     while len(assign) < assign_target and harvesters_minerals:
+        #         closest = cy_closest_to(test_point, harvesters_minerals)
+        #         assign.append(closest)
+        #         harvesters_minerals.remove(closest)
+        #
+        #     harvesters_gas.extend(assign)
+        #
+        # assignment_minerals = self._solve(harvesters_gas, self.observation.gas_buildings)
+        # assignment_gas = self._solve(harvesters_minerals, self.observation.mineral_fields)
+        # assignment = {h.tag: r.position.rounded for h, r in (assignment_minerals | assignment_gas).items()}
 
         return assignment
 
