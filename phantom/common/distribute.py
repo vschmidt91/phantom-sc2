@@ -17,7 +17,6 @@ TValue = TypeVar("TValue", bound=Hashable)
 
 class HighsPyProblem:
     def __init__(self, n: int, m: int) -> None:
-        logger.debug(f"Creating HighsPyProblem with {n=}, {m=}")
 
         h = highspy.Highs()
         h.setOptionValue("presolve", "off")
@@ -47,6 +46,7 @@ class HighsPyProblem:
 
 @cache
 def get_highspy_problem(n, m):
+    logger.debug(f"Creating HighsPyProblem with {n=}, {m=}")
     return HighsPyProblem(n, m)
 
 
