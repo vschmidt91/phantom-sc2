@@ -132,7 +132,7 @@ class ResourceAction:
                 (
                     # matrices["A_eq"],
                     np.repeat(np.identity(len(harvesters)), len(resources), axis=1),
-                    scipy.sparse.coo_array(np.expand_dims(np.tile(is_gas_building, len(harvesters)), 0)),
+                    np.expand_dims(np.tile(is_gas_building, len(harvesters)), 0),
                 )
             ),
             b_eq=np.concatenate(
