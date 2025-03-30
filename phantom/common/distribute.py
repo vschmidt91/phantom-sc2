@@ -52,8 +52,8 @@ def cp_solve(c, b):
 @cache
 def linprog_matrices(n: int, m: int) -> dict:
     return dict(
-        A_ub=scipy.sparse.coo_array(np.tile(np.identity(m), (1, n))),
-        A_eq=scipy.sparse.coo_array(np.repeat(np.identity(n), m, axis=1)),
+        A_ub=np.tile(np.identity(m), (1, n)),
+        A_eq=np.repeat(np.identity(n), m, axis=1),
     )
 
 
