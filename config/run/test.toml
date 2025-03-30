@@ -1,2 +1,4 @@
 bot_config = "config/bot/test.toml"
+enemy_build = "Macro"
+enemy_difficulty = "VeryEasy"
 map_pattern = "Equilibrium513AIE"
