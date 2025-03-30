@@ -55,7 +55,7 @@ jobs:
       - name: Run game
         env:
           SC2PATH: "/root/StarCraftII/"
-        run: python run.py --config config/run/test.yml
+        run: python run.py --config config/run/test.toml
 
   upload_to_ai_arena:
     name: Upload to AI Arena
