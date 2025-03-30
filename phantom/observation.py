@@ -1,8 +1,8 @@
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import cached_property
 from itertools import chain
-from typing import Iterable
 
 import numpy as np
 from ares import UnitTreeQueryType
@@ -76,7 +76,7 @@ class Observation:
 
     @property
     def researched_speed(self) -> bool:
-        return 0.0 < self.bot.already_pending_upgrade(UpgradeId.ZERGLINGMOVEMENTSPEED)
+        return self.bot.already_pending_upgrade(UpgradeId.ZERGLINGMOVEMENTSPEED) > 0.0
 
     @property
     def effects(self) -> set[EffectData]:
@@ -409,10 +409,7 @@ class Observation:
         return await self.bot.can_place_single(building, position)
 
     def find_path(self, start: Point2, target: Point2, air: bool = False) -> Point2:
-        if air:
-            grid = self.bot.mediator.get_air_grid
-        else:
-            grid = self.bot.mediator.get_ground_grid
+        grid = self.bot.mediator.get_air_grid if air else self.bot.mediator.get_ground_grid
         return self.bot.mediator.find_path_next_point(
             start=start,
             target=target,
@@ -421,10 +418,7 @@ class Observation:
         )
 
     def find_safe_spot(self, start: Point2, air: bool = False, limit: int = 7) -> Point2:
-        if air:
-            grid = self.bot.mediator.get_air_grid
-        else:
-            grid = self.bot.mediator.get_ground_grid
+        grid = self.bot.mediator.get_air_grid if air else self.bot.mediator.get_ground_grid
         return self.bot.mediator.find_closest_safe_spot(
             from_pos=start,
             grid=grid,
@@ -484,7 +478,7 @@ class Observation:
             elif unit.type_id == UnitTypeId.ROACHBURROWED:
                 return UpgradeId.TUNNELINGCLAWS in self.bot.state.upgrades
             return False
-        return 0 < unit.movement_speed
+        return unit.movement_speed > 0
 
     def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
         if unit == UnitTypeId.ZERGLING:
@@ -524,12 +518,7 @@ class Observation:
                 # self.upgradeSequence(ZERG_RANGED_UPGRADES),
                 # self.upgradeSequence(ZERG_ARMOR_UPGRADES),
             )
-        elif unit == UnitTypeId.MUTALISK:
-            return chain(
-                self.upgrade_sequence(ZERG_FLYER_UPGRADES),
-                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.CORRUPTOR:
+        elif unit == UnitTypeId.MUTALISK or unit == UnitTypeId.CORRUPTOR:
             return chain(
                 self.upgrade_sequence(ZERG_FLYER_UPGRADES),
                 self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),

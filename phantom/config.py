@@ -23,7 +23,7 @@ class BotConfig:
     def from_yaml(cls, path: str) -> "BotConfig":
         config = BotConfig()
         if os.path.isfile(path):
-            with open(path, "r") as config_file:
+            with open(path) as config_file:
                 config_dict: dict = yaml.safe_load(config_file)
         for key, value in config_dict.items():
             setattr(config, key, value)

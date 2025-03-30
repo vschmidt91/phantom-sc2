@@ -39,7 +39,7 @@ def get_problem(n, m):
     # objective = cp.Minimize(cp.vdot(w, x))
     constraints = [
         cp.sum(x, 1) == 1,
-        0 <= x,
+        x >= 0,
     ]
     problem = cp.Problem(objective, constraints)
     return problem
@@ -116,9 +116,8 @@ class ResourceAction:
         assignment_cost = np.ones((len(harvesters), len(resources)))
         resource_index_by_position = {r.position.rounded: i for i, r in enumerate(resources)}
         for i, hi in enumerate(harvesters):
-            if ti := self.previous_assignment.get(hi.tag):
-                if (j := resource_index_by_position.get(ti)) is not None:
-                    assignment_cost[i, j] = 0.0
+            if (ti := self.previous_assignment.get(hi.tag)) and (j := resource_index_by_position.get(ti)) is not None:
+                assignment_cost[i, j] = 0.0
 
         gas_limit = 3.0 if not self.observation.observation.researched_speed else 2.0
         gas_limit = 2.0
@@ -153,7 +152,7 @@ class ResourceAction:
         assignment = {
             ai.tag: resources[j].position.rounded
             for (i, ai), j in zip(enumerate(harvesters), indices, strict=False)
-            if 0 < x[i, j]
+            if x[i, j] > 0
         }
         return assignment
 
@@ -176,13 +175,12 @@ class ResourceAction:
         if not (target := self.observation.resource_at.get(target_pos)):
             logger.error(f"No resource found at {target_pos}")
             return None
-        if target.is_vespene_geyser:
-            if not (target := self.observation.gas_building_at.get(target_pos)):
-                logger.error(f"No gas building found at {target_pos}")
-                return None
+        if target.is_vespene_geyser and not (target := self.observation.gas_building_at.get(target_pos)):
+            logger.error(f"No gas building found at {target_pos}")
+            return None
         if unit.is_idle:
             return Smart(unit, target)
-        elif 2 <= len(unit.orders):
+        elif len(unit.orders) >= 2:
             return DoNothing()
         elif unit.is_gathering:
             return GatherAction(unit, target, self.observation.observation.speedmining_positions[target_pos])

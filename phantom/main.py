@@ -4,8 +4,8 @@ import lzma
 import os
 import pickle
 import pstats
+from collections.abc import Iterable
 from queue import Empty, Queue
-from typing import Iterable
 
 from loguru import logger
 from sc2.data import Race, Result
@@ -98,10 +98,9 @@ class PhantomBot(BotBase):
         if iteration == 0:
             return
 
-        if self.bot_config.resign_after_iteration is not None:
-            if self.bot_config.resign_after_iteration < iteration:
-                logger.info(f"Reached iteration {self.bot_config.resign_after_iteration}, resigning.")
-                await self.client.leave()
+        if self.bot_config.resign_after_iteration is not None and self.bot_config.resign_after_iteration < iteration:
+            logger.info(f"Reached iteration {self.bot_config.resign_after_iteration}, resigning.")
+            await self.client.leave()
 
         for error in self.state.action_errors:
             logger.warning(f"{error=}")

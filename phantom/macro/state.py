@@ -1,8 +1,9 @@
 import math
 import random
+from collections.abc import Iterable
 from dataclasses import dataclass
 from itertools import chain
-from typing import Iterable, TypeAlias
+from typing import TypeAlias
 
 from loguru import logger
 from sc2.game_state import ActionRawUnitCommand
@@ -48,14 +49,12 @@ class MacroState:
     assigned_plans = dict[int, MacroPlan]()
 
     def make_composition(self, observation: Observation, composition: UnitComposition) -> Iterable[MacroPlan]:
-        if 200 <= observation.supply_used:
+        if observation.supply_used >= 200:
             return
         for unit in composition:
             target = composition[unit]
             have = observation.count(unit)
-            if target < 1:
-                continue
-            elif target <= have:
+            if target < 1 or target <= have:
                 continue
             if any(observation.get_missing_requirements(unit)):
                 continue
@@ -136,11 +135,10 @@ class MacroState:
                 plan.commanded = False
                 plan.executed = False
 
-            if isinstance(plan.target, Point2):
-                if not await obs.can_place_single(plan.item, plan.target):
-                    plan.target = None
-                    plan.commanded = False
-                    plan.executed = False
+            if isinstance(plan.target, Point2) and not await obs.can_place_single(plan.item, plan.target):
+                plan.target = None
+                plan.commanded = False
+                plan.executed = False
 
             if not plan.target:
                 try:
@@ -241,9 +239,11 @@ class MacroState:
 
     def handle_action(self, obs: Observation, action: ActionRawUnitCommand, tag: int) -> None:
         unit = obs.unit_by_tag.get(tag)
-        if not (item := ITEM_BY_ABILITY.get(action.exact_id)):
-            return
-        elif item in {UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMOR, UnitTypeId.CHANGELING}:
+        if not (item := ITEM_BY_ABILITY.get(action.exact_id)) or item in {
+            UnitTypeId.CREEPTUMORQUEEN,
+            UnitTypeId.CREEPTUMOR,
+            UnitTypeId.CHANGELING,
+        }:
             return
         if unit and unit.type_id == UnitTypeId.EGG:
             # commands issued to a specific larva will be received by a random one
@@ -274,7 +274,7 @@ async def premove(obs: Observation, unit: Unit, plan: MacroPlan, eta: float) -> 
     if not do_premove:
         return None
     plan.premoved = True
-    if 1e-3 < unit.distance_to(target):
+    if unit.distance_to(target) > 1e-3:
         return Move(unit, target)
     return HoldPosition(unit)
 
@@ -285,10 +285,10 @@ def get_eta(observation: Observation, reserve: Cost, cost: Cost) -> float:
     return max(
         (
             0.0,
-            eta.minerals if 0 < deficit.minerals and 0 < cost.minerals else 0.0,
-            eta.vespene if 0 < deficit.vespene and 0 < cost.vespene else 0.0,
-            eta.larva if 0 < deficit.larva and 0 < cost.larva else 0.0,
-            eta.supply if 0 < deficit.supply and 0 < cost.supply else 0.0,
+            eta.minerals if deficit.minerals > 0 and cost.minerals > 0 else 0.0,
+            eta.vespene if deficit.vespene > 0 and cost.vespene > 0 else 0.0,
+            eta.larva if deficit.larva > 0 and cost.larva > 0 else 0.0,
+            eta.supply if deficit.supply > 0 and cost.supply > 0 else 0.0,
         )
     )
 
@@ -319,9 +319,7 @@ async def get_target_position(obs: Observation, target: UnitTypeId, blocked_posi
     def filter_base(b):
         if not (th := obs.townhall_at.get(b)):
             return False
-        if not th.is_ready:
-            return False
-        return True
+        return th.is_ready
 
     if potential_bases := list(filter(filter_base, obs.bases)):
         base = random.choice(potential_bases)

@@ -17,7 +17,7 @@ def compile_problem(n, m, code_dir):
     constraints = [
         cp.sum(x, 0) <= b,
         cp.sum(x, 1) == 1,
-        0 <= x,
+        x >= 0,
     ]
     problem = cp.Problem(objective, constraints)
 

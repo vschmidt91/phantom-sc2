@@ -97,8 +97,8 @@ class CombatPredictor:
             health -= (enemy_attack_probability * enemy_dps) @ enemy_alive
             enemy_health -= alive @ (attack_probability * dps)
 
-            alive = 0 < health
-            enemy_alive = 0 < enemy_health
+            alive = health > 0
+            enemy_alive = enemy_health > 0
 
             if not alive.any():
                 outcome = CombatOutcome.Defeat

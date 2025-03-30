@@ -97,9 +97,8 @@ class CreepState:
 
     def step(self, obs: Observation, mask: np.ndarray) -> CreepAction:
         for t in set(self.created_at_step) - set(self.spread_at_step):
-            if cmd := obs.unit_commands.get(t):
-                if cmd.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
-                    self.spread_at_step[t] = obs.game_loop
+            if (cmd := obs.unit_commands.get(t)) and cmd.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
+                self.spread_at_step[t] = obs.game_loop
 
         def is_active(t: Unit) -> bool:
             creation_step = self.created_at_step.setdefault(t.tag, obs.game_loop)

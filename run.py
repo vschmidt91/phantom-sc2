@@ -71,10 +71,7 @@ async def run(
     logger.add(sys.stdout, level=log_level)  # Set different levels for different outputs
 
     logger.info("Setting up bot")
-    if bot_config is not None:
-        bot_config_value = BotConfig.from_yaml(bot_config)
-    else:
-        bot_config_value = BotConfig()
+    bot_config_value = BotConfig.from_yaml(bot_config) if bot_config is not None else BotConfig()
     bot_config_value.opponent_id = opponent_id
     ai = PhantomBot(bot_config_value)
     race = ai.pick_race()

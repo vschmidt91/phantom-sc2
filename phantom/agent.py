@@ -1,8 +1,8 @@
 import math
 import random
+from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass
 from itertools import chain
-from typing import AsyncGenerator, Iterable
 
 import numpy as np
 from cython_extensions import cy_closest_to
@@ -75,7 +75,7 @@ class Agent:
         transfuse = TransfuseAction(observation)
         creep = self.creep.step(observation, np.less_equal(0.0, combat.confidence))
 
-        safe_overlord_spots = [p for p in observation.overlord_spots if 0 < combat.confidence[p.rounded]]
+        safe_overlord_spots = [p for p in observation.overlord_spots if combat.confidence[p.rounded] > 0]
         scout = self.scout.step(observation, safe_overlord_spots)
 
         injecters = observation.units({UnitTypeId.QUEEN})
@@ -96,9 +96,7 @@ class Agent:
         should_spread_creep = self.creep.unspread_tumor_count < 20
 
         def should_harvest(u: Unit) -> bool:
-            if observation.is_micro_map:
-                return False
-            elif u in macro_actions:  # got special orders?
+            if observation.is_micro_map or u in macro_actions:
                 return False
             elif u.is_idle:  # you slackin?
                 return True
@@ -109,10 +107,7 @@ class Agent:
         def should_harvest_resource(r: Unit) -> bool:
             p = r.position.rounded
             check_points = [p, self.knowledge.return_point[p].rounded]
-            for p in check_points:
-                if combat.confidence[p] < 0 < combat.enemy_presence.dps[p]:
-                    return False
-            return True
+            return all(not combat.confidence[p] < 0 < combat.enemy_presence.dps[p] for p in check_points)
 
         harvesters = observation.workers.filter(should_harvest)
 
@@ -180,7 +175,7 @@ class Agent:
             x, y = q.position.rounded
             return (
                 transfuse.transfuse_with(q)
-                or (combat.fight_with(q) if 0 < combat.enemy_presence.dps[x, y] else None)
+                or (combat.fight_with(q) if combat.enemy_presence.dps[x, y] > 0 else None)
                 or inject_with_queen(q)
                 or (creep.spread_with_queen(q) if should_spread_creep else None)
                 or (combat.retreat_with(q, limit=2) if not observation.creep[x, y] else None)
@@ -267,9 +262,10 @@ class Agent:
             )
 
         def spawn_changeling(unit: Unit) -> Action | None:
-            if not observation.pathing[unit.position.rounded]:
-                return None
-            elif unit.energy < ENERGY_COST[AbilityId.SPAWNCHANGELING_SPAWNCHANGELING]:
+            if (
+                not observation.pathing[unit.position.rounded]
+                or unit.energy < ENERGY_COST[AbilityId.SPAWNCHANGELING_SPAWNCHANGELING]
+            ):
                 return None
             return UseAbility(unit, AbilityId.SPAWNCHANGELING_SPAWNCHANGELING)
 
@@ -328,9 +324,7 @@ class Agent:
             if a := search_with(unit):
                 yield a
         for unit in observation.combatants:
-            if unit in scout.actions:
-                pass
-            elif unit in macro_actions:
+            if unit in scout.actions or unit in macro_actions:
                 pass
             else:
                 if a := micro_unit(unit):

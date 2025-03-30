@@ -15,6 +15,6 @@ def CommandWithConfigFile(config_file_param_name):
                 #     else:
                 #         ctx.params[key] = value
                 ctx.params.update(config_data)
-            return super(CustomCommandClass, self).invoke(ctx)
+            return super().invoke(ctx)
 
     return CustomCommandClass

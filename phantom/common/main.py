@@ -1,7 +1,7 @@
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from functools import cached_property
-from typing import Iterable
 
 from ares import AresBot
 from sc2.position import Point2
@@ -48,7 +48,7 @@ class BotBase(AresBot, ABC):
                     distance2 = patch2.position.distance_to(base_position)
                     if distance1 < distance2:
                         continue
-                    if MINING_RADIUS <= patch2.position.distance_to(position):
+                    if patch2.position.distance_to(position) >= MINING_RADIUS:
                         continue
                     intersections = list(
                         get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS)

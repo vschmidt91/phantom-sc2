@@ -47,20 +47,17 @@ class ScoutState:
             if (
                 error.result == ActionResult.CantBuildLocationInvalid.value
                 and error.ability_id == AbilityId.ZERGBUILD_HATCHERY.value
-            ):
-                if unit := observation.unit_by_tag.get(error.unit_tag):
-                    p = unit.position.rounded
-                    if p not in self.blocked_positions:
-                        self.blocked_positions[p] = observation.time
-                        logger.info(f"Detected blocked base {p}")
+            ) and (unit := observation.unit_by_tag.get(error.unit_tag)):
+                p = unit.position.rounded
+                if p not in self.blocked_positions:
+                    self.blocked_positions[p] = observation.time
+                    logger.info(f"Detected blocked base {p}")
 
         def filter_base(b: Point2) -> bool:
             if observation.is_visible(b):
                 return False
             distance_to_enemy = min(b.distance_to(e) for e in observation.enemy_start_locations)
-            if distance_to_enemy < b.distance_to(observation.start_location):
-                return False
-            return True
+            return not distance_to_enemy < b.distance_to(observation.start_location)
 
         detectors = observation.units({UnitTypeId.OVERSEER})
         nondetectors = observation.units({UnitTypeId.OVERLORD})

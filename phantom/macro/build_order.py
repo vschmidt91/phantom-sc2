@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -54,7 +54,7 @@ class ExtractorTrick(BuildOrder):
 
     def execute(self, obs: Observation) -> BuildOrderStep | None:
         if self.at_supply == obs.supply_used and obs.bank.supply <= 0:
-            if 0 == obs.count(self.unit_type):
+            if obs.count(self.unit_type) == 0:
                 if self.min_minerals < obs.bank.minerals:
                     return BuildOrderStep([MacroPlan(self.unit_type)], [])
                 else:

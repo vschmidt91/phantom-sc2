@@ -41,7 +41,7 @@ def main(
 
     print("Creating requirements.txt")
     requirements_path = os.path.join(input_dir, "requirements.txt")
-    with open(requirements_path, "wt") as f:
+    with open(requirements_path, "w") as f:
         subprocess.Popen(["poetry", "export", "--without-hashes", "--format=requirements.txt"], stdout=f).wait()
 
     commit_hash = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("ascii").strip()

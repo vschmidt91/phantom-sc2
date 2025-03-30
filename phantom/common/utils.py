@@ -1,8 +1,9 @@
 import asyncio
 import math
+from collections.abc import Callable, Iterable
 from dataclasses import fields
 from functools import cache, wraps
-from typing import Callable, Iterable, Type, TypeAlias
+from typing import TypeAlias
 
 import numpy as np
 import skimage.draw
@@ -53,7 +54,7 @@ def async_command(func):
     return wrapper
 
 
-def dataclass_from_dict(cls: Type, parameters: dict[str, float]):
+def dataclass_from_dict(cls: type, parameters: dict[str, float]):
     field_names = {f.name for f in fields(cls)}
     return cls(**{k: v for k, v in parameters.items() if k in field_names})
 
@@ -92,7 +93,7 @@ def project_point_onto_line(origin: Point2, direction: Point2, position: Point2)
 def get_intersections(position1: Point2, radius1: float, position2: Point2, radius2: float) -> Iterable[Point2]:
     p01 = position2 - position1
     distance = np.linalg.norm(p01)
-    if 0 < distance and abs(radius1 - radius2) <= distance <= radius1 + radius2:
+    if distance > 0 and abs(radius1 - radius2) <= distance <= radius1 + radius2:
         disc = (radius1**2 - radius2**2 + distance**2) / (2 * distance)
         height = math.sqrt(radius1**2 - disc**2)
         middle = position1 + (disc / distance) * p01
@@ -155,8 +156,7 @@ def get_requirements(item: UnitTypeId | UpgradeId) -> Iterable[UnitTypeId | Upgr
 
     for requirement1 in requirements:
         yield requirement1
-        for requirement2 in get_requirements(requirement1):
-            yield requirement2
+        yield from get_requirements(requirement1)
 
 
 FLOOD_FILL_OFFSETS = {

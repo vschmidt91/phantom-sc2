@@ -1,6 +1,7 @@
 import math
+from collections.abc import Hashable
 from functools import cache
-from typing import Hashable, TypeVar
+from typing import TypeVar
 
 import cvxpy as cp
 import numpy as np
@@ -30,7 +31,7 @@ def get_problem(n, m):
     constraints = [
         cp.sum(x, 1) == 1.0,
         # cp.sum(x, 0) == b,
-        0 <= x,
+        x >= 0,
     ]
     problem = cp.Problem(objective, constraints)
     return problem
@@ -99,6 +100,6 @@ def distribute(
         return {}
 
     indices = x.argmax(axis=1)
-    assignment = {ai: b[j] for (i, ai), j in zip(enumerate(a), indices, strict=False) if 0 < x[i, j]}
+    assignment = {ai: b[j] for (i, ai), j in zip(enumerate(a), indices, strict=False) if x[i, j] > 0}
 
     return assignment

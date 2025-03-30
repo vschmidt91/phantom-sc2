@@ -51,11 +51,11 @@ class CombatAction:
             retreat_targets = list()
             for b in self.observation.bases_taken:
                 p = self.observation.in_mineral_line(b)
-                if 0 <= self.confidence[p]:
+                if self.confidence[p] >= 0:
                     retreat_targets.append(p)
             if not retreat_targets:
                 combatant_positions = {
-                    p for u in self.observation.combatants if 0 <= self.confidence[p := u.position.rounded]
+                    p for u in self.observation.combatants if self.confidence[p := u.position.rounded] >= 0
                 }
                 retreat_targets.extend(combatant_positions)
             if not retreat_targets:
@@ -71,10 +71,7 @@ class CombatAction:
     def retreat_with(self, unit: Unit, limit=2) -> Action | None:
         x = round(unit.position.x)
         y = round(unit.position.y)
-        if unit.is_flying:
-            retreat_map = self.retreat_air
-        else:
-            retreat_map = self.retreat_ground
+        retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
         if retreat_map.distance[x, y] == np.inf:
             return self.retreat_with_ares(unit)
         retreat_path = retreat_map.get_path((x, y), limit=limit)
@@ -101,10 +98,9 @@ class CombatAction:
             # reward = self.observation.calculate_unit_value_weighted(u.type_id)
             return np.divide(hp, dps)
 
-        if 1 < unit.ground_range and unit.weapon_ready:
-            if targets := self.observation.shootable_targets.get(unit):
-                target = min(targets, key=cost_fn)
-                return Attack(unit, target)
+        if unit.ground_range > 1 and unit.weapon_ready and (targets := self.observation.shootable_targets.get(unit)):
+            target = min(targets, key=cost_fn)
+            return Attack(unit, target)
 
         if not (target := self.optimal_targeting.get(unit)):
             return None
@@ -117,14 +113,14 @@ class CombatAction:
         confidence = max(confidence_predictor, confidence_map)
         # confidence = confidence_predictor
         test_position = unit.position.towards(target, 1.5)
-        if 0 == self.enemy_presence.dps[test_position.rounded]:
+        if self.enemy_presence.dps[test_position.rounded] == 0:
             return Attack(unit, target)
             # runby_pathing = self.runby_air if unit.is_flying else self.runby_ground
             # runby = runby_pathing.get_path(unit.position.rounded, limit=2)
             # if len(runby) == 1:
             #     return Attack(unit, target)
             # return UseAbility(unit, AbilityId.ATTACK, Point2(runby[-1]))
-        elif 0 <= confidence:
+        elif confidence >= 0:
             if unit.type_id in {UnitTypeId.ZERGLING}:
                 return UseAbility(unit, AbilityId.ATTACK, target.position)
             return Attack(unit, target)
@@ -134,22 +130,21 @@ class CombatAction:
     def do_unburrow(self, unit: Unit) -> Action | None:
         p = tuple[int, int](unit.position.rounded)
         confidence = self.confidence[p]
-        if unit.health_percentage == 1 and (0 < confidence or 0 == self.enemy_presence.dps[p]):
+        if unit.health_percentage == 1 and (confidence > 0 or self.enemy_presence.dps[p] == 0):
             return UseAbility(unit, AbilityId.BURROWUP)
         elif UpgradeId.TUNNELINGCLAWS not in self.observation.upgrades:
             return None
-        elif 0 < self.enemy_presence.dps[p]:
+        elif self.enemy_presence.dps[p] > 0:
             return self.retreat_with(unit)
         return HoldPosition(unit)
 
     def do_burrow(self, unit: Unit) -> Action | None:
-        if UpgradeId.BURROW not in self.observation.upgrades:
-            return None
-        elif 0.3 < unit.health_percentage:
-            return None
-        elif unit.is_revealed:
-            return None
-        elif not unit.weapon_cooldown:
+        if (
+            UpgradeId.BURROW not in self.observation.upgrades
+            or unit.health_percentage > 0.3
+            or unit.is_revealed
+            or not unit.weapon_cooldown
+        ):
             return None
         return UseAbility(unit, AbilityId.BURROWDOWN)
 
@@ -167,7 +162,7 @@ class CombatAction:
         for unit in units:
             dps = max(unit.ground_dps, unit.air_dps)
             px, py = unit.position.rounded
-            if 0 < dps:
+            if dps > 0:
                 r = 0.0
                 r += 2 * unit.radius
                 r += 1
