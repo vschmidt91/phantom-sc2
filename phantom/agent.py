@@ -50,7 +50,7 @@ class Agent:
         self.resources = ResourceState(self.knowledge)
 
     async def step(self, observation: Observation) -> AsyncGenerator[Action, None]:
-        strategy = Strategy(observation, self.parameters.strategy)
+        strategy = Strategy(observation, self.parameters.strategy, observation.bot.bot_config.test_ling_flood)
 
         if not observation.is_micro_map:
             if not self.build_order_completed:

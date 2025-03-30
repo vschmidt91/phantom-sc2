@@ -67,6 +67,7 @@ class StrategyTier(enum.Enum):
 class Strategy:
     obs: Observation
     param: StrategyParameters
+    flood_lings: bool
 
     @cached_property
     def composition_deficit(self) -> UnitComposition:
@@ -121,6 +122,8 @@ class Strategy:
         composition = UnitComposition({k: v for k, v in composition.items() if v > 0})
         if sum(composition.values()) < 1:
             composition += {UnitTypeId.ZERGLING: 1}
+        elif self.flood_lings:
+            composition += {UnitTypeId.ZERGLING: 100}
         can_afford_hydras = min(
             self.obs.bank.minerals / 100,
             self.obs.bank.vespene / 50,
