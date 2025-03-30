@@ -26,7 +26,7 @@ from scripts.utils import CommandWithConfigFile
 
 
 @click.command(cls=CommandWithConfigFile("config"))
-@click.option("--config")
+@click.option("--config", type=click.File("rb"))
 @click.option("--bot-config")
 @click.option("--GamePort", "game_port", type=int)
 @click.option("--StartPort", "start_port", type=int)

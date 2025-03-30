@@ -15,7 +15,7 @@ from utils import CommandWithConfigFile
 
 
 @click.command(cls=CommandWithConfigFile("config"))
-@click.option("--config")
+@click.option("--config", type=click.File("rb"))
 @click.argument("input-dir", type=click.Path())
 @click.option("--output-path", default="bot.zip", type=click.Path())
 @click.option("--zip-modules", multiple=True)
