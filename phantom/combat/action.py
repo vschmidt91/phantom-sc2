@@ -117,14 +117,7 @@ class CombatAction:
         # confidence = np.median((confidence_predictor, confidence_target, confidence_map))
         confidence = confidence_predictor
         test_position = unit.position.towards(target, 1.5)
-        if self.enemy_presence.dps[test_position.rounded] == 0:
-            return Attack(unit, target)
-            # runby_pathing = self.runby_air if unit.is_flying else self.runby_ground
-            # runby = runby_pathing.get_path(unit.position.rounded, limit=2)
-            # if len(runby) == 1:
-            #     return Attack(unit, target)
-            # return UseAbility(unit, AbilityId.ATTACK, Point2(runby[-1]))
-        elif confidence >= 0:
+        if self.enemy_presence.dps[test_position.rounded] == 0 or confidence >= 0:
             if unit.type_id in {UnitTypeId.ZERGLING}:
                 return UseAbility(unit, AbilityId.ATTACK, target.position)
             return Attack(unit, target)
