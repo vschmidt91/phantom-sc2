@@ -5,7 +5,6 @@ zip:
 
 check:
 	poetry run ruff check
-	poetry run yamllint -c config/yamllint.yml .
 	poetry run mypy .
 
 fix:

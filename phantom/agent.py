@@ -96,6 +96,7 @@ class Agent:
         should_spread_creep = self.creep.unspread_tumor_count < 20
 
         def should_harvest(u: Unit) -> bool:
+            # TODO: consider macro tasks
             if observation.is_micro_map or u in macro_actions:
                 return False
             elif u.is_idle:  # you slackin?

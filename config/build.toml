@@ -1,0 +1,35 @@
+zip_modules = [
+  "click",
+  "cvxpy",
+  "_cvxcore",
+  "cvxpygen",
+  "sc2",
+  "map_analyzer",
+  "ecos",
+  "_ecos"
+]
+zip_archives = [ "phantom*.whl" ]
+zip_urls = [
+  "https://github.com/AresSC2/cython-extensions-sc2/releases/latest/download/ubuntu-latest_python3.12.zip",
+  "https://github.com/AresSC2/cython-extensions-sc2/releases/latest/download/windows-latest_python3.12.zip"
+]
+exclude = [
+  "*.pyi",
+  "*.pyx",
+  "*.c",
+  "*.h",
+  "*.cpp",
+  "*.hpp",
+  "*.md",
+  "*.html",
+  "*.rs",
+  "*.whl",
+  "*__pycache__*",
+  "*mapanalyzerext*310-*",
+  "*mapanalyzerext*311-*",
+  "*sc2_helper*310-*",
+  "*sc2_helper*311-*",
+  "*sc2_helper*313-*",
+  "*.xz",
+  "*-darwin.so"
+]

@@ -4177,19 +4177,6 @@ files = [
 ]
 
 [[package]]
-name = "types-pyyaml"
-version = "6.0.12.20250326"
-description = "Typing stubs for PyYAML"
-optional = true
-python-versions = ">=3.9"
-groups = ["main"]
-markers = "extra == \"test\""
-files = [
-    {file = "types_pyyaml-6.0.12.20250326-py3-none-any.whl", hash = "sha256:961871cfbdc1ad8ae3cb6ae3f13007262bcfc168adc513119755a6e4d5d7ed65"},
-    {file = "types_pyyaml-6.0.12.20250326.tar.gz", hash = "sha256:5e2d86d8706697803f361ba0b8188eef2999e1c372cd4faee4ebb0844b8a4190"},
-]
-
-[[package]]
 name = "types-requests"
 version = "2.32.0.20250328"
 description = "Typing stubs for requests"
@@ -4487,9 +4474,9 @@ propcache = ">=0.2.0"
 [extras]
 build = ["cvxpygen", "cython", "map-analyzer", "requests"]
 dev = ["jupyter", "notebook", "pandas", "plotly", "s2protocol", "snakeviz", "tqdm"]
-test = ["mypy", "ruff", "types-pyyaml", "types-requests", "types-tqdm", "yamllint"]
+test = ["mypy", "ruff", "types-requests", "types-tqdm", "yamllint"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.13"
-content-hash = "6be628ca08b352b35fafa7840ecd2313b976e045730c872e5f232bfefb1b4c6b"
+content-hash = "036fb737ae2f489762709cc5d08937b15c797012954ddf492c15d04769e830d7"

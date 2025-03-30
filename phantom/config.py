@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass
 
-import yaml
+import tomllib
 
 
 @dataclass
@@ -20,11 +20,11 @@ class BotConfig:
     params_json_name = "params.json"
 
     @classmethod
-    def from_yaml(cls, path: str) -> "BotConfig":
+    def from_toml(cls, path: str) -> "BotConfig":
         config = BotConfig()
         if os.path.isfile(path):
-            with open(path) as config_file:
-                config_dict: dict = yaml.safe_load(config_file)
+            with open(path, "rb") as config_file:
+                config_dict: dict = tomllib.load(config_file)
         for key, value in config_dict.items():
             setattr(config, key, value)
         return config

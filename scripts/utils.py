@@ -1,5 +1,5 @@
 import click
-import yaml
+import tomllib
 
 
 def CommandWithConfigFile(config_file_param_name):
@@ -7,13 +7,9 @@ def CommandWithConfigFile(config_file_param_name):
         def invoke(self, ctx):
             config_file = ctx.params[config_file_param_name]
             if config_file is not None:
-                with open(config_file) as f:
-                    config_data = yaml.safe_load(f)
-                # for key, value in config_data.items():
-                #     if isinstance(value, list):
-                #         ctx.params[key] = tuple(list(ctx.params[key]) + value)
-                #     else:
-                #         ctx.params[key] = value
+                with open(config_file, "rb") as f:
+                    config_data = tomllib.load(f)
+                    print(config_data)
                 ctx.params.update(config_data)
             return super().invoke(ctx)
 
