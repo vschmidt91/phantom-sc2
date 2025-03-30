@@ -12,6 +12,7 @@ class BotConfig:
     profile_path: str | None = None
     save_game_info: str | None = None
     tag_log_level = "ERROR"
+    build_order = "HATCH_POOL_HATCH"
 
     version_path = "version.txt"
     data_path = "data"

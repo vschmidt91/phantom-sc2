@@ -59,7 +59,7 @@ class PhantomBot(BotBase):
         parameter_distributions = {k: NormalParameter(float(v), 0, 0) for k, v in parameter_dict.items()}
         parameters = AgentParameters.from_dict(parameter_distributions | priors)
         knowledge = Knowledge(self)
-        self.agent = Agent(parameters, knowledge)
+        self.agent = Agent(self.bot_config.build_order, parameters, knowledge)
 
         if self.bot_config.profile_path:
             logger.info("Creating profiler")

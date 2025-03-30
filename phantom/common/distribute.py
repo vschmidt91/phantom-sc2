@@ -5,7 +5,6 @@ from typing import TypeVar
 
 import cvxpy as cp
 import numpy as np
-import scipy
 from loguru import logger
 from scipy.optimize import linprog
 

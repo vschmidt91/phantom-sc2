@@ -23,7 +23,7 @@ from phantom.corrosive_biles import CorrosiveBileState
 from phantom.creep import CreepState
 from phantom.dodge import DodgeState
 from phantom.knowledge import Knowledge
-from phantom.macro.build_order import HATCH_POOL_HATCH
+from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.state import MacroPlan, MacroState
 from phantom.macro.strategy import Strategy
 from phantom.observation import Observation
@@ -41,10 +41,10 @@ class Agent:
     corrosive_biles = CorrosiveBileState()
     dodge = DodgeState()
     scout = ScoutState()
-    build_order = HATCH_POOL_HATCH
     build_order_completed = False
 
-    def __init__(self, parameters: AgentParameters, knowledge: Knowledge) -> None:
+    def __init__(self, build_order_name: str, parameters: AgentParameters, knowledge: Knowledge) -> None:
+        self.build_order = BUILD_ORDERS[build_order_name]
         self.parameters = parameters
         self.knowledge = knowledge
         self.resources = ResourceState(self.knowledge)
