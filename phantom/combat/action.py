@@ -75,10 +75,12 @@ class CombatAction:
         if retreat_map.distance[x, y] == np.inf:
             return self.retreat_with_ares(unit)
         retreat_path = retreat_map.get_path((x, y), limit=limit)
-        retreat_point = Point2(retreat_path[-1]).offset(HALF)
-        if unit.distance_to(retreat_point) < 7:
-            logger.warning("too close to home, falling back to ares retreating")
+        if len(retreat_path) < 2:
             return self.retreat_with_ares(unit)
+        retreat_point = Point2(retreat_path[1]).offset(HALF)
+        # if unit.distance_to(retreat_point) < limit:
+        #     logger.warning("too close to home, falling back to ares retreating")
+        #     return self.retreat_with_ares(unit)
         return Move(unit, retreat_point)
 
     def retreat_with_ares(self, unit: Unit, limit=7) -> Action | None:
@@ -95,8 +97,9 @@ class CombatAction:
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
             dps = calculate_dps(unit, u)
-            # reward = self.observation.calculate_unit_value_weighted(u.type_id)
-            return np.divide(hp, dps)
+            reward = self.observation.calculate_unit_value_weighted(u.type_id)
+            risk = np.divide(hp, dps)
+            return np.divide(risk, reward)
 
         if unit.ground_range > 1 and unit.weapon_ready and (targets := self.observation.shootable_targets.get(unit)):
             target = min(targets, key=cost_fn)
@@ -109,8 +112,9 @@ class CombatAction:
             return Move(unit, target.position)
 
         confidence_predictor = self.prediction.survival_time[unit] - self.prediction.nearby_enemy_survival_time[unit]
+        confidence_target = self.prediction.survival_time[unit] - self.prediction.survival_time[target]
         confidence_map = self.confidence_filtered[unit.position.rounded]
-        confidence = max(confidence_predictor, confidence_map)
+        confidence = np.median((confidence_predictor, confidence_target, confidence_map))
         # confidence = confidence_predictor
         test_position = unit.position.towards(target, 1.5)
         if self.enemy_presence.dps[test_position.rounded] == 0:

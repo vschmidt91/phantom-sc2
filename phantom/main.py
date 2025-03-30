@@ -117,13 +117,6 @@ class PhantomBot(BotBase):
                 self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
 
-        while True:
-            try:
-                tag = self.replay_tag_queue.get(block=False)
-                await self._send_replay_tag(tag)
-            except Empty:
-                break
-
         if self.bot_config.profile_path:
             self.profiler.disable()
             if self.actual_iteration % 100 == 0:
@@ -131,6 +124,13 @@ class PhantomBot(BotBase):
                 stats = pstats.Stats(self.profiler)
                 stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
                 stats.dump_stats(filename=self.bot_config.profile_path)
+
+        while True:
+            try:
+                tag = self.replay_tag_queue.get(block=False)
+                await self._send_replay_tag(tag)
+            except Empty:
+                break
 
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)

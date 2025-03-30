@@ -12,7 +12,6 @@ from sc2.units import Units
 from scipy.optimize import linprog
 
 from phantom.common.action import Action, DoNothing, Smart
-from phantom.common.distribute import linprog_matrices
 from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS, pairwise_distances
 from phantom.knowledge import Knowledge
 from phantom.resources.gather import GatherAction, ReturnResource
@@ -124,15 +123,15 @@ class ResourceAction:
         mineral_limit = 2.0
 
         cost = harvester_to_resource + return_distance + assignment_cost
-        matrices = linprog_matrices(len(harvesters), len(resources))
+        # matrices = linprog_matrices(len(harvesters), len(resources))
         opt = linprog(
             c=cost.flatten(),
-            A_ub=matrices["A_ub"],
+            A_ub=np.tile(np.identity(len(resources)), (1, len(harvesters))),
             b_ub=np.array([gas_limit if r in GAS_BUILDINGS else mineral_limit for r in resources]),
-            A_eq=scipy.sparse.vstack(
+            A_eq=np.concatenate(
                 (
-                    matrices["A_eq"],
-                    # np.repeat(np.identity(len(harvesters)), len(resources), axis=1),
+                    # matrices["A_eq"],
+                    np.repeat(np.identity(len(harvesters)), len(resources), axis=1),
                     scipy.sparse.coo_array(np.expand_dims(np.tile(is_gas_building, len(harvesters)), 0)),
                 )
             ),
