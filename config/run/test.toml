@@ -1,3 +1,4 @@
+assert_result = "Victory"
 bot_config = "config/bot/test.toml"
 enemy_build = "Macro"
 enemy_difficulty = "VeryEasy"

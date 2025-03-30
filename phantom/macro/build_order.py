@@ -139,7 +139,6 @@ BUILD_ORDERS = {
             Make(UnitTypeId.DRONE, 17),
             Make(UnitTypeId.HATCHERY, 2),
             Make(UnitTypeId.QUEEN, 1),
-            Make(UnitTypeId.ZERGLING, 100),
         ]
     ),
 }

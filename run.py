@@ -11,7 +11,7 @@ import click
 from loguru import logger
 from sc2.client import Client
 from sc2.data import AIBuild, Difficulty, Race
-from sc2.main import _host_game, _play_game
+from sc2.main import _host_game, _play_game, Result
 from sc2.maps import Map
 from sc2.paths import Paths
 from sc2.player import Bot, Computer
@@ -43,6 +43,10 @@ from scripts.utils import CommandWithConfigFile
     type=click.Choice([x.name for x in Difficulty]),
 )
 @click.option("--enemy-build", default=AIBuild.Rush.name, type=click.Choice([x.name for x in AIBuild]))
+@click.option(
+    "--assert-result",
+    type=click.Choice([x.name for x in Result]),
+)
 @click.option("--log-level", default="INFO", type=click.Choice(LOG_LEVEL_OPTIONS), envvar="LOGURU_LEVEL")
 @click.option("--log-disable-modules", default=["sc2"], multiple=True)
 @async_command
@@ -60,6 +64,7 @@ async def run(
     enemy_race: str,
     enemy_difficulty: str,
     enemy_build: str,
+    assert_result: str,
     log_level: str,
     log_disable_modules: list[str],
 ):
@@ -123,6 +128,9 @@ async def run(
         )
 
     logger.info(f"Game finished with {result=}")
+
+    if assert_result and result.name != assert_result:
+        raise Exception(f"Expected {assert_result}, got {result.name}")
 
 
 if __name__ == "__main__":
