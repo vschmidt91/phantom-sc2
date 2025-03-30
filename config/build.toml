@@ -1,12 +1,13 @@
 zip_modules = [
   "click",
-  "cvxpy",
   "_cvxcore",
+  "cvxpy",
   "cvxpygen",
-  "sc2",
-  "map_analyzer",
   "ecos",
-  "_ecos"
+  "_ecos",
+  "map_analyzer",
+  "highspy",
+  "sc2"
 ]
 zip_archives = [ "phantom*.whl" ]
 zip_urls = [
