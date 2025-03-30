@@ -1,5 +1,6 @@
-import click
 import tomllib
+
+import click
 
 
 def CommandWithConfigFile(config_file_param_name):
