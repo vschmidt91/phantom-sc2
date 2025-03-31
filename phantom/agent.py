@@ -293,7 +293,7 @@ class Agent:
             if not (unit.is_idle or unit.is_gathering or unit.is_returning):
                 return None
             elif observation.time < 8 * 60 and observation.enemy_start_locations:
-                return Move(unit, random.choice(observation.enemy_start_locations))
+                return Move(unit, Point2(random.choice(observation.enemy_start_locations)))
             elif observation.enemy_combatants:
                 target = cy_closest_to(unit.position, observation.enemy_combatants)
                 return Move(unit, target.position)

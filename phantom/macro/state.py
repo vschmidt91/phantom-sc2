@@ -163,8 +163,8 @@ class MacroState:
                 elif action := await premove(obs, trainer, plan, eta):
                     plan.premoved = False
                     actions[trainer] = action
-                elif action := combat.fight_with(trainer):
-                    actions[trainer] = action
+                # elif action := combat.fight_with(trainer):
+                #     actions[trainer] = action
 
         return actions
 
