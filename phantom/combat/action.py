@@ -68,16 +68,16 @@ class CombatAction:
     def prediction(self) -> CombatPrediction:
         return CombatPredictor(self.observation.combatants, self.observation.enemy_combatants).prediction
 
-    def retreat_with(self, unit: Unit, limit=3) -> Action | None:
+    def retreat_with(self, unit: Unit, limit=2) -> Action | None:
         x = round(unit.position.x)
         y = round(unit.position.y)
         retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
         if retreat_map.distance[x, y] == np.inf:
             return self.retreat_with_ares(unit)
         retreat_path = retreat_map.get_path((x, y), limit=limit)
-        if len(retreat_path) < 3:
+        if len(retreat_path) < 2:
             return self.retreat_with_ares(unit)
-        retreat_point = Point2(retreat_path[-1]).offset(HALF)
+        retreat_point = Point2(retreat_path[1]).offset(HALF)
         # if unit.distance_to(retreat_point) < limit:
         #     logger.warning("too close to home, falling back to ares retreating")
         #     return self.retreat_with_ares(unit)
