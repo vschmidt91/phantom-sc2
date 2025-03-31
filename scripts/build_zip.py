@@ -83,7 +83,7 @@ def main(
             shutil.copytree(tmp, target, dirs_exist_ok=True)
 
     exclude_compiled = [re.compile(fnmatch.translate(p)) for p in exclude]
-    with zipfile.ZipFile(output_path, "w", compresslevel=compression_level) as zf:
+    with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=compression_level) as zf:
         for dirname, _subdirs, files in os.walk(input_dir):
             for filename in files:
                 filepath = os.path.join(dirname, filename)
