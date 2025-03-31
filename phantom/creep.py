@@ -71,7 +71,7 @@ class CreepAction:
         advance = line(target[0], target[1], x0, y0)
         for p in advance:
             if self.placement_map[p]:
-                target_point = Point2(p).offset(Point2((0.5, 0.5)))
+                target_point = Point2(p).offset(HALF)
                 return UseAbility(unit, AbilityId.BUILD_CREEPTUMOR, target_point)
 
         # logger.warning("No creep tumor placement found.")

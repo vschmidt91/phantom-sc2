@@ -1,5 +1,5 @@
 training = true
-debug = true
+debug_draw = true
 profile_path = "resources\\profiling.prof"
-save_game_info = "resources\\maps"
+save_bot_path = "resources\\maps"
 tag_log_level = "WARNING"

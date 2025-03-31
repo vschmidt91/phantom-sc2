@@ -303,8 +303,8 @@ async def get_target_position(obs: Observation, target: UnitTypeId, blocked_posi
         loss_positions_enemy = {obs.in_mineral_line(s) for s in obs.enemy_start_locations}
 
         async def loss_fn(p: Point2) -> float:
-            distances = await obs.query_pathings([[p, q] for q in loss_positions])
-            distances_enemy = await obs.query_pathings([[p, q] for q in loss_positions_enemy])
+            distances = await obs.query_pathings([[Point2(p), Point2(q)] for q in loss_positions])
+            distances_enemy = await obs.query_pathings([[Point2(p), Point2(q)] for q in loss_positions_enemy])
             return max(distances) - min(distances_enemy)
 
         c_min = candidates[0]

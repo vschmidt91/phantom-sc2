@@ -34,6 +34,7 @@ test = [
     "mypy>=1.12.0",
     "ruff (>=0.11.0,<0.12.0)",
     "types-requests (>=2.32.0.20250306,<3.0.0.0)",
+    "types-s2clientprotocol (>=5.0.0.20241030,<6.0.0.0)",
     "types-tqdm>=4.66.0.20240417",
     "yamllint (>=1.37.0,<2.0.0)",
 ]
@@ -84,7 +85,7 @@ select = [
     "SIM",  # flake8-simplify
     "I",    # isort
 ]
-ignore = ["E501"]
+ignore = ["E501", "B019"]
 fixable = ["ALL"]
 
 [tool.mypy]

@@ -4241,6 +4241,19 @@ docs = ["myst-parser", "pydata-sphinx-theme", "sphinx"]
 test = ["argcomplete (>=3.0.3)", "mypy (>=1.7.0)", "pre-commit", "pytest (>=7.0,<8.2)", "pytest-mock", "pytest-mypy-testing"]
 
 [[package]]
+name = "types-protobuf"
+version = "5.29.1.20250315"
+description = "Typing stubs for protobuf"
+optional = true
+python-versions = ">=3.9"
+groups = ["main"]
+markers = "extra == \"test\""
+files = [
+    {file = "types_protobuf-5.29.1.20250315-py3-none-any.whl", hash = "sha256:57efd51fd0979d1f5e1d94053d1e7cfff9c028e8d05b17e341b91a1c7fce37c4"},
+    {file = "types_protobuf-5.29.1.20250315.tar.gz", hash = "sha256:0b05bc34621d046de54b94fddd5f4eb3bf849fe2e13a50f8fb8e89f35045ff49"},
+]
+
+[[package]]
 name = "types-python-dateutil"
 version = "2.9.0.20241206"
 description = "Typing stubs for python-dateutil"
@@ -4268,6 +4281,22 @@ files = [
 
 [package.dependencies]
 urllib3 = ">=2"
+
+[[package]]
+name = "types-s2clientprotocol"
+version = "5.0.0.20241030"
+description = "Typing stubs for s2clientprotocol"
+optional = true
+python-versions = ">=3.8"
+groups = ["main"]
+markers = "extra == \"test\""
+files = [
+    {file = "types-s2clientprotocol-5.0.0.20241030.tar.gz", hash = "sha256:4c4f0b3176564659697c6efdd57c25f4c2baa58ad34d0c6fa3d9ca851b413e12"},
+    {file = "types_s2clientprotocol-5.0.0.20241030-py3-none-any.whl", hash = "sha256:d10d9c676f328f3dff92db67b5adb0743a3683c6418d94275706ccc92c9a2c28"},
+]
+
+[package.dependencies]
+types-protobuf = "*"
 
 [[package]]
 name = "types-tqdm"
@@ -4551,9 +4580,9 @@ propcache = ">=0.2.0"
 [extras]
 build = ["cvxpygen", "cython", "map-analyzer", "requests"]
 dev = ["jupyter", "notebook", "pandas", "plotly", "s2protocol", "snakeviz", "tqdm"]
-test = ["mypy", "ruff", "types-requests", "types-tqdm", "yamllint"]
+test = ["mypy", "ruff", "types-requests", "types-s2clientprotocol", "types-tqdm", "yamllint"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.13"
-content-hash = "90de0aa66e70666bbd942a8f95d18ab596de10b226b6f4d1ac81ccb0f365af08"
+content-hash = "ff21c86bbf6e6b4855ad0d1248ade5208da5852585a2892ae6b9b4060a8678a6"

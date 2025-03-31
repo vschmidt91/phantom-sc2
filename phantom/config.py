@@ -11,10 +11,9 @@ class BotConfig:
     debug_draw = False
     test_ling_flood = False
     profile_path: str | None = None
-    save_game_info: str | None = None
+    save_bot_path: str | None = None
     tag_log_level = "ERROR"
     build_order = "HATCH_POOL_HATCH"
-
     version_path = "version.txt"
     data_path = "data"
     params_name = "params.pkl.xz"

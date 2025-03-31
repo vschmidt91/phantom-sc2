@@ -39,22 +39,22 @@ class ResourceObservation:
 
     @cached_property
     def mineral_field_at(self) -> dict[Point, Unit]:
-        return {r.position.rounded: r for r in self.mineral_fields}
+        return {tuple(r.position.rounded): r for r in self.mineral_fields}
 
     @cached_property
     def gas_building_at(self) -> dict[Point, Unit]:
-        return {g.position.rounded: g for g in self.gas_buildings}
+        return {tuple(g.position.rounded): g for g in self.gas_buildings}
 
     @cached_property
     def vespene_geyser_at(self) -> dict[Point, Unit]:
-        return {g.position.rounded: g for g in self.vespene_geysers}
+        return {tuple(g.position.rounded): g for g in self.vespene_geysers}
 
     # cache
     def harvester_target_of_gas(self, resource: Unit) -> int:
         if resource.type_id in GAS_BUILDINGS:
             if not resource.is_ready:
                 return 0
-            p: Point = resource.position.rounded
+            p = tuple(resource.position.rounded)
             if not (geyser := self.vespene_geyser_at.get(p)):
                 return 0
             if not remaining(geyser):

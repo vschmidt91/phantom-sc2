@@ -84,12 +84,13 @@ class PhantomBot(BotBase):
         if self.version:
             self.add_replay_tag(f"version_{self.version}")
 
-        if self.bot_config.save_game_info:
-            logger.info(f"Saving game info to {self.bot_config.save_game_info}")
-            output_path = f"{self.bot_config.save_game_info}/{self.game_info.map_name}.xz"
+        if self.bot_config.save_bot_path:
+            output_path = f"{self.bot_config.save_bot_path}/{self.game_info.map_name}.xz"
+            logger.info(f"Saving game info to {output_path=}")
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            export = await self.export()
             with lzma.open(output_path, "wb") as f:
-                pickle.dump(self.game_info, f)
+                pickle.dump(export, f)
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
@@ -112,7 +113,8 @@ class PhantomBot(BotBase):
             for i, (t, plan) in enumerate(self.agent.macro.assigned_plans.items()):
                 self._debug_draw_plan(self.unit_tag_dict.get(t), plan, index=i)
 
-        async for action in self.agent.step(Observation(self)):
+        observation = Observation(self, self.agent.knowledge)
+        async for action in self.agent.step(observation):
             if not await action.execute(self):
                 self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")

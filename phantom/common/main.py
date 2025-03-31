@@ -8,11 +8,12 @@ from sc2.position import Point2
 
 from phantom.common.constants import MICRO_MAP_REGEX, MINING_RADIUS
 from phantom.common.cost import CostManager
+from phantom.common.exporter import BotExporter
 from phantom.common.utils import MacroId, Point, get_intersections, project_point_onto_line
 from phantom.config import BotConfig
 
 
-class BotBase(AresBot, ABC):
+class BotBase(BotExporter, AresBot, ABC):
     def __init__(self, config: BotConfig, game_step_override: int | None = None) -> None:
         super().__init__(game_step_override=game_step_override)
         self.bot_config = config

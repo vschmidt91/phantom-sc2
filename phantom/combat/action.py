@@ -55,7 +55,7 @@ class CombatAction:
                     retreat_targets.append(p)
             if not retreat_targets:
                 combatant_positions = {
-                    p for u in self.observation.combatants if self.confidence[p := u.position.rounded] >= 0
+                    p for u in self.observation.combatants if self.confidence[p := tuple(u.position.rounded)] >= 0
                 }
                 retreat_targets.extend(combatant_positions)
             if not retreat_targets:
@@ -93,11 +93,17 @@ class CombatAction:
             ),
         )
 
+    @cached_property
+    def enemy_values(self) -> dict[int, float]:
+        return {
+            u.tag: self.observation.calculate_unit_value_weighted(u.type_id) for u in self.observation.enemy_combatants
+        }
+
     def fight_with(self, unit: Unit) -> Action | None:
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
             dps = calculate_dps(unit, u)
-            reward = self.observation.calculate_unit_value_weighted(u.type_id)
+            reward = self.enemy_values[u.tag]
             risk = np.divide(hp, dps)
             return np.divide(risk, reward)
 
@@ -209,7 +215,7 @@ class CombatAction:
     @cached_property
     def runby_targets(self) -> np.ndarray:
         if self.observation.is_micro_map:
-            return np.array([u.position.rounded for u in self.observation.enemy_combatants])
+            return np.array([tuple(u.position.rounded) for u in self.observation.enemy_combatants])
         else:
             return np.array([self.observation.in_mineral_line(p) for p in self.observation.enemy_start_locations])
 

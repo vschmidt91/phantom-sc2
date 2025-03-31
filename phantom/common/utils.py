@@ -43,7 +43,7 @@ class PlacementNotFoundException(Exception):
     pass
 
 
-Point: TypeAlias = tuple[int, int]
+Point = tuple[int, int]
 
 
 def async_command(func):

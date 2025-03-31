@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cache, cached_property
 
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 
 from phantom.common.main import BotBase
@@ -27,3 +28,7 @@ class Knowledge:
                 p = r.position.rounded
                 result[p] = self.bot.speedmining_positions[p].distance_to(self.return_point[p])
         return result
+
+    @cache
+    def build_time(self, unit_type: UnitTypeId) -> float:
+        return self.bot.game_data.units[unit_type.value].cost.time

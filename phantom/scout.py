@@ -48,7 +48,7 @@ class ScoutState:
                 error.result == ActionResult.CantBuildLocationInvalid.value
                 and error.ability_id == AbilityId.ZERGBUILD_HATCHERY.value
             ) and (unit := observation.unit_by_tag.get(error.unit_tag)):
-                p = unit.position.rounded
+                p = tuple(unit.position.rounded)
                 if p not in self.blocked_positions:
                     self.blocked_positions[p] = observation.time
                     logger.info(f"Detected blocked base {p}")
@@ -56,7 +56,7 @@ class ScoutState:
         def filter_base(b: Point2) -> bool:
             if observation.is_visible(b):
                 return False
-            distance_to_enemy = min(b.distance_to(e) for e in observation.enemy_start_locations)
+            distance_to_enemy = min(b.distance_to(Point2(e)) for e in observation.enemy_start_locations)
             return not distance_to_enemy < b.distance_to(observation.start_location)
 
         detectors = observation.units({UnitTypeId.OVERSEER})
@@ -68,10 +68,10 @@ class ScoutState:
             if observation.is_visible(observation.enemy_natural):
                 self.enemy_natural_scouted = True
             else:
-                scout_targets.append(observation.enemy_natural.rounded)
+                scout_targets.append(tuple(observation.enemy_natural.rounded))
             scout_targets.extend(islice(scout_bases, len(nondetectors) - len(scout_targets)))
         else:
-            scout_targets.extend(p.rounded for p in safe_overlord_spots)
+            scout_targets.extend(tuple(p.rounded) for p in safe_overlord_spots)
             scout_targets.extend(scout_bases)
         detect_targets = list(self.blocked_positions)
 

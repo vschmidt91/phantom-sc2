@@ -105,8 +105,8 @@ class Agent:
             return True  # get on with it!
 
         def should_harvest_resource(r: Unit) -> bool:
-            p = r.position.rounded
-            check_points = [p, self.knowledge.return_point[p].rounded]
+            p = tuple(r.position.rounded)
+            check_points = [p, tuple(self.knowledge.return_point[p].rounded)]
             return all(not combat.confidence[p] < 0 < combat.enemy_presence.dps[p] for p in check_points)
 
         harvesters = observation.workers.filter(should_harvest)
@@ -172,13 +172,13 @@ class Agent:
             return None
 
         def micro_queen(q: Unit) -> Action | None:
-            x, y = q.position.rounded
+            p = tuple(q.position.rounded)
             return (
                 transfuse.transfuse_with(q)
-                or (combat.fight_with(q) if combat.enemy_presence.dps[x, y] > 0 else None)
+                or (combat.fight_with(q) if combat.enemy_presence.dps[p] > 0 else None)
                 or inject_with_queen(q)
                 or (creep.spread_with_queen(q) if should_spread_creep else None)
-                or (combat.retreat_with(q, limit=2) if not observation.creep[x, y] else None)
+                or (combat.retreat_with(q, limit=2) if not observation.creep[p] else None)
                 or combat.fight_with(q)
             )
 

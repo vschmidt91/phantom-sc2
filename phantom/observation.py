@@ -6,6 +6,7 @@ from itertools import chain
 
 import numpy as np
 from ares import UnitTreeQueryType
+from cython_extensions import cy_unit_pending
 from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
@@ -39,11 +40,13 @@ from phantom.common.constants import (
 from phantom.common.cost import Cost, CostManager
 from phantom.common.main import BotBase
 from phantom.common.utils import MacroId, Point, center
+from phantom.knowledge import Knowledge
 
 
 @dataclass(frozen=True)
 class Observation:
     bot: BotBase
+    knowledge: Knowledge
 
     @cached_property
     def workers_in_geysers(self) -> int:
@@ -189,7 +192,7 @@ class Observation:
 
     @cached_property
     def enemy_start_locations(self) -> list[Point]:
-        return [p.rounded for p in self.bot.enemy_start_locations]
+        return [tuple(p.rounded) for p in self.bot.enemy_start_locations]
 
     @property
     def game_loop(self):
@@ -273,11 +276,11 @@ class Observation:
 
     @cached_property
     def townhall_at(self) -> dict[Point, Unit]:
-        return {b.position.rounded: b for b in self.bot.townhalls}
+        return {tuple(b.position.rounded): b for b in self.bot.townhalls}
 
     @cached_property
     def resource_at(self) -> dict[Point, Unit]:
-        return {r.position.rounded: r for r in self.bot.resources}
+        return {tuple(r.position.rounded): r for r in self.bot.resources}
 
     @cached_property
     def all_taken_resources(self) -> Units:
@@ -294,10 +297,11 @@ class Observation:
 
     def in_mineral_line(self, base: Point) -> Point:
         resource_positions = self.bot.expansion_resource_positions[base]
-        return center(resource_positions).rounded
+        x, y = center(resource_positions).rounded
+        return int(x), int(y)
 
     def behind_mineral_line(self, base: Point) -> Point2:
-        return Point2(base).offset(HALF).towards(self.in_mineral_line(base), 10.0)
+        return Point2(base).offset(HALF).towards(Point2(self.in_mineral_line(base)), 10.0)
 
     def count(
         self, item: MacroId, include_pending: bool = True, include_planned: bool = True, include_actual: bool = True
@@ -319,7 +323,7 @@ class Observation:
 
     @property
     def income(self) -> Cost:
-        larva_per_second = sum(
+        larva_income = sum(
             sum(
                 (
                     1 / 11 if h.is_ready else 0.0,
@@ -329,11 +333,16 @@ class Observation:
             for h in self.bot.townhalls
         )
 
+        supply_income = sum(
+            cy_unit_pending(self.bot, unit_type) * provided / self.knowledge.build_time(unit_type)
+            for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
+        )
+
         return Cost(
             self.bot.state.score.collection_rate_minerals / 60.0,  # TODO: get from harvest assignment
             self.bot.state.score.collection_rate_vespene / 60.0,  # TODO: get from harvest assignment
-            self.supply_income,  # TODO: iterate over pending
-            larva_per_second,
+            supply_income,  # TODO: iterate over pending
+            larva_income,
         )
 
     @cached_property
@@ -385,19 +394,9 @@ class Observation:
     def unit_data(self, unit_type_id: UnitTypeId) -> UnitTypeData:
         return self.bot.game_data.units[unit_type_id.value]
 
-    def build_time(self, unit_type: UnitTypeId) -> float:
-        return self.bot.game_data.units[unit_type.value].cost.time
-
     @property
     def bank(self) -> Cost:
         return Cost(self.bot.minerals, self.bot.vespene, self.bot.supply_left, self.bot.larva.amount)
-
-    @property
-    def supply_income(self) -> float:
-        return sum(
-            len(self.pending_by_type[unit_type]) * provided / self.build_time(unit_type)
-            for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
-        )
 
     async def query_pathings(self, zipped_list: list[list[Unit | Point2 | Point3]]) -> list[float]:
         return await self.bot.client.query_pathings(zipped_list)
