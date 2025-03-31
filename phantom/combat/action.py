@@ -103,7 +103,7 @@ class CombatAction:
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
             dps = calculate_dps(unit, u)
-            reward = self.enemy_values.get(u.tag)
+            reward = self.enemy_values[u.tag]
             risk = np.divide(hp, dps)
             return np.divide(risk, reward)
 
