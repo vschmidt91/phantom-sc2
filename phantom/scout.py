@@ -62,18 +62,20 @@ class ScoutState:
         detectors = observation.units({UnitTypeId.OVERSEER})
         nondetectors = observation.units({UnitTypeId.OVERLORD})
 
-        scout_targets = list[Point]()
+        scout_points = list[Point]()
         scout_bases = filter(filter_base, observation.bases)
         if not observation.is_micro_map and not self.enemy_natural_scouted:
             if observation.is_visible(observation.enemy_natural):
                 self.enemy_natural_scouted = True
             else:
-                scout_targets.append(tuple(observation.enemy_natural.rounded))
-            scout_targets.extend(islice(scout_bases, len(nondetectors) - len(scout_targets)))
+                scout_points.append(tuple(observation.enemy_natural.rounded))
+            scout_points.extend(islice(scout_bases, len(nondetectors) - len(scout_points)))
         else:
-            scout_targets.extend(tuple(p.rounded) for p in safe_overlord_spots)
-            scout_targets.extend(scout_bases)
-        detect_targets = list(self.blocked_positions)
+            scout_points.extend(tuple(p.rounded) for p in safe_overlord_spots)
+            scout_points.extend(scout_bases)
+
+        scout_targets = list(map(Point2, scout_points))
+        detect_targets = list(map(Point2, self.blocked_positions))
 
         scout_actions = distribute(
             nondetectors,

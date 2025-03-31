@@ -7,6 +7,7 @@ from itertools import chain
 import numpy as np
 from ares import UnitTreeQueryType
 from cython_extensions import cy_unit_pending
+from loguru import logger
 from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
@@ -399,12 +400,15 @@ class Observation:
         return Cost(self.bot.minerals, self.bot.vespene, self.bot.supply_left, self.bot.larva.amount)
 
     async def query_pathings(self, zipped_list: list[list[Unit | Point2 | Point3]]) -> list[float]:
+        logger.debug(f"Query pathings {zipped_list=}")
         return await self.bot.client.query_pathings(zipped_list)
 
     async def query_pathing(self, start: Unit | Point2 | Point3, end: Point2 | Point3) -> float:
+        logger.debug(f"Query pathing {start=} {end=}")
         return await self.bot.client.query_pathing(start, end)
 
     async def can_place_single(self, building: AbilityId | UnitTypeId, position: Point2) -> bool:
+        logger.debug(f"Query placement {building=} {position=}")
         return await self.bot.can_place_single(building, position)
 
     def find_path(self, start: Point2, target: Point2, air: bool = False) -> Point2:

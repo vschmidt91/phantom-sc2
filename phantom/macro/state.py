@@ -219,19 +219,17 @@ class MacroState:
             )
         ]
 
+        if not any(trainers_filtered):
+            return None
+
         if item == UnitTypeId.HATCHERY:
             target_expected = await get_target_position(obs, item, set())
             return min(
                 trainers_filtered,
-                key=lambda t: t.distance_to(target_expected) if t else 0,
-                default=None,
+                key=lambda t: t.distance_to(target_expected),
             )
 
-        if any(trainers_filtered):
-            # trainers_filtered.sort(key=lambda t: t.tag)
-            return trainers_filtered[0]
-
-        return None
+        return trainers_filtered[0]
 
     def handle_actions(self, obs: Observation) -> None:
         for tag, action in obs.actions_unit_commands.items():

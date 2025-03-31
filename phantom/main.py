@@ -115,6 +115,7 @@ class PhantomBot(BotBase):
 
         observation = Observation(self, self.agent.knowledge)
         async for action in self.agent.step(observation):
+            # logger.debug(f"Executing {action=}")
             if not await action.execute(self):
                 self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
