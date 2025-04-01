@@ -7,7 +7,7 @@ on:
       - dev
 
 env:
-  OUTPUT_NAME: PhantomBot
+  ZIP_NAME: PhantomBot
 
 jobs:
   build:
@@ -37,7 +37,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           compression-level: 9
-          name: ${{ env.OUTPUT_NAME }}
+          name: ${{ env.ZIP_NAME }}
           path: build
 
   run_test_game:
@@ -49,7 +49,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: ${{ env.OUTPUT_NAME }}
+          name: ${{ env.ZIP_NAME }}
       - name: Install requirements
         run: |
           python -m pip install -U pip
@@ -74,7 +74,7 @@ jobs:
         run: pip install click requests
       - uses: actions/download-artifact@v4
         with:
-          name: ${{ env.OUTPUT_NAME }}
+          name: ${{ env.ZIP_NAME }}
           path: bot
       - name: Compress bot zip
         run: zip -r -9 bot.zip bot

@@ -15,12 +15,14 @@ zip_urls = [
   "https://github.com/AresSC2/cython-extensions-sc2/releases/latest/download/windows-latest_python3.12.zip"
 ]
 exclude = [
+  "*.pyc",
   "*.pyi",
   "*.pyx",
   "*.c",
   "*.h",
   "*.cpp",
   "*.hpp",
+  "*.md",
   "*.html",
   "*.rs",
   "*.whl",
