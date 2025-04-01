@@ -1,11 +1,6 @@
 output_path = "build"
 zip_modules = [
   "click",
-  "_cvxcore",
-  "cvxpy",
-  "cvxpygen",
-  "ecos",
-  "_ecos",
   "map_analyzer",
   "highspy",
   "sc2"
@@ -16,19 +11,15 @@ zip_urls = [
 ]
 exclude = [
   "**/__pycache__",
-#  "**/*.pyi",
-#  "**/*.pyx",
-#  "**/*.c",
-#  "**/*.h",
-#  "**/*.cpp",
-#  "**/*.hpp",
-  "**/*.md",
-  "**/*.html",
+  "**/*.pyc",
+  "**/*.pyd",
+  "**/*.pyi",
+  "**/*.pyx",
+  "**/*-darwin.so",
   "map_analyzer/cext/mapanalyzerext*310-*",
   "map_analyzer/cext/mapanalyzerext*311-*",
   "map_analyzer/pickle_gameinfo",
   "sc2_helper/sc2_helper*310-*",
   "sc2_helper/sc2_helper*311-*",
   "sc2_helper/sc2_helper*313-*",
-  "sc2_helper/*-darwin.so"
 ]

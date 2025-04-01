@@ -4,12 +4,9 @@ from functools import cache
 from itertools import product
 from typing import TypeVar
 
-import cvxpy as cp
 import highspy
 import numpy as np
 from loguru import logger
-
-from phantom.common.utils import CVXPY_OPTIONS
 
 TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
@@ -47,47 +44,6 @@ class HighsPyProblem:
 def get_highspy_problem(n, m):
     logger.debug(f"Creating HighsPyProblem with {n=}, {m=}")
     return HighsPyProblem(n, m)
-
-
-@cache
-def get_problem(n, m):
-    x = cp.Variable((n, m), "x")
-    c = cp.Parameter((n, m), name="c")
-    b = cp.Parameter(m, name="b")
-
-    assign_cost = cp.vdot(c, x)
-    cost_overassign = 1e3 * cp.max(cp.sum(x, 0) - b)
-    objective = cp.Minimize(assign_cost + cost_overassign)
-    # spread_cost = 100 * cp.var(cp.sum(x, 0))
-    # objective = cp.Minimize(assign_cost + spread_cost)
-
-    constraints = [
-        cp.sum(x, 1) == 1.0,
-        # cp.sum(x, 0) == b,
-        x >= 0,
-    ]
-    problem = cp.Problem(objective, constraints)
-    return problem
-
-
-def cp_solve(c, b):
-    n, m = c.shape
-    problem = get_problem(n, m)
-    problem.param_dict["c"].value = c
-    problem.param_dict["b"].value = b
-    problem.solve(**CVXPY_OPTIONS)
-    solution = problem.var_dict["x"].value
-    if solution is None:
-        raise cp.SolverError()
-    return solution
-
-
-@cache
-def linprog_matrices(n: int, m: int) -> dict:
-    return dict(
-        A_ub=np.tile(np.identity(m), (1, n)),
-        A_eq=np.repeat(np.identity(n), m, axis=1),
-    )
 
 
 def distribute(

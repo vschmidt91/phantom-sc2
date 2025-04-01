@@ -65,14 +65,6 @@ def main(
             print(f"Copying {module_dir=}")
             shutil.copytree(module_dir, os.path.join(target, module))
 
-    print("Fixing CVXPY import")
-    core_path = os.path.join(output_path, "cvxpy", "cvxcore", "python", "cvxcore.py")
-    with open(core_path) as fi:
-        src_in = fi.read()
-    src_out = src_in.replace("from . import _cvxcore", "import _cvxcore")
-    with open(core_path, "w") as fo:
-        fo.write(src_out)
-
     for url in zip_urls:
         target = output_path
         print(f"Fetching {url=}")

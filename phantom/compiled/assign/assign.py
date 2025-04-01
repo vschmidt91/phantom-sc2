@@ -5,7 +5,6 @@ import pkgutil
 from dataclasses import dataclass
 from functools import cached_property, cache
 
-import cvxpy as cp
 import numpy as np
 from loguru import logger
 
@@ -26,7 +25,7 @@ class AssignSolver:
         return self.shape[0] * self.shape[1]
 
     @cached_property
-    def problem(self) -> cp.Problem:
+    def problem(self):
         with open(os.path.join(BASE_DIR, self.module_path, "problem.pickle"), "rb") as f:
             return pickle.load(f)
 
