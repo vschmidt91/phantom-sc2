@@ -52,7 +52,7 @@ class CombatAction:
         else:
             retreat_targets = list()
             for b in self.observation.bases_taken:
-                p = self.observation.in_mineral_line(b)
+                p = self.knowledge.in_mineral_line[b]
                 if self.confidence[p] >= 0:
                     retreat_targets.append(p)
             if not retreat_targets:
@@ -62,7 +62,7 @@ class CombatAction:
                 retreat_targets.extend(combatant_positions)
             if not retreat_targets:
                 logger.warning("No retreat targets, falling back to start mineral line")
-                p = self.observation.in_mineral_line(self.observation.start_location.rounded)
+                p = self.knowledge.in_mineral_line[self.observation.start_location.rounded]
                 retreat_targets.append(p)
             return np.array(retreat_targets)
 
@@ -70,16 +70,16 @@ class CombatAction:
     def prediction(self) -> CombatPrediction:
         return CombatPredictor(self.observation.combatants, self.observation.enemy_combatants).prediction
 
-    def retreat_with(self, unit: Unit, limit=2) -> Action | None:
+    def retreat_with(self, unit: Unit, limit=3) -> Action | None:
         x = round(unit.position.x)
         y = round(unit.position.y)
         retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
         if retreat_map.distance[x, y] == np.inf:
             return self.retreat_with_ares(unit)
         retreat_path = retreat_map.get_path((x, y), limit=limit)
-        if len(retreat_path) < 2:
+        if len(retreat_path) < limit:
             return self.retreat_with_ares(unit)
-        retreat_point = Point2(retreat_path[1]).offset(HALF)
+        retreat_point = Point2(retreat_path[-1]).offset(HALF)
         # if unit.distance_to(retreat_point) < limit:
         #     logger.warning("too close to home, falling back to ares retreating")
         #     return self.retreat_with_ares(unit)
@@ -217,7 +217,7 @@ class CombatAction:
         if self.knowledge.is_micro_map:
             return np.array([tuple(u.position.rounded) for u in self.observation.enemy_combatants])
         else:
-            return np.array([self.observation.in_mineral_line(p) for p in self.observation.enemy_start_locations])
+            return np.array([self.knowledge.in_mineral_line[p] for p in self.knowledge.enemy_start_locations])
 
     @cached_property
     def runby_ground(self) -> DijkstraOutput:

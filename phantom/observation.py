@@ -8,7 +8,6 @@ import numpy as np
 from ares import AresBot, UnitTreeQueryType
 from cython_extensions import cy_unit_pending
 from loguru import logger
-from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -19,14 +18,13 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.position import Point2, Point3, Size
+from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
 
 from phantom.common.constants import (
     CIVILIANS,
     ENEMY_CIVILIANS,
-    HALF,
     ITEM_BY_ABILITY,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
@@ -39,7 +37,7 @@ from phantom.common.constants import (
     ZERG_RANGED_UPGRADES,
 )
 from phantom.common.cost import Cost
-from phantom.common.utils import RNG, MacroId, Point, center
+from phantom.common.utils import RNG, MacroId, Point
 from phantom.knowledge import Knowledge
 
 
@@ -61,10 +59,6 @@ class Observation:
     @property
     def action_errors(self) -> list[ActionError]:
         return self.bot.state.action_errors
-
-    @property
-    def map_size(self) -> Size:
-        return self.bot.game_info.map_size
 
     @property
     def supply_workers(self) -> float:
@@ -168,10 +162,6 @@ class Observation:
         return self.bot.gas_buildings
 
     @property
-    def is_micro_map(self) -> bool:
-        return self.bot.is_micro_map
-
-    @property
     def structures(self) -> Units:
         return self.bot.structures
 
@@ -186,10 +176,6 @@ class Observation:
     @property
     def enemy_structures(self) -> Units:
         return self.bot.enemy_structures
-
-    @cached_property
-    def enemy_start_locations(self) -> list[Point]:
-        return [tuple(p.rounded) for p in self.bot.enemy_start_locations]
 
     @property
     def game_loop(self):
@@ -223,17 +209,6 @@ class Observation:
     @cached_property
     def unit_commands(self) -> dict[int, ActionRawUnitCommand]:
         return {u: a for a in self.bot.state.actions_unit_commands for u in a.unit_tags}
-
-    @cached_property
-    def bases(self) -> list[Point]:
-        if self.knowledge.is_micro_map:
-            return []
-        else:
-            return [p.rounded for p in self.bot.expansion_locations_list]
-
-    @property
-    def race(self) -> Race:
-        return self.bot.race
 
     @cached_property
     def geyers_taken(self) -> list[Unit]:
@@ -284,21 +259,13 @@ class Observation:
         return Units(
             [
                 r
-                for base in self.bases
+                for base in self.knowledge.bases
                 if (th := self.townhall_at.get(base)) and th.is_ready
                 for p in self.knowledge.expansion_resource_positions[base]
                 if (r := self.resource_at.get(p))
             ],
             self.bot,
         )
-
-    def in_mineral_line(self, base: Point) -> Point:
-        resource_positions = self.knowledge.expansion_resource_positions[base]
-        x, y = center(resource_positions).rounded
-        return int(x), int(y)
-
-    def behind_mineral_line(self, base: Point) -> Point2:
-        return Point2(base).offset(HALF).towards(Point2(self.in_mineral_line(base)), 10.0)
 
     def count(
         self, item: MacroId, include_pending: bool = True, include_planned: bool = True, include_actual: bool = True

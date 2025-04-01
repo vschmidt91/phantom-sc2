@@ -6,7 +6,7 @@ from sc2.position import Point2
 
 from phantom.common.constants import MICRO_MAP_REGEX, MINING_RADIUS
 from phantom.common.cost import CostManager
-from phantom.common.utils import Point, get_intersections, project_point_onto_line
+from phantom.common.utils import Point, center, get_intersections, project_point_onto_line
 
 
 class Knowledge:
@@ -21,6 +21,9 @@ class Knowledge:
         self.expansion_resource_positions = {
             b.rounded: [r.position.rounded for r in rs] for b, rs in bot.expansion_locations_dict.items()
         }
+        self.enemy_start_locations = [tuple(p.rounded) for p in bot.enemy_start_locations]
+
+        self.bases = [] if self.is_micro_map else [p.rounded for p in bot.expansion_locations_list]
 
         self.speedmining_positions = dict[Point, Point2]()
         worker_radius = bot.workers[0].radius
@@ -59,3 +62,6 @@ class Knowledge:
                 self.return_distances[p] = self.speedmining_positions[p].distance_to(self.return_point[p])
 
         self.cost = CostManager(bot)
+        self.race = bot.race
+
+        self.in_mineral_line = {b: tuple(center(self.expansion_resource_positions[b]).rounded) for b in self.bases}

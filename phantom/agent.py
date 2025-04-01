@@ -39,7 +39,7 @@ from phantom.transfuse import TransfuseAction
 class Agent:
     def __init__(self, build_order_name: str, parameters: AgentParameters, knowledge: Knowledge) -> None:
         self.macro = MacroState(knowledge)
-        self.creep = CreepState()
+        self.creep = CreepState(knowledge)
         self.corrosive_biles = CorrosiveBileState()
         self.dodge = DodgeState()
         self.scout = ScoutState(knowledge)
@@ -148,7 +148,7 @@ class Agent:
             )
         )
 
-        gas_type = GAS_BY_RACE[observation.race]
+        gas_type = GAS_BY_RACE[self.knowledge.race]
         gas_depleted = observation.gas_buildings.filter(lambda g: not g.has_vespene).amount
         gas_pending = observation.count(gas_type, include_actual=False)
         gas_have = resources.observation.gas_buildings.amount
@@ -274,7 +274,7 @@ class Agent:
                 return None
             if not (
                 target_base := min(
-                    filter(lambda b: not observation.is_visible(b), observation.bases),
+                    filter(lambda b: not observation.is_visible(b), self.knowledge.bases),
                     key=lambda b: unit.distance_to(b),
                     default=None,
                 )
@@ -293,8 +293,8 @@ class Agent:
         def search_with(unit: Unit) -> Action | None:
             if not (unit.is_idle or unit.is_gathering or unit.is_returning):
                 return None
-            elif observation.time < 8 * 60 and observation.enemy_start_locations:
-                return Move(unit, Point2(random.choice(observation.enemy_start_locations)))
+            elif observation.time < 8 * 60 and self.knowledge.enemy_start_locations:
+                return Move(unit, Point2(random.choice(self.knowledge.enemy_start_locations)))
             elif observation.enemy_combatants:
                 target = cy_closest_to(unit.position, observation.enemy_combatants)
                 return Move(unit, target.position)

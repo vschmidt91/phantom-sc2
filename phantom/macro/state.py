@@ -145,7 +145,7 @@ class MacroState:
 
             if not plan.target:
                 try:
-                    plan.target = await self.get_target(obs, trainer, plan, blocked_positions)
+                    plan.target = await self.get_target(self.knowledge, obs, trainer, plan, blocked_positions)
                 except PlacementNotFoundException:
                     continue
 
@@ -172,9 +172,9 @@ class MacroState:
         return actions
 
     async def get_target(
-        self, obs: Observation, trainer: Unit, objective: MacroPlan, blocked_positions: set[Point]
+        self, knowledge: Knowledge, obs: Observation, trainer: Unit, objective: MacroPlan, blocked_positions: set[Point]
     ) -> Unit | Point2 | None:
-        gas_type = GAS_BY_RACE[obs.race]
+        gas_type = GAS_BY_RACE[knowledge.race]
         if objective.item == gas_type:
             exclude_positions = {geyser.position for geyser in obs.gas_buildings}
             exclude_tags = {
@@ -201,7 +201,7 @@ class MacroState:
         # data = MACRO_INFO[trainer.unit.type_id][objective.item]
 
         if "requires_placement_position" in data:
-            position = await get_target_position(obs, objective.item, blocked_positions)
+            position = await get_target_position(self.knowledge, obs, objective.item, blocked_positions)
             if not position:
                 raise PlacementNotFoundException()
             return position
@@ -226,7 +226,7 @@ class MacroState:
             return None
 
         if item == UnitTypeId.HATCHERY:
-            target_expected = await get_target_position(obs, item, set())
+            target_expected = await get_target_position(self.knowledge, obs, item, set())
             return min(
                 trainers_filtered,
                 key=lambda t: t.distance_to(target_expected),
@@ -294,14 +294,16 @@ def get_eta(observation: Observation, reserve: Cost, cost: Cost) -> float:
     )
 
 
-async def get_target_position(obs: Observation, target: UnitTypeId, blocked_positions: set[Point]) -> Point2 | None:
+async def get_target_position(
+    knowledge: Knowledge, obs: Observation, target: UnitTypeId, blocked_positions: set[Point]
+) -> Point2 | None:
     data = obs.unit_data(target)
     if target in {UnitTypeId.HATCHERY}:
-        candidates = [b for b in obs.bases if b not in blocked_positions and b not in obs.townhall_at]
+        candidates = [b for b in knowledge.bases if b not in blocked_positions and b not in obs.townhall_at]
         if not candidates:
             return None
-        loss_positions = {obs.in_mineral_line(b) for b in obs.bases_taken} | {obs.start_location}
-        loss_positions_enemy = {obs.in_mineral_line(s) for s in obs.enemy_start_locations}
+        loss_positions = {knowledge.in_mineral_line[b] for b in obs.bases_taken} | {obs.start_location}
+        loss_positions_enemy = {knowledge.in_mineral_line[s] for s in knowledge.enemy_start_locations}
 
         async def loss_fn(p: Point2) -> float:
             distances = await obs.query_pathings([[Point2(p), Point2(q)] for q in loss_positions])
@@ -322,9 +324,11 @@ async def get_target_position(obs: Observation, target: UnitTypeId, blocked_posi
             return False
         return th.is_ready
 
-    if potential_bases := list(filter(filter_base, obs.bases)):
+    if potential_bases := list(filter(filter_base, knowledge.bases)):
         base = random.choice(potential_bases)
-        position = Point2(base).offset(HALF).towards_with_random_angle(obs.behind_mineral_line(base), 10)
+        mineral_line = Point2(knowledge.in_mineral_line[base])
+        behind_mineral_line = Point2(base).towards(mineral_line, 10.0)
+        position = Point2(base).towards_with_random_angle(behind_mineral_line, 10)
         offset = data.footprint_radius % 1
         position = position.rounded.offset((offset, offset))
         return position

@@ -11,6 +11,7 @@ from scipy.ndimage import gaussian_filter
 from phantom.common.action import Action, UseAbility
 from phantom.common.constants import ENERGY_COST, HALF
 from phantom.common.utils import circle, circle_perimeter, line, rectangle
+from phantom.knowledge import Knowledge
 from phantom.observation import Observation
 
 TUMOR_RANGE = 10
@@ -20,17 +21,18 @@ _BASE_SIZE = (5, 5)
 
 @dataclass(frozen=True)
 class CreepAction:
+    knowledge: Knowledge
     obs: Observation
     mask: np.ndarray
     active_tumors: set[Unit]
 
     @property
     def prevent_blocking(self):
-        return self.obs.bases
+        return self.knowledge.bases
 
     @property
     def reward_blocking(self):
-        return self.obs.bases
+        return self.knowledge.bases
 
     @cached_property
     def placement_map(self) -> np.ndarray:
@@ -87,7 +89,8 @@ class CreepAction:
 
 
 class CreepState:
-    def __init__(self) -> None:
+    def __init__(self, knowledge: Knowledge) -> None:
+        self.knowledge = knowledge
         self.created_at_step = dict[int, int]()
         self.spread_at_step = dict[int, int]()
 
@@ -110,6 +113,7 @@ class CreepState:
         active_tumors = {t for t in all_tumors if is_active(t)}
 
         return CreepAction(
+            self.knowledge,
             obs,
             mask,
             active_tumors,
