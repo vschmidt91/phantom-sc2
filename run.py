@@ -79,7 +79,7 @@ async def run(
         logger.info(f"Loading {bot_config=}")
         bot_config_value = BotConfig.from_toml(bot_config)
     else:
-        logger.info(f"Using default bot config")
+        logger.info("Using default bot config")
         bot_config_value = BotConfig()
     bot_config_value.opponent_id = opponent_id
     ai = PhantomBot(bot_config_value)
