@@ -78,11 +78,11 @@ jobs:
           path: bot
       - name: Compress bot zip
         working-directory: bot
-        run: zip -r -9 bot.zip bot
+        run: zip -r -9 ../bot.zip .
       - name: Upload to AIArena
         env:
           UPLOAD_API_TOKEN:
             ${{ secrets.UPLOAD_API_TOKEN }}
           UPLOAD_BOT_ID:
             ${{ secrets[format('UPLOAD_BOT_ID_{0}', github.ref_name)] }}
-        run: python scripts/upload_to_ai_arena.py bot/bot.zip
+        run: python scripts/upload_to_ai_arena.py bot.zip
