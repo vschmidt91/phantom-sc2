@@ -16,6 +16,7 @@ from phantom.common.constants import (
 )
 from phantom.common.unit_composition import UnitComposition
 from phantom.data.normal import NormalParameter
+from phantom.knowledge import Knowledge
 from phantom.macro.state import MacroId, MacroPlan
 from phantom.observation import Observation
 
@@ -65,6 +66,7 @@ class StrategyTier(enum.Enum):
 
 @dataclass(frozen=True)
 class Strategy:
+    knowledge: Knowledge
     obs: Observation
     param: StrategyParameters
     flood_lings: bool
@@ -147,7 +149,7 @@ class Strategy:
     @cached_property
     def counter_composition(self) -> UnitComposition:
         def total_cost(t: UnitTypeId) -> float:
-            return self.obs.cost.of(t).total_resources
+            return self.knowledge.cost.of(t).total_resources
 
         composition = defaultdict[UnitTypeId, float](float)
         for enemy_type, count in self.enemy_composition.items():

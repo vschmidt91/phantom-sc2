@@ -17,6 +17,7 @@ from sc2.units import Units
 from phantom.combat.action import CombatAction
 from phantom.common.action import Action, Move, UseAbility
 from phantom.common.constants import ALL_MACRO_ABILITIES, CHANGELINGS, ENERGY_COST, GAS_BY_RACE
+from phantom.common.cost import Cost
 from phantom.common.distribute import distribute
 from phantom.common.utils import pairwise_distances
 from phantom.corrosive_biles import CorrosiveBileState
@@ -37,11 +38,11 @@ from phantom.transfuse import TransfuseAction
 @dataclass
 class Agent:
     def __init__(self, build_order_name: str, parameters: AgentParameters, knowledge: Knowledge) -> None:
-        self.macro = MacroState()
+        self.macro = MacroState(knowledge)
         self.creep = CreepState()
         self.corrosive_biles = CorrosiveBileState()
         self.dodge = DodgeState()
-        self.scout = ScoutState()
+        self.scout = ScoutState(knowledge)
         self.build_order_completed = False
 
         self.build_order = BUILD_ORDERS[build_order_name]
@@ -50,9 +51,11 @@ class Agent:
         self.resources = ResourceState(self.knowledge)
 
     async def step(self, observation: Observation) -> AsyncGenerator[Action, None]:
-        strategy = Strategy(observation, self.parameters.strategy, observation.bot.bot_config.test_ling_flood)
+        strategy = Strategy(
+            self.knowledge, observation, self.parameters.strategy, observation.bot.bot_config.test_ling_flood
+        )
 
-        if not observation.is_micro_map:
+        if not self.knowledge.is_micro_map:
             if not self.build_order_completed:
                 if step := self.build_order.execute(observation):
                     for action in step.actions:
@@ -71,7 +74,7 @@ class Agent:
                 ):
                     self.macro.add(plan)
 
-        combat = CombatAction(observation, self.parameters.combat)
+        combat = CombatAction(self.knowledge, observation, self.parameters.combat)
         transfuse = TransfuseAction(observation)
         creep = self.creep.step(observation, np.less_equal(0.0, combat.confidence))
 
@@ -96,7 +99,7 @@ class Agent:
 
         def should_harvest(u: Unit) -> bool:
             # TODO: consider macro tasks
-            if observation.is_micro_map or u in macro_actions:
+            if self.knowledge.is_micro_map or u in macro_actions:
                 return False
             elif u.is_idle:  # you slackin?
                 return True
@@ -111,20 +114,18 @@ class Agent:
 
         harvesters = observation.workers.filter(should_harvest)
 
-        if observation.is_micro_map:
+        if self.knowledge.is_micro_map:
             resources_to_harvest = observation.resources
             gas_ratio = 0.0
         else:
             resources_to_harvest = observation.all_taken_resources.filter(should_harvest_resource)
-            required = observation.cost.zero
+            required = Cost()
+            required += sum((self.knowledge.cost.of(plan.item) for plan in self.macro.unassigned_plans), Cost())
             required += sum(
-                (observation.cost.of(plan.item) for plan in self.macro.unassigned_plans), observation.cost.zero
+                (self.knowledge.cost.of(plan.item) for plan in self.macro.assigned_plans.values()),
+                Cost(),
             )
-            required += sum(
-                (observation.cost.of(plan.item) for plan in self.macro.assigned_plans.values()),
-                observation.cost.zero,
-            )
-            required += observation.cost.of_composition(strategy.composition_deficit)
+            required += self.knowledge.cost.of_composition(strategy.composition_deficit)
             required -= observation.bank
 
             if required.minerals <= 0 and required.vespene <= 0:
@@ -190,7 +191,7 @@ class Agent:
                 if t.is_burrowed or t.is_cloaked:
                     scout_value *= 10
                 distance_others = max((v.distance_to(t) for v in overseers), default=0.0)
-                if observation.is_micro_map:
+                if self.knowledge.is_micro_map:
                     distance_bases = 0.0
                 else:
                     distance_bases = max((Point2(b).distance_to(t) for b in observation.bases_taken), default=0.0)

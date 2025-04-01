@@ -25,6 +25,7 @@ from phantom.common.utils import (
 )
 from phantom.cython.cy_dijkstra import DijkstraOutput, cy_dijkstra
 from phantom.data.normal import NormalParameter
+from phantom.knowledge import Knowledge
 from phantom.observation import Observation
 
 
@@ -40,12 +41,13 @@ CombatPrior = CombatParameters(
 
 @dataclass(frozen=True)
 class CombatAction:
+    knowledge: Knowledge
     observation: Observation
     parameters: CombatParameters
 
     @cached_property
     def retreat_targets(self) -> np.ndarray:
-        if self.observation.is_micro_map:
+        if self.knowledge.is_micro_map:
             return np.array([self.observation.map_center.rounded])
         else:
             retreat_targets = list()
@@ -212,7 +214,7 @@ class CombatAction:
 
     @cached_property
     def runby_targets(self) -> np.ndarray:
-        if self.observation.is_micro_map:
+        if self.knowledge.is_micro_map:
             return np.array([tuple(u.position.rounded) for u in self.observation.enemy_combatants])
         else:
             return np.array([self.observation.in_mineral_line(p) for p in self.observation.enemy_start_locations])
@@ -255,7 +257,7 @@ class CombatAction:
         if not any(units) or not any(enemies):
             return {}
 
-        if self.observation.is_micro_map:
+        if self.knowledge.is_micro_map:
             max_assigned = None
         elif enemies:
             optimal_assigned = len(units) / len(enemies)

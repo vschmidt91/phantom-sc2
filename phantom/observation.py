@@ -1,11 +1,11 @@
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import cached_property
 from itertools import chain
 
 import numpy as np
-from ares import UnitTreeQueryType
+from ares import AresBot, UnitTreeQueryType
 from cython_extensions import cy_unit_pending
 from loguru import logger
 from sc2.data import Race
@@ -38,16 +38,16 @@ from phantom.common.constants import (
     ZERG_MELEE_UPGRADES,
     ZERG_RANGED_UPGRADES,
 )
-from phantom.common.cost import Cost, CostManager
-from phantom.common.main import BotBase
+from phantom.common.cost import Cost
 from phantom.common.utils import RNG, MacroId, Point, center
 from phantom.knowledge import Knowledge
 
 
 @dataclass(frozen=True)
 class Observation:
-    bot: BotBase
+    bot: AresBot
     knowledge: Knowledge
+    planned: Counter[MacroId]
 
     @cached_property
     def workers_in_geysers(self) -> int:
@@ -73,10 +73,6 @@ class Observation:
     @property
     def supply_cap(self) -> float:
         return self.bot.supply_cap
-
-    @property
-    def cost(self) -> CostManager:
-        return self.bot.cost
 
     @property
     def researched_speed(self) -> bool:
@@ -124,7 +120,7 @@ class Observation:
 
     @property
     def combatants(self) -> Units:
-        if self.bot.is_micro_map:
+        if self.knowledge.is_micro_map:
             return self.bot.units
         else:
             return self.bot.units.exclude_type(CIVILIANS)
@@ -139,7 +135,7 @@ class Observation:
 
     @property
     def enemy_combatants(self) -> Units:
-        if self.bot.is_micro_map:
+        if self.knowledge.is_micro_map:
             return self.bot.enemy_units
         else:
             return self.bot.all_enemy_units.exclude_type(ENEMY_CIVILIANS)
@@ -230,7 +226,7 @@ class Observation:
 
     @cached_property
     def bases(self) -> list[Point]:
-        if self.bot.is_micro_map:
+        if self.knowledge.is_micro_map:
             return []
         else:
             return [p.rounded for p in self.bot.expansion_locations_list]
@@ -290,14 +286,14 @@ class Observation:
                 r
                 for base in self.bases
                 if (th := self.townhall_at.get(base)) and th.is_ready
-                for p in self.bot.expansion_resource_positions[base]
+                for p in self.knowledge.expansion_resource_positions[base]
                 if (r := self.resource_at.get(p))
             ],
             self.bot,
         )
 
     def in_mineral_line(self, base: Point) -> Point:
-        resource_positions = self.bot.expansion_resource_positions[base]
+        resource_positions = self.knowledge.expansion_resource_positions[base]
         x, y = center(resource_positions).rounded
         return int(x), int(y)
 
@@ -318,7 +314,7 @@ class Observation:
         if include_pending:
             count += factor * len(self.pending_by_type[item])
         if include_planned:
-            count += factor * sum(1 for _ in self.bot.planned_by_type(item))
+            count += factor * self.planned[item]
 
         return count
 
@@ -335,7 +331,7 @@ class Observation:
         )
 
         supply_income = sum(
-            cy_unit_pending(self.bot, unit_type) * provided / self.knowledge.build_time(unit_type)
+            cy_unit_pending(self.bot, unit_type) * provided / self.knowledge.build_time[unit_type]
             for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
         )
 
@@ -380,10 +376,6 @@ class Observation:
         return all(
             self.count(e, include_pending=False, include_planned=False) == 0 for e in WITH_TECH_EQUIVALENTS[unit]
         )
-
-    @property
-    def speedmining_positions(self) -> dict[Point, Point2]:
-        return self.bot.speedmining_positions
 
     @property
     def supply_pending(self) -> int:
@@ -443,11 +435,7 @@ class Observation:
 
     @property
     def supply_planned(self) -> int:
-        return sum(
-            provided
-            for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
-            for _ in self.bot.planned_by_type(unit_type)
-        )
+        return sum(provided * self.planned[unit_type] for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items())
 
     def get_missing_requirements(self, item: MacroId) -> Iterable[MacroId]:
         if item not in REQUIREMENTS_KEYS:

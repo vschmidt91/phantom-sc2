@@ -4,29 +4,32 @@ import lzma
 import os
 import pickle
 import pstats
-from collections.abc import Iterable
+from collections import Counter
 from queue import Empty, Queue
 
+from ares import AresBot
 from loguru import logger
 from sc2.data import Race, Result
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
 from phantom.agent import Agent
-from phantom.common.main import BotBase
+from phantom.config import BotConfig
 from phantom.data.multivariate_normal import NormalParameters
 from phantom.data.normal import NormalParameter
 from phantom.data.state import DataState
+from phantom.exporter import BotExporter
 from phantom.knowledge import Knowledge
-from phantom.macro.state import MacroId, MacroPlan
+from phantom.macro.state import MacroPlan
 from phantom.observation import Observation
 from phantom.parameters import AgentParameters, AgentPrior
 
 
-class PhantomBot(BotBase):
-    def __init__(self, *args, **kwargs) -> None:
+class PhantomBot(BotExporter, AresBot):
+    def __init__(self, config: BotConfig, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
+        self.bot_config = config
         self.replay_tags = set[str]()
         self.replay_tag_queue = Queue[str]()
         self.version: str | None = None
@@ -57,9 +60,7 @@ class PhantomBot(BotBase):
         self.parameter_values = self.data.parameters.sample() if self.bot_config.training else self.data.parameters.mean
         parameter_dict = dict(zip(self.data.parameter_names, self.parameter_values, strict=False))
         parameter_distributions = {k: NormalParameter(float(v), 0, 0) for k, v in parameter_dict.items()}
-        parameters = AgentParameters.from_dict(parameter_distributions | priors)
-        knowledge = Knowledge(self)
-        self.agent = Agent(self.bot_config.build_order, parameters, knowledge)
+        self.parameters = AgentParameters.from_dict(parameter_distributions | priors)
 
         if self.bot_config.profile_path:
             logger.info("Creating profiler")
@@ -68,12 +69,12 @@ class PhantomBot(BotBase):
     def add_replay_tag(self, replay_tag: str) -> None:
         self.replay_tag_queue.put(replay_tag)
 
-    def planned_by_type(self, item: MacroId) -> Iterable:
-        return self.agent.macro.planned_by_type(item)
-
     async def on_start(self) -> None:
         logger.debug("Bot starting")
         await super().on_start()
+
+        knowledge = Knowledge(self)
+        self.agent = Agent(self.bot_config.build_order, self.parameters, knowledge)
 
         def handle_message(message):
             severity = message.record["level"]
@@ -85,7 +86,7 @@ class PhantomBot(BotBase):
             self.add_replay_tag(f"version_{self.version}")
 
         if self.bot_config.save_bot_path:
-            output_path = f"{self.bot_config.save_bot_path}/{self.game_info.map_name}.xz"
+            output_path = os.path.join(self.bot_config.save_bot_path, f"{self.game_info.map_name}.xz")
             logger.info(f"Saving game info to {output_path=}")
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
             export = await self.export()
@@ -113,7 +114,8 @@ class PhantomBot(BotBase):
             for i, (t, plan) in enumerate(self.agent.macro.assigned_plans.items()):
                 self._debug_draw_plan(self.unit_tag_dict.get(t), plan, index=i)
 
-        observation = Observation(self, self.agent.knowledge)
+        planned = Counter(p.item for p in self.agent.macro.enumerate_plans())
+        observation = Observation(self, self.agent.knowledge, planned)
         async for action in self.agent.step(observation):
             # logger.debug(f"Executing {action=}")
             if not await action.execute(self):

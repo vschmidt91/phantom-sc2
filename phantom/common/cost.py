@@ -14,10 +14,10 @@ from phantom.common.utils import MacroId
 
 @dataclass(frozen=True)
 class Cost:
-    minerals: float
-    vespene: float
-    supply: float
-    larva: float
+    minerals: float = 0.0
+    vespene: float = 0.0
+    supply: float = 0.0
+    larva: float = 0.0
 
     def __add__(self, other: "Cost"):
         return Cost(

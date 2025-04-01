@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from itertools import islice
 
 from loguru import logger
+from sc2.bot_ai import BotAI
 from sc2.data import ActionResult
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -10,8 +11,8 @@ from sc2.unit import Unit
 
 from phantom.common.action import Action
 from phantom.common.distribute import distribute
-from phantom.common.main import BotBase
 from phantom.common.utils import Point, pairwise_distances
+from phantom.knowledge import Knowledge
 from phantom.observation import Observation
 
 
@@ -20,7 +21,7 @@ class ScoutPosition(Action):
     unit: Unit
     target: Point2
 
-    async def execute(self, bot: BotBase) -> bool:
+    async def execute(self, bot: BotAI) -> bool:
         if self.unit.distance_to(self.target) < 0.1:
             if self.unit.is_idle:
                 return True
@@ -35,7 +36,8 @@ class ScoutAction:
 
 
 class ScoutState:
-    def __init__(self):
+    def __init__(self, knowledge: Knowledge):
+        self.knowledge = knowledge
         self.blocked_positions = dict[Point, float]()
         self.enemy_natural_scouted = True  # TODO: set back to false when overlords stay safer
 
@@ -65,7 +67,7 @@ class ScoutState:
 
         scout_points = list[Point]()
         scout_bases = filter(filter_base, observation.bases)
-        if not observation.is_micro_map and not self.enemy_natural_scouted:
+        if not self.knowledge.is_micro_map and not self.enemy_natural_scouted:
             if observation.is_visible(observation.enemy_natural):
                 self.enemy_natural_scouted = True
             else:

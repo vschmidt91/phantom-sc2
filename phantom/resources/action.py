@@ -116,7 +116,7 @@ class ResourceAction:
 
         harvester_to_resource = pairwise_distances(
             [h.position for h in harvesters],
-            [self.observation.observation.speedmining_positions[r.position.rounded] for r in resources],
+            [self.knowledge.speedmining_positions[r.position.rounded] for r in resources],
         )
 
         return_distance = np.array([self.knowledge.return_distances[r.position.rounded] for r in resources])
@@ -165,7 +165,7 @@ class ResourceAction:
         elif len(unit.orders) >= 2:
             return DoNothing()
         elif unit.is_gathering:
-            return GatherAction(unit, target, self.observation.observation.speedmining_positions[target_pos])
+            return GatherAction(unit, target, self.knowledge.speedmining_positions[target_pos])
         elif unit.is_returning:
             assert any(return_targets)
             return_target = min(return_targets, key=lambda th: th.distance_to(unit))

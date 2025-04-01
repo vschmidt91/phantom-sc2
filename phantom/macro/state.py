@@ -27,6 +27,7 @@ from phantom.common.constants import (
 from phantom.common.cost import Cost
 from phantom.common.unit_composition import UnitComposition
 from phantom.common.utils import PlacementNotFoundException, Point
+from phantom.knowledge import Knowledge
 from phantom.observation import Observation
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
@@ -45,7 +46,8 @@ class MacroPlan:
 
 
 class MacroState:
-    def __init__(self) -> None:
+    def __init__(self, knowledge: Knowledge) -> None:
+        self.knowledge = knowledge
         self.unassigned_plans = list[MacroPlan]()
         self.assigned_plans = dict[int, MacroPlan]()
 
@@ -94,7 +96,7 @@ class MacroState:
         await self.assign_unassigned_plans(obs, obs.units)  # TODO: narrow this down
 
         actions = dict[Unit, Action]()
-        reserve = obs.cost.zero
+        reserve = Cost()
         plans_prioritized = sorted(self.assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
         for _i, (tag, plan) in enumerate(plans_prioritized):
             if plan.commanded and plan.executed:
@@ -147,12 +149,12 @@ class MacroState:
                 except PlacementNotFoundException:
                     continue
 
-            cost = obs.cost.of(plan.item)
+            cost = self.knowledge.cost.of(plan.item)
             eta = get_eta(obs, reserve, cost)
 
             if eta < math.inf:
                 expected_income = obs.income * eta
-                needs_to_reserve = Cost.max(obs.cost.zero, cost - expected_income)
+                needs_to_reserve = Cost.max(Cost(), cost - expected_income)
                 reserve += needs_to_reserve
 
             if eta == 0.0:
