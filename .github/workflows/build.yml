@@ -6,9 +6,6 @@ on:
       - main
       - dev
 
-env:
-  OUTPUT_NAME: PhantomBot
-
 jobs:
   build:
     name: Build
@@ -36,7 +33,7 @@ jobs:
         run: make zip
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.OUTPUT_NAME }}
+          name: bot-zip
           path: build
 
   run_test_game:
@@ -73,7 +70,7 @@ jobs:
         run: pip install click requests
       - uses: actions/download-artifact@v4
         with:
-          name: ${{ env.OUTPUT_NAME }}
+          name: bot-zip
           path: bot
       - name: Compress bot zip
         run: zip -r -9 bot.zip bot

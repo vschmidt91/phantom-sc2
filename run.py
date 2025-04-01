@@ -75,11 +75,16 @@ async def run(
         logger.disable(module)
     logger.add(sys.stdout, level=log_level)  # Set different levels for different outputs
 
-    logger.info("Setting up bot")
-    bot_config_value = BotConfig.from_toml(bot_config) if bot_config is not None else BotConfig()
+    if bot_config:
+        logger.info(f"Loading {bot_config=}")
+        bot_config_value = BotConfig.from_toml(bot_config)
+    else:
+        logger.info(f"Using default bot config")
+        bot_config_value = BotConfig()
     bot_config_value.opponent_id = opponent_id
     ai = PhantomBot(bot_config_value)
     race = ai.pick_race()
+    logger.info(f"Picking {race=}")
     bot = Bot(race, ai, ai.name)
     if save_replay:
         replay_path = os.path.join(save_replay, f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S}.SC2REPLAY")
@@ -110,14 +115,13 @@ async def run(
 
     else:
         logger.info("Starting local game")
-
         if maps_path is None:
             logger.info("No maps path provided, falling back to installation folder")
             maps_path = str(Paths.MAPS)
         map_globs = [os.path.join(maps_path, f"{map_pattern}.{ext}") for ext in ["SC2MAP", "SC2Map"]]
         map_choices = list(chain.from_iterable(map(glob.glob, map_globs)))
         map_choice = random.choice(map_choices)
-        logger.info(f"Map pick is {map_choice=}")
+        logger.info(f"Picking {map_choice=}")
         opponent = Computer(Race[enemy_race], Difficulty[enemy_difficulty], AIBuild[enemy_build])
 
         result = await _host_game(
