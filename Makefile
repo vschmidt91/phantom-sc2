@@ -1,7 +1,6 @@
 zip:
 	poetry run python scripts/compile_cython.py
-	poetry build --format wheel --output out --clean
-	poetry run python scripts/build_zip.py out --config config/build.toml
+	poetry run python scripts/build.py --config config/build.toml
 
 check:
 	poetry run ruff check

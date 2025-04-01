@@ -1,7 +1,5 @@
-import fnmatch
 import glob
 import os
-import re
 import shutil
 import subprocess
 import tempfile
@@ -16,45 +14,44 @@ from utils import CommandWithConfigFile
 
 @click.command(cls=CommandWithConfigFile("config"))
 @click.option("--config", type=click.File("rb"))
-@click.argument("input-dir", type=click.Path())
-@click.option("--output-path", default="bot.zip", type=click.Path())
+@click.option("--output-path", type=click.Path())
 @click.option("--zip-modules", multiple=True)
-@click.option("--zip-archives", multiple=True)
 @click.option("--zip-urls", multiple=True)
 @click.option("--exclude", multiple=True)
-@click.option("--compression-level", default=9)
 def main(
     config,
-    input_dir: str,
     output_path: str,
     zip_modules: list[str],
-    zip_archives: list[str],
     zip_urls: list[str],
     exclude: list[str],
-    compression_level: int,
 ) -> None:
-    for archive_pattern in zip_archives:
-        for archive in glob.glob(os.path.join(input_dir, archive_pattern)):
-            print(f"Extracting {archive=} to {input_dir=}")
-            with zipfile.ZipFile(archive) as z:
-                z.extractall(input_dir)
+    shutil.rmtree(output_path, ignore_errors=True)
+    os.makedirs(output_path, exist_ok=True)
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        subprocess.Popen(["poetry", "build", "--format", "wheel", "--output", tmp_dir]).wait()
+        wheels = glob.glob(os.path.join(tmp_dir, "*.whl"))
+        for wheel in wheels:
+            print(f"Extracting {wheel=} to {output_path=}")
+            with zipfile.ZipFile(wheel) as z:
+                z.extractall(output_path)
 
     print("Creating requirements.txt")
-    requirements_path = os.path.join(input_dir, "requirements.txt")
+    requirements_path = os.path.join(output_path, "requirements.txt")
     with open(requirements_path, "w") as f:
         subprocess.Popen(["poetry", "export", "--without-hashes", "--format=requirements.txt"], stdout=f).wait()
 
     commit_hash = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("ascii").strip()
     version_file = "version.txt"
     print(f"Writing {commit_hash=} to {version_file=}")
-    with open(os.path.join(input_dir, version_file), "w") as f:
+    with open(os.path.join(output_path, version_file), "w") as f:
         f.write(commit_hash)
 
     print("Creating __init__.py")
-    open(os.path.join(input_dir, "__init__.py"), "a").close()
+    open(os.path.join(output_path, "__init__.py"), "a").close()
 
     for module in zip_modules:
-        target = input_dir
+        target = output_path
         spec = find_spec(module)
         module_file = spec.origin
         if module_file.endswith((".pyd", ".so")):
@@ -66,7 +63,7 @@ def main(
             shutil.copytree(module_dir, os.path.join(target, module))
 
     print("Fixing CVXPY import")
-    core_path = os.path.join(input_dir, "cvxpy", "cvxcore", "python", "cvxcore.py")
+    core_path = os.path.join(output_path, "cvxpy", "cvxcore", "python", "cvxcore.py")
     with open(core_path) as fi:
         src_in = fi.read()
     src_out = src_in.replace("from . import _cvxcore", "import _cvxcore")
@@ -74,7 +71,7 @@ def main(
         fo.write(src_out)
 
     for url in zip_urls:
-        target = input_dir
+        target = output_path
         print(f"Fetching {url=} to {target=}")
         with tempfile.TemporaryDirectory() as tmp:
             r = urllib.request.urlopen(url).read()
@@ -82,17 +79,12 @@ def main(
                 z.extractall(tmp)
             shutil.copytree(tmp, target, dirs_exist_ok=True)
 
-    exclude_compiled = [re.compile(fnmatch.translate(p)) for p in exclude]
-    with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=compression_level) as zf:
-        for dirname, _subdirs, files in os.walk(input_dir):
-            for filename in files:
-                filepath = os.path.join(dirname, filename)
-                if any(r.match(filepath) for r in exclude_compiled):
-                    print(f"Excluding {filepath=}")
-                    continue
-                dst = os.path.join(os.path.relpath(dirname, input_dir), filename)
-                print(f"Zipping {filepath=} to {dst=}")
-                zf.write(filepath, dst)
+    for pattern in exclude:
+        for file in glob.glob(os.path.join(output_path, pattern)):
+            if os.path.isfile(file):
+                os.remove(file)
+            elif os.path.isdir(file):
+                shutil.rmtree(file)
 
 
 if __name__ == "__main__":

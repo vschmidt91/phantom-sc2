@@ -102,7 +102,7 @@ fixable = ["ALL"]
 exclude = [
     "^ares-sc2/",
     "^cython-extensions-sc2/",
-    "^out/",
+    "^build/",
     "^resources/",
     "^scripts/",
 ]

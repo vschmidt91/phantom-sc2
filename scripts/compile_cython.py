@@ -7,7 +7,7 @@ from setuptools import Distribution, Extension
 from setuptools.command.build_ext import build_ext
 
 
-def build():
+def compile():
     input_dir = os.path.join("phantom", "cython")
     include_dirs = [np.get_include()]
     extension = Extension(
@@ -43,4 +43,4 @@ def build():
 
 
 if __name__ == "__main__":
-    build()
+    compile()
