@@ -59,6 +59,7 @@ include = [
     { path = "run.py", format = ["sdist", "wheel"] },
     { path = "scripts", format = ["sdist", "wheel"] },
 ]
+build = "scripts/compile_cython.py"
 
 [tool.poetry.dependencies]
 ares-sc2 = { path = "ares-sc2", develop = false }

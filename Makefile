@@ -1,5 +1,4 @@
 zip:
-	poetry run python scripts/compile_cython.py
 	poetry run python scripts/build.py --config config/build.toml
 
 check:
