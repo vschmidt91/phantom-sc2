@@ -104,13 +104,13 @@ def get_intersections(position1: Point2, radius1: float, position2: Point2, radi
         yield middle - orthogonal
 
 
-def center(points: Iterable[Point2]) -> Point2:
+def center(points: Iterable[Point]) -> Point2:
     x_sum = 0.0
     y_sum = 0.0
     num_points = 0
     for point in points:
-        x_sum += point.position[0]
-        y_sum += point.position[1]
+        x_sum += point[0]
+        y_sum += point[1]
         num_points += 1
     x_sum /= num_points
     y_sum /= num_points
