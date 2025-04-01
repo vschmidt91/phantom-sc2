@@ -95,9 +95,7 @@ class CombatAction:
 
     @cached_property
     def enemy_values(self) -> dict[int, float]:
-        return {
-            u.tag: self.observation.calculate_unit_value_weighted(u.type_id) for u in self.observation.enemy_units
-        }
+        return {u.tag: self.observation.calculate_unit_value_weighted(u.type_id) for u in self.observation.enemy_units}
 
     def fight_with(self, unit: Unit) -> Action | None:
         def cost_fn(u: Unit) -> float:

@@ -35,8 +35,9 @@ class ScoutAction:
 
 
 class ScoutState:
-    blocked_positions = dict[Point, float]()
-    enemy_natural_scouted = True  # TODO: set back to false when overlords stay safer
+    def __init__(self):
+        self.blocked_positions = dict[Point, float]()
+        self.enemy_natural_scouted = True  # TODO: set back to false when overlords stay safer
 
     def step(self, observation: Observation, safe_overlord_spots: list[Point2]) -> ScoutAction:
         for p, blocked_since in list(self.blocked_positions.items()):

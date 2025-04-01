@@ -45,8 +45,9 @@ class MacroPlan:
 
 
 class MacroState:
-    unassigned_plans = list[MacroPlan]()
-    assigned_plans = dict[int, MacroPlan]()
+    def __init__(self) -> None:
+        self.unassigned_plans = list[MacroPlan]()
+        self.assigned_plans = dict[int, MacroPlan]()
 
     def make_composition(self, observation: Observation, composition: UnitComposition) -> Iterable[MacroPlan]:
         if observation.supply_used >= 200:

@@ -6,15 +6,14 @@ from phantom.data.constants import PRIOR_EVIDENCE
 
 @dataclass(frozen=True)
 class NormalParameter:
-    """
-    >>> NormalParameter(0.0, 1.0, 1.0) + NormalParameter.from_values([0.0])
+    """>>> NormalParameter(0.0, 1.0, 1.0) + NormalParameter.from_values([0.0])
     NormalParameter(mean=0.0, deviation=1.0, evidence=2.0)
     >>> NormalParameter(0.0, 1.0, 1.0) + NormalParameter.from_values([0.0]) + NormalParameter.from_values([0.0])
     NormalParameter(mean=0.0, deviation=1.0, evidence=3.0)
     >>> NormalParameter.from_values([0.0, 2.0])
     NormalParameter(mean=1.0, deviation=2.0, evidence=2.0)
     >>> NormalParameter.from_values([0.0, 1.0, 2.0])
-    NormalParameter(mean=1.0, deviation=2.0, evidence=3.0)
+    NormalParameter(mean=1.0, deviation=2.0, evidence=3.0).
     """
 
     mean: float

@@ -36,14 +36,14 @@ from phantom.transfuse import TransfuseAction
 
 @dataclass
 class Agent:
-    macro = MacroState()
-    creep = CreepState()
-    corrosive_biles = CorrosiveBileState()
-    dodge = DodgeState()
-    scout = ScoutState()
-    build_order_completed = False
-
     def __init__(self, build_order_name: str, parameters: AgentParameters, knowledge: Knowledge) -> None:
+        self.macro = MacroState()
+        self.creep = CreepState()
+        self.corrosive_biles = CorrosiveBileState()
+        self.dodge = DodgeState()
+        self.scout = ScoutState()
+        self.build_order_completed = False
+
         self.build_order = BUILD_ORDERS[build_order_name]
         self.parameters = parameters
         self.knowledge = knowledge
@@ -325,9 +325,8 @@ class Agent:
         for unit in observation.combatants:
             if unit in scout.actions or unit in macro_actions:
                 pass
-            else:
-                if a := micro_unit(unit):
-                    yield a
+            elif a := micro_unit(unit):
+                yield a
         for structure in observation.structures.not_ready:
             if structure.health_percentage < 0.1:
                 yield UseAbility(structure, AbilityId.CANCEL)

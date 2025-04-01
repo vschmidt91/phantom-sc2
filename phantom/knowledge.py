@@ -23,7 +23,7 @@ class Knowledge:
     @cached_property
     def return_distances(self) -> dict[Point, float]:
         result = {}
-        for _base, resources in self.bot.expansion_locations_dict.items():
+        for resources in self.bot.expansion_locations_dict.values():
             for r in resources:
                 p = r.position.rounded
                 result[p] = self.bot.speedmining_positions[p].distance_to(self.return_point[p])

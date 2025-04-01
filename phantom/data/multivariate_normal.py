@@ -3,14 +3,14 @@ from functools import cached_property
 
 import numpy as np
 
+from phantom.common.utils import RNG
 from phantom.data.normal import NormalParameter
 
 
 def square_vector(v: np.ndarray) -> np.ndarray:
-    """
-    Square a vector.
+    """Square a vector.
     >>> square_vector(np.array([1., 2.]))
-    np.array([[1., 2.], [2., 4.]])
+    np.array([[1., 2.], [2., 4.]]).
     """
     return v.reshape((-1, 1)) @ v.reshape((1, -1))
 
@@ -63,4 +63,4 @@ class NormalParameters:
         return self.deviation / self.evidence
 
     def sample(self) -> np.ndarray:
-        return np.random.multivariate_normal(self.mean, self.covariance)
+        return RNG.multivariate_normal(self.mean, self.covariance)

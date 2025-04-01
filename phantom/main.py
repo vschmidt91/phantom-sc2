@@ -24,13 +24,13 @@ from phantom.parameters import AgentParameters, AgentPrior
 
 
 class PhantomBot(BotBase):
-    replay_tags = set[str]()
-    replay_tag_queue = Queue[str]()
-    version: str | None = None
-    profiler = cProfile.Profile()
-
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+
+        self.replay_tags = set[str]()
+        self.replay_tag_queue = Queue[str]()
+        self.version: str | None = None
+        self.profiler = cProfile.Profile()
 
         if os.path.isfile(self.bot_config.version_path):
             logger.info(f"Reading version from {self.bot_config.version_path}")

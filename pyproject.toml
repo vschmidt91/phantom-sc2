@@ -23,6 +23,7 @@ Repository = "https://github.com/vschmidt91/phantom-sc2.git"
 [project.optional-dependencies]
 dev = [
     "jupyter>=1.0.0",
+    "matplotlib (>=3.10.1,<4.0.0)",
     "notebook (>=7.3.3,<8.0.0)",
     "pandas>=2.2.3",
     "plotly (>=6.0.1,<7.0.0)",
@@ -79,11 +80,20 @@ exclude = [
 [tool.ruff.lint]
 select = [
     "E",    # pycodestyle
+    "W",    # warnings
     "F",    # Pyflakes
     "UP",   # pyupgrade
     "B",    # flake8-bugbear
     "SIM",  # flake8-simplify
     "I",    # isort
+    "NPY",  # numpy specific
+    "PD",   # pandas specific
+    "PERF", # performance
+    "PLE",  # Error
+    "PLW",  # Warning
+    "UP",   # Upgrade to newer language
+    "FURB", # refurb
+    "RUF",  # ruff specific
 ]
 ignore = ["E501", "B019"]
 fixable = ["ALL"]

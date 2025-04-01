@@ -82,8 +82,9 @@ class CostContext(Protocol):
 
 @dataclass
 class CostManager:
-    context: CostContext
-    _cache = dict[MacroId, Cost]()
+    def __init__(self, context: CostContext) -> None:
+        self.context = context
+        self._cache = dict[MacroId, Cost]()
 
     @cached_property
     def zero(self) -> Cost:

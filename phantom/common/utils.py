@@ -38,6 +38,8 @@ LINPROG_OPTIONS = dict(
     # integrality=0,
 )
 
+RNG = np.random.default_rng(42)
+
 
 class PlacementNotFoundException(Exception):
     pass

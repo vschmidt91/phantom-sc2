@@ -87,8 +87,9 @@ class CreepAction:
 
 
 class CreepState:
-    created_at_step = dict[int, int]()
-    spread_at_step = dict[int, int]()
+    def __init__(self) -> None:
+        self.created_at_step = dict[int, int]()
+        self.spread_at_step = dict[int, int]()
 
     @property
     def unspread_tumor_count(self):

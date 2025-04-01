@@ -17,7 +17,8 @@ class CorrosiveBileAction:
 
 
 class CorrosiveBileState:
-    bile_last_used = dict[int, int]()
+    def __init__(self) -> None:
+        self.bile_last_used = dict[int, int]()
 
     def step(self, obs: Observation) -> CorrosiveBileAction:
         ravagers = obs.combatants({UnitTypeId.RAVAGER})

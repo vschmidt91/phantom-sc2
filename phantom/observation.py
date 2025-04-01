@@ -40,7 +40,7 @@ from phantom.common.constants import (
 )
 from phantom.common.cost import Cost, CostManager
 from phantom.common.main import BotBase
-from phantom.common.utils import MacroId, Point, center
+from phantom.common.utils import RNG, MacroId, Point, center
 from phantom.knowledge import Knowledge
 
 
@@ -433,12 +433,12 @@ class Observation:
         scale = min(self.bot.game_info.map_size) / 5
         if near:
             target = np.clip(
-                np.random.normal((near.x, near.y), scale),
+                RNG.normal((near.x, near.y), scale),
                 (0.0, 0.0),
                 (a.right, a.top),
             )
         else:
-            target = np.random.uniform((a.x, a.y), (a.right, a.top))
+            target = RNG.uniform((a.x, a.y), (a.right, a.top))
         return Point2(target)
 
     @property
@@ -521,7 +521,7 @@ class Observation:
                 # self.upgradeSequence(ZERG_RANGED_UPGRADES),
                 # self.upgradeSequence(ZERG_ARMOR_UPGRADES),
             )
-        elif unit == UnitTypeId.MUTALISK or unit == UnitTypeId.CORRUPTOR:
+        elif unit in (UnitTypeId.MUTALISK, UnitTypeId.CORRUPTOR):
             return chain(
                 self.upgrade_sequence(ZERG_FLYER_UPGRADES),
                 self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
