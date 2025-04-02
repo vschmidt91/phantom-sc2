@@ -237,6 +237,8 @@ class CombatAction:
         )
 
         def cost_fn(a: Unit, b: Unit, d: float) -> float:
+            if a.order_target == b.tag:
+                return 0.0
             r = a.air_range if b.is_flying else a.ground_range
             travel_distance = max(0.0, d - a.radius - b.radius - r)
             time_to_reach = np.divide(travel_distance, a.movement_speed)
