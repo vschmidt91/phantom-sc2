@@ -1,8 +1,8 @@
 import enum
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import cached_property, total_ordering
-from typing import Iterable
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -16,6 +16,7 @@ from phantom.common.constants import (
 )
 from phantom.common.unit_composition import UnitComposition
 from phantom.data.normal import NormalParameter
+from phantom.knowledge import Knowledge
 from phantom.macro.state import MacroId, MacroPlan
 from phantom.observation import Observation
 
@@ -65,8 +66,10 @@ class StrategyTier(enum.Enum):
 
 @dataclass(frozen=True)
 class Strategy:
+    knowledge: Knowledge
     obs: Observation
     param: StrategyParameters
+    flood_lings: bool
 
     @cached_property
     def composition_deficit(self) -> UnitComposition:
@@ -92,13 +95,13 @@ class Strategy:
         elif upgrade == UpgradeId.BURROW:
             return self.tier >= StrategyTier.Hatch
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
-            return 0 < self.obs.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False)
+            return self.obs.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False) > 0
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
-            return 0 < self.obs.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False)
+            return self.obs.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False) > 0
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL3:
-            return 0 < self.obs.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False)
+            return self.obs.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False) > 0
         elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
-            return 0 < self.obs.count(UnitTypeId.GREATERSPIRE, include_planned=False)
+            return self.obs.count(UnitTypeId.GREATERSPIRE, include_planned=False) > 0
         elif upgrade == UpgradeId.OVERLORDSPEED:
             return self.tier >= StrategyTier.Lair
         else:
@@ -118,9 +121,11 @@ class Strategy:
             UnitTypeId.RAVAGER: composition[UnitTypeId.ROACH] / self.param.ravager_mixin.mean,
             UnitTypeId.CORRUPTOR: composition[UnitTypeId.BROODLORD] / self.param.corruptor_mixin.mean,
         }
-        composition = UnitComposition({k: v for k, v in composition.items() if 0 < v})
+        composition = UnitComposition({k: v for k, v in composition.items() if v > 0})
         if sum(composition.values()) < 1:
             composition += {UnitTypeId.ZERGLING: 1}
+        elif self.flood_lings:
+            composition += {UnitTypeId.ZERGLING: 100}
         can_afford_hydras = min(
             self.obs.bank.minerals / 100,
             self.obs.bank.vespene / 50,
@@ -144,7 +149,7 @@ class Strategy:
     @cached_property
     def counter_composition(self) -> UnitComposition:
         def total_cost(t: UnitTypeId) -> float:
-            return self.obs.cost.of(t).total_resources
+            return self.knowledge.cost.of(t).total_resources
 
         composition = defaultdict[UnitTypeId, float](float)
         for enemy_type, count in self.enemy_composition.items():
@@ -219,12 +224,12 @@ class Strategy:
     def expand(self) -> Iterable[MacroPlan]:
         if self.obs.time < 50:
             return
-        if 2 == self.obs.townhalls.amount and 2 > self.obs.count(UnitTypeId.QUEEN, include_planned=False):
+        if self.obs.townhalls.amount == 2 and self.obs.count(UnitTypeId.QUEEN, include_planned=False) < 2:
             return
 
         worker_max = self.obs.max_harvesters
         saturation = max(0.0, min(1.0, self.obs.supply_workers / max(1, worker_max)))
-        if 2 < self.obs.townhalls.amount and 2 / 3 > saturation:
+        if self.obs.townhalls.amount > 2 and saturation < 2 / 3:
             return
 
         priority = 3 * (saturation - 1)
@@ -233,7 +238,7 @@ class Strategy:
         #     if plan.priority < math.inf:
         #         plan.priority = priority
 
-        if 0 < self.obs.count(UnitTypeId.HATCHERY, include_actual=False):
+        if self.obs.count(UnitTypeId.HATCHERY, include_actual=False) > 0:
             return
         yield MacroPlan(UnitTypeId.HATCHERY, priority=priority)
 

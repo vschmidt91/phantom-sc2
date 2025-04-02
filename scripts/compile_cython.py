@@ -1,33 +1,30 @@
 import os
 import shutil
-from distutils.command.build_ext import build_ext
-from distutils.core import Distribution, Extension
 
-import numpy
+import numpy as np
 from Cython.Build import cythonize
+from setuptools import Distribution, Extension
+from setuptools.command.build_ext import build_ext
 
-INPUT_DIR = "phantom/cython/"
 
-
-def build():
-    source_files = []
-    for root, directories, files in os.walk(INPUT_DIR):
-        for file in files:
-            if file.endswith("pyx"):
-                source_files.append(os.path.join(root, file))
-
-    include_dirs = [numpy.get_include()]
+def compile_cython():
+    input_dir = os.path.join("phantom", "cython")
+    include_dirs = [np.get_include()]
+    extension = Extension(
+        name="cy_dijkstra",
+        sources=[os.path.join(input_dir, "dijkstra.pyx")],
+        include_dirs=include_dirs,
+        # language="c++",
+        # extra_compile_args=["-std=c++11"],
+        # extra_link_args=["-std=c++11"],
+    )
+    # extension.cython_c_in_temp = True
     extensions = cythonize(
-        Extension(
-            name="cy_dijkstra",
-            sources=source_files,
-            include_dirs=include_dirs,
-        ),
+        extension,
         compiler_directives={"binding": True, "language_level": 3},
     )
 
     distribution = Distribution({"name": "extended", "ext_modules": extensions})
-    distribution.package_dir = "extended"
 
     cmd = build_ext(distribution)
     cmd.ensure_finalized()
@@ -36,12 +33,14 @@ def build():
     # Copy built extensions back to the project
     for output in cmd.get_outputs():
         relative_extension = os.path.relpath(output, cmd.build_lib)
-        output_path = os.path.join(INPUT_DIR, relative_extension)
+        output_path = os.path.join(input_dir, relative_extension)
         shutil.copyfile(output, output_path)
         mode = os.stat(output_path).st_mode
         mode |= (mode & 0o444) >> 2
         os.chmod(output_path, mode)
 
+    shutil.rmtree("build")
+
 
 if __name__ == "__main__":
-    build()
+    compile_cython()

@@ -14,10 +14,10 @@ from phantom.common.utils import MacroId
 
 @dataclass(frozen=True)
 class Cost:
-    minerals: float
-    vespene: float
-    supply: float
-    larva: float
+    minerals: float = 0.0
+    vespene: float = 0.0
+    supply: float = 0.0
+    larva: float = 0.0
 
     def __add__(self, other: "Cost"):
         return Cost(
@@ -82,8 +82,9 @@ class CostContext(Protocol):
 
 @dataclass
 class CostManager:
-    context: CostContext
-    _cache = dict[MacroId, Cost]()
+    def __init__(self, context: CostContext) -> None:
+        self.context = context
+        self._cache = dict[MacroId, Cost]()
 
     @cached_property
     def zero(self) -> Cost:

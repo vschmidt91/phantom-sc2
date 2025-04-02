@@ -1,10 +1,6 @@
 from itertools import chain
 
-from sc2.constants import (
-    EQUIVALENTS_FOR_TECH_PROGRESS,
-    SPEED_INCREASE_DICT,
-    SPEED_UPGRADE_DICT,
-)
+from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS, SPEED_INCREASE_DICT, SPEED_UPGRADE_DICT
 from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
@@ -128,6 +124,7 @@ SUPPLY_PROVIDED = {
 }
 
 MINING_RADIUS = 1.325
+MINING_RADIUS_GEYSER = 2.0
 
 CHANGELINGS = {
     UnitTypeId.CHANGELING,
@@ -136,11 +133,6 @@ CHANGELINGS = {
     UnitTypeId.CHANGELINGZERGLING,
     UnitTypeId.CHANGELINGZERGLINGWINGS,
     UnitTypeId.CHANGELINGZEALOT,
-}
-
-DPS_OVERRIDE = {
-    UnitTypeId.BUNKER: 40,
-    UnitTypeId.PLANETARYFORTRESS: 5,
 }
 
 CIVILIANS = {
@@ -358,3 +350,4 @@ HALF = Point2((0.5, 0.5))
 
 MICRO_MAP_REGEX = "Micro AI Arena"
 MAX_UNIT_RADIUS = 1.375  # Mothership
+LOG_LEVEL_OPTIONS = ["TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"]

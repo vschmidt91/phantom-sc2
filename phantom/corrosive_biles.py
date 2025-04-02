@@ -17,29 +17,26 @@ class CorrosiveBileAction:
 
 
 class CorrosiveBileState:
-    bile_last_used = dict[int, int]()
+    def __init__(self) -> None:
+        self.bile_last_used = dict[int, int]()
 
     def step(self, obs: Observation) -> CorrosiveBileAction:
         ravagers = obs.combatants({UnitTypeId.RAVAGER})
         for ravager in ravagers:
-            if action := obs.unit_commands.get(ravager.tag):
-                if action.exact_id == _ABILITY:
-                    self.bile_last_used[ravager.tag] = action.game_loop
+            if (action := obs.unit_commands.get(ravager.tag)) and action.exact_id == _ABILITY:
+                self.bile_last_used[ravager.tag] = action.game_loop
 
         actions = {r: a for r in ravagers if (a := self.step_unit(obs, r))}
         return CorrosiveBileAction(actions)
 
     def step_unit(self, obs: Observation, unit: Unit) -> Action | None:
         def filter_target(t: Unit) -> bool:
-            if not obs.is_visible(t):
-                return False
-            elif not unit.in_ability_cast_range(_ABILITY, t.position):
-                return False
-            elif t.is_hallucination:
-                return False
-            elif t.type_id in CHANGELINGS:
-                return False
-            return True
+            return not (
+                not obs.is_visible(t)
+                or not unit.in_ability_cast_range(_ABILITY, t.position)
+                or t.is_hallucination
+                or t.type_id in CHANGELINGS
+            )
 
         def bile_priority(t: Unit) -> float:
             priority = 10.0 + max(t.ground_dps, t.air_dps)
@@ -48,9 +45,8 @@ class CorrosiveBileState:
             return priority
 
         last_used = self.bile_last_used.get(unit.tag)
-        if last_used is not None:
-            if obs.game_loop < last_used + COOLDOWN[AbilityId.EFFECT_CORROSIVEBILE]:
-                return None
+        if last_used is not None and obs.game_loop < last_used + COOLDOWN[AbilityId.EFFECT_CORROSIVEBILE]:
+            return None
 
         targets = obs.enemy_units.filter(filter_target)
         if not any(targets):

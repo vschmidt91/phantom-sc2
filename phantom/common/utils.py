@@ -1,7 +1,9 @@
+import asyncio
 import math
+from collections.abc import Callable, Iterable
 from dataclasses import fields
-from functools import cache
-from typing import Callable, Iterable, Type, TypeAlias
+from functools import cache, wraps
+from typing import TypeAlias
 
 import numpy as np
 import skimage.draw
@@ -13,16 +15,48 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
+from sklearn.metrics import pairwise_distances as pairwise_distances_sklearn
+
+CVXPY_OPTIONS = dict(
+    solver="ECOS",
+    # verbose=True,
+)
+
+LINPROG_OPTIONS = dict(
+    method="highs",
+    # bounds=(0.0, None),
+    # options=dict(
+    #     # maxiter=100,
+    #     disp=False,
+    #     presolve=False,
+    #     time_limit=10e-3,
+    #     primal_feasibility_tolerance=1e-3,  # default: 1e-7
+    #     dual_feasibility_tolerance=1e-3,  # default: 1e-7
+    #     ipm_optimality_tolerance=1e-5,  # default: 1e-12
+    # ),
+    # x0=None,
+    # integrality=0,
+)
+
+RNG = np.random.default_rng(42)
 
 
 class PlacementNotFoundException(Exception):
     pass
 
 
-Point: TypeAlias = tuple[int, int]
+Point = tuple[int, int]
 
 
-def dataclass_from_dict(cls: Type, parameters: dict[str, float]):
+def async_command(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return asyncio.run(func(*args, **kwargs))
+
+    return wrapper
+
+
+def dataclass_from_dict(cls: type, parameters: dict[str, float]):
     field_names = {f.name for f in fields(cls)}
     return cls(**{k: v for k, v in parameters.items() if k in field_names})
 
@@ -42,6 +76,12 @@ def can_attack(unit: Unit, target: Unit) -> bool:
         return unit.can_attack_ground
 
 
+def pairwise_distances(a, b):
+    if not any(a) or not any(b):
+        return np.array([])
+    return pairwise_distances_sklearn(a, b, ensure_all_finite=False)
+
+
 def project_point_onto_line(origin: Point2, direction: Point2, position: Point2) -> Point2:
     orthogonal_direction = Point2((direction[1], -direction[0]))
     return (
@@ -55,7 +95,7 @@ def project_point_onto_line(origin: Point2, direction: Point2, position: Point2)
 def get_intersections(position1: Point2, radius1: float, position2: Point2, radius2: float) -> Iterable[Point2]:
     p01 = position2 - position1
     distance = np.linalg.norm(p01)
-    if 0 < distance and abs(radius1 - radius2) <= distance <= radius1 + radius2:
+    if distance > 0 and abs(radius1 - radius2) <= distance <= radius1 + radius2:
         disc = (radius1**2 - radius2**2 + distance**2) / (2 * distance)
         height = math.sqrt(radius1**2 - disc**2)
         middle = position1 + (disc / distance) * p01
@@ -64,13 +104,13 @@ def get_intersections(position1: Point2, radius1: float, position2: Point2, radi
         yield middle - orthogonal
 
 
-def center(points: Iterable[Point2]) -> Point2:
+def center(points: Iterable[Point]) -> Point2:
     x_sum = 0.0
     y_sum = 0.0
     num_points = 0
     for point in points:
-        x_sum += point.position[0]
-        y_sum += point.position[1]
+        x_sum += point[0]
+        y_sum += point[1]
         num_points += 1
     x_sum /= num_points
     y_sum /= num_points
@@ -79,19 +119,19 @@ def center(points: Iterable[Point2]) -> Point2:
 
 def line(x0: int, y0: int, x1: int, y1: int) -> list[tuple[int, int]]:
     lx, ly = skimage.draw.line(x0, y0, x1, y1)
-    return [(int(x), int(y)) for x, y in zip(lx, ly)]
+    return [(int(x), int(y)) for x, y in zip(lx, ly, strict=False)]
 
 
 def circle_perimeter(x0: int, y0: int, r: int, shape: tuple) -> list[tuple[int, int]]:
     assert len(shape) == 2
     tx, ty = skimage.draw.circle_perimeter(x0, y0, r, shape=shape)
-    return [(int(x), int(y)) for x, y in zip(tx, ty)]
+    return [(int(x), int(y)) for x, y in zip(tx, ty, strict=False)]
 
 
 def circle(x0: int, y0: int, r: int, shape: tuple) -> list[tuple[int, int]]:
     assert len(shape) == 2
     tx, ty = skimage.draw.ellipse(x0, y0, r, r, shape=shape)
-    return [(int(x), int(y)) for x, y in zip(tx, ty)]
+    return [(int(x), int(y)) for x, y in zip(tx, ty, strict=False)]
 
 
 def rectangle(start: tuple[int, int], extent: tuple[int, int], shape: tuple) -> tuple[np.ndarray, np.ndarray]:
@@ -118,8 +158,7 @@ def get_requirements(item: UnitTypeId | UpgradeId) -> Iterable[UnitTypeId | Upgr
 
     for requirement1 in requirements:
         yield requirement1
-        for requirement2 in get_requirements(requirement1):
-            yield requirement2
+        yield from get_requirements(requirement1)
 
 
 FLOOD_FILL_OFFSETS = {
@@ -154,8 +193,31 @@ def combine_comparers[T](fns: list[Callable[[T, T], int]]) -> Callable[[T, T], i
     return combined
 
 
+def points_of_structure(s: Unit) -> list[Point]:
+    dx, dy = disk(s.radius)
+    px, py = s.position.rounded
+    dx += px
+    dy += py
+    return list(zip(dx, dy, strict=False))
+
+
 def logit_to_probability(x: float):
     return 1 / (1 + math.exp(-x))
 
 
 MacroId: TypeAlias = UnitTypeId | UpgradeId
+
+
+def calculate_dps(u: Unit, v: Unit) -> float:
+    if dps := DPS_OVERRIDE.get(u.type_id):
+        return dps
+    if not can_attack(u, v):
+        return 0.0
+    return u.air_dps if v.is_flying else u.ground_dps
+
+
+DPS_OVERRIDE = {
+    UnitTypeId.BUNKER: 40,
+    UnitTypeId.PLANETARYFORTRESS: 5,
+    UnitTypeId.BANELING: 20,
+}
