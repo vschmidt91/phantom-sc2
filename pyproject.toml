@@ -113,10 +113,12 @@ module = [
     "ares.*",
     "cython_extensions.*",
     "highspy.*",
+    "pandas.*",
     "phantom.compiled.*",
     "phantom.cython.*",
     "sc2.*",
     "scipy.*",
+    "skimage.*",
     "sklearn.*",
 ]
 ignore_missing_imports = true
