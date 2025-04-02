@@ -167,7 +167,8 @@ class ResourceAction:
         elif unit.is_gathering:
             return GatherAction(unit, target, self.knowledge.speedmining_positions[target_pos])
         elif unit.is_returning:
-            assert any(return_targets)
+            if not any(return_targets):
+                return None
             return_target = min(return_targets, key=lambda th: th.distance_to(unit))
             return ReturnResource(unit, return_target)
         return Smart(unit, target)
