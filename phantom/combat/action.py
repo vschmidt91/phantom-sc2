@@ -112,7 +112,7 @@ class CombatAction:
         confidence = confidence_predictor
         test_position = unit.position.towards(target, 1.5)
         if self.enemy_presence.dps[test_position.rounded] == 0 or confidence >= 0:
-            if unit.type_id in {UnitTypeId.ZERGLING}:
+            if unit.ground_range < 1:
                 return UseAbility(unit, AbilityId.ATTACK, target.position)
             return Attack(unit, target)
         else:
