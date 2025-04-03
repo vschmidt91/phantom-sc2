@@ -1,5 +1,4 @@
 import cProfile
-import json
 import lzma
 import os
 import pickle
@@ -15,14 +14,11 @@ from sc2.unit import Unit
 
 from phantom.agent import Agent
 from phantom.config import BotConfig
-from phantom.data.multivariate_normal import NormalParameters
-from phantom.data.normal import NormalParameter
-from phantom.data.state import DataState
 from phantom.exporter import BotExporter
 from phantom.knowledge import Knowledge
 from phantom.macro.state import MacroPlan
 from phantom.observation import Observation
-from phantom.parameters import AgentParameters, AgentPrior
+from phantom.parameters import AgentParameters
 
 
 class PhantomBot(BotExporter, AresBot):
@@ -42,25 +38,11 @@ class PhantomBot(BotExporter, AresBot):
         else:
             logger.warning(f"Version not found: {self.bot_config.version_path}")
 
-        # load data
-        priors = AgentPrior.to_dict()
-        prior_distribution = NormalParameters.from_independent(priors.values())
-        self.data = DataState(prior_distribution, list(priors.keys()))
-        if os.path.isfile(self.bot_config.params_path):
-            logger.info(f"Reading parameters from {self.bot_config.params_path}")
-            try:
-                with lzma.open(self.bot_config.params_path, "rb") as f:
-                    self.data = pickle.load(f)
-            except Exception as error:
-                logger.warning(error)
-        else:
-            logger.warning(f"Parameters not found: {self.bot_config.params_path}")
-
-        # sample parameters
-        self.parameter_values = self.data.parameters.sample() if self.bot_config.training else self.data.parameters.mean
-        parameter_dict = dict(zip(self.data.parameter_names, self.parameter_values, strict=False))
-        parameter_distributions = {k: NormalParameter(float(v), 0, 0) for k, v in parameter_dict.items()}
-        self.parameters = AgentParameters.from_dict(parameter_distributions | priors)
+        self.parameters = AgentParameters()
+        try:
+            self.parameters.load(self.bot_config.params_path)
+        except Exception as error:
+            logger.warning(f"{error=} while loading {self.bot_config.params_path}")
 
         if self.bot_config.profile_path:
             logger.info("Creating profiler")
@@ -75,6 +57,7 @@ class PhantomBot(BotExporter, AresBot):
 
         knowledge = Knowledge(self)
         self.agent = Agent(self.bot_config.build_order, self.parameters, knowledge)
+        self.parameters.sample()
 
         def handle_message(message):
             severity = message.record["level"]
@@ -142,14 +125,9 @@ class PhantomBot(BotExporter, AresBot):
 
         if self.agent and self.bot_config.training:
             logger.info("Updating parameters...")
-            self.data.update(self.parameter_values, game_result)
-            try:
-                with lzma.open(self.bot_config.params_path, "wb") as f:
-                    pickle.dump(self.data, f)
-                with open(self.bot_config.params_json_path, "w") as f:
-                    json.dump(self.data.to_json(), f, indent=4)
-            except Exception as e:
-                logger.error(e)
+            if game_result == Result.Victory:
+                self.parameters.update_distribution()
+            self.parameters.save(self.bot_config.params_path)
 
     # async def on_before_start(self):
     #     await super().on_before_start()

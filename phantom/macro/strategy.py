@@ -1,7 +1,6 @@
 import enum
 from collections import defaultdict
 from collections.abc import Iterable
-from dataclasses import dataclass
 from functools import cached_property, total_ordering
 
 from sc2.ids.unit_typeid import UnitTypeId
@@ -15,42 +14,10 @@ from phantom.common.constants import (
     ZERG_FLYER_UPGRADES,
 )
 from phantom.common.unit_composition import UnitComposition
-from phantom.data.normal import NormalParameter
 from phantom.knowledge import Knowledge
 from phantom.macro.state import MacroId, MacroPlan
 from phantom.observation import Observation
-
-
-@dataclass(frozen=True)
-class StrategyParameters:
-    counter_factor: NormalParameter
-    ravager_mixin: NormalParameter
-    corruptor_mixin: NormalParameter
-    tier1_drone_count: NormalParameter
-    tier2_drone_count: NormalParameter
-    tier3_drone_count: NormalParameter
-    tech_priority: NormalParameter
-    hydras_when_banking: NormalParameter
-    lings_when_banking: NormalParameter
-    queens_when_banking: NormalParameter
-    queens_per_hatch: NormalParameter
-    queens_limit: NormalParameter
-
-
-StrategyPrior = StrategyParameters(
-    counter_factor=NormalParameter.prior(2, 0.1),
-    ravager_mixin=NormalParameter.prior(21, 1),
-    corruptor_mixin=NormalParameter.prior(13, 1),
-    tier1_drone_count=NormalParameter.prior(32, 1),
-    tier2_drone_count=NormalParameter.prior(66, 2),
-    tier3_drone_count=NormalParameter.prior(80, 3),
-    tech_priority=NormalParameter.prior(-0.25, 0.1),
-    hydras_when_banking=NormalParameter.prior(10, 1),
-    lings_when_banking=NormalParameter.prior(10, 1),
-    queens_when_banking=NormalParameter.prior(3, 1),
-    queens_per_hatch=NormalParameter.prior(1.5, 0.1),
-    queens_limit=NormalParameter.prior(12, 1),
-)
+from phantom.parameters import AgentParameters, NormalPrior
 
 
 @total_ordering
@@ -64,12 +31,14 @@ class StrategyTier(enum.Enum):
         return self.value >= other.value
 
 
-@dataclass(frozen=True)
 class Strategy:
-    knowledge: Knowledge
-    obs: Observation
-    param: StrategyParameters
-    flood_lings: bool
+    def __init__(
+        self,
+        context: "StrategyState",
+        obs: Observation,
+    ) -> None:
+        self.context = context
+        self.obs = obs
 
     @cached_property
     def composition_deficit(self) -> UnitComposition:
@@ -118,14 +87,12 @@ class Strategy:
             return UnitComposition({})
         composition = self.counter_composition
         composition += {
-            UnitTypeId.RAVAGER: composition[UnitTypeId.ROACH] / self.param.ravager_mixin.mean,
-            UnitTypeId.CORRUPTOR: composition[UnitTypeId.BROODLORD] / self.param.corruptor_mixin.mean,
+            UnitTypeId.RAVAGER: composition[UnitTypeId.ROACH] / self.context.ravager_mixin.value,
+            UnitTypeId.CORRUPTOR: composition[UnitTypeId.BROODLORD] / self.context.corruptor_mixin.value,
         }
         composition = UnitComposition({k: v for k, v in composition.items() if v > 0})
         if sum(composition.values()) < 1:
             composition += {UnitTypeId.ZERGLING: 1}
-        elif self.flood_lings:
-            composition += {UnitTypeId.ZERGLING: 100}
         can_afford_hydras = min(
             self.obs.bank.minerals / 100,
             self.obs.bank.vespene / 50,
@@ -136,20 +103,20 @@ class Strategy:
             self.obs.bank.larva,
         )
         can_afford_queens = self.obs.bank.minerals / 150
-        if self.param.hydras_when_banking.mean < can_afford_hydras:
+        if self.context.hydras_when_banking.value < can_afford_hydras:
             composition += {UnitTypeId.HYDRALISK: can_afford_hydras}
             composition += {UnitTypeId.BROODLORD: can_afford_hydras}  # for good measure
         else:
-            if self.param.lings_when_banking.mean < can_afford_lings:
+            if self.context.lings_when_banking.value < can_afford_lings:
                 composition += {UnitTypeId.ZERGLING: can_afford_lings}
-            if self.param.queens_when_banking.mean < can_afford_queens:
+            if self.context.queens_when_banking.value < can_afford_queens:
                 composition += {UnitTypeId.QUEEN: can_afford_queens}
-        return composition * self.param.counter_factor.mean
+        return composition * self.context.counter_factor.value
 
     @cached_property
     def counter_composition(self) -> UnitComposition:
         def total_cost(t: UnitTypeId) -> float:
-            return self.knowledge.cost.of(t).total_resources
+            return self.context.knowledge.cost.of(t).total_resources
 
         composition = defaultdict[UnitTypeId, float](float)
         for enemy_type, count in self.enemy_composition.items():
@@ -161,19 +128,19 @@ class Strategy:
 
     @cached_property
     def tier(self) -> StrategyTier:
-        if self.obs.supply_workers < self.param.tier1_drone_count.mean or self.obs.townhalls.amount < 3:
+        if self.obs.supply_workers < self.context.tier1_drone_count.value or self.obs.townhalls.amount < 3:
             return StrategyTier.Zero
-        elif self.obs.supply_workers < self.param.tier2_drone_count.mean or self.obs.townhalls.amount < 4:
+        elif self.obs.supply_workers < self.context.tier2_drone_count.value or self.obs.townhalls.amount < 4:
             return StrategyTier.Hatch
-        elif self.obs.supply_workers < self.param.tier3_drone_count.mean or self.obs.townhalls.amount < 5:
+        elif self.obs.supply_workers < self.context.tier3_drone_count.value or self.obs.townhalls.amount < 5:
             return StrategyTier.Lair
         return StrategyTier.Hive
 
     @cached_property
     def macro_composition(self) -> UnitComposition:
-        harvester_target = max(1.0, min(self.param.tier3_drone_count.mean, self.obs.max_harvesters))
+        harvester_target = max(1.0, min(self.context.tier3_drone_count.value, self.obs.max_harvesters))
         queen_target = max(
-            0.0, min(self.param.queens_limit.mean, self.param.queens_per_hatch.mean * self.obs.townhalls.amount)
+            0.0, min(self.context.queens_limit.value, self.context.queens_per_hatch.value * self.obs.townhalls.amount)
         )
         composition = UnitComposition(
             {
@@ -219,7 +186,7 @@ class Strategy:
             else:
                 target_met = bool(self.obs.count(target))
             if not target_met:
-                yield MacroPlan(target, priority=self.param.tech_priority.mean)
+                yield MacroPlan(target, priority=self.context.tech_priority.value)
 
     def expand(self) -> Iterable[MacroPlan]:
         if self.obs.time < 50:
@@ -248,3 +215,27 @@ class Strategy:
         if supply_target <= supply:
             return
         yield MacroPlan(UnitTypeId.OVERLORD, priority=1)
+
+
+class StrategyState:
+    def __init__(
+        self,
+        knowledge: Knowledge,
+        parameters: AgentParameters,
+    ) -> None:
+        self.knowledge = knowledge
+        self.counter_factor = parameters.normal("counter_factor", NormalPrior(2, 0.1))
+        self.ravager_mixin = parameters.normal("ravager_mixin", NormalPrior(21, 1))
+        self.corruptor_mixin = parameters.normal("corruptor_mixin", NormalPrior(13, 1))
+        self.tier1_drone_count = parameters.normal("tier1_drone_count", NormalPrior(32, 1))
+        self.tier2_drone_count = parameters.normal("tier2_drone_count", NormalPrior(66, 2))
+        self.tier3_drone_count = parameters.normal("tier3_drone_count", NormalPrior(80, 3))
+        self.tech_priority = parameters.normal("tech_priority", NormalPrior(-0.25, 0.1))
+        self.hydras_when_banking = parameters.normal("hydras_when_banking", NormalPrior(10, 1))
+        self.lings_when_banking = parameters.normal("lings_when_banking", NormalPrior(10, 1))
+        self.queens_when_banking = parameters.normal("queens_when_banking", NormalPrior(3, 1))
+        self.queens_per_hatch = parameters.normal("queens_per_hatch", NormalPrior(1.5, 0.1))
+        self.queens_limit = parameters.normal("queens_limit", NormalPrior(12, 1))
+
+    def step(self, observation: Observation) -> Strategy:
+        return Strategy(self, observation)

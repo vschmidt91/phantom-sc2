@@ -9,7 +9,6 @@ class BotConfig:
     opponent_id: str | None = None
     training = False
     debug_draw = False
-    test_ling_flood = False
     profile_path: str | None = None
     save_bot_path: str | None = None
     tag_log_level = "ERROR"

@@ -24,26 +24,14 @@ from phantom.common.utils import (
     pairwise_distances,
 )
 from phantom.cython.cy_dijkstra import DijkstraOutput, cy_dijkstra
-from phantom.data.normal import NormalParameter
 from phantom.knowledge import Knowledge
 from phantom.observation import Observation
-
-
-@dataclass(frozen=True)
-class CombatParameters:
-    target_stickiness: NormalParameter
-
-
-CombatPrior = CombatParameters(
-    NormalParameter.prior(-1.0, 0.1),
-)
 
 
 @dataclass(frozen=True)
 class CombatAction:
     knowledge: Knowledge
     observation: Observation
-    parameters: CombatParameters
 
     @cached_property
     def retreat_targets(self) -> np.ndarray:
@@ -124,7 +112,7 @@ class CombatAction:
         confidence = confidence_predictor
         test_position = unit.position.towards(target, 1.5)
         if self.enemy_presence.dps[test_position.rounded] == 0 or confidence >= 0:
-            if unit.type_id in {UnitTypeId.ZERGLING}:
+            if unit.ground_range < 1:
                 return UseAbility(unit, AbilityId.ATTACK, target.position)
             return Attack(unit, target)
         else:
@@ -237,7 +225,7 @@ class CombatAction:
         )
 
         def cost_fn(a: Unit, b: Unit, d: float) -> float:
-            if a.order_target == b.tag:
+            if a.order_target == b.tag and can_attack(a, b):
                 return 0.0
             r = a.air_range if b.is_flying else a.ground_range
             travel_distance = max(0.0, d - a.radius - b.radius - r)
