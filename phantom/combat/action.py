@@ -24,26 +24,14 @@ from phantom.common.utils import (
     pairwise_distances,
 )
 from phantom.cython.cy_dijkstra import DijkstraOutput, cy_dijkstra
-from phantom.data.normal import NormalParameter
 from phantom.knowledge import Knowledge
 from phantom.observation import Observation
-
-
-@dataclass(frozen=True)
-class CombatParameters:
-    target_stickiness: NormalParameter
-
-
-CombatPrior = CombatParameters(
-    NormalParameter.prior(-1.0, 0.1),
-)
 
 
 @dataclass(frozen=True)
 class CombatAction:
     knowledge: Knowledge
     observation: Observation
-    parameters: CombatParameters
 
     @cached_property
     def retreat_targets(self) -> np.ndarray:

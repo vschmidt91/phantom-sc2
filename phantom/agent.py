@@ -26,7 +26,7 @@ from phantom.dodge import DodgeState
 from phantom.knowledge import Knowledge
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.state import MacroPlan, MacroState
-from phantom.macro.strategy import Strategy
+from phantom.macro.strategy import StrategyState
 from phantom.observation import Observation
 from phantom.parameters import AgentParameters
 from phantom.resources.observation import ResourceObservation
@@ -43,6 +43,7 @@ class Agent:
         self.corrosive_biles = CorrosiveBileState()
         self.dodge = DodgeState()
         self.scout = ScoutState(knowledge)
+        self.strategy = StrategyState(knowledge, parameters)
         self.build_order_completed = False
 
         self.build_order = BUILD_ORDERS[build_order_name]
@@ -51,9 +52,7 @@ class Agent:
         self.resources = ResourceState(self.knowledge)
 
     async def step(self, observation: Observation) -> AsyncGenerator[Action, None]:
-        strategy = Strategy(
-            self.knowledge, observation, self.parameters.strategy, observation.bot.bot_config.test_ling_flood
-        )
+        strategy = self.strategy.step(observation)
 
         if not self.knowledge.is_micro_map:
             if not self.build_order_completed:
@@ -74,7 +73,7 @@ class Agent:
                 ):
                     self.macro.add(plan)
 
-        combat = CombatAction(self.knowledge, observation, self.parameters.combat)
+        combat = CombatAction(self.knowledge, observation)
         transfuse = TransfuseAction(observation)
         creep = self.creep.step(observation, np.less_equal(0.0, combat.confidence))
 
