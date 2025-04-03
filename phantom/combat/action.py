@@ -225,7 +225,7 @@ class CombatAction:
         )
 
         def cost_fn(a: Unit, b: Unit, d: float) -> float:
-            if a.order_target == b.tag:
+            if a.order_target == b.tag and can_attack(a, b):
                 return 0.0
             r = a.air_range if b.is_flying else a.ground_range
             travel_distance = max(0.0, d - a.radius - b.radius - r)
