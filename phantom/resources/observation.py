@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import TypeAlias
 
-from ares.consts import GAS_BUILDINGS
 from sc2.unit import Unit
 from sc2.units import Units
 
@@ -51,7 +50,7 @@ class ResourceObservation:
 
     # cache
     def harvester_target_of_gas(self, resource: Unit) -> int:
-        if resource.type_id in GAS_BUILDINGS:
+        if resource.mineral_contents == 0:
             if not resource.is_ready:
                 return 0
             p = tuple(resource.position.rounded)

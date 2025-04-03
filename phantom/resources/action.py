@@ -5,7 +5,6 @@ from itertools import product
 
 import highspy
 import numpy as np
-from ares.consts import GAS_BUILDINGS
 from loguru import logger
 from sc2.unit import Unit
 from sc2.units import Units
@@ -133,7 +132,7 @@ class ResourceAction:
 
         cost = harvester_to_resource + return_distance + assignment_cost
         limit = np.full(m, 2.0)
-        is_gas = np.array([1.0 if r.type_id in GAS_BUILDINGS else 0.0 for r in resources])
+        is_gas = np.array([1.0 if r.mineral_contents == 0 else 0.0 for r in resources])
 
         problem = get_highspy_problem(n, m)
         x = problem.solve(cost, limit, is_gas, gas_target)

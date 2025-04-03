@@ -240,7 +240,9 @@ class MacroState:
 
     def handle_action(self, obs: Observation, action: ActionRawUnitCommand, tag: int) -> None:
         unit = obs.unit_by_tag.get(tag)
-        if not (item := ITEM_BY_ABILITY.get(action.exact_id)) or item in {
+        if not (item := ITEM_BY_ABILITY.get(action.exact_id)):
+            return
+        if item in {
             UnitTypeId.CREEPTUMORQUEEN,
             UnitTypeId.CREEPTUMOR,
             UnitTypeId.CHANGELING,
