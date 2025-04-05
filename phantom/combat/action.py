@@ -89,7 +89,7 @@ class CombatAction:
     def fight_with_baneling(self, baneling: Unit) -> Action | None:
         if not (target := self.optimal_targeting.get(baneling)):
             return None
-        return Move(baneling, target.position)
+        return UseAbility(baneling, AbilityId.ATTACK, target.position)
 
     def fight_with(self, unit: Unit) -> Action | None:
         def cost_fn(u: Unit) -> float:
