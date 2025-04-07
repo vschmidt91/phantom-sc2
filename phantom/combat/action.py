@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from functools import cached_property
 
 import numpy as np
+from cython_extensions.dijkstra import DijkstraOutput, cy_dijkstra
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -23,7 +24,6 @@ from phantom.common.utils import (
     disk,
     pairwise_distances,
 )
-from phantom.cython.cy_dijkstra import DijkstraOutput, cy_dijkstra
 from phantom.knowledge import Knowledge
 from phantom.observation import Observation
 
@@ -190,13 +190,13 @@ class CombatAction:
 
     @cached_property
     def retreat_air(self) -> DijkstraOutput:
-        cost = self.observation.bot.mediator.get_air_grid.copy()
+        cost = self.observation.bot.mediator.get_air_grid.astype(np.float64)
         targets = self.retreat_targets
         return cy_dijkstra(cost, targets)
 
     @cached_property
     def retreat_ground(self) -> DijkstraOutput:
-        cost = self.observation.bot.mediator.get_ground_grid.copy()
+        cost = self.observation.bot.mediator.get_ground_grid.astype(np.float64)
         targets = self.retreat_targets
         return cy_dijkstra(cost, targets)
 
@@ -209,11 +209,11 @@ class CombatAction:
 
     @cached_property
     def runby_ground(self) -> DijkstraOutput:
-        return cy_dijkstra(self.observation.bot.mediator.get_ground_grid, self.runby_targets)
+        return cy_dijkstra(self.observation.bot.mediator.get_ground_grid.astype(np.float64), self.runby_targets)
 
     @cached_property
     def runby_air(self) -> DijkstraOutput:
-        return cy_dijkstra(self.observation.bot.mediator.get_air_grid, self.runby_targets)
+        return cy_dijkstra(self.observation.bot.mediator.get_air_grid.astype(np.float64), self.runby_targets)
 
     @cached_property
     def targeting_cost(self) -> np.ndarray:
