@@ -141,3 +141,4 @@ dmypy.json
 /resources
 /data
 /out
+/cython-extensions-sc2/
