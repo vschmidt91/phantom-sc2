@@ -9,7 +9,6 @@ from importlib.util import find_spec
 from io import BytesIO
 
 import click
-from compile_cython import compile_cython
 from utils import CommandWithConfigFile
 
 
@@ -26,7 +25,6 @@ def main(
     zip_urls: list[str],
     exclude: list[str],
 ) -> None:
-    compile_cython()
 
     shutil.rmtree(output_path, ignore_errors=True)
     os.makedirs(output_path, exist_ok=True)
