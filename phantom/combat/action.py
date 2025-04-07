@@ -3,8 +3,10 @@ from dataclasses import dataclass
 from functools import cached_property
 
 import numpy as np
+from cython_extensions.dijkstra import DijkstraOutput, cy_dijkstra
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -22,7 +24,6 @@ from phantom.common.utils import (
     disk,
     pairwise_distances,
 )
-from phantom.cython.cy_dijkstra import DijkstraOutput, cy_dijkstra
 from phantom.knowledge import Knowledge
 from phantom.observation import Observation
 
@@ -86,11 +87,6 @@ class CombatAction:
     def enemy_values(self) -> dict[int, float]:
         return {u.tag: self.observation.calculate_unit_value_weighted(u.type_id) for u in self.observation.enemy_units}
 
-    def fight_with_baneling(self, baneling: Unit) -> Action | None:
-        if not (target := self.optimal_targeting.get(baneling)):
-            return None
-        return UseAbility(baneling, AbilityId.ATTACK, target.position)
-
     def fight_with(self, unit: Unit) -> Action | None:
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
@@ -105,6 +101,9 @@ class CombatAction:
 
         if not (target := self.optimal_targeting.get(unit)):
             return None
+
+        if unit.type_id in {UnitTypeId.BANELING}:
+            return Move(unit, target.position)
 
         confidence_predictor = self.prediction.survival_time[unit] - self.prediction.nearby_enemy_survival_time[unit]
         # confidence_target = self.prediction.survival_time[unit] - self.prediction.survival_time[target]
@@ -191,13 +190,13 @@ class CombatAction:
 
     @cached_property
     def retreat_air(self) -> DijkstraOutput:
-        cost = self.observation.bot.mediator.get_air_grid.copy()
+        cost = self.observation.bot.mediator.get_air_grid.astype(np.float64)
         targets = self.retreat_targets
         return cy_dijkstra(cost, targets)
 
     @cached_property
     def retreat_ground(self) -> DijkstraOutput:
-        cost = self.observation.bot.mediator.get_ground_grid.copy()
+        cost = self.observation.bot.mediator.get_ground_grid.astype(np.float64)
         targets = self.retreat_targets
         return cy_dijkstra(cost, targets)
 
@@ -210,11 +209,11 @@ class CombatAction:
 
     @cached_property
     def runby_ground(self) -> DijkstraOutput:
-        return cy_dijkstra(self.observation.bot.mediator.get_ground_grid, self.runby_targets)
+        return cy_dijkstra(self.observation.bot.mediator.get_ground_grid.astype(np.float64), self.runby_targets)
 
     @cached_property
     def runby_air(self) -> DijkstraOutput:
-        return cy_dijkstra(self.observation.bot.mediator.get_air_grid, self.runby_targets)
+        return cy_dijkstra(self.observation.bot.mediator.get_air_grid.astype(np.float64), self.runby_targets)
 
     @cached_property
     def targeting_cost(self) -> np.ndarray:
