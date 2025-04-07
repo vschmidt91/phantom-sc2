@@ -87,6 +87,11 @@ class CombatAction:
     def enemy_values(self) -> dict[int, float]:
         return {u.tag: self.observation.calculate_unit_value_weighted(u.type_id) for u in self.observation.enemy_units}
 
+    def fight_with_baneling(self, baneling: Unit) -> Action | None:
+        if not (target := self.optimal_targeting.get(baneling)):
+            return None
+        return UseAbility(baneling, AbilityId.ATTACK, target.position)
+
     def fight_with(self, unit: Unit) -> Action | None:
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield

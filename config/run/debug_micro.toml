@@ -1,5 +1,0 @@
-map_pattern = "*MicroAIArena*"
-enemy_race = "Zerg"
-save_replay = "resources\\replays\\local"
-bot_config = "config\\bot\\debug.toml"
-log_level = "TRACE"

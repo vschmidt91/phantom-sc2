@@ -241,24 +241,20 @@ class Agent:
                 or search_with(u)
             )
 
+        micro_handlers = {
+            UnitTypeId.BANELING: combat.fight_with_baneling,
+            UnitTypeId.ROACH: combat.do_burrow,
+            UnitTypeId.ROACHBURROWED: combat.do_unburrow,
+            UnitTypeId.RAVAGER: corrosive_biles.actions.get,
+            UnitTypeId.QUEEN: micro_queen,
+        }
+
         def micro_unit(u: Unit) -> Action | None:
-            unit_type = unit.type_id
-            return (
-                dodge.dodge_with(u)
-                or (combat.do_burrow(u) if unit_type in {UnitTypeId.ROACH} else None)
-                or (combat.do_unburrow(u) if unit_type in {UnitTypeId.ROACHBURROWED} else None)
-                or (corrosive_biles.actions.get(u) if unit_type in {UnitTypeId.RAVAGER} else None)
-                or (micro_queen(u) if unit_type in {UnitTypeId.QUEEN} else None)
-                # or (
-                #     combat.retreat_with(u)
-                #     if combat.prediction.outcome == CombatOutcome.Defeat
-                #     and not observation.bot.has_creep(u)
-                #     and not observation.is_micro_map
-                #     else None
-                # )
-                or combat.fight_with(u)
-                or search_with(u)
-            )
+            if action := dodge.dodge_with(u):
+                return action
+            if (handler := micro_handlers.get(unit.type_id)) and (action := handler(u)):
+                return action
+            return combat.fight_with(u) or search_with(u)
 
         def spawn_changeling(unit: Unit) -> Action | None:
             if (

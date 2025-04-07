@@ -1,6 +1,6 @@
 [project]
 name = "phantom"
-version = "3.2.1"
+version = "3.2.2"
 description = "StarCraft II Bot playing Zerg Macro"
 authors = [
     {name = "Volker Schmidt", email = "volker.schmidt91@gmail.com"}
@@ -54,12 +54,9 @@ packages = [
 ]
 include = [
     { path = "config", format = ["sdist", "wheel"] },
-    { path = "phantom/cython/*.so", format = ["sdist", "wheel"] },
-    { path = "phantom/cython/*.pyd", format = ["sdist", "wheel"] },
     { path = "run.py", format = ["sdist", "wheel"] },
     { path = "scripts", format = ["sdist", "wheel"] },
 ]
-build = "scripts/compile_cython.py"
 
 [tool.poetry.dependencies]
 ares-sc2 = { path = "ares-sc2", develop = false }

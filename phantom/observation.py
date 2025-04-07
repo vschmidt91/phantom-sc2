@@ -64,6 +64,10 @@ class Observation:
     def supply_workers(self) -> float:
         return self.bot.supply_workers
 
+    @cached_property
+    def type_of(self) -> dict[Unit, UnitTypeId]:
+        return {u: u.type_id for u in self.bot.all_units}
+
     @property
     def supply_cap(self) -> float:
         return self.bot.supply_cap

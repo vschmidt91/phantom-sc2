@@ -31,11 +31,11 @@ class CorrosiveBileState:
 
     def step_unit(self, obs: Observation, unit: Unit) -> Action | None:
         def filter_target(t: Unit) -> bool:
-            return not (
-                not obs.is_visible(t)
-                or not unit.in_ability_cast_range(_ABILITY, t.position)
-                or t.is_hallucination
-                or t.type_id in CHANGELINGS
+            return (
+                obs.is_visible(t)
+                and unit.in_ability_cast_range(_ABILITY, t.position)
+                and not t.is_hallucination
+                and t.type_id not in CHANGELINGS
             )
 
         def bile_priority(t: Unit) -> float:
