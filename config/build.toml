@@ -6,8 +6,6 @@ zip_modules = [
   "highspy",
   "sc2"
 ]
-zip_urls = [
-]
 exclude = [
   "**/__pycache__",
   "**/*.pyc",
