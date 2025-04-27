@@ -1,6 +1,6 @@
 [project]
 name = "phantom"
-version = "3.2.2"
+version = "3.3.0"
 description = "StarCraft II Bot playing Zerg Macro"
 authors = [
     {name = "Volker Schmidt", email = "volker.schmidt91@gmail.com"}
@@ -15,6 +15,7 @@ dependencies = [
     "scikit-image>=0.24.0",
     "scikit-learn (>=1.6.1,<2.0.0)",
     "highspy (>=1.10.0,<2.0.0)",
+    "cython-extensions-sc2 (>=0.6.4,<0.7.0)",
 ]
 
 [project.urls]

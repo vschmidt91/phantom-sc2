@@ -3,10 +3,8 @@ import os
 import shutil
 import subprocess
 import tempfile
-import urllib.request
 import zipfile
 from importlib.util import find_spec
-from io import BytesIO
 
 import click
 from utils import CommandWithConfigFile
@@ -16,16 +14,13 @@ from utils import CommandWithConfigFile
 @click.option("--config", type=click.File("rb"))
 @click.option("--output-path", type=click.Path())
 @click.option("--zip-modules", multiple=True)
-@click.option("--zip-urls", multiple=True)
 @click.option("--exclude", multiple=True)
 def main(
     config,
     output_path: str,
     zip_modules: list[str],
-    zip_urls: list[str],
     exclude: list[str],
 ) -> None:
-
     shutil.rmtree(output_path, ignore_errors=True)
     os.makedirs(output_path, exist_ok=True)
 
@@ -62,16 +57,6 @@ def main(
             module_dir = os.path.dirname(module_file)
             print(f"Copying {module_dir=}")
             shutil.copytree(module_dir, os.path.join(target, module))
-
-    for url in zip_urls:
-        target = output_path
-        print(f"Fetching {url=}")
-        with tempfile.TemporaryDirectory() as tmp:
-            r = urllib.request.urlopen(url).read()
-            print(f"Extracting to {target=}")
-            with zipfile.ZipFile(BytesIO(r)) as z:
-                z.extractall(tmp)
-            shutil.copytree(tmp, target, dirs_exist_ok=True)
 
     for pattern in exclude:
         for path in glob.glob(os.path.join(output_path, pattern), recursive=True):
