@@ -2,12 +2,11 @@ output_path = "build"
 zip_modules = [
   "click",
   "map_analyzer",
+  "cython_extensions",
   "highspy",
   "sc2"
 ]
 zip_urls = [
-  "https://github.com/AresSC2/cython-extensions-sc2/releases/latest/download/ubuntu-latest_python3.12.zip",
-  "https://github.com/AresSC2/cython-extensions-sc2/releases/latest/download/windows-latest_python3.12.zip"
 ]
 exclude = [
   "**/__pycache__",

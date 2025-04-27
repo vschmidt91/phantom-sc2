@@ -360,7 +360,7 @@ css = ["tinycss2 (>=1.1.0,<1.5)"]
 
 [[package]]
 name = "burnysc2"
-version = "6.5.0"
+version = "7.0.2"
 description = "A StarCraft II API Client for Python 3"
 optional = false
 python-versions = ">=3.9, <3.13"
@@ -382,7 +382,7 @@ scipy = "^1.7.1"
 type = "git"
 url = "https://github.com/august-k/python-sc2.git"
 reference = "develop"
-resolved_reference = "e2f772afb648c2d1e305684f3f1ca119b4160e15"
+resolved_reference = "95faf5ae850e08de1eff52f03db791dac9288da8"
 
 [[package]]
 name = "certifi"
@@ -939,6 +939,45 @@ files = [
     {file = "Cython-3.0.12-py2.py3-none-any.whl", hash = "sha256:0038c9bae46c459669390e53a1ec115f8096b2e4647ae007ff1bf4e6dee92806"},
     {file = "cython-3.0.12.tar.gz", hash = "sha256:b988bb297ce76c671e28c97d017b95411010f7c77fa6623dd0bb47eed1aee1bc"},
 ]
+
+[[package]]
+name = "cython-extensions-sc2"
+version = "0.6.4"
+description = ""
+optional = false
+python-versions = "<3.14,>=3.10"
+groups = ["main"]
+files = [
+    {file = "cython_extensions_sc2-0.6.4-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:9cef6cbb4e4954af3ac8930502c1861ac9137f2ad1cb03c8a860f79013a7ab87"},
+    {file = "cython_extensions_sc2-0.6.4-cp310-cp310-macosx_14_0_arm64.whl", hash = "sha256:b48090fe004bf7e08ccdc1685b1914b554caef5f122abd09b005bb696ebc99b5"},
+    {file = "cython_extensions_sc2-0.6.4-cp310-cp310-manylinux_2_17_i686.manylinux_2_5_i686.manylinux1_i686.manylinux2014_i686.whl", hash = "sha256:8d17c542a0d8a114152703b791e475525d0dd345c55d91cadddae93870c8a7fb"},
+    {file = "cython_extensions_sc2-0.6.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b64a5e46a0a25d9e1cd37f60728cb713eb6620199ed14af4f7a7dfaca8561ba4"},
+    {file = "cython_extensions_sc2-0.6.4-cp310-cp310-musllinux_1_2_i686.whl", hash = "sha256:6b324c7cb8739c0ddab287dcf8b3e98c7b8998d7816f4e90a3debded0968e493"},
+    {file = "cython_extensions_sc2-0.6.4-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:e802e417ae517646eb35f705a8f7c10527b0c94d112b1d5720874fd376e4062c"},
+    {file = "cython_extensions_sc2-0.6.4-cp310-cp310-win_amd64.whl", hash = "sha256:03ea0b06483d332e2c9243a4676d2ea6d7bbc2c153c556a90496646cd2d6983d"},
+    {file = "cython_extensions_sc2-0.6.4-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:ff4fe85eee540df12e86391544c10ea674af909608dc26681099872f00b54059"},
+    {file = "cython_extensions_sc2-0.6.4-cp311-cp311-macosx_14_0_arm64.whl", hash = "sha256:be3a29a47dbaa5c61cb5802683b745a24bdf4238f10531bf16a85baa7688afac"},
+    {file = "cython_extensions_sc2-0.6.4-cp311-cp311-manylinux_2_17_i686.manylinux_2_5_i686.manylinux1_i686.manylinux2014_i686.whl", hash = "sha256:8954a2e3580e8b66265cc04366ca597a76dd2019285f626eaabaaee34c247449"},
+    {file = "cython_extensions_sc2-0.6.4-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1514c25b7fdc84e91be44d33e6e5dd18e87c714472dbe5882609e6b931562b26"},
+    {file = "cython_extensions_sc2-0.6.4-cp311-cp311-musllinux_1_2_i686.whl", hash = "sha256:ccd956ca14aef88705e2deb9217819a0d93a1529fe4b5227a72144f4b50a251b"},
+    {file = "cython_extensions_sc2-0.6.4-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:a0674ce901dd4d21c643e2d228b2937f0f08a9b9c15eadcd1c1c59e291c4d3aa"},
+    {file = "cython_extensions_sc2-0.6.4-cp311-cp311-win_amd64.whl", hash = "sha256:39a6a576ba0792bef59b225b6e05ab094c2176915835edfea4a0004409c1d3bb"},
+    {file = "cython_extensions_sc2-0.6.4-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:2c96719c1c558dfda90579ea1e86aef5bf6f1c6a7e4b432e98dc9f2a7c808f4c"},
+    {file = "cython_extensions_sc2-0.6.4-cp312-cp312-macosx_14_0_arm64.whl", hash = "sha256:e7982bd276a1d79c03f0042069bebcc9d77ff911276c854261518dd832fdb786"},
+    {file = "cython_extensions_sc2-0.6.4-cp312-cp312-manylinux_2_17_i686.manylinux_2_5_i686.manylinux1_i686.manylinux2014_i686.whl", hash = "sha256:463e92670afc95af162df0e5560ee4d70dcbcdd93818808c9d954dee8eefe86b"},
+    {file = "cython_extensions_sc2-0.6.4-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:87c7b98f7973c5bd836f689a4cbd36bc828008da1b1c956fae482fb512aa5ab8"},
+    {file = "cython_extensions_sc2-0.6.4-cp312-cp312-musllinux_1_2_i686.whl", hash = "sha256:33b9a1c77cb538db7ed21b4afb6d4e6d14bf46696d1c8f3fd256556d3c92bfd1"},
+    {file = "cython_extensions_sc2-0.6.4-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:6c9485bef366eeaa090fdaf375ddb54888a5b41ae2b07345b1f0887743692e44"},
+    {file = "cython_extensions_sc2-0.6.4-cp312-cp312-win_amd64.whl", hash = "sha256:08f2a0b0569d8dbc6629bfbdacd82af155b90e0a385b3cd6fa269e8b45e14003"},
+    {file = "cython_extensions_sc2-0.6.4-cp313-cp313-manylinux_2_17_i686.manylinux_2_5_i686.manylinux1_i686.manylinux2014_i686.whl", hash = "sha256:16a831f1bf4c048a4a2f73c426ebbf171124ae80bf967d127d63a1dca31f582f"},
+    {file = "cython_extensions_sc2-0.6.4-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:839b3d571df696e04a92ef1bcf2c999a7cb9d9e27bf4c7cd8958a7643baf0302"},
+    {file = "cython_extensions_sc2-0.6.4-cp313-cp313-musllinux_1_2_i686.whl", hash = "sha256:5cba183991c2de59ac536437bc6d4a8a31fa129cf961e028e09a631899081ed0"},
+    {file = "cython_extensions_sc2-0.6.4-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:36a175b8503eea7fed4b90d4dc240e065c1417fb318cf3639c71408ce14d5086"},
+    {file = "cython_extensions_sc2-0.6.4-cp313-cp313-win_amd64.whl", hash = "sha256:0654ffe0afeec3be333957abab18dd8a66412ea884c7685899e4cb0c80be8afc"},
+]
+
+[package.dependencies]
+burnysc2 = ">=7.0.0"
 
 [[package]]
 name = "debugpy"
@@ -4923,4 +4962,4 @@ test = ["mypy", "ruff", "types-requests", "types-s2clientprotocol", "types-tqdm"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.13"
-content-hash = "86d96e105a1bc1c98ad58e2309a40f8132d1b5a19f955d7a4d37df018f81ff43"
+content-hash = "d86b616622e51f637053dafe841d9ff962e6b8aa8d90e94ab818bceb1a0f4db7"
