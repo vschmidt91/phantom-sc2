@@ -1,69 +1,18 @@
 import math
 from dataclasses import dataclass
-from functools import cache, cached_property
-from itertools import product
+from functools import cached_property
 
-import highspy
 import numpy as np
 from loguru import logger
 from sc2.unit import Unit
 from sc2.units import Units
 
 from phantom.common.action import Action, DoNothing, Smart
+from phantom.common.distribute import _get_problem
 from phantom.common.utils import pairwise_distances
 from phantom.knowledge import Knowledge
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
-
-
-class HighsPyProblem:
-    def __init__(self, n: int, m: int) -> None:
-        h = highspy.Highs()
-        h.setOptionValue("presolve", "off")
-        h.setOptionValue("log_to_console", "off")
-
-        vs = {(i, j): h.addVariable(lb=0.0, ub=1.0) for i, j in product(range(n), range(m))}
-        for i in range(n):
-            h.addConstr(sum(vs[i, j] for j in range(m)) == 1.0)
-        for j in range(m):
-            h.addConstr(sum(vs[i, j] for i in range(n)) <= 1.0)
-        h.addConstr(sum(vs[i, j] for i in range(n) for j in range(m)) == 1.0)
-        h.minimize(sum(vs[i, j] for i in range(n) for j in range(m)))
-
-        self.n = n
-        self.m = m
-        self.highspy = h
-        self.lp = h.getLp()
-
-    def solve(self, cost: np.ndarray, limit: np.ndarray, is_gas: np.ndarray, gas_target: int) -> np.ndarray:
-        self.lp.col_cost_ = cost.flatten()
-        self.lp.row_lower_ = np.concatenate(
-            (
-                np.ones(self.n),
-                np.zeros(self.m),
-                np.array([gas_target]),
-            )
-        )
-        self.lp.row_upper_ = np.concatenate(
-            (
-                np.ones(self.n),
-                limit,
-                np.array([gas_target]),
-            )
-        )
-        coeff = np.concatenate([[1.0, 1.0, is_gas[j]] for j in range(self.m)])
-        self.lp.a_matrix_.value_ = np.tile(coeff, self.n)
-        self.highspy.passModel(self.lp)
-        self.highspy.run()
-        solution_flat = list(self.highspy.getSolution().col_value)
-        solution = np.asarray(solution_flat).reshape((self.n, self.m))
-        return solution
-
-
-@cache
-def get_highspy_problem(n, m):
-    logger.debug(f"Creating HighsPyProblem with {n=}, {m=}")
-    return HighsPyProblem(n, m)
 
 
 class SolverError(Exception):
@@ -134,8 +83,13 @@ class ResourceAction:
         limit = np.full(m, 2.0)
         is_gas = np.array([1.0 if r.mineral_contents == 0 else 0.0 for r in resources])
 
-        problem = get_highspy_problem(n, m)
-        x = problem.solve(cost, limit, is_gas, gas_target)
+        problem = _get_problem(n, m, True)
+        problem.set_total(is_gas, gas_target)
+
+        # problem = get_highspy_problem(n, m)
+        # x = problem.solve(cost, limit, is_gas, gas_target)
+
+        x = problem.solve(cost, limit)
         indices = x.argmax(axis=1)
         assignment = {
             ai.tag: resources[j].position.rounded
