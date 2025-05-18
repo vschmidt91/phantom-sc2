@@ -1,11 +1,9 @@
 import datetime
-import glob
 import os
 import pathlib
 import random
 import re
 import sys
-from itertools import chain
 
 import aiohttp
 import click
