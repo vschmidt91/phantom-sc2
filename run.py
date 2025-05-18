@@ -3,6 +3,7 @@ import glob
 import os
 import pathlib
 import random
+import re
 import sys
 from itertools import chain
 
@@ -118,8 +119,9 @@ async def run(
         if maps_path is None:
             logger.info("No maps path provided, falling back to installation folder")
             maps_path = str(Paths.MAPS)
-        map_globs = [os.path.join(maps_path, f"{map_pattern}.{ext}") for ext in ["SC2MAP", "SC2Map"]]
-        map_choices = list(chain.from_iterable(map(glob.glob, map_globs)))
+        map_regex = re.compile(f"{map_pattern}\\.SC2(MAP|Map)")
+        map_choices = list(filter(map_regex.match, os.listdir(maps_path)))
+        logger.info(f"Found {map_choices=}")
         map_choice = random.choice(map_choices)
         logger.info(f"Picking {map_choice=}")
         opponent = Computer(Race[enemy_race], Difficulty[enemy_difficulty], AIBuild[enemy_build])

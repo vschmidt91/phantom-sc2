@@ -1,4 +1,4 @@
-map_pattern = "*MicroAIArena*"
+map_pattern = "Tier(1|2)MicroAIArena_v6"
 enemy_race = "Zerg"
 save_replay = "resources\\replays\\local"
 bot_config = "config\\bot\\debug.toml"
