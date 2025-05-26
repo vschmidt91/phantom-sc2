@@ -1,3 +1,4 @@
+import contextlib
 from collections.abc import Mapping, Set
 from dataclasses import dataclass
 
@@ -80,10 +81,8 @@ class Replay:
                 else:
                     units[unit_tag] = ReplayUnit(player, unit_type)
             elif event_type == "NNet.Replay.Tracker.SUnitDiedEvent":
-                try:
+                with contextlib.suppress(KeyError):
                     del units[unit_tag]
-                except KeyError:
-                    pass
             elif event_type == "NNet.Replay.Tracker.SUpgradeEvent":
                 upgrade_type = event["m_upgradeTypeName"].decode(REPLAY_TYPE_ENCODING)
                 if upgrade_type.startswith("Spray"):
