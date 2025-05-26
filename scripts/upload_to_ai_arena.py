@@ -1,46 +1,61 @@
-import os
-
-import requests
+import click
+from requests import HTTPError, Session
 from requests.adapters import HTTPAdapter, Retry
 
-API_TOKEN_ENV = "UPLOAD_API_TOKEN"
-BOT_ID_ENV = "UPLOAD_BOT_ID"
-ZIPFILE_NAME = "bot.zip"
-WIKI_FILE_NAME = "WIKI.md"
-BASE_URL = "https://aiarena.net"
 
-token = os.environ.get(API_TOKEN_ENV)
-bot_id = os.environ.get(BOT_ID_ENV)
-url = f"{BASE_URL}/api/bots/{bot_id}/"
-RETRIES = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
-
-print("Uploading bot")
-with (
-    open(ZIPFILE_NAME, "rb") as bot_zip,
-    open(WIKI_FILE_NAME, "r") as wiki,
+@click.command()
+@click.argument("bot-zip", type=click.File("rb"))
+@click.option("--wiki", type=click.File("rb"))
+@click.option("--api-token", envvar="UPLOAD_API_TOKEN")
+@click.option("--bot-id", envvar="UPLOAD_BOT_ID")
+@click.option("--bot-zip-publicly-downloadable", type=bool)
+@click.option("--bot-data-publicly-downloadable", type=bool)
+@click.option("--bot-data-enabled", type=bool)
+def main(
+    bot_zip,
+    wiki,
+    api_token: str,
+    bot_id: str,
+    bot_zip_publicly_downloadable: bool,
+    bot_data_publicly_downloadable: bool,
+    bot_data_enabled: bool,
 ):
+    url = f"https://aiarena.net/api/bots/{bot_id}/"
+    print(f"Uploading to {url=}")
+
+    # configure retries in case AIArena does not respond
+    session = Session()
+    retries = Retry(total=5, backoff_factor=1, status_forcelist=[502, 503, 504])
+    session.mount("https://aiarena.net", HTTPAdapter(max_retries=retries))
     request_headers = {
-        "Authorization": f"Token {token}",
+        "Authorization": f"Token {api_token}",
     }
-    request_data = {
-        # "bot_zip_publicly_downloadable": False,
-        # "bot_data_publicly_downloadable": False,
-        # "bot_data_enabled": True,
-        "wiki_article_content": wiki.read(),
-    }
+
+    request_data = {}
+    if bot_zip_publicly_downloadable:
+        request_data["bot_zip_publicly_downloadable"] = bot_zip_publicly_downloadable
+    if bot_data_publicly_downloadable:
+        request_data["bot_data_publicly_downloadable"] = bot_data_publicly_downloadable
+    if bot_data_enabled:
+        request_data["bot_data_enabled"] = bot_data_enabled
+    if wiki:
+        request_data["wiki_article_content"] = wiki.read()
+
     request_files = {
         "bot_zip": bot_zip,
     }
 
-    # configure retries in case AIArena does not respond
-    session = requests.Session()
-    session.mount(BASE_URL, HTTPAdapter(max_retries=RETRIES))
-    response = requests.patch(url, headers=request_headers, data=request_data, files=request_files)
+    response = session.patch(url, headers=request_headers, data=request_data, files=request_files)
 
-    print(response)
-    print(response.content)
+    print(f"{response=}")
+    print(f"{response.content=}")
 
     try:
         response.raise_for_status()
-    except requests.exceptions.HTTPError as err:
-        raise err
+    except HTTPError as error:
+        print(f"{error=}")
+        raise error
+
+
+if __name__ == "__main__":
+    main()

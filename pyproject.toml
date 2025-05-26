@@ -1,6 +1,6 @@
 [project]
 name = "phantom"
-version = "3.2.0"
+version = "3.3.0"
 description = "StarCraft II Bot playing Zerg Macro"
 authors = [
     {name = "Volker Schmidt", email = "volker.schmidt91@gmail.com"}
@@ -8,39 +8,57 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.11, <3.13"
 dependencies = [
-    "burnysc2 @ git+https://github.com/august-k/python-sc2@develop",
-    "scikit-image>=0.24.0",
-    "river>=0.22.0",
+    "burnysc2 @ git+https://github.com/august-k/python-sc2.git@develop",
+    "click (>=8.1.8,<9.0.0)",
     "pyyaml (>=6.0.2,<7.0.0)",
+    "river>=0.22.0",
+    "scikit-image>=0.24.0",
     "scikit-learn (>=1.6.1,<2.0.0)",
+    "highspy (>=1.10.0,<2.0.0)",
+    "cython-extensions-sc2 (>=0.6.4,<0.7.0)",
+    "s2protocol @ git+https://github.com/vschmidt91/s2protocol",
 ]
+
+[project.urls]
+Repository = "https://github.com/vschmidt91/phantom-sc2.git"
 
 [project.optional-dependencies]
 dev = [
-    "click (>=8.1.8,<9.0.0)",
     "jupyter>=1.0.0",
-    "mpyq>=0.2.5",
+    "matplotlib (>=3.10.1,<4.0.0)",
+    "notebook (>=7.3.3,<8.0.0)",
     "pandas>=2.2.3",
+    "plotly (>=6.0.1,<7.0.0)",
     "s2protocol>=5.0.13.92440.4",
     "snakeviz>=2.2.0",
     "tqdm>=4.67.0",
 ]
 test = [
-    "ruff (>=0.11.0,<0.12.0)",
     "mypy>=1.12.0",
+    "ruff (>=0.11.0,<0.12.0)",
     "types-requests (>=2.32.0.20250306,<3.0.0.0)",
+    "types-s2clientprotocol (>=5.0.0.20241030,<6.0.0.0)",
     "types-tqdm>=4.66.0.20240417",
+    "yamllint (>=1.37.0,<2.0.0)",
 ]
 build = [
     "cvxpygen>=0.4.3",
     "cython>=3.0.10",
-    "cython-extensions-sc2 @ git+https://github.com/AresSC2/cython-extensions-sc2.git",
     "map-analyzer @ git+https://github.com/raspersc2/SC2MapAnalysis.git",
     "requests (>=2.32.3,<3.0.0)",
 ]
 
-[project.urls]
-Repository = "https://github.com/vschmidt91/phantom-sc2.git"
+[tool.poetry]
+packages = [
+    { include = "phantom" },
+    { include = "sc2_helper", from="ares-sc2" },
+    { include = "ares", from="ares-sc2/src"},
+]
+include = [
+    { path = "config", format = ["sdist", "wheel"] },
+    { path = "run.py", format = ["sdist", "wheel"] },
+    { path = "scripts", format = ["sdist", "wheel"] },
+]
 
 [tool.poetry.dependencies]
 ares-sc2 = { path = "ares-sc2", develop = false }
@@ -54,26 +72,52 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
 line-length = 120
+exclude = [
+    "ares-sc2",
+    "cython-extensions-sc2",
+]
 
 [tool.ruff.lint]
-select = ["E", "F"]
-ignore = ["F401"]
+select = [
+    "E",    # pycodestyle
+    "W",    # warnings
+    "F",    # Pyflakes
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "I",    # isort
+    "NPY",  # numpy specific
+    "PD",   # pandas specific
+    "PERF", # performance
+    "PLE",  # Error
+    "PLW",  # Warning
+    "UP",   # Upgrade to newer language
+    "FURB", # refurb
+    "RUF",  # ruff specific
+]
+ignore = ["E501", "B019"]
+fixable = ["ALL"]
+
+[tool.mypy]
+exclude = [
+    "^ares-sc2/",
+    "^cython-extensions-sc2/",
+    "^build/",
+    "^resources/",
+    "^scripts/",
+]
 
 [[tool.mypy.overrides]]
 module = [
-    "phantom.cython.*",
     "ares.*",
-    "Cython.*",
-    "distutils.*",
-    "loguru.*",
-    "cvxpy.*",
-    "cvxpygen.*",
+    "cython_extensions.*",
+    "highspy.*",
+    "pandas.*",
+    "phantom.compiled.*",
+    "phantom.cython.*",
     "sc2.*",
     "scipy.*",
-    "pandas.*",
+    "skimage.*",
     "sklearn.*",
-    "cython_extensions.*",
-    "mpyq.*",
-    "s2protocol.*",
 ]
 ignore_missing_imports = true

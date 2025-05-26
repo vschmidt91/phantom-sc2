@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -54,7 +54,7 @@ class ExtractorTrick(BuildOrder):
 
     def execute(self, obs: Observation) -> BuildOrderStep | None:
         if self.at_supply == obs.supply_used and obs.bank.supply <= 0:
-            if 0 == obs.count(self.unit_type):
+            if obs.count(self.unit_type) == 0:
                 if self.min_minerals < obs.bank.minerals:
                     return BuildOrderStep([MacroPlan(self.unit_type)], [])
                 else:
@@ -75,60 +75,70 @@ class BuildOrderChain(BuildOrder):
         return None
 
 
-OVERHATCH = BuildOrderChain(
-    [
-        Make(UnitTypeId.DRONE, 14),
-        ExtractorTrick(),
-        Make(UnitTypeId.OVERLORD, 2),
-        Make(UnitTypeId.HATCHERY, 2),
-        Make(UnitTypeId.DRONE, 16),
-        Make(UnitTypeId.SPAWNINGPOOL, 1),
-        Make(UnitTypeId.EXTRACTOR, 1),
-    ]
-)
-
-HATCH_FIRST = BuildOrderChain(
-    [
-        Make(UnitTypeId.DRONE, 13),
-        Make(UnitTypeId.OVERLORD, 2),
-        Make(UnitTypeId.DRONE, 16),
-        Make(UnitTypeId.HATCHERY, 2),
-        Make(UnitTypeId.DRONE, 17),
-        Make(UnitTypeId.EXTRACTOR, 1),
-        WaitUntil(lambda obs: obs.gas_buildings),
-        Make(UnitTypeId.SPAWNINGPOOL, 1),
-    ]
-)
-
-HATCH_POOL_HATCH = BuildOrderChain(
-    [
-        Make(UnitTypeId.DRONE, 13),
-        Make(UnitTypeId.OVERLORD, 2),
-        Make(UnitTypeId.DRONE, 17),
-        Make(UnitTypeId.HATCHERY, 2),
-        Make(UnitTypeId.DRONE, 18),
-        Make(UnitTypeId.EXTRACTOR, 1),
-        WaitUntil(lambda obs: obs.gas_buildings),
-        Make(UnitTypeId.SPAWNINGPOOL, 1),
-        Make(UnitTypeId.DRONE, 19),
-        Make(UnitTypeId.HATCHERY, 3),
-    ]
-)
-
-POOL_FIRST = BuildOrderChain(
-    [
-        Make(UnitTypeId.DRONE, 14),
-        Make(UnitTypeId.OVERLORD, 2),
-        Make(UnitTypeId.SPAWNINGPOOL, 1),
-        Make(UnitTypeId.DRONE, 17),
-        Make(UnitTypeId.HATCHERY, 2),
-        Make(UnitTypeId.QUEEN, 1),
-        Make(UnitTypeId.ZERGLING, 1),
-        Make(UnitTypeId.EXTRACTOR, 1),
-        Make(UnitTypeId.ROACHWARREN, 1),
-        # Make(UnitTypeId.DRONE, 19),
-        # Make(UnitTypeId.ROACHWARREN, 1),
-        # Make(UnitTypeId.OVERLORD, 3),
-        # Make(UnitTypeId.ROACH, 7),
-    ]
-)
+BUILD_ORDERS = {
+    "OVERHATCH": BuildOrderChain(
+        [
+            Make(UnitTypeId.DRONE, 14),
+            ExtractorTrick(),
+            Make(UnitTypeId.OVERLORD, 2),
+            Make(UnitTypeId.HATCHERY, 2),
+            Make(UnitTypeId.DRONE, 16),
+            Make(UnitTypeId.SPAWNINGPOOL, 1),
+            Make(UnitTypeId.EXTRACTOR, 1),
+        ]
+    ),
+    "HATCH_FIRST": BuildOrderChain(
+        [
+            Make(UnitTypeId.DRONE, 13),
+            Make(UnitTypeId.OVERLORD, 2),
+            Make(UnitTypeId.DRONE, 16),
+            Make(UnitTypeId.HATCHERY, 2),
+            Make(UnitTypeId.DRONE, 17),
+            Make(UnitTypeId.EXTRACTOR, 1),
+            WaitUntil(lambda obs: obs.gas_buildings),
+            Make(UnitTypeId.SPAWNINGPOOL, 1),
+        ]
+    ),
+    "HATCH_POOL_HATCH": BuildOrderChain(
+        [
+            Make(UnitTypeId.DRONE, 13),
+            Make(UnitTypeId.OVERLORD, 2),
+            Make(UnitTypeId.DRONE, 17),
+            Make(UnitTypeId.HATCHERY, 2),
+            Make(UnitTypeId.DRONE, 18),
+            Make(UnitTypeId.EXTRACTOR, 1),
+            WaitUntil(lambda obs: obs.gas_buildings),
+            Make(UnitTypeId.SPAWNINGPOOL, 1),
+            WaitUntil(lambda obs: obs.structures(UnitTypeId.SPAWNINGPOOL)),
+            Make(UnitTypeId.DRONE, 19),
+            Make(UnitTypeId.HATCHERY, 3),
+        ]
+    ),
+    "POOL_FIRST": BuildOrderChain(
+        [
+            Make(UnitTypeId.DRONE, 14),
+            Make(UnitTypeId.OVERLORD, 2),
+            Make(UnitTypeId.SPAWNINGPOOL, 1),
+            Make(UnitTypeId.DRONE, 17),
+            Make(UnitTypeId.HATCHERY, 2),
+            Make(UnitTypeId.QUEEN, 1),
+            Make(UnitTypeId.ZERGLING, 1),
+            Make(UnitTypeId.EXTRACTOR, 1),
+            Make(UnitTypeId.ROACHWARREN, 1),
+            # Make(UnitTypeId.DRONE, 19),
+            # Make(UnitTypeId.ROACHWARREN, 1),
+            # Make(UnitTypeId.OVERLORD, 3),
+            # Make(UnitTypeId.ROACH, 7),
+        ]
+    ),
+    "TEST": BuildOrderChain(
+        [
+            Make(UnitTypeId.DRONE, 14),
+            Make(UnitTypeId.OVERLORD, 2),
+            Make(UnitTypeId.SPAWNINGPOOL, 1),
+            Make(UnitTypeId.DRONE, 17),
+            Make(UnitTypeId.HATCHERY, 2),
+            Make(UnitTypeId.QUEEN, 1),
+        ]
+    ),
+}

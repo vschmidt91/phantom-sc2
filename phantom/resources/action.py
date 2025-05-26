@@ -1,20 +1,16 @@
 import math
 from dataclasses import dataclass
-from functools import cache, cached_property
-from itertools import groupby
+from functools import cached_property
 
-import cvxpy as cp
 import numpy as np
-from ares.consts import GAS_BUILDINGS
 from loguru import logger
-from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
-from scipy.optimize import linprog
 
 from phantom.common.action import Action, DoNothing, Smart
-from phantom.common.assignment import Assignment
-from phantom.common.utils import CVXPY_OPTIONS, LINPROG_OPTIONS, pairwise_distances
+from phantom.common.distribute import _get_problem
+from phantom.common.utils import pairwise_distances
+from phantom.knowledge import Knowledge
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
 
@@ -23,76 +19,12 @@ class SolverError(Exception):
     pass
 
 
-@cache
-def get_problem(n, m):
-    x = cp.Variable((n, m), "x")
-    w = cp.Parameter((n, m), name="w")
-    b = cp.Parameter(m, name="b")
-    gw = cp.Parameter(m, name="gw")
-    g = cp.Parameter(name="g")
-
-    spread_cost = cp.var(cp.sum(x, 0))
-    oversaturation = cp.sum(cp.maximum(0, cp.sum(x, 0) - b))
-    oversaturation_gas = cp.abs(cp.vdot(cp.sum(x, 0), gw) - g)
-    assign_cost = cp.vdot(w, x)
-    objective = cp.Minimize(assign_cost + 10 * spread_cost + 32 * oversaturation_gas + 32 * oversaturation)
-    # objective = cp.Minimize(cp.vdot(w, x))
-    constraints = [
-        cp.sum(x, 1) == 1,
-        0 <= x,
-    ]
-    problem = cp.Problem(objective, constraints)
-    return problem
-
-
-def cp_solve(b, c, g, gw):
-    n, m = c.shape
-    problem = get_problem(n, m)
-    problem.param_dict["w"].value = c
-    problem.param_dict["b"].value = b
-    problem.param_dict["g"].value = g
-    problem.param_dict["gw"].value = gw
-    problem.solve(**CVXPY_OPTIONS)
-    x = problem.var_dict["x"].value
-    if x is None:
-        x = np.zeros((n, m))
-    return x
-
-
 @dataclass(frozen=True)
 class ResourceAction:
+    knowledge: Knowledge
     observation: ResourceObservation
     previous_assignment: HarvesterAssignment
     previous_hash: int
-
-    # @cached_property
-    # def harvesters_in_gas_buildings(self) -> dict[Point2, list[int]]:
-    #     assigned_to_gas_building = {
-    #         p: ts
-    #         for p, ts in self.previous_assignment.inverse
-    #         if p in self.observation.gas_building_at
-    #     }
-    #
-    #     def might_be_in_geyser(t: int, gp: Point2) -> bool:
-    #         if not (g := self.observation.gas_building_at.get(gp)):
-    #             return False
-    #         if t in self.observation.observation.unit_by_tag:
-    #             return False
-    #         if t in self.observation.observation.bot.state.dead_units:
-    #             return False
-    #         # if self.previous_assignment.get(u.tag) != g.position:
-    #         #     return False
-    #         if g.assigned_harvesters == len(assigned_to_gas_building.get(g.position, ())):
-    #             return False
-    #         return True
-    #
-    #     return {
-    #         p: list(filter(
-    #             lambda t: might_be_in_geyser(t, self.previous_assignment.get(t)),
-    #             ts,
-    #         ))
-    #         for p, ts in assigned_to_gas_building.items()
-    #     }
 
     @cached_property
     def harvester_assignment(self) -> HarvesterAssignment:
@@ -105,14 +37,14 @@ class ResourceAction:
             return self.previous_assignment
 
     def solve(self) -> HarvesterAssignment | None:
-        if not self.observation.mineral_fields:
-            return HarvesterAssignment({})
-
         harvesters = self.observation.harvesters
         resources = list(self.observation.mineral_fields + self.observation.gas_buildings)
 
-        mineral_max = sum(self.observation.harvester_target_at(p) for p in self.observation.mineral_field_at)
-        gas_max = sum(self.observation.harvester_target_at(p) for p in self.observation.gas_building_at)
+        if not any(resources):
+            return {}
+
+        mineral_max = 2 * self.observation.mineral_fields.amount
+        gas_max = sum(self.observation.harvester_target_of_gas(g) for g in self.observation.gas_buildings)
 
         if self.observation.observation.researched_speed:
             gas_target = self.gas_target
@@ -128,68 +60,44 @@ class ResourceAction:
             harvesters = sorted(harvesters, key=lambda u: u.tag)[:harvester_max]
 
         if not any(harvesters):
-            return Assignment({})
-        if not any(resources):
-            return Assignment({})
-
-        # enforce gas target
-        is_gas_building = np.array([1.0 if r.type_id in GAS_BUILDINGS else 0.0 for r in resources])
+            return {}
 
         harvester_to_resource = pairwise_distances(
             [h.position for h in harvesters],
-            [self.observation.observation.speedmining_positions.get(r.position, r.position) for r in resources],
+            [self.knowledge.speedmining_positions[r.position.rounded] for r in resources],
         )
 
-        return_distance = np.array([self.observation.observation.return_distances[r.position] for r in resources])
+        return_distance = np.array([self.knowledge.return_distances[r.position.rounded] for r in resources])
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
 
         assignment_cost = np.ones((len(harvesters), len(resources)))
-        resource_index_by_position = {r.position: i for i, r in enumerate(resources)}
+        resource_index_by_position = {r.position.rounded: i for i, r in enumerate(resources)}
         for i, hi in enumerate(harvesters):
-            if ti := self.previous_assignment.get(hi.tag):
-                if (j := resource_index_by_position.get(ti)) is not None:
-                    assignment_cost[i, j] = 0.0
+            if (ti := self.previous_assignment.get(hi.tag)) and (j := resource_index_by_position.get(ti)) is not None:
+                assignment_cost[i, j] = 0.0
 
-        gas_limit = 3.0 if not self.observation.observation.researched_speed else 2.0
-        gas_limit = 2.0
-        mineral_limit = 2.0
+        n = len(harvesters)
+        m = len(resources)
 
         cost = harvester_to_resource + return_distance + assignment_cost
-        opt = linprog(
-            c=cost.flatten(),
-            A_ub=np.tile(np.eye(len(resources), len(resources)), (1, len(harvesters))),
-            b_ub=np.array([gas_limit if r in GAS_BUILDINGS else mineral_limit for r in resources]),
-            A_eq=np.concatenate(
-                (
-                    np.repeat(np.eye(len(harvesters), len(harvesters)), len(resources), axis=1),
-                    np.expand_dims(np.tile(is_gas_building, len(harvesters)), 0),
-                )
-            ),
-            b_eq=np.concatenate(
-                (
-                    np.full(len(harvesters), 1.0),
-                    np.array([gas_target]),
-                )
-            ),
-            **LINPROG_OPTIONS,
-        )
-        if not opt.success:
-            return None
+        limit = np.full(m, 2.0)
+        is_gas = np.array([1.0 if r.mineral_contents == 0 else 0.0 for r in resources])
 
-        x = opt.x.reshape(cost.shape)
+        problem = _get_problem(n, m, True)
+        problem.set_total(is_gas, gas_target)
+
+        # problem = get_highspy_problem(n, m)
+        # x = problem.solve(cost, limit, is_gas, gas_target)
+
+        x = problem.solve(cost, limit)
         indices = x.argmax(axis=1)
-        assignment = Assignment(
-            {ai.tag: resources[j].position for (i, ai), j in zip(enumerate(harvesters), indices) if 0 < x[i, j]}
-        )
-        return assignment
+        assignment = {
+            ai.tag: resources[j].position.rounded
+            for (i, ai), j in zip(enumerate(harvesters), indices, strict=False)
+            if x[i, j] > 0
+        }
 
-        # return distribute(
-        #     harvesters,
-        #     resources,
-        #     cost_fn=cost,
-        #     max_assigned=2,
-        #     lp=True,
-        # )
+        return assignment
 
     @cached_property
     def gas_target(self) -> int:
@@ -202,18 +110,18 @@ class ResourceAction:
         if not (target := self.observation.resource_at.get(target_pos)):
             logger.error(f"No resource found at {target_pos}")
             return None
-        if target.is_vespene_geyser:
-            if not (target := self.observation.gas_building_at.get(target_pos)):
-                logger.error(f"No gas building found at {target_pos}")
-                return None
+        if target.is_vespene_geyser and not (target := self.observation.gas_building_at.get(target_pos)):
+            logger.error(f"No gas building found at {target_pos}")
+            return None
         if unit.is_idle:
             return Smart(unit, target)
-        elif 2 <= len(unit.orders):
+        elif len(unit.orders) >= 2:
             return DoNothing()
         elif unit.is_gathering:
-            return GatherAction(unit, target, self.observation.observation.speedmining_positions.get(target_pos))
+            return GatherAction(unit, target, self.knowledge.speedmining_positions[target_pos])
         elif unit.is_returning:
-            assert any(return_targets)
+            if not any(return_targets):
+                return None
             return_target = min(return_targets, key=lambda th: th.distance_to(unit))
             return ReturnResource(unit, return_target)
         return Smart(unit, target)

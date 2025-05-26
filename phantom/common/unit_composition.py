@@ -1,5 +1,6 @@
+from collections import Counter
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Counter, Iterable, Mapping
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit

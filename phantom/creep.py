@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from functools import cached_property
 
 import numpy as np
-from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -10,8 +9,9 @@ from sc2.unit import Unit
 from scipy.ndimage import gaussian_filter
 
 from phantom.common.action import Action, UseAbility
-from phantom.common.constants import ENERGY_COST
+from phantom.common.constants import ENERGY_COST, HALF
 from phantom.common.utils import circle, circle_perimeter, line, rectangle
+from phantom.knowledge import Knowledge
 from phantom.observation import Observation
 
 TUMOR_RANGE = 10
@@ -21,23 +21,24 @@ _BASE_SIZE = (5, 5)
 
 @dataclass(frozen=True)
 class CreepAction:
+    knowledge: Knowledge
     obs: Observation
     mask: np.ndarray
     active_tumors: set[Unit]
 
     @property
     def prevent_blocking(self):
-        return self.obs.bases
+        return self.knowledge.bases
 
     @property
     def reward_blocking(self):
-        return self.obs.bases
+        return self.knowledge.bases
 
     @cached_property
     def placement_map(self) -> np.ndarray:
         m = self.obs.creep & self.obs.vision & (self.obs.pathing == 1) & self.mask
         for b in self.prevent_blocking:
-            x, y = (Point2(b) - 0.5 * Point2(_BASE_SIZE)).rounded
+            x, y = (Point2(b).offset(HALF) - 0.5 * Point2(_BASE_SIZE)).rounded
             r = rectangle((x, y), extent=_BASE_SIZE, shape=self.obs.creep.shape)
             m[r] = False
         return m
@@ -46,7 +47,7 @@ class CreepAction:
     def value_map(self) -> np.ndarray:
         m = (~self.obs.creep & (self.obs.pathing == 1)).astype(float)
         for b in self.reward_blocking:
-            x, y = (Point2(b) - 0.5 * Point2(_BASE_SIZE)).rounded
+            x, y = (Point2(b).offset(HALF) - 0.5 * Point2(_BASE_SIZE)).rounded
             r = rectangle((x, y), extent=_BASE_SIZE, shape=self.obs.creep.shape)
             m[r] *= 3
         return m
@@ -72,10 +73,10 @@ class CreepAction:
         advance = line(target[0], target[1], x0, y0)
         for p in advance:
             if self.placement_map[p]:
-                target_point = Point2(p).offset(Point2((0.5, 0.5)))
+                target_point = Point2(p).offset(HALF)
                 return UseAbility(unit, AbilityId.BUILD_CREEPTUMOR, target_point)
 
-        logger.debug("No creep tumor placement found.")
+        # logger.warning("No creep tumor placement found.")
         return None
 
     def spread_with_queen(self, queen: Unit) -> Action | None:
@@ -88,8 +89,10 @@ class CreepAction:
 
 
 class CreepState:
-    created_at_step = dict[int, int]()
-    spread_at_step = dict[int, int]()
+    def __init__(self, knowledge: Knowledge) -> None:
+        self.knowledge = knowledge
+        self.created_at_step = dict[int, int]()
+        self.spread_at_step = dict[int, int]()
 
     @property
     def unspread_tumor_count(self):
@@ -97,9 +100,8 @@ class CreepState:
 
     def step(self, obs: Observation, mask: np.ndarray) -> CreepAction:
         for t in set(self.created_at_step) - set(self.spread_at_step):
-            if cmd := obs.unit_commands.get(t):
-                if cmd.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
-                    self.spread_at_step[t] = obs.game_loop
+            if (cmd := obs.unit_commands.get(t)) and cmd.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
+                self.spread_at_step[t] = obs.game_loop
 
         def is_active(t: Unit) -> bool:
             creation_step = self.created_at_step.setdefault(t.tag, obs.game_loop)
@@ -111,6 +113,7 @@ class CreepState:
         active_tumors = {t for t in all_tumors if is_active(t)}
 
         return CreepAction(
+            self.knowledge,
             obs,
             mask,
             active_tumors,

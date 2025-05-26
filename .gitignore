@@ -8,6 +8,7 @@ __pycache__/
 
 # C extensions
 *.so
+*.c
 *.cpp
 
 # Distribution / packaging
@@ -135,7 +136,10 @@ dmypy.json
 
 .idea
 /bot.zip
+/cython_extensions
 /version.txt
 /resources
 /data
 /out
+/cython-extensions-sc2/
+/ares-sc2/
