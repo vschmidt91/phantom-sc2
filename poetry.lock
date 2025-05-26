@@ -4118,20 +4118,23 @@ protobuf = "*"
 name = "s2protocol"
 version = "5.0.14.93333.0"
 description = "Python library to decode StarCraft II replay protocols"
-optional = true
+optional = false
 python-versions = "*"
 groups = ["main"]
-markers = "extra == \"dev\""
-files = [
-    {file = "s2protocol-5.0.14.93333.0-py2-none-any.whl", hash = "sha256:84ed3f9a72f98998d3a9371a08c0c75b7e649c0759ab2019bfeb8d6bea40707e"},
-    {file = "s2protocol-5.0.14.93333.0.tar.gz", hash = "sha256:37b5cd9933762f9cd0315778f2d75c978f441f3b1c507763a1c859422a3b07f0"},
-]
+files = []
+develop = false
 
 [package.dependencies]
 mpyq = ">=0.2.2"
 
 [package.extras]
 tests = ["tox"]
+
+[package.source]
+type = "git"
+url = "https://github.com/vschmidt91/s2protocol"
+reference = "HEAD"
+resolved_reference = "06898ca5b57a979d4a903f204ca73acc186e16fd"
 
 [[package]]
 name = "scikit-image"
@@ -4962,4 +4965,4 @@ test = ["mypy", "ruff", "types-requests", "types-s2clientprotocol", "types-tqdm"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11, <3.13"
-content-hash = "d86b616622e51f637053dafe841d9ff962e6b8aa8d90e94ab818bceb1a0f4db7"
+content-hash = "65d832369a2b15f8ef290ad5eba02d46a7a2dd6885cc35fb7418c66df55e0632"

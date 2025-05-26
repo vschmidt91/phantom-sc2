@@ -16,6 +16,7 @@ dependencies = [
     "scikit-learn (>=1.6.1,<2.0.0)",
     "highspy (>=1.10.0,<2.0.0)",
     "cython-extensions-sc2 (>=0.6.4,<0.7.0)",
+    "s2protocol @ git+https://github.com/vschmidt91/s2protocol",
 ]
 
 [project.urls]
