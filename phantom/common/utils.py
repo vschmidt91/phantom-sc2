@@ -1,6 +1,7 @@
 import asyncio
 import math
-from collections.abc import Callable, Iterable
+from collections import Counter
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import fields
 from functools import cache, wraps
 from typing import TypeAlias
@@ -39,6 +40,12 @@ LINPROG_OPTIONS = dict(
 )
 
 RNG = np.random.default_rng(42)
+
+type Json = Mapping[str, "Json"] | Sequence["Json"] | str | int | float | bool | None
+
+
+def count_sorted[T](items: Iterable[T]) -> dict[T, int]:
+    return dict(sorted(Counter(items).items()))
 
 
 class PlacementNotFoundException(Exception):

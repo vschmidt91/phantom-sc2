@@ -1,0 +1,107 @@
+from collections.abc import Mapping, Set
+from dataclasses import dataclass
+
+from mpyq import MPQArchive
+from s2protocol import versions
+
+from phantom.common.constants import REPLAY_TYPE_ENCODING
+from phantom.common.utils import Json, count_sorted
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class ReplayUnit:
+    player: int
+    type: str
+
+
+@dataclass(frozen=True, slots=True)
+class ReplayUpgrade:
+    player: int
+    type: str
+
+
+@dataclass(frozen=True, slots=True)
+class ReplayStep:
+    units: Mapping[int, ReplayUnit]
+    upgrades: Set[ReplayUpgrade]
+
+    def to_json(self) -> Json:
+        return {
+            str(player): dict(
+                units=count_sorted(u.type for u in self.units.values() if u.player == player),
+                upgrades=[u.type for u in self.upgrades if u.player == player],
+            )
+            for player in [0, 1, 2]
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class Replay:
+    steps: Mapping[int, ReplayStep]
+
+    def to_json(self) -> Json:
+        return {str(game_loop): step.to_json() for game_loop, step in self.steps.items()}
+
+    @classmethod
+    def from_file(cls, replay_path: str) -> "Replay":
+        archive = MPQArchive(replay_path)
+        header = versions.latest().decode_replay_header(archive.header["user_data_header"]["content"])
+        protocol = versions.build(header["m_version"]["m_baseBuild"])
+        tracker_events = list(protocol.decode_replay_tracker_events(archive.read_file("replay.tracker.events")))
+
+        steps = dict[int, ReplayStep]()
+        units = dict[int, ReplayUnit]()
+        upgrades = set[ReplayUpgrade]()
+        game_loop = 0
+
+        for event in tracker_events:
+            event_type = event["_event"]
+            event_game_loop = event["_gameloop"]
+
+            if event_game_loop != game_loop:
+                steps[game_loop] = ReplayStep(units.copy(), upgrades.copy())
+                game_loop = event_game_loop
+
+            try:
+                unit_tag = protocol.unit_tag(event["m_unitTagIndex"], event["m_unitTagRecycle"])
+            except KeyError:
+                unit_tag = 0
+
+            unit_type = event.get("m_unitTypeName", b"").decode(REPLAY_TYPE_ENCODING)
+            player = event.get("m_upkeepPlayerId", -1)
+
+            if event_type == "NNet.Replay.Tracker.SPlayerSetupEvent":
+                pass
+            elif (
+                event_type == "NNet.Replay.Tracker.SUnitBornEvent" or event_type == "NNet.Replay.Tracker.SUnitInitEvent"
+            ):
+                if unit_type.startswith("Beacon"):
+                    pass
+                else:
+                    units[unit_tag] = ReplayUnit(player, unit_type)
+            elif event_type == "NNet.Replay.Tracker.SUnitDiedEvent":
+                try:
+                    del units[unit_tag]
+                except KeyError:
+                    pass
+            elif event_type == "NNet.Replay.Tracker.SUpgradeEvent":
+                upgrade_type = event["m_upgradeTypeName"].decode(REPLAY_TYPE_ENCODING)
+                if upgrade_type.startswith("Spray"):
+                    pass
+                else:
+                    upgrades.add(ReplayUpgrade(event["m_playerId"], upgrade_type))
+            elif event_type == "NNet.Replay.Tracker.SPlayerStatsEvent":
+                pass
+            elif event_type == "NNet.Replay.Tracker.SUnitTypeChangeEvent":
+                units[unit_tag] = ReplayUnit(units[unit_tag].player, unit_type)
+            elif (
+                event_type == "NNet.Replay.Tracker.SUnitDoneEvent"
+                or event_type == "NNet.Replay.Tracker.SUnitPositionsEvent"
+            ):
+                pass
+            elif event_type == "NNet.Replay.Tracker.SUnitOwnerChangeEvent":
+                units[unit_tag] = ReplayUnit(player, units[unit_tag].type)
+            else:
+                raise TypeError(event_type)
+
+        return Replay(steps)
