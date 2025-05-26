@@ -261,11 +261,10 @@ class CombatAction:
         else:
             max_assigned = 1
 
-        cost = self.targeting_cost
         assignment = distribute(
             units,
             enemies,
-            cost,
+            self.targeting_cost,
             max_assigned=max_assigned,
         )
         assignment = {a: b for a, b in assignment.items() if can_attack(a, b)}

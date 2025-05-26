@@ -86,7 +86,7 @@ async def run(
     logger.info(f"Picking {race=}")
     bot = Bot(race, ai, ai.name)
     if save_replay:
-        replay_path = os.path.join(save_replay, f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S}.SC2REPLAY")
+        replay_path = os.path.join(save_replay, f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S}.SC2Replay")
         logger.info(f"Saving replay to {replay_path=}")
         os.makedirs(save_replay, exist_ok=True)
     else:
@@ -117,7 +117,7 @@ async def run(
         if maps_path is None:
             logger.info("No maps path provided, falling back to installation folder")
             maps_path = str(Paths.MAPS)
-        map_regex = re.compile(f"{map_pattern}\\.SC2(MAP|Map)")
+        map_regex = re.compile(map_pattern)
         map_choices = list(filter(map_regex.match, os.listdir(maps_path)))
         logger.info(f"Found {map_choices=}")
         map_choice = random.choice(map_choices)
