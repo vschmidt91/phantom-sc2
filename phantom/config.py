@@ -6,7 +6,6 @@ from dataclasses import dataclass
 @dataclass
 class BotConfig:
     resign_after_iteration: int | None = None
-    opponent_id: str | None = None
     training = False
     debug_draw = False
     profile_path: str | None = None

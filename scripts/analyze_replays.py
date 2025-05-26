@@ -1,4 +1,5 @@
-import json
+import lzma
+import pickle
 
 import click
 
@@ -12,9 +13,8 @@ def main(
 ) -> None:
     for replay_file in replay_files:
         replay = Replay.from_file(replay_file)
-        replay_json_file = replay_file + ".json"
-        with open(replay_json_file, "w") as output:
-            json.dump(replay.to_json(), output, indent=4)
+        with lzma.open(replay_file + ".analyzed.pkl.xz", "w") as output:
+            pickle.dump(replay, output)
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from mpyq import MPQArchive
 from s2protocol import versions
+from sc2.bot_ai import BotAI
 
 from phantom.common.constants import REPLAY_TYPE_ENCODING
 from phantom.common.utils import Json, count_sorted
@@ -104,3 +105,18 @@ class Replay:
                 raise TypeError(event_type)
 
         return Replay(steps)
+
+
+class Recorder:
+    def __init__(self):
+        self.replay_steps = dict[int, ReplayStep]()
+
+    def record_step(self, bot: BotAI) -> None:
+        game_loop = bot.state.game_loop
+        units = {u.tag: ReplayUnit(u.owner_id, u.type_id.name) for u in bot.all_units}
+        upgrades = {ReplayUpgrade(bot.game_info.players[0].id, u.name) for u in bot.state.upgrades}
+        self.replay_steps[game_loop] = ReplayStep(units, upgrades)
+
+    @property
+    def replay(self) -> Replay:
+        return Replay(self.replay_steps)

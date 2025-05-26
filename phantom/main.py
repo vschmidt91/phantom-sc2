@@ -19,17 +19,20 @@ from phantom.knowledge import Knowledge
 from phantom.macro.state import MacroPlan
 from phantom.observation import Observation
 from phantom.parameters import AgentParameters
+from phantom.replay import Recorder
 
 
 class PhantomBot(BotExporter, AresBot):
-    def __init__(self, config: BotConfig, *args, **kwargs) -> None:
+    def __init__(self, config: BotConfig, opponent_id: str, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
         self.bot_config = config
+        self.opponent_id = opponent_id
         self.replay_tags = set[str]()
         self.replay_tag_queue = Queue[str]()
         self.version: str | None = None
         self.profiler = cProfile.Profile()
+        self.recorder = Recorder()
 
         if os.path.isfile(self.bot_config.version_path):
             logger.info(f"Reading version from {self.bot_config.version_path}")
@@ -78,6 +81,8 @@ class PhantomBot(BotExporter, AresBot):
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
+
+        self.recorder.record_step(self)
 
         # local only: skip first iteration like on the ladder
         if iteration == 0:

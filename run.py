@@ -1,9 +1,12 @@
 import datetime
+import lzma
 import os
 import pathlib
+import pickle
 import random
 import re
 import sys
+from dataclasses import dataclass
 
 import aiohttp
 import click
@@ -15,13 +18,22 @@ from sc2.maps import Map
 from sc2.paths import Paths
 from sc2.player import Bot, Computer
 from sc2.portconfig import Portconfig
-from sc2.protocol import ConnectionAlreadyClosed
 
 from phantom.common.constants import LOG_LEVEL_OPTIONS
 from phantom.common.utils import async_command
 from phantom.config import BotConfig
 from phantom.main import PhantomBot
+from phantom.replay import Replay
 from scripts.utils import CommandWithConfigFile
+
+
+@dataclass(frozen=True, slots=True)
+class Report:
+    opponent_id: str
+    result: Result
+    replay_sc2: bytes
+    replay_observer: Replay
+    replay_bot: Replay
 
 
 @click.command(cls=CommandWithConfigFile("config"))
@@ -32,7 +44,7 @@ from scripts.utils import CommandWithConfigFile
 @click.option("--LadderServer", "ladder_server")
 @click.option("--OpponentId", "opponent_id")
 @click.option("--RealTime", "realtime", default=False)
-@click.option("--save-replay")
+@click.option("--save-replay", default="data")
 @click.option("--maps-path")
 @click.option("--map-pattern", default="*")
 @click.option("--enemy-race", default=Race.Random.name, type=click.Choice([x.name for x in Race]))
@@ -80,18 +92,16 @@ async def run(
     else:
         logger.info("Using default bot config")
         bot_config_value = BotConfig()
-    bot_config_value.opponent_id = opponent_id
-    ai = PhantomBot(bot_config_value)
+    ai = PhantomBot(bot_config_value, opponent_id)
     race = ai.pick_race()
     logger.info(f"Picking {race=}")
     bot = Bot(race, ai, ai.name)
-    if save_replay:
-        replay_path = os.path.join(save_replay, f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S}.SC2Replay")
-        logger.info(f"Saving replay to {replay_path=}")
-        os.makedirs(save_replay, exist_ok=True)
-    else:
-        replay_path = None
+    replay_path = os.path.join(save_replay, f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S}")
+    logger.info(f"Saving replay to {replay_path=}")
+    replay_path_sc2 = replay_path + ".SC2Replay"
+    os.makedirs(save_replay, exist_ok=True)
 
+    result = Result.Undecided
     if ladder_server:
         logger.info("Starting ladder game")
         port_config = Portconfig(
@@ -105,10 +115,10 @@ async def run(
         try:
             result = await _play_game(bot, client, realtime, port_config, game_time_limit)
             if save_replay:
-                await client.save_replay(replay_path)
-        except ConnectionAlreadyClosed:
-            logger.error("Connection was closed before the game ended")
-            return None
+                await client.save_replay(replay_path_sc2)
+        # except ConnectionAlreadyClosed:
+        #     logger.error("Connection was closed before the game ended")
+        #     return None
         finally:
             await ws_connection.close()
 
@@ -124,14 +134,29 @@ async def run(
         logger.info(f"Picking {map_choice=}")
         opponent = Computer(Race[enemy_race], Difficulty[enemy_difficulty], AIBuild[enemy_build])
 
-        result = await _host_game(
-            Map(pathlib.Path(map_choice)),
-            [bot, opponent],
-            realtime=realtime,
-            save_replay_as=replay_path,
-        )
+        try:
+            result = await _host_game(
+                Map(pathlib.Path(map_choice)),
+                [bot, opponent],
+                realtime=realtime,
+                save_replay_as=replay_path_sc2,
+            )
+        except Exception as error:
+            logger.error(error)
 
     logger.info(f"Game finished with {result=}")
+
+    if not os.path.exists(replay_path_sc2):
+        logger.error(f"Could not {replay_path_sc2=}")
+        return
+    with open(replay_path_sc2, "rb") as f:
+        replay_sc2 = f.read()
+    replay_observer = Replay.from_file(replay_path_sc2)
+    replay_bot = ai.recorder.replay
+    report = Report(opponent_id, result, replay_sc2, replay_observer, replay_bot)
+    with lzma.open(replay_path + ".pkl.xz", "w") as f:
+        pickle.dump(report, f)
+    os.remove(replay_path_sc2)
 
     if assert_result and result.name != assert_result:
         raise Exception(f"Expected {assert_result}, got {result.name}")
