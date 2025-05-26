@@ -9,5 +9,7 @@ fix:
 	poetry run ruff check --fix --unsafe-fixes
 	poetry run ruff format
 
+lint: fix check
+
 profile:
 	poetry run snakeviz resources/profiling.prof
