@@ -31,7 +31,6 @@ from scripts.utils import CommandWithConfigFile
 class Report:
     opponent_id: str
     result: Result
-    replay_sc2: bytes
     replay_observer: Replay
     replay_bot: Replay
 
@@ -149,11 +148,9 @@ async def run(
     if not os.path.exists(replay_path_sc2):
         logger.error(f"Could not {replay_path_sc2=}")
         return
-    with open(replay_path_sc2, "rb") as f:
-        replay_sc2 = f.read()
     replay_observer = Replay.from_file(replay_path_sc2)
     replay_bot = ai.recorder.replay
-    report = Report(opponent_id, result, replay_sc2, replay_observer, replay_bot)
+    report = Report(opponent_id, result, replay_observer, replay_bot)
     with lzma.open(replay_path + ".pkl.xz", "w") as f:
         pickle.dump(report, f)
     os.remove(replay_path_sc2)
