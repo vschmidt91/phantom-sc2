@@ -1,6 +1,7 @@
+import contextlib
 import json
 from collections import Counter
-from collections.abc import Iterable, Mapping, Set, Sequence
+from collections.abc import Iterable, Mapping, Sequence, Set
 from dataclasses import dataclass
 
 import click
@@ -45,18 +46,13 @@ class ReplayStep:
 
 @dataclass(frozen=True, slots=True)
 class Replay:
-
     steps: Mapping[int, ReplayStep]
 
     def to_json(self) -> Json:
-        return {
-            game_loop: step.to_json()
-            for game_loop, step in self.steps.items()
-        }
+        return {game_loop: step.to_json() for game_loop, step in self.steps.items()}
 
 
 def read_replay_file(replay_path: str) -> Replay:
-
     archive = MPQArchive(replay_path)
     header = versions.latest().decode_replay_header(archive.header["user_data_header"]["content"])
     protocol = versions.build(header["m_version"]["m_baseBuild"])
@@ -85,18 +81,14 @@ def read_replay_file(replay_path: str) -> Replay:
 
         if event_type == "NNet.Replay.Tracker.SPlayerSetupEvent":
             pass
-        elif (
-            event_type == "NNet.Replay.Tracker.SUnitBornEvent" or event_type == "NNet.Replay.Tracker.SUnitInitEvent"
-        ):
+        elif event_type == "NNet.Replay.Tracker.SUnitBornEvent" or event_type == "NNet.Replay.Tracker.SUnitInitEvent":
             if unit_type.startswith("Beacon"):
                 pass
             else:
                 units[unit_tag] = ReplayUnit(player, unit_type)
         elif event_type == "NNet.Replay.Tracker.SUnitDiedEvent":
-            try:
+            with contextlib.suppress(KeyError):
                 del units[unit_tag]
-            except KeyError:
-                pass
         elif event_type == "NNet.Replay.Tracker.SUpgradeEvent":
             upgrade_type = event["m_upgradeTypeName"].decode(TYPE_ENCODING)
             if upgrade_type.startswith("Spray"):
