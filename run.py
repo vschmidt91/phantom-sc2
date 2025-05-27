@@ -105,11 +105,11 @@ async def run(
 
         try:
             result = await _play_game(bot, client, realtime, port_config, game_time_limit)
+            if save_replay:
+                await client.save_replay(replay_path_sc2)
         except ConnectionAlreadyClosed:
             logger.error("Connection was closed before the game ended")
         finally:
-            if save_replay:
-                await client.save_replay(replay_path_sc2)
             await ws_connection.close()
 
     else:
