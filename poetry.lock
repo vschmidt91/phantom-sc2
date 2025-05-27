@@ -1545,7 +1545,6 @@ prompt_toolkit = ">=3.0.41,<3.1.0"
 pygments = ">=2.4.0"
 stack_data = "*"
 traitlets = ">=5.13.0"
-typing_extensions = {version = ">=4.6", markers = "python_version < \"3.12\""}
 
 [package.extras]
 all = ["ipython[doc,matplotlib,test,test-extra]"]
@@ -2890,10 +2889,7 @@ files = [
 ]
 
 [package.dependencies]
-numpy = [
-    {version = ">=1.23.2", markers = "python_version == \"3.11\""},
-    {version = ">=1.26.0", markers = "python_version >= \"3.12\""},
-]
+numpy = {version = ">=1.26.0", markers = "python_version >= \"3.12\""}
 python-dateutil = ">=2.8.2"
 pytz = ">=2020.1"
 tzdata = ">=2022.7"
@@ -4964,5 +4960,5 @@ test = ["mypy", "ruff", "types-requests", "types-s2clientprotocol", "types-tqdm"
 
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.11, <3.13"
-content-hash = "65d832369a2b15f8ef290ad5eba02d46a7a2dd6885cc35fb7418c66df55e0632"
+python-versions = ">=3.12, <3.13"
+content-hash = "2dffbc4fdacf28e327cafbf30c07afbf47e263068f195f90a9b6470ad2ef9c72"

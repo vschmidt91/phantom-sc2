@@ -3,7 +3,7 @@ import pickle
 
 import click
 
-from phantom.replay import Replay
+from phantom.replay import Report
 
 
 @click.command
@@ -12,9 +12,9 @@ def main(
     replay_files,
 ) -> None:
     for replay_file in replay_files:
-        replay = Replay.from_file(replay_file)
-        with lzma.open(replay_file + ".analyzed.pkl.xz", "w") as output:
-            pickle.dump(replay, output)
+        with lzma.open(replay_file, "rb") as f:
+            report: Report = pickle.load(f)
+        print(report)
 
 
 if __name__ == "__main__":

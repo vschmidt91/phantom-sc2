@@ -6,7 +6,6 @@ import pickle
 import random
 import re
 import sys
-from dataclasses import dataclass
 
 import aiohttp
 import click
@@ -23,16 +22,8 @@ from phantom.common.constants import LOG_LEVEL_OPTIONS
 from phantom.common.utils import async_command
 from phantom.config import BotConfig
 from phantom.main import PhantomBot
-from phantom.replay import Replay
+from phantom.replay import Replay, Report
 from scripts.utils import CommandWithConfigFile
-
-
-@dataclass(frozen=True, slots=True)
-class Report:
-    opponent_id: str
-    result: Result
-    replay_observer: Replay
-    replay_bot: Replay
 
 
 @click.command(cls=CommandWithConfigFile("config"))

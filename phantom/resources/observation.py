@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from functools import cached_property
-from typing import TypeAlias
 
 from sc2.unit import Unit
 from sc2.units import Units
@@ -9,7 +8,7 @@ from phantom.common.utils import Point
 from phantom.observation import Observation
 from phantom.resources.utils import remaining
 
-HarvesterAssignment: TypeAlias = dict[int, Point]
+HarvesterAssignment = dict[int, Point]
 
 
 @dataclass(frozen=True)

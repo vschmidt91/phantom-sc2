@@ -4,7 +4,6 @@ from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import fields
 from functools import cache, wraps
-from typing import TypeAlias
 
 import numpy as np
 import skimage.draw
@@ -212,7 +211,7 @@ def logit_to_probability(x: float):
     return 1 / (1 + math.exp(-x))
 
 
-MacroId: TypeAlias = UnitTypeId | UpgradeId
+type MacroId = UnitTypeId | UpgradeId
 
 
 def calculate_dps(u: Unit, v: Unit) -> float:

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from mpyq import MPQArchive
 from s2protocol import versions
 from sc2.bot_ai import BotAI
+from sc2.data import Result
 
 from phantom.common.constants import REPLAY_TYPE_ENCODING
 from phantom.common.utils import Json, count_sorted
@@ -120,3 +121,11 @@ class Recorder:
     @property
     def replay(self) -> Replay:
         return Replay(self.replay_steps)
+
+
+@dataclass(frozen=True, slots=True)
+class Report:
+    opponent_id: str
+    result: Result
+    replay_observer: Replay
+    replay_bot: Replay

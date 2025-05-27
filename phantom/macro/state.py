@@ -3,7 +3,6 @@ import random
 from collections.abc import Iterable
 from dataclasses import dataclass
 from itertools import chain
-from typing import TypeAlias
 
 from loguru import logger
 from sc2.game_state import ActionRawUnitCommand
@@ -30,9 +29,9 @@ from phantom.common.utils import PlacementNotFoundException, Point
 from phantom.knowledge import Knowledge
 from phantom.observation import Observation
 
-MacroId: TypeAlias = UnitTypeId | UpgradeId
+type MacroId = UnitTypeId | UpgradeId
 
-MacroAction: TypeAlias = dict[Unit, Action]
+type MacroAction = dict[Unit, Action]
 
 
 @dataclass
