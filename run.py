@@ -17,6 +17,7 @@ from sc2.maps import Map
 from sc2.paths import Paths
 from sc2.player import Bot, Computer
 from sc2.portconfig import Portconfig
+from sc2.protocol import ConnectionAlreadyClosed
 
 from phantom.common.constants import LOG_LEVEL_OPTIONS
 from phantom.common.utils import async_command
@@ -104,12 +105,11 @@ async def run(
 
         try:
             result = await _play_game(bot, client, realtime, port_config, game_time_limit)
+        except ConnectionAlreadyClosed:
+            logger.error("Connection was closed before the game ended")
+        finally:
             if save_replay:
                 await client.save_replay(replay_path_sc2)
-        # except ConnectionAlreadyClosed:
-        #     logger.error("Connection was closed before the game ended")
-        #     return None
-        finally:
             await ws_connection.close()
 
     else:

@@ -8,7 +8,7 @@ from sc2.bot_ai import BotAI
 from sc2.data import Result
 
 from phantom.common.constants import REPLAY_TYPE_ENCODING
-from phantom.common.utils import Json, count_sorted
+from phantom.common.utils import count_sorted
 
 
 @dataclass(frozen=True, slots=True, order=True)
@@ -28,22 +28,16 @@ class ReplayStep:
     units: Mapping[int, ReplayUnit]
     upgrades: Set[ReplayUpgrade]
 
-    def to_json(self) -> Json:
-        return {
-            str(player): dict(
-                units=count_sorted(u.type for u in self.units.values() if u.player == player),
-                upgrades=[u.type for u in self.upgrades if u.player == player],
-            )
-            for player in [0, 1, 2]
-        }
+    def player_compositions(self) -> Mapping[int, Mapping[str, int]]:
+        return {player: count_sorted(u.type for u in self.units.values() if u.player == player) for player in [0, 1, 2]}
+
+    def player_upgrades(self) -> Mapping[int, Set[str]]:
+        return {player: {u.type for u in self.upgrades if u.player == player} for player in [0, 1, 2]}
 
 
 @dataclass(frozen=True, slots=True)
 class Replay:
     steps: Mapping[int, ReplayStep]
-
-    def to_json(self) -> Json:
-        return {str(game_loop): step.to_json() for game_loop, step in self.steps.items()}
 
     @classmethod
     def from_file(cls, replay_path: str) -> "Replay":
@@ -70,7 +64,7 @@ class Replay:
             except KeyError:
                 unit_tag = 0
 
-            unit_type = event.get("m_unitTypeName", b"").decode(REPLAY_TYPE_ENCODING)
+            unit_type = event.get("m_unitTypeName", b"").decode(REPLAY_TYPE_ENCODING).upper()
             player = event.get("m_upkeepPlayerId", -1)
 
             if event_type == "NNet.Replay.Tracker.SPlayerSetupEvent":
@@ -86,7 +80,7 @@ class Replay:
                 with contextlib.suppress(KeyError):
                     del units[unit_tag]
             elif event_type == "NNet.Replay.Tracker.SUpgradeEvent":
-                upgrade_type = event["m_upgradeTypeName"].decode(REPLAY_TYPE_ENCODING)
+                upgrade_type = event["m_upgradeTypeName"].decode(REPLAY_TYPE_ENCODING).upper()
                 if upgrade_type.startswith("Spray"):
                     pass
                 else:
@@ -113,7 +107,7 @@ class Recorder:
         self.replay_steps = dict[int, ReplayStep]()
 
     def record_step(self, bot: BotAI) -> None:
-        game_loop = bot.state.game_loop
+        game_loop = bot.state.game_loop + 1
         units = {u.tag: ReplayUnit(u.owner_id, u.type_id.name) for u in bot.all_units}
         upgrades = {ReplayUpgrade(bot.game_info.players[0].id, u.name) for u in bot.state.upgrades}
         self.replay_steps[game_loop] = ReplayStep(units, upgrades)
