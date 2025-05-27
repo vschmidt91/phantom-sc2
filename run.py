@@ -99,14 +99,13 @@ async def run(
             server_ports=[start_port + 2, start_port + 3], player_ports=[[start_port + 4, start_port + 5]]
         )
         ws_url = f"ws://{ladder_server}:{game_port}/sc2api"
-        ws_connection = await aiohttp.ClientSession().ws_connect(ws_url)
-        client = Client(ws_connection)
+        session = aiohttp.ClientSession()
+        ws_connection = await session.ws_connect(ws_url)
+        client = Client(ws_connection, replay_path_sc2)
         game_time_limit = None
 
         try:
             result = await _play_game(bot, client, realtime, port_config, game_time_limit)
-            if save_replay:
-                await client.save_replay(replay_path_sc2)
         except ConnectionAlreadyClosed:
             logger.error("Connection was closed before the game ended")
         finally:
