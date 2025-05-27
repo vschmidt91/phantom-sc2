@@ -145,7 +145,7 @@ class PhantomBot(BotExporter, AresBot):
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)
 
-        # await self.client.save_replay(self.client.save_replay_path)
+        await self.client.save_replay(self.client.save_replay_path)
 
         if self.agent and self.bot_config.training:
             logger.info("Updating parameters...")
