@@ -107,7 +107,7 @@ class Recorder:
         self.replay_steps = dict[int, ReplayStep]()
 
     def record_step(self, bot: BotAI) -> None:
-        game_loop = bot.state.game_loop + 1
+        game_loop = bot.state.game_loop
         units = {u.tag: ReplayUnit(u.owner_id, u.type_id.name) for u in bot.all_units}
         upgrades = {ReplayUpgrade(bot.game_info.players[0].id, u.name) for u in bot.state.upgrades}
         self.replay_steps[game_loop] = ReplayStep(units, upgrades)
