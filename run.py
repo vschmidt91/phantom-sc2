@@ -45,6 +45,7 @@ from scripts.utils import CommandWithConfigFile
     type=click.Choice([x.name for x in Difficulty]),
 )
 @click.option("--enemy-build", default=AIBuild.Rush.name, type=click.Choice([x.name for x in AIBuild]))
+@click.option("--game-time-limit", type=float)
 @click.option(
     "--assert-result",
     type=click.Choice([x.name for x in Result]),
@@ -66,6 +67,7 @@ async def run(
     enemy_race: str,
     enemy_difficulty: str,
     enemy_build: str,
+    game_time_limit: float,
     assert_result: str,
     log_level: str,
     log_disable_modules: list[str],
@@ -100,16 +102,17 @@ async def run(
         )
         ws_url = f"ws://{ladder_server}:{game_port}/sc2api"
         session = aiohttp.ClientSession()
-        ws_connection = await session.ws_connect(ws_url)
-        client = Client(ws_connection, replay_path_sc2)
-        game_time_limit = None
+        async with session.ws_connect(ws_url) as ws_connection:
+            client = Client(ws_connection)
 
-        try:
-            result = await _play_game(bot, client, realtime, port_config, game_time_limit)
-        except ConnectionAlreadyClosed:
-            logger.error("Connection was closed before the game ended")
-        finally:
-            await ws_connection.close()
+            try:
+                result = await _play_game(bot, client, realtime, port_config, game_time_limit)
+                await client.save_replay(replay_path_sc2)
+                await client.leave()
+            except ConnectionAlreadyClosed:
+                logger.error("Connection was closed before the game ended")
+            finally:
+                await client.quit()
 
     else:
         logger.info("Starting local game")
