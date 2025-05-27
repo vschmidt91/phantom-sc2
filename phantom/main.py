@@ -33,6 +33,7 @@ class PhantomBot(BotExporter, AresBot):
         self.version: str | None = None
         self.profiler = cProfile.Profile()
         self.recorder = Recorder()
+        self.on_before_start_was_called = False
 
         if os.path.isfile(self.bot_config.version_path):
             logger.info(f"Reading version from {self.bot_config.version_path}")
@@ -54,7 +55,15 @@ class PhantomBot(BotExporter, AresBot):
     def add_replay_tag(self, replay_tag: str) -> None:
         self.replay_tag_queue.put(replay_tag)
 
+    async def on_before_start(self) -> None:
+        await super().on_before_start()
+        self.on_before_start_was_called = True
+
     async def on_start(self) -> None:
+        if not self.on_before_start_was_called:
+            logger.debug("on_before_start was not called, calling it now.")
+            await self.on_before_start()
+
         logger.debug("Bot starting")
         await super().on_start()
 
@@ -84,12 +93,20 @@ class PhantomBot(BotExporter, AresBot):
 
         self.recorder.record_step(self)
 
+        # await self.client.save_replay(self.client.save_replay_path)
+
         # local only: skip first iteration like on the ladder
         if iteration == 0:
             return
 
+        # await self.client.save_replay("tmp.SC2Replay")
+        # cheat = Replay.from_file("tmp.SC2Replay")
+        # cheat_state = cheat.steps[max(cheat.steps.keys())]
+        # logger.debug(str(cheat_state.player_compositions()[2]))
+
         if self.bot_config.resign_after_iteration is not None and self.bot_config.resign_after_iteration < iteration:
             logger.info(f"Reached iteration {self.bot_config.resign_after_iteration}, resigning.")
+            # await self.client.debug_kill_unit(self.structures)
             await self.client.leave()
 
         for error in self.state.action_errors:
@@ -127,6 +144,8 @@ class PhantomBot(BotExporter, AresBot):
 
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)
+
+        # await self.client.save_replay(self.client.save_replay_path)
 
         if self.agent and self.bot_config.training:
             logger.info("Updating parameters...")

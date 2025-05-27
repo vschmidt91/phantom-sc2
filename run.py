@@ -12,12 +12,20 @@ import click
 from loguru import logger
 from sc2.client import Client
 from sc2.data import AIBuild, Difficulty, Race
-from sc2.main import Result, _host_game, _play_game
+from sc2.main import (
+    Result,
+    _host_game,
+    _play_game,
+    _play_replay,
+    _setup_replay,
+    get_replay_version,
+)
 from sc2.maps import Map
 from sc2.paths import Paths
 from sc2.player import Bot, Computer
 from sc2.portconfig import Portconfig
 from sc2.protocol import ConnectionAlreadyClosed
+from sc2.sc2process import SC2Process
 
 from phantom.common.constants import LOG_LEVEL_OPTIONS
 from phantom.common.utils import async_command
@@ -35,6 +43,8 @@ from scripts.utils import CommandWithConfigFile
 @click.option("--LadderServer", "ladder_server")
 @click.option("--OpponentId", "opponent_id")
 @click.option("--RealTime", "realtime", default=False)
+@click.option("--load-replay", type=click.Path(exists=True, dir_okay=False))
+@click.option("--observe-id", default=1, type=int)
 @click.option("--save-replay", default="data")
 @click.option("--maps-path")
 @click.option("--map-pattern", default="*")
@@ -61,6 +71,8 @@ async def run(
     ladder_server: str,
     opponent_id: str,
     realtime: bool,
+    load_replay,
+    observe_id: int,
     save_replay: str,
     maps_path: str,
     map_pattern: str,
@@ -95,13 +107,19 @@ async def run(
     os.makedirs(save_replay, exist_ok=True)
 
     result = Result.Undecided
-    if ladder_server:
+    if load_replay:
+        logger.info(f"Loading replay {load_replay}")
+        base_build, data_version = get_replay_version(load_replay)
+        async with SC2Process(fullscreen=False, base_build=base_build, data_hash=data_version) as server:
+            client = await _setup_replay(server, os.path.abspath(load_replay), realtime, observe_id)
+            result = await _play_replay(client, ai, realtime, observe_id)
+    elif ladder_server:
         logger.info("Starting ladder game")
+        ws_url = f"ws://{ladder_server}:{game_port}/sc2api"
+        session = aiohttp.ClientSession()
         port_config = Portconfig(
             server_ports=[start_port + 2, start_port + 3], player_ports=[[start_port + 4, start_port + 5]]
         )
-        ws_url = f"ws://{ladder_server}:{game_port}/sc2api"
-        session = aiohttp.ClientSession()
         async with session.ws_connect(ws_url) as ws_connection:
             client = Client(ws_connection)
 

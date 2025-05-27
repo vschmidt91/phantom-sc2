@@ -43,7 +43,8 @@ class Replay:
     def from_file(cls, replay_path: str) -> "Replay":
         archive = MPQArchive(replay_path)
         header = versions.latest().decode_replay_header(archive.header["user_data_header"]["content"])
-        protocol = versions.build(header["m_version"]["m_baseBuild"])
+        base_build = header["m_version"]["m_baseBuild"]
+        protocol = versions.build(base_build)
         tracker_events = list(protocol.decode_replay_tracker_events(archive.read_file("replay.tracker.events")))
 
         steps = dict[int, ReplayStep]()
