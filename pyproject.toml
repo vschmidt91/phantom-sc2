@@ -17,6 +17,8 @@ dependencies = [
     "highspy (>=1.10.0,<2.0.0)",
     "cython-extensions-sc2 (>=0.6.4,<0.7.0)",
     "s2protocol @ git+https://github.com/vschmidt91/s2protocol",
+    "pysc2 @ git+https://github.com/google-deepmind/pysc2",
+    "sc2reader (>=1.8.0,<2.0.0)",
 ]
 
 [project.urls]

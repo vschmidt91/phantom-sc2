@@ -19,7 +19,6 @@ from phantom.knowledge import Knowledge
 from phantom.macro.state import MacroPlan
 from phantom.observation import Observation
 from phantom.parameters import AgentParameters
-from phantom.replay import Recorder
 
 
 class PhantomBot(BotExporter, AresBot):
@@ -32,7 +31,6 @@ class PhantomBot(BotExporter, AresBot):
         self.replay_tag_queue = Queue[str]()
         self.version: str | None = None
         self.profiler = cProfile.Profile()
-        self.recorder = Recorder()
         self.on_before_start_was_called = False
 
         if os.path.isfile(self.bot_config.version_path):
@@ -90,8 +88,6 @@ class PhantomBot(BotExporter, AresBot):
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
-
-        self.recorder.record_step(self)
 
         # await self.client.save_replay(self.client.save_replay_path)
 

@@ -1,26 +1,28 @@
 import contextlib
+import json
 from collections.abc import Mapping, Set
 from dataclasses import dataclass
+from io import BytesIO
 
 from mpyq import MPQArchive
+from s2clientprotocol.sc2api_pb2 import Observation
 from s2protocol import versions
-from sc2.bot_ai import BotAI
 from sc2.data import Result
 
 from phantom.common.constants import REPLAY_TYPE_ENCODING
 from phantom.common.utils import count_sorted
 
 
-@dataclass(frozen=True, slots=True, order=True)
+@dataclass(frozen=True, slots=True)
 class ReplayUnit:
     player: int
-    type: str
+    type: int
 
 
 @dataclass(frozen=True, slots=True)
 class ReplayUpgrade:
     player: int
-    type: str
+    type: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,23 +30,73 @@ class ReplayStep:
     units: Mapping[int, ReplayUnit]
     upgrades: Set[ReplayUpgrade]
 
-    def player_compositions(self) -> Mapping[int, Mapping[str, int]]:
+    def player_compositions(self) -> Mapping[int, Mapping[int, int]]:
         return {player: count_sorted(u.type for u in self.units.values() if u.player == player) for player in [0, 1, 2]}
 
-    def player_upgrades(self) -> Mapping[int, Set[str]]:
+    def player_upgrades(self) -> Mapping[int, Set[int]]:
         return {player: {u.type for u in self.upgrades if u.player == player} for player in [0, 1, 2]}
+
+    @classmethod
+    def from_observation(cls, observation: Observation) -> "ReplayStep":
+        player_id = observation.player_common.player_id
+        return ReplayStep(
+            units={u.tag: ReplayUnit(u.owner, u.unit_type) for u in observation.raw_data.units},
+            upgrades={ReplayUpgrade(player_id, u) for u in observation.raw_data.player.upgrade_ids},
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ReplayMetadata:
+    base_build: str
+    data_version: str
+
+    @classmethod
+    def from_bytes(cls, replay_bytes: bytes) -> "ReplayMetadata":
+        replay_io = BytesIO()
+        replay_io.write(replay_bytes)
+        replay_io.seek(0)
+        return ReplayMetadata.from_archive(MPQArchive(replay_io))
+
+    @classmethod
+    def from_file(cls, replay_path: str) -> "ReplayMetadata":
+        return ReplayMetadata.from_archive(MPQArchive(replay_path))
+
+    @classmethod
+    def from_archive(cls, archive: MPQArchive) -> "ReplayMetadata":
+        metadata = json.loads(archive.extract()[b"replay.gamemetadata.json"].decode("utf-8"))
+        return ReplayMetadata(metadata["BaseBuild"], metadata["DataVersion"])
 
 
 @dataclass(frozen=True, slots=True)
 class Replay:
     steps: Mapping[int, ReplayStep]
+    game_loops: int
+    map: str
+    player_ids: Set[int]
+
+    @classmethod
+    def from_bytes(cls, replay_bytes: bytes) -> "Replay":
+        replay_io = BytesIO()
+        replay_io.write(replay_bytes)
+        replay_io.seek(0)
+        return Replay.from_archive(MPQArchive(replay_io))
 
     @classmethod
     def from_file(cls, replay_path: str) -> "Replay":
-        archive = MPQArchive(replay_path)
+        return Replay.from_archive(MPQArchive(replay_path))
+
+    @classmethod
+    def from_archive(cls, archive: MPQArchive) -> "Replay":
         header = versions.latest().decode_replay_header(archive.header["user_data_header"]["content"])
+        game_loops = header["m_elapsedGameLoops"]
         base_build = header["m_version"]["m_baseBuild"]
         protocol = versions.build(base_build)
+        details_file = archive.read_file("replay.details") or archive.read_file("replay.details.backup")
+        details = protocol.decode_replay_details(details_file)
+        players = details["m_playerList"]
+        map_name = details["m_mapFileName"]
+        player_ids = {1 + p["m_teamId"] for p in players}
+
         tracker_events = list(protocol.decode_replay_tracker_events(archive.read_file("replay.tracker.events")))
 
         steps = dict[int, ReplayStep]()
@@ -100,22 +152,7 @@ class Replay:
             else:
                 raise TypeError(event_type)
 
-        return Replay(steps)
-
-
-class Recorder:
-    def __init__(self):
-        self.replay_steps = dict[int, ReplayStep]()
-
-    def record_step(self, bot: BotAI) -> None:
-        game_loop = bot.state.game_loop
-        units = {u.tag: ReplayUnit(u.owner_id, u.type_id.name) for u in bot.all_units}
-        upgrades = {ReplayUpgrade(bot.game_info.players[0].id, u.name) for u in bot.state.upgrades}
-        self.replay_steps[game_loop] = ReplayStep(units, upgrades)
-
-    @property
-    def replay(self) -> Replay:
-        return Replay(self.replay_steps)
+        return Replay(steps, game_loops, map_name, player_ids)
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,4 +160,4 @@ class Report:
     opponent_id: str
     result: Result
     replay_observer: Replay
-    replay_bot: Replay
+    replays_bot: Mapping[int, Replay]

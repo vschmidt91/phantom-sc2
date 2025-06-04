@@ -1,8 +1,6 @@
 import datetime
-import lzma
 import os
 import pathlib
-import pickle
 import random
 import re
 import sys
@@ -31,7 +29,6 @@ from phantom.common.constants import LOG_LEVEL_OPTIONS
 from phantom.common.utils import async_command
 from phantom.config import BotConfig
 from phantom.main import PhantomBot
-from phantom.replay import Replay, Report
 from scripts.utils import CommandWithConfigFile
 
 
@@ -154,15 +151,15 @@ async def run(
 
     logger.info(f"Game finished with {result=}")
 
-    if not os.path.exists(replay_path_sc2):
-        logger.error(f"Could not {replay_path_sc2=}")
-        return
-    replay_observer = Replay.from_file(replay_path_sc2)
-    replay_bot = ai.recorder.replay
-    report = Report(opponent_id, result, replay_observer, replay_bot)
-    with lzma.open(replay_path + ".pkl.xz", "w") as f:
-        pickle.dump(report, f)
-    os.remove(replay_path_sc2)
+    # if not os.path.exists(replay_path_sc2):
+    #     logger.error(f"Could not {replay_path_sc2=}")
+    #     return
+    # replay_observer = Replay.from_file(replay_path_sc2)
+    # replay_bot = ai.recorder.replay
+    # report = Report(opponent_id, result, replay_observer, replay_bot)
+    # with lzma.open(replay_path + ".pkl.xz", "w") as f:
+    #     pickle.dump(report, f)
+    # os.remove(replay_path_sc2)
 
     if assert_result and result.name != assert_result:
         raise Exception(f"Expected {assert_result}, got {result.name}")
