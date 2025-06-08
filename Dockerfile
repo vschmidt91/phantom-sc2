@@ -44,6 +44,8 @@ RUN apt-get update
 
 # Upgrade pip and install pip-install requirements
 RUN python3 -m pip install --upgrade pip pipenv
+
+ENV POETRY_CACHE_DIR=/opt/.cache
 RUN python3 -m pip install poetry
 
 # Create a symlink for the maps directory
@@ -56,4 +58,4 @@ RUN poetry install --all-extras
 
 ADD ./resources/maps /root/StarCraftII/maps
 
-CMD ["sh", "-c", "poetry run python scripts/analyze_replays.py ${REPLAY_GLOB}"]
+ENTRYPOINT ["poetry", "run", "python"]
