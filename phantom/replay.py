@@ -49,22 +49,25 @@ class ReplayStep:
 class ReplayMetadata:
     base_build: str
     data_version: str
+    game_loops: int
 
     @classmethod
     def from_bytes(cls, replay_bytes: bytes) -> "ReplayMetadata":
         replay_io = BytesIO()
         replay_io.write(replay_bytes)
         replay_io.seek(0)
-        return ReplayMetadata.from_archive(MPQArchive(replay_io))
+        return cls.from_archive(MPQArchive(replay_io))
 
     @classmethod
     def from_file(cls, replay_path: str) -> "ReplayMetadata":
-        return ReplayMetadata.from_archive(MPQArchive(replay_path))
+        return cls.from_archive(MPQArchive(replay_path))
 
     @classmethod
     def from_archive(cls, archive: MPQArchive) -> "ReplayMetadata":
-        metadata = json.loads(archive.extract()[b"replay.gamemetadata.json"].decode("utf-8"))
-        return ReplayMetadata(metadata["BaseBuild"], metadata["DataVersion"])
+        header = versions.latest().decode_replay_header(archive.header["user_data_header"]["content"])
+        game_loops = header["m_elapsedGameLoops"]
+        metadata = json.loads(archive.extract()[b"replay.gamemetadata.json"].decode(REPLAY_TYPE_ENCODING))
+        return cls(metadata["BaseBuild"], metadata["DataVersion"], game_loops)
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,7 +97,7 @@ class Replay:
         details_file = archive.read_file("replay.details") or archive.read_file("replay.details.backup")
         details = protocol.decode_replay_details(details_file)
         players = details["m_playerList"]
-        map_name = details["m_mapFileName"]
+        map_name = details["m_mapFileName"].decode(REPLAY_TYPE_ENCODING)
         player_ids = {1 + p["m_teamId"] for p in players}
 
         tracker_events = list(protocol.decode_replay_tracker_events(archive.read_file("replay.tracker.events")))

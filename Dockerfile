@@ -23,10 +23,6 @@ RUN wget -q 'http://blzdistsc2-a.akamaihd.net/Linux/SC2.4.10.zip' \
 	&& unzip -P iagreetotheeula SC2.4.10.zip \
 	&& rm SC2.4.10.zip
 
-
-# Alternative for local copy
-# ADD resources/StarCraftII /root/StarCraftII
-
 # Install common software via APT
 RUN apt-get install --assume-yes --no-install-recommends --no-show-upgraded \
     git  \
@@ -53,19 +49,11 @@ RUN python3 -m pip install poetry
 # Create a symlink for the maps directory
 RUN ln -s /root/StarCraftII/Maps /root/StarCraftII/maps
 
-ADD . /root/phantom
+ADD ./build /root/phantom
 
 WORKDIR /root/phantom
 RUN poetry install --all-extras
 
 ADD ./resources/maps /root/StarCraftII/maps
 
-# then to the actual working directory
-
-#
-#RUN mkdir -p "/root/Documents/StarCraft II/Replays"
-#RUN cp resources/maps/* ~/StarCraftII/
-
-ENTRYPOINT [ "/bin/bash" ]
-
-# RUN poetry run python scripts/create_dataset.py ~/StarCraftII/replays/*.SC2Replay
+CMD ["sh", "-c", "poetry run python scripts/analyze_replays.py ${REPLAY_GLOB}"]

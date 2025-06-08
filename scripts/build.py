@@ -32,10 +32,17 @@ def main(
             with zipfile.ZipFile(wheel) as z:
                 z.extractall(output_path)
 
+    print("Creating pyproject.toml")
+    shutil.copyfile("pyproject.toml", os.path.join(output_path, "pyproject.toml"))
+    shutil.copyfile("README.md", os.path.join(output_path, "README.md"))
+
     print("Creating requirements.txt")
     requirements_path = os.path.join(output_path, "requirements.txt")
     with open(requirements_path, "w") as f:
         subprocess.Popen(["poetry", "export", "--without-hashes", "--format=requirements.txt"], stdout=f).wait()
+
+    print("Copying ares-sc2")
+    shutil.copytree("ares-sc2", os.path.join(output_path, "ares-sc2"))
 
     print("Creating __init__.py")
     open(os.path.join(output_path, "__init__.py"), "a").close()
