@@ -22,7 +22,7 @@ from phantom.observation import Observation
 from phantom.parameters import AgentParameters, NormalPrior
 from phantom.scout_predictor import PlayerVision, ScoutPredictor
 
-with lzma.open("resources/models/scout.pkl.xz") as f:
+with lzma.open("models/scout.pkl.xz") as f:
     SCOUT_PREDICTOR = ScoutPredictor(pickle.load(f))
 
 
