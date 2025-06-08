@@ -19,6 +19,7 @@ exclude = [
   "**/*.pyd",
   "**/*.pyi",
   "**/*.pyx",
+  "**/*.SC2Map",
   "**/*-darwin.so",
   "map_analyzer/cext/mapanalyzerext*310-*",
   "map_analyzer/cext/mapanalyzerext*311-*",
