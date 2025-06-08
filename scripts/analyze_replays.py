@@ -78,6 +78,9 @@ async def main(
     fullscreen: bool,
     realtime: bool,
 ) -> None:
+
+    logger.disable("sc2")
+
     logger.info(f"{replay_glob=}")
     replay_paths = glob.glob("/" + replay_glob)
     logger.info(f"{replay_paths=}")
