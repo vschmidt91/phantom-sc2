@@ -1,3 +1,9 @@
+copy = [
+  "ares-sc2",
+  "pyproject.toml",
+  "README.md",
+  "resources/models",
+]
 output_path = "build"
 zip_modules = [
   "click",

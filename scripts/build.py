@@ -13,11 +13,13 @@ from utils import CommandWithConfigFile
 @click.command(cls=CommandWithConfigFile("config"))
 @click.option("--config", type=click.File("rb"))
 @click.option("--output-path", type=click.Path())
+@click.option("--copy", type=click.Path(exists=True), multiple=True)
 @click.option("--zip-modules", multiple=True)
 @click.option("--exclude", multiple=True)
 def main(
     config,
     output_path: str,
+    copy: list[str],
     zip_modules: list[str],
     exclude: list[str],
 ) -> None:
@@ -32,17 +34,17 @@ def main(
             with zipfile.ZipFile(wheel) as z:
                 z.extractall(output_path)
 
-    print("Creating pyproject.toml")
-    shutil.copyfile("pyproject.toml", os.path.join(output_path, "pyproject.toml"))
-    shutil.copyfile("README.md", os.path.join(output_path, "README.md"))
-
     print("Creating requirements.txt")
     requirements_path = os.path.join(output_path, "requirements.txt")
     with open(requirements_path, "w") as f:
         subprocess.Popen(["poetry", "export", "--without-hashes", "--format=requirements.txt"], stdout=f).wait()
 
-    print("Copying ares-sc2")
-    shutil.copytree("ares-sc2", os.path.join(output_path, "ares-sc2"))
+    for item in copy:
+        print(f"Copying {item=}")
+        if os.path.isfile(item):
+            shutil.copyfile(item, os.path.join(output_path, item))
+        else:
+            shutil.copytree(item, os.path.join(output_path, item))
 
     print("Creating __init__.py")
     open(os.path.join(output_path, "__init__.py"), "a").close()

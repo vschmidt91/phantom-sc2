@@ -54,6 +54,9 @@ class Agent:
     async def step(self, observation: Observation) -> AsyncGenerator[Action, None]:
         strategy = self.strategy.step(observation)
 
+        if observation.game_loop % 100 == 0:
+            logger.debug(f"{strategy.enemy_composition_predicted}")
+
         if not self.knowledge.is_micro_map:
             if not self.build_order_completed:
                 if step := self.build_order.execute(observation):

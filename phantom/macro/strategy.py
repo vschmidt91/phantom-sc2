@@ -1,4 +1,6 @@
 import enum
+import lzma
+import pickle
 from collections import defaultdict
 from collections.abc import Iterable
 from functools import cached_property, total_ordering
@@ -18,6 +20,10 @@ from phantom.knowledge import Knowledge
 from phantom.macro.state import MacroId, MacroPlan
 from phantom.observation import Observation
 from phantom.parameters import AgentParameters, NormalPrior
+from phantom.scout_predictor import PlayerVision, ScoutPredictor
+
+with lzma.open("resources/models/scout.pkl.xz") as f:
+    SCOUT_PREDICTOR = ScoutPredictor(pickle.load(f))
 
 
 @total_ordering
@@ -55,6 +61,12 @@ class Strategy:
     @cached_property
     def enemy_composition(self) -> UnitComposition:
         return UnitComposition.of(self.obs.enemy_units)
+
+    @cached_property
+    def enemy_composition_predicted(self) -> UnitComposition:
+        vision = PlayerVision.from_units(self.obs.units | self.obs.enemy_units)
+        enemy_vision = SCOUT_PREDICTOR.predict(self.obs.game_loop, vision)
+        return UnitComposition({UnitTypeId(k): float(v) for k, v in enemy_vision.composition.items() if v >= 1})
 
     def filter_upgrade(self, upgrade: UpgradeId) -> bool:
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
@@ -119,7 +131,7 @@ class Strategy:
             return self.context.knowledge.cost.of(t).total_resources
 
         composition = defaultdict[UnitTypeId, float](float)
-        for enemy_type, count in self.enemy_composition.items():
+        for enemy_type, count in self.enemy_composition_predicted.items():
             for counter in UNIT_COUNTER_DICT.get(enemy_type, []):
                 if self.can_build(counter):
                     composition[counter] += count * total_cost(enemy_type) / total_cost(counter)
