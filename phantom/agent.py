@@ -55,7 +55,7 @@ class Agent:
         strategy = self.strategy.step(observation)
 
         if observation.game_loop % 100 == 0:
-            logger.debug(f"{strategy.enemy_composition_predicted}")
+            logger.info(f"{strategy.enemy_composition_predicted}")
 
         if not self.knowledge.is_micro_map:
             if not self.build_order_completed:
