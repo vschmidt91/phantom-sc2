@@ -136,11 +136,7 @@ dmypy.json
 
 .idea
 .vscode
-/bot.zip
-/cython_extensions
 /version.txt
 /resources
 /data
-/out
-/cython-extensions-sc2/
 /ares-sc2/
