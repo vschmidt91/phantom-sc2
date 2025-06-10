@@ -135,6 +135,7 @@ dmypy.json
 .pyre/
 
 .idea
+.vscode
 /bot.zip
 /cython_extensions
 /version.txt
