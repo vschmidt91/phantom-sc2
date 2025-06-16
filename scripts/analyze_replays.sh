@@ -1,7 +1,7 @@
 docker build --tag analyzer .
 
 
-input_dir="$(pwd)/resources/replays/debug"
+input_dir="$(pwd)/resources/replays/aiarena"
 for file in $input_dir/*.SC2Replay; do
   filename=$(basename -- "$file")
   echo $filename

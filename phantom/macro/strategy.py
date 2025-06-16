@@ -4,6 +4,7 @@ import pickle
 from collections import defaultdict
 from collections.abc import Iterable
 from functools import cached_property, total_ordering
+from pathlib import Path
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -22,7 +23,7 @@ from phantom.observation import Observation
 from phantom.parameters import AgentParameters, NormalPrior
 from phantom.scout_predictor import PlayerVision, ScoutPredictor
 
-with lzma.open("models/scout.pkl.xz") as f:
+with lzma.open(Path(__file__).parent.parent.parent / "models" / "scout.pkl.xz") as f:
     SCOUT_PREDICTOR = ScoutPredictor(pickle.load(f))
 
 
@@ -65,8 +66,10 @@ class Strategy:
     @cached_property
     def enemy_composition_predicted(self) -> UnitComposition:
         vision = PlayerVision.from_units(self.obs.units | self.obs.enemy_units)
-        enemy_vision = SCOUT_PREDICTOR.predict(self.obs.game_loop, vision)
-        return UnitComposition({UnitTypeId(k): float(v) for k, v in enemy_vision.composition.items() if v >= 1})
+        enemy_vision = SCOUT_PREDICTOR.predict(self.obs.game_loop, vision, self.obs.player_races)
+        composition = UnitComposition(dict(enemy_vision.composition)) + self.enemy_composition
+        composition = UnitComposition({k: v for k, v in composition.items() if v >= 1})
+        return composition
 
     def filter_upgrade(self, upgrade: UpgradeId) -> bool:
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
@@ -236,7 +239,7 @@ class StrategyState:
         parameters: AgentParameters,
     ) -> None:
         self.knowledge = knowledge
-        self.counter_factor = parameters.normal("counter_factor", NormalPrior(2, 0.1))
+        self.counter_factor = parameters.normal("counter_factor", NormalPrior(1, 0.1))
         self.ravager_mixin = parameters.normal("ravager_mixin", NormalPrior(21, 1))
         self.corruptor_mixin = parameters.normal("corruptor_mixin", NormalPrior(13, 1))
         self.tier1_drone_count = parameters.normal("tier1_drone_count", NormalPrior(32, 1))

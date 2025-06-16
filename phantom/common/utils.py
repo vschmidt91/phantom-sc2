@@ -7,9 +7,12 @@ from functools import cache, wraps
 
 import numpy as np
 import skimage.draw
+from ares import ALL_STRUCTURES
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
+from sc2.dicts.unit_tech_alias import UNIT_TECH_ALIAS
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
+from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
 from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -227,3 +230,4 @@ DPS_OVERRIDE = {
     UnitTypeId.PLANETARYFORTRESS: 5,
     UnitTypeId.BANELING: 20,
 }
+ALL_TRAINABLE = set(ALL_STRUCTURES | UNIT_TRAINED_FROM.keys() | UNIT_TECH_ALIAS.keys() | UNIT_UNIT_ALIAS.keys())

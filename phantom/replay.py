@@ -50,6 +50,8 @@ class ReplayMetadata:
     base_build: str
     data_version: str
     game_loops: int
+    map: str
+    player_races: Mapping[int, str]
 
     @classmethod
     def from_bytes(cls, replay_bytes: bytes) -> "ReplayMetadata":
@@ -67,7 +69,16 @@ class ReplayMetadata:
         header = versions.latest().decode_replay_header(archive.header["user_data_header"]["content"])
         game_loops = header["m_elapsedGameLoops"]
         metadata = json.loads(archive.extract()[b"replay.gamemetadata.json"].decode(REPLAY_TYPE_ENCODING))
-        return cls(metadata["BaseBuild"], metadata["DataVersion"], game_loops)
+        base_build = header["m_version"]["m_baseBuild"]
+
+        protocol = versions.build(base_build)
+        details_file = archive.read_file("replay.details") or archive.read_file("replay.details.backup")
+        details = protocol.decode_replay_details(details_file)
+        players = details["m_playerList"]
+        map_name = details["m_mapFileName"].decode(REPLAY_TYPE_ENCODING)
+        player_races = {1 + p["m_teamId"]: p["m_race"].decode(REPLAY_TYPE_ENCODING) for p in players}
+
+        return cls(metadata["BaseBuild"], metadata["DataVersion"], game_loops, map_name, player_races)
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,7 +86,7 @@ class Replay:
     steps: Mapping[int, ReplayStep]
     game_loops: int
     map: str
-    player_ids: Set[int]
+    player_races: Mapping[int, str]
 
     @classmethod
     def from_bytes(cls, replay_bytes: bytes) -> "Replay":
@@ -98,7 +109,7 @@ class Replay:
         details = protocol.decode_replay_details(details_file)
         players = details["m_playerList"]
         map_name = details["m_mapFileName"].decode(REPLAY_TYPE_ENCODING)
-        player_ids = {1 + p["m_teamId"] for p in players}
+        player_races = {1 + p["m_teamId"]: p["m_race"].decode(REPLAY_TYPE_ENCODING) for p in players}
 
         tracker_events = list(protocol.decode_replay_tracker_events(archive.read_file("replay.tracker.events")))
 
@@ -155,7 +166,7 @@ class Replay:
             else:
                 raise TypeError(event_type)
 
-        return Replay(steps, game_loops, map_name, player_ids)
+        return Replay(steps, game_loops, map_name, player_races)
 
 
 @dataclass(frozen=True, slots=True)

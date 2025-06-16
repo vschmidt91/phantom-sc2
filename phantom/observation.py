@@ -1,5 +1,5 @@
 from collections import Counter, defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from functools import cached_property
 from itertools import chain
@@ -8,6 +8,7 @@ import numpy as np
 from ares import AresBot, UnitTreeQueryType
 from cython_extensions import cy_unit_pending
 from loguru import logger
+from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -87,6 +88,10 @@ class Observation:
     @cached_property
     def actions_unit_commands(self) -> dict[int, ActionRawUnitCommand]:
         return {t: a for a in self.bot.state.actions_unit_commands for t in a.unit_tags}
+
+    @cached_property
+    def player_races(self) -> Mapping[int, Race]:
+        return {k: Race(v) for k, v in self.bot.game_info.player_races.items()}
 
     @cached_property
     def shootable_targets(self) -> dict[Unit, list[Unit]]:
