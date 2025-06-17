@@ -66,6 +66,12 @@ class CombatPredictor:
         health = np.array([u.health + u.shield for u in self.units])
         enemy_health = np.array([u.health + u.shield for u in self.enemy_units])
 
+        health_max = np.array([u.health_max + u.shield_max for u in self.units])
+        enemy_health_max = np.array([u.health_max + u.shield_max for u in self.enemy_units])
+
+        health = np.maximum(health, 0.5 * health_max)
+        enemy_health = np.maximum(enemy_health, 0.5 * enemy_health_max)
+
         movement_speed = np.array([u.movement_speed for u in self.units])
         enemy_movement_speed = np.array([u.movement_speed for u in self.enemy_units])
 
