@@ -206,6 +206,7 @@ class Strategy:
             composition += {UnitTypeId.OVERSEER: 2}
             composition += {UnitTypeId.LAIR: 1}
         if self.tier >= StrategyTier.Lair:
+            composition += {UnitTypeId.INFESTATIONPIT: 1}
             composition += {UnitTypeId.HIVE: 1}
             composition += {UnitTypeId.OVERSEER: 2}
             composition += {UnitTypeId.HYDRALISKDEN: 1}

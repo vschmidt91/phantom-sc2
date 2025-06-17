@@ -116,7 +116,7 @@ class ResourceAction:
             return None
         if unit.is_idle:
             return Smart(unit, target)
-        elif len(unit.orders) >= 2:
+        elif len(unit._proto.orders) >= 2:
             return DoNothing()
         elif unit.is_gathering:
             return GatherAction(unit, target, self.knowledge.speedmining_positions[target_pos])
