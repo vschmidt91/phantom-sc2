@@ -8,9 +8,9 @@ from requests.adapters import HTTPAdapter, Retry
 @click.option("--wiki", type=click.File("rb"))
 @click.option("--api-token", envvar="UPLOAD_API_TOKEN")
 @click.option("--bot-id", envvar="UPLOAD_BOT_ID")
-@click.option("--bot-zip-publicly-downloadable", type=bool)
-@click.option("--bot-data-publicly-downloadable", type=bool)
-@click.option("--bot-data-enabled", type=bool)
+@click.option("--bot-zip-publicly-downloadable", type=bool, flag_value=True)
+@click.option("--bot-data-publicly-downloadable", type=bool, flag_value=True)
+@click.option("--bot-data-enabled", type=bool, flag_value=True)
 def main(
     bot_zip,
     wiki,
