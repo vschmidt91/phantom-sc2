@@ -1,27 +1,19 @@
-from dataclasses import dataclass
-from functools import cached_property
-
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.unit import Unit
-from sc2.units import Units
 
 from phantom.common.action import Action, UseAbility
 from phantom.common.constants import ENERGY_COST
 from phantom.observation import Observation
 
 
-@dataclass(frozen=True)
 class TransfuseAction:
-    observation: Observation
-    ability = AbilityId.TRANSFUSION_TRANSFUSION
-
-    @cached_property
-    def eligible_targets(self) -> Units:
-        def eligible(t: Unit) -> bool:
-            return t.health + 75 <= t.health_max and BuffId.TRANSFUSION not in t.buffs
-
-        return self.observation.combatants.filter(eligible)
+    def __init__(self, observation: Observation):
+        self.observation = observation
+        self.ability = AbilityId.TRANSFUSION_TRANSFUSION
+        self.eligible_targets = self.observation.combatants.filter(
+            lambda t: t.health + 75 <= t.health_max and BuffId.TRANSFUSION not in t.buffs
+        )
 
     def transfuse_with(self, unit: Unit) -> Action | None:
         if unit.energy < ENERGY_COST[self.ability]:

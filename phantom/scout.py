@@ -57,7 +57,7 @@ class ScoutState:
                     logger.info(f"Detected blocked base {p}")
 
         def filter_base(b: Point2) -> bool:
-            if observation.is_visible(b):
+            if observation.is_visible[b]:
                 return False
             distance_to_enemy = min(b.distance_to(Point2(e)) for e in self.knowledge.enemy_start_locations)
             return not distance_to_enemy < b.distance_to(observation.start_location)
@@ -68,7 +68,7 @@ class ScoutState:
         scout_points = list[Point]()
         scout_bases = filter(filter_base, self.knowledge.bases)
         if not self.knowledge.is_micro_map and not self.enemy_natural_scouted:
-            if observation.is_visible(observation.enemy_natural):
+            if observation.is_visible[observation.enemy_natural]:
                 self.enemy_natural_scouted = True
             else:
                 scout_points.append(tuple(observation.enemy_natural.rounded))

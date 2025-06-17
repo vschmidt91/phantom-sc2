@@ -1,6 +1,3 @@
-from dataclasses import dataclass
-from functools import cached_property
-
 import numpy as np
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -10,7 +7,7 @@ from scipy.ndimage import gaussian_filter
 
 from phantom.common.action import Action, UseAbility
 from phantom.common.constants import ENERGY_COST, HALF
-from phantom.common.utils import circle, circle_perimeter, line, rectangle
+from phantom.common.utils import circle, circle_perimeter, line
 from phantom.knowledge import Knowledge
 from phantom.observation import Observation
 
@@ -19,42 +16,31 @@ _TUMOR_COOLDOWN = 304
 _BASE_SIZE = (5, 5)
 
 
-@dataclass(frozen=True)
 class CreepAction:
-    knowledge: Knowledge
-    obs: Observation
-    mask: np.ndarray
-    active_tumors: set[Unit]
+    def __init__(self, knowledge: Knowledge, obs: Observation, mask: np.ndarray, active_tumors: set[Unit]):
+        self.knowledge = knowledge
+        self.obs = obs
+        self.mask = mask
+        self.active_tumors = active_tumors
 
-    @property
-    def prevent_blocking(self):
-        return self.knowledge.bases
+        self.prevent_blocking = self.knowledge.bases
+        self.reward_blocking = self.knowledge.bases
 
-    @property
-    def reward_blocking(self):
-        return self.knowledge.bases
+        m = self.obs.creep & self.obs.is_visible & (self.obs.pathing == 1) & self.mask
+        # for b in self.prevent_blocking:
+        #     x, y = (Point2(b).offset(HALF) - 0.5 * Point2(_BASE_SIZE)).rounded
+        #     r = rectangle((x, y), extent=_BASE_SIZE, shape=self.obs.creep.shape)
+        #     m[r] = False
+        self.placement_map = m
 
-    @cached_property
-    def placement_map(self) -> np.ndarray:
-        m = self.obs.creep & self.obs.vision & (self.obs.pathing == 1) & self.mask
-        for b in self.prevent_blocking:
-            x, y = (Point2(b).offset(HALF) - 0.5 * Point2(_BASE_SIZE)).rounded
-            r = rectangle((x, y), extent=_BASE_SIZE, shape=self.obs.creep.shape)
-            m[r] = False
-        return m
+        m = ~self.obs.creep & (self.obs.pathing == 1)
+        # for b in self.reward_blocking:
+        #     x, y = (Point2(b).offset(HALF) - 0.5 * Point2(_BASE_SIZE)).rounded
+        #     r = rectangle((x, y), extent=_BASE_SIZE, shape=self.obs.creep.shape)
+        #     m[r] *= 3
+        self.value_map = m
 
-    @cached_property
-    def value_map(self) -> np.ndarray:
-        m = (~self.obs.creep & (self.obs.pathing == 1)).astype(float)
-        for b in self.reward_blocking:
-            x, y = (Point2(b).offset(HALF) - 0.5 * Point2(_BASE_SIZE)).rounded
-            r = rectangle((x, y), extent=_BASE_SIZE, shape=self.obs.creep.shape)
-            m[r] *= 3
-        return m
-
-    @cached_property
-    def value_map_blurred(self) -> np.ndarray:
-        return gaussian_filter(self.value_map, 3) * (self.obs.pathing == 1).astype(float)
+        self.value_map_blurred = gaussian_filter(self.value_map, 3) * (self.obs.pathing == 1).astype(float)
 
     def _place_tumor(self, unit: Unit, r: int, full_circle=False) -> Action | None:
         x0 = round(unit.position.x)

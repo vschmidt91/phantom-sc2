@@ -1,7 +1,6 @@
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from functools import cached_property
 from itertools import product
 
 import numpy as np
@@ -52,14 +51,8 @@ class ScoutPredictor:
     def __init__(self, model: sklearn.base.BaseEstimator, unit_types: Sequence[UnitTypeId] = []) -> None:
         self.model = model
         self.unit_types = unit_types or list(ALL_TRAINABLE)
-
-    @cached_property
-    def unit_type_values(self) -> list[int]:
-        return [u.value for u in self.unit_types]
-
-    @cached_property
-    def features(self) -> list:
-        return list(product([True, False], self.unit_type_values))
+        self.unit_type_values = [u.value for u in self.unit_types]
+        self.features = list(product([True, False], self.unit_type_values))
 
     def pivot(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.replace({"unit_type": TYPE_ALIASES_DICT})

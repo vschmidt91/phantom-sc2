@@ -1,9 +1,7 @@
 import math
-from dataclasses import dataclass
-from functools import cached_property
 
 import numpy as np
-from cython_extensions.dijkstra import DijkstraOutput, cy_dijkstra
+from cython_extensions.dijkstra import cy_dijkstra
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -13,7 +11,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 from scipy import ndimage
 
-from phantom.combat.predictor import CombatPrediction, CombatPredictor
+from phantom.combat.predictor import CombatPredictor
 from phantom.combat.presence import Presence
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.constants import HALF
@@ -28,15 +26,29 @@ from phantom.knowledge import Knowledge
 from phantom.observation import Observation
 
 
-@dataclass(frozen=True)
 class CombatAction:
-    knowledge: Knowledge
-    observation: Observation
+    def __init__(self, knowledge: Knowledge, observation: Observation) -> None:
+        self.knowledge = knowledge
+        self.observation = observation
 
-    @cached_property
-    def retreat_targets(self) -> np.ndarray:
+        self.prediction = CombatPredictor(observation.combatants, observation.enemy_combatants).prediction
+        self.enemy_values = {
+            u.tag: observation.calculate_unit_value_weighted(u.type_id) for u in observation.enemy_units
+        }
+
+        self.presence = self._get_combat_presence(observation.combatants)
+        self.enemy_presence = self._get_combat_presence(observation.enemy_combatants)
+        self.force = self.presence.get_force()
+        self.enemy_force = self.enemy_presence.get_force()
+        self.confidence = np.log1p(self.force) - np.log1p(self.enemy_force)
+
+        sigma = 5
+        self.confidence_filtered = np.log1p(ndimage.gaussian_filter(self.force, sigma)) - np.log1p(
+            ndimage.gaussian_filter(self.enemy_force, sigma)
+        )
+
         if self.knowledge.is_micro_map:
-            return np.array([self.observation.map_center.rounded])
+            self.retreat_targets = np.array([observation.map_center.rounded])
         else:
             retreat_targets = list()
             for b in self.observation.bases_taken:
@@ -45,18 +57,32 @@ class CombatAction:
                     retreat_targets.append(p)
             if not retreat_targets:
                 combatant_positions = {
-                    p for u in self.observation.combatants if self.confidence[p := tuple(u.position.rounded)] >= 0
+                    p for u in observation.combatants if self.confidence[p := tuple(u.position.rounded)] >= 0
                 }
                 retreat_targets.extend(combatant_positions)
             if not retreat_targets:
                 logger.warning("No retreat targets, falling back to start mineral line")
-                p = self.knowledge.in_mineral_line[self.observation.start_location.rounded]
+                p = self.knowledge.in_mineral_line[observation.start_location.rounded]
                 retreat_targets.append(p)
-            return np.array(retreat_targets)
+            self.retreat_targets = np.array(retreat_targets)
 
-    @cached_property
-    def prediction(self) -> CombatPrediction:
-        return CombatPredictor(self.observation.combatants, self.observation.enemy_combatants).prediction
+        if self.knowledge.is_micro_map:
+            self.runby_targets = np.array([tuple(u.position.rounded) for u in self.observation.enemy_combatants])
+        else:
+            self.runby_targets = np.array(
+                [self.knowledge.in_mineral_line[p] for p in self.knowledge.enemy_start_locations]
+            )
+
+        self.threat_level = self.enemy_presence.dps
+        self.retreat_air = cy_dijkstra(
+            self.observation.bot.mediator.get_air_grid.astype(np.float64), self.retreat_targets
+        )
+        self.retreat_ground = cy_dijkstra(
+            self.observation.bot.mediator.get_ground_grid.astype(np.float64), self.retreat_targets
+        )
+
+        self.targeting_cost = self._targeting_cost()
+        self.optimal_targeting = self._optimal_targeting()
 
     def retreat_with(self, unit: Unit, limit=3) -> Action | None:
         x = round(unit.position.x)
@@ -82,10 +108,6 @@ class CombatAction:
                 limit,
             ),
         )
-
-    @cached_property
-    def enemy_values(self) -> dict[int, float]:
-        return {u.tag: self.observation.calculate_unit_value_weighted(u.type_id) for u in self.observation.enemy_units}
 
     def fight_with_baneling(self, baneling: Unit) -> Action | None:
         if not (target := self.optimal_targeting.get(baneling)):
@@ -144,84 +166,7 @@ class CombatAction:
             return None
         return UseAbility(unit, AbilityId.BURROWDOWN)
 
-    @cached_property
-    def presence(self) -> Presence:
-        return self.get_combat_presence(self.observation.combatants)
-
-    @cached_property
-    def enemy_presence(self) -> Presence:
-        return self.get_combat_presence(self.observation.enemy_combatants)
-
-    def get_combat_presence(self, units: Units) -> Presence:
-        dps_map = np.zeros_like(self.observation.pathing, dtype=float)
-        health_map = np.zeros_like(self.observation.pathing, dtype=float)
-        for unit in units:
-            dps = max(unit.ground_dps, unit.air_dps)
-            px, py = unit.position.rounded
-            if dps > 0:
-                r = 0.0
-                r += 2 * unit.radius
-                r += 1
-                r += max(unit.ground_range, unit.air_range)
-                # r += unit.sight_range
-                dx, dy = disk(r)
-                d = px + dx, py + dy
-                health_map[d] += unit.shield + unit.health
-                dps_map[d] = np.maximum(dps_map[d], dps)
-        return Presence(dps_map, health_map)
-
-    @cached_property
-    def force(self) -> np.ndarray:
-        return self.presence.get_force()
-
-    @cached_property
-    def enemy_force(self) -> np.ndarray:
-        return self.enemy_presence.get_force()
-
-    @cached_property
-    def confidence(self) -> np.ndarray:
-        return np.log1p(self.force) - np.log1p(self.enemy_force)
-
-    @cached_property
-    def confidence_filtered(self) -> np.ndarray:
-        sigma = 5
-        return np.log1p(ndimage.gaussian_filter(self.force, sigma)) - np.log1p(
-            ndimage.gaussian_filter(self.enemy_force, sigma)
-        )
-
-    @cached_property
-    def threat_level(self) -> np.ndarray:
-        return self.enemy_presence.dps
-
-    @cached_property
-    def retreat_air(self) -> DijkstraOutput:
-        cost = self.observation.bot.mediator.get_air_grid.astype(np.float64)
-        targets = self.retreat_targets
-        return cy_dijkstra(cost, targets)
-
-    @cached_property
-    def retreat_ground(self) -> DijkstraOutput:
-        cost = self.observation.bot.mediator.get_ground_grid.astype(np.float64)
-        targets = self.retreat_targets
-        return cy_dijkstra(cost, targets)
-
-    @cached_property
-    def runby_targets(self) -> np.ndarray:
-        if self.knowledge.is_micro_map:
-            return np.array([tuple(u.position.rounded) for u in self.observation.enemy_combatants])
-        else:
-            return np.array([self.knowledge.in_mineral_line[p] for p in self.knowledge.enemy_start_locations])
-
-    @cached_property
-    def runby_ground(self) -> DijkstraOutput:
-        return cy_dijkstra(self.observation.bot.mediator.get_ground_grid.astype(np.float64), self.runby_targets)
-
-    @cached_property
-    def runby_air(self) -> DijkstraOutput:
-        return cy_dijkstra(self.observation.bot.mediator.get_air_grid.astype(np.float64), self.runby_targets)
-
-    @cached_property
-    def targeting_cost(self) -> np.ndarray:
+    def _targeting_cost(self) -> np.ndarray:
         units = self.observation.combatants
         enemies = self.observation.enemy_combatants
         distances = pairwise_distances(
@@ -244,8 +189,7 @@ class CombatAction:
         )
         return cost
 
-    @cached_property
-    def optimal_targeting(self) -> dict[Unit, Unit]:
+    def _optimal_targeting(self) -> dict[Unit, Unit]:
         units = self.observation.combatants
         enemies = self.observation.enemy_combatants
 
@@ -270,3 +214,21 @@ class CombatAction:
         assignment = {a: b for a, b in assignment.items() if can_attack(a, b)}
 
         return assignment
+
+    def _get_combat_presence(self, units: Units) -> Presence:
+        dps_map = np.zeros_like(self.observation.pathing, dtype=float)
+        health_map = np.zeros_like(self.observation.pathing, dtype=float)
+        for unit in units:
+            dps = max(unit.ground_dps, unit.air_dps)
+            px, py = unit.position.rounded
+            if dps > 0:
+                r = 0.0
+                r += 2 * unit.radius
+                r += 1
+                r += max(unit.ground_range, unit.air_range)
+                # r += unit.sight_range
+                dx, dy = disk(r)
+                d = px + dx, py + dy
+                health_map[d] += unit.shield + unit.health
+                dps_map[d] = np.maximum(dps_map[d], dps)
+        return Presence(dps_map, health_map)

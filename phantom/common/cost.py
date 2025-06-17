@@ -1,6 +1,5 @@
 import math
 from dataclasses import dataclass
-from functools import cached_property
 from typing import Protocol
 
 import numpy as np
@@ -43,11 +42,11 @@ class Cost:
             self.larva / other.larva if other.larva != 0.0 else math.inf,
         )
 
-    @cached_property
+    @property
     def total_resources(self) -> float:
         return self.minerals + self.vespene
 
-    @cached_property
+    @property
     def sign(self) -> "Cost":
         return Cost(
             np.sign(self.minerals),
@@ -86,7 +85,7 @@ class CostManager:
         self.context = context
         self._cache = dict[MacroId, Cost]()
 
-    @cached_property
+    @property
     def zero(self) -> Cost:
         return Cost(0, 0, 0, 0)
 

@@ -1,6 +1,3 @@
-from dataclasses import dataclass
-from functools import cached_property
-
 from sc2.unit import Unit
 from sc2.units import Units
 
@@ -11,18 +8,24 @@ from phantom.resources.utils import remaining
 HarvesterAssignment = dict[int, Point]
 
 
-@dataclass(frozen=True)
 class ResourceObservation:
-    observation: Observation
-    harvesters: Units
-    gas_buildings: Units
-    vespene_geysers: Units
-    mineral_fields: Units
-    gas_ratio: float
+    def __init__(
+        self,
+        observation: Observation,
+        harvesters: Units,
+        gas_buildings: Units,
+        vespene_geysers: Units,
+        mineral_fields: Units,
+        gas_ratio: float,
+    ):
+        self.observation = observation
+        self.harvesters = harvesters
+        self.gas_buildings = gas_buildings
+        self.vespene_geysers = vespene_geysers
+        self.mineral_fields = mineral_fields
+        self.gas_ratio = gas_ratio
 
-    @cached_property
-    def gather_hash(self) -> int:
-        return hash(
+        self.gather_hash = hash(
             (
                 frozenset(self.harvesters),
                 frozenset(self.gas_buildings),
@@ -31,23 +34,11 @@ class ResourceObservation:
             )
         )
 
-    @cached_property
-    def resource_at(self) -> dict[Point, Unit]:
-        return self.mineral_field_at | self.gas_building_at
+        self.mineral_field_at = {tuple(r.position.rounded): r for r in self.mineral_fields}
+        self.gas_building_at = {tuple(g.position.rounded): g for g in self.gas_buildings}
+        self.vespene_geyser_at = {tuple(g.position.rounded): g for g in self.vespene_geysers}
+        self.resource_at = self.mineral_field_at | self.gas_building_at
 
-    @cached_property
-    def mineral_field_at(self) -> dict[Point, Unit]:
-        return {tuple(r.position.rounded): r for r in self.mineral_fields}
-
-    @cached_property
-    def gas_building_at(self) -> dict[Point, Unit]:
-        return {tuple(g.position.rounded): g for g in self.gas_buildings}
-
-    @cached_property
-    def vespene_geyser_at(self) -> dict[Point, Unit]:
-        return {tuple(g.position.rounded): g for g in self.vespene_geysers}
-
-    # cache
     def harvester_target_of_gas(self, resource: Unit) -> int:
         if resource.mineral_contents == 0:
             if not resource.is_ready:

@@ -234,7 +234,7 @@ class MacroState:
         return trainers_filtered[0]
 
     def handle_actions(self, obs: Observation) -> None:
-        for tag, action in obs.actions_unit_commands.items():
+        for tag, action in obs.unit_commands.items():
             self.handle_action(obs, action, tag)
 
     def handle_action(self, obs: Observation, action: ActionRawUnitCommand, tag: int) -> None:

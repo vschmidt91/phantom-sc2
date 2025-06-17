@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from enum import Enum, auto
-from functools import cached_property
 
 import numpy as np
 from sc2.unit import Unit
@@ -22,13 +21,16 @@ class CombatPrediction:
     nearby_enemy_survival_time: dict[Unit, float]
 
 
-@dataclass(frozen=True)
 class CombatPredictor:
     units: Units
     enemy_units: Units
 
-    @cached_property
-    def prediction(self) -> CombatPrediction:
+    def __init__(self, units: Units, enemy_units: Units):
+        self.units = units
+        self.enemy_units = enemy_units
+        self.prediction = self._prediction()
+
+    def _prediction(self) -> CombatPrediction:
         step_time = 0.1
         max_steps = 100
         max_duration = step_time * max_steps

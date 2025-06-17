@@ -272,7 +272,7 @@ class Agent:
                 return None
             if not (
                 target_base := min(
-                    filter(lambda b: not observation.is_visible(b), self.knowledge.bases),
+                    filter(lambda b: not observation.is_visible[b], self.knowledge.bases),
                     key=lambda b: unit.distance_to(b),
                     default=None,
                 )
@@ -282,7 +282,7 @@ class Agent:
             #     p=random.choice(observation.enemy_start_locations),
             #     distance=random.normalvariate(10, 10))
             target = observation.random_point(near=target_base)
-            if observation.is_visible(target):
+            if observation.is_visible[target.rounded]:
                 return None
             if not observation.pathing[target.rounded]:
                 return None
@@ -297,9 +297,9 @@ class Agent:
                 target = cy_closest_to(unit.position, observation.enemy_combatants)
                 return Move(unit, target.position)
             target = observation.random_point(near=unit.position)
-            if observation.is_visible(target):
+            if observation.is_visible[target.rounded]:
                 return None
-            if not observation.pathing[target.position.rounded] and not unit.is_flying:
+            if not observation.pathing[target.rounded] and not unit.is_flying:
                 return None
             return Move(unit, target)
 

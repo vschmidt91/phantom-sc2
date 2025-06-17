@@ -1,4 +1,5 @@
 import cProfile
+import io
 import lzma
 import os
 import pickle
@@ -108,12 +109,12 @@ class PhantomBot(BotExporter, AresBot):
         for error in self.state.action_errors:
             logger.warning(f"{error=}")
 
-        if self.bot_config.profile_path:
-            self.profiler.enable()
-
-        if not self.bot_config.debug_draw:
+        if self.bot_config.debug_draw:
             for i, (t, plan) in enumerate(self.agent.macro.assigned_plans.items()):
                 self._debug_draw_plan(self.unit_tag_dict.get(t), plan, index=i)
+
+        if self.bot_config.profile_path:
+            self.profiler.enable()
 
         planned = Counter(p.item for p in self.agent.macro.enumerate_plans())
         observation = Observation(self, self.agent.knowledge, planned)
@@ -127,6 +128,21 @@ class PhantomBot(BotExporter, AresBot):
             self.profiler.disable()
             if self.actual_iteration % 100 == 0:
                 logger.info(f"Writing profiling to {self.bot_config.profile_path}")
+
+                s = io.StringIO()
+                stats = pstats.Stats(self.profiler, stream=s)
+                stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
+                stats.print_callers()
+                with open(self.bot_config.profile_path + ".callers", "w+") as f:
+                    f.write(s.getvalue())
+
+                s = io.StringIO()
+                stats = pstats.Stats(self.profiler, stream=s)
+                stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
+                stats.print_callees()
+                with open(self.bot_config.profile_path + ".callees", "w+") as f:
+                    f.write(s.getvalue())
+
                 stats = pstats.Stats(self.profiler)
                 stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
                 stats.dump_stats(filename=self.bot_config.profile_path)

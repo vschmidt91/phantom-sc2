@@ -1,7 +1,5 @@
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
-from functools import cached_property
+from collections.abc import Iterable
 from itertools import chain
 
 import numpy as np
@@ -14,7 +12,6 @@ from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.game_data import UnitTypeData
-from sc2.game_state import ActionError, ActionRawUnitCommand, EffectData
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -38,234 +35,80 @@ from phantom.common.constants import (
     ZERG_RANGED_UPGRADES,
 )
 from phantom.common.cost import Cost
-from phantom.common.utils import RNG, MacroId, Point
+from phantom.common.utils import RNG, MacroId
 from phantom.knowledge import Knowledge
 
 
-@dataclass(frozen=True)
 class Observation:
-    bot: AresBot
-    knowledge: Knowledge
-    planned: Counter[MacroId]
-
-    @cached_property
-    def workers_in_geysers(self) -> int:
-        # TODO: consider dropperlords, nydus, ...
-        return int(self.bot.supply_workers) - self.bot.workers.amount
-
-    @cached_property
-    def unit_by_tag(self) -> dict[int, Unit]:
-        return self.bot.unit_tag_dict
-
-    @property
-    def action_errors(self) -> list[ActionError]:
-        return self.bot.state.action_errors
-
-    @property
-    def supply_workers(self) -> float:
-        return self.bot.supply_workers
-
-    @cached_property
-    def type_of(self) -> dict[Unit, UnitTypeId]:
-        return {u: u.type_id for u in self.bot.all_units}
-
-    @property
-    def supply_cap(self) -> float:
-        return self.bot.supply_cap
-
-    @property
-    def researched_speed(self) -> bool:
-        return self.bot.already_pending_upgrade(UpgradeId.ZERGLINGMOVEMENTSPEED) > 0.0
-
-    @property
-    def effects(self) -> set[EffectData]:
-        return self.bot.state.effects
-
-    @property
-    def upgrades(self) -> set[UpgradeId]:
-        return self.bot.state.upgrades
-
-    @cached_property
-    def actions_unit_commands(self) -> dict[int, ActionRawUnitCommand]:
-        return {t: a for a in self.bot.state.actions_unit_commands for t in a.unit_tags}
-
-    @cached_property
-    def player_races(self) -> Mapping[int, Race]:
-        return {k: Race(v) for k, v in self.bot.game_info.player_races.items()}
-
-    @cached_property
-    def shootable_targets(self) -> dict[Unit, list[Unit]]:
-        units = self.combatants
-        base_ranges = [u.radius for u in units]
-        # base_ranges = [u.radius + MAX_UNIT_RADIUS + u.distance_to_weapon_ready for u in units]
-        ground_ranges = [b + u.ground_range for u, b in zip(units, base_ranges, strict=False)]
-        air_ranges = [b + u.air_range for u, b in zip(units, base_ranges, strict=False)]
-
-        ground_candidates = self.bot.mediator.get_units_in_range(
-            start_points=units,
-            distances=ground_ranges,
-            query_tree=UnitTreeQueryType.EnemyGround,
+    def __init__(self, bot: AresBot, knowledge: Knowledge, planned: Counter[MacroId]):
+        self.bot = bot
+        self.knowledge = knowledge
+        self.planned = planned
+        self.unit_commands = {t: a for a in self.bot.state.actions_unit_commands for t in a.unit_tags}
+        self.player_races = {k: Race(v) for k, v in self.bot.game_info.player_races.items()}
+        self.workers_in_geysers = int(self.bot.supply_workers) - self.bot.workers.amount
+        self.pathing = self.bot.mediator.get_map_data_object.get_pyastar_grid()
+        self.pathable = self.pathing == 1.0
+        self.supply_planned = sum(
+            provided * self.planned[unit_type] for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
         )
-        air_candidates = self.bot.mediator.get_units_in_range(
-            start_points=units,
-            distances=air_ranges,
-            query_tree=UnitTreeQueryType.EnemyFlying,
+        self.unit_by_tag = self.bot.unit_tag_dict
+        self.action_errors = self.bot.state.action_errors
+        self.supply_workers = self.bot.supply_workers
+        self.supply_cap = self.bot.supply_cap
+        self.researched_speed = self.bot.already_pending_upgrade(UpgradeId.ZERGLINGMOVEMENTSPEED) > 0.0
+        self.effects = self.bot.state.effects
+        self.upgrades = self.bot.state.upgrades
+        self.units = self.bot.all_own_units
+        self.overseers = self.bot.units({UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE})
+        self.enemy_units = self.bot.all_enemy_units
+        self.combatants = self.bot.units if self.knowledge.is_micro_map else self.bot.units.exclude_type(CIVILIANS)
+        self.enemy_combatants = (
+            self.bot.enemy_units if self.knowledge.is_micro_map else self.bot.enemy_units.exclude_type(ENEMY_CIVILIANS)
         )
-        targets = {
-            u: list(filter(u.target_in_range, a | b))
-            for u, a, b in zip(units, ground_candidates, air_candidates, strict=False)
-        }
-        return targets
+        self.creep = self.bot.state.creep.data_numpy.T == 1.0
+        self.is_visible = self.bot.state.visibility.data_numpy.T == 2.0
+        self.placement = self.bot.game_info.placement_grid.data_numpy.T == 1.0
+        self.time = self.bot.time
+        self.gas_buildings = self.bot.gas_buildings
+        self.structures = self.bot.structures
+        self.workers = self.bot.workers
+        self.townhalls = self.bot.townhalls
+        self.enemy_structures = self.bot.enemy_structures
+        self.game_loop = self.bot.state.game_loop
+        self.resources = self.bot.resources
 
-    @property
-    def units(self) -> Units:
-        return self.bot.all_own_units
+        actual_by_type = defaultdict(list)
+        for unit in self.bot.all_own_units:
+            if unit.is_ready:
+                actual_by_type[unit.type_id].append(unit)
+        for upgrade in self.bot.state.upgrades:
+            actual_by_type[upgrade].append(upgrade)
+        self.actual_by_type = actual_by_type
 
-    @property
-    def combatants(self) -> Units:
-        if self.knowledge.is_micro_map:
-            return self.bot.units
-        else:
-            return self.bot.units.exclude_type(CIVILIANS)
+        pending_by_type = defaultdict(list)
+        for unit in self.bot.all_own_units:
+            if unit.is_ready:
+                for order in unit.orders:
+                    if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
+                        pending_by_type[item].append(unit)
+            else:
+                pending_by_type[unit.type_id].append(unit)
+        self.pending_by_type = pending_by_type
 
-    @property
-    def overseers(self) -> Units:
-        return self.bot.units({UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE})
+        self.air_pathing = self.bot.mediator.get_map_data_object.get_clean_air_grid()
 
-    @property
-    def enemy_units(self) -> Units:
-        return self.bot.all_enemy_units
-
-    @property
-    def enemy_combatants(self) -> Units:
-        if self.knowledge.is_micro_map:
-            return self.bot.enemy_units
-        else:
-            return self.bot.all_enemy_units.exclude_type(ENEMY_CIVILIANS)
-
-    @property
-    def creep(self) -> np.ndarray:
-        return self.bot.state.creep.data_numpy.T == 1.0
-
-    @property
-    def vision(self) -> np.ndarray:
-        return self.bot.state.visibility.data_numpy.T == 2
-
-    # @property
-    # def pathing(self) -> np.ndarray:
-    #     return self.bot.game_info.pathing_grid.data_numpy.T == 1.0
-
-    def is_visible(self, p: Point2 | Unit) -> bool:
-        return self.bot.is_visible(p)
-
-    @property
-    def placement(self) -> np.ndarray:
-        return self.bot.game_info.placement_grid.data_numpy.T == 1.0
-
-    @property
-    def time(self) -> float:
-        return self.bot.time
-
-    @property
-    def gas_buildings(self) -> Units:
-        return self.bot.gas_buildings
-
-    @property
-    def structures(self) -> Units:
-        return self.bot.structures
-
-    @property
-    def workers(self) -> Units:
-        return self.bot.workers
-
-    @property
-    def townhalls(self) -> Units:
-        return self.bot.townhalls
-
-    @property
-    def enemy_structures(self) -> Units:
-        return self.bot.enemy_structures
-
-    @property
-    def game_loop(self):
-        return self.bot.state.game_loop
-
-    @property
-    def max_harvesters(self):
-        return sum(
-            (
-                2 * self.all_taken_resources.mineral_field.amount,
-                3 * self.all_taken_resources.vespene_geyser.amount,
-            )
-        )
-
-    @cached_property
-    def resources(self) -> Units:
-        return self.bot.resources
-
-    @cached_property
-    def pathing(self) -> np.ndarray:
-        return self.bot.mediator.get_map_data_object.get_pyastar_grid()
-
-    @cached_property
-    def pathable(self) -> np.ndarray:
-        return self.bot.mediator.get_map_data_object.get_pyastar_grid() == 1.0
-
-    @cached_property
-    def air_pathing(self) -> np.ndarray:
-        return self.bot.mediator.get_map_data_object.get_clean_air_grid()
-
-    @cached_property
-    def unit_commands(self) -> dict[int, ActionRawUnitCommand]:
-        return {u: a for a in self.bot.state.actions_unit_commands for u in a.unit_tags}
-
-    @cached_property
-    def geyers_taken(self) -> list[Unit]:
-        # return [g for b in self.bases_taken for g in self.bot.expansion_locations_dict[b].vespene_geyser]
-        return self.all_taken_resources.vespene_geyser
-
-    @property
-    def map_center(self) -> Point2:
-        return self.bot.game_info.map_center
-
-    @property
-    def start_location(self) -> Point2:
-        return self.bot.start_location
-
-    @property
-    def supply_used(self) -> float:
-        return self.bot.supply_used
-
-    @cached_property
-    def bases_taken(self) -> set[Point]:
-        return {
+        self.map_center = self.bot.game_info.map_center
+        self.start_location = self.bot.start_location
+        self.supply_used = self.bot.supply_used
+        self.enemy_natural = self.bot.mediator.get_enemy_nat
+        self.overlord_spots = self.bot.mediator.get_ol_spots
+        self.townhall_at = {tuple(b.position.rounded): b for b in self.bot.townhalls}
+        self.resource_at = {tuple(r.position.rounded): r for r in self.bot.resources}
+        self.bases_taken = {
             p for b in self.bot.expansion_locations_list if (th := self.townhall_at.get(p := b.rounded)) and th.is_ready
         }
-
-    @property
-    def enemy_natural(self) -> Point2:
-        return self.bot.mediator.get_enemy_nat
-
-    @property
-    def overlord_spots(self) -> list[Point2]:
-        return self.bot.mediator.get_ol_spots
-
-    def calculate_unit_value_weighted(self, unit_type: UnitTypeId) -> float:
-        # TODO: learn value as parameters
-        cost = self.bot.calculate_unit_value(unit_type)
-        return cost.minerals + 2 * cost.vespene
-
-    @cached_property
-    def townhall_at(self) -> dict[Point, Unit]:
-        return {tuple(b.position.rounded): b for b in self.bot.townhalls}
-
-    @cached_property
-    def resource_at(self) -> dict[Point, Unit]:
-        return {tuple(r.position.rounded): r for r in self.bot.resources}
-
-    @cached_property
-    def all_taken_resources(self) -> Units:
-        return Units(
+        self.all_taken_resources = Units(
             [
                 r
                 for base in self.knowledge.bases
@@ -274,6 +117,59 @@ class Observation:
                 if (r := self.resource_at.get(p))
             ],
             self.bot,
+        )
+        self.max_harvesters = sum(
+            (
+                2 * self.all_taken_resources.mineral_field.amount,
+                3 * self.all_taken_resources.vespene_geyser.amount,
+            )
+        )
+        self.geyers_taken = self.all_taken_resources.vespene_geyser
+        self.supply_pending = sum(
+            provided * len(self.pending_by_type[unit_type])
+            for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
+        )
+        self.bank = Cost(self.bot.minerals, self.bot.vespene, self.bot.supply_left, self.bot.larva.amount)
+
+        larva_income = sum(
+            sum(
+                (
+                    1 / 11 if h.is_ready else 0.0,
+                    3 / 29 if h.has_buff(BuffId.QUEENSPAWNLARVATIMER) else 0.0,  # TODO: track actual injects
+                )
+            )
+            for h in self.bot.townhalls
+        )
+
+        supply_income = sum(
+            cy_unit_pending(self.bot, unit_type) * provided / self.knowledge.build_time[unit_type]
+            for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
+        )
+
+        self.income = Cost(
+            self.bot.state.score.collection_rate_minerals / 60.0,  # TODO: get from harvest assignment
+            self.bot.state.score.collection_rate_vespene / 60.0,  # TODO: get from harvest assignment
+            supply_income,  # TODO: iterate over pending
+            larva_income,
+        )
+        self.shootable_targets = self._shootable_targets()
+
+    def calculate_unit_value_weighted(self, unit_type: UnitTypeId) -> float:
+        # TODO: learn value as parameters
+        cost = self.bot.calculate_unit_value(unit_type)
+        return cost.minerals + 2 * cost.vespene
+
+    def is_unit_missing(self, unit: UnitTypeId) -> bool:
+        if unit in {
+            UnitTypeId.LARVA,
+            # UnitTypeId.CORRUPTOR,
+            # UnitTypeId.ROACH,
+            # UnitTypeId.HYDRALISK,
+            # UnitTypeId.ZERGLING,
+        }:
+            return False
+        return all(
+            self.count(e, include_pending=False, include_planned=False) == 0 for e in WITH_TECH_EQUIVALENTS[unit]
         )
 
     def count(
@@ -294,78 +190,8 @@ class Observation:
 
         return count
 
-    @property
-    def income(self) -> Cost:
-        larva_income = sum(
-            sum(
-                (
-                    1 / 11 if h.is_ready else 0.0,
-                    3 / 29 if h.has_buff(BuffId.QUEENSPAWNLARVATIMER) else 0.0,  # TODO: track actual injects
-                )
-            )
-            for h in self.bot.townhalls
-        )
-
-        supply_income = sum(
-            cy_unit_pending(self.bot, unit_type) * provided / self.knowledge.build_time[unit_type]
-            for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
-        )
-
-        return Cost(
-            self.bot.state.score.collection_rate_minerals / 60.0,  # TODO: get from harvest assignment
-            self.bot.state.score.collection_rate_vespene / 60.0,  # TODO: get from harvest assignment
-            supply_income,  # TODO: iterate over pending
-            larva_income,
-        )
-
-    @cached_property
-    def actual_by_type(self) -> dict[MacroId, list[Unit]]:
-        result = defaultdict(list)
-        for unit in self.bot.all_own_units:
-            if unit.is_ready:
-                result[unit.type_id].append(unit)
-        for upgrade in self.bot.state.upgrades:
-            result[upgrade].append(upgrade)
-        return result
-
-    @cached_property
-    def pending_by_type(self) -> defaultdict[MacroId, list[Unit]]:
-        result = defaultdict(list)
-        for unit in self.bot.all_own_units:
-            if unit.is_ready:
-                for order in unit.orders:
-                    if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
-                        result[item].append(unit)
-            else:
-                result[unit.type_id].append(unit)
-        return result
-
-    def is_unit_missing(self, unit: UnitTypeId) -> bool:
-        if unit in {
-            UnitTypeId.LARVA,
-            # UnitTypeId.CORRUPTOR,
-            # UnitTypeId.ROACH,
-            # UnitTypeId.HYDRALISK,
-            # UnitTypeId.ZERGLING,
-        }:
-            return False
-        return all(
-            self.count(e, include_pending=False, include_planned=False) == 0 for e in WITH_TECH_EQUIVALENTS[unit]
-        )
-
-    @property
-    def supply_pending(self) -> int:
-        return sum(
-            provided * len(self.pending_by_type[unit_type])
-            for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
-        )
-
     def unit_data(self, unit_type_id: UnitTypeId) -> UnitTypeData:
         return self.bot.game_data.units[unit_type_id.value]
-
-    @property
-    def bank(self) -> Cost:
-        return Cost(self.bot.minerals, self.bot.vespene, self.bot.supply_left, self.bot.larva.amount)
 
     async def query_pathings(self, zipped_list: list[list[Unit | Point2 | Point3]]) -> list[float]:
         logger.debug(f"Query pathings {zipped_list=}")
@@ -408,10 +234,6 @@ class Observation:
         else:
             target = RNG.uniform((a.x, a.y), (a.right, a.top))
         return Point2(target)
-
-    @property
-    def supply_planned(self) -> int:
-        return sum(provided * self.planned[unit_type] for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items())
 
     def get_missing_requirements(self, item: MacroId) -> Iterable[MacroId]:
         if item not in REQUIREMENTS_KEYS:
@@ -506,3 +328,26 @@ class Observation:
             if not self.count(upgrade, include_planned=False):
                 return (upgrade,)
         return ()
+
+    def _shootable_targets(self) -> dict[Unit, list[Unit]]:
+        units = self.combatants
+        base_ranges = [u.radius for u in units]
+        # base_ranges = [u.radius + MAX_UNIT_RADIUS + u.distance_to_weapon_ready for u in units]
+        ground_ranges = [b + u.ground_range for u, b in zip(units, base_ranges, strict=False)]
+        air_ranges = [b + u.air_range for u, b in zip(units, base_ranges, strict=False)]
+
+        ground_candidates = self.bot.mediator.get_units_in_range(
+            start_points=units,
+            distances=ground_ranges,
+            query_tree=UnitTreeQueryType.EnemyGround,
+        )
+        air_candidates = self.bot.mediator.get_units_in_range(
+            start_points=units,
+            distances=air_ranges,
+            query_tree=UnitTreeQueryType.EnemyFlying,
+        )
+        targets = {
+            u: list(filter(u.target_in_range, a | b))
+            for u, a, b in zip(units, ground_candidates, air_candidates, strict=False)
+        }
+        return targets

@@ -32,7 +32,7 @@ class CorrosiveBileState:
     def step_unit(self, obs: Observation, unit: Unit) -> Action | None:
         def filter_target(t: Unit) -> bool:
             return (
-                obs.is_visible(t)
+                obs.is_visible[t.position.rounded]
                 and unit.in_ability_cast_range(_ABILITY, t.position)
                 and not t.is_hallucination
                 and t.type_id not in CHANGELINGS

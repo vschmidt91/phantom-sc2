@@ -139,15 +139,15 @@ async def run(
         logger.info(f"Picking {map_choice=}")
         opponent = Computer(Race[enemy_race], Difficulty[enemy_difficulty], AIBuild[enemy_build])
 
-        try:
-            result = await _host_game(
-                Map(pathlib.Path(map_choice)),
-                [bot, opponent],
-                realtime=realtime,
-                save_replay_as=replay_path_sc2,
-            )
-        except Exception as error:
-            logger.error(error)
+        # try:
+        result = await _host_game(
+            Map(pathlib.Path(map_choice)),
+            [bot, opponent],
+            realtime=realtime,
+            save_replay_as=replay_path_sc2,
+        )
+        # except Exception as error:
+        #     logger.error(error)
 
     logger.info(f"Game finished with {result=}")
 

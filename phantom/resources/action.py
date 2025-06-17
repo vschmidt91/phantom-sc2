@@ -1,6 +1,4 @@
 import math
-from dataclasses import dataclass
-from functools import cached_property
 
 import numpy as np
 from loguru import logger
@@ -19,15 +17,22 @@ class SolverError(Exception):
     pass
 
 
-@dataclass(frozen=True)
 class ResourceAction:
-    knowledge: Knowledge
-    observation: ResourceObservation
-    previous_assignment: HarvesterAssignment
-    previous_hash: int
+    def __init__(
+        self,
+        knowledge: Knowledge,
+        observation: ResourceObservation,
+        previous_assignment: HarvesterAssignment,
+        previous_hash: int,
+    ):
+        self.knowledge = knowledge
+        self.observation = observation
+        self.previous_assignment = previous_assignment
+        self.previous_hash = previous_hash
+        self.gas_target = math.ceil(observation.harvesters.amount * observation.gas_ratio)
+        self.harvester_assignment = self._harvester_assignment()
 
-    @cached_property
-    def harvester_assignment(self) -> HarvesterAssignment:
+    def _harvester_assignment(self) -> HarvesterAssignment:
         if self.observation.gather_hash == self.previous_hash:
             return self.previous_assignment
         elif solution := self.solve():
@@ -98,10 +103,6 @@ class ResourceAction:
         }
 
         return assignment
-
-    @cached_property
-    def gas_target(self) -> int:
-        return math.ceil(self.observation.harvesters.amount * self.observation.gas_ratio)
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
         if not (target_pos := self.harvester_assignment.get(unit.tag)):
