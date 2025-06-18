@@ -108,7 +108,7 @@ class Observation:
 
         self.bases_taken = set[tuple[int, int]]()
         if not knowledge.is_micro_map:
-            self.bases_taken.extend(
+            self.bases_taken.update(
                 p
                 for b in self.bot.expansion_locations_list
                 if (th := self.townhall_at.get(p := tuple(b.rounded))) and th.is_ready
