@@ -101,13 +101,19 @@ class Observation:
         self.map_center = self.bot.game_info.map_center
         self.start_location = self.bot.start_location
         self.supply_used = self.bot.supply_used
-        self.enemy_natural = self.bot.mediator.get_enemy_nat
+        self.enemy_natural = self.bot.mediator.get_enemy_nat if not knowledge.is_micro_map else None
         self.overlord_spots = self.bot.mediator.get_ol_spots
         self.townhall_at = {tuple(b.position.rounded): b for b in self.bot.townhalls}
         self.resource_at = {tuple(r.position.rounded): r for r in self.bot.resources}
-        self.bases_taken = {
-            p for b in self.bot.expansion_locations_list if (th := self.townhall_at.get(p := b.rounded)) and th.is_ready
-        }
+
+        self.bases_taken = set[tuple[int, int]]()
+        if not knowledge.is_micro_map:
+            self.bases_taken.extend(
+                p
+                for b in self.bot.expansion_locations_list
+                if (th := self.townhall_at.get(p := tuple(b.rounded))) and th.is_ready
+            )
+
         self.all_taken_resources = Units(
             [
                 r

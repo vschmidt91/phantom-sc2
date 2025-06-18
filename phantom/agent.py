@@ -233,7 +233,7 @@ class Agent:
                 dodge.dodge_with(u)
                 or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
                 or resources.gather_with(u, observation.townhalls.ready)
-                or (drone_scout(u) if observation.townhalls.ready.amount < 2 else search_with(u))
+                or (drone_scout(u) if observation.townhalls.ready.amount < 2 else None)
             )
 
         def micro_overlord(u: Unit) -> Action | None:

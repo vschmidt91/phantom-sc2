@@ -1,4 +1,5 @@
 import math
+import sys
 
 import numpy as np
 from cython_extensions.dijkstra import cy_dijkstra
@@ -120,7 +121,10 @@ class CombatAction:
             dps = calculate_dps(unit, u)
             reward = self.enemy_values[u.tag]
             risk = np.divide(hp, dps)
-            return np.divide(risk, reward)
+            cost = np.divide(risk, reward)
+            random_offset = hash(u.tag) / (2**sys.hash_info.width)
+            cost += 1e-10 * random_offset
+            return cost
 
         if unit.ground_range > 1 and unit.weapon_ready and (targets := self.observation.shootable_targets.get(unit)):
             target = min(targets, key=cost_fn)
