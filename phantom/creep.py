@@ -7,7 +7,7 @@ from scipy.ndimage import gaussian_filter
 
 from phantom.common.action import Action, UseAbility
 from phantom.common.constants import ENERGY_COST, HALF
-from phantom.common.utils import circle, circle_perimeter, line
+from phantom.common.utils import circle, circle_perimeter, line, rectangle
 from phantom.knowledge import Knowledge
 from phantom.observation import Observation
 
@@ -27,17 +27,17 @@ class CreepAction:
         self.reward_blocking = self.knowledge.bases
 
         m = self.obs.creep & self.obs.is_visible & (self.obs.pathing == 1) & self.mask
-        # for b in self.prevent_blocking:
-        #     x, y = (Point2(b).offset(HALF) - 0.5 * Point2(_BASE_SIZE)).rounded
-        #     r = rectangle((x, y), extent=_BASE_SIZE, shape=self.obs.creep.shape)
-        #     m[r] = False
+        for b in self.prevent_blocking:
+            x, y = (Point2(b).offset(HALF) - 0.5 * Point2(_BASE_SIZE)).rounded
+            r = rectangle((x, y), extent=_BASE_SIZE, shape=self.obs.creep.shape)
+            m[r] = False
         self.placement_map = m
 
         m = ~self.obs.creep & (self.obs.pathing == 1)
-        # for b in self.reward_blocking:
-        #     x, y = (Point2(b).offset(HALF) - 0.5 * Point2(_BASE_SIZE)).rounded
-        #     r = rectangle((x, y), extent=_BASE_SIZE, shape=self.obs.creep.shape)
-        #     m[r] *= 3
+        for b in self.reward_blocking:
+            x, y = (Point2(b).offset(HALF) - 0.5 * Point2(_BASE_SIZE)).rounded
+            r = rectangle((x, y), extent=_BASE_SIZE, shape=self.obs.creep.shape)
+            m[r] *= 3
         self.value_map = m
 
         self.value_map_blurred = gaussian_filter(self.value_map, 3) * (self.obs.pathing == 1).astype(float)
