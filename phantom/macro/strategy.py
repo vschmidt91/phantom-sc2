@@ -187,7 +187,7 @@ class Strategy:
         return UnitComposition(composition)
 
     def _macro_composition(self) -> UnitComposition:
-        harvester_target = max(1.0, min(self.context.tier3_drone_count.value, self.obs.max_harvesters))
+        harvester_target = max(1.0, self.obs.max_harvesters)
         queen_target = max(
             0.0, min(self.context.queens_limit.value, self.context.queens_per_hatch.value * self.obs.townhalls.amount)
         )
