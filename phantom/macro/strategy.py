@@ -214,11 +214,8 @@ class Strategy:
         if self.tier >= StrategyTier.Hive:
             composition += {UnitTypeId.OVERSEER: 4}
             composition += {UnitTypeId.EVOLUTIONCHAMBER: 1}
-            composition += {UnitTypeId.GREATERSPIRE: 1}  # TODO: check if necessary
-            if self.obs.count(UnitTypeId.GREATERSPIRE, include_planned=False) == 0:
-                composition += {UnitTypeId.GREATERSPIRE: 1}
-            else:
-                composition += {UnitTypeId.SPIRE: 1}
+            composition += {UnitTypeId.SPIRE: 1}
+            composition += {UnitTypeId.GREATERSPIRE: 1}
         return composition
 
 
