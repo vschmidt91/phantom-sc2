@@ -33,7 +33,7 @@ class CreepAction:
             m[r] = False
         self.placement_map = m
 
-        m = ~self.obs.creep & (self.obs.pathing == 1)
+        m = (~self.obs.creep & (self.obs.pathing == 1)).astype(float)
         for b in self.reward_blocking:
             x, y = (Point2(b).offset(HALF) - 0.5 * Point2(_BASE_SIZE)).rounded
             r = rectangle((x, y), extent=_BASE_SIZE, shape=self.obs.creep.shape)
