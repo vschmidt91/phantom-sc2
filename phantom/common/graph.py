@@ -10,7 +10,6 @@ def graph_components(adjacency_matrix: np.ndarray) -> Set[Sequence[int]]:
     assert adjacency_matrix.shape[0] == adjacency_matrix.shape[1]
     adjacency_matrix.shape[0]
 
-    adjacency_matrix = np.maximum(adjacency_matrix, adjacency_matrix.T)
     degrees = np.sum(adjacency_matrix, axis=0)
     laplacian = np.diag(degrees) - adjacency_matrix
     kernel_basis = null_space(laplacian)

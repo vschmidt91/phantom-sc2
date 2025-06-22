@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum, auto
+from itertools import product
 
 import numpy as np
 from ares import AresBot
@@ -39,24 +40,24 @@ class CombatPredictor:
         self.prediction = self._prediction_sc2helper()
 
     def _prediction_sc2helper(self) -> CombatPrediction:
-        def weight(a: Unit, b: Unit) -> float:
-            if a.alliance == b.alliance:
-                return 0
-            time_to_reach = np.divide(_required_distance(a, b), a.movement_speed)
-            weight = max(0, (self.time_horizon - time_to_reach) / self.time_horizon)
-            return weight * calculate_dps(a, b)
 
         units = list(self.units + self.enemy_units)
 
         if not any(units):
             return CombatPrediction(CombatOutcome.Draw, {}, {})
 
-        adjacency_matrix = np.array([[weight(u, v) > 0 for v in units] for u in units])
+        adjacency_matrix = np.zeros((len(units), len(units)))
+        for (i, a), (dj, b) in product(enumerate(self.units), enumerate(self.enemy_units)):
+            j = len(units) + dj
+            distance = _required_distance(a, b)
+            if distance <= self.time_horizon * a.movement_speed:
+                adjacency_matrix[i, j] = 1.0
+
+        adjacency_matrix = np.maximum(adjacency_matrix, adjacency_matrix.T)
         components = graph_components(adjacency_matrix)
-        components_unique = set(tuple(c) for c in components)
 
         survival_time = dict[Unit, float]()
-        for component in components_unique:
+        for component in components:
             component_all_units = [units[i] for i in component]
             component_units = list(filter(lambda u: u.is_mine, component_all_units))
             component_enemies = list(filter(lambda u: u.is_enemy, component_all_units))
