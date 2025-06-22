@@ -48,7 +48,7 @@ class CombatPredictor:
 
         adjacency_matrix = np.zeros((len(units), len(units)))
         for (i, a), (dj, b) in product(enumerate(self.units), enumerate(self.enemy_units)):
-            j = len(units) + dj
+            j = len(self.units) + dj
             distance = _required_distance(a, b)
             if distance <= self.time_horizon * a.movement_speed:
                 adjacency_matrix[i, j] = 1.0
