@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from itertools import chain
 
 import numpy as np
+from ares.main import AresBot
 from cython_extensions import cy_closest_to
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
@@ -51,7 +52,7 @@ class Agent:
         self.knowledge = knowledge
         self.resources = ResourceState(self.knowledge)
 
-    async def step(self, observation: Observation) -> AsyncGenerator[Action, None]:
+    async def step(self, bot: AresBot, observation: Observation) -> AsyncGenerator[Action, None]:
         strategy = self.strategy.step(observation)
 
         if observation.game_loop % 100 == 0:
@@ -76,7 +77,7 @@ class Agent:
                 ):
                     self.macro.add(plan)
 
-        combat = CombatAction(self.knowledge, observation)
+        combat = CombatAction(bot, self.knowledge, observation)
         transfuse = TransfuseAction(observation)
         creep = self.creep.step(observation, np.less_equal(0.0, combat.confidence))
 

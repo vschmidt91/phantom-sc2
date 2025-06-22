@@ -53,8 +53,7 @@ class MacroState:
     def make_composition(self, observation: Observation, composition: UnitComposition) -> Iterable[MacroPlan]:
         if observation.supply_used >= 200:
             return
-        for unit in composition:
-            target = composition[unit]
+        for unit, target in composition.items():
             have = observation.count(unit)
             if target < 1 or target <= have:
                 continue

@@ -2,9 +2,12 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 import numpy as np
+from ares import AresBot
+from ares.consts import EngagementResult
 from sc2.unit import Unit
 from sc2.units import Units
 
+from phantom.common.graph import graph_components
 from phantom.common.utils import calculate_dps, pairwise_distances
 
 
@@ -21,14 +24,62 @@ class CombatPrediction:
     nearby_enemy_survival_time: dict[Unit, float]
 
 
-class CombatPredictor:
-    units: Units
-    enemy_units: Units
+def _required_distance(u: Unit, v: Unit) -> float:
+    base_range = u.radius + (u.air_range if v.is_flying else u.ground_range) + v.radius
+    distance = u.distance_to(v)
+    return max(0.0, distance - base_range - u.distance_to_weapon_ready)
 
-    def __init__(self, units: Units, enemy_units: Units):
+
+class CombatPredictor:
+    def __init__(self, bot: AresBot, units: Units, enemy_units: Units):
+        self.bot = bot
         self.units = units
         self.enemy_units = enemy_units
-        self.prediction = self._prediction()
+        self.time_horizon = 2.0
+        self.prediction = self._prediction_sc2helper()
+
+    def _prediction_sc2helper(self) -> CombatPrediction:
+        def weight(a: Unit, b: Unit) -> float:
+            if a.alliance == b.alliance:
+                return 0
+            time_to_reach = np.divide(_required_distance(a, b), a.movement_speed)
+            weight = max(0, (self.time_horizon - time_to_reach) / self.time_horizon)
+            return weight * calculate_dps(a, b)
+
+        units = list(self.units + self.enemy_units)
+
+        if not any(units):
+            return CombatPrediction(CombatOutcome.Draw, {}, {})
+
+        adjacency_matrix = np.array([[weight(u, v) > 0 for v in units] for u in units])
+        components = graph_components(adjacency_matrix)
+        components_unique = set(tuple(c) for c in components)
+
+        survival_time = dict[Unit, float]()
+        for component in components_unique:
+            component_all_units = [units[i] for i in component]
+            component_units = list(filter(lambda u: u.is_mine, component_all_units))
+            component_enemies = list(filter(lambda u: u.is_enemy, component_all_units))
+            if not any(component_units):
+                win = False
+            elif not any(component_enemies):
+                win = True
+            else:
+                outcome = self.bot.mediator.can_win_fight(
+                    own_units=component_units,
+                    enemy_units=component_enemies,
+                    timing_adjust=True,
+                    good_positioning=True,
+                    workers_do_no_damage=False,
+                )
+                win = outcome > EngagementResult.TIE
+
+            for u in component_units:
+                survival_time[u] = 1 if win else 0
+            for u in component_enemies:
+                survival_time[u] = 0 if win else 1
+
+        return CombatPrediction(CombatOutcome.Draw, survival_time, {})
 
     def _prediction(self) -> CombatPrediction:
         step_time = 0.1
@@ -53,17 +104,8 @@ class CombatPredictor:
         dps = step_time * np.array([[calculate_dps(u, v) for v in self.enemy_units] for u in self.units])
         enemy_dps = step_time * np.array([[calculate_dps(v, u) for v in self.enemy_units] for u in self.units])
 
-        def calculate_required_distance(u: Unit, v: Unit) -> float:
-            base_range = u.radius + (u.air_range if v.is_flying else u.ground_range) + v.radius
-            distance = u.distance_to(v)
-            return max(0.0, distance - base_range - u.distance_to_weapon_ready)
-
-        required_distance = np.array(
-            [[calculate_required_distance(u, v) for v in self.enemy_units] for u in self.units]
-        )
-        enemy_required_distance = np.array(
-            [[calculate_required_distance(v, u) for v in self.enemy_units] for u in self.units]
-        )
+        required_distance = np.array([[_required_distance(u, v) for v in self.enemy_units] for u in self.units])
+        enemy_required_distance = np.array([[_required_distance(v, u) for v in self.enemy_units] for u in self.units])
 
         health = np.array([u.health + u.shield for u in self.units])
         enemy_health = np.array([u.health + u.shield for u in self.enemy_units])

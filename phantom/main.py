@@ -94,6 +94,10 @@ class PhantomBot(BotExporter, AresBot):
 
         # local only: skip first iteration like on the ladder
         if iteration == 0:
+            # await self.client.debug_create_unit([
+            #     [UnitTypeId.ROACH, 3, self.game_info.map_center, 1],
+            #     [UnitTypeId.SCV, 20, self.game_info.map_center, 2],
+            # ])
             return
 
         # await self.client.save_replay("tmp.SC2Replay")
@@ -118,7 +122,7 @@ class PhantomBot(BotExporter, AresBot):
 
         planned = Counter(p.item for p in self.agent.macro.enumerate_plans())
         observation = Observation(self, self.agent.knowledge, planned)
-        async for action in self.agent.step(observation):
+        async for action in self.agent.step(self, observation):
             # logger.debug(f"Executing {action=}")
             if not await action.execute(self):
                 self.add_replay_tag("action_failed")

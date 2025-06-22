@@ -255,8 +255,8 @@ class Observation:
         else:
             raise ValueError(item)
 
-        if self.is_unit_missing(trainer):
-            yield trainer
+        # if self.is_unit_missing(trainer):
+        #     yield trainer
         if (required_building := info.get("required_building")) and self.is_unit_missing(required_building):
             yield required_building
         if (

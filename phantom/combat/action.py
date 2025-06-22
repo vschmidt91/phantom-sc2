@@ -2,6 +2,7 @@ import math
 import sys
 
 import numpy as np
+from ares.main import AresBot
 from cython_extensions.dijkstra import cy_dijkstra
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
@@ -28,11 +29,11 @@ from phantom.observation import Observation
 
 
 class CombatAction:
-    def __init__(self, knowledge: Knowledge, observation: Observation) -> None:
+    def __init__(self, bot: AresBot, knowledge: Knowledge, observation: Observation) -> None:
         self.knowledge = knowledge
         self.observation = observation
 
-        self.prediction = CombatPredictor(observation.combatants, observation.enemy_combatants).prediction
+        self.prediction = CombatPredictor(bot, observation.combatants, observation.enemy_combatants).prediction
         self.enemy_values = {
             u.tag: observation.calculate_unit_value_weighted(u.type_id) for u in observation.enemy_units
         }
@@ -136,13 +137,14 @@ class CombatAction:
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(unit, target.position)
 
-        confidence_predictor = self.prediction.survival_time[unit] - self.prediction.nearby_enemy_survival_time[unit]
-        # confidence_target = self.prediction.survival_time[unit] - self.prediction.survival_time[target]
-        # confidence_map = self.confidence_filtered[unit.position.rounded]
-        # confidence = np.median((confidence_predictor, confidence_target, confidence_map))
-        confidence = confidence_predictor
-        test_position = unit.position.towards(target, 1.5)
-        if self.enemy_presence.dps[test_position.rounded] == 0 or confidence >= 0:
+        if unit in self.prediction.survival_time and target in self.prediction.survival_time:
+            confidence = self.prediction.survival_time[unit]
+        else:
+            confidence = 1.0
+
+        # test_position = unit.position.towards(target, 1.5)
+        # if self.enemy_presence.dps[test_position.rounded] == 0 or confidence >= 0:
+        if confidence > 0:
             if unit.ground_range < 1:
                 return UseAbility(unit, AbilityId.ATTACK, target.position)
             return Attack(unit, target)
@@ -186,7 +188,8 @@ class CombatAction:
             time_to_reach = np.divide(travel_distance, a.movement_speed)
             dps = calculate_dps(a, b)
             time_to_kill = np.divide(b.health + b.shield, dps)
-            return time_to_reach + time_to_kill
+            random_offset = hash((a.tag, b.tag)) / (2**sys.hash_info.width)
+            return time_to_reach + time_to_kill + 1e-10 * random_offset
 
         cost = np.array(
             [[min(1e8, cost_fn(ai, bj, distances[i, j])) for j, bj in enumerate(enemies)] for i, ai in enumerate(units)]

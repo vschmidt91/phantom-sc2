@@ -233,7 +233,7 @@ class StrategyState:
         self.tier2_drone_count = parameters.normal("tier2_drone_count", NormalPrior(48, 1))
         self.tier3_drone_count = parameters.normal("tier3_drone_count", NormalPrior(66, 1))
         self.tech_priority = parameters.normal("tech_priority", NormalPrior(-0.25, 0.1))
-        self.hydras_when_banking = parameters.normal("hydras_when_banking", NormalPrior(10, 1))
+        self.hydras_when_banking = parameters.normal("hydras_when_banking", NormalPrior(5, 1))
         self.lings_when_banking = parameters.normal("lings_when_banking", NormalPrior(10, 1))
         self.queens_when_banking = parameters.normal("queens_when_banking", NormalPrior(3, 1))
         self.queens_per_hatch = parameters.normal("queens_per_hatch", NormalPrior(1.5, 0.1))
