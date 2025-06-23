@@ -157,8 +157,8 @@ class Agent:
         gas_have = resources.observation.gas_buildings.amount
         gas_max = resources.observation.vespene_geysers.amount
         gas_want = min(gas_max, gas_depleted + math.ceil((resources.gas_target - 1) / 3))
-        if not observation.count(UnitTypeId.LAIR, include_planned=False):
-            gas_want = min(1, gas_want)
+        # if not observation.count(UnitTypeId.LAIR, include_planned=False):
+        #     gas_want = min(1, gas_want)
         if gas_have + gas_pending < gas_want:
             self.macro.add(MacroPlan(gas_type))
 

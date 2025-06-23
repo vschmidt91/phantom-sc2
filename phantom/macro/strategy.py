@@ -187,7 +187,7 @@ class Strategy:
         return UnitComposition(composition)
 
     def _macro_composition(self) -> UnitComposition:
-        harvester_target = max(1.0, self.obs.max_harvesters)
+        harvester_target = min(100, max(1.0, self.obs.max_harvesters))
         queen_target = max(
             0.0, min(self.context.queens_limit.value, self.context.queens_per_hatch.value * self.obs.townhalls.amount)
         )
@@ -198,7 +198,7 @@ class Strategy:
             }
         )
         if burrowed_enemies := self.obs.enemy_combatants.filter(lambda u: u.is_burrowed):
-            composition += {UnitTypeId.OVERSEER: min(10, len(burrowed_enemies) // 3)}
+            composition += {UnitTypeId.OVERSEER: min(3, len(burrowed_enemies) // 7)}
         if self.tier >= StrategyTier.Zero:
             pass
         if self.tier >= StrategyTier.Hatch:
@@ -208,7 +208,7 @@ class Strategy:
         if self.tier >= StrategyTier.Lair:
             composition += {UnitTypeId.INFESTATIONPIT: 1}
             composition += {UnitTypeId.HIVE: 1}
-            composition += {UnitTypeId.OVERSEER: 2}
+            composition += {UnitTypeId.OVERSEER: 3}
             composition += {UnitTypeId.HYDRALISKDEN: 1}
             composition += {UnitTypeId.EVOLUTIONCHAMBER: 1}
         if self.tier >= StrategyTier.Hive:
