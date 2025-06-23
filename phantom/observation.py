@@ -2,6 +2,7 @@ from collections import Counter
 from collections.abc import Iterable
 from itertools import chain
 
+from ares.consts import ALL_STRUCTURES
 import numpy as np
 from ares import AresBot, UnitTreeQueryType
 from cython_extensions import cy_unit_pending
@@ -22,11 +23,14 @@ from sc2.units import Units
 
 from phantom.common.constants import (
     CIVILIANS,
+    COCOONS,
     ENEMY_CIVILIANS,
     ITEM_BY_ABILITY,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
     TRAINER_TYPES,
+    UNIT_BY_TRAIN_ABILITY,
+    UPGRADE_BY_RESEARCH_ABILITY,
     WITH_TECH_EQUIVALENTS,
     WORKERS,
     ZERG_ARMOR_UPGRADES,
@@ -70,24 +74,47 @@ class Observation:
         self.gas_buildings = self.bot.gas_buildings
         self.structures = self.bot.structures
         self.workers = self.bot.workers
+        self.eggs = self.bot.eggs
+        self.cocoons = self.units(COCOONS)
         self.townhalls = self.bot.townhalls
         self.enemy_structures = self.bot.enemy_structures
         self.game_loop = self.bot.state.game_loop
         self.resources = self.bot.resources
 
         self.actual_by_type = Counter[UnitTypeId]()
-        self.pending_by_type = Counter[UnitTypeId]()
         for unit in self.bot.all_own_units:
             if unit.is_ready:
                 self.actual_by_type[unit.type_id] += 1
-                if unit.type_id in TRAINER_TYPES:
-                    for order in unit.orders:
-                        if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
-                            self.pending_by_type[item] += 1
-            else:
-                self.pending_by_type[unit.type_id] += 1
+            #     if unit.type_id in TRAINER_TYPES:
+            #         for order in unit.orders:
+            #             if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
+            #                 self.pending_by_type[item] += 1
+            # else:
+            #     self.pending_by_type[unit.type_id] += 1
         for upgrade in self.bot.state.upgrades:
             self.actual_by_type[upgrade] += 1
+
+        # trainers = chain(self.structures, self.workers, self.eggs, self.cocoons)
+        # for trainer in trainers:
+        #     if trainer.orders and (item := ITEM_BY_ABILITY.get(trainer.orders[0].ability.exact_id)):
+        #         self.pending_by_type[item] += 1
+
+        self.upgrades_pending = {
+            upgrade
+            for s in self.structures
+            if s.orders and (upgrade := UPGRADE_BY_RESEARCH_ABILITY.get(s.orders[0].ability.exact_id))
+        }
+        self.structures_pending = Counter(s.type_id for s in self.structures.not_ready)
+        self.structures_pending.update(
+            morph
+            for s in self.structures
+            if s.orders and (morph := UNIT_BY_TRAIN_ABILITY.get(s.orders[0].ability.exact_id))
+        )
+        self.structures_pending.update(
+            structure
+            for w in self.workers
+            if w.orders and (structure := UNIT_BY_TRAIN_ABILITY.get(w.orders[0].ability.exact_id))
+        )
 
         self.air_pathing = self.bot.mediator.get_map_data_object.get_clean_air_grid()
 
@@ -124,9 +151,14 @@ class Observation:
             )
         )
         self.geyers_taken = self.all_taken_resources.vespene_geyser
-        self.supply_pending = sum(
-            provided * self.pending_by_type[unit_type] for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
-        )
+
+        self.supply_pending = 0
+        self.supply_income = 0
+        for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items():
+            total_provided = provided * cy_unit_pending(self.bot, unit_type)
+            self.supply_pending += total_provided
+            self.supply_income += total_provided / self.knowledge.build_time[unit_type]
+
         self.bank = Cost(self.bot.minerals, self.bot.vespene, self.bot.supply_left, self.bot.larva.amount)
 
         larva_income = sum(
@@ -139,15 +171,10 @@ class Observation:
             for h in self.bot.townhalls
         )
 
-        supply_income = sum(
-            cy_unit_pending(self.bot, unit_type) * provided / self.knowledge.build_time[unit_type]
-            for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
-        )
-
         self.income = Cost(
             self.bot.state.score.collection_rate_minerals / 60.0,  # TODO: get from harvest assignment
             self.bot.state.score.collection_rate_vespene / 60.0,  # TODO: get from harvest assignment
-            supply_income,  # TODO: iterate over pending
+            self.supply_income,  # TODO: iterate over pending
             larva_income,
         )
         self.shootable_targets = self._shootable_targets()
@@ -182,11 +209,18 @@ class Observation:
             else:
                 count += self.actual_by_type[item]
         if include_pending:
-            count += factor * self.pending_by_type[item]
+            if item in ALL_STRUCTURES:
+                count += self.structures_pending[item]
+            elif isinstance(item, UpgradeId):
+                if item in self.upgrades_pending:
+                    count += 1
+            else:
+                count += factor * cy_unit_pending(self.bot, item)
         if include_planned:
             count += factor * self.planned[item]
 
         return count
+            
 
     def unit_data(self, unit_type_id: UnitTypeId) -> UnitTypeData:
         return self.bot.game_data.units[unit_type_id.value]
