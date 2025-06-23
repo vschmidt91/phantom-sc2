@@ -2,9 +2,9 @@ from collections import Counter
 from collections.abc import Iterable
 from itertools import chain
 
-from ares.consts import ALL_STRUCTURES
 import numpy as np
 from ares import AresBot, UnitTreeQueryType
+from ares.consts import ALL_STRUCTURES
 from cython_extensions import cy_unit_pending
 from loguru import logger
 from sc2.data import Race
@@ -25,10 +25,8 @@ from phantom.common.constants import (
     CIVILIANS,
     COCOONS,
     ENEMY_CIVILIANS,
-    ITEM_BY_ABILITY,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
-    TRAINER_TYPES,
     UNIT_BY_TRAIN_ABILITY,
     UPGRADE_BY_RESEARCH_ABILITY,
     WITH_TECH_EQUIVALENTS,
@@ -91,8 +89,6 @@ class Observation:
             #                 self.pending_by_type[item] += 1
             # else:
             #     self.pending_by_type[unit.type_id] += 1
-        for upgrade in self.bot.state.upgrades:
-            self.actual_by_type[upgrade] += 1
 
         # trainers = chain(self.structures, self.workers, self.eggs, self.cocoons)
         # for trainer in trainers:
@@ -206,6 +202,9 @@ class Observation:
         if include_actual:
             if item in WORKERS:
                 count += self.bot.supply_workers
+            elif isinstance(item, UpgradeId):
+                if item in self.upgrades:
+                    count += 1
             else:
                 count += self.actual_by_type[item]
         if include_pending:
@@ -220,7 +219,6 @@ class Observation:
             count += factor * self.planned[item]
 
         return count
-            
 
     def unit_data(self, unit_type_id: UnitTypeId) -> UnitTypeData:
         return self.bot.game_data.units[unit_type_id.value]
