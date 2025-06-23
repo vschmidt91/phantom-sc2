@@ -7,6 +7,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
 from phantom.common.constants import (
+    SUPPLY_PROVIDED,
     UNIT_COUNTER_DICT,
     WITH_TECH_EQUIVALENTS,
     ZERG_FLYER_ARMOR_UPGRADES,
@@ -95,7 +96,10 @@ class Strategy:
         yield MacroPlan(UnitTypeId.HATCHERY, priority=priority)
 
     def morph_overlord(self) -> Iterable[MacroPlan]:
-        supply = self.obs.supply_cap + self.obs.supply_pending / 2 + self.obs.supply_planned
+        supply_planned = sum(
+            provided * self.obs.planned[unit_type] for unit_type, provided in SUPPLY_PROVIDED[self.obs.bot.race].items()
+        )
+        supply = self.obs.supply_cap + self.obs.supply_pending / 2 + supply_planned
         supply_target = min(200.0, self.obs.supply_used + 2 + 20 * self.obs.income.larva)
         if supply_target <= supply:
             return

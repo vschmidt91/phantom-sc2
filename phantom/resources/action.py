@@ -54,11 +54,12 @@ class ResourceAction:
         if self.observation.observation.researched_speed:
             gas_target = self.gas_target
         elif self.observation.observation.bank.vespene < 100:
-            # gas_target = min(gas_max, int(self.observation.observation.supply_workers) - mineral_max)
             gas_target = gas_max
         else:
             gas_target = 0
-        gas_target = max(0, min(gas_max, gas_target - self.observation.observation.workers_in_geysers))
+        # gas_target = self.gas_target
+        gas_target -= self.observation.observation.workers_in_geysers
+        gas_target = max(0, min(gas_max, gas_target))
 
         harvester_max = mineral_max + gas_target
         if harvester_max < len(harvesters):

@@ -60,7 +60,7 @@ class ScoutState:
             if observation.is_visible[b]:
                 return False
             distance_to_enemy = min(b.distance_to(Point2(e)) for e in self.knowledge.enemy_start_locations)
-            return not distance_to_enemy < b.distance_to(observation.start_location)
+            return distance_to_enemy > b.distance_to(observation.start_location)
 
         detectors = observation.units({UnitTypeId.OVERSEER})
         nondetectors = observation.units({UnitTypeId.OVERLORD})
@@ -74,7 +74,7 @@ class ScoutState:
                 scout_points.append(tuple(observation.enemy_natural.rounded))
             scout_points.extend(islice(scout_bases, len(nondetectors) - len(scout_points)))
         else:
-            scout_points.extend(tuple(p.rounded) for p in safe_overlord_spots)
+            scout_points.extend(tuple(p.rounded) for p in safe_overlord_spots if filter_base(p))
             scout_points.extend(scout_bases)
 
         scout_targets = list(map(Point2, scout_points))

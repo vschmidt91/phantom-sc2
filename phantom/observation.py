@@ -49,10 +49,6 @@ class Observation:
         self.player_races = {k: Race(v) for k, v in self.bot.game_info.player_races.items()}
         self.workers_in_geysers = int(self.bot.supply_workers) - self.bot.workers.amount
         self.pathing = self.bot.mediator.get_map_data_object.get_pyastar_grid()
-        self.pathable = self.pathing == 1.0
-        self.supply_planned = sum(
-            provided * self.planned[unit_type] for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
-        )
         self.unit_by_tag = self.bot.unit_tag_dict
         self.action_errors = self.bot.state.action_errors
         self.supply_workers = self.bot.supply_workers

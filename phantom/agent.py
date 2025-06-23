@@ -133,7 +133,7 @@ class Agent:
 
             if required.minerals <= 0 and required.vespene <= 0:
                 # TODO
-                optimal_gas_ratio = 0.5 if observation.researched_speed else 0.0
+                optimal_gas_ratio = 5 / 9
             else:
                 mineral_trips = max(0.0, required.minerals / 5)
                 vespene_trips = max(0.0, required.vespene / 4)
