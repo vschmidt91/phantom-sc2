@@ -40,13 +40,12 @@ class CombatPredictor:
         self.prediction = self._prediction_sc2helper()
 
     def _prediction_sc2helper(self) -> CombatPrediction:
-
         units = list(self.units + self.enemy_units)
 
         if not any(units):
             return CombatPrediction(CombatOutcome.Draw, {}, {})
 
-        adjacency_matrix = np.zeros((len(units), len(units)))
+        adjacency_matrix = np.zeros((len(units), len(units)), dtype=float)
         for (i, a), (dj, b) in product(enumerate(self.units), enumerate(self.enemy_units)):
             j = len(self.units) + dj
             if _required_distance(a, b) <= self.time_horizon * a.movement_speed:
