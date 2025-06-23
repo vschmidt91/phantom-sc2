@@ -148,7 +148,7 @@ class Strategy:
             return UnitComposition({})
         composition = self.counter_composition
         composition += {
-            UnitTypeId.RAVAGER: composition[UnitTypeId.ROACH] / self.context.ravager_mixin.value,
+            # UnitTypeId.RAVAGER: composition[UnitTypeId.ROACH] / self.context.ravager_mixin.value,
             UnitTypeId.CORRUPTOR: composition[UnitTypeId.BROODLORD] / self.context.corruptor_mixin.value,
         }
         composition = UnitComposition({k: v for k, v in composition.items() if v > 0})
@@ -197,8 +197,8 @@ class Strategy:
                 UnitTypeId.QUEEN: queen_target,
             }
         )
-        if burrowed_enemies := self.obs.enemy_combatants.filter(lambda u: u.is_burrowed):
-            composition += {UnitTypeId.OVERSEER: min(3, len(burrowed_enemies) // 7)}
+        # if burrowed_enemies := self.obs.enemy_combatants.filter(lambda u: u.is_burrowed):
+        #     composition += {UnitTypeId.OVERSEER: min(3, len(burrowed_enemies) // 7)}
         if self.tier >= StrategyTier.Zero:
             pass
         if self.tier >= StrategyTier.Hatch:

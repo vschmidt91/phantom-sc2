@@ -1,4 +1,4 @@
-from collections import Counter, defaultdict
+from collections import Counter
 from collections.abc import Iterable
 from itertools import chain
 
@@ -26,6 +26,7 @@ from phantom.common.constants import (
     ITEM_BY_ABILITY,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
+    TRAINER_TYPES,
     WITH_TECH_EQUIVALENTS,
     WORKERS,
     ZERG_ARMOR_UPGRADES,
@@ -78,23 +79,19 @@ class Observation:
         self.game_loop = self.bot.state.game_loop
         self.resources = self.bot.resources
 
-        actual_by_type = defaultdict(list)
+        self.actual_by_type = Counter[UnitTypeId]()
+        self.pending_by_type = Counter[UnitTypeId]()
         for unit in self.bot.all_own_units:
             if unit.is_ready:
-                actual_by_type[unit.type_id].append(unit)
-        for upgrade in self.bot.state.upgrades:
-            actual_by_type[upgrade].append(upgrade)
-        self.actual_by_type = actual_by_type
-
-        pending_by_type = defaultdict(list)
-        for unit in self.bot.all_own_units:
-            if unit.is_ready:
-                for order in unit.orders:
-                    if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
-                        pending_by_type[item].append(unit)
+                self.actual_by_type[unit.type_id] += 1
+                if unit.type_id in TRAINER_TYPES:
+                    for order in unit.orders:
+                        if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
+                            self.pending_by_type[item] += 1
             else:
-                pending_by_type[unit.type_id].append(unit)
-        self.pending_by_type = pending_by_type
+                self.pending_by_type[unit.type_id] += 1
+        for upgrade in self.bot.state.upgrades:
+            self.actual_by_type[upgrade] += 1
 
         self.air_pathing = self.bot.mediator.get_map_data_object.get_clean_air_grid()
 
@@ -132,8 +129,7 @@ class Observation:
         )
         self.geyers_taken = self.all_taken_resources.vespene_geyser
         self.supply_pending = sum(
-            provided * len(self.pending_by_type[unit_type])
-            for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
+            provided * self.pending_by_type[unit_type] for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
         )
         self.bank = Cost(self.bot.minerals, self.bot.vespene, self.bot.supply_left, self.bot.larva.amount)
 
@@ -188,9 +184,9 @@ class Observation:
             if item in WORKERS:
                 count += self.bot.supply_workers
             else:
-                count += len(self.actual_by_type[item])
+                count += self.actual_by_type[item]
         if include_pending:
-            count += factor * len(self.pending_by_type[item])
+            count += factor * self.pending_by_type[item]
         if include_planned:
             count += factor * self.planned[item]
 

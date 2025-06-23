@@ -174,6 +174,11 @@ UPGRADE_BY_RESEARCH_ABILITY: dict[AbilityId, UpgradeId] = {
 }
 
 ITEM_BY_ABILITY = {**UNIT_BY_TRAIN_ABILITY, **UPGRADE_BY_RESEARCH_ABILITY}
+TRAINER_TYPES = {
+    *chain.from_iterable(UNIT_TRAINED_FROM.values()),
+    *UPGRADE_RESEARCHED_FROM.values(),
+    UnitTypeId.EGG,
+}
 
 GAS_BY_RACE: dict[Race, UnitTypeId] = {
     Race.Zerg: UnitTypeId.EXTRACTOR,
