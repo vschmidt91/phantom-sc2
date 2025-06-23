@@ -74,7 +74,7 @@ class ScoutState:
                 scout_points.append(tuple(observation.enemy_natural.rounded))
             scout_points.extend(islice(scout_bases, len(nondetectors) - len(scout_points)))
         else:
-            scout_points.extend(tuple(p.rounded) for p in safe_overlord_spots if filter_base(p))
+            scout_points.extend(t for p in safe_overlord_spots if filter_base(t := tuple(p.rounded)))
             scout_points.extend(scout_bases)
 
         scout_targets = list(map(Point2, scout_points))
