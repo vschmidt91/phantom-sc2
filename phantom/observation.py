@@ -105,18 +105,6 @@ class Observation:
 
         self.actual_by_type = Counter[UnitTypeId](u.type_id for u in self.units if u.is_ready)
 
-        self.structures_pending = Counter(s.type_id for s in self.structures.not_ready)
-        self.structures_pending.update(
-            morph
-            for s in self.structures(MORPHERS)
-            if s.orders and (morph := UNIT_BY_TRAIN_ABILITY.get(s.orders[0].ability.exact_id))
-        )
-        self.structures_pending.update(
-            structure
-            for w in self.workers
-            if w.orders and (structure := UNIT_BY_TRAIN_ABILITY.get(w.orders[0].ability.exact_id))
-        )
-
         self.map_center = self.bot.game_info.map_center
         self.start_location = self.bot.start_location
         self.supply_used = self.bot.supply_used
