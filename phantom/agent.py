@@ -104,9 +104,6 @@ class Agent:
         should_spread_creep = self.creep.unspread_tumor_count < 50
 
         def should_harvest(u: Unit) -> bool:
-            # TODO: consider macro tasks
-            # if self.knowledge.is_micro_map or u in macro_actions:
-            #     return False
             if u.is_idle:  # you slackin?
                 return True
             elif u.orders[0].ability.exact_id in ALL_MACRO_ABILITIES:
@@ -252,7 +249,7 @@ class Agent:
                 or unit.energy < ENERGY_COST[AbilityId.SPAWNCHANGELING_SPAWNCHANGELING]
             ):
                 return None
-            return UseAbility(unit, AbilityId.SPAWNCHANGELING_SPAWNCHANGELING)
+            return UseAbility(AbilityId.SPAWNCHANGELING_SPAWNCHANGELING)
 
         def drone_scout(unit: Unit) -> Action | None:
             if not (unit.is_idle or unit.is_gathering or unit.is_returning):

@@ -28,7 +28,10 @@ class Move(Action):
 @dataclass(frozen=True)
 class HoldPosition(Action):
     async def execute(self, unit: Unit) -> bool:
-        return unit.stop()
+        if unit.is_moving:
+            return unit.stop()
+        else:
+            return unit.hold_position()
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,6 @@
 import math
 import random
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from itertools import chain
 
@@ -31,7 +31,7 @@ from phantom.observation import Observation
 
 type MacroId = UnitTypeId | UpgradeId
 
-type MacroAction = dict[Unit, Action]
+type MacroAction = Mapping[Unit, Action]
 
 
 @dataclass
