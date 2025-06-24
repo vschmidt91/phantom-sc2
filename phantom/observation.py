@@ -29,9 +29,7 @@ from phantom.common.constants import (
     MORPHERS,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
-    TRAINER_TYPES,
     UNIT_BY_TRAIN_ABILITY,
-    UPGRADE_BY_RESEARCH_ABILITY,
     WITH_TECH_EQUIVALENTS,
     WORKERS,
     ZERG_ARMOR_UPGRADES,
@@ -106,13 +104,6 @@ class Observation:
         self.resources = self.bot.resources
 
         self.actual_by_type = Counter[UnitTypeId](u.type_id for u in self.units if u.is_ready)
-
-        trainer_structures = self.structures(TRAINER_TYPES)
-        self.upgrades_pending = {
-            upgrade
-            for s in trainer_structures
-            if s.orders and (upgrade := UPGRADE_BY_RESEARCH_ABILITY.get(s.orders[0].ability.exact_id))
-        }
 
         self.structures_pending = Counter(s.type_id for s in self.structures.not_ready)
         self.structures_pending.update(
@@ -221,9 +212,9 @@ class Observation:
                 count += self.actual_by_type[item]
         if include_pending:
             if item in ALL_STRUCTURES:
-                count += self.structures_pending[item]
+                count += self.bot.already_pending(item)
             elif isinstance(item, UpgradeId):
-                if item in self.upgrades_pending:
+                if 0 < self.bot.already_pending_upgrade(item) < 1:
                     count += 1
             else:
                 count += factor * cy_unit_pending(self.bot, item)
@@ -372,7 +363,7 @@ class Observation:
         return ()
 
     def _shootable_targets(self) -> Mapping[Unit, Sequence[Unit]]:
-        units = self.combatants
+        units = self.combatants.filter(lambda u: u.ground_range > 1 and u.weapon_ready)
 
         points_ground = list[Point2]()
         points_air = list[Point2]()
