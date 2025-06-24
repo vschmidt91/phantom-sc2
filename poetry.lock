@@ -2282,10 +2282,9 @@ test = ["pytest (>=7.4)", "pytest-cov (>=4.1)"]
 name = "line-profiler"
 version = "4.2.0"
 description = "Line-by-line profiler"
-optional = true
+optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "extra == \"dev\" or extra == \"test\""
 files = [
     {file = "line_profiler-4.2.0-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:70e2503f52ee6464ac908b578d73ad6dae21d689c95f2252fee97d7aa8426693"},
     {file = "line_profiler-4.2.0-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:b6047c8748d7a2453522eaea3edc8d9febc658b57f2ea189c03fe3d5e34595b5"},
@@ -5467,10 +5466,10 @@ files = [
 
 [extras]
 build = ["cvxpygen", "cython", "map-analyzer", "requests"]
-dev = ["dask", "jupyter", "line-profiler", "matplotlib", "notebook", "pandas", "plotly", "s2protocol", "snakeviz"]
-test = ["line-profiler", "mypy", "ruff", "types-requests", "types-s2clientprotocol", "types-tqdm", "yamllint"]
+dev = ["dask", "jupyter", "matplotlib", "notebook", "pandas", "plotly", "s2protocol", "snakeviz"]
+test = ["mypy", "ruff", "types-requests", "types-s2clientprotocol", "types-tqdm", "yamllint"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12, <3.13"
-content-hash = "f8bf9e71ecf1e9ee28eeb2c0ded53dda915373cbd07b0808857950236b8e3f8a"
+content-hash = "534171f552637a587ad347bfb741297e9967658eaf2a23f6648b284145c0c601"
