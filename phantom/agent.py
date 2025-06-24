@@ -22,7 +22,7 @@ from phantom.common.constants import ALL_MACRO_ABILITIES, CHANGELINGS, ENERGY_CO
 from phantom.common.cost import Cost
 from phantom.common.distribute import distribute
 from phantom.common.utils import pairwise_distances
-from phantom.corrosive_biles import CorrosiveBileState
+from phantom.corrosive_bile import CorrosiveBile
 from phantom.creep import CreepState
 from phantom.dodge import DodgeState
 from phantom.knowledge import Knowledge
@@ -41,28 +41,25 @@ from phantom.transfuse import TransfuseAction
 class Agent:
     def __init__(self, bot: AresBot, build_order_name: str, parameters: AgentParameters, knowledge: Knowledge) -> None:
         self.bot = bot
-        self.observation = ObservationState(bot, knowledge)
-        self.macro = MacroState(knowledge)
-        self.creep = CreepState(knowledge)
-        self.corrosive_biles = CorrosiveBileState()
-        self.dodge = DodgeState()
-        self.scout = ScoutState(knowledge)
-        self.strategy = StrategyState(knowledge, parameters)
-        self.build_order_completed = False
-
         self.build_order = BUILD_ORDERS[build_order_name]
         self.parameters = parameters
         self.knowledge = knowledge
+
+        self.observation = ObservationState(bot, knowledge)
+        self.macro = MacroState(knowledge)
+        self.creep = CreepState(knowledge)
+        self.corrosive_biles = CorrosiveBile()
+        self.dodge = DodgeState()
+        self.scout = ScoutState(knowledge)
+        self.strategy = StrategyState(knowledge, parameters)
         self.resources = ResourceState(self.knowledge)
+        self.build_order_completed = False
 
     async def step(self) -> AsyncGenerator[Action, None]:
         planned = Counter(p.item for p in self.macro.enumerate_plans())
         observation = self.observation.step(planned)
 
         strategy = self.strategy.step(observation)
-
-        if observation.game_loop % 100 == 0:
-            logger.info(f"{strategy.enemy_composition_predicted}")
 
         if not self.knowledge.is_micro_map:
             if not self.build_order_completed:
@@ -88,23 +85,23 @@ class Agent:
         creep = self.creep.step(observation, np.less_equal(0.0, combat.confidence))
 
         safe_overlord_spots = [p for p in observation.overlord_spots if combat.confidence[p.rounded] > 0]
-        scout = self.scout.step(observation, safe_overlord_spots)
+        scout_actions = self.scout.step(observation, safe_overlord_spots)
 
-        injecters = observation.units({UnitTypeId.QUEEN})
-        injected_targets = observation.townhalls.ready
+        injecters = observation.units(UnitTypeId.QUEEN)
+        inject_targets = observation.townhalls.ready
         inject_assignment = distribute(
             injecters,
-            injected_targets,
+            inject_targets,
             pairwise_distances(
                 [a.position for a in injecters],
-                [b.position for b in injected_targets],
+                [b.position for b in inject_targets],
             ),
         )
         dodge = self.dodge.step(observation)
         macro_actions = await self.macro.step(observation, set(self.scout.blocked_positions), combat)
 
         should_inject = observation.supply_used + observation.bank.larva < 200
-        should_spread_creep = self.creep.unspread_tumor_count < 20
+        should_spread_creep = self.creep.unspread_tumor_count < 50
 
         def should_harvest(u: Unit) -> bool:
             # TODO: consider macro tasks
@@ -168,7 +165,7 @@ class Agent:
         if gas_have + gas_pending < gas_want:
             self.macro.add(MacroPlan(gas_type))
 
-        corrosive_biles = self.corrosive_biles.step(observation)
+        corrosive_bile_actions = self.corrosive_biles.step(observation)
 
         def inject_with_queen(q: Unit) -> Action | None:
             if not should_inject:
@@ -193,24 +190,6 @@ class Agent:
             )
 
         def micro_overseers(overseers: Units) -> Iterable[Action]:
-            def cost(u: Unit, t: Unit) -> float:
-                scout_value = 1.0
-                if t.is_structure:
-                    scout_value /= 10
-                if t.is_burrowed or t.is_cloaked:
-                    scout_value *= 10
-                distance_others = max((v.distance_to(t) for v in overseers), default=0.0)
-                if self.knowledge.is_micro_map:
-                    distance_bases = 0.0
-                else:
-                    distance_bases = max((Point2(b).distance_to(t) for b in observation.bases_taken), default=0.0)
-                distance_self = u.distance_to(t)
-
-                risk = distance_self + distance_bases
-                reward = 1e-3 + distance_others * scout_value
-
-                return risk / reward
-
             targets = distribute(
                 overseers,
                 observation.enemy_combatants,
@@ -224,7 +203,7 @@ class Agent:
                     dodge.dodge_with(u)
                     or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
                     or spawn_changeling(u)
-                    or scout.actions.get(u)
+                    or scout_actions.get(u)
                 ):
                     yield action
                 elif target := targets.get(u):
@@ -247,7 +226,7 @@ class Agent:
             return (
                 dodge.dodge_with(u)
                 or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
-                or scout.actions.get(u)
+                or scout_actions.get(u)
                 or search_with(u)
             )
 
@@ -255,7 +234,7 @@ class Agent:
             UnitTypeId.BANELING: combat.fight_with_baneling,
             UnitTypeId.ROACH: combat.do_burrow,
             UnitTypeId.ROACHBURROWED: combat.do_unburrow,
-            UnitTypeId.RAVAGER: corrosive_biles.actions.get,
+            UnitTypeId.RAVAGER: corrosive_bile_actions.get,
             UnitTypeId.QUEEN: micro_queen,
         }
 
@@ -312,7 +291,7 @@ class Agent:
 
         for action in macro_actions.values():
             yield action
-        for action in scout.actions.values():
+        for action in scout_actions.values():
             yield action
         for worker in harvesters:
             if a := micro_harvester(worker):
@@ -329,7 +308,7 @@ class Agent:
             if a := search_with(unit):
                 yield a
         for unit in observation.combatants:
-            if unit in scout.actions or unit in macro_actions:
+            if unit in scout_actions or unit in macro_actions:
                 pass
             elif a := micro_unit(unit):
                 yield a

@@ -7,6 +7,7 @@ import pstats
 from queue import Empty, Queue
 
 from ares import AresBot
+from line_profiler import profile
 from loguru import logger
 from sc2.data import Race, Result
 from sc2.position import Point2, Point3
@@ -85,6 +86,7 @@ class PhantomBot(BotExporter, AresBot):
             with lzma.open(output_path, "wb") as f:
                 pickle.dump(export, f)
 
+    @profile
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
 

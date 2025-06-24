@@ -14,33 +14,10 @@ def graph_components(adjacency_matrix: np.ndarray) -> Set[Sequence[int]]:
     laplacian = np.diag(degrees) - adjacency_matrix
     kernel_basis = null_space(laplacian)
 
-    def component_key(c):
-        return hash(tuple(round(x, 8) for x in c))
-
-    components = defaultdict[Hashable, list[int]](list)
-
+    components_dict = defaultdict[Hashable, list[int]](list)
     for i, eigencoords in enumerate(kernel_basis):
         key = tuple(round(x, 8) for x in eigencoords)
-        components[key].append(i)
+        components_dict[key].append(i)
 
-    return set(map(tuple, components.values()))
-
-    # component_hashes = list(map(component_key, kernel_basis))
-    # component_groups = groupby(range(n), lambda i: component_hashes[i])
-    # components = {
-    #     tuple(list(g))
-    #     for k, g in component_groups
-    # }
-
-    # components_list = list(map(lambda col: [i for i, ci in enumerate(col) if abs(ci) > 1e-10], kernel_basis.T))
-    # components = list(set(tuple(c) for c in components_list))
-
-    # for (i, ci), (j, cj) in product(enumerate(components), enumerate(components)):
-    #     if i == j:
-    #         continue
-    #     if set(ci) & set(cj):
-    #         raise Exception()
-    # if set().union(*map(set, components)) != set(range(n)):
-    #     raise Exception()
-
-    # return components
+    compositions_set = set(map(tuple, components_dict.values()))
+    return compositions_set

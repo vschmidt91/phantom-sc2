@@ -12,6 +12,7 @@ from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
 
+from phantom.common.unit_composition import UnitComposition
 from phantom.common.utils import ALL_TRAINABLE
 
 
@@ -29,9 +30,6 @@ def _get_alias(unit_type: UnitTypeId) -> UnitTypeId | None:
 
 TYPE_ALIASES = list((k, v) for k in reversed(UnitTypeId) if (v := _get_alias(k)) is not None)
 TYPE_ALIASES_DICT = {k.value: v.value for k, v in TYPE_ALIASES}
-
-
-type UnitComposition = Mapping[UnitTypeId, float]
 
 
 @dataclass(frozen=True)

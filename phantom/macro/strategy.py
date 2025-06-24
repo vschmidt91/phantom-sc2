@@ -13,7 +13,7 @@ from phantom.common.constants import (
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
 )
-from phantom.common.unit_composition import UnitComposition
+from phantom.common.unit_composition import UnitComposition, add_compositions, composition_of, sub_compositions
 from phantom.knowledge import Knowledge
 from phantom.macro.state import MacroId, MacroPlan
 from phantom.observation import Observation
@@ -36,24 +36,48 @@ class StrategyTier(enum.Enum):
         return self.value >= other.value
 
 
+class StrategyState:
+    def __init__(
+        self,
+        knowledge: Knowledge,
+        parameters: AgentParameters,
+    ) -> None:
+        self.knowledge = knowledge
+        self.counter_factor = parameters.normal("counter_factor", NormalPrior(2.0, 0.1))
+        self.ravager_mixin = parameters.normal("ravager_mixin", NormalPrior(21, 1))
+        self.corruptor_mixin = parameters.normal("corruptor_mixin", NormalPrior(13, 1))
+        self.tier1_drone_count = parameters.normal("tier1_drone_count", NormalPrior(32, 1))
+        self.tier2_drone_count = parameters.normal("tier2_drone_count", NormalPrior(56, 1))
+        self.tier3_drone_count = parameters.normal("tier3_drone_count", NormalPrior(80, 1))
+        self.tech_priority = parameters.normal("tech_priority", NormalPrior(-0.25, 0.1))
+        self.hydras_when_banking = parameters.normal("hydras_when_banking", NormalPrior(5, 1))
+        self.lings_when_banking = parameters.normal("lings_when_banking", NormalPrior(10, 1))
+        self.queens_when_banking = parameters.normal("queens_when_banking", NormalPrior(3, 1))
+        self.queens_per_hatch = parameters.normal("queens_per_hatch", NormalPrior(1.5, 0.1))
+        self.queens_limit = parameters.normal("queens_limit", NormalPrior(12, 1))
+
+    def step(self, observation: Observation) -> "Strategy":
+        return Strategy(self, observation)
+
+
 class Strategy:
     def __init__(
         self,
-        context: "StrategyState",
+        context: StrategyState,
         obs: Observation,
     ) -> None:
         self.context = context
         self.obs = obs
 
-        self.composition = UnitComposition.of(obs.units)
-        self.enemy_composition = UnitComposition.of(obs.enemy_units)
+        self.composition = composition_of(obs.units)
+        self.enemy_composition = composition_of(obs.enemy_units)
         self.enemy_composition_predicted = self._predict_enemy_composition()
         self.counter_composition = self._counter_composition()
         self.army_composition = self._army_composition()
         self.tier = self._tier()
         self.macro_composition = self._macro_composition()
-        self.composition_target = self.macro_composition + self.army_composition
-        self.composition_deficit = self.composition_target - self.composition
+        self.composition_target = add_compositions(self.macro_composition, self.army_composition)
+        self.composition_deficit = sub_compositions(self.composition_target, self.composition)
 
     def make_tech(self) -> Iterable[MacroPlan]:
         upgrades = [
@@ -149,15 +173,13 @@ class Strategy:
         # force droning up to 21
         # TODO: check if necessary
         if not self.obs.structures({UnitTypeId.SPAWNINGPOOL}).ready:
-            return UnitComposition({})
-        composition = self.counter_composition
-        composition += {
-            # UnitTypeId.RAVAGER: composition[UnitTypeId.ROACH] / self.context.ravager_mixin.value,
-            UnitTypeId.CORRUPTOR: composition[UnitTypeId.BROODLORD] / self.context.corruptor_mixin.value,
-        }
-        composition = UnitComposition({k: v for k, v in composition.items() if v > 0})
+            return {}
+        composition = defaultdict[UnitTypeId, float](float, self.counter_composition)
+        corruptor_mixin = int(composition[UnitTypeId.BROODLORD] / self.context.corruptor_mixin.value)
+        if corruptor_mixin > 0:
+            composition[UnitTypeId.CORRUPTOR] += corruptor_mixin
         if sum(composition.values()) < 1:
-            composition += {UnitTypeId.ZERGLING: 1}
+            composition[UnitTypeId.CORRUPTOR] += 1
         can_afford_hydras = min(
             self.obs.bank.minerals / 100,
             self.obs.bank.vespene / 50,
@@ -169,14 +191,14 @@ class Strategy:
         )
         can_afford_queens = self.obs.bank.minerals / 150
         if self.context.hydras_when_banking.value < can_afford_hydras:
-            composition += {UnitTypeId.HYDRALISK: can_afford_hydras}
-            composition += {UnitTypeId.BROODLORD: can_afford_hydras}  # for good measure
+            composition[UnitTypeId.HYDRALISK] += can_afford_hydras
+            composition[UnitTypeId.BROODLORD] += can_afford_hydras
         else:
             if self.context.lings_when_banking.value < can_afford_lings:
-                composition += {UnitTypeId.ZERGLING: can_afford_lings}
+                composition[UnitTypeId.ZERGLING] += can_afford_lings
             if self.context.queens_when_banking.value < can_afford_queens:
-                composition += {UnitTypeId.QUEEN: can_afford_queens}
-        return composition * self.context.counter_factor.value
+                composition[UnitTypeId.QUEEN] += can_afford_queens
+        return {k: self.context.counter_factor.value * v for k, v in composition.items()}
 
     def _counter_composition(self) -> UnitComposition:
         def total_cost(t: UnitTypeId) -> float:
@@ -188,60 +210,32 @@ class Strategy:
                 if self.can_build(counter):
                     composition[counter] += count * total_cost(enemy_type) / total_cost(counter)
                     break
-        return UnitComposition(composition)
+        return composition
 
     def _macro_composition(self) -> UnitComposition:
         harvester_target = min(100, max(1.0, self.obs.max_harvesters))
         queen_target = max(
             0.0, min(self.context.queens_limit.value, self.context.queens_per_hatch.value * self.obs.townhalls.amount)
         )
-        composition = UnitComposition(
-            {
-                UnitTypeId.DRONE: harvester_target,
-                UnitTypeId.QUEEN: queen_target,
-            }
-        )
-        # if burrowed_enemies := self.obs.enemy_combatants.filter(lambda u: u.is_burrowed):
-        #     composition += {UnitTypeId.OVERSEER: min(3, len(burrowed_enemies) // 7)}
+        composition = defaultdict[UnitTypeId, float](float)
+
+        composition[UnitTypeId.DRONE] += harvester_target
+        composition[UnitTypeId.QUEEN] += queen_target
         if self.tier >= StrategyTier.Zero:
             pass
         if self.tier >= StrategyTier.Hatch:
-            composition += {UnitTypeId.ROACHWARREN: 1}
-            composition += {UnitTypeId.OVERSEER: 2}
-            composition += {UnitTypeId.LAIR: 1}
+            composition[UnitTypeId.OVERSEER] += 2
+            composition[UnitTypeId.LAIR] += 1
+            composition[UnitTypeId.ROACHWARREN] += 1
         if self.tier >= StrategyTier.Lair:
-            composition += {UnitTypeId.INFESTATIONPIT: 1}
-            composition += {UnitTypeId.HIVE: 1}
-            composition += {UnitTypeId.OVERSEER: 3}
-            composition += {UnitTypeId.HYDRALISKDEN: 1}
-            composition += {UnitTypeId.EVOLUTIONCHAMBER: 1}
+            composition[UnitTypeId.OVERSEER] += 3
+            composition[UnitTypeId.INFESTATIONPIT] += 1
+            composition[UnitTypeId.HIVE] += 1
+            composition[UnitTypeId.HYDRALISKDEN] += 1
+            composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
         if self.tier >= StrategyTier.Hive:
-            composition += {UnitTypeId.OVERSEER: 4}
-            composition += {UnitTypeId.EVOLUTIONCHAMBER: 1}
-            composition += {UnitTypeId.SPIRE: 1}
-            composition += {UnitTypeId.GREATERSPIRE: 1}
+            composition[UnitTypeId.OVERSEER] += 4
+            composition[UnitTypeId.SPIRE] += 1
+            composition[UnitTypeId.GREATERSPIRE] += 1
+            composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
         return composition
-
-
-class StrategyState:
-    def __init__(
-        self,
-        knowledge: Knowledge,
-        parameters: AgentParameters,
-    ) -> None:
-        self.knowledge = knowledge
-        self.counter_factor = parameters.normal("counter_factor", NormalPrior(2.0, 0.1))
-        self.ravager_mixin = parameters.normal("ravager_mixin", NormalPrior(21, 1))
-        self.corruptor_mixin = parameters.normal("corruptor_mixin", NormalPrior(13, 1))
-        self.tier1_drone_count = parameters.normal("tier1_drone_count", NormalPrior(32, 1))
-        self.tier2_drone_count = parameters.normal("tier2_drone_count", NormalPrior(56, 1))
-        self.tier3_drone_count = parameters.normal("tier3_drone_count", NormalPrior(80, 1))
-        self.tech_priority = parameters.normal("tech_priority", NormalPrior(-0.25, 0.1))
-        self.hydras_when_banking = parameters.normal("hydras_when_banking", NormalPrior(5, 1))
-        self.lings_when_banking = parameters.normal("lings_when_banking", NormalPrior(10, 1))
-        self.queens_when_banking = parameters.normal("queens_when_banking", NormalPrior(3, 1))
-        self.queens_per_hatch = parameters.normal("queens_per_hatch", NormalPrior(1.5, 0.1))
-        self.queens_limit = parameters.normal("queens_limit", NormalPrior(12, 1))
-
-    def step(self, observation: Observation) -> Strategy:
-        return Strategy(self, observation)

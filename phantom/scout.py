@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import islice
 
@@ -30,9 +31,7 @@ class ScoutPosition(Action):
             return self.unit.move(self.target)
 
 
-@dataclass(frozen=True)
-class ScoutAction:
-    actions: dict[Unit, ScoutPosition]
+type ScoutAction = Mapping[Unit, Action]
 
 
 class ScoutState:
@@ -81,22 +80,24 @@ class ScoutState:
         scout_targets = list(map(Point2, scout_points))
         detect_targets = list(map(Point2, self.blocked_positions))
 
-        scout_actions = distribute(
+        scout_assignment = distribute(
             nondetectors,
             scout_targets,
             pairwise_distances(
                 [u.position for u in nondetectors],
                 scout_targets,
             ),
+            max_assigned=1,
         )
-        detect_actions = distribute(
+        detect_assignment = distribute(
             detectors,
             detect_targets,
             pairwise_distances(
                 [u.position for u in detectors],
                 detect_targets,
             ),
+            max_assigned=1,
         )
-        actions = {u: ScoutPosition(u, p) for u, p in (scout_actions | detect_actions).items()}
-
-        return ScoutAction(actions)
+        assignment = {**scout_assignment, **detect_assignment}
+        actions = {u: ScoutPosition(u, p) for u, p in assignment.items()}
+        return actions

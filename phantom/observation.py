@@ -6,7 +6,6 @@ import numpy as np
 from ares import AresBot, UnitTreeQueryType
 from ares.consts import ALL_STRUCTURES
 from cython_extensions import cy_unit_pending
-from line_profiler import profile
 from loguru import logger
 from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
@@ -26,10 +25,8 @@ from phantom.common.constants import (
     CIVILIANS,
     COCOONS,
     ENEMY_CIVILIANS,
-    MORPHERS,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
-    UNIT_BY_TRAIN_ABILITY,
     WITH_TECH_EQUIVALENTS,
     WORKERS,
     ZERG_ARMOR_UPGRADES,
@@ -64,7 +61,6 @@ class ObservationState:
 
 
 class Observation:
-    @profile
     def __init__(self, context: ObservationState, planned: Counter[MacroId]):
         self.bot = context.bot
         self.iteration = context.bot.actual_iteration

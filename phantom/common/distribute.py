@@ -1,5 +1,5 @@
 import math
-from collections.abc import Hashable
+from collections.abc import Hashable, Mapping, Sequence
 from itertools import product
 from typing import TypeVar
 
@@ -72,11 +72,11 @@ def _get_problem(n: int, m: int, t: bool) -> HighsPyProblem:
 
 
 def distribute(
-    a: list[TKey],
-    b: list[TValue],
+    a: Sequence[TKey],
+    b: Sequence[TValue],
     cost: np.ndarray,
     max_assigned: np.ndarray | int | None = None,
-) -> dict[TKey, TValue]:
+) -> Mapping[TKey, TValue]:
     n = len(a)
     m = len(b)
     if n == 0:
