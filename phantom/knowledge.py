@@ -62,4 +62,5 @@ class Knowledge:
 
         self.cost = CostManager(bot)
         self.race = bot.race
+        self.map_size = bot.game_info.map_size
         self.in_mineral_line = {b: tuple(center(self.expansion_resource_positions[b]).rounded) for b in self.bases}

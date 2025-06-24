@@ -36,7 +36,7 @@ class CombatPredictor:
         self.bot = bot
         self.units = units
         self.enemy_units = enemy_units
-        self.time_horizon = 2.0
+        self.time_horizon = 3.0
         self.prediction = self._prediction_sc2helper()
 
     def _prediction_sc2helper(self) -> CombatPrediction:
@@ -73,7 +73,7 @@ class CombatPredictor:
                     good_positioning=True,
                     workers_do_no_damage=False,
                 )
-                win = outcome >= EngagementResult.LOSS_CLOSE
+                win = outcome >= EngagementResult.TIE
 
             for u in component_units:
                 survival_time[u] = 1 if win else 0

@@ -69,6 +69,7 @@ class Observation:
     @profile
     def __init__(self, context: ObservationState, planned: Counter[MacroId]):
         self.bot = context.bot
+        self.iteration = context.bot.actual_iteration
         self.knowledge = context.knowledge
         self.planned = planned
         self.unit_commands = {t: a for a in self.bot.state.actions_unit_commands for t in a.unit_tags}
