@@ -173,6 +173,12 @@ UPGRADE_BY_RESEARCH_ABILITY: dict[AbilityId, UpgradeId] = {
     for upgrade, upgrade_element in research_element.items()
 }
 
+MORPHERS = {
+    UnitTypeId.HATCHERY,
+    UnitTypeId.LAIR,
+    UnitTypeId.SPIRE,
+}
+
 ITEM_BY_ABILITY = {**UNIT_BY_TRAIN_ABILITY, **UPGRADE_BY_RESEARCH_ABILITY}
 TRAINER_TYPES = {
     *chain.from_iterable(UNIT_TRAINED_FROM.values()),

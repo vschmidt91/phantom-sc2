@@ -26,8 +26,10 @@ from phantom.common.constants import (
     CIVILIANS,
     COCOONS,
     ENEMY_CIVILIANS,
+    MORPHERS,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
+    TRAINER_TYPES,
     UNIT_BY_TRAIN_ABILITY,
     UPGRADE_BY_RESEARCH_ABILITY,
     WITH_TECH_EQUIVALENTS,
@@ -102,31 +104,19 @@ class Observation:
         self.game_loop = self.bot.state.game_loop
         self.resources = self.bot.resources
 
-        self.actual_by_type = Counter[UnitTypeId]()
-        for unit in self.bot.all_own_units:
-            if unit.is_ready:
-                self.actual_by_type[unit.type_id] += 1
-            #     if unit.type_id in TRAINER_TYPES:
-            #         for order in unit.orders:
-            #             if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
-            #                 self.pending_by_type[item] += 1
-            # else:
-            #     self.pending_by_type[unit.type_id] += 1
+        self.actual_by_type = Counter[UnitTypeId](u.type_id for u in self.units if u.is_ready)
 
-        # trainers = chain(self.structures, self.workers, self.eggs, self.cocoons)
-        # for trainer in trainers:
-        #     if trainer.orders and (item := ITEM_BY_ABILITY.get(trainer.orders[0].ability.exact_id)):
-        #         self.pending_by_type[item] += 1
-
+        trainer_structures = self.structures(TRAINER_TYPES)
         self.upgrades_pending = {
             upgrade
-            for s in self.structures
+            for s in trainer_structures
             if s.orders and (upgrade := UPGRADE_BY_RESEARCH_ABILITY.get(s.orders[0].ability.exact_id))
         }
+
         self.structures_pending = Counter(s.type_id for s in self.structures.not_ready)
         self.structures_pending.update(
             morph
-            for s in self.structures
+            for s in self.structures(MORPHERS)
             if s.orders and (morph := UNIT_BY_TRAIN_ABILITY.get(s.orders[0].ability.exact_id))
         )
         self.structures_pending.update(
