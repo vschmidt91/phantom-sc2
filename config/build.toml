@@ -9,6 +9,7 @@ zip_modules = [
   "click",
   "cython_extensions",
   "highspy",
+  "line_profiler",
   "map_analyzer",
   "s2protocol",
   "sc2",
