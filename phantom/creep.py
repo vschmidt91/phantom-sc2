@@ -21,39 +21,21 @@ class CreepState:
         self.knowledge = knowledge
         self.created_at_step = dict[int, int]()
         self.spread_at_step = dict[int, int]()
-        self.prevent_blocking = self.knowledge.bases
-        self.reward_blocking = self.knowledge.bases
         self.placement_map = np.zeros(knowledge.map_size)
         self.value_map = np.zeros_like(self.placement_map)
         self.value_map_blurred = np.zeros_like(self.placement_map)
 
     def _update(self, obs: Observation, mask: np.ndarray) -> None:
-        m = obs.creep & obs.is_visible & (obs.pathing == 1) & mask
-        for b in self.prevent_blocking:
-            size = _BASE_SIZE
-            # x, y = (Point2(b).offset(HALF) - 0.5 * Point2(size)).rounded
-            # r = rectangle((x, y), extent=size, shape=self.obs.creep.shape)
-            # m[r] = False
+        self.placement_map = obs.creep & obs.is_visible & (obs.pathing == 1) & mask
+        self.value_map = (~obs.creep & (obs.pathing == 1)).astype(float)
+        size = _BASE_SIZE
+        for b in self.knowledge.bases:
             i0 = b[0] - size[0] // 2
             j0 = b[1] - size[1] // 2
             i1 = i0 + size[0]
             j1 = j0 + size[1]
-            m[i0:i1, j0:j1] = False
-        self.placement_map = m
-
-        m = (~obs.creep & (obs.pathing == 1)).astype(float)
-        for b in self.reward_blocking:
-            size = _BASE_SIZE
-            # x, y = (Point2(b).offset(HALF) - 0.5 * Point2(size)).rounded
-            # r = rectangle((x, y), extent=size, shape=self.obs.creep.shape)
-            # m[r] *= 3
-            i0 = b[0] - size[0] // 2
-            j0 = b[1] - size[1] // 2
-            i1 = i0 + size[0]
-            j1 = j0 + size[1]
-            m[i0:i1, j0:j1] *= 3
-        self.value_map = m
-
+            self.placement_map[i0:i1, j0:j1] = False
+            self.value_map[i0:i1, j0:j1] *= 3
         self.value_map_blurred = gaussian_filter(self.value_map, 3) * (obs.pathing == 1).astype(float)
 
     @property
