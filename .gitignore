@@ -140,3 +140,4 @@ dmypy.json
 /resources
 /data
 /ares-sc2/
+profile_output*

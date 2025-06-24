@@ -6,6 +6,7 @@ import numpy as np
 from ares import AresBot, UnitTreeQueryType
 from ares.consts import ALL_STRUCTURES
 from cython_extensions import cy_unit_pending
+from line_profiler import profile
 from loguru import logger
 from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
@@ -43,6 +44,7 @@ from phantom.knowledge import Knowledge
 
 
 class Observation:
+    @profile
     def __init__(self, bot: AresBot, knowledge: Knowledge, planned: Counter[MacroId]):
         self.bot = bot
         self.knowledge = knowledge
