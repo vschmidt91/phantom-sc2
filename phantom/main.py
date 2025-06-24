@@ -4,7 +4,6 @@ import lzma
 import os
 import pickle
 import pstats
-from collections import Counter
 from queue import Empty, Queue
 
 from ares import AresBot
@@ -18,7 +17,6 @@ from phantom.config import BotConfig
 from phantom.exporter import BotExporter
 from phantom.knowledge import Knowledge
 from phantom.macro.state import MacroPlan
-from phantom.observation import Observation
 from phantom.parameters import AgentParameters
 
 
@@ -67,7 +65,7 @@ class PhantomBot(BotExporter, AresBot):
         await super().on_start()
 
         knowledge = Knowledge(self)
-        self.agent = Agent(self.bot_config.build_order, self.parameters, knowledge)
+        self.agent = Agent(self, self.bot_config.build_order, self.parameters, knowledge)
         self.parameters.sample()
 
         def handle_message(message):
@@ -120,9 +118,7 @@ class PhantomBot(BotExporter, AresBot):
         if self.bot_config.profile_path:
             self.profiler.enable()
 
-        planned = Counter(p.item for p in self.agent.macro.enumerate_plans())
-        observation = Observation(self, self.agent.knowledge, planned)
-        async for action in self.agent.step(self, observation):
+        async for action in self.agent.step():
             # logger.debug(f"Executing {action=}")
             if not await action.execute(self):
                 self.add_replay_tag("action_failed")

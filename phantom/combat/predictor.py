@@ -73,7 +73,7 @@ class CombatPredictor:
                     good_positioning=True,
                     workers_do_no_damage=False,
                 )
-                win = outcome > EngagementResult.TIE
+                win = outcome >= EngagementResult.LOSS_CLOSE
 
             for u in component_units:
                 survival_time[u] = 1 if win else 0

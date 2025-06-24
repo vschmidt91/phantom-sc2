@@ -74,7 +74,8 @@ class ScoutState:
                 scout_points.append(tuple(observation.enemy_natural.rounded))
             scout_points.extend(islice(scout_bases, len(nondetectors) - len(scout_points)))
         else:
-            scout_points.extend(tuple(pr) for p in safe_overlord_spots if filter_base(pr := p.rounded))
+            if not self.knowledge.is_micro_map:
+                scout_points.extend(tuple(pr) for p in safe_overlord_spots if filter_base(pr := p.rounded))
             scout_points.extend(scout_bases)
 
         scout_targets = list(map(Point2, scout_points))

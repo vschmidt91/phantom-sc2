@@ -1,5 +1,5 @@
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
 from itertools import chain
 
 import numpy as np
@@ -43,16 +43,37 @@ from phantom.common.utils import RNG, MacroId
 from phantom.knowledge import Knowledge
 
 
-class Observation:
-    @profile
-    def __init__(self, bot: AresBot, knowledge: Knowledge, planned: Counter[MacroId]):
+class ObservationState:
+    def __init__(self, bot: AresBot, knowledge: Knowledge):
         self.bot = bot
         self.knowledge = knowledge
+        self.pathing = self._pathing()
+        self.air_pathing = self._air_pathing()
+
+    def step(self, planned: Counter[MacroId]) -> "Observation":
+        if self.bot.actual_iteration % 10 == 0:
+            self.pathing = self._pathing()
+            self.air_pathing = self._air_pathing()
+        return Observation(self, planned)
+
+    def _pathing(self) -> np.ndarray:
+        return self.bot.mediator.get_map_data_object.get_pyastar_grid()
+
+    def _air_pathing(self) -> np.ndarray:
+        return self.bot.mediator.get_map_data_object.get_clean_air_grid()
+
+
+class Observation:
+    @profile
+    def __init__(self, context: ObservationState, planned: Counter[MacroId]):
+        self.bot = context.bot
+        self.knowledge = context.knowledge
         self.planned = planned
         self.unit_commands = {t: a for a in self.bot.state.actions_unit_commands for t in a.unit_tags}
         self.player_races = {k: Race(v) for k, v in self.bot.game_info.player_races.items()}
         self.workers_in_geysers = int(self.bot.supply_workers) - self.bot.workers.amount
-        self.pathing = self.bot.mediator.get_map_data_object.get_pyastar_grid()
+        self.pathing = context.pathing
+        self.air_pathing = context.air_pathing
         self.unit_by_tag = self.bot.unit_tag_dict
         self.action_errors = self.bot.state.action_errors
         self.supply_workers = self.bot.supply_workers
@@ -114,18 +135,16 @@ class Observation:
             if w.orders and (structure := UNIT_BY_TRAIN_ABILITY.get(w.orders[0].ability.exact_id))
         )
 
-        self.air_pathing = self.bot.mediator.get_map_data_object.get_clean_air_grid()
-
         self.map_center = self.bot.game_info.map_center
         self.start_location = self.bot.start_location
         self.supply_used = self.bot.supply_used
-        self.enemy_natural = self.bot.mediator.get_enemy_nat if not knowledge.is_micro_map else None
+        self.enemy_natural = self.bot.mediator.get_enemy_nat if not context.knowledge.is_micro_map else None
         self.overlord_spots = self.bot.mediator.get_ol_spots
         self.townhall_at = {tuple(b.position.rounded): b for b in self.bot.townhalls}
         self.resource_at = {tuple(r.position.rounded): r for r in self.bot.resources}
 
         self.bases_taken = set[tuple[int, int]]()
-        if not knowledge.is_micro_map:
+        if not context.knowledge.is_micro_map:
             self.bases_taken.update(
                 p
                 for b in self.bot.expansion_locations_list
@@ -361,25 +380,32 @@ class Observation:
                 return (upgrade,)
         return ()
 
-    def _shootable_targets(self) -> dict[Unit, list[Unit]]:
+    def _shootable_targets(self) -> Mapping[Unit, Sequence[Unit]]:
         units = self.combatants
-        base_ranges = [u.radius for u in units]
-        # base_ranges = [u.radius + MAX_UNIT_RADIUS + u.distance_to_weapon_ready for u in units]
-        ground_ranges = [b + u.ground_range for u, b in zip(units, base_ranges, strict=False)]
-        air_ranges = [b + u.air_range for u, b in zip(units, base_ranges, strict=False)]
+
+        points_ground = list[Point2]()
+        points_air = list[Point2]()
+        distances_ground = list[float]()
+        distances_air = list[float]()
+        for unit in units:
+            if unit.can_attack_ground:
+                points_ground.append(unit)
+                distances_ground.append(2 * unit.radius + unit.ground_range)
+            if unit.can_attack_air:
+                points_air.append(unit)
+                distances_air.append(2 * unit.radius + unit.air_range)
 
         ground_candidates = self.bot.mediator.get_units_in_range(
-            start_points=units,
-            distances=ground_ranges,
+            start_points=points_ground,
+            distances=distances_ground,
             query_tree=UnitTreeQueryType.EnemyGround,
+            return_as_dict=True,
         )
         air_candidates = self.bot.mediator.get_units_in_range(
-            start_points=units,
-            distances=air_ranges,
+            start_points=points_air,
+            distances=distances_air,
             query_tree=UnitTreeQueryType.EnemyFlying,
+            return_as_dict=True,
         )
-        targets = {
-            u: list(filter(u.target_in_range, a | b))
-            for u, a, b in zip(units, ground_candidates, air_candidates, strict=False)
-        }
+        targets = {u: ground_candidates.get(u.tag, []) + air_candidates.get(u.tag, []) for u in units}
         return targets

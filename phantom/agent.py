@@ -1,5 +1,6 @@
 import math
 import random
+from collections import Counter
 from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass
 from itertools import chain
@@ -28,7 +29,7 @@ from phantom.knowledge import Knowledge
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.state import MacroPlan, MacroState
 from phantom.macro.strategy import StrategyState
-from phantom.observation import Observation
+from phantom.observation import ObservationState
 from phantom.parameters import AgentParameters
 from phantom.resources.observation import ResourceObservation
 from phantom.resources.state import ResourceState
@@ -38,7 +39,9 @@ from phantom.transfuse import TransfuseAction
 
 @dataclass
 class Agent:
-    def __init__(self, build_order_name: str, parameters: AgentParameters, knowledge: Knowledge) -> None:
+    def __init__(self, bot: AresBot, build_order_name: str, parameters: AgentParameters, knowledge: Knowledge) -> None:
+        self.bot = bot
+        self.observation = ObservationState(bot, knowledge)
         self.macro = MacroState(knowledge)
         self.creep = CreepState(knowledge)
         self.corrosive_biles = CorrosiveBileState()
@@ -52,7 +55,10 @@ class Agent:
         self.knowledge = knowledge
         self.resources = ResourceState(self.knowledge)
 
-    async def step(self, bot: AresBot, observation: Observation) -> AsyncGenerator[Action, None]:
+    async def step(self) -> AsyncGenerator[Action, None]:
+        planned = Counter(p.item for p in self.macro.enumerate_plans())
+        observation = self.observation.step(planned)
+
         strategy = self.strategy.step(observation)
 
         if observation.game_loop % 100 == 0:
@@ -77,7 +83,7 @@ class Agent:
                 ):
                     self.macro.add(plan)
 
-        combat = CombatAction(bot, self.knowledge, observation)
+        combat = CombatAction(self.bot, self.knowledge, observation)
         transfuse = TransfuseAction(observation)
         creep = self.creep.step(observation, np.less_equal(0.0, combat.confidence))
 
