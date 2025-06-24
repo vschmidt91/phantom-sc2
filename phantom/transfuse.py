@@ -26,6 +26,6 @@ class TransfuseAction:
             return 1 - t.shield_health_percentage
 
         if target := max(filter(eligible, self.eligible_targets), key=priority, default=None):
-            return UseAbility(unit, self.ability, target=target)
+            return UseAbility(self.ability, target=target)
 
         return None

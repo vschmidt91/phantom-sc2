@@ -120,9 +120,10 @@ class PhantomBot(BotExporter, AresBot):
         if self.bot_config.profile_path:
             self.profiler.enable()
 
-        async for action in self.agent.step():
+        actions = await self.agent.step()
+        for unit, action in actions.items():
             # logger.debug(f"Executing {action=}")
-            if not await action.execute(self):
+            if not await action.execute(unit):
                 self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
 

@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from itertools import islice
 
 from loguru import logger
-from sc2.bot_ai import BotAI
 from sc2.data import ActionResult
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -19,16 +18,15 @@ from phantom.observation import Observation
 
 @dataclass
 class ScoutPosition(Action):
-    unit: Unit
     target: Point2
 
-    async def execute(self, bot: BotAI) -> bool:
-        if self.unit.distance_to(self.target) < 0.1:
-            if self.unit.is_idle:
+    async def execute(self, unit: Unit) -> bool:
+        if unit.distance_to(self.target) < 0.1:
+            if unit.is_idle:
                 return True
-            return self.unit.stop()
+            return unit.stop()
         else:
-            return self.unit.move(self.target)
+            return unit.move(self.target)
 
 
 type ScoutAction = Mapping[Unit, Action]
@@ -99,5 +97,5 @@ class ScoutState:
             max_assigned=1,
         )
         assignment = {**scout_assignment, **detect_assignment}
-        actions = {u: ScoutPosition(u, p) for u, p in assignment.items()}
+        actions = {u: ScoutPosition(p) for u, p in assignment.items()}
         return actions

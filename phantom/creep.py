@@ -92,7 +92,7 @@ class CreepAction:
         for p in advance:
             if self.context.placement_map[p]:
                 target_point = Point2(p).offset(HALF)
-                return UseAbility(unit, AbilityId.BUILD_CREEPTUMOR, target_point)
+                return UseAbility(AbilityId.BUILD_CREEPTUMOR, target_point)
 
         # logger.warning("No creep tumor placement found.")
         return None

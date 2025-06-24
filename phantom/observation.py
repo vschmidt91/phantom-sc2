@@ -289,10 +289,10 @@ class Observation:
     def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
         if unit == UnitTypeId.ZERGLING:
             return chain(
-                (UpgradeId.ZERGLINGMOVEMENTSPEED,),
-                # (UpgradeId.ZERGLINGMOVEMENTSPEED, UpgradeId.ZERGLINGATTACKSPEED),
-                # self.upgrade_sequence(ZERG_MELEE_UPGRADES),
-                # self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+                # (UpgradeId.ZERGLINGMOVEMENTSPEED,),
+                (UpgradeId.ZERGLINGMOVEMENTSPEED, UpgradeId.ZERGLINGATTACKSPEED),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
             )
         elif unit == UnitTypeId.ULTRALISK:
             return chain(

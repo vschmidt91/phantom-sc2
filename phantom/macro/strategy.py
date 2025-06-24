@@ -27,10 +27,10 @@ SCOUT_PREDICTOR = None
 
 @total_ordering
 class StrategyTier(enum.Enum):
-    Zero = 0
-    Hatch = 1
-    Lair = 2
-    Hive = 3
+    Hatch = 0
+    Lair = 1
+    Hive = 2
+    Lategame = 3
 
     def __ge__(self, other):
         return self.value >= other.value
@@ -135,10 +135,12 @@ class Strategy:
     def filter_upgrade(self, upgrade: UpgradeId) -> bool:
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
             return True
-        elif self.tier == StrategyTier.Zero:
+        elif self.tier == StrategyTier.Hatch:
             return False
         elif upgrade == UpgradeId.BURROW:
             return self.tier >= StrategyTier.Hatch
+        elif upgrade == UpgradeId.ZERGLINGATTACKSPEED:
+            return self.tier >= StrategyTier.Hive
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
             return self.obs.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False) > 0
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
@@ -148,7 +150,7 @@ class Strategy:
         elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
             return self.obs.count(UnitTypeId.GREATERSPIRE, include_planned=False) > 0
         elif upgrade == UpgradeId.OVERLORDSPEED:
-            return self.tier >= StrategyTier.Lair
+            return self.tier >= StrategyTier.Hive
         else:
             return True
 
@@ -161,25 +163,38 @@ class Strategy:
         # return composition
 
     def _tier(self) -> StrategyTier:
-        if self.obs.supply_workers < self.context.tier1_drone_count.value or self.obs.townhalls.amount < 2:
-            return StrategyTier.Zero
-        elif self.obs.supply_workers < self.context.tier2_drone_count.value or self.obs.townhalls.amount < 3:
+        if (
+            self.obs.supply_workers < self.context.tier1_drone_count.value
+            or self.obs.townhalls.amount < 2
+            or self.obs.time < 3 * 60
+        ):
             return StrategyTier.Hatch
-        elif self.obs.supply_workers < self.context.tier3_drone_count.value or self.obs.townhalls.amount < 4:
+        elif (
+            self.obs.supply_workers < self.context.tier2_drone_count.value
+            or self.obs.townhalls.amount < 3
+            or self.obs.time < 6 * 60
+        ):
             return StrategyTier.Lair
-        return StrategyTier.Hive
+        elif (
+            self.obs.supply_workers < self.context.tier3_drone_count.value
+            or self.obs.townhalls.amount < 4
+            or self.obs.time < 9 * 60
+        ):
+            return StrategyTier.Hive
+        return StrategyTier.Lategame
 
     def _army_composition(self) -> UnitComposition:
         # force droning up to 21
         # TODO: check if necessary
         if not self.obs.structures({UnitTypeId.SPAWNINGPOOL}).ready:
             return {}
-        composition = defaultdict[UnitTypeId, float](float, self.counter_composition)
+        counter_composition = {k: self.context.counter_factor.value * v for k, v in self.counter_composition.items()}
+        composition = defaultdict[UnitTypeId, float](float, counter_composition)
         corruptor_mixin = int(composition[UnitTypeId.BROODLORD] / self.context.corruptor_mixin.value)
         if corruptor_mixin > 0:
             composition[UnitTypeId.CORRUPTOR] += corruptor_mixin
         if sum(composition.values()) < 1:
-            composition[UnitTypeId.CORRUPTOR] += 1
+            composition[UnitTypeId.ZERGLING] += 4
         can_afford_hydras = min(
             self.obs.bank.minerals / 100,
             self.obs.bank.vespene / 50,
@@ -198,7 +213,7 @@ class Strategy:
                 composition[UnitTypeId.ZERGLING] += can_afford_lings
             if self.context.queens_when_banking.value < can_afford_queens:
                 composition[UnitTypeId.QUEEN] += can_afford_queens
-        return {k: self.context.counter_factor.value * v for k, v in composition.items()}
+        return composition
 
     def _counter_composition(self) -> UnitComposition:
         def total_cost(t: UnitTypeId) -> float:
@@ -221,19 +236,19 @@ class Strategy:
 
         composition[UnitTypeId.DRONE] += harvester_target
         composition[UnitTypeId.QUEEN] += queen_target
-        if self.tier >= StrategyTier.Zero:
-            pass
         if self.tier >= StrategyTier.Hatch:
-            composition[UnitTypeId.OVERSEER] += 2
-            composition[UnitTypeId.LAIR] += 1
-            composition[UnitTypeId.ROACHWARREN] += 1
+            pass
         if self.tier >= StrategyTier.Lair:
-            composition[UnitTypeId.OVERSEER] += 3
+            composition[UnitTypeId.LAIR] += 1
+            composition[UnitTypeId.OVERSEER] += 2
+            composition[UnitTypeId.ROACHWARREN] += 1
+        if self.tier >= StrategyTier.Hive:
             composition[UnitTypeId.INFESTATIONPIT] += 1
             composition[UnitTypeId.HIVE] += 1
+            composition[UnitTypeId.OVERSEER] += 3
             composition[UnitTypeId.HYDRALISKDEN] += 1
             composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
-        if self.tier >= StrategyTier.Hive:
+        if self.tier >= StrategyTier.Lategame:
             composition[UnitTypeId.OVERSEER] += 4
             composition[UnitTypeId.SPIRE] += 1
             composition[UnitTypeId.GREATERSPIRE] += 1

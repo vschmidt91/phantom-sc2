@@ -1,7 +1,7 @@
 import math
 import random
 from collections import Counter
-from collections.abc import AsyncGenerator, Iterable
+from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import chain
 
@@ -55,17 +55,17 @@ class Agent:
         self.resources = ResourceState(self.knowledge)
         self.build_order_completed = False
 
-    async def step(self) -> AsyncGenerator[Action, None]:
+    async def step(self) -> Mapping[Unit, Action]:
         planned = Counter(p.item for p in self.macro.enumerate_plans())
         observation = self.observation.step(planned)
 
         strategy = self.strategy.step(observation)
 
+        build_order_actions = dict[Unit, Action]()
         if not self.knowledge.is_micro_map:
             if not self.build_order_completed:
                 if step := self.build_order.execute(observation):
-                    for action in step.actions:
-                        yield action
+                    build_order_actions.update(step.actions)
                     for plan in step.plans:
                         self.macro.add(plan)
                 else:
@@ -105,9 +105,9 @@ class Agent:
 
         def should_harvest(u: Unit) -> bool:
             # TODO: consider macro tasks
-            if self.knowledge.is_micro_map or u in macro_actions:
-                return False
-            elif u.is_idle:  # you slackin?
+            # if self.knowledge.is_micro_map or u in macro_actions:
+            #     return False
+            if u.is_idle:  # you slackin?
                 return True
             elif u.orders[0].ability.exact_id in ALL_MACRO_ABILITIES:
                 return False  # alright, carry on!
@@ -165,8 +165,6 @@ class Agent:
         if gas_have + gas_pending < gas_want:
             self.macro.add(MacroPlan(gas_type))
 
-        corrosive_bile_actions = self.corrosive_biles.step(observation)
-
         def inject_with_queen(q: Unit) -> Action | None:
             if not should_inject:
                 return None
@@ -175,7 +173,7 @@ class Agent:
             if target := inject_assignment.get(q):
                 if target.has_buff(BuffId.QUEENSPAWNLARVATIMER):
                     return None
-                return UseAbility(q, AbilityId.EFFECT_INJECTLARVA, target=target)
+                return UseAbility(AbilityId.EFFECT_INJECTLARVA, target=target)
             return None
 
         def micro_queen(q: Unit) -> Action | None:
@@ -189,7 +187,7 @@ class Agent:
                 or combat.fight_with(q)
             )
 
-        def micro_overseers(overseers: Units) -> Iterable[Action]:
+        def micro_overseers(overseers: Units) -> Mapping[Unit, Action]:
             targets = distribute(
                 overseers,
                 observation.enemy_combatants,
@@ -198,21 +196,25 @@ class Agent:
                     [b.position for b in observation.enemy_combatants],
                 ),
             )
-            for u in overseers:
+
+            def micro_overseer(u: Unit) -> Action | None:
                 if action := (
                     dodge.dodge_with(u)
                     or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
                     or spawn_changeling(u)
                     or scout_actions.get(u)
                 ):
-                    yield action
+                    return action
                 elif target := targets.get(u):
                     target_point = observation.find_path(
                         start=u.position,
                         target=target.position,
                         air=True,
                     )
-                    yield Move(u, target_point)
+                    return Move(target_point)
+                return None
+
+            return {u: a for u in overseers if (a := micro_overseer(u))}
 
         def micro_harvester(u: Unit) -> Action | None:
             return (
@@ -234,14 +236,13 @@ class Agent:
             UnitTypeId.BANELING: combat.fight_with_baneling,
             UnitTypeId.ROACH: combat.do_burrow,
             UnitTypeId.ROACHBURROWED: combat.do_unburrow,
-            UnitTypeId.RAVAGER: corrosive_bile_actions.get,
             UnitTypeId.QUEEN: micro_queen,
         }
 
         def micro_unit(u: Unit) -> Action | None:
             if action := dodge.dodge_with(u):
                 return action
-            if (handler := micro_handlers.get(unit.type_id)) and (action := handler(u)):
+            if (handler := micro_handlers.get(u.type_id)) and (action := handler(u)):
                 return action
             return combat.fight_with(u) or search_with(u)
 
@@ -272,46 +273,35 @@ class Agent:
                 return None
             if not observation.pathing[target.rounded]:
                 return None
-            return Move(unit, target)
+            return Move(target)
 
         def search_with(unit: Unit) -> Action | None:
             if not (unit.is_idle or unit.is_gathering or unit.is_returning):
                 return None
             elif observation.time < 8 * 60 and self.knowledge.enemy_start_locations:
-                return Move(unit, Point2(random.choice(self.knowledge.enemy_start_locations)))
+                return Move(Point2(random.choice(self.knowledge.enemy_start_locations)))
             elif observation.enemy_combatants:
                 target = cy_closest_to(unit.position, observation.enemy_combatants)
-                return Move(unit, target.position)
+                return Move(target.position)
             target = observation.random_point(near=unit.position)
             if observation.is_visible[target.rounded]:
                 return None
             if not observation.pathing[target.rounded] and not unit.is_flying:
                 return None
-            return Move(unit, target)
+            return Move(target)
 
-        for action in macro_actions.values():
-            yield action
-        for action in scout_actions.values():
-            yield action
-        for worker in harvesters:
-            if a := micro_harvester(worker):
-                yield a
-        for tumor in creep.active_tumors:
-            if a := creep.spread_with_tumor(tumor):
-                yield a
-        for action in micro_overseers(observation.overseers):
-            yield action
-        for unit in observation.units(UnitTypeId.OVERLORD):
-            if a := micro_overlord(unit):
-                yield a
-        for unit in observation.units(CHANGELINGS):
-            if a := search_with(unit):
-                yield a
-        for unit in observation.combatants:
-            if unit in scout_actions or unit in macro_actions:
-                pass
-            elif a := micro_unit(unit):
-                yield a
-        for structure in observation.structures.not_ready:
-            if structure.health_percentage < 0.1:
-                yield UseAbility(structure, AbilityId.CANCEL)
+        actions = {
+            **build_order_actions,
+            **scout_actions,
+            **{u: a for u in harvesters if (a := micro_harvester(u))},
+            **macro_actions,
+            **{u: a for u in creep.active_tumors if (a := creep.spread_with_tumor(u))},
+            **{u: a for u in observation.units(UnitTypeId.OVERLORD) if (a := micro_overlord(u))},
+            **micro_overseers(observation.overseers),
+            **{u: a for u in observation.units(CHANGELINGS) if (a := search_with(u))},
+            **{u: a for u in observation.combatants if (a := micro_unit(u))},
+            **{u: UseAbility(AbilityId.CANCEL) for u in observation.structures.not_ready if u.health_percentage < 0.1},
+            **self.corrosive_biles.step(observation),
+        }
+
+        return actions

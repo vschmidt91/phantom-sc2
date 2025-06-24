@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.unit import Unit
 
 from phantom.common.action import Action, UseAbility
 from phantom.macro.state import MacroPlan
@@ -13,7 +14,7 @@ from phantom.observation import Observation
 @dataclass(frozen=True)
 class BuildOrderStep:
     plans: list[MacroPlan]
-    actions: list[Action]
+    actions: Mapping[Unit, Action]
 
 
 class BuildOrder(ABC):
@@ -30,9 +31,9 @@ class Make(BuildOrder):
     def execute(self, obs: Observation) -> BuildOrderStep | None:
         if obs.count(self.unit, include_planned=False) < self.target:
             if obs.count(self.unit) < self.target:
-                return BuildOrderStep([MacroPlan(self.unit)], [])
+                return BuildOrderStep([MacroPlan(self.unit)], {})
             else:
-                return BuildOrderStep([], [])
+                return BuildOrderStep([], {})
         return None
 
 
@@ -43,7 +44,7 @@ class WaitUntil(BuildOrder):
     def execute(self, obs: Observation) -> BuildOrderStep | None:
         if self.condition(obs):
             return None
-        return BuildOrderStep([], [])
+        return BuildOrderStep([], {})
 
 
 @dataclass(frozen=True)
@@ -56,11 +57,11 @@ class ExtractorTrick(BuildOrder):
         if self.at_supply == obs.supply_used and obs.bank.supply <= 0:
             if obs.count(self.unit_type) == 0:
                 if self.min_minerals < obs.bank.minerals:
-                    return BuildOrderStep([MacroPlan(self.unit_type)], [])
+                    return BuildOrderStep([MacroPlan(self.unit_type)], {})
                 else:
-                    return BuildOrderStep([], [])
+                    return BuildOrderStep([], {})
             units = obs.structures(self.unit_type).not_ready
-            return BuildOrderStep([], [UseAbility(u, AbilityId.CANCEL) for u in units])
+            return BuildOrderStep([], {u: UseAbility(AbilityId.CANCEL) for u in units})
         return None
 
 
@@ -106,12 +107,12 @@ BUILD_ORDERS = {
             Make(UnitTypeId.DRONE, 17),
             Make(UnitTypeId.HATCHERY, 2),
             Make(UnitTypeId.DRONE, 18),
-            WaitUntil(lambda obs: obs.workers.amount > 16),
             Make(UnitTypeId.EXTRACTOR, 1),
-            WaitUntil(lambda obs: obs.gas_buildings),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
-            Make(UnitTypeId.HATCHERY, 3),
             Make(UnitTypeId.DRONE, 19),
+            Make(UnitTypeId.HATCHERY, 3),
+            Make(UnitTypeId.QUEEN, 1),
+            Make(UnitTypeId.ZERGLING, 2),
             Make(UnitTypeId.QUEEN, 2),
         ]
     ),

@@ -49,4 +49,4 @@ class CorrosiveBile:
             return None
 
         target = max(targets, key=bile_priority)
-        return UseAbility(unit, self.ability, target=target.position)
+        return UseAbility(self.ability, target=target.position)

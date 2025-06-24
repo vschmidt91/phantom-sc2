@@ -157,10 +157,10 @@ class MacroState:
 
             if eta == 0.0:
                 plan.commanded = True
-                actions[trainer] = UseAbility(trainer, ability, target=plan.target)
+                actions[trainer] = UseAbility(ability, target=plan.target)
             elif plan.target:
                 if trainer.is_carrying_resource:
-                    actions[trainer] = UseAbility(trainer, AbilityId.HARVEST_RETURN)
+                    actions[trainer] = UseAbility(AbilityId.HARVEST_RETURN)
                 elif action := await premove(obs, trainer, plan, eta):
                     plan.premoved = False
                     actions[trainer] = action
@@ -276,8 +276,8 @@ async def premove(obs: Observation, unit: Unit, plan: MacroPlan, eta: float) -> 
         return None
     plan.premoved = True
     if unit.distance_to(target) > 1e-3:
-        return Move(unit, target)
-    return HoldPosition(unit)
+        return Move(target)
+    return HoldPosition()
 
 
 def get_eta(observation: Observation, reserve: Cost, cost: Cost) -> float:

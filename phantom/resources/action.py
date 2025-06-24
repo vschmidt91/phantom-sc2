@@ -116,14 +116,14 @@ class ResourceAction:
             logger.error(f"No gas building found at {target_pos}")
             return None
         if unit.is_idle:
-            return Smart(unit, target)
+            return Smart(target)
         elif len(unit._proto.orders) >= 2:
             return DoNothing()
         elif unit.is_gathering:
-            return GatherAction(unit, target, self.knowledge.speedmining_positions[target_pos])
+            return GatherAction(target, self.knowledge.speedmining_positions[target_pos])
         elif unit.is_returning:
             if not any(return_targets):
                 return None
             return_target = min(return_targets, key=lambda th: th.distance_to(unit))
-            return ReturnResource(unit, return_target)
-        return Smart(unit, target)
+            return ReturnResource(return_target)
+        return Smart(target)

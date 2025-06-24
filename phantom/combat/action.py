@@ -99,11 +99,10 @@ class CombatAction:
         # if unit.distance_to(retreat_point) < limit:
         #     logger.warning("too close to home, falling back to ares retreating")
         #     return self.retreat_with_ares(unit)
-        return Move(unit, retreat_point)
+        return Move(retreat_point)
 
     def retreat_with_ares(self, unit: Unit, limit=7) -> Action | None:
         return Move(
-            unit,
             self.observation.find_safe_spot(
                 unit.position,
                 unit.is_flying,
@@ -114,7 +113,7 @@ class CombatAction:
     def fight_with_baneling(self, baneling: Unit) -> Action | None:
         if not (target := self.optimal_targeting.get(baneling)):
             return None
-        return UseAbility(baneling, AbilityId.ATTACK, target.position)
+        return UseAbility(AbilityId.ATTACK, target.position)
 
     def fight_with(self, unit: Unit) -> Action | None:
         def cost_fn(u: Unit) -> float:
@@ -129,13 +128,13 @@ class CombatAction:
 
         if unit.ground_range > 1 and unit.weapon_ready and (targets := self.observation.shootable_targets.get(unit)):
             target = min(targets, key=cost_fn)
-            return Attack(unit, target)
+            return Attack(target)
 
         if not (target := self.optimal_targeting.get(unit)):
             return None
 
         if unit.type_id in {UnitTypeId.BANELING}:
-            return Move(unit, target.position)
+            return Move(target.position)
 
         if unit in self.prediction.survival_time and target in self.prediction.survival_time:
             confidence = self.prediction.survival_time[unit]
@@ -146,8 +145,8 @@ class CombatAction:
         # if self.enemy_presence.dps[test_position.rounded] == 0 or confidence >= 0:
         if confidence > 0:
             if unit.ground_range < 1:
-                return UseAbility(unit, AbilityId.ATTACK, target.position)
-            return Attack(unit, target)
+                return UseAbility(AbilityId.ATTACK, target.position)
+            return Attack(target)
         else:
             return self.retreat_with(unit)
 
@@ -155,12 +154,12 @@ class CombatAction:
         p = tuple[int, int](unit.position.rounded)
         confidence = self.confidence[p]
         if unit.health_percentage == 1 and (confidence > 0 or self.enemy_presence.dps[p] == 0):
-            return UseAbility(unit, AbilityId.BURROWUP)
+            return UseAbility(AbilityId.BURROWUP)
         elif UpgradeId.TUNNELINGCLAWS not in self.observation.upgrades:
             return None
         elif self.enemy_presence.dps[p] > 0:
             return self.retreat_with(unit)
-        return HoldPosition(unit)
+        return HoldPosition()
 
     def do_burrow(self, unit: Unit) -> Action | None:
         if (
@@ -170,7 +169,7 @@ class CombatAction:
             or not unit.weapon_cooldown
         ):
             return None
-        return UseAbility(unit, AbilityId.BURROWDOWN)
+        return UseAbility(AbilityId.BURROWDOWN)
 
     def _targeting_cost(self) -> np.ndarray:
         units = self.observation.combatants
