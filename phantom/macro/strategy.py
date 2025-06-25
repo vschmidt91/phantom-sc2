@@ -46,8 +46,8 @@ class StrategyState:
         self.counter_factor = parameters.normal("counter_factor", NormalPrior(2.0, 0.1))
         self.ravager_mixin = parameters.normal("ravager_mixin", NormalPrior(21, 1))
         self.corruptor_mixin = parameters.normal("corruptor_mixin", NormalPrior(13, 1))
-        self.tier1_drone_count = parameters.normal("tier1_drone_count", NormalPrior(32, 1))
-        self.tier2_drone_count = parameters.normal("tier2_drone_count", NormalPrior(56, 1))
+        self.tier1_drone_count = parameters.normal("tier1_drone_count", NormalPrior(40, 1))
+        self.tier2_drone_count = parameters.normal("tier2_drone_count", NormalPrior(60, 1))
         self.tier3_drone_count = parameters.normal("tier3_drone_count", NormalPrior(80, 1))
         self.tech_priority = parameters.normal("tech_priority", NormalPrior(-0.25, 0.1))
         self.hydras_when_banking = parameters.normal("hydras_when_banking", NormalPrior(5, 1))
@@ -242,15 +242,15 @@ class Strategy:
             composition[UnitTypeId.LAIR] += 1
             composition[UnitTypeId.OVERSEER] += 2
             composition[UnitTypeId.ROACHWARREN] += 1
+            composition[UnitTypeId.HYDRALISKDEN] += 1
+            composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
         if self.tier >= StrategyTier.Hive:
             composition[UnitTypeId.INFESTATIONPIT] += 1
             composition[UnitTypeId.HIVE] += 1
             composition[UnitTypeId.OVERSEER] += 3
-            composition[UnitTypeId.HYDRALISKDEN] += 1
             composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
         if self.tier >= StrategyTier.Lategame:
             composition[UnitTypeId.OVERSEER] += 4
             composition[UnitTypeId.SPIRE] += 1
             composition[UnitTypeId.GREATERSPIRE] += 1
-            composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
         return composition

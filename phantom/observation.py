@@ -180,9 +180,12 @@ class Observation:
             self.count(e, include_pending=False, include_planned=False) == 0 for e in WITH_TECH_EQUIVALENTS[unit]
         )
 
+    # @cache
     def count(
         self, item: MacroId, include_pending: bool = True, include_planned: bool = True, include_actual: bool = True
     ) -> int:
+        # logger.trace(f"{self.game_loop} Counting {item=} ({include_actual=}, {include_pending=}, {include_planned=})")
+
         factor = 2 if item == UnitTypeId.ZERGLING else 1
 
         count = 0

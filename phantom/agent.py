@@ -85,7 +85,6 @@ class Agent:
         creep = self.creep.step(observation, np.less_equal(0.0, combat.confidence))
 
         safe_overlord_spots = [p for p in observation.overlord_spots if combat.confidence[p.rounded] > 0]
-        scout_actions = self.scout.step(observation, safe_overlord_spots)
 
         injecters = observation.units(UnitTypeId.QUEEN)
         inject_targets = observation.townhalls.ready
@@ -199,7 +198,6 @@ class Agent:
                     dodge.dodge_with(u)
                     or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
                     or spawn_changeling(u)
-                    or scout_actions.get(u)
                 ):
                     return action
                 elif target := targets.get(u):
@@ -225,7 +223,6 @@ class Agent:
             return (
                 dodge.dodge_with(u)
                 or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
-                or scout_actions.get(u)
                 or search_with(u)
             )
 
@@ -289,12 +286,12 @@ class Agent:
 
         actions = {
             **build_order_actions,
-            **scout_actions,
             **{u: a for u in harvesters if (a := micro_harvester(u))},
             **macro_actions,
             **{u: a for u in creep.active_tumors if (a := creep.spread_with_tumor(u))},
             **{u: a for u in observation.units(UnitTypeId.OVERLORD) if (a := micro_overlord(u))},
             **micro_overseers(observation.overseers),
+            **self.scout.step(observation, safe_overlord_spots),
             **{u: a for u in observation.units(CHANGELINGS) if (a := search_with(u))},
             **{u: a for u in observation.combatants if (a := micro_unit(u))},
             **{u: UseAbility(AbilityId.CANCEL) for u in observation.structures.not_ready if u.health_percentage < 0.1},

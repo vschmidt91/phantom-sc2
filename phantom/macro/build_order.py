@@ -107,6 +107,7 @@ BUILD_ORDERS = {
             Make(UnitTypeId.DRONE, 17),
             Make(UnitTypeId.HATCHERY, 2),
             Make(UnitTypeId.DRONE, 18),
+            WaitUntil(lambda obs: obs.workers.amount > 16),
             Make(UnitTypeId.EXTRACTOR, 1),
             WaitUntil(lambda obs: obs.gas_buildings),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
