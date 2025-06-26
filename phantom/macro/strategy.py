@@ -138,12 +138,18 @@ class Strategy:
             return self.tier >= StrategyTier.Hatch
         elif upgrade == UpgradeId.ZERGLINGATTACKSPEED:
             return self.tier >= StrategyTier.Hive
-        elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
-            return UpgradeId.ZERGMISSILEWEAPONSLEVEL1 in upgrade_set
-        elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
-            return UpgradeId.ZERGMISSILEWEAPONSLEVEL2 in upgrade_set
-        elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL3:
-            return UpgradeId.ZERGMISSILEWEAPONSLEVEL3 in upgrade_set
+        # elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
+        #     return UpgradeId.ZERGMISSILEWEAPONSLEVEL1 in upgrade_set
+        # elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
+        #     return UpgradeId.ZERGMISSILEWEAPONSLEVEL2 in upgrade_set
+        # elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL3:
+        #     return UpgradeId.ZERGMISSILEWEAPONSLEVEL3 in upgrade_set
+        elif upgrade in {UpgradeId.ZERGMISSILEWEAPONSLEVEL1, UpgradeId.ZERGMELEEWEAPONSLEVEL1}:
+            return UpgradeId.ZERGGROUNDARMORSLEVEL1 in upgrade_set
+        elif upgrade in {UpgradeId.ZERGMISSILEWEAPONSLEVEL2, UpgradeId.ZERGMELEEWEAPONSLEVEL2}:
+            return UpgradeId.ZERGGROUNDARMORSLEVEL2 in upgrade_set
+        elif upgrade in {UpgradeId.ZERGMISSILEWEAPONSLEVEL3, UpgradeId.ZERGMELEEWEAPONSLEVEL3}:
+            return UpgradeId.ZERGGROUNDARMORSLEVEL3 in upgrade_set
         elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
             return bool(self.obs.count_actual(UnitTypeId.GREATERSPIRE)) or bool(
                 self.obs.count_pending(UnitTypeId.GREATERSPIRE)
