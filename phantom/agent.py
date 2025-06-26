@@ -100,6 +100,8 @@ class Agent:
             ),
         )
         dodge = self.dodge.step(observation)
+        dode_actions = {u: a for u in observation.units if (a := dodge.dodge_with(u))}
+
         macro_actions = await self.macro.step(observation, set(self.scout.blocked_positions), combat)
 
         should_inject = observation.supply_used + observation.bank.larva < 200
@@ -156,6 +158,7 @@ class Agent:
                 gas_ratio,
             )
         )
+        harvester_return_targets = observation.townhalls.ready
 
         gas_type = GAS_BY_RACE[self.knowledge.race]
         gas_depleted = observation.gas_buildings.filter(lambda g: not g.has_vespene).amount
@@ -205,8 +208,7 @@ class Agent:
 
             def micro_overseer(u: Unit) -> Action | None:
                 if action := (
-                    dodge.dodge_with(u)
-                    or (
+                    (
                         combat.retreat_with(u)
                         if combat.prediction.outcome_for[u] <= EngagementResult.LOSS_DECISIVE
                         else None
@@ -227,22 +229,19 @@ class Agent:
 
         def micro_harvester(u: Unit) -> Action | None:
             return (
-                dodge.dodge_with(u)
-                or (
+                (
                     combat.retreat_with(u)
                     if 1.0 < self.bot.mediator.get_ground_grid[u.position.rounded] < np.inf
                     else None
                 )
-                or resources.gather_with(u, observation.townhalls.ready)
-                or (drone_scout(u) if observation.townhalls.ready.amount < 2 else None)
+                or resources.gather_with(u, harvester_return_targets)
+                or (drone_scout(u) if harvester_return_targets.amount < 2 else None)
             )
 
         def micro_overlord(u: Unit) -> Action | None:
             return (
-                dodge.dodge_with(u)
-                or (combat.retreat_with(u) if self.bot.mediator.get_air_grid[u.position.rounded] > 1.0 else None)
-                or search_with(u)
-            )
+                combat.retreat_with(u) if self.bot.mediator.get_air_grid[u.position.rounded] > 1.0 else None
+            ) or search_with(u)
 
         micro_handlers = {
             UnitTypeId.BANELING: combat.fight_with_baneling,
@@ -252,8 +251,6 @@ class Agent:
         }
 
         def micro_unit(u: Unit) -> Action | None:
-            if action := dodge.dodge_with(u):
-                return action
             if (handler := micro_handlers.get(u.type_id)) and (action := handler(u)):
                 return action
             return combat.fight_with(u) or search_with(u)
@@ -321,6 +318,7 @@ class Agent:
                 if not u.is_ready and u.health_percentage < 0.1
             },
             **self.corrosive_biles.step(observation),
+            **dode_actions,
         }
 
         return actions

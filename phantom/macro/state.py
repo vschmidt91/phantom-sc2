@@ -1,6 +1,6 @@
 import math
 import random
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Set
 from dataclasses import dataclass
 from itertools import chain
 
@@ -79,10 +79,10 @@ class MacroState:
     def planned_by_type(self, item: MacroId) -> Iterable[MacroPlan]:
         return (plan for plan in self.enumerate_plans() if plan.item == item)
 
-    async def assign_unassigned_plans(self, obs: Observation, trainers: Units) -> None:
+    async def assign_unassigned_plans(self, obs: Observation, trainers: Units, blocked_positions) -> None:
         trainer_set = set(trainers)
         for plan in list(self.unassigned_plans):
-            if trainer := (await self.find_trainer(obs, trainer_set, plan.item)):
+            if trainer := (await self.find_trainer(obs, trainer_set, plan.item, blocked_positions)):
                 logger.info(f"Assigning {trainer=} for {plan=}")
                 if plan in self.unassigned_plans:
                     self.unassigned_plans.remove(plan)
@@ -91,7 +91,7 @@ class MacroState:
 
     async def step(self, obs: Observation, blocked_positions: set[Point], combat: CombatAction) -> MacroAction:
         self.handle_actions(obs)
-        await self.assign_unassigned_plans(obs, obs.units)  # TODO: narrow this down
+        await self.assign_unassigned_plans(obs, obs.units, blocked_positions)  # TODO: narrow this down
 
         actions = dict[Unit, Action]()
         reserve = Cost()
@@ -169,7 +169,7 @@ class MacroState:
         return actions
 
     async def get_target(
-        self, knowledge: Knowledge, obs: Observation, trainer: Unit, objective: MacroPlan, blocked_positions: set[Point]
+        self, knowledge: Knowledge, obs: Observation, trainer: Unit, objective: MacroPlan, blocked_positions: Set[Point]
     ) -> Unit | Point2 | None:
         gas_type = GAS_BY_RACE[knowledge.race]
         if objective.item == gas_type:
@@ -205,7 +205,9 @@ class MacroState:
         else:
             return None
 
-    async def find_trainer(self, obs: Observation, trainers: Iterable[Unit], item: MacroId) -> Unit | None:
+    async def find_trainer(
+        self, obs: Observation, trainers: Iterable[Unit], item: MacroId, blocked_positions: Set[Point]
+    ) -> Unit | None:
         trainer_types = ITEM_TRAINED_FROM_WITH_EQUIVALENTS[item]
 
         trainers_filtered = [
@@ -223,7 +225,7 @@ class MacroState:
             return None
 
         if item == UnitTypeId.HATCHERY:
-            target_expected = await get_target_position(self.knowledge, obs, item, set())
+            target_expected = await get_target_position(self.knowledge, obs, item, blocked_positions)
             return min(
                 trainers_filtered,
                 key=lambda t: t.distance_to(target_expected),

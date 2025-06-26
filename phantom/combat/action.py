@@ -125,7 +125,7 @@ class CombatAction:
             reward = self.enemy_values[u.tag]
             risk = np.divide(hp, dps)
             cost = np.divide(risk, reward)
-            random_offset = hash(u.tag) / (2**sys.hash_info.width)
+            random_offset = hash((unit.tag, u.tag)) / (2**sys.hash_info.width)
             cost += 1e-10 * random_offset
             return cost
 

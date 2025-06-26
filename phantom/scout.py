@@ -4,7 +4,6 @@ from itertools import islice
 
 from loguru import logger
 from sc2.data import ActionResult
-from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -69,14 +68,16 @@ class ScoutState:
     def step(self, observation: Observation, safe_overlord_spots: list[Point2]) -> ScoutAction:
         for p, blocked_since in list(self.blocked_positions.items()):
             if blocked_since + 60 < observation.time:
+                logger.info(f"Resetting blocked base {p}")
                 del self.blocked_positions[p]
 
         for error in observation.action_errors:
-            if (
-                error.result == ActionResult.CantBuildLocationInvalid.value
-                and error.ability_id == AbilityId.ZERGBUILD_HATCHERY.value
-            ) and (unit := observation.unit_by_tag.get(error.unit_tag)):
-                p = tuple(unit.position.rounded)
+            # error_ability = AbilityId(error.ability_id)
+            error_result = ActionResult(error.result)
+            if error_result in {ActionResult.CantBuildLocationInvalid, ActionResult.CouldntReachTarget} and (
+                unit := observation.bot._units_previous_map.get(error.unit_tag)
+            ):
+                p = tuple(unit.order_target.rounded)
                 if p not in self.blocked_positions:
                     self.blocked_positions[p] = observation.time
                     logger.info(f"Detected blocked base {p}")

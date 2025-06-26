@@ -1,6 +1,6 @@
 map_pattern = "TorchesAIE\\.SC2(MAP|Map)"
 enemy_race = "Zerg"
-enemy_build = "Macro"
+enemy_build = "Rush"
 save_replay = "resources\\replays\\local"
 bot_config = "config\\bot\\debug.toml"
 log_level = "TRACE"

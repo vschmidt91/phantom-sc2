@@ -22,6 +22,7 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
 
+from build.sc2.data import ActionResult
 from phantom.common.constants import (
     CIVILIANS,
     COCOONS,
@@ -66,6 +67,16 @@ class ObservationState:
                     self.pending_structures[target] = item
                 elif isinstance(item, UpgradeId):
                     self.pending_upgrades.add(item)
+
+        for error in self.bot.state.action_errors:
+            # error_ability = AbilityId(error.ability_id)
+            error_result = ActionResult(error.result)
+            if (
+                error_result in {ActionResult.CantBuildLocationInvalid, ActionResult.CouldntReachTarget}
+                # and error_ability in {AbilityId.ZERGBUILD_HATCHERY}
+                and (unit := self.bot._units_previous_map.get(error.unit_tag))
+            ):
+                self.pending_structures.pop(unit.order_target, None)
         if self.bot.actual_iteration % 10 == 0:
             self.pathing = self._pathing()
             self.air_pathing = self._air_pathing()

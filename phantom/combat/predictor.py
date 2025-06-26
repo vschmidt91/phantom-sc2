@@ -36,7 +36,7 @@ class CombatPredictor:
         self.bot = bot
         self.units = units
         self.enemy_units = enemy_units
-        self.time_horizon = 10
+        self.time_horizon = 12
         self.prediction = self._prediction_sc2helper()
 
     def _prediction_sc2helper(self) -> CombatPrediction:

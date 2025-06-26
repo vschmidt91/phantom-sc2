@@ -12,6 +12,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 
 from phantom.common.utils import get_requirements
+from phantom.dummy import DummyBot
 
 UNKNOWN_VERSION = "unknown_version"
 
@@ -373,3 +374,7 @@ MICRO_MAP_REGEX = "Micro AI Arena"
 MAX_UNIT_RADIUS = 1.375  # Mothership
 LOG_LEVEL_OPTIONS = ["TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"]
 REPLAY_TYPE_ENCODING = "ascii"
+
+SPECIAL_BUILDS = {
+    "Dummy": DummyBot,
+}

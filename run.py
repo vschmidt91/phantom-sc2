@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import os
 import pathlib
@@ -13,6 +14,7 @@ from sc2.data import AIBuild, Difficulty, Race
 from sc2.main import (
     Result,
     _host_game,
+    _join_game,
     _play_game,
     _play_replay,
     _setup_replay,
@@ -25,7 +27,7 @@ from sc2.portconfig import Portconfig
 from sc2.protocol import ConnectionAlreadyClosed
 from sc2.sc2process import SC2Process
 
-from phantom.common.constants import LOG_LEVEL_OPTIONS
+from phantom.common.constants import LOG_LEVEL_OPTIONS, SPECIAL_BUILDS
 from phantom.common.utils import async_command
 from phantom.config import BotConfig
 from phantom.main import PhantomBot
@@ -51,7 +53,11 @@ from scripts.utils import CommandWithConfigFile
     default=Difficulty.CheatInsane.name,
     type=click.Choice([x.name for x in Difficulty]),
 )
-@click.option("--enemy-build", default=AIBuild.Rush.name, type=click.Choice([x.name for x in AIBuild]))
+@click.option(
+    "--enemy-build",
+    default=AIBuild.Rush.name,
+    type=click.Choice([x.name for x in AIBuild] + list(SPECIAL_BUILDS.keys())),
+)
 @click.option("--game-time-limit", type=float)
 @click.option(
     "--assert-result",
@@ -137,15 +143,30 @@ async def run(
         logger.info(f"Found {map_choices=}")
         map_choice = random.choice(map_choices)
         logger.info(f"Picking {map_choice=}")
-        opponent = Computer(Race[enemy_race], Difficulty[enemy_difficulty], AIBuild[enemy_build])
+
+        if special_build := SPECIAL_BUILDS.get(enemy_build):
+            logger.info(f"Using special {enemy_build=}")
+            opponent = Bot(Race[enemy_race], special_build(), enemy_build, False)
+        else:
+            opponent = Computer(Race[enemy_race], Difficulty[enemy_difficulty], AIBuild[enemy_build])
 
         # try:
-        result = await _host_game(
-            Map(pathlib.Path(map_choice)),
-            [bot, opponent],
-            realtime=realtime,
-            save_replay_as=replay_path_sc2,
+        map_settings = Map(pathlib.Path(map_choice))
+        players = [bot, opponent]
+        kwargs = dict(
+            realtime=False,
         )
+        host_task = _host_game(map_settings, players, save_replay_as=replay_path_sc2, **kwargs)
+        if special_build:
+            result, _ = await asyncio.gather(host_task, _join_game(players, **kwargs))
+        else:
+            result = await host_task
+        # result = await _host_game(
+        #     map_settings,
+        #     players,
+        #     realtime=realtime,
+        #     save_replay_as=replay_path_sc2,
+        # )
         # except Exception as error:
         #     logger.error(error)
 

@@ -94,10 +94,6 @@ class PhantomBot(BotExporter, AresBot):
 
         # local only: skip first iteration like on the ladder
         if iteration == 0:
-            # await self.client.debug_create_unit([
-            #     [UnitTypeId.ROACH, 3, self.game_info.map_center, 1],
-            #     [UnitTypeId.SCV, 20, self.game_info.map_center, 2],
-            # ])
             return
 
         # await self.client.save_replay("tmp.SC2Replay")
