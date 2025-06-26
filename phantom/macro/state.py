@@ -79,7 +79,7 @@ class MacroState:
     def planned_by_type(self, item: MacroId) -> Iterable[MacroPlan]:
         return (plan for plan in self.enumerate_plans() if plan.item == item)
 
-    async def assign_unassigned_plans(self, obs: Observation, trainers: Units, blocked_positions) -> None:
+    async def assign_unassigned_plans(self, obs: Observation, trainers: Units, blocked_positions: Set[Point]) -> None:
         trainer_set = set(trainers)
         for plan in list(self.unassigned_plans):
             if trainer := (await self.find_trainer(obs, trainer_set, plan.item, blocked_positions)):
@@ -89,7 +89,7 @@ class MacroState:
                 self.assigned_plans[trainer.tag] = plan
                 trainer_set.remove(trainer)
 
-    async def step(self, obs: Observation, blocked_positions: set[Point], combat: CombatAction) -> MacroAction:
+    async def step(self, obs: Observation, blocked_positions: Set[Point], combat: CombatAction) -> MacroAction:
         self.handle_actions(obs)
         await self.assign_unassigned_plans(obs, obs.units, blocked_positions)  # TODO: narrow this down
 
@@ -292,7 +292,7 @@ def get_eta(observation: Observation, reserve: Cost, cost: Cost) -> float:
 
 
 async def get_target_position(
-    knowledge: Knowledge, obs: Observation, target: UnitTypeId, blocked_positions: set[Point]
+    knowledge: Knowledge, obs: Observation, target: UnitTypeId, blocked_positions: Set[Point]
 ) -> Point2 | None:
     data = obs.unit_data(target)
     if target in {UnitTypeId.HATCHERY}:

@@ -8,7 +8,7 @@ from ares import AresBot, UnitTreeQueryType
 from ares.consts import ALL_STRUCTURES
 from cython_extensions import cy_unit_pending
 from loguru import logger
-from sc2.data import Race
+from sc2.data import ActionResult, Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -22,7 +22,6 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
 
-from build.sc2.data import ActionResult
 from phantom.common.constants import (
     CIVILIANS,
     COCOONS,

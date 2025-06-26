@@ -76,7 +76,6 @@ build-backend = "poetry.core.masonry.api"
 line-length = 120
 exclude = [
     "ares-sc2",
-    "cython-extensions-sc2",
 ]
 
 [tool.ruff.lint]
@@ -103,7 +102,6 @@ fixable = ["ALL"]
 [tool.mypy]
 exclude = [
     "^ares-sc2/",
-    "^cython-extensions-sc2/",
     "^build/",
     "^resources/",
     "^scripts/",
