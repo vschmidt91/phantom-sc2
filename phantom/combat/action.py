@@ -142,7 +142,7 @@ class CombatAction:
         outcome = self.prediction.outcome
         outcome_local = self.prediction.outcome_for[unit]
 
-        if outcome_local >= min(outcome, EngagementResult.TIE):
+        if outcome_local > min(outcome, EngagementResult.TIE):
             if unit.ground_range < 1:
                 return UseAbility(AbilityId.ATTACK, target.position)
             return Attack(target)
