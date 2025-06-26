@@ -9,6 +9,7 @@ from queue import Empty, Queue
 from ares import AresBot
 from loguru import logger
 from sc2.data import Race, Result
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
@@ -191,12 +192,16 @@ class PhantomBot(BotExporter, AresBot):
                 ability = unit.orders[0].ability.exact_id
                 if item := UPGRADE_BY_RESEARCH_ABILITY.get(ability):
                     self.agent.observation.pending_upgrades.discard(item)
+                else:
+                    self.agent.observation.pending_structures.pop(unit.position, None)
 
     # async def on_unit_created(self, unit: Unit):
     #     await super().on_unit_created(unit)
     #
-    # async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
-    #     await super().on_unit_type_changed(unit, previous_type)
+    async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
+        await super().on_unit_type_changed(unit, previous_type)
+        self.agent.observation.pending_structures.pop(unit.position, None)
+
     #
     # async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
     #     await super().on_unit_took_damage(unit, amount_damage_taken)

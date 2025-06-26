@@ -1,4 +1,4 @@
-from collections import Counter
+from collections import ChainMap, Counter
 from collections.abc import Iterable, Mapping, Sequence
 from functools import cache
 from itertools import chain
@@ -54,11 +54,13 @@ class ObservationState:
 
     def step(self, planned: Counter[MacroId]) -> "Observation":
         gas_by_tag = {g.tag: g for g in self.bot.vespene_geyser}
+        townhall_by_tag = {b.tag: b for b in self.bot.townhalls}
+        trainer_by_tag = ChainMap(gas_by_tag, townhall_by_tag)
         for action in self.bot.state.actions_unit_commands:
             if item := ITEM_BY_ABILITY.get(action.exact_id):
                 if item in ALL_STRUCTURES:
-                    if item == UnitTypeId.EXTRACTOR:
-                        target = gas_by_tag[action.target_unit_tag].position
+                    if trainer := trainer_by_tag.get(action.target_unit_tag):
+                        target = trainer.position
                     else:
                         target = action.target_world_space_pos
                     self.pending_structures[target] = item
@@ -202,9 +204,7 @@ class Observation:
 
     @cache
     def count_pending(self, item: UnitTypeId) -> int:
-        if item in {UnitTypeId.LAIR, UnitTypeId.HIVE}:
-            return self.bot.already_pending(item)
-        elif item in ALL_STRUCTURES:
+        if item in ALL_STRUCTURES:
             return self.pending_by_type[item]
         else:
             return cy_unit_pending(self.bot, item)

@@ -41,9 +41,6 @@ class MacroPlan:
     item: MacroId
     target: Unit | Point2 | None = None
     priority: float = 0.0
-    premoved = False
-    executed = False
-    commanded = False
 
 
 class MacroState:
@@ -100,16 +97,16 @@ class MacroState:
         reserve = Cost()
         plans_prioritized = sorted(self.assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
         for _i, (tag, plan) in enumerate(plans_prioritized):
-            if plan.commanded and plan.executed:
-                del self.assigned_plans[tag]
-                logger.info(f"Successfully executed {plan=}")
-                continue
+            # if plan.commanded and plan.executed:
+            #     del self.assigned_plans[tag]
+            #     logger.info(f"Successfully executed {plan=}")
+            #     continue
 
             trainer = obs.unit_by_tag.get(tag)
             if not trainer:
                 del self.assigned_plans[tag]
                 self.unassigned_plans.append(plan)
-                logger.info(f"{trainer} is MIA for {plan}")
+                logger.info(f"{tag=} is MIA for {plan=}")
                 continue
 
             if trainer.type_id == UnitTypeId.EGG:
@@ -129,20 +126,18 @@ class MacroState:
                 continue
 
             # reset target on failure
-            if plan.executed:
-                logger.info(f"resetting target for {plan=}")
-                # if isinstance(plan.target, Point2):
-                #     if plan.target not in self.blocked_positions:
-                #         self.blocked_positions[plan.target] = self.time
-                #         logger.info(f"Blocked location detected by {plan}")
-                plan.target = None
-                plan.commanded = False
-                plan.executed = False
+            # if plan.executed:
+            #     logger.info(f"resetting target for {plan=}")
+            #     plan.target = None
+            #     plan.commanded = False
+            #     plan.executed = False
 
-            if isinstance(plan.target, Point2) and not await obs.can_place_single(plan.item, plan.target):
+            if (
+                isinstance(plan.target, Point2)
+                and (obs.iteration % 10 == 0)
+                and not await obs.can_place_single(plan.item, plan.target)
+            ):
                 plan.target = None
-                plan.commanded = False
-                plan.executed = False
 
             if not plan.target:
                 try:
@@ -162,13 +157,11 @@ class MacroState:
                 obs.bot.mediator.assign_role(tag=trainer.tag, role=UnitRole.PERSISTENT_BUILDER)
 
             if eta == 0.0:
-                plan.commanded = True
                 actions[trainer] = UseAbility(ability, target=plan.target)
             elif plan.target:
                 if trainer.is_carrying_resource:
                     actions[trainer] = UseAbility(AbilityId.HARVEST_RETURN)
                 elif (obs.iteration % 10 == 0) and (action := await premove(obs, trainer, plan, eta)):
-                    plan.premoved = False
                     actions[trainer] = action
                 # elif action := combat.fight_with(trainer):
                 #     actions[trainer] = action
@@ -257,12 +250,12 @@ class MacroState:
             # therefore, a direct lookup will often be incorrect
             # instead, all plans are checked for a match
             for t, p in self.assigned_plans.items():
-                if item == p.item and not p.executed:
+                if item == p.item:
                     tag = t
                     break
         if plan := self.assigned_plans.get(tag):
             if item == plan.item:
-                plan.executed = True
+                del self.assigned_plans[tag]
                 logger.info(f"Executed {plan} through {action}")
         elif action.exact_id in ALL_MACRO_ABILITIES:
             logger.info(f"Unplanned {action}")
@@ -272,15 +265,11 @@ async def premove(obs: Observation, unit: Unit, plan: MacroPlan, eta: float) -> 
     if not plan.target:
         return None
     target = plan.target.position
-    if plan.premoved:
-        do_premove = True
-    else:
-        distance = await obs.query_pathing(unit, target) or 0.0
-        movement_eta = 1.5 + distance / (1.4 * unit.movement_speed)
-        do_premove = eta <= movement_eta
+    distance = await obs.query_pathing(unit, target) or 0.0
+    movement_eta = 1.5 + distance / (1.4 * unit.movement_speed)
+    do_premove = eta <= movement_eta
     if not do_premove:
         return None
-    plan.premoved = True
     if unit.distance_to(target) > 1e-3:
         return Move(target)
     return HoldPosition()

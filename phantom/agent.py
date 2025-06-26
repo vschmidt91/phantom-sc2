@@ -1,6 +1,6 @@
 import math
 import random
-from collections import Counter
+from collections import ChainMap, Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import chain
@@ -159,13 +159,16 @@ class Agent:
 
         gas_type = GAS_BY_RACE[self.knowledge.race]
         gas_depleted = observation.gas_buildings.filter(lambda g: not g.has_vespene).amount
-        gas_pending = observation.count_actual(gas_type) + observation.count_pending(gas_type)
-        gas_have = resources.observation.gas_buildings.amount
+        gas_have = (
+            observation.count_actual(gas_type)
+            + observation.count_pending(gas_type)
+            + observation.count_planned(gas_type)
+        )
         gas_max = resources.observation.vespene_geysers.amount
         gas_want = min(gas_max, gas_depleted + math.ceil((resources.gas_target - 1) / 3))
         # if not observation.count(UnitTypeId.LAIR, include_planned=False):
         #     gas_want = min(1, gas_want)
-        if gas_have + gas_pending < gas_want:
+        if gas_have < gas_want:
             self.macro.add(MacroPlan(gas_type))
 
         def inject_with_queen(q: Unit) -> Action | None:
@@ -299,18 +302,22 @@ class Agent:
                 return None
             return Move(target)
 
-        actions = {
-            **build_order_actions,
-            **{u: a for u in harvesters if (a := micro_harvester(u))},
-            **macro_actions,
-            **{u: a for u in creep.active_tumors if (a := creep.spread_with_tumor(u))},
-            **{u: a for u in observation.units(UnitTypeId.OVERLORD) if (a := micro_overlord(u))},
-            **micro_overseers(observation.overseers),
-            **self.scout.step(observation, safe_overlord_spots),
-            **{u: a for u in observation.units(CHANGELINGS) if (a := search_with(u))},
-            **{u: a for u in observation.combatants if (a := micro_unit(u))},
-            **{u: UseAbility(AbilityId.CANCEL) for u in observation.structures.not_ready if u.health_percentage < 0.1},
-            **self.corrosive_biles.step(observation),
-        }
+        actions = ChainMap(
+            build_order_actions,
+            {u: a for u in harvesters if (a := micro_harvester(u))},
+            macro_actions,
+            {u: a for u in creep.active_tumors if (a := creep.spread_with_tumor(u))},
+            {u: a for u in observation.units(UnitTypeId.OVERLORD) if (a := micro_overlord(u))},
+            micro_overseers(observation.overseers),
+            self.scout.step(observation, safe_overlord_spots),
+            {u: a for u in observation.units(CHANGELINGS) if (a := search_with(u))},
+            {u: a for u in observation.combatants if (a := micro_unit(u))},
+            {
+                u: UseAbility(AbilityId.CANCEL)
+                for u in observation.structures
+                if not u.is_ready and u.health_percentage < 0.1
+            },
+            self.corrosive_biles.step(observation),
+        )
 
         return actions
