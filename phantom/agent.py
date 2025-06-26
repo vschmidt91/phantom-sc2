@@ -1,6 +1,6 @@
 import math
 import random
-from collections import ChainMap, Counter
+from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import chain
@@ -302,22 +302,22 @@ class Agent:
                 return None
             return Move(target)
 
-        actions = ChainMap(
-            build_order_actions,
-            {u: a for u in harvesters if (a := micro_harvester(u))},
-            macro_actions,
-            {u: a for u in creep.active_tumors if (a := creep.spread_with_tumor(u))},
-            {u: a for u in observation.units(UnitTypeId.OVERLORD) if (a := micro_overlord(u))},
-            micro_overseers(observation.overseers),
-            self.scout.step(observation, safe_overlord_spots),
-            {u: a for u in observation.units(CHANGELINGS) if (a := search_with(u))},
-            {u: a for u in observation.combatants if (a := micro_unit(u))},
-            {
+        actions = {
+            **build_order_actions,
+            **{u: a for u in harvesters if (a := micro_harvester(u))},
+            **macro_actions,
+            **{u: a for u in creep.active_tumors if (a := creep.spread_with_tumor(u))},
+            **{u: a for u in observation.units(UnitTypeId.OVERLORD) if (a := micro_overlord(u))},
+            **micro_overseers(observation.overseers),
+            **self.scout.step(observation, safe_overlord_spots),
+            **{u: a for u in observation.units(CHANGELINGS) if (a := search_with(u))},
+            **{u: a for u in observation.combatants if (a := micro_unit(u))},
+            **{
                 u: UseAbility(AbilityId.CANCEL)
                 for u in observation.structures
                 if not u.is_ready and u.health_percentage < 0.1
             },
-            self.corrosive_biles.step(observation),
-        )
+            **self.corrosive_biles.step(observation),
+        }
 
         return actions
