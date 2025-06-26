@@ -1,13 +1,14 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum, auto
-from itertools import product
+from itertools import chain
 
 import numpy as np
 from ares import AresBot
 from ares.consts import EngagementResult
 from sc2.unit import Unit
 from sc2.units import Units
+from sklearn.metrics import pairwise_distances
 
 from phantom.common.graph import graph_components
 
@@ -35,28 +36,39 @@ class CombatPredictor:
         self.bot = bot
         self.units = units
         self.enemy_units = enemy_units
-        self.time_horizon = 8
+        self.time_horizon = 10
         self.prediction = self._prediction_sc2helper()
 
     def _prediction_sc2helper(self) -> CombatPrediction:
-        units = list(self.units + self.enemy_units)
+        n = len(self.units)
+        m = len(self.enemy_units)
+
+        units = list(chain(self.units, self.enemy_units))
 
         if not any(units):
             return CombatPrediction(EngagementResult.TIE, {})
+        elif not any(self.units):
+            return CombatPrediction(EngagementResult.LOSS_OVERWHELMING, {})
+        elif not any(self.enemy_units):
+            return CombatPrediction(EngagementResult.VICTORY_OVERWHELMING, {})
 
-        adjacency_matrix = np.zeros((len(units), len(units)), dtype=float)
-        for (i, a), (j, b) in product(enumerate(units), enumerate(units)):
-            if a.alliance == b.alliance:
-                pass
-                # if a.distance_to(b) < self.time_horizon:
-                #     adjacency_matrix[i, j] = adjacency_matrix[i, j] = 1.0
-            else:
-                if _required_distance(a, b) <= self.time_horizon:
-                    adjacency_matrix[i, j] = 1.0
-                if _required_distance(b, a) <= self.time_horizon:
-                    adjacency_matrix[j, i] = 1.0
+        distance_matrix = pairwise_distances(
+            [u.position for u in self.units],
+            [u.position for u in self.enemy_units],
+        )
+        can_shoot = np.where(distance_matrix < self.time_horizon, 1, 0)
 
-        adjacency_matrix = np.maximum(adjacency_matrix, adjacency_matrix.T)
+        adjacency_matrix = np.block([[np.zeros((n, n)), can_shoot], [can_shoot.T, np.zeros((m, m))]])
+
+        # adjacency_matrix = np.zeros((n + m, n + m), dtype=float)
+        # for (i, a), (dj, b) in product(enumerate(self.units), enumerate(self.enemy_units)):
+        #     j = len(self.units) + dj
+        #     if _required_distance(a, b) <= self.time_horizon:
+        #         adjacency_matrix[i, j] = 1.0
+        #     if _required_distance(b, a) <= self.time_horizon:
+        #         adjacency_matrix[j, i] = 1.0
+
+        # adjacency_matrix = np.maximum(adjacency_matrix, adjacency_matrix.T)
         components = graph_components(adjacency_matrix)
 
         simulator_kwargs = dict(
