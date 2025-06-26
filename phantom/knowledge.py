@@ -56,7 +56,7 @@ class Knowledge:
                 self.expansion_resource_positions[b] = [tuple(r.position.rounded) for r in resources]
                 for r in resources:
                     p = tuple(r.position.rounded)
-                    return_point = base_position.towards(r, 4)
+                    return_point = base_position.towards(r, 3.125)
                     self.return_point[p] = return_point
                     self.return_distances[p] = self.speedmining_positions[p].distance_to(return_point)
 

@@ -2,6 +2,7 @@ import math
 import sys
 
 import numpy as np
+from ares.consts import EngagementResult
 from ares.main import AresBot
 from cython_extensions.dijkstra import cy_dijkstra
 from loguru import logger
@@ -11,7 +12,6 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
-from scipy import ndimage
 
 from phantom.combat.predictor import CombatPredictor
 from phantom.combat.presence import Presence
@@ -33,21 +33,23 @@ class CombatAction:
         self.knowledge = knowledge
         self.observation = observation
 
-        self.prediction = CombatPredictor(bot, observation.combatants, observation.enemy_combatants).prediction
+        self.prediction = CombatPredictor(
+            bot, observation.combatants | observation.overseers, observation.enemy_combatants
+        ).prediction
         self.enemy_values = {
             u.tag: observation.calculate_unit_value_weighted(u.type_id) for u in observation.enemy_units
         }
 
-        self.presence = self._get_combat_presence(observation.combatants)
-        self.enemy_presence = self._get_combat_presence(observation.enemy_combatants)
-        self.force = self.presence.get_force()
-        self.enemy_force = self.enemy_presence.get_force()
-        self.confidence = np.log1p(self.force) - np.log1p(self.enemy_force)
+        # self.presence = self._get_combat_presence(observation.combatants)
+        # self.enemy_presence = self._get_combat_presence(observation.enemy_combatants)
+        # self.force = self.presence.get_force()
+        # self.enemy_force = self.enemy_presence.get_force()
+        # self.confidence = np.log1p(self.force) - np.log1p(self.enemy_force)
 
-        sigma = 5
-        self.confidence_filtered = np.log1p(ndimage.gaussian_filter(self.force, sigma)) - np.log1p(
-            ndimage.gaussian_filter(self.enemy_force, sigma)
-        )
+        # sigma = 5
+        # self.confidence_filtered = np.log1p(ndimage.gaussian_filter(self.force, sigma)) - np.log1p(
+        #     ndimage.gaussian_filter(self.enemy_force, sigma)
+        # )
 
         if self.knowledge.is_micro_map:
             self.retreat_targets = np.array([observation.map_center.rounded])
@@ -55,11 +57,13 @@ class CombatAction:
             retreat_targets = list()
             for b in self.observation.bases_taken:
                 p = self.knowledge.in_mineral_line[b]
-                if self.confidence[p] >= 0:
+                if bot.mediator.get_ground_grid[p] == 1.0:
                     retreat_targets.append(p)
             if not retreat_targets:
                 combatant_positions = {
-                    p for u in observation.combatants if self.confidence[p := tuple(u.position.rounded)] >= 0
+                    p
+                    for u in observation.combatants
+                    if bot.mediator.get_ground_grid[p := tuple(u.position.rounded)] == 1.0
                 }
                 retreat_targets.extend(combatant_positions)
             if not retreat_targets:
@@ -75,7 +79,6 @@ class CombatAction:
                 [self.knowledge.in_mineral_line[p] for p in self.knowledge.enemy_start_locations]
             )
 
-        self.threat_level = self.enemy_presence.dps
         self.retreat_air = cy_dijkstra(
             self.observation.bot.mediator.get_air_grid.astype(np.float64), self.retreat_targets
         )
@@ -136,14 +139,10 @@ class CombatAction:
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(target.position)
 
-        if unit in self.prediction.survival_time and target in self.prediction.survival_time:
-            confidence = self.prediction.survival_time[unit]
-        else:
-            confidence = 1.0
+        outcome = self.prediction.outcome
+        outcome_local = self.prediction.outcome_for[unit]
 
-        # test_position = unit.position.towards(target, 1.5)
-        # if self.enemy_presence.dps[test_position.rounded] == 0 or confidence >= 0:
-        if confidence > 0:
+        if outcome_local >= min(outcome, EngagementResult.TIE):
             if unit.ground_range < 1:
                 return UseAbility(AbilityId.ATTACK, target.position)
             return Attack(target)
@@ -151,13 +150,12 @@ class CombatAction:
             return self.retreat_with(unit)
 
     def do_unburrow(self, unit: Unit) -> Action | None:
-        p = tuple[int, int](unit.position.rounded)
-        confidence = self.confidence[p]
-        if unit.health_percentage == 1 and (confidence > 0 or self.enemy_presence.dps[p] == 0):
+        outcome = self.prediction.outcome_for[unit]
+        if unit.health_percentage > 0.9 and outcome >= EngagementResult.TIE:
             return UseAbility(AbilityId.BURROWUP)
         elif UpgradeId.TUNNELINGCLAWS not in self.observation.upgrades:
             return None
-        elif self.enemy_presence.dps[p] > 0:
+        elif outcome <= EngagementResult.LOSS_CLOSE:
             return self.retreat_with(unit)
         return HoldPosition()
 

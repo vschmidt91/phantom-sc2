@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from itertools import chain
 
 import numpy as np
+from ares.consts import EngagementResult, UnitRole
 from ares.main import AresBot
 from cython_extensions import cy_closest_to
 from loguru import logger
@@ -82,9 +83,11 @@ class Agent:
 
         combat = CombatAction(self.bot, self.knowledge, observation)
         transfuse = TransfuseAction(observation)
-        creep = self.creep.step(observation, np.less_equal(0.0, combat.confidence))
+        creep = self.creep.step(observation, self.bot.mediator.get_ground_grid == 1.0)
 
-        safe_overlord_spots = [p for p in observation.overlord_spots if combat.confidence[p.rounded] > 0]
+        safe_overlord_spots = [
+            p for p in observation.overlord_spots if self.bot.mediator.get_air_grid[p.rounded] == 1.0
+        ]
 
         injecters = observation.units(UnitTypeId.QUEEN)
         inject_targets = observation.townhalls.ready
@@ -111,10 +114,14 @@ class Agent:
 
         def should_harvest_resource(r: Unit) -> bool:
             p = tuple(r.position.rounded)
-            check_points = [p, tuple(self.knowledge.return_point[p].rounded)]
-            return all(not combat.confidence[p] < 0 < combat.enemy_presence.dps[p] for p in check_points)
+            check_points = [
+                self.knowledge.speedmining_positions[p].rounded,
+                tuple(self.knowledge.return_point[p].rounded),
+            ]
+            return all(self.bot.mediator.get_ground_grid[p] == 1.0 for p in check_points)
 
-        harvesters = observation.workers.filter(should_harvest)
+        # harvesters = observation.workers.filter(should_harvest)
+        harvesters = self.bot.mediator.get_units_from_role(role=UnitRole.GATHERING)
 
         if self.knowledge.is_micro_map:
             resources_to_harvest = observation.resources
@@ -152,7 +159,7 @@ class Agent:
 
         gas_type = GAS_BY_RACE[self.knowledge.race]
         gas_depleted = observation.gas_buildings.filter(lambda g: not g.has_vespene).amount
-        gas_pending = observation.count(gas_type, include_actual=False)
+        gas_pending = observation.count_actual(gas_type) + observation.count_pending(gas_type)
         gas_have = resources.observation.gas_buildings.amount
         gas_max = resources.observation.vespene_geysers.amount
         gas_want = min(gas_max, gas_depleted + math.ceil((resources.gas_target - 1) / 3))
@@ -176,10 +183,10 @@ class Agent:
             p = tuple(q.position.rounded)
             return (
                 transfuse.transfuse_with(q)
-                or (combat.fight_with(q) if combat.enemy_presence.dps[p] > 0 else None)
+                or (combat.fight_with(q) if 1 < self.bot.mediator.get_ground_grid[p] < np.inf else None)
                 or inject_with_queen(q)
                 or (creep.spread_with_queen(q) if should_spread_creep else None)
-                or (combat.retreat_with(q, limit=2) if not observation.creep[p] else None)
+                or (combat.retreat_with(q) if not observation.creep[p] else None)
                 or combat.fight_with(q)
             )
 
@@ -196,7 +203,11 @@ class Agent:
             def micro_overseer(u: Unit) -> Action | None:
                 if action := (
                     dodge.dodge_with(u)
-                    or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
+                    or (
+                        combat.retreat_with(u)
+                        if combat.prediction.outcome_for[u] <= EngagementResult.LOSS_DECISIVE
+                        else None
+                    )
                     or spawn_changeling(u)
                 ):
                     return action
@@ -214,7 +225,11 @@ class Agent:
         def micro_harvester(u: Unit) -> Action | None:
             return (
                 dodge.dodge_with(u)
-                or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
+                or (
+                    combat.retreat_with(u)
+                    if 1.0 < self.bot.mediator.get_ground_grid[u.position.rounded] < np.inf
+                    else None
+                )
                 or resources.gather_with(u, observation.townhalls.ready)
                 or (drone_scout(u) if observation.townhalls.ready.amount < 2 else None)
             )
@@ -222,7 +237,7 @@ class Agent:
         def micro_overlord(u: Unit) -> Action | None:
             return (
                 dodge.dodge_with(u)
-                or (combat.retreat_with(u) if combat.confidence[u.position.rounded] < 0 else None)
+                or (combat.retreat_with(u) if self.bot.mediator.get_air_grid[u.position.rounded] > 1.0 else None)
                 or search_with(u)
             )
 

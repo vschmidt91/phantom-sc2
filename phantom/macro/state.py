@@ -4,6 +4,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from itertools import chain
 
+from ares.consts import UnitRole
 from loguru import logger
 from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.ability_id import AbilityId
@@ -22,6 +23,7 @@ from phantom.common.constants import (
     ITEM_BY_ABILITY,
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
     MACRO_INFO,
+    WORKERS,
 )
 from phantom.common.cost import Cost
 from phantom.common.unit_composition import UnitComposition
@@ -54,12 +56,13 @@ class MacroState:
         if observation.supply_used >= 200:
             return
         for unit, target in composition.items():
-            have = observation.count(unit)
-            if target < 1 or target <= have:
+            have = observation.count_actual(unit) + observation.count_pending(unit)
+            planned = observation.count_planned(unit)
+            if target < 1 or target <= have + planned:
                 continue
             if any(observation.get_missing_requirements(unit)):
                 continue
-            priority = -observation.count(unit, include_planned=False) / target
+            priority = -have / target
             if any(self.planned_by_type(unit)):
                 for plan in self.planned_by_type(unit):
                     if plan.priority == math.inf:
@@ -155,13 +158,16 @@ class MacroState:
                 needs_to_reserve = Cost.max(Cost(), cost - expected_income)
                 reserve += needs_to_reserve
 
+            if trainer.type_id in WORKERS:
+                obs.bot.mediator.assign_role(tag=trainer.tag, role=UnitRole.PERSISTENT_BUILDER)
+
             if eta == 0.0:
                 plan.commanded = True
                 actions[trainer] = UseAbility(ability, target=plan.target)
             elif plan.target:
                 if trainer.is_carrying_resource:
                     actions[trainer] = UseAbility(AbilityId.HARVEST_RETURN)
-                elif action := await premove(obs, trainer, plan, eta):
+                elif (obs.iteration % 10 == 0) and (action := await premove(obs, trainer, plan, eta)):
                     plan.premoved = False
                     actions[trainer] = action
                 # elif action := combat.fight_with(trainer):

@@ -9,13 +9,12 @@ from sc2.ids.upgrade_id import UpgradeId
 from phantom.common.constants import (
     SUPPLY_PROVIDED,
     UNIT_COUNTER_DICT,
-    WITH_TECH_EQUIVALENTS,
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
 )
 from phantom.common.unit_composition import UnitComposition, add_compositions, composition_of, sub_compositions
 from phantom.knowledge import Knowledge
-from phantom.macro.state import MacroId, MacroPlan
+from phantom.macro.state import MacroPlan
 from phantom.observation import Observation
 from phantom.parameters import AgentParameters, NormalPrior
 
@@ -80,42 +79,39 @@ class Strategy:
         self.composition_deficit = sub_compositions(self.composition_target, self.composition)
 
     def make_tech(self) -> Iterable[MacroPlan]:
-        upgrades = [
+        upgrades = {
             u
             for unit, count in self.composition_target.items()
             for u in self.obs.upgrades_by_unit(unit)
             if self.filter_upgrade(u)
-        ]
-        # upgrades.append(UpgradeId.ZERGLINGMOVEMENTSPEED)
-        targets: set[MacroId] = set(upgrades)
-        # targets.update(self.composition_target.keys())
-        # targets.update(r for item in set(targets) for r in REQUIREMENTS[item])
-        for target in targets:
-            if equivalents := WITH_TECH_EQUIVALENTS.get(target):
-                target_met = any(self.obs.count(t) for t in equivalents)
-            else:
-                target_met = bool(self.obs.count(target))
-            if not target_met:
-                yield MacroPlan(target, priority=self.context.tech_priority.value)
+        }
+        for upgrade in upgrades:
+            if (
+                upgrade in self.obs.upgrades
+                or upgrade in self.obs.context.pending_upgrades
+                or self.obs.planned[upgrade]
+            ):
+                continue
+            yield MacroPlan(upgrade, priority=self.context.tech_priority.value)
 
     def expand(self) -> Iterable[MacroPlan]:
-        if self.obs.time < 50:
-            return
-        if self.obs.townhalls.amount == 2 and self.obs.count(UnitTypeId.QUEEN, include_planned=False) < 2:
-            return
+        # if self.obs.time < 50:
+        #     return
+        # if self.obs.townhalls.amount == 2 and self.obs.count(UnitTypeId.QUEEN, include_planned=False) < 2:
+        #     return
 
         worker_max = self.obs.max_harvesters
-        saturation = max(0.0, min(1.0, self.obs.supply_workers / max(1, worker_max)))
-        if self.obs.townhalls.amount > 2 and saturation < 2 / 3:
-            return
+        saturation = self.obs.supply_workers / max(1, worker_max)
+        saturation = max(0.0, min(1.0, saturation))
+
+        # if self.obs.townhalls.amount > 2 and saturation < 2 / 3:
+        #     return
 
         priority = 3 * (saturation - 1)
-        # TODO: prioritize everything on the fly
-        # for plan in self.macro.planned_by_type(UnitTypeId.HATCHERY):
-        #     if plan.priority < math.inf:
-        #         plan.priority = priority
 
-        if self.obs.count(UnitTypeId.HATCHERY, include_actual=False) > 0:
+        if self.obs.count_planned(UnitTypeId.HATCHERY) > 0:
+            return
+        if self.obs.count_pending(UnitTypeId.HATCHERY) > 0:
             return
         yield MacroPlan(UnitTypeId.HATCHERY, priority=priority)
 
@@ -133,6 +129,7 @@ class Strategy:
         return not any(self.obs.get_missing_requirements(t))
 
     def filter_upgrade(self, upgrade: UpgradeId) -> bool:
+        upgrade_set = self.obs.upgrades | self.obs.context.pending_upgrades
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
             return True
         elif self.tier == StrategyTier.Hatch:
@@ -142,13 +139,15 @@ class Strategy:
         elif upgrade == UpgradeId.ZERGLINGATTACKSPEED:
             return self.tier >= StrategyTier.Hive
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
-            return self.obs.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL1, include_planned=False) > 0
+            return UpgradeId.ZERGMISSILEWEAPONSLEVEL1 in upgrade_set
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
-            return self.obs.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL2, include_planned=False) > 0
+            return UpgradeId.ZERGMISSILEWEAPONSLEVEL2 in upgrade_set
         elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL3:
-            return self.obs.count(UpgradeId.ZERGMISSILEWEAPONSLEVEL3, include_planned=False) > 0
+            return UpgradeId.ZERGMISSILEWEAPONSLEVEL3 in upgrade_set
         elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
-            return self.obs.count(UnitTypeId.GREATERSPIRE, include_planned=False) > 0
+            return bool(self.obs.count_actual(UnitTypeId.GREATERSPIRE)) or bool(
+                self.obs.count_pending(UnitTypeId.GREATERSPIRE)
+            )
         elif upgrade == UpgradeId.OVERLORDSPEED:
             return self.tier >= StrategyTier.Hive
         else:
@@ -228,7 +227,7 @@ class Strategy:
         return composition
 
     def _macro_composition(self) -> UnitComposition:
-        harvester_target = min(100, max(1.0, self.obs.max_harvesters))
+        harvester_target = min(80, max(1.0, self.obs.max_harvesters))
         queen_target = max(
             0.0, min(self.context.queens_limit.value, self.context.queens_per_hatch.value * self.obs.townhalls.amount)
         )

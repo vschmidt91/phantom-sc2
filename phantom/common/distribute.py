@@ -5,6 +5,7 @@ from typing import TypeVar
 
 import highspy
 import numpy as np
+from loguru import logger
 
 TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
@@ -12,9 +13,12 @@ TValue = TypeVar("TValue", bound=Hashable)
 
 class HighsPyProblem:
     def __init__(self, n: int, m: int, include_total: bool) -> None:
+        logger.debug(f"Compiling highspy problem with {n=}, {m=}, {include_total=}")
         h = highspy.Highs()
+        # h.setOptionValue("time_limit", 0.1)
         h.setOptionValue("presolve", "off")
-        h.setOptionValue("log_to_console", "off")
+        # h.setOptionValue("simplex_iteration_limit", 64)
+        h.setOptionValue("log_to_console", False)
 
         vs = {(i, j): h.addVariable(lb=0.0, ub=1.0) for i, j in product(range(n), range(m))}
         for i in range(n):

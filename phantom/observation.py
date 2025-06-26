@@ -1,5 +1,6 @@
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
+from functools import cache
 from itertools import chain
 
 import numpy as np
@@ -25,10 +26,10 @@ from phantom.common.constants import (
     CIVILIANS,
     COCOONS,
     ENEMY_CIVILIANS,
+    ITEM_BY_ABILITY,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
     WITH_TECH_EQUIVALENTS,
-    WORKERS,
     ZERG_ARMOR_UPGRADES,
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
@@ -39,6 +40,8 @@ from phantom.common.cost import Cost
 from phantom.common.utils import RNG, MacroId
 from phantom.knowledge import Knowledge
 
+type OrderTarget = Point2
+
 
 class ObservationState:
     def __init__(self, bot: AresBot, knowledge: Knowledge):
@@ -46,8 +49,21 @@ class ObservationState:
         self.knowledge = knowledge
         self.pathing = self._pathing()
         self.air_pathing = self._air_pathing()
+        self.pending_structures = dict[OrderTarget, UnitTypeId]()
+        self.pending_upgrades = set[UpgradeId]()
 
     def step(self, planned: Counter[MacroId]) -> "Observation":
+        gas_by_tag = {g.tag: g for g in self.bot.vespene_geyser}
+        for action in self.bot.state.actions_unit_commands:
+            if item := ITEM_BY_ABILITY.get(action.exact_id):
+                if item in ALL_STRUCTURES:
+                    if item == UnitTypeId.EXTRACTOR:
+                        target = gas_by_tag[action.target_unit_tag].position
+                    else:
+                        target = action.target_world_space_pos
+                    self.pending_structures[target] = item
+                elif isinstance(item, UpgradeId):
+                    self.pending_upgrades.add(item)
         if self.bot.actual_iteration % 10 == 0:
             self.pathing = self._pathing()
             self.air_pathing = self._air_pathing()
@@ -63,6 +79,7 @@ class ObservationState:
 class Observation:
     def __init__(self, context: ObservationState, planned: Counter[MacroId]):
         self.bot = context.bot
+        self.context = context
         self.iteration = context.bot.actual_iteration
         self.knowledge = context.knowledge
         self.planned = planned
@@ -100,6 +117,8 @@ class Observation:
         self.resources = self.bot.resources
 
         self.actual_by_type = Counter[UnitTypeId](u.type_id for u in self.units if u.is_ready)
+        self.actual_by_type[UnitTypeId.DRONE] = self.bot.supply_workers
+        self.pending_by_type = Counter[UnitTypeId](context.pending_structures.values())
 
         self.map_center = self.bot.game_info.map_center
         self.start_location = self.bot.start_location
@@ -176,39 +195,23 @@ class Observation:
             # UnitTypeId.ZERGLING,
         }:
             return False
-        return all(
-            self.count(e, include_pending=False, include_planned=False) == 0 for e in WITH_TECH_EQUIVALENTS[unit]
-        )
+        return all(self.count_actual(e) == 0 for e in WITH_TECH_EQUIVALENTS[unit])
 
-    # @cache
-    def count(
-        self, item: MacroId, include_pending: bool = True, include_planned: bool = True, include_actual: bool = True
-    ) -> int:
-        # logger.trace(f"{self.game_loop} Counting {item=} ({include_actual=}, {include_pending=}, {include_planned=})")
+    def count_actual(self, item: UnitTypeId) -> int:
+        return self.actual_by_type[item]
 
+    @cache
+    def count_pending(self, item: UnitTypeId) -> int:
+        if item in {UnitTypeId.LAIR, UnitTypeId.HIVE}:
+            return self.bot.already_pending(item)
+        elif item in ALL_STRUCTURES:
+            return self.pending_by_type[item]
+        else:
+            return cy_unit_pending(self.bot, item)
+
+    def count_planned(self, item: MacroId) -> int:
         factor = 2 if item == UnitTypeId.ZERGLING else 1
-
-        count = 0
-        if include_actual:
-            if item in WORKERS:
-                count += self.bot.supply_workers
-            elif isinstance(item, UpgradeId):
-                if item in self.upgrades:
-                    count += 1
-            else:
-                count += self.actual_by_type[item]
-        if include_pending:
-            if item in ALL_STRUCTURES:
-                count += self.bot.already_pending(item)
-            elif isinstance(item, UpgradeId):
-                if 0 < self.bot.already_pending_upgrade(item) < 1:
-                    count += 1
-            else:
-                count += factor * cy_unit_pending(self.bot, item)
-        if include_planned:
-            count += factor * self.planned[item]
-
-        return count
+        return factor * self.planned[item]
 
     def unit_data(self, unit_type_id: UnitTypeId) -> UnitTypeData:
         return self.bot.game_data.units[unit_type_id.value]
@@ -345,8 +348,11 @@ class Observation:
 
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
-            if not self.count(upgrade, include_planned=False):
-                return (upgrade,)
+            if upgrade in self.upgrades:
+                continue
+            if upgrade in self.context.pending_upgrades:
+                continue
+            return (upgrade,)
         return ()
 
     def _shootable_targets(self) -> Mapping[Unit, Sequence[Unit]]:

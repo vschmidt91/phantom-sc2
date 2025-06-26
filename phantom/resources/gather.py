@@ -23,9 +23,10 @@ class GatherAction(Action):
 @dataclass
 class ReturnResource(Action):
     return_target: Unit
+    speedmining_position: Point2
 
     async def execute(self, unit: Unit) -> bool:
-        move_target = self.return_target.position.towards(unit, self.return_target.radius + unit.radius)
+        move_target = self.speedmining_position
         if 0.75 < unit.position.distance_to(move_target) < 1.5:
             return unit.move(move_target) and unit.smart(self.return_target, queue=True)
         else:

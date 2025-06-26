@@ -29,12 +29,12 @@ class Make(BuildOrder):
     target: int
 
     def execute(self, obs: Observation) -> BuildOrderStep | None:
-        if obs.count(self.unit, include_planned=False) < self.target:
-            if obs.count(self.unit) < self.target:
-                return BuildOrderStep([MacroPlan(self.unit)], {})
-            else:
-                return BuildOrderStep([], {})
-        return None
+        actual_or_pending = obs.count_actual(self.unit) + obs.count_pending(self.unit)
+        if actual_or_pending >= self.target:
+            return None
+        deficit = self.target - actual_or_pending - obs.count_planned(self.unit)
+        plans = [MacroPlan(self.unit) for _ in range(deficit)]
+        return BuildOrderStep(plans, {})
 
 
 @dataclass(frozen=True)
@@ -55,7 +55,14 @@ class ExtractorTrick(BuildOrder):
 
     def execute(self, obs: Observation) -> BuildOrderStep | None:
         if self.at_supply == obs.supply_used and obs.bank.supply <= 0:
-            if obs.count(self.unit_type) == 0:
+            has_extractor = any(
+                (
+                    obs.count_actual(self.unit_type),
+                    obs.count_pending(self.unit_type),
+                    obs.count_planned(self.unit_type),
+                )
+            )
+            if not has_extractor:
                 if self.min_minerals < obs.bank.minerals:
                     return BuildOrderStep([MacroPlan(self.unit_type)], {})
                 else:
@@ -107,12 +114,13 @@ BUILD_ORDERS = {
             Make(UnitTypeId.DRONE, 17),
             Make(UnitTypeId.HATCHERY, 2),
             Make(UnitTypeId.DRONE, 18),
-            WaitUntil(lambda obs: obs.workers.amount > 16),
+            # WaitUntil(lambda obs: obs.workers.amount > 16),
             Make(UnitTypeId.EXTRACTOR, 1),
             WaitUntil(lambda obs: obs.gas_buildings),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
-            Make(UnitTypeId.DRONE, 19),
+            WaitUntil(lambda obs: obs.structures(UnitTypeId.SPAWNINGPOOL)),
             Make(UnitTypeId.HATCHERY, 3),
+            Make(UnitTypeId.DRONE, 19),
             Make(UnitTypeId.QUEEN, 1),
             Make(UnitTypeId.ZERGLING, 2),
             Make(UnitTypeId.QUEEN, 2),

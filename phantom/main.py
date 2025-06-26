@@ -14,6 +14,7 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
 from phantom.agent import Agent
+from phantom.common.constants import UPGRADE_BY_RESEARCH_ABILITY
 from phantom.config import BotConfig
 from phantom.exporter import BotExporter
 from phantom.knowledge import Knowledge
@@ -174,18 +175,25 @@ class PhantomBot(BotExporter, AresBot):
     # async def on_building_construction_started(self, unit: Unit):
     #     await super().on_building_construction_started(unit)
     #
-    # async def on_building_construction_complete(self, unit: Unit):
-    #     await super().on_building_construction_complete(unit)
-    #
+    async def on_building_construction_complete(self, unit: Unit):
+        await super().on_building_construction_complete(unit)
+        self.agent.observation.pending_structures.pop(unit.position, None)
+
     # async def on_enemy_unit_entered_vision(self, unit: Unit):
     #     await super().on_enemy_unit_entered_vision(unit)
     #
     # async def on_enemy_unit_left_vision(self, unit_tag: int):
     #     await super().on_enemy_unit_left_vision(unit_tag)
     #
-    # async def on_unit_destroyed(self, unit_tag: int):
-    #     await super().on_unit_destroyed(unit_tag)
-    #
+    async def on_unit_destroyed(self, unit_tag: int):
+        await super().on_unit_destroyed(unit_tag)
+        if unit := self._units_previous_map.get(unit_tag):
+            self.agent.observation.pending_structures.pop(unit.position, None)
+            if unit.orders:
+                ability = unit.orders[0].ability.exact_id
+                if item := UPGRADE_BY_RESEARCH_ABILITY.get(ability):
+                    self.agent.observation.pending_upgrades.discard(item)
+
     # async def on_unit_created(self, unit: Unit):
     #     await super().on_unit_created(unit)
     #
