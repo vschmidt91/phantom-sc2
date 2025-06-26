@@ -18,7 +18,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from phantom.combat.action import CombatAction
-from phantom.common.action import Action, Move, UseAbility
+from phantom.common.action import Action, Attack, Move, UseAbility
 from phantom.common.constants import ALL_MACRO_ABILITIES, CHANGELINGS, ENERGY_COST, GAS_BY_RACE
 from phantom.common.cost import Cost
 from phantom.common.distribute import distribute
@@ -294,7 +294,10 @@ class Agent:
                 return Move(Point2(random.choice(self.knowledge.enemy_start_locations)))
             elif observation.enemy_combatants:
                 target = cy_closest_to(unit.position, observation.enemy_combatants)
-                return Move(target.position)
+                return Attack(target.position)
+            elif observation.enemy_units:
+                target = cy_closest_to(unit.position, observation.enemy_units)
+                return Attack(target.position)
             target = observation.random_point(near=unit.position)
             if observation.is_visible[target.rounded]:
                 return None
