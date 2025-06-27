@@ -93,10 +93,9 @@ class MacroState:
         self.handle_actions(obs)
 
         # TODO
-        max_plans = 100
-        if len(self.unassigned_plans) > max_plans:
+        if len(self.unassigned_plans) > 100:
             obs.bot.add_replay_tag("overplanning")  # type: ignore
-            self.unassigned_plans = sorted(self.unassigned_plans, key=lambda p: p.priority, reverse=True)[:max_plans]
+            self.unassigned_plans = []
         await self.assign_unassigned_plans(obs, obs.units, blocked_positions)  # TODO: narrow this down
 
 
