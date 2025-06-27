@@ -45,7 +45,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     container:
-      image: burnysc2/python-sc2-docker:latest
+      image: burnysc2/python-sc2-docker:py_3.12-sc2_4.10-v1.0.6-squashed
     steps:
       - uses: actions/download-artifact@v4
         with:
