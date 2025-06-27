@@ -140,7 +140,7 @@ class CombatAction:
             return Move(target.position)
 
         outcome = self.prediction.outcome
-        outcome_local = self.prediction.outcome_for[unit]
+        outcome_local = self.prediction.outcome_for.get(unit.tag, EngagementResult.VICTORY_DECISIVE)
 
         if outcome_local > min(outcome, EngagementResult.TIE):
             if unit.ground_range < 1:
@@ -150,7 +150,7 @@ class CombatAction:
             return self.retreat_with(unit)
 
     def do_unburrow(self, unit: Unit) -> Action | None:
-        outcome = self.prediction.outcome_for[unit]
+        outcome = self.prediction.outcome_for.get(unit.tag, EngagementResult.VICTORY_DECISIVE)
         if unit.health_percentage > 0.9 and outcome >= EngagementResult.TIE:
             return UseAbility(AbilityId.BURROWUP)
         elif UpgradeId.TUNNELINGCLAWS not in self.observation.upgrades:

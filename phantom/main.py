@@ -1,10 +1,10 @@
 import cProfile
 import io
-from itertools import product
 import lzma
 import os
 import pickle
 import pstats
+from itertools import product
 from queue import Empty, Queue
 
 from ares import AresBot

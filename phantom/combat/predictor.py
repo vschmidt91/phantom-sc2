@@ -22,7 +22,7 @@ class CombatOutcome(Enum):
 @dataclass(frozen=True)
 class CombatPrediction:
     outcome: EngagementResult
-    outcome_for: Mapping[Unit, EngagementResult]
+    outcome_for: Mapping[int, EngagementResult]
 
 
 def _required_distance(u: Unit, v: Unit) -> float:
@@ -101,6 +101,6 @@ class CombatPredictor:
                 )
 
             for u in local_own:
-                outcome_for[u] = local_outcome
+                outcome_for[u.tag] = local_outcome
 
         return CombatPrediction(outcome, outcome_for)
