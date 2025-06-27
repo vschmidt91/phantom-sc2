@@ -53,10 +53,12 @@ class UseAbility(Action):
 
 @dataclass(frozen=True)
 class Attack(Action):
-    target: Unit
+    target: Point2 | Unit
 
     async def execute(self, unit: Unit) -> bool:
-        if self.target.is_memory:
+        if isinstance(self.target, Point2):
+            return unit.attack(self.target)
+        elif self.target.is_memory:
             return unit.attack(self.target.position)
         else:
             return unit.attack(self.target)
