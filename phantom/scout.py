@@ -85,8 +85,8 @@ class ScoutState:
                     logger.info(f"Detected blocked base {p}")
 
         def filter_base(b: Point2) -> bool:
-            # if observation.is_visible[b]:
-            #     return False
+            if observation.is_visible[b]:
+                return False
             distance_to_enemy = min(b.distance_to(Point2(e)) for e in self.knowledge.enemy_start_locations)
             return distance_to_enemy > b.distance_to(observation.start_location)
 
@@ -117,7 +117,7 @@ class ScoutState:
                 frozenset(detect_targets),
             )
         )
-        if assignment_hash != self._previous_hash:
+        if assignment_hash != self._previous_hash and observation.iteration % 17 == 0:
             self.assignment = self._assign(nondetectors, scout_targets, detectors, detect_targets)
             self._previous_hash = assignment_hash
         assignment = self.assignment

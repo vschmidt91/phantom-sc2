@@ -36,12 +36,13 @@ class CombatPredictor:
         self.bot = bot
         self.units = units
         self.enemy_units = enemy_units
-        self.time_horizon = 12
+        self.horizon = 6
+        self.enemy_horizon = 12
         self.prediction = self._prediction_sc2helper()
 
     def _prediction_sc2helper(self) -> CombatPrediction:
         n = len(self.units)
-        m = len(self.enemy_units)
+        len(self.enemy_units)
 
         units = list(chain(self.units, self.enemy_units))
 
@@ -56,9 +57,12 @@ class CombatPredictor:
             [u.position for u in self.units],
             [u.position for u in self.enemy_units],
         )
-        can_shoot = np.where(distance_matrix < self.time_horizon, 1, 0)
+        can_shoot = np.where(distance_matrix < self.enemy_horizon, 1, 0)
 
-        adjacency_matrix = np.block([[np.zeros((n, n)), can_shoot], [can_shoot.T, np.zeros((m, m))]])
+        # contact_own = np.where(pairwise_distances([u.position for u in self.units]) < self.horizon, 1, 0)
+        contact_enemy = np.where(pairwise_distances([u.position for u in self.enemy_units]) < self.horizon, 1, 0)
+
+        adjacency_matrix = np.block([[np.zeros((n, n)), can_shoot], [can_shoot.T, contact_enemy]])
 
         # adjacency_matrix = np.zeros((n + m, n + m), dtype=float)
         # for (i, a), (dj, b) in product(enumerate(self.units), enumerate(self.enemy_units)):

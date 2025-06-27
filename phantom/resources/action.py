@@ -89,7 +89,7 @@ class ResourceAction:
         limit = np.full(m, 2.0)
         is_gas = np.array([1.0 if r.mineral_contents == 0 else 0.0 for r in resources])
 
-        problem = _get_problem(n, m, True)
+        problem = _get_problem(n, m)
         problem.set_total(is_gas, gas_target)
 
         # problem = get_highspy_problem(n, m)
@@ -98,7 +98,7 @@ class ResourceAction:
         x = problem.solve(cost, limit)
         indices = x.argmax(axis=1)
         assignment = {
-            ai.tag: resources[j].position.rounded
+            ai.tag: tuple(resources[j].position.rounded)
             for (i, ai), j in zip(enumerate(harvesters), indices, strict=False)
             if x[i, j] > 0
         }
@@ -107,7 +107,7 @@ class ResourceAction:
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
         if not (target_pos := self.harvester_assignment.get(unit.tag)):
-            logger.error(f"Unassigned harvester {unit}")
+            logger.warning(f"Unassigned harvester {unit}")
             return None
         if not (target := self.observation.resource_at.get(target_pos)):
             logger.error(f"No resource found at {target_pos}")
@@ -118,7 +118,7 @@ class ResourceAction:
         if unit.is_idle:
             return GatherAction(target, self.knowledge.speedmining_positions[target_pos])
             # return Smart(target)
-        elif len(unit._proto.orders) >= 2:
+        elif len(unit.orders) >= 2:
             return DoNothing()
         elif unit.is_gathering:
             return GatherAction(target, self.knowledge.speedmining_positions[target_pos])

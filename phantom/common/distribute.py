@@ -12,7 +12,7 @@ TValue = TypeVar("TValue", bound=Hashable)
 
 
 class HighsPyProblem:
-    def __init__(self, n: int, m: int, include_total: bool) -> None:
+    def __init__(self, n: int, m: int, include_total=True) -> None:
         logger.debug(f"Compiling highspy problem with {n=}, {m=}, {include_total=}")
         h = highspy.Highs()
         # h.setOptionValue("time_limit", 0.1)
@@ -45,12 +45,19 @@ class HighsPyProblem:
             self.a_values = [1.0] * (3 * self.n * self.m)
 
     def set_total(self, coeffs: np.ndarray, limit: int) -> None:
+        coeffs = np.pad(coeffs, (0, self.m - coeffs.shape[0]), mode="constant", constant_values=0.0)
         self.a_values[2::3] = np.tile(coeffs, self.n)
         self.lp.a_matrix_.value_ = self.a_values
         self.row_lower[-1] = limit
         self.row_upper[-1] = limit
 
     def solve(self, cost: np.ndarray, limit: np.ndarray) -> np.ndarray:
+        n, m = cost.shape
+        padding = (0, self.n - n), (0, self.m - m)
+        cost = np.pad(cost, padding, mode="constant", constant_values=np.inf)
+        cost[n:, m:] = 0.0
+        limit = np.pad(limit, (0, self.m - limit.shape[0]), mode="constant", constant_values=np.inf)
+
         self.cost[:] = cost.flat
         if self.include_total:
             self.row_upper[self.n : -1] = limit
@@ -63,15 +70,22 @@ class HighsPyProblem:
 
         self.highspy.passModel(self.lp)
         self.highspy.run()
-        return np.reshape(self.highspy.getSolution().col_value, (self.n, self.m))
+        solution = np.reshape(self.highspy.getSolution().col_value, (self.n, self.m))
+        return solution[:n, :m]
 
 
-_PROBLEM_CACHE = dict[tuple[int, int, bool], HighsPyProblem]()
+_PROBLEM_CACHE = dict[tuple[int, int], HighsPyProblem]()
+PROBLEM_RESOLUTION = 10
 
 
-def _get_problem(n: int, m: int, t: bool) -> HighsPyProblem:
-    if not (problem := _PROBLEM_CACHE.get((n, m, t))):
-        _PROBLEM_CACHE[n, m, t] = (problem := HighsPyProblem(n, m, t))
+def _get_problem(n: int, m: int) -> HighsPyProblem:
+    n2 = math.ceil(n / PROBLEM_RESOLUTION) * PROBLEM_RESOLUTION
+    if n < n2:
+        m += 1  # source padding also requires target padding
+    m2 = math.ceil(m / PROBLEM_RESOLUTION) * PROBLEM_RESOLUTION
+    key = n2, m2
+    if not (problem := _PROBLEM_CACHE.get(key)):
+        _PROBLEM_CACHE[key] = (problem := HighsPyProblem(*key))
     return problem
 
 
@@ -90,9 +104,9 @@ def distribute(
     if max_assigned is None:
         max_assigned = math.ceil(n / m)
     if isinstance(max_assigned, int):
-        max_assigned = np.full(m, max_assigned)
+        max_assigned = np.full(m, float(max_assigned))
 
-    problem = _get_problem(n, m, False)
+    problem = _get_problem(n, m)
     x = problem.solve(cost, max_assigned)
     indices = x.argmax(axis=1)
     assignment = {ai: b[j] for (i, ai), j in zip(enumerate(a), indices, strict=False) if x[i, j] > 0}

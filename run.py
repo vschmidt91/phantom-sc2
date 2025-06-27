@@ -92,7 +92,7 @@ async def run(
     for module in log_disable_modules:
         logger.debug(f"Disabling logging for {module=}")
         logger.disable(module)
-    logger.add(sys.stdout, level=log_level)  # Set different levels for different outputs
+    logger.add(sys.stdout, level=log_level)
 
     if bot_config:
         logger.info(f"Loading {bot_config=}")
@@ -116,6 +116,7 @@ async def run(
         async with SC2Process(fullscreen=False, base_build=base_build, data_hash=data_version) as server:
             client = await _setup_replay(server, os.path.abspath(load_replay), realtime, observe_id)
             result = await _play_replay(client, ai, realtime, observe_id)
+
     elif ladder_server:
         logger.info("Starting ladder game")
         ws_url = f"ws://{ladder_server}:{game_port}/sc2api"
@@ -156,31 +157,13 @@ async def run(
         kwargs = dict(
             realtime=False,
         )
-        host_task = _host_game(map_settings, players, save_replay_as=replay_path_sc2, **kwargs)
+        host_task = _host_game(map_settings, players, save_replay_as=replay_path_sc2, sc2_version="4.10", **kwargs)
         if special_build:
             result, _ = await asyncio.gather(host_task, _join_game(players, **kwargs))
         else:
             result = await host_task
-        # result = await _host_game(
-        #     map_settings,
-        #     players,
-        #     realtime=realtime,
-        #     save_replay_as=replay_path_sc2,
-        # )
-        # except Exception as error:
-        #     logger.error(error)
 
     logger.info(f"Game finished with {result=}")
-
-    # if not os.path.exists(replay_path_sc2):
-    #     logger.error(f"Could not {replay_path_sc2=}")
-    #     return
-    # replay_observer = Replay.from_file(replay_path_sc2)
-    # replay_bot = ai.recorder.replay
-    # report = Report(opponent_id, result, replay_observer, replay_bot)
-    # with lzma.open(replay_path + ".pkl.xz", "w") as f:
-    #     pickle.dump(report, f)
-    # os.remove(replay_path_sc2)
 
     if assert_result and result.name != assert_result:
         raise Exception(f"Expected {assert_result}, got {result.name}")
