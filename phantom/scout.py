@@ -76,7 +76,7 @@ class ScoutState:
             error_result = ActionResult(error.result)
             if error_result in {ActionResult.CantBuildLocationInvalid, ActionResult.CouldntReachTarget} and (
                 unit := observation.bot._units_previous_map.get(error.unit_tag)
-            ):
+            ) and unit.order_target:
                 p = tuple(unit.order_target.rounded)
                 if p not in self.blocked_positions:
                     self.blocked_positions[p] = observation.time

@@ -47,10 +47,6 @@ class PhantomBot(BotExporter, AresBot):
         except Exception as error:
             logger.warning(f"{error=} while loading {self.bot_config.params_path}")
 
-        if self.bot_config.profile_path:
-            logger.info("Creating profiler")
-            self.profiler = cProfile.Profile()
-
     def add_replay_tag(self, replay_tag: str) -> None:
         self.replay_tag_queue.put(replay_tag)
 
@@ -65,6 +61,11 @@ class PhantomBot(BotExporter, AresBot):
 
         logger.debug("Bot starting")
         await super().on_start()
+
+        if self.bot_config.profile_path:
+            logger.info("Creating profiler")
+            self.profiler = cProfile.Profile()
+            self.profiler.enable()
 
         knowledge = Knowledge(self)
         self.agent = Agent(self, self.bot_config.build_order, self.parameters, knowledge)
@@ -113,8 +114,8 @@ class PhantomBot(BotExporter, AresBot):
             for i, (t, plan) in enumerate(self.agent.macro.assigned_plans.items()):
                 self._debug_draw_plan(self.unit_tag_dict.get(t), plan, index=i)
 
-        if self.bot_config.profile_path:
-            self.profiler.enable()
+        # if self.bot_config.profile_path:
+        #     self.profiler.enable()
 
         actions = await self.agent.step()
         for unit, action in actions.items():
@@ -124,7 +125,7 @@ class PhantomBot(BotExporter, AresBot):
                 logger.error(f"Action failed: {action}")
 
         if self.bot_config.profile_path:
-            self.profiler.disable()
+            # self.profiler.disable()
             if self.actual_iteration % 100 == 0:
                 logger.info(f"Writing profiling to {self.bot_config.profile_path}")
 
