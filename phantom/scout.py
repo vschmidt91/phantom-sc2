@@ -4,6 +4,7 @@ from itertools import islice
 
 from loguru import logger
 from sc2.data import ActionResult
+from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -66,16 +67,23 @@ class ScoutState:
         return assignment
 
     def step(self, observation: Observation, safe_overlord_spots: list[Point2]) -> ScoutAction:
+        # TODO
+        if len(self.blocked_positions) > 100:
+            logger.error("Too many blocked positions, resetting")
+            observation.bot.add_replay_tag("blocked_positions_reset")  # type: ignore
+            self.blocked_positions = dict()
+
         for p, blocked_since in list(self.blocked_positions.items()):
             if blocked_since + 60 < observation.time:
                 logger.info(f"Resetting blocked base {p}")
                 del self.blocked_positions[p]
 
         for error in observation.action_errors:
-            # error_ability = AbilityId(error.ability_id)
+            error_ability = AbilityId(error.ability_id)
             error_result = ActionResult(error.result)
             if (
-                error_result in {ActionResult.CantBuildLocationInvalid, ActionResult.CouldntReachTarget}
+                error_ability not in {AbilityId.BUILD_CREEPTUMOR_TUMOR, AbilityId.BUILD_CREEPTUMOR_QUEEN}
+                and error_result in {ActionResult.CantBuildLocationInvalid, ActionResult.CouldntReachTarget}
                 and (unit := observation.bot._units_previous_map.get(error.unit_tag))
                 and isinstance(unit.order_target, Point2)
             ):

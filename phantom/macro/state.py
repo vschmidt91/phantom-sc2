@@ -98,7 +98,6 @@ class MacroState:
             self.unassigned_plans = []
         await self.assign_unassigned_plans(obs, obs.units, blocked_positions)  # TODO: narrow this down
 
-
         actions = dict[Unit, Action]()
         reserve = Cost()
         plans_prioritized = sorted(self.assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
