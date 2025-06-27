@@ -1,5 +1,6 @@
 import cProfile
 import io
+from itertools import product
 import lzma
 import os
 import pickle
@@ -15,6 +16,7 @@ from sc2.unit import Unit
 
 from phantom.agent import Agent
 from phantom.common.constants import UPGRADE_BY_RESEARCH_ABILITY
+from phantom.common.distribute import _get_problem
 from phantom.config import BotConfig
 from phantom.exporter import BotExporter
 from phantom.knowledge import Knowledge
@@ -53,6 +55,10 @@ class PhantomBot(BotExporter, AresBot):
     async def on_before_start(self) -> None:
         await super().on_before_start()
         self.on_before_start_was_called = True
+
+        logger.info("Precompiling assignment problems")
+        for n, m in product(range(1, 100), repeat=2):
+            _get_problem(n, m)
 
     async def on_start(self) -> None:
         if not self.on_before_start_was_called:
