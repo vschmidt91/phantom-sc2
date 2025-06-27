@@ -207,10 +207,11 @@ class Agent:
             )
 
             def micro_overseer(u: Unit) -> Action | None:
+                local_outcome = combat.prediction.outcome_for.get(u, EngagementResult.TIE)
                 if action := (
                     (
                         combat.retreat_with(u)
-                        if combat.prediction.outcome_for[u] <= EngagementResult.LOSS_DECISIVE
+                        if local_outcome <= EngagementResult.LOSS_DECISIVE
                         else None
                     )
                     or spawn_changeling(u)
