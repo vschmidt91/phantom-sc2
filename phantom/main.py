@@ -57,7 +57,7 @@ class PhantomBot(BotExporter, AresBot):
         self.on_before_start_was_called = True
 
         logger.info("Precompiling assignment problems")
-        for n, m in product(range(1, 100), repeat=2):
+        for n, m in product(range(1, 65), repeat=2):
             _get_problem(n, m)
 
     async def on_start(self) -> None:

@@ -75,7 +75,7 @@ class HighsPyProblem:
 
 
 _PROBLEM_CACHE = dict[tuple[int, int], HighsPyProblem]()
-PROBLEM_RESOLUTION = 10
+PROBLEM_RESOLUTION = 8
 
 
 def _get_problem(n: int, m: int) -> HighsPyProblem:

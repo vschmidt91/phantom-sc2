@@ -138,6 +138,10 @@ class Strategy:
             return self.tier >= StrategyTier.Hatch
         elif upgrade == UpgradeId.ZERGLINGATTACKSPEED:
             return self.tier >= StrategyTier.Hive
+        elif upgrade in UpgradeId.TUNNELINGCLAWS:
+            return UpgradeId.GLIALRECONSTITUTION in upgrade_set
+        elif upgrade in UpgradeId.EVOLVEGROOVEDSPINES:
+            return UpgradeId.EVOLVEMUSCULARAUGMENTS in upgrade_set
         # elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
         #     return UpgradeId.ZERGMISSILEWEAPONSLEVEL1 in upgrade_set
         # elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:

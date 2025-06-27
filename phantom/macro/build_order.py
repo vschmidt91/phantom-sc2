@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
+import numpy as np
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
@@ -64,7 +65,7 @@ class ExtractorTrick(BuildOrder):
             )
             if not has_extractor:
                 if self.min_minerals < obs.bank.minerals:
-                    return BuildOrderStep([MacroPlan(self.unit_type)], {})
+                    return BuildOrderStep([MacroPlan(self.unit_type, priority=np.inf)], {})
                 else:
                     return BuildOrderStep([], {})
             units = obs.structures(self.unit_type).not_ready
@@ -122,8 +123,9 @@ BUILD_ORDERS = {
             Make(UnitTypeId.HATCHERY, 3),
             Make(UnitTypeId.DRONE, 19),
             Make(UnitTypeId.QUEEN, 1),
-            Make(UnitTypeId.ZERGLING, 2),
+            Make(UnitTypeId.ZERGLING, 1),
             Make(UnitTypeId.QUEEN, 2),
+            # WaitUntil(lambda obs: obs.supply_used >= 24),
         ]
     ),
     "POOL_FIRST": BuildOrderChain(

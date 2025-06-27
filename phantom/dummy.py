@@ -10,6 +10,8 @@ class DummyBot(BotAI):
             [
                 [UnitTypeId.RAVAGER, 10, self.game_info.map_center, 1],
                 [UnitTypeId.RAVAGER, 10, self.game_info.map_center, 2],
+                [UnitTypeId.OVERLORDCOCOON, 1, self.game_info.map_center, 1],
+                [UnitTypeId.OVERLORDCOCOON, 1, self.game_info.map_center, 2],
             ]
         )
         for b in bases[1:5]:
