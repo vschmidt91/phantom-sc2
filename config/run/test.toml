@@ -3,4 +3,4 @@ bot_config = "config/bot/test.toml"
 enemy_build = "Rush"
 enemy_difficulty = "VeryEasy"
 game_time_limit = 600
-map_pattern = "Equilibrium513AIE"
+map_pattern = "PersephoneAIE"
