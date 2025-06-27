@@ -5404,9 +5404,9 @@ files = [
 [extras]
 build = ["cvxpygen", "cython", "map-analyzer", "requests"]
 dev = ["dask", "jupyter", "matplotlib", "notebook", "pandas", "plotly", "s2protocol", "snakeviz"]
-test = ["mypy", "ruff", "types-requests", "types-s2clientprotocol", "types-tqdm", "yamllint"]
+test = ["aiohttp", "mypy", "ruff", "types-requests", "types-s2clientprotocol", "types-tqdm", "yamllint"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12, <3.13"
-content-hash = "ab620046da720895a29ff133838ced62dfc3916e4984f61c987a28ca44bd1d5a"
+content-hash = "c54f59edd94ab47236fb7877ce9ba8b1f4ce0615632377113d1ed0b6add16ae0"
