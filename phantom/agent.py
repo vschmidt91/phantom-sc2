@@ -17,7 +17,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from phantom.combat.action import CombatAction
+from phantom.combat.action import CombatState
 from phantom.common.action import Action, Attack, Move, UseAbility
 from phantom.common.constants import ALL_MACRO_ABILITIES, CHANGELINGS, ENERGY_COST, GAS_BY_RACE
 from phantom.common.cost import Cost
@@ -45,7 +45,7 @@ class Agent:
         self.build_order = BUILD_ORDERS[build_order_name]
         self.parameters = parameters
         self.knowledge = knowledge
-
+        self.combat = CombatState(bot, knowledge)
         self.observation = ObservationState(bot, knowledge)
         self.macro = MacroState(knowledge)
         self.creep = CreepState(knowledge)
@@ -81,7 +81,7 @@ class Agent:
                 ):
                     self.macro.add(plan)
 
-        combat = CombatAction(self.bot, self.knowledge, observation)
+        combat = self.combat.step(observation)
         transfuse = TransfuseAction(observation)
         creep = self.creep.step(observation, self.bot.mediator.get_ground_grid == 1.0)
 

@@ -17,7 +17,9 @@ class HighsPyProblem:
         h = highspy.Highs()
         # h.setOptionValue("time_limit", 0.1)
         h.setOptionValue("presolve", "off")
-        # h.setOptionValue("simplex_iteration_limit", 64)
+        h.setOptionValue("solver", "simplex")
+        h.setOptionValue("simplex_iteration_limit", 256)
+        # h.setOptionValue("optimality_tolerance", 1e-3)
         h.setOptionValue("log_to_console", False)
 
         vs = {(i, j): h.addVariable(lb=0.0, ub=1.0) for i, j in product(range(n), range(m))}
@@ -70,6 +72,11 @@ class HighsPyProblem:
 
         self.highspy.passModel(self.lp)
         self.highspy.run()
+
+        info = self.highspy.getInfo()
+        logger.debug(f"Optimal objective = {info.objective_function_value}")
+        logger.debug(f"Iteration count = {info.simplex_iteration_count}")
+
         solution = np.reshape(self.highspy.getSolution().col_value, (self.n, self.m))
         return solution[:n, :m]
 

@@ -42,7 +42,7 @@ class StrategyState:
         parameters: AgentParameters,
     ) -> None:
         self.knowledge = knowledge
-        self.counter_factor = parameters.normal("counter_factor", NormalPrior(2.0, 0.1))
+        self.counter_factor = parameters.normal("counter_factor", NormalPrior(2.5, 0.1))
         self.ravager_mixin = parameters.normal("ravager_mixin", NormalPrior(21, 1))
         self.corruptor_mixin = parameters.normal("corruptor_mixin", NormalPrior(13, 1))
         self.tier1_drone_count = parameters.normal("tier1_drone_count", NormalPrior(40, 1))

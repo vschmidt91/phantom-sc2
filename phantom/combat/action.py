@@ -1,5 +1,6 @@
 import math
 import sys
+from itertools import product
 
 import numpy as np
 from ares.consts import EngagementResult
@@ -28,55 +29,59 @@ from phantom.knowledge import Knowledge
 from phantom.observation import Observation
 
 
-class CombatAction:
-    def __init__(self, bot: AresBot, knowledge: Knowledge, observation: Observation) -> None:
+class CombatState:
+    def __init__(self, bot: AresBot, knowledge: Knowledge) -> None:
+        self.bot = bot
         self.knowledge = knowledge
+        self.is_attacking = set[int]()
+
+    def step(self, observation: Observation) -> "CombatAction":
+        return CombatAction(self, observation)
+
+
+class CombatAction:
+    def __init__(self, context: CombatState, observation: Observation) -> None:
+        self.context = context
         self.observation = observation
 
         self.prediction = CombatPredictor(
-            bot, observation.combatants | observation.overseers, observation.enemy_combatants
+            context.bot, observation.combatants | observation.overseers, observation.enemy_combatants
         ).prediction
         self.enemy_values = {
             u.tag: observation.calculate_unit_value_weighted(u.type_id) for u in observation.enemy_units
         }
 
-        # self.presence = self._get_combat_presence(observation.combatants)
-        # self.enemy_presence = self._get_combat_presence(observation.enemy_combatants)
-        # self.force = self.presence.get_force()
-        # self.enemy_force = self.enemy_presence.get_force()
-        # self.confidence = np.log1p(self.force) - np.log1p(self.enemy_force)
-
-        # sigma = 5
-        # self.confidence_filtered = np.log1p(ndimage.gaussian_filter(self.force, sigma)) - np.log1p(
-        #     ndimage.gaussian_filter(self.enemy_force, sigma)
-        # )
-
-        if self.knowledge.is_micro_map:
-            self.retreat_targets = np.array([observation.map_center.rounded])
+        if context.knowledge.is_micro_map:
+            retreat_targets = list()
+            for dx, dy in product([-10, 0, 10], repeat=2):
+                p = observation.map_center.rounded + Point2((dx, dy))
+                if observation.bot.mediator.get_ground_grid[p] == 1.0:
+                    retreat_targets.append(p)
+            self.retreat_targets = np.array(retreat_targets)
         else:
             retreat_targets = list()
-            for b in self.observation.bases_taken:
-                p = self.knowledge.in_mineral_line[b]
-                if bot.mediator.get_ground_grid[p] == 1.0:
+            for b in observation.bases_taken:
+                p = context.knowledge.in_mineral_line[b]
+                if context.bot.mediator.get_ground_grid[p] == 1.0:
                     retreat_targets.append(p)
             if not retreat_targets:
                 combatant_positions = {
                     p
                     for u in observation.combatants
-                    if bot.mediator.get_ground_grid[p := tuple(u.position.rounded)] == 1.0
+                    if context.bot.mediator.get_ground_grid[p := tuple(u.position.rounded)] == 1.0
                 }
                 retreat_targets.extend(combatant_positions)
             if not retreat_targets:
                 logger.warning("No retreat targets, falling back to start mineral line")
-                p = self.knowledge.in_mineral_line[observation.start_location.rounded]
+                p = context.knowledge.in_mineral_line[observation.start_location.rounded]
                 retreat_targets.append(p)
             self.retreat_targets = np.array(retreat_targets)
 
-        if self.knowledge.is_micro_map:
-            self.runby_targets = np.array([tuple(u.position.rounded) for u in self.observation.enemy_combatants])
+        if context.knowledge.is_micro_map:
+            self.runby_targets = np.array([tuple(u.position.rounded) for u in observation.enemy_combatants])
         else:
             self.runby_targets = np.array(
-                [self.knowledge.in_mineral_line[p] for p in self.knowledge.enemy_start_locations]
+                [context.knowledge.in_mineral_line[p] for p in context.knowledge.enemy_start_locations]
             )
 
         self.retreat_air = cy_dijkstra(
@@ -142,12 +147,38 @@ class CombatAction:
         outcome = self.prediction.outcome
         outcome_local = self.prediction.outcome_for.get(unit.tag, EngagementResult.VICTORY_DECISIVE)
 
-        if outcome_local > min(outcome, EngagementResult.TIE):
+        p = tuple(unit.position.rounded)
+        cost_grid = (
+            self.observation.bot.mediator.get_air_grid
+            if unit.is_flying
+            else self.observation.bot.mediator.get_ground_grid
+        )
+        retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
+        retreat_path = retreat_map.get_path(p, limit=5)
+
+        def inf_to_zero(x):
+            return 0.0 if x == np.inf else x
+
+        opportunity_cost = sum(inf_to_zero(cost_grid[p]) for p in retreat_path) / len(retreat_path) - 1
+
+        is_attacking = unit.tag in self.context.is_attacking
+        bias = 0.0
+        bias += 1e-3 * (+1 if is_attacking else -1) * opportunity_cost
+        if self.context.knowledge.is_micro_map:
+            bias += 1.5
+
+        if outcome_local + bias > min(outcome, EngagementResult.TIE):
+            self.context.is_attacking.add(unit.tag)
             if unit.ground_range < 1:
                 return UseAbility(AbilityId.ATTACK, target.position)
             return Attack(target)
         else:
-            return self.retreat_with(unit)
+            self.context.is_attacking.discard(unit.tag)
+            if len(retreat_path) > 2:
+                retreat_point = Point2(retreat_path[2]).offset(HALF)
+                return Move(retreat_point)
+            else:
+                return self.retreat_with_ares(unit)
 
     def do_unburrow(self, unit: Unit) -> Action | None:
         outcome = self.prediction.outcome_for.get(unit.tag, EngagementResult.VICTORY_DECISIVE)
@@ -200,7 +231,7 @@ class CombatAction:
         if not any(units) or not any(enemies):
             return {}
 
-        if self.knowledge.is_micro_map:
+        if self.context.knowledge.is_micro_map:
             max_assigned = None
         elif enemies:
             optimal_assigned = len(units) / len(enemies)
