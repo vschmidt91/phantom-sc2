@@ -4,6 +4,7 @@ from collections.abc import Iterable, Mapping, Set
 from dataclasses import dataclass
 from itertools import chain
 
+import numpy as np
 from ares.consts import UnitRole
 from loguru import logger
 from sc2.game_state import ActionRawUnitCommand
@@ -30,6 +31,8 @@ from phantom.common.unit_composition import UnitComposition
 from phantom.common.utils import PlacementNotFoundException, Point
 from phantom.knowledge import Knowledge
 from phantom.observation import Observation
+
+rng = np.random.default_rng()
 
 type MacroId = UnitTypeId | UpgradeId
 
@@ -137,11 +140,7 @@ class MacroState:
             #     plan.commanded = False
             #     plan.executed = False
 
-            if (
-                isinstance(plan.target, Point2)
-                and (obs.iteration % 10 == 0)
-                and not await obs.can_place_single(plan.item, plan.target)
-            ):
+            if isinstance(plan.target, Point2) and not await obs.can_place_single(plan.item, plan.target):
                 plan.target = None
 
             if not plan.target:
@@ -332,9 +331,10 @@ async def get_target_position(
 
     if potential_bases := list(filter(filter_base, knowledge.bases)):
         base = random.choice(potential_bases)
+        distance = rng.uniform(9, 11)
         mineral_line = Point2(knowledge.in_mineral_line[base])
-        behind_mineral_line = Point2(base).towards(mineral_line, 10.0)
-        position = Point2(base).towards_with_random_angle(behind_mineral_line, 10)
+        behind_mineral_line = Point2(base).towards(mineral_line, distance)
+        position = Point2(base).towards_with_random_angle(behind_mineral_line, distance)
         offset = data.footprint_radius % 1
         position = position.rounded.offset((offset, offset))
         return position

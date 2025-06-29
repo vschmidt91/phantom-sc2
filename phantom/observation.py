@@ -78,7 +78,7 @@ class ObservationState:
                 # position = unit.orders[0].target
                 # structure = structure_at.get(position)
                 # self.pending[structure.tag] = pending
-                logger.error(f"Trainer {tag=} is MIA for {pending=}")
+                logger.debug(f"Trainer {tag=} is MIA for {pending=}")
                 del self.pending[tag]
                 continue
             if unit.is_structure:
@@ -88,12 +88,12 @@ class ObservationState:
             if unit.type_id in COCOONS:
                 continue
             if unit.is_idle and unit.type_id != UnitTypeId.LARVA:
-                logger.error(f"Trainer {unit=} became idle somehow")
+                logger.warning(f"Trainer {unit=} became idle somehow")
                 del self.pending[tag]
                 continue
             ability = MACRO_INFO[unit.type_id][pending]["ability"]
             if unit.orders and unit.orders[0].ability.exact_id != ability:
-                logger.error(f"Trainer {unit=} has wrong order {unit.orders[0].ability.exact_id} for {pending=}")
+                logger.warning(f"Trainer {unit=} has wrong order {unit.orders[0].ability.exact_id} for {pending=}")
                 del self.pending[tag]
                 continue
 
