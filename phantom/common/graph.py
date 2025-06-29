@@ -19,12 +19,12 @@ def graph_components_naive(adjacency_matrix: np.ndarray) -> Set[Sequence[int]]:
         key = tuple(round(x, 8) for x in eigencoords)
         components_dict[key].append(i)
 
-    compositions_set = set(map(tuple, components_dict.values()))
+    compositions_set = set(map(tuple, map(sorted, components_dict.values())))
     return compositions_set
 
 
 def graph_components_opt(adjacency_matrix: np.ndarray) -> Set[Sequence[int]]:
-    components = []
+    components = list[set[int]]()
     for i in range(adjacency_matrix.shape[0]):
         connected_to = set(np.nonzero(adjacency_matrix[i, :i])[0])
         new_component = {i}
