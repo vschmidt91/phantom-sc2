@@ -17,8 +17,8 @@ class HighsPyProblem:
         h = highspy.Highs()
         # h.setOptionValue("time_limit", 0.1)
         h.setOptionValue("presolve", "off")
-        h.setOptionValue("solver", "simplex")
-        h.setOptionValue("simplex_iteration_limit", 256)
+        # h.setOptionValue("solver", "simplex")
+        # h.setOptionValue("simplex_iteration_limit", 256)
         # h.setOptionValue("optimality_tolerance", 1e-3)
         h.setOptionValue("log_to_console", False)
 
@@ -45,6 +45,7 @@ class HighsPyProblem:
             self.row_lower.append(0.0)
             self.row_upper.append(0.0)
             self.a_values = [1.0] * (3 * self.n * self.m)
+            self.set_total(np.zeros(self.m), 0)
 
     def set_total(self, coeffs: np.ndarray, limit: int) -> None:
         coeffs = np.pad(coeffs, (0, self.m - coeffs.shape[0]), mode="constant", constant_values=0.0)
@@ -56,9 +57,9 @@ class HighsPyProblem:
     def solve(self, cost: np.ndarray, limit: np.ndarray) -> np.ndarray:
         n, m = cost.shape
         padding = (0, self.n - n), (0, self.m - m)
-        cost = np.pad(cost, padding, mode="constant", constant_values=np.inf)
+        cost = np.pad(cost, padding, mode="constant", constant_values=1e8)
         cost[n:, m:] = 0.0
-        limit = np.pad(limit, (0, self.m - limit.shape[0]), mode="constant", constant_values=np.inf)
+        limit = np.pad(limit, (0, self.m - limit.shape[0]), mode="constant", constant_values=n)
 
         self.cost[:] = cost.flat
         if self.include_total:
@@ -72,10 +73,6 @@ class HighsPyProblem:
 
         self.highspy.passModel(self.lp)
         self.highspy.run()
-
-        info = self.highspy.getInfo()
-        logger.debug(f"Optimal objective = {info.objective_function_value}")
-        logger.debug(f"Iteration count = {info.simplex_iteration_count}")
 
         solution = np.reshape(self.highspy.getSolution().col_value, (self.n, self.m))
         return solution[:n, :m]

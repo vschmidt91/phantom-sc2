@@ -1,14 +1,12 @@
-from collections import ChainMap, Counter
+from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
-from functools import cache
 from itertools import chain
 
 import numpy as np
 from ares import AresBot, UnitTreeQueryType
-from ares.consts import ALL_STRUCTURES
 from cython_extensions import cy_unit_pending
 from loguru import logger
-from sc2.data import ActionResult, Race
+from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -26,7 +24,7 @@ from phantom.common.constants import (
     CIVILIANS,
     COCOONS,
     ENEMY_CIVILIANS,
-    ITEM_BY_ABILITY,
+    MACRO_INFO,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
     WITH_TECH_EQUIVALENTS,
@@ -49,33 +47,65 @@ class ObservationState:
         self.knowledge = knowledge
         self.pathing = self._pathing()
         self.air_pathing = self._air_pathing()
-        self.pending_structures = dict[OrderTarget, UnitTypeId]()
+        self.pending = dict[int, UnitTypeId]()
         self.pending_upgrades = set[UpgradeId]()
 
     def step(self, planned: Counter[MacroId]) -> "Observation":
-        gas_by_tag = {g.tag: g for g in self.bot.vespene_geyser}
-        townhall_by_tag = {b.tag: b for b in self.bot.townhalls}
-        trainer_by_tag = ChainMap(gas_by_tag, townhall_by_tag)
-        for action in self.bot.state.actions_unit_commands:
-            if item := ITEM_BY_ABILITY.get(action.exact_id):
-                if item in ALL_STRUCTURES:
-                    if trainer := trainer_by_tag.get(action.target_unit_tag):
-                        target = trainer.position
-                    else:
-                        target = action.target_world_space_pos
-                    self.pending_structures[target] = item
-                elif isinstance(item, UpgradeId):
-                    self.pending_upgrades.add(item)
+        # for action in self.bot.state.actions_unit_commands:
+        #     if item := ITEM_BY_ABILITY.get(action.exact_id):
+        #         for trainer_tag in action.unit_tags:
+        #             if trainer := self.bot._units_previous_map.get(trainer_tag):
+        # if item in ALL_STRUCTURES:
+        #     if trainer := trainer_by_tag.get(action.target_unit_tag):
+        #         target = trainer.position
+        #     else:
+        #     target = action.target_world_space_pos
+        #             # self.pending_structures[trainer] = item
+        # elif isinstance(item, UpgradeId):
+        #     self.pending_upgrades.add(item)
 
-        for error in self.bot.state.action_errors:
-            # error_ability = AbilityId(error.ability_id)
-            error_result = ActionResult(error.result)
-            if (
-                error_result in {ActionResult.CantBuildLocationInvalid, ActionResult.CouldntReachTarget}
-                # and error_ability in {AbilityId.ZERGBUILD_HATCHERY}
-                and (unit := self.bot._units_previous_map.get(error.unit_tag))
-            ):
-                self.pending_structures.pop(unit.order_target, None)
+        # structure_at = {tuple(s.position.rounded): s for s in self.bot.structures}
+
+        for tag, pending in list(self.pending.items()):
+            if not (unit := self.bot.unit_tag_dict.get(tag)):
+                # if pending in LARVA_COST:
+                #     del self.pending[tag]
+                #     continue
+                # if pending in ALL_STRUCTURES:
+                #     del self.pending[tag]
+                #     continue
+                # unit = self.bot._units_previous_map[tag]
+                # position = unit.orders[0].target
+                # structure = structure_at.get(position)
+                # self.pending[structure.tag] = pending
+                logger.error(f"Trainer {tag=} is MIA for {pending=}")
+                del self.pending[tag]
+                continue
+            if unit.is_structure:
+                continue
+            if unit.type_id in {UnitTypeId.EGG}:
+                continue
+            if unit.type_id in COCOONS:
+                continue
+            if unit.is_idle and unit.type_id != UnitTypeId.LARVA:
+                logger.error(f"Trainer {unit=} became idle somehow")
+                del self.pending[tag]
+                continue
+            ability = MACRO_INFO[unit.type_id][pending]["ability"]
+            if unit.orders and unit.orders[0].ability.exact_id != ability:
+                logger.error(f"Trainer {unit=} has wrong order {unit.orders[0].ability.exact_id} for {pending=}")
+                del self.pending[tag]
+                continue
+
+        # for error in self.bot.state.action_errors:
+        #     # error_ability = AbilityId(error.ability_id)
+        #     error_result = ActionResult(error.result)
+        #     if (
+        #         error_result in {ActionResult.CantBuildLocationInvalid, ActionResult.CouldntReachTarget}
+        #         # and error_ability in {AbilityId.ZERGBUILD_HATCHERY}
+        #         and (unit := self.bot._units_previous_map.get(error.unit_tag))
+        #     ):
+        #         self.pending_structures.pop(unit.tag, None)
         if self.bot.actual_iteration % 10 == 0:
             self.pathing = self._pathing()
             self.air_pathing = self._air_pathing()
@@ -89,17 +119,17 @@ class ObservationState:
 
 
 class Observation:
-    def __init__(self, context: ObservationState, planned: Counter[MacroId]):
-        self.bot = context.bot
-        self.context = context
-        self.iteration = context.bot.actual_iteration
-        self.knowledge = context.knowledge
+    def __init__(self, state: ObservationState, planned: Counter[MacroId]):
+        self.bot = state.bot
+        self.context = state
+        self.iteration = state.bot.actual_iteration
+        self.knowledge = state.knowledge
         self.planned = planned
         self.unit_commands = {t: a for a in self.bot.state.actions_unit_commands for t in a.unit_tags}
         self.player_races = {k: Race(v) for k, v in self.bot.game_info.player_races.items()}
         self.workers_in_geysers = int(self.bot.supply_workers) - self.bot.workers.amount
-        self.pathing = context.pathing
-        self.air_pathing = context.air_pathing
+        self.pathing = state.pathing
+        self.air_pathing = state.air_pathing
         self.unit_by_tag = self.bot.unit_tag_dict
         self.action_errors = self.bot.state.action_errors
         self.supply_workers = self.bot.supply_workers
@@ -130,18 +160,18 @@ class Observation:
 
         self.actual_by_type = Counter[UnitTypeId](u.type_id for u in self.units if u.is_ready)
         self.actual_by_type[UnitTypeId.DRONE] = self.bot.supply_workers
-        self.pending_by_type = Counter[UnitTypeId](context.pending_structures.values())
+        self.pending_by_type = Counter[UnitTypeId](state.pending.values())
 
         self.map_center = self.bot.game_info.map_center
         self.start_location = self.bot.start_location
         self.supply_used = self.bot.supply_used
-        self.enemy_natural = self.bot.mediator.get_enemy_nat if not context.knowledge.is_micro_map else None
+        self.enemy_natural = self.bot.mediator.get_enemy_nat if not state.knowledge.is_micro_map else None
         self.overlord_spots = self.bot.mediator.get_ol_spots
         self.townhall_at = {tuple(b.position.rounded): b for b in self.bot.townhalls}
         self.resource_at = {tuple(r.position.rounded): r for r in self.bot.resources}
 
         self.bases_taken = set[tuple[int, int]]()
-        if not context.knowledge.is_micro_map:
+        if not state.knowledge.is_micro_map:
             self.bases_taken.update(
                 p
                 for b in self.bot.expansion_locations_list
@@ -212,12 +242,12 @@ class Observation:
     def count_actual(self, item: UnitTypeId) -> int:
         return self.actual_by_type[item]
 
-    @cache
     def count_pending(self, item: UnitTypeId) -> int:
-        if item in ALL_STRUCTURES:
-            return self.pending_by_type[item]
-        else:
-            return cy_unit_pending(self.bot, item)
+        return self.pending_by_type[item]
+        # if item in ALL_STRUCTURES:
+        #     return self.pending_by_type[item]
+        # else:
+        #     return cy_unit_pending(self.bot, item)
 
     def count_planned(self, item: MacroId) -> int:
         factor = 2 if item == UnitTypeId.ZERGLING else 1

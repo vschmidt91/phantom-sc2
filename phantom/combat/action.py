@@ -148,22 +148,18 @@ class CombatAction:
         outcome_local = self.prediction.outcome_for.get(unit.tag, EngagementResult.VICTORY_DECISIVE)
 
         p = tuple(unit.position.rounded)
-        cost_grid = (
-            self.observation.bot.mediator.get_air_grid
-            if unit.is_flying
-            else self.observation.bot.mediator.get_ground_grid
-        )
         retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
         retreat_path = retreat_map.get_path(p, limit=5)
 
         def inf_to_zero(x):
             return 0.0 if x == np.inf else x
 
-        opportunity_cost = sum(inf_to_zero(cost_grid[p]) for p in retreat_path) / len(retreat_path) - 1
+        # opportunity_cost = sum(inf_to_zero(cost_grid[p]) for p in retreat_path) / len(retreat_path) - 1
 
-        is_attacking = unit.tag in self.context.is_attacking
+        # is_attacking = unit.tag in self.context.is_attacking
         bias = 0.0
-        bias += 1e-3 * (+1 if is_attacking else -1) * opportunity_cost
+        # bias += 1e-3 * (+1 if is_attacking else -1) * opportunity_cost
+        bias += (outcome - EngagementResult.TIE) / 3
         if self.context.knowledge.is_micro_map:
             bias += 1.5
 

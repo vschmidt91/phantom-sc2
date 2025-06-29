@@ -263,9 +263,13 @@ class MacroState:
         if plan := self.assigned_plans.get(tag):
             if item == plan.item:
                 del self.assigned_plans[tag]
-                logger.info(f"Executed {plan} through {action}")
+                if isinstance(item, UpgradeId):
+                    obs.context.pending_upgrades.add(item)
+                else:
+                    obs.context.pending[tag] = item
+                logger.info(f"Executed {plan=} through {action}")
         elif action.exact_id in ALL_MACRO_ABILITIES:
-            logger.info(f"Unplanned {action}")
+            logger.info(f"Unplanned {action=}")
 
 
 async def premove(obs: Observation, unit: Unit, plan: MacroPlan, eta: float) -> Action | None:

@@ -98,7 +98,7 @@ class CreepAction:
         return None
 
     def spread_with_queen(self, queen: Unit) -> Action | None:
-        if 2 * ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN] <= queen.energy:
+        if 10 + ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN] <= queen.energy:
             return self._place_tumor(queen, 12, full_circle=True)
         return None
 

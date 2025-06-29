@@ -19,7 +19,7 @@ from sc2.units import Units
 
 from phantom.combat.action import CombatState
 from phantom.common.action import Action, Attack, Move, UseAbility
-from phantom.common.constants import ALL_MACRO_ABILITIES, CHANGELINGS, ENERGY_COST, GAS_BY_RACE
+from phantom.common.constants import CHANGELINGS, ENERGY_COST, GAS_BY_RACE
 from phantom.common.cost import Cost
 from phantom.common.distribute import distribute
 from phantom.common.utils import pairwise_distances
@@ -107,13 +107,6 @@ class Agent:
         should_inject = observation.supply_used + observation.bank.larva < 200
         should_spread_creep = self.creep.unspread_tumor_count < 50
 
-        def should_harvest(u: Unit) -> bool:
-            if u.is_idle:  # you slackin?
-                return True
-            elif u.orders[0].ability.exact_id in ALL_MACRO_ABILITIES:
-                return False  # alright, carry on!
-            return True  # get on with it!
-
         def should_harvest_resource(r: Unit) -> bool:
             p = tuple(r.position.rounded)
             check_points = [
@@ -122,7 +115,6 @@ class Agent:
             ]
             return all(self.bot.mediator.get_ground_grid[p] == 1.0 for p in check_points)
 
-        # harvesters = observation.workers.filter(should_harvest)
         harvesters = self.bot.mediator.get_units_from_role(role=UnitRole.GATHERING)
 
         if self.knowledge.is_micro_map:

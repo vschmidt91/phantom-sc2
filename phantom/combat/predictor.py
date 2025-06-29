@@ -76,8 +76,8 @@ class CombatPredictor:
         components = graph_components(adjacency_matrix)
 
         simulator_kwargs = dict(
-            timing_adjust=True,
-            good_positioning=True,
+            timing_adjust=False,
+            good_positioning=False,
             workers_do_no_damage=False,
         )
         outcome = self.bot.mediator.can_win_fight(

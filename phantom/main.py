@@ -4,19 +4,19 @@ import lzma
 import os
 import pickle
 import pstats
-from itertools import product
 from queue import Empty, Queue
 
 from ares import AresBot
+from ares.consts import ALL_STRUCTURES
 from loguru import logger
 from sc2.data import Race, Result
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
 from phantom.agent import Agent
-from phantom.common.constants import UPGRADE_BY_RESEARCH_ABILITY
-from phantom.common.distribute import _get_problem
+from phantom.common.constants import ITEM_BY_ABILITY, UPGRADE_BY_RESEARCH_ABILITY
 from phantom.config import BotConfig
 from phantom.exporter import BotExporter
 from phantom.knowledge import Knowledge
@@ -55,10 +55,6 @@ class PhantomBot(BotExporter, AresBot):
     async def on_before_start(self) -> None:
         await super().on_before_start()
         self.on_before_start_was_called = True
-
-        logger.info("Precompiling assignment problems")
-        for n, m in product(range(1, 65), repeat=2):
-            _get_problem(n, m)
 
     async def on_start(self) -> None:
         if not self.on_before_start_was_called:
@@ -173,12 +169,13 @@ class PhantomBot(BotExporter, AresBot):
     # async def on_before_start(self):
     #     await super().on_before_start()
     #
-    # async def on_building_construction_started(self, unit: Unit):
-    #     await super().on_building_construction_started(unit)
-    #
+    async def on_building_construction_started(self, unit: Unit):
+        await super().on_building_construction_started(unit)
+        self.agent.observation.pending[unit.tag] = unit.type_id
+
     async def on_building_construction_complete(self, unit: Unit):
         await super().on_building_construction_complete(unit)
-        self.agent.observation.pending_structures.pop(unit.position, None)
+        self.agent.observation.pending.pop(unit.tag, None)
 
     # async def on_enemy_unit_entered_vision(self, unit: Unit):
     #     await super().on_enemy_unit_entered_vision(unit)
@@ -189,27 +186,32 @@ class PhantomBot(BotExporter, AresBot):
     async def on_unit_destroyed(self, unit_tag: int):
         await super().on_unit_destroyed(unit_tag)
         if unit := self._units_previous_map.get(unit_tag):
-            self.agent.observation.pending_structures.pop(unit.position, None)
+            self.agent.observation.pending.pop(unit.tag, None)
             if unit.orders:
                 ability = unit.orders[0].ability.exact_id
                 if item := UPGRADE_BY_RESEARCH_ABILITY.get(ability):
                     self.agent.observation.pending_upgrades.discard(item)
-                else:
-                    self.agent.observation.pending_structures.pop(unit.position, None)
+                # else:
+                #     self.agent.observation.pending_structures.pop(unit, None)
 
-    # async def on_unit_created(self, unit: Unit):
-    #     await super().on_unit_created(unit)
-    #
+    async def on_unit_created(self, unit: Unit):
+        await super().on_unit_created(unit)
+
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         await super().on_unit_type_changed(unit, previous_type)
-        self.agent.observation.pending_structures.pop(unit.position, None)
+        if unit.type_id == UnitTypeId.EGG:
+            item = ITEM_BY_ABILITY[unit.orders[0].ability.exact_id]
+            self.agent.observation.pending[unit.tag] = item
+        elif unit.type_id in ALL_STRUCTURES:
+            self.agent.observation.pending.pop(unit.tag, None)
 
     #
     # async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
     #     await super().on_unit_took_damage(unit, amount_damage_taken)
     #
-    # async def on_upgrade_complete(self, upgrade: UpgradeId):
-    #     await super().on_upgrade_complete(upgrade)
+    async def on_upgrade_complete(self, upgrade: UpgradeId):
+        await super().on_upgrade_complete(upgrade)
+        self.agent.observation.pending_upgrades.discard(upgrade)
 
     @property
     def name(self) -> str:

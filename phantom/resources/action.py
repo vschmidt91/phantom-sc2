@@ -107,7 +107,7 @@ class ResourceAction:
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
         if not (target_pos := self.harvester_assignment.get(unit.tag)):
-            logger.info(f"Unassigned harvester {unit}")
+            logger.debug(f"Unassigned harvester {unit}")
             return None
         if not (target := self.observation.resource_at.get(target_pos)):
             logger.error(f"No resource found at {target_pos}")
