@@ -5,7 +5,7 @@ import numpy as np
 from scipy.linalg import null_space
 
 
-def graph_components(adjacency_matrix: np.ndarray) -> Set[Sequence[int]]:
+def graph_components_naive(adjacency_matrix: np.ndarray) -> Set[Sequence[int]]:
     assert adjacency_matrix.ndim == 2
     assert adjacency_matrix.shape[0] == adjacency_matrix.shape[1]
     adjacency_matrix.shape[0]
@@ -21,3 +21,20 @@ def graph_components(adjacency_matrix: np.ndarray) -> Set[Sequence[int]]:
 
     compositions_set = set(map(tuple, components_dict.values()))
     return compositions_set
+
+
+def graph_components_opt(adjacency_matrix: np.ndarray) -> Set[Sequence[int]]:
+    components = []
+    for i in range(adjacency_matrix.shape[0]):
+        connected_to = set(np.nonzero(adjacency_matrix[i, :i])[0])
+        new_component = {i}
+        for c in components:
+            if c & connected_to:
+                components.remove(c)
+                new_component.update(c)
+        components.append(new_component)
+    return set(map(tuple, map(sorted, components)))
+
+
+def graph_components(adjacency_matrix: np.ndarray) -> Set[Sequence[int]]:
+    return graph_components_opt(adjacency_matrix)

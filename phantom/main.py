@@ -120,8 +120,8 @@ class PhantomBot(BotExporter, AresBot):
             for i, (t, plan) in enumerate(self.agent.macro.assigned_plans.items()):
                 self._debug_draw_plan(self.unit_tag_dict.get(t), plan, index=i)
 
-        # if self.bot_config.profile_path:
-        #     self.profiler.enable()
+        if self.bot_config.profile_path:
+            self.profiler.enable()
 
         actions = await self.agent.step()
         for unit, action in actions.items():
@@ -131,7 +131,7 @@ class PhantomBot(BotExporter, AresBot):
                 logger.error(f"Action failed: {action}")
 
         if self.bot_config.profile_path and self.actual_iteration % 100 == 0:
-            # self.profiler.disable()
+            self.profiler.disable()
             logger.info(f"Writing profiling to {self.bot_config.profile_path}")
 
             s = io.StringIO()
