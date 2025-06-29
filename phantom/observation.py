@@ -83,7 +83,7 @@ class ObservationState:
                 continue
             if unit.is_structure:
                 continue
-            if unit.type_id in {UnitTypeId.EGG}:
+            if unit.type_id in {UnitTypeId.EGG, UnitTypeId.RAVAGER, UnitTypeId.BROODLORD, UnitTypeId.LURKERMP}:
                 continue
             if unit.type_id in COCOONS:
                 continue
