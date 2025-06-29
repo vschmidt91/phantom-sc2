@@ -163,7 +163,7 @@ class CombatAction:
         if self.context.knowledge.is_micro_map:
             bias += 1.5
 
-        if outcome_local + bias > min(outcome, EngagementResult.TIE):
+        if outcome_local + bias > EngagementResult.TIE:
             self.context.is_attacking.add(unit.tag)
             if unit.ground_range < 1:
                 return UseAbility(AbilityId.ATTACK, target.position)
