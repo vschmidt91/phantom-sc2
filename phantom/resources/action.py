@@ -107,7 +107,7 @@ class ResourceAction:
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
         if not (target_pos := self.harvester_assignment.get(unit.tag)):
-            logger.warning(f"Unassigned harvester {unit}")
+            logger.info(f"Unassigned harvester {unit}")
             return None
         if not (target := self.observation.resource_at.get(target_pos)):
             logger.error(f"No resource found at {target_pos}")
@@ -128,5 +128,5 @@ class ResourceAction:
             return_target = min(return_targets, key=lambda th: th.distance_to(unit))
             return_point = self.knowledge.return_point[target_pos]
             return ReturnResource(return_target, return_point)
-        logger.error(f"Unexpected worker behaviour {unit.orders=}")
+        logger.warning(f"Unexpected worker behaviour {unit.orders=}")
         return Smart(target)
