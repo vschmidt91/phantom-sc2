@@ -44,8 +44,6 @@ test = [
     "yamllint (>=1.37.0,<2.0.0)",
 ]
 build = [
-    "cvxpygen>=0.4.3",
-    "cython>=3.0.10",
     "map-analyzer @ git+https://github.com/raspersc2/SC2MapAnalysis.git",
     "requests (>=2.32.3,<3.0.0)",
 ]
@@ -69,7 +67,7 @@ ares-sc2 = { path = "ares-sc2", develop = false }
 poetry-plugin-export = ">=1.8"
 
 [build-system]
-requires = ["poetry-core", "Cython", "numpy", "setuptools"]
+requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
