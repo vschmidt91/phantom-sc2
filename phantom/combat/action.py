@@ -144,7 +144,6 @@ class CombatAction:
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(target.position)
 
-        outcome = self.prediction.outcome
         outcome_local = self.prediction.outcome_for.get(unit.tag, EngagementResult.VICTORY_DECISIVE)
 
         p = tuple(unit.position.rounded)

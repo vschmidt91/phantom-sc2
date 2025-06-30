@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from itertools import chain
 
 import numpy as np
-from ares.consts import EngagementResult, UnitRole
+from ares.consts import UnitRole
 from ares.main import AresBot
 from cython_extensions import cy_closest_to
 from loguru import logger
@@ -199,11 +199,8 @@ class Agent:
             )
 
             def micro_overseer(u: Unit) -> Action | None:
-                local_outcome = combat.prediction.outcome_for.get(u, EngagementResult.TIE)
-                if action := (
-                    (combat.retreat_with(u) if local_outcome <= EngagementResult.VICTORY_CLOSE else None)
-                    or spawn_changeling(u)
-                ):
+                local_threat = self.bot.mediator.get_air_grid[u.position.rounded] - 1
+                if action := ((combat.retreat_with(u) if local_threat > 0 else None) or spawn_changeling(u)):
                     return action
                 elif target := targets.get(u):
                     target_point = observation.find_path(
