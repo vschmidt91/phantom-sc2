@@ -246,20 +246,20 @@ class Strategy:
         composition[UnitTypeId.DRONE] += harvester_target
         composition[UnitTypeId.QUEEN] += queen_target
         if self.tier >= StrategyTier.Hatch:
-            pass
+            composition[UnitTypeId.SPAWNINGPOOL] += 1
         if self.tier >= StrategyTier.Lair:
             composition[UnitTypeId.LAIR] += 1
-            composition[UnitTypeId.OVERSEER] += 2
+            composition[UnitTypeId.OVERSEER] += 1
             composition[UnitTypeId.ROACHWARREN] += 1
             composition[UnitTypeId.HYDRALISKDEN] += 1
             composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
         if self.tier >= StrategyTier.Hive:
             composition[UnitTypeId.INFESTATIONPIT] += 1
             composition[UnitTypeId.HIVE] += 1
-            composition[UnitTypeId.OVERSEER] += 3
+            composition[UnitTypeId.OVERSEER] += 1
             composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
         if self.tier >= StrategyTier.Lategame:
-            composition[UnitTypeId.OVERSEER] += 4
+            composition[UnitTypeId.OVERSEER] += 2
             composition[UnitTypeId.SPIRE] += 1
             composition[UnitTypeId.GREATERSPIRE] += 1
         return composition
