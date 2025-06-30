@@ -154,12 +154,8 @@ class CombatAction:
         def inf_to_zero(x):
             return 0.0 if x == np.inf else x
 
-        # opportunity_cost = sum(inf_to_zero(cost_grid[p]) for p in retreat_path) / len(retreat_path) - 1
-
-        # is_attacking = unit.tag in self.context.is_attacking
         bias = 0.0
-        # bias += 1e-3 * (+1 if is_attacking else -1) * opportunity_cost
-        bias += (outcome - EngagementResult.TIE) / 3
+        # bias += 4.0 * (self.observation.supply_used / 200) ** 2
         if self.context.knowledge.is_micro_map:
             bias += 1.5
 
