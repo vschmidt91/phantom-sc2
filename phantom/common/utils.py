@@ -85,9 +85,11 @@ def can_attack(unit: Unit, target: Unit) -> bool:
         return unit.can_attack_ground
 
 
-def pairwise_distances(a, b):
-    if not any(a) or not any(b):
-        return np.array([])
+def pairwise_distances(a, b=None):
+    if not a:
+        return np.array([[]])
+    if isinstance(b, list) and not any(b):
+        return np.array([[]])
     return pairwise_distances_sklearn(a, b, ensure_all_finite=False)
 
 

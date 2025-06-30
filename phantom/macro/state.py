@@ -15,7 +15,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from phantom.combat.action import CombatAction
+from phantom.combat import CombatAction
 from phantom.common.action import Action, HoldPosition, Move, UseAbility
 from phantom.common.constants import (
     ALL_MACRO_ABILITIES,

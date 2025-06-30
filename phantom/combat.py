@@ -1,5 +1,7 @@
 import math
 import sys
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from itertools import product
 
 import numpy as np
@@ -14,75 +16,125 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from phantom.combat.predictor import CombatPredictor
-from phantom.combat.presence import Presence
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.constants import HALF
 from phantom.common.distribute import distribute
+from phantom.common.graph import graph_components
 from phantom.common.utils import (
     calculate_dps,
     can_attack,
-    disk,
     pairwise_distances,
 )
 from phantom.knowledge import Knowledge
 from phantom.observation import Observation
 
 
+@dataclass(frozen=True)
+class CombatPrediction:
+    outcome: EngagementResult
+    outcome_for: Mapping[int, EngagementResult]
+
+
 class CombatState:
     def __init__(self, bot: AresBot, knowledge: Knowledge) -> None:
         self.bot = bot
         self.knowledge = knowledge
-        self.is_attacking = set[int]()
+        self.contact_range_internal = 7
+        self.contact_range = 14
+        self.comitted_attacks = dict[int, int]()
 
     def step(self, observation: Observation) -> "CombatAction":
         return CombatAction(self, observation)
 
+    def _predict_trivial(self, units: Sequence[Unit], enemy_units: Sequence[Unit]) -> EngagementResult | None:
+        if not any(units) and not any(enemy_units):
+            return EngagementResult.TIE
+        elif not any(units):
+            return EngagementResult.LOSS_OVERWHELMING
+        elif not any(enemy_units):
+            return EngagementResult.VICTORY_OVERWHELMING
+        return None
+
+    def _predict(self, units: Units, enemy_units: Units) -> CombatPrediction:
+        if trivial := self._predict_trivial(units, enemy_units):
+            return CombatPrediction(trivial, {})
+
+        all_units = [*units, *enemy_units]
+        positions = [u.position for u in units]
+        enemy_positions = [u.position for u in enemy_units]
+
+        distance_matrix = pairwise_distances(positions, enemy_positions)
+        contact = distance_matrix < self.contact_range
+        contact_own = np.zeros((len(units), len(units)))
+        contact_enemy = pairwise_distances(enemy_positions) < self.contact_range_internal
+        adjacency_matrix = np.block([[contact_own, contact], [contact.T, contact_enemy]])
+
+        components = graph_components(adjacency_matrix)
+
+        simulator_kwargs = dict(
+            good_positioning=False,
+            workers_do_no_damage=False,
+        )
+        outcome = self.bot.mediator.can_win_fight(
+            own_units=units, enemy_units=enemy_units, timing_adjust=False, **simulator_kwargs
+        )
+
+        outcome_for = dict[int, EngagementResult]()
+        for component in components:
+            local_units = [all_units[i] for i in component]
+            local_own = [u for u in local_units if u.is_mine]
+            local_enemies = [u for u in local_units if u.is_enemy]
+            local_outcome = self._predict_trivial(local_own, local_enemies) or self.bot.mediator.can_win_fight(
+                own_units=local_own,
+                enemy_units=local_enemies,
+                timing_adjust=True,
+                **simulator_kwargs,
+            )
+            enemy_outcome = EngagementResult(10 - local_outcome.value)
+            for u in local_own:
+                outcome_for[u.tag] = local_outcome
+            for u in local_enemies:
+                outcome_for[u.tag] = enemy_outcome
+
+        return CombatPrediction(outcome, outcome_for)
+
 
 class CombatAction:
-    def __init__(self, context: CombatState, observation: Observation) -> None:
-        self.context = context
+    def __init__(self, state: CombatState, observation: Observation) -> None:
+        self.state = state
         self.observation = observation
 
-        self.prediction = CombatPredictor(
-            context.bot, observation.combatants | observation.overseers, observation.enemy_combatants
-        ).prediction
         self.enemy_values = {
             u.tag: observation.calculate_unit_value_weighted(u.type_id) for u in observation.enemy_units
         }
 
-        if context.knowledge.is_micro_map:
+        if state.knowledge.is_micro_map:
             retreat_targets = list()
             for dx, dy in product([-10, 0, 10], repeat=2):
                 p = observation.map_center.rounded + Point2((dx, dy))
                 if observation.bot.mediator.get_ground_grid[p] == 1.0:
                     retreat_targets.append(p)
-            self.retreat_targets = np.array(retreat_targets)
+            if not retreat_targets:
+                retreat_targets.append(self.observation.map_center)
         else:
             retreat_targets = list()
             for b in observation.bases_taken:
-                p = context.knowledge.in_mineral_line[b]
-                if context.bot.mediator.get_ground_grid[p] == 1.0:
+                p = state.knowledge.in_mineral_line[b]
+                if state.bot.mediator.get_ground_grid[p] == 1.0:
                     retreat_targets.append(p)
             if not retreat_targets:
                 combatant_positions = {
                     p
                     for u in observation.combatants
-                    if context.bot.mediator.get_ground_grid[p := tuple(u.position.rounded)] == 1.0
+                    if state.bot.mediator.get_ground_grid[p := tuple(u.position.rounded)] == 1.0
                 }
                 retreat_targets.extend(combatant_positions)
             if not retreat_targets:
                 logger.warning("No retreat targets, falling back to start mineral line")
-                p = context.knowledge.in_mineral_line[observation.start_location.rounded]
+                p = state.knowledge.in_mineral_line[observation.start_location.rounded]
                 retreat_targets.append(p)
-            self.retreat_targets = np.array(retreat_targets)
 
-        if context.knowledge.is_micro_map:
-            self.runby_targets = np.array([tuple(u.position.rounded) for u in observation.enemy_combatants])
-        else:
-            self.runby_targets = np.array(
-                [context.knowledge.in_mineral_line[p] for p in context.knowledge.enemy_start_locations]
-            )
+        self.retreat_targets = np.atleast_2d(retreat_targets).astype(int)
 
         self.retreat_air = cy_dijkstra(
             self.observation.bot.mediator.get_air_grid.astype(np.float64), self.retreat_targets
@@ -93,6 +145,10 @@ class CombatAction:
 
         self.targeting_cost = self._targeting_cost()
         self.optimal_targeting = self._optimal_targeting()
+        self.prediction = self.state._predict(
+            self.observation.combatants | self.observation.overseers,
+            self.observation.enemy_combatants,
+        )
 
     def retreat_with(self, unit: Unit, limit=3) -> Action | None:
         x = round(unit.position.x)
@@ -104,9 +160,6 @@ class CombatAction:
         if len(retreat_path) < limit:
             return self.retreat_with_ares(unit)
         retreat_point = Point2(retreat_path[-1]).offset(HALF)
-        # if unit.distance_to(retreat_point) < limit:
-        #     logger.warning("too close to home, falling back to ares retreating")
-        #     return self.retreat_with_ares(unit)
         return Move(retreat_point)
 
     def retreat_with_ares(self, unit: Unit, limit=7) -> Action | None:
@@ -134,8 +187,17 @@ class CombatAction:
             cost += 1e-10 * random_offset
             return cost
 
+        if target_tag := self.state.comitted_attacks.get(unit.tag):
+            if not unit.weapon_ready:
+                del self.state.comitted_attacks[unit.tag]
+            elif target := self.observation.unit_by_tag.get(target_tag):
+                return Attack(target)
+            else:
+                del self.state.comitted_attacks[unit.tag]
+
         if unit.ground_range > 1 and unit.weapon_ready and (targets := self.observation.shootable_targets.get(unit)):
             target = min(targets, key=cost_fn)
+            self.state.comitted_attacks[unit.tag] = target.tag
             return Attack(target)
 
         if not (target := self.optimal_targeting.get(unit)):
@@ -150,21 +212,16 @@ class CombatAction:
         retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
         retreat_path = retreat_map.get_path(p, limit=5)
 
-        def inf_to_zero(x):
-            return 0.0 if x == np.inf else x
-
         bias = 0.0
-        # bias += 4.0 * (self.observation.supply_used / 200) ** 2
-        if self.context.knowledge.is_micro_map:
-            bias += 1.5
+        if self.state.knowledge.is_micro_map:
+            bias += 3.0
 
         if outcome_local + bias > EngagementResult.TIE:
-            self.context.is_attacking.add(unit.tag)
             if unit.ground_range < 1:
                 return UseAbility(AbilityId.ATTACK, target.position)
-            return Attack(target)
+            else:
+                return Attack(target)
         else:
-            self.context.is_attacking.discard(unit.tag)
             if len(retreat_path) > 2:
                 retreat_point = Point2(retreat_path[2]).offset(HALF)
                 return Move(retreat_point)
@@ -222,7 +279,7 @@ class CombatAction:
         if not any(units) or not any(enemies):
             return {}
 
-        if self.context.knowledge.is_micro_map:
+        if self.state.knowledge.is_micro_map:
             max_assigned = None
         elif enemies:
             optimal_assigned = len(units) / len(enemies)
@@ -240,21 +297,3 @@ class CombatAction:
         assignment = {a: b for a, b in assignment.items() if can_attack(a, b)}
 
         return assignment
-
-    def _get_combat_presence(self, units: Units) -> Presence:
-        dps_map = np.zeros_like(self.observation.pathing, dtype=float)
-        health_map = np.zeros_like(self.observation.pathing, dtype=float)
-        for unit in units:
-            dps = max(unit.ground_dps, unit.air_dps)
-            px, py = unit.position.rounded
-            if dps > 0:
-                r = 0.0
-                r += 2 * unit.radius
-                r += 1
-                r += max(unit.ground_range, unit.air_range)
-                # r += unit.sight_range
-                dx, dy = disk(r)
-                d = px + dx, py + dy
-                health_map[d] += unit.shield + unit.health
-                dps_map[d] = np.maximum(dps_map[d], dps)
-        return Presence(dps_map, health_map)

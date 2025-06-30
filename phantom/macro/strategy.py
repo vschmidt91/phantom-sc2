@@ -26,10 +26,10 @@ SCOUT_PREDICTOR = None
 
 @total_ordering
 class StrategyTier(enum.Enum):
-    Hatch = 0
-    Lair = 1
-    Hive = 2
-    Lategame = 3
+    HATCH = 0
+    LAIR = 1
+    HIVE = 2
+    LATEGAME = 3
 
     def __ge__(self, other):
         return self.value >= other.value
@@ -95,17 +95,12 @@ class Strategy:
             yield MacroPlan(upgrade, priority=self.context.tech_priority.value)
 
     def expand(self) -> Iterable[MacroPlan]:
-        # if self.obs.time < 50:
-        #     return
-        # if self.obs.townhalls.amount == 2 and self.obs.count(UnitTypeId.QUEEN, include_planned=False) < 2:
-        #     return
-
         worker_max = self.obs.max_harvesters
         saturation = self.obs.supply_workers / max(1, worker_max)
         saturation = max(0.0, min(1.0, saturation))
 
-        # if self.obs.townhalls.amount > 2 and saturation < 2 / 3:
-        #     return
+        if self.obs.townhalls.amount > 2 and saturation < 2 / 3:
+            return
 
         priority = 3 * (saturation - 1)
 
@@ -132,18 +127,18 @@ class Strategy:
         upgrade_set = self.obs.upgrades | self.obs.context.pending_upgrades
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
             return True
-        elif self.tier == StrategyTier.Hatch:
+        elif self.tier == StrategyTier.HATCH:
             return False
         elif upgrade == UpgradeId.BURROW:
-            return self.tier >= StrategyTier.Hatch
+            return self.tier >= StrategyTier.HATCH
         elif upgrade == UpgradeId.ZERGLINGATTACKSPEED:
-            return self.tier >= StrategyTier.Hive
+            return self.tier >= StrategyTier.HIVE
         elif upgrade == UpgradeId.TUNNELINGCLAWS:
             return UpgradeId.GLIALRECONSTITUTION in upgrade_set
         elif upgrade == UpgradeId.EVOLVEGROOVEDSPINES:
             return UpgradeId.EVOLVEMUSCULARAUGMENTS in upgrade_set
-        # elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
-        #     return UpgradeId.ZERGMISSILEWEAPONSLEVEL1 in upgrade_set
+        elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
+            return self.tier >= StrategyTier.LAIR
         # elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
         #     return UpgradeId.ZERGMISSILEWEAPONSLEVEL2 in upgrade_set
         # elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL3:
@@ -159,7 +154,7 @@ class Strategy:
                 self.obs.count_pending(UnitTypeId.GREATERSPIRE)
             )
         elif upgrade == UpgradeId.OVERLORDSPEED:
-            return self.tier >= StrategyTier.Hive
+            return self.tier >= StrategyTier.HIVE
         else:
             return True
 
@@ -177,20 +172,20 @@ class Strategy:
             or self.obs.townhalls.amount < 2
             or self.obs.time < 3 * 60
         ):
-            return StrategyTier.Hatch
+            return StrategyTier.HATCH
         elif (
             self.obs.supply_workers < self.context.tier2_drone_count.value
             or self.obs.townhalls.amount < 3
             or self.obs.time < 6 * 60
         ):
-            return StrategyTier.Lair
+            return StrategyTier.LAIR
         elif (
             self.obs.supply_workers < self.context.tier3_drone_count.value
             or self.obs.townhalls.amount < 4
             or self.obs.time < 9 * 60
         ):
-            return StrategyTier.Hive
-        return StrategyTier.Lategame
+            return StrategyTier.HIVE
+        return StrategyTier.LATEGAME
 
     def _army_composition(self) -> UnitComposition:
         # force droning up to 21
@@ -245,20 +240,20 @@ class Strategy:
 
         composition[UnitTypeId.DRONE] += harvester_target
         composition[UnitTypeId.QUEEN] += queen_target
-        if self.tier >= StrategyTier.Hatch:
+        if self.tier >= StrategyTier.HATCH:
             composition[UnitTypeId.SPAWNINGPOOL] += 1
-        if self.tier >= StrategyTier.Lair:
+        if self.tier >= StrategyTier.LAIR:
             composition[UnitTypeId.LAIR] += 1
             composition[UnitTypeId.OVERSEER] += 1
             composition[UnitTypeId.ROACHWARREN] += 1
             composition[UnitTypeId.HYDRALISKDEN] += 1
             composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
-        if self.tier >= StrategyTier.Hive:
+        if self.tier >= StrategyTier.HIVE:
             composition[UnitTypeId.INFESTATIONPIT] += 1
             composition[UnitTypeId.HIVE] += 1
             composition[UnitTypeId.OVERSEER] += 1
             composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
-        if self.tier >= StrategyTier.Lategame:
+        if self.tier >= StrategyTier.LATEGAME:
             composition[UnitTypeId.OVERSEER] += 2
             composition[UnitTypeId.SPIRE] += 1
             composition[UnitTypeId.GREATERSPIRE] += 1

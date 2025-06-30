@@ -17,7 +17,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from phantom.combat.action import CombatState
+from phantom.combat import CombatState
 from phantom.common.action import Action, Attack, Move, UseAbility
 from phantom.common.constants import CHANGELINGS, ENERGY_COST, GAS_BY_RACE
 from phantom.common.cost import Cost

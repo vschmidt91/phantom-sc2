@@ -403,12 +403,13 @@ class Observation:
         distances_ground = list[float]()
         distances_air = list[float]()
         for unit in units:
+            base_range = 2 * unit.radius + unit.distance_to_weapon_ready
             if unit.can_attack_ground:
                 points_ground.append(unit)
-                distances_ground.append(2 * unit.radius + unit.ground_range)
+                distances_ground.append(base_range + unit.ground_range)
             if unit.can_attack_air:
                 points_air.append(unit)
-                distances_air.append(2 * unit.radius + unit.air_range)
+                distances_air.append(base_range + unit.air_range)
 
         ground_candidates = self.bot.mediator.get_units_in_range(
             start_points=points_ground,
