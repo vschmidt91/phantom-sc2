@@ -209,12 +209,24 @@ class CombatAction:
         outcome_local = self.prediction.outcome_for.get(unit.tag, EngagementResult.VICTORY_DECISIVE)
 
         p = tuple(unit.position.rounded)
+        retreat_grid = (
+            self.state.bot.mediator.get_air_grid if unit.is_flying else self.state.bot.mediator.get_ground_grid
+        )
         retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
         retreat_path = retreat_map.get_path(p, limit=5)
 
+        def inf_to_one(x):
+            return 1 if x == np.inf else x
+
+        retreat_dps = sum(inf_to_one(retreat_grid[p]) - 1 for p in retreat_path)
+        retreat_duration = len(retreat_path) / unit.movement_speed
+        retreat_dps * retreat_duration
+
         bias = 0.0
-        if self.state.knowledge.is_micro_map:
-            bias += 3.0
+        # if retreat_damage > 0:
+        #     bias += .1 * retreat_damage
+        # if self.state.knowledge.is_micro_map:
+        #     bias += 3.0
 
         if outcome_local + bias > EngagementResult.TIE:
             if unit.ground_range < 1:
