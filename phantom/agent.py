@@ -28,7 +28,7 @@ from phantom.creep import CreepState
 from phantom.dodge import DodgeState
 from phantom.knowledge import Knowledge
 from phantom.macro.build_order import BUILD_ORDERS
-from phantom.macro.state import MacroPlan, MacroState
+from phantom.macro.main import MacroPlan, MacroState
 from phantom.macro.strategy import StrategyState
 from phantom.observation import ObservationState
 from phantom.parameters import AgentParameters

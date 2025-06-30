@@ -14,7 +14,7 @@ from phantom.common.constants import (
 )
 from phantom.common.unit_composition import UnitComposition, add_compositions, composition_of, sub_compositions
 from phantom.knowledge import Knowledge
-from phantom.macro.state import MacroPlan
+from phantom.macro.main import MacroPlan
 from phantom.observation import Observation
 from phantom.parameters import AgentParameters, NormalPrior
 

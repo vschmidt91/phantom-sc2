@@ -20,7 +20,7 @@ from phantom.common.constants import ITEM_BY_ABILITY, UPGRADE_BY_RESEARCH_ABILIT
 from phantom.config import BotConfig
 from phantom.exporter import BotExporter
 from phantom.knowledge import Knowledge
-from phantom.macro.state import MacroPlan
+from phantom.macro.main import MacroPlan
 from phantom.parameters import AgentParameters
 
 

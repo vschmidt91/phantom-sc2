@@ -8,7 +8,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
 from phantom.common.action import Action, UseAbility
-from phantom.macro.state import MacroPlan
+from phantom.macro.main import MacroPlan
 from phantom.observation import Observation
 
 
