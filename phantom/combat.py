@@ -33,6 +33,7 @@ from phantom.observation import Observation
 class CombatPrediction:
     outcome: EngagementResult
     outcome_for: Mapping[int, EngagementResult]
+    attacking: Mapping[int, float]
 
 
 class CombatState:
@@ -41,7 +42,7 @@ class CombatState:
         self.knowledge = knowledge
         self.contact_range_internal = 7
         self.contact_range = 14
-        self.comitted_attacks = dict[int, int]()
+        self.is_attacking = set[int]()
 
     def step(self, observation: Observation) -> "CombatAction":
         return CombatAction(self, observation)
@@ -57,7 +58,7 @@ class CombatState:
 
     def _predict(self, units: Units, enemy_units: Units) -> CombatPrediction:
         if trivial := self._predict_trivial(units, enemy_units):
-            return CombatPrediction(trivial, {})
+            return CombatPrediction(trivial, {}, {})
 
         all_units = [*units, *enemy_units]
         positions = [u.position for u in units]
@@ -65,6 +66,10 @@ class CombatState:
 
         distance_matrix = pairwise_distances(positions, enemy_positions)
         contact = distance_matrix < self.contact_range
+        for (i, unit), (j, enemy_unit) in product(enumerate(units), enumerate(enemy_units)):
+            if not can_attack(unit, enemy_unit) and not can_attack(unit, enemy_unit):
+                contact[i, j] = False
+
         contact_own = np.zeros((len(units), len(units)))
         contact_enemy = pairwise_distances(enemy_positions) < self.contact_range_internal
         adjacency_matrix = np.block([[contact_own, contact], [contact.T, contact_enemy]])
@@ -80,6 +85,7 @@ class CombatState:
         )
 
         outcome_for = dict[int, EngagementResult]()
+        attacking = dict[int, float]()
         for component in components:
             local_units = [all_units[i] for i in component]
             local_own = [u for u in local_units if u.is_mine]
@@ -91,12 +97,14 @@ class CombatState:
                 **simulator_kwargs,
             )
             enemy_outcome = EngagementResult(10 - local_outcome.value)
+            local_attacking = sum(1 for u in local_own if u.tag in self.is_attacking) / len(units)
             for u in local_own:
                 outcome_for[u.tag] = local_outcome
+                attacking[u.tag] = local_attacking
             for u in local_enemies:
                 outcome_for[u.tag] = enemy_outcome
 
-        return CombatPrediction(outcome, outcome_for)
+        return CombatPrediction(outcome, outcome_for, attacking)
 
 
 class CombatAction:
@@ -187,17 +195,8 @@ class CombatAction:
             cost += 1e-10 * random_offset
             return cost
 
-        if target_tag := self.state.comitted_attacks.get(unit.tag):
-            if not unit.weapon_ready:
-                del self.state.comitted_attacks[unit.tag]
-            elif target := self.observation.unit_by_tag.get(target_tag):
-                return Attack(target)
-            else:
-                del self.state.comitted_attacks[unit.tag]
-
         if unit.ground_range > 1 and unit.weapon_ready and (targets := self.observation.shootable_targets.get(unit)):
             target = min(targets, key=cost_fn)
-            self.state.comitted_attacks[unit.tag] = target.tag
             return Attack(target)
 
         if not (target := self.optimal_targeting.get(unit)):
@@ -206,7 +205,8 @@ class CombatAction:
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(target.position)
 
-        outcome_local = self.prediction.outcome_for.get(unit.tag, EngagementResult.VICTORY_DECISIVE)
+        outcome_local = self.prediction.outcome_for[unit.tag]
+        attacking_local = self.prediction.attacking[unit.tag]
 
         p = tuple(unit.position.rounded)
         retreat_grid = (
@@ -223,22 +223,29 @@ class CombatAction:
         retreat_dps * retreat_duration
 
         bias = 0.0
+        bias += 3 * (2 * attacking_local - 1)
+        bias += 1 * (self.prediction.outcome.value - 5) / 5
         # if retreat_damage > 0:
         #     bias += .1 * retreat_damage
         # if self.state.knowledge.is_micro_map:
         #     bias += 3.0
 
         if outcome_local + bias > EngagementResult.TIE:
+            self.state.is_attacking.add(unit.tag)
             if unit.ground_range < 1:
                 return UseAbility(AbilityId.ATTACK, target.position)
             else:
                 return Attack(target)
         else:
-            if len(retreat_path) > 2:
-                retreat_point = Point2(retreat_path[2]).offset(HALF)
-                return Move(retreat_point)
+            self.state.is_attacking.discard(unit.tag)
+            if retreat_grid[unit.position.rounded] > 1:
+                if len(retreat_path) > 2:
+                    retreat_point = Point2(retreat_path[2]).offset(HALF)
+                    return Move(retreat_point)
+                else:
+                    return self.retreat_with_ares(unit)
             else:
-                return self.retreat_with_ares(unit)
+                return UseAbility(AbilityId.STOP)
 
     def do_unburrow(self, unit: Unit) -> Action | None:
         outcome = self.prediction.outcome_for.get(unit.tag, EngagementResult.VICTORY_DECISIVE)

@@ -25,6 +25,7 @@ from phantom.common.constants import (
     COCOONS,
     ENEMY_CIVILIANS,
     MACRO_INFO,
+    MAX_UNIT_RADIUS,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
     WITH_TECH_EQUIVALENTS,
@@ -403,7 +404,7 @@ class Observation:
         distances_ground = list[float]()
         distances_air = list[float]()
         for unit in units:
-            base_range = 2 * unit.radius + unit.distance_to_weapon_ready
+            base_range = unit.radius + MAX_UNIT_RADIUS
             if unit.can_attack_ground:
                 points_ground.append(unit)
                 distances_ground.append(base_range + unit.ground_range)
