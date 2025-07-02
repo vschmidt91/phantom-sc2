@@ -223,8 +223,8 @@ class CombatAction:
         retreat_dps * retreat_duration
 
         bias = 0.0
-        bias += 3 * (2 * attacking_local - 1)
-        bias += 1 * (self.prediction.outcome.value - 5) / 5
+        bias += 3 * attacking_local
+        # bias += 1 * (self.prediction.outcome.value - 5) / 5
         # if retreat_damage > 0:
         #     bias += .1 * retreat_damage
         # if self.state.knowledge.is_micro_map:
