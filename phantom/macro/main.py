@@ -331,7 +331,7 @@ async def get_target_position(
 
     if potential_bases := list(filter(filter_base, knowledge.bases)):
         base = random.choice(potential_bases)
-        distance = rng.uniform(9, 11)
+        distance = rng.uniform(8, 10)
         mineral_line = Point2(knowledge.in_mineral_line[base])
         behind_mineral_line = Point2(base).towards(mineral_line, distance)
         position = Point2(base).towards_with_random_angle(behind_mineral_line, distance)
