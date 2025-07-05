@@ -14,8 +14,6 @@ from sc2.position import Point2
 from phantom.common.utils import get_requirements
 from phantom.dummy import DummyBot
 
-UNKNOWN_VERSION = "unknown_version"
-
 WITH_TECH_EQUIVALENTS = {unit: {unit} | EQUIVALENTS_FOR_TECH_PROGRESS.get(unit, set()) for unit in UnitTypeId}
 
 UNIT_TRAINED_FROM_WITH_EQUIVALENTS = {

@@ -7,7 +7,6 @@ from itertools import chain
 import numpy as np
 from ares.consts import UnitRole
 from loguru import logger
-from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -15,13 +14,10 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from phantom.combat import CombatAction
 from phantom.common.action import Action, HoldPosition, Move, UseAbility
 from phantom.common.constants import (
-    ALL_MACRO_ABILITIES,
     GAS_BY_RACE,
     HALF,
-    ITEM_BY_ABILITY,
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
     MACRO_INFO,
     WORKERS,
@@ -92,9 +88,7 @@ class MacroState:
                 self.assigned_plans[trainer.tag] = plan
                 trainer_set.remove(trainer)
 
-    async def step(self, obs: Observation, blocked_positions: Set[Point], combat: CombatAction) -> MacroAction:
-        self.handle_actions(obs)
-
+    async def step(self, obs: Observation, blocked_positions: Set[Point]) -> MacroAction:
         # TODO
         if len(self.unassigned_plans) > 100:
             obs.bot.add_replay_tag("overplanning")  # type: ignore
@@ -236,39 +230,6 @@ class MacroState:
             )
 
         return trainers_filtered[0]
-
-    def handle_actions(self, obs: Observation) -> None:
-        for tag, action in obs.unit_commands.items():
-            self.handle_action(obs, action, tag)
-
-    def handle_action(self, obs: Observation, action: ActionRawUnitCommand, tag: int) -> None:
-        unit = obs.unit_by_tag.get(tag)
-        if not (item := ITEM_BY_ABILITY.get(action.exact_id)):
-            return
-        if item in {
-            UnitTypeId.CREEPTUMORQUEEN,
-            UnitTypeId.CREEPTUMOR,
-            UnitTypeId.CHANGELING,
-        }:
-            return
-        if unit and unit.type_id == UnitTypeId.EGG:
-            # commands issued to a specific larva will be received by a random one
-            # therefore, a direct lookup will often be incorrect
-            # instead, all plans are checked for a match
-            for t, p in self.assigned_plans.items():
-                if item == p.item:
-                    tag = t
-                    break
-        if plan := self.assigned_plans.get(tag):
-            if item == plan.item:
-                del self.assigned_plans[tag]
-                if isinstance(item, UpgradeId):
-                    obs.context.pending_upgrades.add(item)
-                else:
-                    obs.context.pending[tag] = item
-                logger.info(f"Executed {plan=} through {action}")
-        elif action.exact_id in ALL_MACRO_ABILITIES:
-            logger.info(f"Unplanned {action=}")
 
 
 async def premove(obs: Observation, unit: Unit, plan: MacroPlan, eta: float) -> Action | None:

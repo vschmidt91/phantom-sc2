@@ -24,7 +24,6 @@ from phantom.common.constants import (
     CIVILIANS,
     COCOONS,
     ENEMY_CIVILIANS,
-    MACRO_INFO,
     MAX_UNIT_RADIUS,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
@@ -39,7 +38,7 @@ from phantom.common.cost import Cost
 from phantom.common.utils import RNG, MacroId
 from phantom.knowledge import Knowledge
 
-type OrderTarget = Point2
+type OrderTarget = Point2 | int
 
 
 class ObservationState:
@@ -48,65 +47,24 @@ class ObservationState:
         self.knowledge = knowledge
         self.pathing = self._pathing()
         self.air_pathing = self._air_pathing()
-        self.pending = dict[int, UnitTypeId]()
-        self.pending_upgrades = set[UpgradeId]()
 
     def step(self, planned: Counter[MacroId]) -> "Observation":
-        # for action in self.bot.state.actions_unit_commands:
-        #     if item := ITEM_BY_ABILITY.get(action.exact_id):
-        #         for trainer_tag in action.unit_tags:
-        #             if trainer := self.bot._units_previous_map.get(trainer_tag):
-        # if item in ALL_STRUCTURES:
-        #     if trainer := trainer_by_tag.get(action.target_unit_tag):
-        #         target = trainer.position
-        #     else:
-        #     target = action.target_world_space_pos
-        #             # self.pending_structures[trainer] = item
-        # elif isinstance(item, UpgradeId):
-        #     self.pending_upgrades.add(item)
+        #     if unit.is_structure:
+        #         continue
+        #     if unit.type_id in {UnitTypeId.EGG, UnitTypeId.RAVAGER, UnitTypeId.BROODLORD, UnitTypeId.LURKERMP}:
+        #         continue
+        #     if unit.type_id in COCOONS:
+        #         continue
+        #     if unit.is_idle and unit.type_id != UnitTypeId.LARVA:
+        #         logger.warning(f"Trainer {unit=} became idle somehow")
+        #         del self.pending[tag]
+        #         continue
+        #     ability = MACRO_INFO[unit.type_id][pending]["ability"]
+        #     if unit.orders and unit.orders[0].ability.exact_id != ability:
+        #         logger.warning(f"Trainer {unit=} has wrong order {unit.orders[0].ability.exact_id} for {pending=}")
+        #         del self.pending[tag]
+        #         continue
 
-        # structure_at = {tuple(s.position.rounded): s for s in self.bot.structures}
-
-        for tag, pending in list(self.pending.items()):
-            if not (unit := self.bot.unit_tag_dict.get(tag)):
-                # if pending in LARVA_COST:
-                #     del self.pending[tag]
-                #     continue
-                # if pending in ALL_STRUCTURES:
-                #     del self.pending[tag]
-                #     continue
-                # unit = self.bot._units_previous_map[tag]
-                # position = unit.orders[0].target
-                # structure = structure_at.get(position)
-                # self.pending[structure.tag] = pending
-                logger.debug(f"Trainer {tag=} is MIA for {pending=}")
-                del self.pending[tag]
-                continue
-            if unit.is_structure:
-                continue
-            if unit.type_id in {UnitTypeId.EGG, UnitTypeId.RAVAGER, UnitTypeId.BROODLORD, UnitTypeId.LURKERMP}:
-                continue
-            if unit.type_id in COCOONS:
-                continue
-            if unit.is_idle and unit.type_id != UnitTypeId.LARVA:
-                logger.warning(f"Trainer {unit=} became idle somehow")
-                del self.pending[tag]
-                continue
-            ability = MACRO_INFO[unit.type_id][pending]["ability"]
-            if unit.orders and unit.orders[0].ability.exact_id != ability:
-                logger.warning(f"Trainer {unit=} has wrong order {unit.orders[0].ability.exact_id} for {pending=}")
-                del self.pending[tag]
-                continue
-
-        # for error in self.bot.state.action_errors:
-        #     # error_ability = AbilityId(error.ability_id)
-        #     error_result = ActionResult(error.result)
-        #     if (
-        #         error_result in {ActionResult.CantBuildLocationInvalid, ActionResult.CouldntReachTarget}
-        #         # and error_ability in {AbilityId.ZERGBUILD_HATCHERY}
-        #         and (unit := self.bot._units_previous_map.get(error.unit_tag))
-        #     ):
-        #         self.pending_structures.pop(unit.tag, None)
         if self.bot.actual_iteration % 10 == 0:
             self.pathing = self._pathing()
             self.air_pathing = self._air_pathing()
@@ -161,7 +119,8 @@ class Observation:
 
         self.actual_by_type = Counter[UnitTypeId](u.type_id for u in self.units if u.is_ready)
         self.actual_by_type[UnitTypeId.DRONE] = self.bot.supply_workers
-        self.pending_by_type = Counter[UnitTypeId](state.pending.values())
+        self.pending_by_type = Counter[UnitTypeId](self.bot.pending.values())
+        self.ordered_by_type = Counter[UnitTypeId](self.bot.ordered_structures.values())
 
         self.map_center = self.bot.game_info.map_center
         self.start_location = self.bot.start_location
@@ -244,7 +203,7 @@ class Observation:
         return self.actual_by_type[item]
 
     def count_pending(self, item: UnitTypeId) -> int:
-        return self.pending_by_type[item]
+        return self.pending_by_type[item] + self.ordered_by_type[item]
         # if item in ALL_STRUCTURES:
         #     return self.pending_by_type[item]
         # else:
@@ -391,7 +350,7 @@ class Observation:
         for upgrade in upgrades:
             if upgrade in self.upgrades:
                 continue
-            if upgrade in self.context.pending_upgrades:
+            if upgrade in self.bot.pending_upgrades:
                 continue
             return (upgrade,)
         return ()

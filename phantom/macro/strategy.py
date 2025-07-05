@@ -86,11 +86,7 @@ class Strategy:
             if self.filter_upgrade(u)
         }
         for upgrade in upgrades:
-            if (
-                upgrade in self.obs.upgrades
-                or upgrade in self.obs.context.pending_upgrades
-                or self.obs.planned[upgrade]
-            ):
+            if upgrade in self.obs.upgrades or upgrade in self.obs.bot.pending_upgrades or self.obs.planned[upgrade]:
                 continue
             yield MacroPlan(upgrade, priority=self.context.tech_priority.value)
 
@@ -124,7 +120,7 @@ class Strategy:
         return not any(self.obs.get_missing_requirements(t))
 
     def filter_upgrade(self, upgrade: UpgradeId) -> bool:
-        upgrade_set = self.obs.upgrades | self.obs.context.pending_upgrades
+        upgrade_set = self.obs.upgrades | self.obs.bot.pending_upgrades
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
             return True
         elif self.tier == StrategyTier.HATCH:

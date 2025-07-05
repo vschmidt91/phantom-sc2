@@ -4,24 +4,34 @@ import lzma
 import os
 import pickle
 import pstats
+from dataclasses import dataclass
 from queue import Empty, Queue
 
 from ares import AresBot
 from ares.consts import ALL_STRUCTURES
 from loguru import logger
 from sc2.data import Race, Result
+from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
+from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
 from phantom.agent import Agent
-from phantom.common.constants import ITEM_BY_ABILITY, UPGRADE_BY_RESEARCH_ABILITY
+from phantom.common.constants import ALL_MACRO_ABILITIES, ITEM_BY_ABILITY, UPGRADE_BY_RESEARCH_ABILITY
 from phantom.config import BotConfig
 from phantom.exporter import BotExporter
 from phantom.knowledge import Knowledge
 from phantom.macro.main import MacroPlan
+from phantom.observation import OrderTarget
 from phantom.parameters import AgentParameters
+
+
+@dataclass(frozen=True)
+class OrderedStructure:
+    type_id: UnitTypeId
+    position: Point2
 
 
 class PhantomBot(BotExporter, AresBot):
@@ -35,6 +45,10 @@ class PhantomBot(BotExporter, AresBot):
         self.version: str | None = None
         self.profiler = cProfile.Profile()
         self.on_before_start_was_called = False
+        self.ordered_structures = dict[int, UnitTypeId]()
+        self.ordered_by_target = dict[OrderTarget, tuple[int, UnitTypeId]]()
+        self.pending = dict[int, UnitTypeId]()
+        self.pending_upgrades = set[UpgradeId]()
 
         if os.path.isfile(self.bot_config.version_path):
             logger.info(f"Reading version from {self.bot_config.version_path}")
@@ -119,9 +133,22 @@ class PhantomBot(BotExporter, AresBot):
         if self.bot_config.profile_path:
             self.profiler.enable()
 
+        for action in self.state.actions_unit_commands:
+            for tag in action.unit_tags:
+                self.handle_action(action, tag)
+
+        for tag, ordered in list(self.ordered_structures.items()):
+            if unit := self.unit_tag_dict.get(tag):
+                ability = TRAIN_INFO[unit.type_id][ordered]["ability"]
+                if not unit.is_using_ability(ability):
+                    logger.warning(f"{unit=} is doing {unit.orders} and not as {ordered=}")
+                    del self.ordered_structures[tag]
+            else:
+                logger.info(f"Trainer {tag=} is MIA for {ordered=}")
+                del self.ordered_structures[tag]
+
         actions = await self.agent.step()
         for unit, action in actions.items():
-            # logger.debug(f"Executing {action=}")
             if not await action.execute(unit):
                 self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
@@ -171,11 +198,14 @@ class PhantomBot(BotExporter, AresBot):
     #
     async def on_building_construction_started(self, unit: Unit):
         await super().on_building_construction_started(unit)
-        self.agent.observation.pending[unit.tag] = unit.type_id
+        self.ordered_structures.pop(unit.tag, None)
+        self.pending[unit.tag] = unit.type_id
 
     async def on_building_construction_complete(self, unit: Unit):
         await super().on_building_construction_complete(unit)
-        self.agent.observation.pending.pop(unit.tag, None)
+        if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
+            return
+        del self.pending[unit.tag]
 
     # async def on_enemy_unit_entered_vision(self, unit: Unit):
     #     await super().on_enemy_unit_entered_vision(unit)
@@ -185,14 +215,14 @@ class PhantomBot(BotExporter, AresBot):
     #
     async def on_unit_destroyed(self, unit_tag: int):
         await super().on_unit_destroyed(unit_tag)
+        self.pending.pop(unit_tag, None)
         if unit := self._units_previous_map.get(unit_tag):
-            self.agent.observation.pending.pop(unit.tag, None)
-            if unit.orders:
-                ability = unit.orders[0].ability.exact_id
+            for order in unit.orders:
+                ability = order.ability.exact_id
                 if item := UPGRADE_BY_RESEARCH_ABILITY.get(ability):
-                    self.agent.observation.pending_upgrades.discard(item)
-                # else:
-                #     self.agent.observation.pending_structures.pop(unit, None)
+                    self.pending_upgrades.remove(item)
+        else:
+            logger.debug(f"{unit_tag=} vanished mysteriously")
 
     async def on_unit_created(self, unit: Unit):
         await super().on_unit_created(unit)
@@ -200,10 +230,9 @@ class PhantomBot(BotExporter, AresBot):
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         await super().on_unit_type_changed(unit, previous_type)
         if unit.type_id == UnitTypeId.EGG:
-            item = ITEM_BY_ABILITY[unit.orders[0].ability.exact_id]
-            self.agent.observation.pending[unit.tag] = item
-        elif unit.type_id in ALL_STRUCTURES:
-            self.agent.observation.pending.pop(unit.tag, None)
+            self.pending[unit.tag] = ITEM_BY_ABILITY[unit.orders[0].ability.exact_id]
+        elif unit.is_structure and unit.type_id not in {UnitTypeId.CREEPTUMORBURROWED}:
+            del self.pending[unit.tag]
 
     #
     # async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
@@ -211,7 +240,43 @@ class PhantomBot(BotExporter, AresBot):
     #
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         await super().on_upgrade_complete(upgrade)
-        self.agent.observation.pending_upgrades.discard(upgrade)
+        self.pending_upgrades.discard(upgrade)
+
+    def handle_action(self, action: ActionRawUnitCommand, tag: int) -> None:
+        unit = self.unit_tag_dict.get(tag) or self._units_previous_map.get(tag)
+        if not (item := ITEM_BY_ABILITY.get(action.exact_id)):
+            return
+        if item in {
+            UnitTypeId.CREEPTUMORQUEEN,
+            UnitTypeId.CREEPTUMOR,
+            UnitTypeId.CHANGELING,
+        }:
+            return
+        if unit and unit.type_id == UnitTypeId.EGG:
+            # commands issued to a specific larva will be received by a random one
+            # therefore, a direct lookup will often be incorrect
+            # instead, all plans are checked for a match
+            for t, p in self.agent.macro.assigned_plans.items():
+                if item == p.item:
+                    tag = t
+                    break
+        if plan := self.agent.macro.assigned_plans.get(tag):
+            if item != plan.item:
+                logger.info(f"{action=} for {item=} does not match {plan=}")
+            else:
+                del self.agent.macro.assigned_plans[tag]
+                if isinstance(item, UpgradeId):
+                    self.pending_upgrades.add(item)
+                elif item in ALL_STRUCTURES and (
+                    "requires_placement_position" in TRAIN_INFO[unit.type_id][item] or item == UnitTypeId.EXTRACTOR
+                ):
+                    if tag in self.unit_tag_dict:
+                        self.ordered_structures[tag] = item
+                else:
+                    self.pending[tag] = item
+                logger.info(f"Executed {plan=} through {action}")
+        elif action.exact_id in ALL_MACRO_ABILITIES:
+            logger.info(f"Unplanned {action=}")
 
     @property
     def name(self) -> str:

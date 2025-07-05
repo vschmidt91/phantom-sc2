@@ -224,6 +224,9 @@ class CombatAction:
 
         bias = 0.0
         bias += 3 * attacking_local
+
+        if self.prediction.outcome < EngagementResult.TIE and not self.observation.creep[unit.position.rounded]:
+            bias -= 3.0
         # bias += 1 * (self.prediction.outcome.value - 5) / 5
         # if retreat_damage > 0:
         #     bias += .1 * retreat_damage
