@@ -13,6 +13,7 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
+from sc2.data import Race
 from sc2.unit import Unit
 from sc2.units import Units
 
@@ -225,8 +226,8 @@ class CombatAction:
         bias = 0.0
         bias += 3 * attacking_local
 
-        if self.prediction.outcome < EngagementResult.TIE and not self.observation.creep[unit.position.rounded]:
-            bias -= 3.0
+        if self.observation.bot.enemy_race != Race.Zerg and not self.observation.creep[unit.position.rounded]:
+            bias += min(0, self.prediction.outcome - EngagementResult.TIE)
         # bias += 1 * (self.prediction.outcome.value - 5) / 5
         # if retreat_damage > 0:
         #     bias += .1 * retreat_damage
