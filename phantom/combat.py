@@ -9,11 +9,11 @@ from ares.consts import EngagementResult
 from ares.main import AresBot
 from cython_extensions.dijkstra import cy_dijkstra
 from loguru import logger
+from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
-from sc2.data import Race
 from sc2.unit import Unit
 from sc2.units import Units
 

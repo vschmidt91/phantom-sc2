@@ -78,10 +78,10 @@ class PhantomBot(BotExporter, AresBot):
         logger.debug("Bot starting")
         await super().on_start()
 
-        if self.bot_config.profile_path:
-            logger.info("Creating profiler")
-            self.profiler = cProfile.Profile()
-            self.profiler.enable()
+        # if self.bot_config.profile_path:
+        #     logger.info("Creating profiler")
+        #     self.profiler = cProfile.Profile()
+        # self.profiler.enable()
 
         knowledge = Knowledge(self)
         self.agent = Agent(self, self.bot_config.build_order, self.parameters, knowledge)
@@ -153,27 +153,29 @@ class PhantomBot(BotExporter, AresBot):
                 self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
 
-        if self.bot_config.profile_path and self.actual_iteration % 100 == 0:
+        if self.bot_config.profile_path:
             self.profiler.disable()
-            logger.info(f"Writing profiling to {self.bot_config.profile_path}")
 
-            s = io.StringIO()
-            stats = pstats.Stats(self.profiler, stream=s)
-            stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
-            stats.print_callers()
-            with open(self.bot_config.profile_path + ".callers", "w+") as f:
-                f.write(s.getvalue())
+            if self.actual_iteration % 100 == 0:
+                logger.info(f"Writing profiling to {self.bot_config.profile_path}")
 
-            s = io.StringIO()
-            stats = pstats.Stats(self.profiler, stream=s)
-            stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
-            stats.print_callees()
-            with open(self.bot_config.profile_path + ".callees", "w+") as f:
-                f.write(s.getvalue())
+                s = io.StringIO()
+                stats = pstats.Stats(self.profiler, stream=s)
+                stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
+                stats.print_callers()
+                with open(self.bot_config.profile_path + ".callers", "w+") as f:
+                    f.write(s.getvalue())
 
-            stats = pstats.Stats(self.profiler)
-            stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
-            stats.dump_stats(filename=self.bot_config.profile_path)
+                s = io.StringIO()
+                stats = pstats.Stats(self.profiler, stream=s)
+                stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
+                stats.print_callees()
+                with open(self.bot_config.profile_path + ".callees", "w+") as f:
+                    f.write(s.getvalue())
+
+                stats = pstats.Stats(self.profiler)
+                stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
+                stats.dump_stats(filename=self.bot_config.profile_path)
 
         while True:
             try:
