@@ -205,7 +205,9 @@ class PhantomBot(BotExporter, AresBot):
 
     async def on_building_construction_complete(self, unit: Unit):
         await super().on_building_construction_complete(unit)
-        self.pending.pop(unit.tag, None)
+        if unit.type_id in {UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.LAIR, UnitTypeId.HIVE}:
+            return
+        del self.pending[unit.tag]
 
     # async def on_enemy_unit_entered_vision(self, unit: Unit):
     #     await super().on_enemy_unit_entered_vision(unit)
