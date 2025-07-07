@@ -18,7 +18,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
-from phantom.common.constants import HALF
+from phantom.common.constants import COMBATANT_STRUCTURES, HALF
 from phantom.common.distribute import distribute
 from phantom.common.graph import graph_components
 from phantom.common.utils import (
@@ -155,8 +155,10 @@ class CombatAction:
         self.targeting_cost = self._targeting_cost()
         self.optimal_targeting = self._optimal_targeting()
         self.prediction = self.state._predict(
-            self.observation.combatants | self.observation.overseers,
-            self.observation.enemy_combatants,
+            self.observation.combatants
+            | self.observation.overseers
+            | self.observation.structures(COMBATANT_STRUCTURES),
+            self.observation.enemy_combatants | self.observation.enemy_structures(COMBATANT_STRUCTURES),
         )
 
     def retreat_with(self, unit: Unit, limit=3) -> Action | None:

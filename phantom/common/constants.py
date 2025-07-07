@@ -160,6 +160,14 @@ ENEMY_CIVILIANS = {
     *WITH_TECH_EQUIVALENTS[UnitTypeId.DRONE],
 }
 
+COMBATANT_STRUCTURES = {
+    UnitTypeId.SPINECRAWLER,
+    UnitTypeId.SPORECRAWLER,
+    UnitTypeId.PHOTONCANNON,
+    UnitTypeId.BUNKER,
+    UnitTypeId.MISSILETURRET,
+}
+
 UNIT_BY_TRAIN_ABILITY: dict[AbilityId, UnitTypeId] = {
     unit_element["ability"]: unit
     for trainer_element in TRAIN_INFO.values()
