@@ -205,7 +205,8 @@ class PhantomBot(BotExporter, AresBot):
         self.pending[unit.tag] = unit.type_id
 
     async def on_building_construction_complete(self, unit: Unit):
-        logger.info(f"on_building_construction_complete {unit=}")
+        exists = unit.tag not in self._structures_previous_map
+        logger.info(f"on_building_construction_complete {unit=}, {exists=}")
         await super().on_building_construction_complete(unit)
         if unit.type_id in {UnitTypeId.CREEPTUMORBURROWED}:
             return
