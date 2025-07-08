@@ -199,13 +199,15 @@ class PhantomBot(BotExporter, AresBot):
     #     await super().on_before_start()
     #
     async def on_building_construction_started(self, unit: Unit):
+        logger.info(f"on_building_construction_started {unit=}")
         await super().on_building_construction_started(unit)
         self.ordered_structures.pop(unit.tag, None)
         self.pending[unit.tag] = unit.type_id
 
     async def on_building_construction_complete(self, unit: Unit):
+        logger.info(f"on_building_construction_complete {unit=}")
         await super().on_building_construction_complete(unit)
-        if unit.type_id in {UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.LAIR, UnitTypeId.HIVE}:
+        if unit.type_id in {UnitTypeId.CREEPTUMORBURROWED}:
             return
         del self.pending[unit.tag]
 
@@ -216,6 +218,7 @@ class PhantomBot(BotExporter, AresBot):
     #     await super().on_enemy_unit_left_vision(unit_tag)
     #
     async def on_unit_destroyed(self, unit_tag: int):
+        logger.info(f"on_unit_destroyed {unit_tag=}")
         await super().on_unit_destroyed(unit_tag)
         self.pending.pop(unit_tag, None)
         if unit := self._units_previous_map.get(unit_tag):
@@ -230,6 +233,7 @@ class PhantomBot(BotExporter, AresBot):
         await super().on_unit_created(unit)
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
+        logger.info(f"on_unit_type_changed {unit=} {previous_type=}")
         await super().on_unit_type_changed(unit, previous_type)
         if unit.type_id == UnitTypeId.EGG:
             self.pending[unit.tag] = ITEM_BY_ABILITY[unit.orders[0].ability.exact_id]
