@@ -210,7 +210,7 @@ class PhantomBot(BotExporter, AresBot):
         await super().on_building_construction_complete(unit)
 
         if unit.type_id in {UnitTypeId.LAIR, UnitTypeId.HIVE}:
-            await self.on_unit_type_changed(unit, unit.type_id)
+            pass
         elif unit.type_id in {UnitTypeId.CREEPTUMORBURROWED}:
             pass
         else:
