@@ -209,7 +209,7 @@ class PhantomBot(BotExporter, AresBot):
         logger.info(f"on_building_construction_complete {unit=}, {exists=}")
         await super().on_building_construction_complete(unit)
 
-        if unit.type_id in {UnitTypeId.LAIR, UnitTypeId.HIVE} or unit.type_id in {UnitTypeId.CREEPTUMORBURROWED}:
+        if unit.type_id in {UnitTypeId.LAIR, UnitTypeId.HIVE, UnitTypeId.GREATERSPIRE, UnitTypeId.CREEPTUMORBURROWED}:
             pass
         else:
             del self.pending[unit.tag]
