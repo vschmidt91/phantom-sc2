@@ -49,8 +49,6 @@ class MacroState:
         self.assigned_plans = dict[int, MacroPlan]()
 
     def make_composition(self, observation: Observation, composition: UnitComposition) -> Iterable[MacroPlan]:
-        if observation.supply_used >= 200:
-            return
         for unit, target in composition.items():
             have = observation.count_actual(unit) + observation.count_pending(unit)
             planned = observation.count_planned(unit)
