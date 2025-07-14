@@ -57,7 +57,7 @@ class HighsPyProblem:
     def solve(self, cost: np.ndarray, limit: np.ndarray) -> np.ndarray:
         n, m = cost.shape
         padding = (0, self.n - n), (0, self.m - m)
-        cost = np.pad(cost, padding, mode="constant", constant_values=1e8)
+        cost = np.pad(cost, padding, mode="constant", constant_values=np.inf)
         cost[n:, m:] = 0.0
         limit = np.pad(limit, (0, self.m - limit.shape[0]), mode="constant", constant_values=n)
 

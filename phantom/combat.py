@@ -293,7 +293,7 @@ class CombatAction:
             return time_to_reach + time_to_kill + 1e-10 * random_offset
 
         cost = np.array(
-            [[min(1e8, cost_fn(ai, bj, distances[i, j])) for j, bj in enumerate(enemies)] for i, ai in enumerate(units)]
+            [[cost_fn(ai, bj, distances[i, j]) for j, bj in enumerate(enemies)] for i, ai in enumerate(units)]
         )
         return cost
 
