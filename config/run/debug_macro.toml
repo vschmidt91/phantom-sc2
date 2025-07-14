@@ -1,4 +1,4 @@
-map_pattern = "PylonAIE\\.SC2(MAP|Map)"
+map_pattern = "TorchesAIE\\.SC2(MAP|Map)"
 enemy_race = "Zerg"
 enemy_build = "Macro"
 save_replay = "resources\\replays\\local"

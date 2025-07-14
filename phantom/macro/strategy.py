@@ -48,7 +48,8 @@ class StrategyState:
         self.tier1_drone_count = parameters.normal("tier1_drone_count", NormalPrior(40, 1))
         self.tier2_drone_count = parameters.normal("tier2_drone_count", NormalPrior(60, 1))
         self.tier3_drone_count = parameters.normal("tier3_drone_count", NormalPrior(80, 1))
-        self.tech_priority = parameters.normal("tech_priority", NormalPrior(-0.75, 0.1))
+        self.tech_priority_offset = parameters.normal("tech_priority_offset", NormalPrior(-1, 0.1))
+        self.tech_priority_scale = parameters.normal("tech_priority_scale", NormalPrior(1.0, 0.1))
         self.hydras_when_banking = parameters.normal("hydras_when_banking", NormalPrior(5, 1))
         self.lings_when_banking = parameters.normal("lings_when_banking", NormalPrior(10, 1))
         self.queens_when_banking = parameters.normal("queens_when_banking", NormalPrior(3, 1))
@@ -79,16 +80,26 @@ class Strategy:
         self.composition_deficit = sub_compositions(self.composition_target, self.composition)
 
     def make_tech(self) -> Iterable[MacroPlan]:
-        upgrades = {
-            u
-            for unit, count in self.composition_target.items()
-            for u in self.obs.upgrades_by_unit(unit)
-            if self.filter_upgrade(u)
-        }
-        for upgrade in upgrades:
+        upgrade_weights = dict[UpgradeId, float]()
+        for unit, count in self.composition_target.items():
+            for upgrade in self.obs.upgrades_by_unit(unit):
+                upgrade_weights[upgrade] = upgrade_weights.setdefault(upgrade, 0.0) + count
+
+        # strategy specific filter
+        upgrade_weights = {k: v for k, v in upgrade_weights.items() if self.filter_upgrade(k)}
+
+        total = sum(upgrade_weights.values())
+        if total == 0:
+            return
+
+        # normalize
+        upgrade_weights = {k: v / total for k, v in upgrade_weights.items()}
+
+        for upgrade, weight in upgrade_weights.items():
             if upgrade in self.obs.upgrades or upgrade in self.obs.bot.pending_upgrades or self.obs.planned[upgrade]:
                 continue
-            yield MacroPlan(upgrade, priority=self.context.tech_priority.value)
+            priority = self.context.tech_priority_offset.value + self.context.tech_priority_scale.value * weight
+            yield MacroPlan(upgrade, priority=priority)
 
     def expand(self) -> Iterable[MacroPlan]:
         worker_max = self.obs.max_harvesters
