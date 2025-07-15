@@ -115,7 +115,7 @@ class Strategy:
 
         if self.obs.count_planned(UnitTypeId.HATCHERY) > 0:
             return
-        if self.obs.count_pending(UnitTypeId.HATCHERY) > 0:
+        if self.obs.count_pending(UnitTypeId.HATCHERY) > 1:
             return
         yield MacroPlan(UnitTypeId.HATCHERY, priority=priority)
 

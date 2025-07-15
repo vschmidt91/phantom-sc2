@@ -13,7 +13,10 @@ class GatherAction(Action):
 
     async def execute(self, unit: Unit) -> bool:
         if unit.order_target != self.target.tag:
-            return unit.smart(self.target)
+            if unit.game_loop < 10:
+                return unit.move(self.speedmining_position) and unit.smart(self.target, queue=True)
+            else:
+                return unit.smart(self.target)
         if 0.75 < unit.distance_to(self.speedmining_position) < 1.75:
             return unit.move(self.speedmining_position) and unit.smart(self.target, queue=True)
         else:

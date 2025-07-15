@@ -130,6 +130,21 @@ BUILD_ORDERS = {
     ),
     "POOL_FIRST": BuildOrderChain(
         [
+            Make(UnitTypeId.DRONE, 13),
+            Make(UnitTypeId.OVERLORD, 2),
+            Make(UnitTypeId.DRONE, 17),
+            # WaitUntil(lambda obs: obs.workers.amount > 15),
+            Make(UnitTypeId.EXTRACTOR, 1),
+            Make(UnitTypeId.SPAWNINGPOOL, 1),
+            Make(UnitTypeId.DRONE, 18),
+            Make(UnitTypeId.HATCHERY, 2),
+            Make(UnitTypeId.QUEEN, 1),
+            Make(UnitTypeId.ZERGLING, 2),
+            # Make(UnitTypeId.HATCHERY, 3),
+        ]
+    ),
+    "ROACH_RUSH": BuildOrderChain(
+        [
             Make(UnitTypeId.DRONE, 14),
             Make(UnitTypeId.OVERLORD, 2),
             Make(UnitTypeId.SPAWNINGPOOL, 1),

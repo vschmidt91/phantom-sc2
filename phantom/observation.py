@@ -203,7 +203,8 @@ class Observation:
         return self.actual_by_type[item]
 
     def count_pending(self, item: UnitTypeId) -> int:
-        return self.pending_by_type[item] + self.ordered_by_type[item]
+        factor = 2 if item == UnitTypeId.ZERGLING else 1
+        return factor * (self.pending_by_type[item] + self.ordered_by_type[item])
         # if item in ALL_STRUCTURES:
         #     return self.pending_by_type[item]
         # else:
