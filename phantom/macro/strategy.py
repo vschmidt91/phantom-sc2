@@ -50,7 +50,7 @@ class StrategyState:
         self.tier1_drone_count = parameters.normal("tier1_drone_count", NormalPrior(40, 1))
         self.tier2_drone_count = parameters.normal("tier2_drone_count", NormalPrior(60, 1))
         self.tier3_drone_count = parameters.normal("tier3_drone_count", NormalPrior(80, 1))
-        self.tech_priority_offset = parameters.normal("tech_priority_offset", NormalPrior(-1, 0.1))
+        self.tech_priority_offset = parameters.normal("tech_priority_offset", NormalPrior(-0.75, 0.1))
         self.tech_priority_scale = parameters.normal("tech_priority_scale", NormalPrior(1.0, 0.1))
         self.hydras_when_banking = parameters.normal("hydras_when_banking", NormalPrior(5, 1))
         self.lings_when_banking = parameters.normal("lings_when_banking", NormalPrior(10, 1))
