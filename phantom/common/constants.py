@@ -320,47 +320,46 @@ UNIT_COUNTER_DICT = {
 }
 
 
-SPORE_TRIGGERS: dict[Race, set[UnitTypeId]] = {
-    Race.Zerg: {
-        UnitTypeId.DRONEBURROWED,
-        UnitTypeId.QUEENBURROWED,
-        UnitTypeId.ZERGLINGBURROWED,
-        UnitTypeId.BANELINGBURROWED,
-        UnitTypeId.ROACHBURROWED,
-        UnitTypeId.RAVAGERBURROWED,
-        UnitTypeId.HYDRALISKBURROWED,
-        UnitTypeId.LURKERMP,
-        UnitTypeId.LURKERMPBURROWED,
-        UnitTypeId.INFESTORBURROWED,
-        UnitTypeId.SWARMHOSTBURROWEDMP,
-        UnitTypeId.ULTRALISKBURROWED,
-        UnitTypeId.MUTALISK,
-        UnitTypeId.SPIRE,
-    },
-    Race.Protoss: {
-        UnitTypeId.STARGATE,
-        UnitTypeId.ORACLE,
-        UnitTypeId.VOIDRAY,
-        UnitTypeId.CARRIER,
-        UnitTypeId.TEMPEST,
-        UnitTypeId.PHOENIX,
-    },
-    Race.Terran: {
-        UnitTypeId.STARPORT,
-        UnitTypeId.STARPORTFLYING,
-        UnitTypeId.MEDIVAC,
-        UnitTypeId.LIBERATOR,
-        UnitTypeId.RAVEN,
-        UnitTypeId.BANSHEE,
-        UnitTypeId.BATTLECRUISER,
-        UnitTypeId.WIDOWMINE,
-        UnitTypeId.WIDOWMINEBURROWED,
-    },
+SPORE_TRIGGERS_ZERG = {
+    # UnitTypeId.DRONEBURROWED,
+    # UnitTypeId.QUEENBURROWED,
+    # UnitTypeId.ZERGLINGBURROWED,
+    # UnitTypeId.BANELINGBURROWED,
+    # UnitTypeId.ROACHBURROWED,
+    # UnitTypeId.RAVAGERBURROWED,
+    # UnitTypeId.HYDRALISKBURROWED,
+    # UnitTypeId.LURKERMP,
+    # UnitTypeId.LURKERMPBURROWED,
+    # UnitTypeId.INFESTORBURROWED,
+    # UnitTypeId.SWARMHOSTBURROWEDMP,
+    # UnitTypeId.ULTRALISKBURROWED,
+    UnitTypeId.MUTALISK,
+    UnitTypeId.SPIRE,
 }
-SPORE_TRIGGERS[Race.Random] = {
-    *SPORE_TRIGGERS[Race.Terran],
-    *SPORE_TRIGGERS[Race.Protoss],
-    *SPORE_TRIGGERS[Race.Zerg],
+SPORE_TRIGGERS_PROTOSS = {
+    UnitTypeId.STARGATE,
+    UnitTypeId.ORACLE,
+    UnitTypeId.VOIDRAY,
+    UnitTypeId.CARRIER,
+    UnitTypeId.TEMPEST,
+    UnitTypeId.PHOENIX,
+}
+SPORE_TRIGGERS_TERRAN = {
+    UnitTypeId.STARPORT,
+    UnitTypeId.STARPORTFLYING,
+    UnitTypeId.MEDIVAC,
+    UnitTypeId.LIBERATOR,
+    UnitTypeId.RAVEN,
+    UnitTypeId.BANSHEE,
+    UnitTypeId.BATTLECRUISER,
+    UnitTypeId.WIDOWMINE,
+    UnitTypeId.WIDOWMINEBURROWED,
+}
+SPORE_TRIGGERS = {
+    Race.Terran: SPORE_TRIGGERS_TERRAN,
+    Race.Protoss: SPORE_TRIGGERS_PROTOSS,
+    Race.Zerg: SPORE_TRIGGERS_ZERG,
+    Race.Random: SPORE_TRIGGERS_TERRAN | SPORE_TRIGGERS_PROTOSS | SPORE_TRIGGERS_ZERG,
 }
 
 COCOONS = {
@@ -383,4 +382,14 @@ REPLAY_TYPE_ENCODING = "ascii"
 
 SPECIAL_BUILDS = {
     "Dummy": DummyBot,
+}
+
+SPORE_TIMING_ZERG = 7 * 60
+SPORE_TIMING_PROTOSS = 5 * 60
+SPORE_TIMING_TERRAN = 5 * 60
+SPORE_TIMINGS = {
+    Race.Zerg: SPORE_TIMING_ZERG,
+    Race.Protoss: SPORE_TIMING_PROTOSS,
+    Race.Terran: SPORE_TIMING_TERRAN,
+    Race.Random: min(SPORE_TIMING_ZERG, SPORE_TIMING_PROTOSS, SPORE_TIMING_TERRAN),
 }

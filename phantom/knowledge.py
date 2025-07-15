@@ -1,5 +1,6 @@
 import re
 
+from cython_extensions import cy_center
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -16,15 +17,20 @@ class Knowledge:
 
         self.expansion_resource_positions = dict[Point, list[Point]]()
         self.return_point = dict[Point, Point2]()
+        self.spore_position = dict[Point, Point2]()
         self.speedmining_positions = dict[Point, Point2]()
         self.return_distances = dict[Point, float]()
         self.enemy_start_locations = [tuple(p.rounded) for p in bot.enemy_start_locations]
         self.bases = [] if self.is_micro_map else [p.rounded for p in bot.expansion_locations_list]
+
         if self.is_micro_map:
             pass
         else:
             worker_radius = bot.workers[0].radius
             for base_position, resources in bot.expansion_locations_dict.items():
+                self.spore_position[base_position.rounded] = base_position.towards(
+                    Point2(cy_center(resources)), 4.5
+                ).rounded
                 for geyser in resources.vespene_geyser:
                     target = geyser.position.towards(base_position, geyser.radius + worker_radius)
                     self.speedmining_positions[geyser.position.rounded] = target
@@ -62,5 +68,6 @@ class Knowledge:
 
         self.cost = CostManager(bot)
         self.race = bot.race
+        self.enemy_race = bot.enemy_race
         self.map_size = bot.game_info.map_size
         self.in_mineral_line = {b: tuple(center(self.expansion_resource_positions[b]).rounded) for b in self.bases}

@@ -132,7 +132,11 @@ class MacroState:
             #     plan.commanded = False
             #     plan.executed = False
 
-            if isinstance(plan.target, Point2) and not await obs.can_place_single(plan.item, plan.target):
+            if (
+                isinstance(plan.target, Point2)
+                and not await obs.can_place_single(plan.item, plan.target)
+                and plan.item not in {UnitTypeId.SPORECRAWLER}
+            ):
                 plan.target = None
 
             if not plan.target:

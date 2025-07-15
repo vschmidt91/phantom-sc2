@@ -7,6 +7,8 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
 from phantom.common.constants import (
+    SPORE_TIMINGS,
+    SPORE_TRIGGERS,
     SUPPLY_PROVIDED,
     UNIT_COUNTER_DICT,
     ZERG_FLYER_ARMOR_UPGRADES,
@@ -116,6 +118,31 @@ class Strategy:
         if self.obs.count_pending(UnitTypeId.HATCHERY) > 0:
             return
         yield MacroPlan(UnitTypeId.HATCHERY, priority=priority)
+
+    def make_spores(self) -> Iterable[MacroPlan]:
+        if self.obs.iteration % 31 != 0:
+            return
+
+        timing = SPORE_TIMINGS[self.obs.knowledge.enemy_race]
+        if self.obs.time < timing:
+            return
+
+        planned_or_pending = self.obs.count_planned(UnitTypeId.SPORECRAWLER) + self.obs.count_pending(
+            UnitTypeId.SPORECRAWLER
+        )
+        if planned_or_pending > 0:
+            return
+
+        triggers = SPORE_TRIGGERS[self.obs.knowledge.enemy_race]
+        if not self.obs.enemy_units(triggers).exists:
+            return
+
+        spore_dict = {tuple(s.position.rounded): s for s in self.obs.structures(UnitTypeId.SPORECRAWLER)}
+        for base in self.obs.bases_taken:
+            spore_position = self.obs.knowledge.spore_position[base]
+            if tuple(spore_position.rounded) in spore_dict:
+                continue
+            yield MacroPlan(UnitTypeId.SPORECRAWLER, target=spore_position)
 
     def morph_overlord(self) -> Iterable[MacroPlan]:
         supply_planned = sum(
