@@ -282,10 +282,10 @@ class Strategy:
         if self.tier >= StrategyTier.HIVE:
             composition[UnitTypeId.INFESTATIONPIT] += 1
             composition[UnitTypeId.HIVE] += 1
-            composition[UnitTypeId.OVERSEER] += 1
+            composition[UnitTypeId.OVERSEER] += 2
             composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
         if self.tier >= StrategyTier.LATEGAME:
-            composition[UnitTypeId.OVERSEER] += 2
+            composition[UnitTypeId.OVERSEER] += 3
             composition[UnitTypeId.SPIRE] += 1
             composition[UnitTypeId.GREATERSPIRE] += 1
         return composition
