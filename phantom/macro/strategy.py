@@ -90,17 +90,14 @@ class Strategy:
         # strategy specific filter
         upgrade_weights = {k: v for k, v in upgrade_weights.items() if self.filter_upgrade(k)}
 
-        total = sum(upgrade_weights.values())
+        total = max(upgrade_weights.values())
         if total == 0:
             return
-
-        # normalize
-        upgrade_weights = {k: v / total for k, v in upgrade_weights.items()}
 
         for upgrade, weight in upgrade_weights.items():
             if upgrade in self.obs.upgrades or upgrade in self.obs.bot.pending_upgrades or self.obs.planned[upgrade]:
                 continue
-            priority = self.context.tech_priority_offset.value + self.context.tech_priority_scale.value * weight
+            priority = self.context.tech_priority_offset.value + self.context.tech_priority_scale.value * weight / total
             yield MacroPlan(upgrade, priority=priority)
 
     def expand(self) -> Iterable[MacroPlan]:
