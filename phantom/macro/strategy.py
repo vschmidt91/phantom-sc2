@@ -90,6 +90,8 @@ class Strategy:
         # strategy specific filter
         upgrade_weights = {k: v for k, v in upgrade_weights.items() if self.filter_upgrade(k)}
 
+        if not upgrade_weights:
+            return
         total = max(upgrade_weights.values())
         if total == 0:
             return
