@@ -364,7 +364,7 @@ class Observation:
         distances_ground = list[float]()
         distances_air = list[float]()
         for unit in units:
-            base_range = unit.radius + MAX_UNIT_RADIUS
+            base_range = 2 * unit.radius
             if unit.can_attack_ground:
                 points_ground.append(unit)
                 distances_ground.append(base_range + unit.ground_range)
