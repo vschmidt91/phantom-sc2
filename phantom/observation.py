@@ -1,4 +1,4 @@
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from itertools import chain
 
@@ -364,7 +364,7 @@ class Observation:
         distances_ground = list[float]()
         distances_air = list[float]()
         for unit in units:
-            base_range = 2 * unit.radius
+            base_range = unit.radius + MAX_UNIT_RADIUS
             if unit.can_attack_ground:
                 points_ground.append(unit)
                 distances_ground.append(base_range + unit.ground_range)
@@ -384,5 +384,12 @@ class Observation:
             query_tree=UnitTreeQueryType.EnemyFlying,
             return_as_dict=True,
         )
-        targets = {u: ground_candidates.get(u.tag, []) + air_candidates.get(u.tag, []) for u in units}
-        return targets
+        targets = defaultdict[Unit, list[Unit]](list)
+        for unit in units:
+            for target in ground_candidates.get(unit.tag, []):
+                if unit.distance_to(target) < unit.radius + unit.ground_range + target.radius:
+                    targets[unit].append(target)
+            for target in air_candidates.get(unit.tag, []):
+                if unit.distance_to(target) < unit.radius + unit.air_range + target.radius:
+                    targets[unit].append(target)
+        return dict(targets)
