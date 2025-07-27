@@ -18,7 +18,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from phantom.combat import CombatState
-from phantom.common.action import Action, Attack, Move, UseAbility
+from phantom.common.action import Action, Attack, DoNothing, Move, UseAbility
 from phantom.common.constants import CHANGELINGS, ENERGY_COST, GAS_BY_RACE
 from phantom.common.cost import Cost
 from phantom.common.distribute import distribute
@@ -106,7 +106,7 @@ class Agent:
         macro_actions = await self.macro.step(observation, set(self.scout.blocked_positions))
 
         should_inject = observation.supply_used + observation.bank.larva < 200
-        should_spread_creep = self.creep.unspread_tumor_count < 50
+        should_spread_creep = self.creep.unspread_tumor_count < 0
 
         def should_harvest_resource(r: Unit) -> bool:
             p = tuple(r.position.rounded)
@@ -182,7 +182,7 @@ class Agent:
             p = tuple(q.position.rounded)
             return (
                 transfuse.transfuse_with(q)
-                or (combat.fight_with(q) if 1 < self.bot.mediator.get_ground_grid[p] < np.inf else None)
+                # or (combat.fight_with(q) if 1 < self.bot.mediator.get_ground_grid[p] < np.inf else None)
                 or inject_with_queen(q)
                 or (creep.spread_with_queen(q) if should_spread_creep else None)
                 or (combat.retreat_with(q) if not observation.creep[p] else None)
@@ -216,13 +216,8 @@ class Agent:
 
         def micro_harvester(u: Unit) -> Action | None:
             return (
-                (
-                    combat.retreat_with(u)
-                    if 1.0 < self.bot.mediator.get_ground_grid[u.position.rounded] < np.inf
-                    else None
-                )
-                or resources.gather_with(u, harvester_return_targets)
-                or (drone_scout(u) if harvester_return_targets.amount < 2 else None)
+                resources.gather_with(u, harvester_return_targets)
+                # or (drone_scout(u) if harvester_return_targets.amount < 2 else None)
             )
 
         def micro_overlord(u: Unit) -> Action | None:

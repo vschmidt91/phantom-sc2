@@ -113,6 +113,9 @@ class PhantomBot(BotExporter, AresBot):
         if iteration == 0:
             return
 
+        if self.supply_used == 200:
+            await self.client.leave()
+
         # await self.client.save_replay("tmp.SC2Replay")
         # cheat = Replay.from_file("tmp.SC2Replay")
         # cheat_state = cheat.steps[max(cheat.steps.keys())]

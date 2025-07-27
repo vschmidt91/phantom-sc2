@@ -188,6 +188,9 @@ class CombatAction:
         return UseAbility(AbilityId.ATTACK, target.position)
 
     def fight_with(self, unit: Unit) -> Action | None:
+
+        return Move(self.state.knowledge.map_center)
+
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
             dps = calculate_dps(unit, u)

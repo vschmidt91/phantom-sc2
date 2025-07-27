@@ -52,9 +52,11 @@ class WaitUntil(BuildOrder):
 class ExtractorTrick(BuildOrder):
     unit_type = UnitTypeId.EXTRACTOR
     at_supply = 14
-    min_minerals = 50
+    min_minerals = 40
 
     def execute(self, obs: Observation) -> BuildOrderStep | None:
+        if obs.supply_used < self.at_supply:
+            return BuildOrderStep([], {})
         if self.at_supply == obs.supply_used and obs.bank.supply <= 0:
             has_extractor = any(
                 (
@@ -91,20 +93,19 @@ BUILD_ORDERS = {
             ExtractorTrick(),
             Make(UnitTypeId.OVERLORD, 2),
             Make(UnitTypeId.HATCHERY, 2),
-            Make(UnitTypeId.DRONE, 16),
+            Make(UnitTypeId.DRONE, 17),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
-            Make(UnitTypeId.EXTRACTOR, 1),
+            # Make(UnitTypeId.EXTRACTOR, 1),
         ]
     ),
     "HATCH_FIRST": BuildOrderChain(
         [
-            Make(UnitTypeId.DRONE, 13),
+            Make(UnitTypeId.DRONE, 14),
             Make(UnitTypeId.OVERLORD, 2),
-            Make(UnitTypeId.DRONE, 16),
             Make(UnitTypeId.HATCHERY, 2),
             Make(UnitTypeId.DRONE, 17),
-            Make(UnitTypeId.EXTRACTOR, 1),
-            WaitUntil(lambda obs: obs.gas_buildings),
+            # Make(UnitTypeId.EXTRACTOR, 1),
+            # WaitUntil(lambda obs: obs.gas_buildings),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
         ]
     ),
@@ -112,34 +113,34 @@ BUILD_ORDERS = {
         [
             Make(UnitTypeId.DRONE, 13),
             Make(UnitTypeId.OVERLORD, 2),
-            Make(UnitTypeId.DRONE, 17),
+            Make(UnitTypeId.DRONE, 16),
             Make(UnitTypeId.HATCHERY, 2),
-            Make(UnitTypeId.DRONE, 18),
-            WaitUntil(lambda obs: obs.workers.amount > 16),
-            Make(UnitTypeId.EXTRACTOR, 1),
+            # Make(UnitTypeId.DRONE, 18),
+            # WaitUntil(lambda obs: obs.workers.amount > 16),
+            # Make(UnitTypeId.EXTRACTOR, 1),
             # WaitUntil(lambda obs: obs.gas_buildings),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
             # WaitUntil(lambda obs: obs.structures(UnitTypeId.SPAWNINGPOOL)),
-            Make(UnitTypeId.HATCHERY, 3),
-            Make(UnitTypeId.DRONE, 19),
-            Make(UnitTypeId.QUEEN, 1),
-            Make(UnitTypeId.ZERGLING, 1),
-            Make(UnitTypeId.QUEEN, 2),
+            # Make(UnitTypeId.HATCHERY, 3),
+            # Make(UnitTypeId.DRONE, 19),
+            # Make(UnitTypeId.QUEEN, 1),
+            # Make(UnitTypeId.ZERGLING, 1),
+            # Make(UnitTypeId.QUEEN, 2),
             # WaitUntil(lambda obs: obs.supply_used >= 24),
         ]
     ),
     "POOL_FIRST": BuildOrderChain(
         [
-            Make(UnitTypeId.DRONE, 13),
+            Make(UnitTypeId.DRONE, 14),
             Make(UnitTypeId.OVERLORD, 2),
-            Make(UnitTypeId.DRONE, 17),
-            WaitUntil(lambda obs: obs.workers.amount > 14),
+            # Make(UnitTypeId.DRONE, 17),
+            # WaitUntil(lambda obs: obs.workers.amount > 14),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
-            Make(UnitTypeId.EXTRACTOR, 1),
-            Make(UnitTypeId.DRONE, 18),
+            # Make(UnitTypeId.EXTRACTOR, 1),
+            Make(UnitTypeId.DRONE, 17),
             Make(UnitTypeId.HATCHERY, 2),
             Make(UnitTypeId.QUEEN, 1),
-            Make(UnitTypeId.ZERGLING, 2),
+            # Make(UnitTypeId.ZERGLING, 2),
             # Make(UnitTypeId.HATCHERY, 3),
         ]
     ),

@@ -70,4 +70,5 @@ class Knowledge:
         self.race = bot.race
         self.enemy_race = bot.enemy_race
         self.map_size = bot.game_info.map_size
+        self.map_center = bot.game_info.map_center
         self.in_mineral_line = {b: tuple(center(self.expansion_resource_positions[b]).rounded) for b in self.bases}

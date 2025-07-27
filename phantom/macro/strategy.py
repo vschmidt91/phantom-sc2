@@ -107,14 +107,17 @@ class Strategy:
         saturation = self.obs.supply_workers / max(1, worker_max)
         saturation = max(0.0, min(1.0, saturation))
 
-        if self.obs.townhalls.amount > 2 and saturation < 2 / 3:
+        # if self.obs.townhalls.amount > 2 and saturation < 1 / 2:
+        #     return
+
+        if self.obs.townhalls.amount >= 8:
             return
 
-        priority = 3 * (saturation - 1)
+        priority = (saturation - 1)
 
         if self.obs.count_planned(UnitTypeId.HATCHERY) > 0:
             return
-        if self.obs.count_pending(UnitTypeId.HATCHERY) > 1:
+        if self.obs.count_pending(UnitTypeId.HATCHERY) > (2 if self.obs.townhalls.amount > 3 else 1):
             return
         yield MacroPlan(UnitTypeId.HATCHERY, priority=priority)
 
@@ -221,6 +224,7 @@ class Strategy:
         return StrategyTier.LATEGAME
 
     def _army_composition(self) -> UnitComposition:
+        return {}
         # force droning up to 21
         # TODO: check if necessary
         if not self.obs.structures({UnitTypeId.SPAWNINGPOOL}).ready:
@@ -269,25 +273,27 @@ class Strategy:
         queen_target = max(
             0.0, min(self.context.queens_limit.value, self.context.queens_per_hatch.value * self.obs.townhalls.amount)
         )
+        if self.obs.supply_used > 100:
+            queen_target = 20
         composition = defaultdict[UnitTypeId, float](float)
 
-        composition[UnitTypeId.DRONE] += harvester_target
+        composition[UnitTypeId.DRONE] += 200
         composition[UnitTypeId.QUEEN] += queen_target
         if self.tier >= StrategyTier.HATCH:
             composition[UnitTypeId.SPAWNINGPOOL] += 1
-        if self.tier >= StrategyTier.LAIR:
-            composition[UnitTypeId.LAIR] += 1
-            composition[UnitTypeId.OVERSEER] += 1
-            composition[UnitTypeId.ROACHWARREN] += 1
-            composition[UnitTypeId.HYDRALISKDEN] += 1
-            composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
-        if self.tier >= StrategyTier.HIVE:
-            composition[UnitTypeId.INFESTATIONPIT] += 1
-            composition[UnitTypeId.HIVE] += 1
-            composition[UnitTypeId.OVERSEER] += 2
-            composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
-        if self.tier >= StrategyTier.LATEGAME:
-            composition[UnitTypeId.OVERSEER] += 3
-            composition[UnitTypeId.SPIRE] += 1
-            composition[UnitTypeId.GREATERSPIRE] += 1
+        # if self.tier >= StrategyTier.LAIR:
+        #     composition[UnitTypeId.LAIR] += 1
+        #     composition[UnitTypeId.OVERSEER] += 1
+        #     composition[UnitTypeId.ROACHWARREN] += 1
+        #     composition[UnitTypeId.HYDRALISKDEN] += 1
+        #     composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
+        # if self.tier >= StrategyTier.HIVE:
+        #     composition[UnitTypeId.INFESTATIONPIT] += 1
+        #     composition[UnitTypeId.HIVE] += 1
+        #     composition[UnitTypeId.OVERSEER] += 2
+        #     composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
+        # if self.tier >= StrategyTier.LATEGAME:
+        #     composition[UnitTypeId.OVERSEER] += 3
+        #     composition[UnitTypeId.SPIRE] += 1
+        #     composition[UnitTypeId.GREATERSPIRE] += 1
         return composition

@@ -16,9 +16,11 @@ from sc2.units import Units
 
 from phantom.common.action import Action, HoldPosition, Move, UseAbility
 from phantom.common.constants import (
+    ALL_MACRO_ABILITIES,
     GAS_BY_RACE,
     HALF,
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
+    MACRO_ABILITIES,
     MACRO_INFO,
     WORKERS,
 )
@@ -92,6 +94,10 @@ class MacroState:
             obs.bot.add_replay_tag("overplanning")  # type: ignore
             self.unassigned_plans = []
         await self.assign_unassigned_plans(obs, obs.units, blocked_positions)  # TODO: narrow this down
+
+        for unit in obs.bot.mediator.get_units_from_role(role=UnitRole.PERSISTENT_BUILDER):
+            if unit.tag not in self.assigned_plans and (unit.is_idle or unit.orders[0].ability.exact_id not in ALL_MACRO_ABILITIES):
+                obs.bot.mediator.assign_role(tag=unit.tag, role=UnitRole.GATHERING)
 
         actions = dict[Unit, Action]()
         reserve = Cost()
