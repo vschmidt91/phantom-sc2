@@ -45,8 +45,7 @@ class PhantomBot(BotExporter, AresBot):
         self.version: str | None = None
         self.profiler = cProfile.Profile()
         self.on_before_start_was_called = False
-        self.ordered_structures = dict[int, UnitTypeId]()
-        self.ordered_by_target = dict[OrderTarget, tuple[int, UnitTypeId]]()
+        self.ordered_structures = dict[int, tuple[OrderTarget, UnitTypeId]]()
         self.pending = dict[int, UnitTypeId]()
         self.pending_upgrades = set[UpgradeId]()
 
@@ -85,7 +84,10 @@ class PhantomBot(BotExporter, AresBot):
 
         knowledge = Knowledge(self)
         self.agent = Agent(self, self.bot_config.build_order, self.parameters, knowledge)
-        self.parameters.sample()
+
+        if self.bot_config.training:
+            logger.info("Bot starting")
+            self.parameters.sample()
 
         def handle_message(message):
             severity = message.record["level"]
@@ -106,6 +108,8 @@ class PhantomBot(BotExporter, AresBot):
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
+
+        self.ordered_structure_position_to_tag = {target: tag for tag, (target, _) in self.ordered_structures.items()}
 
         # await self.client.save_replay(self.client.save_replay_path)
 
@@ -137,7 +141,7 @@ class PhantomBot(BotExporter, AresBot):
             for tag in action.unit_tags:
                 self.handle_action(action, tag)
 
-        for tag, ordered in list(self.ordered_structures.items()):
+        for tag, (_target, ordered) in list(self.ordered_structures.items()):
             if unit := self.unit_tag_dict.get(tag):
                 ability = TRAIN_INFO[unit.type_id][ordered]["ability"]
                 if not unit.is_using_ability(ability):
@@ -201,7 +205,10 @@ class PhantomBot(BotExporter, AresBot):
     async def on_building_construction_started(self, unit: Unit):
         logger.info(f"on_building_construction_started {unit=}")
         await super().on_building_construction_started(unit)
-        self.ordered_structures.pop(unit.tag, None)
+        if ordered_from := self.ordered_structure_position_to_tag.get(unit.position):
+            self.ordered_structures.pop(ordered_from, None)
+        else:
+            logger.info(f"{unit=} was started before being ordered")
         self.pending[unit.tag] = unit.type_id
 
     async def on_building_construction_complete(self, unit: Unit):
@@ -224,13 +231,13 @@ class PhantomBot(BotExporter, AresBot):
         logger.info(f"on_unit_destroyed {unit_tag=}")
         await super().on_unit_destroyed(unit_tag)
         self.pending.pop(unit_tag, None)
-        if unit := self._units_previous_map.get(unit_tag):
+        if unit := (self._units_previous_map.get(unit_tag) or self._structures_previous_map.get(unit_tag)):
             for order in unit.orders:
                 ability = order.ability.exact_id
                 if item := UPGRADE_BY_RESEARCH_ABILITY.get(ability):
                     self.pending_upgrades.remove(item)
         else:
-            logger.debug(f"{unit_tag=} vanished mysteriously")
+            logger.error(f"{unit_tag=} destroyed but not found in previous observation")
 
     async def on_unit_created(self, unit: Unit):
         await super().on_unit_created(unit)
@@ -261,26 +268,34 @@ class PhantomBot(BotExporter, AresBot):
             UnitTypeId.CHANGELING,
         }:
             return
+        lookup_tag = tag
         if unit and unit.type_id == UnitTypeId.EGG:
             # commands issued to a specific larva will be received by a random one
             # therefore, a direct lookup will often be incorrect
             # instead, all plans are checked for a match
             for t, p in self.agent.macro.assigned_plans.items():
                 if item == p.item:
-                    tag = t
+                    if tag != t:
+                        logger.info(f"Correcting morph tag from {tag} to {t=}")
+                        lookup_tag = t
                     break
-        if plan := self.agent.macro.assigned_plans.get(tag):
+        if plan := self.agent.macro.assigned_plans.get(lookup_tag):
             if item != plan.item:
                 logger.info(f"{action=} for {item=} does not match {plan=}")
             else:
-                del self.agent.macro.assigned_plans[tag]
+                del self.agent.macro.assigned_plans[lookup_tag]
                 if isinstance(item, UpgradeId):
                     self.pending_upgrades.add(item)
                 elif item in ALL_STRUCTURES and (
                     "requires_placement_position" in TRAIN_INFO[unit.type_id][item] or item == UnitTypeId.EXTRACTOR
                 ):
                     if tag in self.unit_tag_dict:
-                        self.ordered_structures[tag] = item
+                        pos = (
+                            unit.order_target
+                            if isinstance(unit.order_target, Point2)
+                            else self.unit_tag_dict[unit.order_target].position
+                        )
+                        self.ordered_structures[tag] = (pos, item)
                 else:
                     self.pending[tag] = item
                 logger.info(f"Executed {plan=} through {action}")

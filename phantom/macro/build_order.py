@@ -52,10 +52,12 @@ class WaitUntil(BuildOrder):
 class ExtractorTrick(BuildOrder):
     unit_type = UnitTypeId.EXTRACTOR
     at_supply = 14
-    min_minerals = 50
+    min_minerals = 40
 
     def execute(self, obs: Observation) -> BuildOrderStep | None:
-        if self.at_supply == obs.supply_used and obs.bank.supply <= 0:
+        if obs.supply_used < self.at_supply:
+            return BuildOrderStep([], {})
+        if obs.supply_used == self.at_supply and obs.bank.supply <= 0:
             has_extractor = any(
                 (
                     obs.count_actual(self.unit_type),
@@ -91,9 +93,18 @@ BUILD_ORDERS = {
             ExtractorTrick(),
             Make(UnitTypeId.OVERLORD, 2),
             Make(UnitTypeId.HATCHERY, 2),
-            Make(UnitTypeId.DRONE, 16),
-            Make(UnitTypeId.SPAWNINGPOOL, 1),
+            Make(UnitTypeId.DRONE, 18),
+            WaitUntil(lambda obs: obs.workers.amount > 16),
             Make(UnitTypeId.EXTRACTOR, 1),
+            WaitUntil(lambda obs: obs.gas_buildings),
+            Make(UnitTypeId.SPAWNINGPOOL, 1),
+            WaitUntil(lambda obs: obs.structures(UnitTypeId.SPAWNINGPOOL)),
+            Make(UnitTypeId.DRONE, 19),
+            Make(UnitTypeId.HATCHERY, 3),
+            # Make(UnitTypeId.DRONE, 18),
+            Make(UnitTypeId.QUEEN, 1),
+            Make(UnitTypeId.ZERGLING, 1),
+            Make(UnitTypeId.QUEEN, 2),
         ]
     ),
     "HATCH_FIRST": BuildOrderChain(

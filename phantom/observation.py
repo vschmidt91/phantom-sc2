@@ -4,6 +4,7 @@ from itertools import chain
 
 import numpy as np
 from ares import AresBot, UnitTreeQueryType
+from ares.consts import UnitRole
 from cython_extensions import cy_unit_pending
 from loguru import logger
 from sc2.data import Race
@@ -116,11 +117,13 @@ class Observation:
         self.enemy_structures = self.bot.enemy_structures
         self.game_loop = self.bot.state.game_loop
         self.resources = self.bot.resources
+        self.ordered_structures = self.bot.ordered_structures
+        self.pending = self.bot.pending
 
         self.actual_by_type = Counter[UnitTypeId](u.type_id for u in self.units if u.is_ready)
         self.actual_by_type[UnitTypeId.DRONE] = self.bot.supply_workers
         self.pending_by_type = Counter[UnitTypeId](self.bot.pending.values())
-        self.ordered_by_type = Counter[UnitTypeId](self.bot.ordered_structures.values())
+        self.ordered_by_type = Counter[UnitTypeId](t for _, t in self.bot.ordered_structures.values())
 
         self.map_center = self.bot.game_info.map_center
         self.start_location = self.bot.start_location
@@ -346,6 +349,9 @@ class Observation:
             return (UpgradeId.OVERLORDSPEED,)
         else:
             return []
+
+    def get_units_from_role(self, role: UnitRole) -> Units:
+        return self.bot.mediator.get_units_from_role(role=role)
 
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:

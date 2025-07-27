@@ -50,8 +50,8 @@ class StrategyState:
         self.tier1_drone_count = parameters.normal("tier1_drone_count", NormalPrior(40, 1))
         self.tier2_drone_count = parameters.normal("tier2_drone_count", NormalPrior(60, 1))
         self.tier3_drone_count = parameters.normal("tier3_drone_count", NormalPrior(80, 1))
-        self.tech_priority_offset = parameters.normal("tech_priority_offset", NormalPrior(-0.75, 0.1))
-        self.tech_priority_scale = parameters.normal("tech_priority_scale", NormalPrior(1.0, 0.1))
+        self.tech_priority_offset = parameters.normal("tech_priority_offset", NormalPrior(-0.5, 0.001))
+        self.tech_priority_scale = parameters.normal("tech_priority_scale", NormalPrior(0.5, 0.001))
         self.hydras_when_banking = parameters.normal("hydras_when_banking", NormalPrior(5, 1))
         self.lings_when_banking = parameters.normal("lings_when_banking", NormalPrior(10, 1))
         self.queens_when_banking = parameters.normal("queens_when_banking", NormalPrior(3, 1))
@@ -97,9 +97,14 @@ class Strategy:
             return
 
         for upgrade, weight in upgrade_weights.items():
-            if upgrade in self.obs.upgrades or upgrade in self.obs.bot.pending_upgrades or self.obs.planned[upgrade]:
-                continue
             priority = self.context.tech_priority_offset.value + self.context.tech_priority_scale.value * weight / total
+            if upgrade in self.obs.upgrades or upgrade in self.obs.bot.pending_upgrades:
+                continue
+            if self.obs.planned[upgrade]:
+                for plan in self.obs.bot.agent.macro.assigned_plans.values():
+                    if plan.item == upgrade:
+                        plan.priority = priority
+                continue
             yield MacroPlan(upgrade, priority=priority)
 
     def expand(self) -> Iterable[MacroPlan]:
@@ -107,14 +112,16 @@ class Strategy:
         saturation = self.obs.supply_workers / max(1, worker_max)
         saturation = max(0.0, min(1.0, saturation))
 
-        if self.obs.townhalls.amount > 2 and saturation < 2 / 3:
-            return
+        # if self.tier == StrategyTier.HATCH:
+        #     return
 
         priority = 3 * (saturation - 1)
 
+        if priority < -1:
+            return
         if self.obs.count_planned(UnitTypeId.HATCHERY) > 0:
             return
-        if self.obs.count_pending(UnitTypeId.HATCHERY) > 1:
+        if self.obs.count_pending(UnitTypeId.HATCHERY) > 0:
             return
         yield MacroPlan(UnitTypeId.HATCHERY, priority=priority)
 

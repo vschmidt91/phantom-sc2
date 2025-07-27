@@ -82,7 +82,6 @@ class AgentParameters:
             ddof=1,
             seed=self.seed,
         )
-        print(normal.sample())
         multinomial = {k: Multinomial(p.prior.categories, self.seed) for k, p in self._discrete.items()}
         self.distributions = AgentParameterDistributions(
             normal=normal,

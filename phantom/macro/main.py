@@ -86,7 +86,15 @@ class MacroState:
                 self.assigned_plans[trainer.tag] = plan
                 trainer_set.remove(trainer)
 
+    def return_gatherers(self, obs: Observation) -> None:
+        for unit in obs.get_units_from_role(UnitRole.PERSISTENT_BUILDER):
+            if unit.tag not in self.assigned_plans and unit.tag not in obs.ordered_structures:
+                logger.info(f"Returning {unit=} to gathering")
+                obs.bot.mediator.assign_role(tag=unit.tag, role=UnitRole.GATHERING)
+
     async def step(self, obs: Observation, blocked_positions: Set[Point]) -> MacroAction:
+        self.return_gatherers(obs)
+
         # TODO
         if len(self.unassigned_plans) > 100:
             obs.bot.add_replay_tag("overplanning")  # type: ignore
@@ -294,7 +302,7 @@ async def get_target_position(
 
     if potential_bases := list(filter(filter_base, knowledge.bases)):
         base = random.choice(potential_bases)
-        distance = rng.uniform(8, 10)
+        distance = rng.uniform(8, 12)
         mineral_line = Point2(knowledge.in_mineral_line[base])
         behind_mineral_line = Point2(base).towards(mineral_line, distance)
         position = Point2(base).towards_with_random_angle(behind_mineral_line, distance)
