@@ -123,7 +123,7 @@ class Observation:
         self.actual_by_type = Counter[UnitTypeId](u.type_id for u in self.units if u.is_ready)
         self.actual_by_type[UnitTypeId.DRONE] = self.bot.supply_workers
         self.pending_by_type = Counter[UnitTypeId](self.bot.pending.values())
-        self.ordered_by_type = Counter[UnitTypeId](t for _, t in self.bot.ordered_structures.values())
+        self.ordered_by_type = Counter[UnitTypeId](s.type for s in self.bot.ordered_structures.values())
 
         self.map_center = self.bot.game_info.map_center
         self.start_location = self.bot.start_location
