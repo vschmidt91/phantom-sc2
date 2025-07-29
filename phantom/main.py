@@ -24,13 +24,12 @@ from phantom.config import BotConfig
 from phantom.exporter import BotExporter
 from phantom.knowledge import Knowledge
 from phantom.macro.main import MacroPlan
-from phantom.observation import OrderTarget
 from phantom.parameters import AgentParameters
 
 
 @dataclass(frozen=True)
 class OrderedStructure:
-    type_id: UnitTypeId
+    type: UnitTypeId
     position: Point2
 
 
@@ -45,7 +44,7 @@ class PhantomBot(BotExporter, AresBot):
         self.version: str | None = None
         self.profiler = cProfile.Profile()
         self.on_before_start_was_called = False
-        self.ordered_structures = dict[int, tuple[OrderTarget, UnitTypeId]]()
+        self.ordered_structures = dict[int, OrderedStructure]()
         self.pending = dict[int, UnitTypeId]()
         self.pending_upgrades = set[UpgradeId]()
 
@@ -290,12 +289,12 @@ class PhantomBot(BotExporter, AresBot):
                     "requires_placement_position" in TRAIN_INFO[unit.type_id][item] or item == UnitTypeId.EXTRACTOR
                 ):
                     if tag in self.unit_tag_dict:
-                        pos = (
-                            unit.order_target
-                            if isinstance(unit.order_target, Point2)
-                            else self.unit_tag_dict[unit.order_target].position
-                        )
-                        self.ordered_structures[tag] = (pos, item)
+                        if isinstance(unit.order_target, Point2):
+                            self.ordered_structures[tag] = OrderedStructure(item, unit.order_target)
+                        elif isinstance(unit.order_target, int):
+                            self.ordered_structures[tag] = OrderedStructure(
+                                item, self.unit_tag_dict[unit.order_target].position
+                            )
                 else:
                     self.pending[tag] = item
                 logger.info(f"Executed {plan=} through {action}")
