@@ -29,7 +29,7 @@ class Knowledge:
             worker_radius = bot.workers[0].radius
             for base_position, resources in bot.expansion_locations_dict.items():
                 self.spore_position[base_position.rounded] = base_position.towards(
-                    Point2(cy_center(resources)), 5.0
+                    Point2(cy_center(resources.mineral_field)), 5.0
                 ).rounded
                 for geyser in resources.vespene_geyser:
                     target = geyser.position.towards(base_position, geyser.radius + worker_radius)

@@ -154,7 +154,8 @@ class Observation:
         self.max_harvesters = sum(
             (
                 2 * self.all_taken_resources.mineral_field.amount,
-                3 * self.all_taken_resources.vespene_geyser.amount,
+                3 * self.gas_buildings.amount,
+                22 * self.count_pending(UnitTypeId.HATCHERY),
             )
         )
         self.geyers_taken = self.all_taken_resources.vespene_geyser

@@ -49,6 +49,7 @@ class MacroState:
         self.assigned_plans = dict[int, MacroPlan]()
 
     def make_composition(self, observation: Observation, composition: UnitComposition) -> Iterable[MacroPlan]:
+        unit_priorities = dict[UnitTypeId, float]()
         for unit, target in composition.items():
             have = observation.count_actual(unit) + observation.count_pending(unit)
             planned = observation.count_planned(unit)
@@ -57,14 +58,15 @@ class MacroState:
             if any(observation.get_missing_requirements(unit)):
                 continue
             priority = -have / target
-            if any(self.planned_by_type(unit)):
-                for plan in self.planned_by_type(unit):
-                    if plan.priority == math.inf:
-                        continue
-                    plan.priority = priority
-                    break
-            else:
+            unit_priorities[unit] = priority
+            if planned == 0:
                 yield MacroPlan(unit, priority=priority)
+
+        for plan in self.assigned_plans.values():
+            if plan.priority == math.inf:
+                continue
+            if override_priority := unit_priorities.get(plan.item):
+                plan.priority = override_priority
 
     def add(self, plan: MacroPlan) -> None:
         self.unassigned_plans.append(plan)
@@ -74,7 +76,7 @@ class MacroState:
         return chain(self.assigned_plans.values(), self.unassigned_plans)
 
     def planned_by_type(self, item: MacroId) -> Iterable[MacroPlan]:
-        return (plan for plan in self.enumerate_plans() if plan.item == item)
+        return filter(lambda p: p.item == item, self.enumerate_plans())
 
     async def assign_unassigned_plans(self, obs: Observation, trainers: Units, blocked_positions: Set[Point]) -> None:
         trainer_set = set(trainers)

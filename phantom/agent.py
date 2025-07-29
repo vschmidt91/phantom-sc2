@@ -75,7 +75,7 @@ class Agent:
             else:
                 for plan in chain(
                     self.macro.make_composition(observation, strategy.composition_target),
-                    strategy.make_tech(),
+                    strategy.make_upgrades(),
                     strategy.morph_overlord(),
                     strategy.expand(),
                     strategy.make_spores(),
@@ -222,7 +222,7 @@ class Agent:
                     else None
                 )
                 or resources.gather_with(u, harvester_return_targets)
-                or (drone_scout(u) if harvester_return_targets.amount < 2 else None)
+                # or (drone_scout(u) if harvester_return_targets.amount < 2 else None)
             )
 
         def micro_overlord(u: Unit) -> Action | None:
