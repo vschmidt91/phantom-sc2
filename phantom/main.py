@@ -108,7 +108,7 @@ class PhantomBot(BotExporter, AresBot):
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
 
-        self.ordered_structure_position_to_tag = {target: tag for tag, (target, _) in self.ordered_structures.items()}
+        self.ordered_structure_position_to_tag = {s.position: tag for tag, s in self.ordered_structures.items()}
 
         # await self.client.save_replay(self.client.save_replay_path)
 
@@ -140,14 +140,14 @@ class PhantomBot(BotExporter, AresBot):
             for tag in action.unit_tags:
                 self.handle_action(action, tag)
 
-        for tag, (_target, ordered) in list(self.ordered_structures.items()):
+        for tag, ordered_structure in list(self.ordered_structures.items()):
             if unit := self.unit_tag_dict.get(tag):
-                ability = TRAIN_INFO[unit.type_id][ordered]["ability"]
+                ability = TRAIN_INFO[unit.type_id][ordered_structure.type]["ability"]
                 if not unit.is_using_ability(ability):
-                    logger.warning(f"{unit=} is doing {unit.orders} and not as {ordered=}")
+                    logger.warning(f"{unit=} is doing {unit.orders} and not as {ordered_structure=}")
                     del self.ordered_structures[tag]
             else:
-                logger.info(f"Trainer {tag=} is MIA for {ordered=}")
+                logger.info(f"Trainer {tag=} is MIA for {ordered_structure=}")
                 del self.ordered_structures[tag]
 
         actions = await self.agent.step()
