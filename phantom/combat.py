@@ -198,7 +198,7 @@ class CombatAction:
             cost += 1e-10 * random_offset
             return cost
 
-        if unit.ground_range > 1 and unit.weapon_ready and (targets := self.observation.shootable_targets.get(unit)):
+        if unit.weapon_ready and (targets := self.observation.shootable_targets.get(unit)):
             target = min(targets, key=cost_fn)
             return Attack(target)
 

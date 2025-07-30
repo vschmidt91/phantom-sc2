@@ -364,7 +364,7 @@ class Observation:
         return ()
 
     def _shootable_targets(self) -> Mapping[Unit, Sequence[Unit]]:
-        units = self.combatants.filter(lambda u: u.ground_range > 1 and u.weapon_ready)
+        units = self.combatants.filter(lambda u: u.weapon_ready)
 
         points_ground = list[Point2]()
         points_air = list[Point2]()
