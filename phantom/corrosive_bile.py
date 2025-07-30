@@ -37,7 +37,7 @@ class CorrosiveBile:
         def bile_priority(t: Unit) -> float:
             priority = 10.0 + max(t.ground_dps, t.air_dps)
             priority /= 100.0 + t.health + t.shield
-            priority /= 2.0 + t.movement_speed
+            priority /= 1.0 + 10 * t.movement_speed
             return priority
 
         last_used = self.bile_last_used.get(unit.tag)
