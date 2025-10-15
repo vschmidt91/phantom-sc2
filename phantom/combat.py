@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from itertools import product
 
 import numpy as np
+import scipy.optimize
+
 from ares.consts import EngagementResult
 from ares.main import AresBot
 from cython_extensions.dijkstra import cy_dijkstra
@@ -16,8 +18,9 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
+from scipy.optimize import minimize
 
-from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
+from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility, DoNothing
 from phantom.common.constants import COMBATANT_STRUCTURES, HALF
 from phantom.common.distribute import distribute
 from phantom.common.graph import graph_components
@@ -188,6 +191,34 @@ class CombatAction:
         return UseAbility(AbilityId.ATTACK, target.position)
 
     def fight_with(self, unit: Unit) -> Action | None:
+
+        def reward_fn(x: np.ndarray) -> float:
+            p = tuple(np.round(x).astype(int))
+            reward = 0.0
+            if np.less(p, 0).any() or np.greater_equal(p, self.observation.pathing.shape).any():
+                return -1e10
+            if not unit.is_flying and not self.observation.pathing[p]:
+                return -1e10
+            c = 0.1
+            e = 1e-10
+            min_time_until_attack = np.inf
+            for enemy in self.observation.enemy_combatants:
+                unit_range = unit.air_range if enemy.is_flying else unit.ground_range
+                enemy_range = enemy.air_range if unit.is_flying else enemy.ground_range
+                d = enemy.distance_to(x) - unit.radius - enemy.radius
+                time_until_attack = max(0, d - unit_range) / max(e, unit.movement_speed)
+                time_until_counter_attack = max(0, d - enemy_range) / max(e, enemy.movement_speed)
+                min_time_until_attack = min(time_until_attack, min_time_until_attack)
+                # time_until_attack = max(0, d - unit_range)
+                # time_until_counter_attack = max(0, d - enemy_range)
+                # reward += w * (time_until_counter_attack - time_until_attack)
+                reward -= np.exp(-c * time_until_counter_attack) / self.observation.enemy_combatants.amount
+                # reward += time_until_counter_attack / self.observation.enemy_combatants.amount
+                # reward -= d / self.observation.enemy_combatants.amount
+            # reward -= min_time_until_attack
+            reward += np.exp(-c * min_time_until_attack)
+            return reward
+
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
             dps = calculate_dps(unit, u)
@@ -200,7 +231,10 @@ class CombatAction:
 
         if unit.weapon_ready and (targets := self.observation.shootable_targets.get(unit)):
             target = min(targets, key=cost_fn)
-            return Attack(target)
+            if unit.ground_range < 1:
+                return Attack(target.position)
+            else:
+                return Attack(target)
 
         if not (target := self.optimal_targeting.get(unit)):
             return None
@@ -208,50 +242,72 @@ class CombatAction:
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(target.position)
 
-        outcome_local = self.prediction.outcome_for[unit.tag]
-        attacking_local = self.prediction.attacking[unit.tag]
 
-        p = tuple(unit.position.rounded)
-        retreat_grid = (
-            self.state.bot.mediator.get_air_grid if unit.is_flying else self.state.bot.mediator.get_ground_grid
-        )
-        retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
-        retreat_path = retreat_map.get_path(p, limit=5)
+        gradient = scipy.optimize.approx_fprime(unit.position, reward_fn)
+        gradient_norm = np.linalg.norm(gradient)
 
-        def inf_to_one(x):
-            return 1 if x == np.inf else x
-
-        retreat_dps = sum(inf_to_one(retreat_grid[p]) - 1 for p in retreat_path)
-        retreat_duration = len(retreat_path) / unit.movement_speed
-        retreat_dps * retreat_duration
-
-        bias = 0.0
-        bias += 3 * attacking_local
-
-        if self.observation.bot.enemy_race != Race.Zerg and not self.observation.creep[unit.position.rounded]:
-            bias += min(0, self.prediction.outcome - EngagementResult.TIE)
-        # bias += 1 * (self.prediction.outcome.value - 5) / 5
-        # if retreat_damage > 0:
-        #     bias += .1 * retreat_damage
-        # if self.state.knowledge.is_micro_map:
-        #     bias += 3.0
-
-        if outcome_local + bias > EngagementResult.TIE:
-            self.state.is_attacking.add(unit.tag)
-            if unit.ground_range < 1:
-                return UseAbility(AbilityId.ATTACK, target.position)
-            else:
-                return Attack(target)
+        if gradient_norm > 1e-10:
+            target = unit.position + 12 * gradient / gradient_norm
         else:
-            self.state.is_attacking.discard(unit.tag)
-            if retreat_grid[unit.position.rounded] > 1:
-                if len(retreat_path) > 2:
-                    retreat_point = Point2(retreat_path[2]).offset(HALF)
-                    return Move(retreat_point)
-                else:
-                    return self.retreat_with_ares(unit)
-            else:
-                return UseAbility(AbilityId.STOP)
+            loss_fn = lambda x: -reward_fn(x)
+            search_range = 2
+            one = Point2((search_range, search_range))
+            bounds0 = unit.position - one
+            bounds1 = unit.position + one
+            bounds = list(zip(bounds0, bounds1))
+            res = minimize(
+                fun=loss_fn,
+                x0=unit.position,
+                # bounds=bounds,
+                # method="CG",
+                options=dict(
+                    # maxiter=1,
+                    # disp=True,
+                ),
+            )
+            target = Point2(res.x)
+
+        return Move(target)
+
+        # outcome_local = self.prediction.outcome_for[unit.tag]
+        # attacking_local = self.prediction.attacking[unit.tag]
+        #
+        # p = tuple(unit.position.rounded)
+        # retreat_grid = (
+        #     self.state.bot.mediator.get_air_grid if unit.is_flying else self.state.bot.mediator.get_ground_grid
+        # )
+        # retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
+        # retreat_path = retreat_map.get_path(p, limit=5)
+        #
+        # def inf_to_one(x):
+        #     return 1 if x == np.inf else x
+        #
+        # retreat_dps = sum(inf_to_one(retreat_grid[p]) - 1 for p in retreat_path)
+        # retreat_duration = len(retreat_path) / unit.movement_speed
+        # retreat_dps * retreat_duration
+        #
+        # bias = 0.0
+        # bias += 3 * attacking_local
+        #
+        # if self.observation.bot.enemy_race != Race.Zerg and not self.observation.creep[unit.position.rounded]:
+        #     bias += min(0, self.prediction.outcome - EngagementResult.TIE)
+        #
+        # if outcome_local + bias > EngagementResult.TIE:
+        #     self.state.is_attacking.add(unit.tag)
+        #     if unit.ground_range < 1:
+        #         return UseAbility(AbilityId.ATTACK, target.position)
+        #     else:
+        #         return Attack(target)
+        # else:
+        #     self.state.is_attacking.discard(unit.tag)
+        #     if retreat_grid[unit.position.rounded] > 1:
+        #         if len(retreat_path) > 2:
+        #             retreat_point = Point2(retreat_path[2]).offset(HALF)
+        #             return Move(retreat_point)
+        #         else:
+        #             return self.retreat_with_ares(unit)
+        #     else:
+        #         return UseAbility(AbilityId.STOP)
 
     def do_unburrow(self, unit: Unit) -> Action | None:
         outcome = self.prediction.outcome_for.get(unit.tag, EngagementResult.VICTORY_DECISIVE)
