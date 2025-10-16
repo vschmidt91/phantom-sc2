@@ -363,7 +363,7 @@ class Observation:
             return (upgrade,)
         return ()
 
-    def _shootable_targets(self) -> Mapping[Unit, Sequence[Unit]]:
+    def _shootable_targets(self, bonus_range=0.0) -> Mapping[Unit, Sequence[Unit]]:
         units = self.combatants.filter(lambda u: u.weapon_ready)
 
         points_ground = list[Point2]()
@@ -371,7 +371,7 @@ class Observation:
         distances_ground = list[float]()
         distances_air = list[float]()
         for unit in units:
-            base_range = unit.radius + MAX_UNIT_RADIUS
+            base_range = bonus_range + unit.radius + MAX_UNIT_RADIUS
             if unit.can_attack_ground:
                 points_ground.append(unit)
                 distances_ground.append(base_range + unit.ground_range)
@@ -394,9 +394,9 @@ class Observation:
         targets = defaultdict[Unit, list[Unit]](list)
         for unit in units:
             for target in ground_candidates.get(unit.tag, []):
-                if unit.distance_to(target) < unit.radius + unit.ground_range + target.radius:
+                if unit.distance_to(target) < bonus_range + unit.radius + unit.ground_range + target.radius:
                     targets[unit].append(target)
             for target in air_candidates.get(unit.tag, []):
-                if unit.distance_to(target) < unit.radius + unit.air_range + target.radius:
+                if unit.distance_to(target) < bonus_range + unit.radius + unit.air_range + target.radius:
                     targets[unit].append(target)
         return dict(targets)
