@@ -25,6 +25,7 @@ from phantom.common.utils import (
     calculate_dps,
     can_attack,
     pairwise_distances,
+    sample_bilinear,
 )
 from phantom.knowledge import Knowledge
 from phantom.observation import Observation
@@ -152,6 +153,7 @@ class CombatAction:
             self.observation.bot.mediator.get_ground_grid.astype(np.float64), self.retreat_targets
         )
 
+        self.pathing_potential = np.where(self.observation.pathing < np.inf, 0.0, 1.0)
         self.targeting_cost = self._targeting_cost()
         self.optimal_targeting = self._optimal_targeting()
         self.prediction = self.state._predict(
@@ -188,13 +190,36 @@ class CombatAction:
         return UseAbility(AbilityId.ATTACK, target.position)
 
     def fight_with(self, unit: Unit) -> Action | None:
+        def potential_kiting(x: np.ndarray) -> float:
+            if not unit.is_flying:
+                pathing = sample_bilinear(self.pathing_potential, x)
+                if pathing > 0:
+                    return 1e10 * pathing
+
+            def g(u: Unit):
+                unit_range = unit.air_range if u.is_flying else unit.ground_range
+                enemy_range = u.air_range if unit.is_flying else u.ground_range
+                d = np.linalg.norm(x - u.position) - u.radius - unit.radius
+                if d < enemy_range < unit_range:
+                    return enemy_range - d
+                # elif unit_range < d < enemy_range:
+                #     return d - unit_range
+                else:
+                    return 0.0
+
+            return min((g(u) for u in self.observation.enemy_combatants), default=0.0)
+
         def reward_fn(x: np.ndarray) -> float:
-            p = tuple(np.round(x).astype(int))
+            tuple(np.round(x).astype(int))
             reward = 0.0
-            if np.less(p, 0).any() or np.greater_equal(p, self.observation.pathing.shape).any():
-                return -1e10
-            if not unit.is_flying and not self.observation.pathing[p]:
-                return -1e10
+            if not unit.is_flying:
+                pathing = sample_bilinear(self.pathing_potential, x)
+                if pathing > 0:
+                    return -1e10 * pathing
+            # if np.less(p, 0).any() or np.greater_equal(p, self.observation.pathing.shape).any():
+            #     return -1e10
+            # if not unit.is_flying and not self.observation.pathing[p]:
+            #     return -1e10
             e = 1e-10
             min_time_until_attack = np.inf
             mean_time_until_counter_attack = 0.0
@@ -234,6 +259,12 @@ class CombatAction:
             else:
                 return Attack(target)
 
+        if not unit.weapon_ready:
+            gradient = scipy.optimize.approx_fprime(unit.position, potential_kiting)
+            gradient_norm = np.linalg.norm(gradient)
+            if gradient_norm > 1e-5:
+                return Move(unit.position - gradient / gradient_norm)
+
         if not (target := self.optimal_targeting.get(unit)):
             return None
 
@@ -249,17 +280,11 @@ class CombatAction:
         p = tuple(unit.position.rounded)
         retreat_path = retreat_map.get_path(p, limit=5)
 
-        if outcome > EngagementResult.TIE:
-            if unit.weapon_ready:
-                return Attack(target)
-            gradient = scipy.optimize.approx_fprime(unit.position, reward_fn)
-            gradient_norm = np.linalg.norm(gradient)
-
-            if gradient_norm < 1e-5:
-                return Attack(target)
+        if outcome > EngagementResult.LOSS_DECISIVE:
+            if unit.ground_range < 1:
+                return Attack(target.position)
             else:
-                target = unit.position + 2 * gradient / gradient_norm
-                return Move(target)
+                return Attack(target)
         else:
             self.state.is_attacking.discard(unit.tag)
             if retreat_grid[unit.position.rounded] > 1:
