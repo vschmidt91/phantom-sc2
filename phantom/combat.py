@@ -280,7 +280,7 @@ class CombatAction:
         p = tuple(unit.position.rounded)
         retreat_path = retreat_map.get_path(p, limit=5)
 
-        if outcome > EngagementResult.LOSS_DECISIVE:
+        if outcome > EngagementResult.TIE:
             if unit.ground_range < 1:
                 return Attack(target.position)
             else:
