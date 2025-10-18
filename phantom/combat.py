@@ -271,7 +271,37 @@ class CombatAction:
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(target.position)
 
-        outcome = self.prediction.outcome_for[unit.tag]
+        # simulate battle
+        distance_scale = 0.1
+        a = 0.0
+        alpha = 0.0
+        for u in self.observation.combatants:
+            d = u.distance_to(target) - u.radius - target.radius
+            w = math.exp(-distance_scale * max(0, d - u.ground_range))
+            a += w
+            alpha += w * u.health * u.ground_dps
+        alpha /= a
+
+        b = 0.0
+        beta = 0.0
+        for u in self.observation.enemy_combatants:
+            d = u.distance_to(unit) - u.radius - unit.radius
+            w = math.exp(-distance_scale * max(0, d - u.ground_range))
+            b += w
+            beta += w * u.health * u.ground_dps
+        beta /= b
+
+        lancester_power = 1.5
+        lancester_a = alpha * (a**lancester_power)
+        lancester_b = beta * (b**lancester_power)
+        if lancester_a > lancester_b:
+            a_final = ((lancester_a - lancester_b) / alpha) ** (1 / lancester_power)
+            outcome = a_final / a
+        else:
+            b_final = ((lancester_b - lancester_a) / beta) ** (1 / lancester_power)
+            outcome = -b_final / b
+
+        # outcome = self.prediction.outcome_for[unit.tag]
 
         retreat_grid = (
             self.state.bot.mediator.get_air_grid if unit.is_flying else self.state.bot.mediator.get_ground_grid
@@ -280,7 +310,7 @@ class CombatAction:
         p = tuple(unit.position.rounded)
         retreat_path = retreat_map.get_path(p, limit=5)
 
-        if outcome > EngagementResult.TIE:
+        if outcome > 0:
             if unit.ground_range < 1:
                 return Attack(target.position)
             else:
