@@ -45,7 +45,7 @@ class StrategyState:
     ) -> None:
         self.knowledge = knowledge
         self.counter_factor = parameters.normal("counter_factor", NormalPrior(2.5, 0.1))
-        self.ravager_mixin = parameters.normal("ravager_mixin", NormalPrior(21, 1))
+        self.ravager_mixin = parameters.normal("ravager_mixin", NormalPrior(13, 1))
         self.corruptor_mixin = parameters.normal("corruptor_mixin", NormalPrior(13, 1))
         self.tier1_drone_count = parameters.normal("tier1_drone_count", NormalPrior(32, 1))
         self.tier2_drone_count = parameters.normal("tier2_drone_count", NormalPrior(66, 1))
@@ -249,6 +249,9 @@ class Strategy:
         corruptor_mixin = int(composition[UnitTypeId.BROODLORD] / self.context.corruptor_mixin.value)
         if corruptor_mixin > 0:
             composition[UnitTypeId.CORRUPTOR] += corruptor_mixin
+        ravager_mixin = int(composition[UnitTypeId.ROACH] / self.context.ravager_mixin.value)
+        if ravager_mixin > 0:
+            composition[UnitTypeId.RAVAGER] += ravager_mixin
         if sum(composition.values()) < 1:
             composition[UnitTypeId.ZERGLING] += 4
         can_afford_hydras = min(
