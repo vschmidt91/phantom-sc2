@@ -65,7 +65,7 @@ class Parameters:
 
     def tell(self, fitness: float) -> None:
         if not self.strategy:
-            raise Exception("tell was called before strategy was initialized")
+            raise Exception("tell was called before ask")
         self.population_fitness.append(fitness)
         if len(self.population_fitness) == len(self.population):
             self.strategy.tell(self.population, self.population_fitness)

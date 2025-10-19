@@ -85,4 +85,4 @@ jobs:
             ${{ secrets.UPLOAD_API_TOKEN }}
           UPLOAD_BOT_ID:
             ${{ secrets[format('UPLOAD_BOT_ID_{0}', github.ref_name)] }}
-        run: python scripts/upload_to_ai_arena.py bot.zip
+        run: python scripts/upload_to_ai_arena.py bot.zip --wiki=README.md

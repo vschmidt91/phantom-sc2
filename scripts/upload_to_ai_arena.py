@@ -31,13 +31,11 @@ def main(
         "Authorization": f"Token {api_token}",
     }
 
-    request_data = {}
-    if bot_zip_publicly_downloadable:
-        request_data["bot_zip_publicly_downloadable"] = bot_zip_publicly_downloadable
-    if bot_data_publicly_downloadable:
-        request_data["bot_data_publicly_downloadable"] = bot_data_publicly_downloadable
-    if bot_data_enabled:
-        request_data["bot_data_enabled"] = bot_data_enabled
+    request_data = {
+        "bot_zip_publicly_downloadable": bot_zip_publicly_downloadable,
+        "bot_data_publicly_downloadable": bot_data_publicly_downloadable,
+        "bot_data_enabled": bot_data_enabled,
+    }
     if wiki:
         request_data["wiki_article_content"] = wiki.read()
 
