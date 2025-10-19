@@ -50,7 +50,7 @@ class StrategyState:
         self.tier1_drone_count = parameters.add(Prior(32, 1, min=0))
         self.tier2_drone_count = parameters.add(Prior(66, 1, min=0))
         self.tier3_drone_count = parameters.add(Prior(80, 1, min=0))
-        self.tech_priority_offset = parameters.add(Prior(-0.5, 0.001, min=0))
+        self.tech_priority_offset = parameters.add(Prior(-0.5, 0.001))
         self.tech_priority_scale = parameters.add(Prior(0.5, 0.001, min=0))
         self.hydras_when_banking = parameters.add(Prior(5, 1, min=0))
         self.lings_when_banking = parameters.add(Prior(10, 1, min=0))
