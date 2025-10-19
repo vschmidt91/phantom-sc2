@@ -166,9 +166,7 @@ class MacroState:
             if trainer.type_id in WORKERS:
                 obs.bot.mediator.assign_role(tag=trainer.tag, role=UnitRole.PERSISTENT_BUILDER)
 
-            if trainer.is_carrying_resource:
-                pass
-            elif eta == 0.0:
+            if eta == 0.0:
                 actions[trainer] = UseAbility(ability, target=plan.target)
             elif plan.target:
                 if trainer.is_carrying_resource:
