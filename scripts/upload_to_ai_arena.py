@@ -8,17 +8,11 @@ from requests.adapters import HTTPAdapter, Retry
 @click.option("--wiki", type=click.File("rb"))
 @click.option("--api-token", envvar="UPLOAD_API_TOKEN")
 @click.option("--bot-id", envvar="UPLOAD_BOT_ID")
-@click.option("--bot-zip-publicly-downloadable", type=bool, flag_value=True)
-@click.option("--bot-data-publicly-downloadable", type=bool, flag_value=True)
-@click.option("--bot-data-enabled", type=bool, flag_value=True)
 def main(
     bot_zip,
     wiki,
     api_token: str,
     bot_id: str,
-    bot_zip_publicly_downloadable: bool,
-    bot_data_publicly_downloadable: bool,
-    bot_data_enabled: bool,
 ):
     url = f"https://aiarena.net/api/bots/{bot_id}/"
     print(f"Uploading to {url=}")
@@ -31,11 +25,7 @@ def main(
         "Authorization": f"Token {api_token}",
     }
 
-    request_data = {
-        "bot_zip_publicly_downloadable": bot_zip_publicly_downloadable,
-        "bot_data_publicly_downloadable": bot_data_publicly_downloadable,
-        "bot_data_enabled": bot_data_enabled,
-    }
+    request_data = {}
     if wiki:
         request_data["wiki_article_content"] = wiki.read()
 
