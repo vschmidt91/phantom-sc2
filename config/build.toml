@@ -7,6 +7,7 @@ copy = [
 output_path = "build"
 zip_modules = [
   "click",
+  "cma",
   "cython_extensions",
   "highspy",
   "map_analyzer",

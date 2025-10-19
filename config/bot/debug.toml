@@ -1,5 +1,6 @@
-training = false
+training = true
 debug_draw = true
 profile_path = "resources\\profiling.prof"
 save_bot_path = "resources\\maps"
 tag_log_level = "WARNING"
+resign_after_iteration = 10

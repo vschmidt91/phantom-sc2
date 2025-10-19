@@ -1,7 +1,7 @@
 from itertools import chain
 
 from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS, SPEED_INCREASE_DICT, SPEED_UPGRADE_DICT
-from sc2.data import Race
+from sc2.data import Race, Result
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -120,6 +120,13 @@ SUPPLY_PROVIDED = {
         # UnitTypeId.ORBITALCOMMANDFLYING: 15,
         # UnitTypeId.PLANETARYFORTRESS: 15,
     },
+}
+
+RESULT_TO_FITNESS = {
+    Result.Defeat: +1.0,
+    Result.Tie: 0.0,
+    Result.Undecided: 0.0,
+    Result.Victory: -1.0,
 }
 
 MINING_RADIUS = 1.325

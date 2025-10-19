@@ -31,7 +31,7 @@ from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.main import MacroPlan, MacroState
 from phantom.macro.strategy import StrategyState
 from phantom.observation import ObservationState
-from phantom.parameters import AgentParameters
+from phantom.parameters import Parameters
 from phantom.resources.observation import ResourceObservation
 from phantom.resources.state import ResourceState
 from phantom.scout import ScoutState
@@ -40,7 +40,7 @@ from phantom.transfuse import TransfuseAction
 
 @dataclass
 class Agent:
-    def __init__(self, bot: AresBot, build_order_name: str, parameters: AgentParameters, knowledge: Knowledge) -> None:
+    def __init__(self, bot: AresBot, build_order_name: str, parameters: Parameters, knowledge: Knowledge) -> None:
         self.bot = bot
         self.build_order = BUILD_ORDERS[build_order_name]
         self.parameters = parameters

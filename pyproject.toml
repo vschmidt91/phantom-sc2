@@ -109,6 +109,7 @@ exclude = [
 [[tool.mypy.overrides]]
 module = [
     "ares.*",
+    "cma.*",
     "cython_extensions.*",
     "highspy.*",
     "mpyq.*",

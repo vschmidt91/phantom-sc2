@@ -19,12 +19,17 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
 from phantom.agent import Agent
-from phantom.common.constants import ALL_MACRO_ABILITIES, ITEM_BY_ABILITY, UPGRADE_BY_RESEARCH_ABILITY
+from phantom.common.constants import (
+    ALL_MACRO_ABILITIES,
+    ITEM_BY_ABILITY,
+    RESULT_TO_FITNESS,
+    UPGRADE_BY_RESEARCH_ABILITY,
+)
 from phantom.config import BotConfig
 from phantom.exporter import BotExporter
 from phantom.knowledge import Knowledge
 from phantom.macro.main import MacroPlan
-from phantom.parameters import AgentParameters
+from phantom.parameters import Parameters
 
 
 @dataclass(frozen=True)
@@ -55,11 +60,12 @@ class PhantomBot(BotExporter, AresBot):
         else:
             logger.warning(f"Version not found: {self.bot_config.version_path}")
 
-        self.parameters = AgentParameters()
         try:
-            self.parameters.load(self.bot_config.params_path)
+            with lzma.open(self.bot_config.params_path, "rb") as f:
+                self.parameters = pickle.load(f)
         except Exception as error:
             logger.warning(f"{error=} while loading {self.bot_config.params_path}")
+            self.parameters = Parameters()
 
     def add_replay_tag(self, replay_tag: str) -> None:
         self.replay_tag_queue.put(replay_tag)
@@ -85,8 +91,10 @@ class PhantomBot(BotExporter, AresBot):
         self.agent = Agent(self, self.bot_config.build_order, self.parameters, knowledge)
 
         if self.bot_config.training:
-            logger.info("Bot starting")
-            self.parameters.sample()
+            logger.info("Sampling bot parameters")
+            self.parameters.ask()
+        else:
+            self.parameters.ask_best()
 
         def handle_message(message):
             severity = message.record["level"]
@@ -123,8 +131,8 @@ class PhantomBot(BotExporter, AresBot):
 
         if self.bot_config.resign_after_iteration is not None and self.bot_config.resign_after_iteration < iteration:
             logger.info(f"Reached iteration {self.bot_config.resign_after_iteration}, resigning.")
-            # await self.client.debug_kill_unit(self.structures)
-            await self.client.leave()
+            await self.client.debug_kill_unit(self.structures)
+            # await self.client.leave()
 
         for error in self.state.action_errors:
             logger.warning(f"{error=}")
@@ -190,13 +198,12 @@ class PhantomBot(BotExporter, AresBot):
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)
 
-        await self.client.save_replay(self.client.save_replay_path)
-
         if self.agent and self.bot_config.training:
-            logger.info("Updating parameters...")
-            if game_result == Result.Victory:
-                self.parameters.update_distribution()
-            self.parameters.save(self.bot_config.params_path)
+            fitness = RESULT_TO_FITNESS[game_result]
+            logger.info(f"Training parameters with {fitness=}")
+            self.parameters.tell(fitness)
+            with lzma.open(self.bot_config.params_path, "wb") as f:
+                pickle.dump(self.parameters, f)
 
     # async def on_before_start(self):
     #     await super().on_before_start()

@@ -18,7 +18,7 @@ from phantom.common.unit_composition import UnitComposition, add_compositions, c
 from phantom.knowledge import Knowledge
 from phantom.macro.main import MacroPlan
 from phantom.observation import Observation
-from phantom.parameters import AgentParameters, NormalPrior
+from phantom.parameters import Parameters, Prior
 
 # TODO: investigate numpy versioning mismatch
 # with lzma.open(Path(__file__).parent.parent.parent / "models" / "scout.pkl.xz") as f:
@@ -41,20 +41,20 @@ class StrategyState:
     def __init__(
         self,
         knowledge: Knowledge,
-        parameters: AgentParameters,
+        parameters: Parameters,
     ) -> None:
         self.knowledge = knowledge
-        self.counter_factor = parameters.normal("counter_factor", NormalPrior(2.5, 0.1))
-        self.ravager_mixin = parameters.normal("ravager_mixin", NormalPrior(13, 1))
-        self.corruptor_mixin = parameters.normal("corruptor_mixin", NormalPrior(13, 1))
-        self.tier1_drone_count = parameters.normal("tier1_drone_count", NormalPrior(32, 1))
-        self.tier2_drone_count = parameters.normal("tier2_drone_count", NormalPrior(66, 1))
-        self.tier3_drone_count = parameters.normal("tier3_drone_count", NormalPrior(80, 1))
-        self.tech_priority_offset = parameters.normal("tech_priority_offset", NormalPrior(-0.5, 0.001))
-        self.tech_priority_scale = parameters.normal("tech_priority_scale", NormalPrior(0.5, 0.001))
-        self.hydras_when_banking = parameters.normal("hydras_when_banking", NormalPrior(5, 1))
-        self.lings_when_banking = parameters.normal("lings_when_banking", NormalPrior(10, 1))
-        self.queens_when_banking = parameters.normal("queens_when_banking", NormalPrior(3, 1))
+        self.counter_factor = parameters.add(Prior(2.5, 0.1, min=0))
+        self.ravager_mixin = parameters.add(Prior(13, 1, min=0))
+        self.corruptor_mixin = parameters.add(Prior(13, 1, min=0))
+        self.tier1_drone_count = parameters.add(Prior(32, 1, min=0))
+        self.tier2_drone_count = parameters.add(Prior(66, 1, min=0))
+        self.tier3_drone_count = parameters.add(Prior(80, 1, min=0))
+        self.tech_priority_offset = parameters.add(Prior(-0.5, 0.001, min=0))
+        self.tech_priority_scale = parameters.add(Prior(0.5, 0.001, min=0))
+        self.hydras_when_banking = parameters.add(Prior(5, 1, min=0))
+        self.lings_when_banking = parameters.add(Prior(10, 1, min=0))
+        self.queens_when_banking = parameters.add(Prior(3, 1, min=0))
 
     def step(self, observation: Observation) -> "Strategy":
         return Strategy(self, observation)
