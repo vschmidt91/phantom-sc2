@@ -198,16 +198,16 @@ class CombatAction:
 
             def g(u: Unit):
                 unit_range = unit.air_range if u.is_flying else unit.ground_range
+                safety_margin = u.movement_speed * 1.0
                 enemy_range = u.air_range if unit.is_flying else u.ground_range
                 d = np.linalg.norm(x - u.position) - u.radius - unit.radius
-                if d < enemy_range < unit_range:
-                    return enemy_range - d
+                if enemy_range < unit_range and d < safety_margin + enemy_range:
+                    return safety_margin + enemy_range - d
                 # elif unit_range < d < enemy_range:
                 #     return d - unit_range
-                else:
-                    return 0.0
+                return 0.0
 
-            return min((g(u) for u in self.observation.enemy_combatants), default=0.0)
+            return max((g(u) for u in self.observation.enemy_combatants), default=0.0)
 
         def reward_fn(x: np.ndarray) -> float:
             tuple(np.round(x).astype(int))
@@ -263,7 +263,7 @@ class CombatAction:
             gradient = scipy.optimize.approx_fprime(unit.position, potential_kiting)
             gradient_norm = np.linalg.norm(gradient)
             if gradient_norm > 1e-5:
-                return Move(unit.position - gradient / gradient_norm)
+                return Move(unit.position - 2 * gradient / gradient_norm)
 
         if not (target := self.optimal_targeting.get(unit)):
             return None
@@ -272,23 +272,30 @@ class CombatAction:
             return Move(target.position)
 
         # simulate battle
-        distance_scale = 0.1
+        c = 0.1
+        eps = 1e-3
         a = 0.0
         alpha = 0.0
         for u in self.observation.combatants:
             d = u.distance_to(target) - u.radius - target.radius
-            w = math.exp(-distance_scale * max(0, d - u.ground_range))
+            d -= u.air_range if target.is_flying else u.ground_range
+            dt = max(0, d) / max(eps, u.movement_speed)
+            w = math.exp(-c * dt)
+            # w = 1 / (1 + max(0, dt)**p)
             a += w
-            alpha += w * u.health * u.ground_dps
+            alpha += w * u.health * (u.air_dps if target.is_flying else u.ground_dps)
         alpha /= a
 
         b = 0.0
         beta = 0.0
         for u in self.observation.enemy_combatants:
             d = u.distance_to(unit) - u.radius - unit.radius
-            w = math.exp(-distance_scale * max(0, d - u.ground_range))
+            d -= u.air_range if unit.is_flying else u.ground_range
+            dt = max(0, d) / max(eps, u.movement_speed)
+            # w = 1 / (1 + max(0, dt)**p)
+            w = math.exp(-c * dt)
             b += w
-            beta += w * u.health * u.ground_dps
+            beta += w * u.health * (u.air_dps if unit.is_flying else u.ground_dps)
         beta /= b
 
         lancester_power = 1.5
@@ -310,7 +317,11 @@ class CombatAction:
         p = tuple(unit.position.rounded)
         retreat_path = retreat_map.get_path(p, limit=5)
 
-        if outcome > 0:
+        bias = 0.0
+        if self.observation.knowledge.is_micro_map:
+            bias += 0.5
+
+        if outcome + bias > 0:
             if unit.ground_range < 1:
                 return Attack(target.position)
             else:
@@ -393,6 +404,7 @@ class CombatAction:
             [u.position for u in units],
             [u.position for u in enemies],
         )
+        # return distances
 
         def cost_fn(a: Unit, b: Unit, d: float) -> float:
             if a.order_target == b.tag and can_attack(a, b):
@@ -425,6 +437,8 @@ class CombatAction:
             max_assigned = math.ceil(max(medium_assigned, optimal_assigned))
         else:
             max_assigned = 1
+
+        max_assigned = len(enemies)
 
         assignment = distribute(
             units,
