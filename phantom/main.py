@@ -95,6 +95,7 @@ class PhantomBot(BotExporter, AresBot):
             self.parameters.ask()
         else:
             self.parameters.ask_best()
+        logger.info(f"{self.parameters.parameters=}")
 
         def handle_message(message):
             severity = message.record["level"]

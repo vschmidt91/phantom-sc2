@@ -1,4 +1,4 @@
-map_pattern = "AutomatonAIE\\.SC2(MAP|Map)"
+map_pattern = "PersephoneAIE_v4\\.SC2(MAP|Map)"
 enemy_race = "Zerg"
 enemy_build = "Rush"
 save_replay = "resources\\replays\\local"
