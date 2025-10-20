@@ -12,7 +12,6 @@ from phantom.common.utils import Point, center, get_intersections, project_point
 
 class Knowledge:
     def __init__(self, bot: BotAI) -> None:
-        self.build_time = {UnitTypeId(t): data.cost.time for t, data in bot.game_data.units.items()}
         self.is_micro_map = re.match(MICRO_MAP_REGEX, bot.game_info.map_name)
 
         self.expansion_resource_positions = dict[Point, list[Point]]()
@@ -71,3 +70,7 @@ class Knowledge:
         self.enemy_race = bot.enemy_race
         self.map_size = bot.game_info.map_size
         self.in_mineral_line = {b: tuple(center(self.expansion_resource_positions[b]).rounded) for b in self.bases}
+        self.bot = bot
+
+    def build_time(self, t: UnitTypeId) -> float:
+        return self.bot.game_data.units[t.value].cost.time

@@ -165,7 +165,7 @@ class Observation:
         for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items():
             total_provided = provided * cy_unit_pending(self.bot, unit_type)
             self.supply_pending += total_provided
-            self.supply_income += total_provided / self.knowledge.build_time[unit_type]
+            self.supply_income += total_provided / self.knowledge.build_time(unit_type)
 
         self.bank = Cost(self.bot.minerals, self.bot.vespene, self.bot.supply_left, self.bot.larva.amount)
 
