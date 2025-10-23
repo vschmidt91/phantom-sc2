@@ -52,6 +52,7 @@ class PhantomBot(BotExporter, AresBot):
         self.ordered_structures = dict[int, OrderedStructure]()
         self.pending = dict[int, UnitTypeId]()
         self.pending_upgrades = set[UpgradeId]()
+        self.parameters = Parameters()
 
         if os.path.isfile(self.bot_config.version_path):
             logger.info(f"Reading version from {self.bot_config.version_path}")
@@ -59,13 +60,6 @@ class PhantomBot(BotExporter, AresBot):
                 self.version = f.read()
         else:
             logger.warning(f"Version not found: {self.bot_config.version_path}")
-
-        try:
-            with lzma.open(self.bot_config.params_path, "rb") as f:
-                self.parameters = pickle.load(f)
-        except Exception as error:
-            logger.warning(f"{error=} while loading {self.bot_config.params_path}")
-            self.parameters = Parameters()
 
     def add_replay_tag(self, replay_tag: str) -> None:
         self.replay_tag_queue.put(replay_tag)
@@ -89,6 +83,15 @@ class PhantomBot(BotExporter, AresBot):
 
         knowledge = Knowledge(self)
         self.agent = Agent(self, self.bot_config.build_order, self.parameters, knowledge)
+
+        try:
+            with lzma.open(self.bot_config.params_path, "rb") as f:
+                parameters = pickle.load(f)
+                self.parameters.strategy = parameters.strategy
+                self.parameters.population = parameters.population
+                self.parameters.population_fitness = parameters.population_fitness
+        except Exception as error:
+            logger.warning(f"{error=} while loading {self.bot_config.params_path}")
 
         if self.bot_config.training:
             logger.info("Sampling bot parameters")
