@@ -141,3 +141,5 @@ dmypy.json
 /data
 /ares-sc2/
 profile_output*
+/notebooks/exdata/
+/notebooks/outcmaes/
