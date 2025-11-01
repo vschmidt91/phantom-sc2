@@ -84,6 +84,10 @@ class PhantomBot(BotExporter, AresBot):
         knowledge = Knowledge(self)
         self.agent = Agent(self, self.bot_config.build_order, self.parameters, knowledge)
 
+        for p in [".", "./data"]:
+            logger.info(f"Listing path {p}")
+            logger.info(os.listdir(p))
+
         try:
             with lzma.open(self.bot_config.params_path, "rb") as f:
                 parameters = pickle.load(f)
