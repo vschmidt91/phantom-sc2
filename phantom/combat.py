@@ -209,39 +209,6 @@ class CombatAction:
 
             return max((g(u) for u in self.observation.enemy_combatants), default=0.0)
 
-        def reward_fn(x: np.ndarray) -> float:
-            tuple(np.round(x).astype(int))
-            reward = 0.0
-            if not unit.is_flying:
-                pathing = sample_bilinear(self.pathing_potential, x)
-                if pathing > 0:
-                    return -1e10 * pathing
-            # if np.less(p, 0).any() or np.greater_equal(p, self.observation.pathing.shape).any():
-            #     return -1e10
-            # if not unit.is_flying and not self.observation.pathing[p]:
-            #     return -1e10
-            e = 1e-10
-            min_time_until_attack = np.inf
-            mean_time_until_counter_attack = 0.0
-            for enemy in self.observation.enemy_combatants:
-                unit_range = unit.air_range if enemy.is_flying else unit.ground_range
-                enemy_range = enemy.air_range if unit.is_flying else enemy.ground_range
-                d = enemy.distance_to(x) - unit.radius - enemy.radius
-                confrontation_speed = max(e, unit.movement_speed + enemy.movement_speed)
-                time_until_attack = max(0, d - unit_range) / confrontation_speed
-                time_until_counter_attack = max(0, d - enemy_range) / confrontation_speed
-                min_time_until_attack = min(time_until_attack, min_time_until_attack)
-                mean_time_until_counter_attack += time_until_counter_attack / self.observation.enemy_combatants.amount
-                # time_until_attack = max(0, d - unit_range)
-                # time_until_counter_attack = max(0, d - enemy_range)
-                # reward += w * (time_until_counter_attack - time_until_attack)
-                # reward += time_until_counter_attack / self.observation.enemy_combatants.amount
-                # reward -= d / self.observation.enemy_combatants.amount
-            # reward -= min_time_until_attack
-            reward += mean_time_until_counter_attack
-            reward -= min_time_until_attack
-            return reward
-
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
             dps = calculate_dps(unit, u)
@@ -259,7 +226,7 @@ class CombatAction:
             else:
                 return Attack(target)
 
-        if not unit.weapon_ready:
+        if not unit.weapon_ready and unit.ground_range > 1:
             gradient = scipy.optimize.approx_fprime(unit.position, potential_kiting)
             gradient_norm = np.linalg.norm(gradient)
             if gradient_norm > 1e-5:
