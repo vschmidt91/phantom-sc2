@@ -239,7 +239,7 @@ class CombatAction:
             return Move(target.position)
 
         # simulate battle
-        c = 0.3
+        c = 1.0
         eps = 1e-3
         na = 0.0
         a = 0.0
