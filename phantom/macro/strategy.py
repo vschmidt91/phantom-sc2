@@ -99,6 +99,10 @@ class Strategy:
             for k, v in upgrade_weights.items()
         }
 
+        for plan in self.obs.bot.agent.macro.unassigned_plans:
+            if priority := upgrade_priorities.get(plan.item):
+                plan.priority = priority
+
         for plan in self.obs.bot.agent.macro.assigned_plans.values():
             if priority := upgrade_priorities.get(plan.item):
                 plan.priority = priority
