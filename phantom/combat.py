@@ -207,7 +207,7 @@ class CombatAction:
                 #     return d - unit_range
                 return 0.0
 
-            return max((g(u) for u in self.observation.enemy_combatants), default=0.0)
+            return sum(g(u) for u in self.observation.enemy_combatants)
 
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
@@ -241,6 +241,7 @@ class CombatAction:
         # simulate battle
         c = 0.3
         eps = 1e-3
+        na = 0.0
         a = 0.0
         alpha = 0.0
         for u in self.observation.combatants:
@@ -248,11 +249,12 @@ class CombatAction:
             d -= u.air_range if target.is_flying else u.ground_range
             dt = max(0, d) / max(eps, u.movement_speed)
             w = math.exp(-c * dt)
-            # w = 1 / (1 + max(0, dt)**p)
-            a += w
-            alpha += w * u.health * (u.air_dps if target.is_flying else u.ground_dps)
-        alpha /= a
+            na += w
+            a += w * (u.health + u.shield)
+            alpha += w * (u.air_dps if target.is_flying else u.ground_dps)
+        alpha /= na
 
+        nb = 0.0
         b = 0.0
         beta = 0.0
         for u in self.observation.enemy_combatants:
@@ -261,9 +263,10 @@ class CombatAction:
             dt = max(0, d) / max(eps, u.movement_speed)
             # w = 1 / (1 + max(0, dt)**p)
             w = math.exp(-c * dt)
-            b += w
-            beta += w * u.health * (u.air_dps if unit.is_flying else u.ground_dps)
-        beta /= b
+            nb += w
+            b += w * (u.health + u.shield)
+            beta += w * (u.air_dps if unit.is_flying else u.ground_dps)
+        beta /= nb
 
         lancester_power = 1.5
         lancester_a = alpha * (a**lancester_power)
