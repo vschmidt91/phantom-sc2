@@ -13,7 +13,7 @@ class BotConfig:
     tag_log_level = "ERROR"
     build_order = "OVERHATCH"
     version_path = "version.txt"
-    data_path = "data"
+    data_path = "./data"
     params_name = "params.pkl.xz"
     params_json_name = "params.json"
 
@@ -30,7 +30,3 @@ class BotConfig:
     @property
     def params_path(self) -> str:
         return os.path.join(self.data_path, self.params_name)
-
-    @property
-    def params_json_path(self) -> str:
-        return os.path.join(self.data_path, self.params_json_name)
