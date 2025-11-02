@@ -218,7 +218,7 @@ class Agent:
             return (
                 (
                     combat.retreat_with(u)
-                    if 1.0 < self.bot.mediator.get_ground_grid[u.position.rounded] < np.inf
+                    if 6.0 < self.bot.mediator.get_ground_grid[u.position.rounded] < np.inf
                     else None
                 )
                 or resources.gather_with(u, harvester_return_targets)
