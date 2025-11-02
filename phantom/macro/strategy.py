@@ -1,8 +1,7 @@
 import enum
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable
 from functools import total_ordering
-from typing import Counter
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
