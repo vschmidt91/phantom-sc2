@@ -241,7 +241,7 @@ class CombatAction:
             return Move(target.position)
 
         # simulate battle
-        c = 0.3
+        c = 1.0
         eps = 1e-3
         na = 0.0
         a = 0.0
@@ -250,7 +250,7 @@ class CombatAction:
             d = u.distance_to(target) - u.radius - target.radius
             d -= u.air_range if target.is_flying else u.ground_range
             dt = max(0, d) / max(eps, u.movement_speed)
-            w = math.exp(-c * dt)
+            w = 1 / (1 + c * dt**2)
             na += w
             a += w * (u.health + u.shield)
             alpha += w * (u.air_dps if target.is_flying else u.ground_dps)
@@ -263,8 +263,7 @@ class CombatAction:
             d = u.distance_to(unit) - u.radius - unit.radius
             d -= u.air_range if unit.is_flying else u.ground_range
             dt = max(0, d) / max(eps, u.movement_speed)
-            # w = 1 / (1 + max(0, dt)**p)
-            w = math.exp(-c * dt)
+            w = 1 / (1 + c * dt**2)
             nb += w
             b += w * (u.health + u.shield)
             beta += w * (u.air_dps if unit.is_flying else u.ground_dps)
