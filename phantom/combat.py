@@ -213,6 +213,8 @@ class CombatAction:
             hp = u.health + u.shield
             dps = calculate_dps(unit, u)
             reward = self.enemy_values[u.tag]
+            if u.is_structure:
+                reward /= 10
             risk = np.divide(hp, dps)
             cost = np.divide(risk, reward)
             random_offset = hash((unit.tag, u.tag)) / (2**sys.hash_info.width)
@@ -239,16 +241,13 @@ class CombatAction:
             return Move(target.position)
 
         # simulate battle
-        c = 0.3
-        eps = 1e-3
         na = 0.0
         a = 0.0
         alpha = 0.0
         for u in self.observation.combatants:
-            d = u.distance_to(target) - u.radius - target.radius
-            d -= u.air_range if target.is_flying else u.ground_range
-            dt = max(0, d) / max(eps, u.movement_speed)
-            w = math.exp(-c * dt)
+            d = u.distance_to(target)
+            e = u.radius + target.radius + (u.air_range if target.is_flying else u.ground_range)
+            w = min(1, (e / d) ** 2)
             na += w
             a += w * (u.health + u.shield)
             alpha += w * (u.air_dps if target.is_flying else u.ground_dps)
@@ -258,11 +257,9 @@ class CombatAction:
         b = 0.0
         beta = 0.0
         for u in self.observation.enemy_combatants:
-            d = u.distance_to(unit) - u.radius - unit.radius
-            d -= u.air_range if unit.is_flying else u.ground_range
-            dt = max(0, d) / max(eps, u.movement_speed)
-            # w = 1 / (1 + max(0, dt)**p)
-            w = math.exp(-c * dt)
+            d = u.distance_to(unit)
+            e = u.radius + unit.radius + (u.air_range if unit.is_flying else u.ground_range)
+            w = min(1, (e / d) ** 2)
             nb += w
             b += w * (u.health + u.shield)
             beta += w * (u.air_dps if unit.is_flying else u.ground_dps)
