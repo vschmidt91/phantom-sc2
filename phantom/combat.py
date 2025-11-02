@@ -194,7 +194,7 @@ class CombatAction:
         def potential_kiting(x: np.ndarray) -> float:
             if not unit.is_flying:
                 pathing = sample_bilinear(self.pathing_potential, x)
-                if pathing > .1:
+                if pathing > 0.1:
                     return 1e10 * pathing
 
             def g(u: Unit):
@@ -224,12 +224,12 @@ class CombatAction:
 
         if unit.weapon_ready and (targets := self.observation.shootable_targets.get(unit)):
             target = min(targets, key=cost_fn)
-            if unit.ground_range < 1:
+            if unit.ground_range < 2:
                 return Attack(target.position)
             else:
                 return Attack(target)
 
-        if not unit.weapon_ready and unit.ground_range > 1:
+        if not unit.weapon_ready and unit.ground_range >= 2:
             gradient = scipy.optimize.approx_fprime(unit.position, potential_kiting)
             gradient_norm = np.linalg.norm(gradient)
             if gradient_norm > 1e-5:
@@ -295,7 +295,7 @@ class CombatAction:
             self.state.is_attacking.discard(unit.tag)
 
         if unit.tag in self.state.is_attacking:
-            if unit.ground_range < 1:
+            if unit.ground_range < 2:
                 return Attack(target.position)
             else:
                 return Attack(target)
