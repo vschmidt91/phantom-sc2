@@ -194,7 +194,7 @@ class CombatAction:
         def potential_kiting(x: np.ndarray) -> float:
             if not unit.is_flying:
                 pathing = sample_bilinear(self.pathing_potential, x)
-                if pathing > 0:
+                if pathing > .1:
                     return 1e10 * pathing
 
             def g(u: Unit):
