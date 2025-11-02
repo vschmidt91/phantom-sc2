@@ -291,7 +291,7 @@ class Strategy:
         return composition
 
     def _macro_composition(self) -> UnitComposition:
-        harvester_target = min(80, max(1.0, self.obs.max_harvesters))
+        harvester_target = min(100, max(1.0, self.obs.max_harvesters))
         queen_target = max(0.0, min(12, 1 * self.obs.townhalls.amount + 1))
         composition = defaultdict[UnitTypeId, float](float)
 

@@ -44,6 +44,7 @@ class CombatState:
         self.knowledge = knowledge
         self.contact_range_internal = 7
         self.contact_range = 14
+        self.outcome_state = dict[int, float]()
         self.is_attacking = set[int]()
 
     def step(self, observation: Observation) -> "CombatAction":
@@ -243,7 +244,6 @@ class CombatAction:
         # simulate battle
         c = 0.1
         eps = 1e-3
-        na = 0.0
         a = 0.0
         alpha = 0.0
         for u in self.observation.combatants:
@@ -251,12 +251,10 @@ class CombatAction:
             d -= u.air_range if target.is_flying else u.ground_range
             dt = max(0, d) / max(eps, u.movement_speed)
             w = 1 / (1 + c * dt**2)
-            na += w
-            a += w * (u.health + u.shield)
-            alpha += w * (u.air_dps if target.is_flying else u.ground_dps)
-        alpha /= na
+            a += w
+            alpha += w * (u.health + u.shield) * (u.air_dps if target.is_flying else u.ground_dps)
+        alpha /= a
 
-        nb = 0.0
         b = 0.0
         beta = 0.0
         for u in self.observation.enemy_combatants:
@@ -264,10 +262,9 @@ class CombatAction:
             d -= u.air_range if unit.is_flying else u.ground_range
             dt = max(0, d) / max(eps, u.movement_speed)
             w = 1 / (1 + c * dt**2)
-            nb += w
-            b += w * (u.health + u.shield)
-            beta += w * (u.air_dps if unit.is_flying else u.ground_dps)
-        beta /= nb
+            b += w
+            beta += w * (u.health + u.shield) * (u.air_dps if unit.is_flying else u.ground_dps)
+        beta /= b
 
         lancester_power = 1.5
         lancester_a = alpha * (a**lancester_power)
@@ -281,6 +278,10 @@ class CombatAction:
 
         # outcome = self.prediction.outcome_for[unit.tag]
 
+        # outcome_state = self.state.outcome_state.setdefault(unit.tag, 0.0)
+        # outcome_state += .1 * (outcome - outcome_state)
+        # self.state.outcome_state[unit.tag] = outcome_state
+
         retreat_grid = (
             self.state.bot.mediator.get_air_grid if unit.is_flying else self.state.bot.mediator.get_ground_grid
         )
@@ -288,11 +289,12 @@ class CombatAction:
         p = tuple(unit.position.rounded)
         retreat_path = retreat_map.get_path(p, limit=5)
 
-        bias = 0.0
-        if self.observation.knowledge.is_micro_map:
-            bias += 0.5
+        if outcome > 0.5:
+            self.state.is_attacking.add(unit.tag)
+        elif outcome < -0.5:
+            self.state.is_attacking.discard(unit.tag)
 
-        if outcome + bias > 0:
+        if unit.tag in self.state.is_attacking:
             if unit.ground_range < 1:
                 return Attack(target.position)
             else:

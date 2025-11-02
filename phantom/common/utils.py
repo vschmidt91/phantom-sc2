@@ -65,6 +65,59 @@ def async_command(func):
     return wrapper
 
 
+def point_line_segment_distance(P: np.ndarray, A: np.ndarray, B: np.ndarray) -> np.floating:
+    """
+    Calculates the minimum distance from a point P to a finite line segment AB
+    using NumPy for vectorized operations.
+
+    The line segment is defined by its two endpoints, A and B.
+    All points are assumed to be NumPy arrays (N-dimensional).
+
+    Args:
+        P: The external point (np.ndarray).
+        A: The first endpoint of the segment (np.ndarray).
+        B: The second endpoint of the segment (np.ndarray).
+
+    Returns:
+        The minimum distance from P to the segment AB.
+    """
+
+    def distance_point_to_point(p1: np.ndarray, p2: np.ndarray) -> np.floating:
+        """Calculates the Euclidean distance between two N-dimensional points (NumPy arrays)."""
+        # Uses the L2 norm (Euclidean distance) of the difference vector.
+        return np.linalg.norm(p1 - p2)
+
+    # Vector from A to B (the segment direction)
+    AB = B - A
+    # Vector from A to P (vector we are projecting)
+    AP = P - A
+
+    # 1. Calculate squared length of the segment AB (L^2 = |AB|^2)
+    L2 = np.dot(AB, AB)
+
+    # Handle the case where A and B are the same point (segment is a single point)
+    if L2 == 0.0:
+        return distance_point_to_point(P, A)
+
+    # 2. Calculate the parameter 't' of the projection C onto the infinite line AB.
+    # t = (AP . AB) / |AB|^2
+    t = np.dot(AP, AB) / L2
+
+    # 3. Determine the closest point C on the line segment AB.
+    # We use np.clip to clamp 't' between 0 and 1.
+    # If t < 0, t_clamped = 0 (closest point is A).
+    # If t > 1, t_clamped = 1 (closest point is B).
+    # If 0 <= t <= 1, t_clamped = t (closest point is on the interior).
+    t_clamped = np.clip(t, 0.0, 1.0)
+
+    # Calculate the closest point C on the segment
+    # C = A + t_clamped * AB
+    C = A + t_clamped * AB
+
+    # 4. Calculate the distance between P and the closest point C
+    return distance_point_to_point(P, C)
+
+
 def dataclass_from_dict(cls: type, parameters: dict[str, float]):
     field_names = {f.name for f in fields(cls)}
     return cls(**{k: v for k, v in parameters.items() if k in field_names})
