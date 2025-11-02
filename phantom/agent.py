@@ -114,7 +114,7 @@ class Agent:
                 self.knowledge.speedmining_positions[p].rounded,
                 tuple(self.knowledge.return_point[p].rounded),
             ]
-            return all(self.bot.mediator.get_ground_grid[p] == 1.0 for p in check_points)
+            return all(self.bot.mediator.get_ground_grid[p] < 6.0 for p in check_points)
 
         harvesters = self.bot.mediator.get_units_from_role(role=UnitRole.GATHERING)
 
