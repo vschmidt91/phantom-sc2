@@ -1,6 +1,6 @@
 import re
 
-from cython_extensions import cy_center
+import numpy as np
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -27,9 +27,8 @@ class Knowledge:
         else:
             worker_radius = bot.workers[0].radius
             for base_position, resources in bot.expansion_locations_dict.items():
-                self.spore_position[base_position.rounded] = base_position.towards(
-                    Point2(cy_center(resources.mineral_field)), 5.0
-                ).rounded
+                mineral_center = Point2(np.mean([r.position for r in resources], axis=0))
+                self.spore_position[base_position.rounded] = base_position.towards(mineral_center, 5.0).rounded
                 for geyser in resources.vespene_geyser:
                     target = geyser.position.towards(base_position, geyser.radius + worker_radius)
                     self.speedmining_positions[geyser.position.rounded] = target
