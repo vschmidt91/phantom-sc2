@@ -310,46 +310,6 @@ class CombatAction:
             else:
                 return UseAbility(AbilityId.STOP)
 
-        # outcome_local = self.prediction.outcome_for[unit.tag]
-        # attacking_local = self.prediction.attacking[unit.tag]
-        #
-        # p = tuple(unit.position.rounded)
-        # retreat_grid = (
-        #     self.state.bot.mediator.get_air_grid if unit.is_flying else self.state.bot.mediator.get_ground_grid
-        # )
-        # retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
-        # retreat_path = retreat_map.get_path(p, limit=5)
-        #
-        # def inf_to_one(x):
-        #     return 1 if x == np.inf else x
-        #
-        # retreat_dps = sum(inf_to_one(retreat_grid[p]) - 1 for p in retreat_path)
-        # retreat_duration = len(retreat_path) / unit.movement_speed
-        # retreat_dps * retreat_duration
-        #
-        # bias = 0.0
-        # bias += 3 * attacking_local
-        #
-        # if self.observation.bot.enemy_race != Race.Zerg and not self.observation.creep[unit.position.rounded]:
-        #     bias += min(0, self.prediction.outcome - EngagementResult.TIE)
-        #
-        # if outcome_local + bias > EngagementResult.TIE:
-        #     self.state.is_attacking.add(unit.tag)
-        #     if unit.ground_range < 1:
-        #         return UseAbility(AbilityId.ATTACK, target.position)
-        #     else:
-        #         return Attack(target)
-        # else:
-        #     self.state.is_attacking.discard(unit.tag)
-        #     if retreat_grid[unit.position.rounded] > 1:
-        #         if len(retreat_path) > 2:
-        #             retreat_point = Point2(retreat_path[2]).offset(HALF)
-        #             return Move(retreat_point)
-        #         else:
-        #             return self.retreat_with_ares(unit)
-        #     else:
-        #         return UseAbility(AbilityId.STOP)
-
     def do_unburrow(self, unit: Unit) -> Action | None:
         outcome = self.prediction.outcome_for.get(unit.tag, EngagementResult.VICTORY_DECISIVE)
         if unit.health_percentage > 0.9 and outcome >= EngagementResult.TIE:
@@ -410,8 +370,6 @@ class CombatAction:
             max_assigned = math.ceil(max(medium_assigned, optimal_assigned))
         else:
             max_assigned = 1
-
-        max_assigned = len(enemies)
 
         assignment = distribute(
             units,

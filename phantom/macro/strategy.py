@@ -2,6 +2,7 @@ import enum
 from collections import defaultdict
 from collections.abc import Iterable
 from functools import total_ordering
+from typing import Counter
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -82,6 +83,11 @@ class Strategy:
     def make_upgrades(self) -> Iterable[MacroPlan]:
         upgrade_weights = dict[UpgradeId, float]()
         for unit, count in self.composition_target.items():
+            for upgrade in self.obs.upgrades_by_unit(unit):
+                upgrade_weights[upgrade] = upgrade_weights.setdefault(upgrade, 0.0) + count
+
+        unit_counts = Counter(u.type_id for u in self.obs.combatants)
+        for unit, count in unit_counts.items():
             for upgrade in self.obs.upgrades_by_unit(unit):
                 upgrade_weights[upgrade] = upgrade_weights.setdefault(upgrade, 0.0) + count
 
