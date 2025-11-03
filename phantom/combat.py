@@ -408,6 +408,8 @@ class CombatAction:
         else:
             max_assigned = 1
 
+        max_assigned = len(enemies)
+
         assignment = distribute(
             units,
             enemies,
