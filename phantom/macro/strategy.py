@@ -85,10 +85,10 @@ class Strategy:
             for upgrade in self.obs.upgrades_by_unit(unit):
                 upgrade_weights[upgrade] = upgrade_weights.setdefault(upgrade, 0.0) + count
 
-        unit_counts = Counter(u.type_id for u in self.obs.combatants)
-        for unit, count in unit_counts.items():
-            for upgrade in self.obs.upgrades_by_unit(unit):
-                upgrade_weights[upgrade] = upgrade_weights.setdefault(upgrade, 0.0) + count
+        # unit_counts = Counter(u.type_id for u in self.obs.combatants)
+        # for unit, count in unit_counts.items():
+        #     for upgrade in self.obs.upgrades_by_unit(unit):
+        #         upgrade_weights[upgrade] = upgrade_weights.setdefault(upgrade, 0.0) + count
 
         # strategy specific filter
         upgrade_weights = {k: v for k, v in upgrade_weights.items() if self.filter_upgrade(k)}
