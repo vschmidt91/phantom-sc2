@@ -80,7 +80,7 @@ class MacroState:
 
     async def assign_unassigned_plans(self, obs: Observation, trainers: Units, blocked_positions: Set[Point]) -> None:
         trainer_set = set(trainers)
-        for plan in list(self.unassigned_plans):
+        for plan in sorted(self.unassigned_plans, key=lambda p: p.priority, reverse=True):
             if trainer := (await self.find_trainer(obs, trainer_set, plan.item, blocked_positions)):
                 logger.info(f"Assigning {trainer=} for {plan=}")
                 if plan in self.unassigned_plans:
