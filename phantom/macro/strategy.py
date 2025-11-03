@@ -112,7 +112,7 @@ class Strategy:
             if priority := upgrade_priorities.get(plan.item):
                 plan.priority = priority
 
-        for upgrade, priority in upgrade_weights.items():
+        for upgrade, priority in upgrade_priorities.items():
             if upgrade in self.obs.upgrades or upgrade in self.obs.bot.pending_upgrades or self.obs.planned[upgrade]:
                 continue
             yield MacroPlan(upgrade, priority=priority)
