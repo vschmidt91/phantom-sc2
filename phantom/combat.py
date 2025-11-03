@@ -10,6 +10,7 @@ from ares.consts import EngagementResult
 from ares.main import AresBot
 from cython_extensions.dijkstra import cy_dijkstra
 from loguru import logger
+from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -44,7 +45,6 @@ class CombatState:
         self.knowledge = knowledge
         self.contact_range_internal = 7
         self.contact_range = 14
-        self.outcome_state = dict[int, float]()
         self.is_attacking = set[int]()
 
     def step(self, observation: Observation) -> "CombatAction":
@@ -145,6 +145,24 @@ class CombatAction:
                 p = state.knowledge.in_mineral_line[observation.start_location.rounded]
                 retreat_targets.append(p)
 
+        tumors = self.observation.structures(
+            {UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN}
+        )
+        queens = self.observation.units({UnitTypeId.QUEEN, UnitTypeId.QUEENBURROWED})
+        if tumors:
+            creep_targets = np.array([t.position.rounded for t in tumors])
+        elif queens:
+            creep_targets = np.array([t.position.rounded for t in queens])
+        elif self.observation.creep.any():
+            creep_targets = np.array(np.where(self.observation.creep)).T
+        else:
+            creep_targets = np.atleast_2d(retreat_targets).astype(int)
+
+        self.retreat_creep = cy_dijkstra(
+            self.observation.bot.mediator.get_ground_grid.astype(np.float64),
+            creep_targets,
+        )
+
         self.retreat_targets = np.atleast_2d(retreat_targets).astype(int)
 
         self.retreat_air = cy_dijkstra(
@@ -163,6 +181,14 @@ class CombatAction:
             | self.observation.structures(COMBATANT_STRUCTURES),
             self.observation.enemy_combatants | self.observation.enemy_structures(COMBATANT_STRUCTURES),
         )
+
+        self.retreat_to_creep = False
+
+        if self.observation.knowledge.enemy_race not in {Race.Zerg, Race.Random}:
+            if self.prediction.outcome <= EngagementResult.LOSS_DECISIVE:
+                self.retreat_to_creep = True
+            elif self.prediction.outcome >= EngagementResult.VICTORY_DECISIVE:
+                self.retreat_to_creep = False
 
     def retreat_with(self, unit: Unit, limit=3) -> Action | None:
         x = round(unit.position.x)
@@ -191,6 +217,13 @@ class CombatAction:
         return UseAbility(AbilityId.ATTACK, target.position)
 
     def fight_with(self, unit: Unit) -> Action | None:
+        combatants = (
+            self.observation.combatants | self.observation.overseers | self.observation.structures(COMBATANT_STRUCTURES)
+        )
+        enemy_combatants = self.observation.enemy_combatants | self.observation.enemy_structures(COMBATANT_STRUCTURES)
+
+        p = tuple(unit.position.rounded)
+
         def potential_kiting(x: np.ndarray) -> float:
             if not unit.is_flying:
                 pathing = sample_bilinear(self.pathing_potential, x)
@@ -208,7 +241,7 @@ class CombatAction:
                 #     return d - unit_range
                 return 0.0
 
-            return sum(g(u) for u in self.observation.enemy_combatants)
+            return sum(g(u) for u in enemy_combatants)
 
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
@@ -241,12 +274,17 @@ class CombatAction:
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(target.position)
 
+        if not unit.is_flying and self.retreat_to_creep and not self.observation.creep[p]:
+            retreat_to_creep = self.retreat_creep.get_path(p, limit=4)
+            if len(retreat_to_creep) > 1:
+                return Move(Point2(retreat_to_creep[-1]))
+
         # simulate battle
         c = 0.1
         eps = 1e-3
         a = 0.0
         alpha = 0.0
-        for u in self.observation.combatants:
+        for u in combatants:
             d = u.distance_to(target) - u.radius - target.radius
             d -= u.air_range if target.is_flying else u.ground_range
             dt = max(0, d) / max(eps, u.movement_speed)
@@ -257,7 +295,7 @@ class CombatAction:
 
         b = 0.0
         beta = 0.0
-        for u in self.observation.enemy_combatants:
+        for u in enemy_combatants:
             d = u.distance_to(unit) - u.radius - unit.radius
             d -= u.air_range if unit.is_flying else u.ground_range
             dt = max(0, d) / max(eps, u.movement_speed)
@@ -286,12 +324,11 @@ class CombatAction:
             self.state.bot.mediator.get_air_grid if unit.is_flying else self.state.bot.mediator.get_ground_grid
         )
         retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
-        p = tuple(unit.position.rounded)
-        retreat_path = retreat_map.get_path(p, limit=5)
+        retreat_path = retreat_map.get_path(p, limit=4)
 
-        if outcome > 0.5:
+        if outcome > 1 / 3:
             self.state.is_attacking.add(unit.tag)
-        elif outcome < -0.5:
+        elif outcome < -1 / 3:
             self.state.is_attacking.discard(unit.tag)
 
         if unit.tag in self.state.is_attacking:
@@ -302,8 +339,8 @@ class CombatAction:
         else:
             self.state.is_attacking.discard(unit.tag)
             if retreat_grid[unit.position.rounded] > 1:
-                if len(retreat_path) > 2:
-                    retreat_point = Point2(retreat_path[2]).offset(HALF)
+                if len(retreat_path) > 1:
+                    retreat_point = Point2(retreat_path[-1]).offset(HALF)
                     return Move(retreat_point)
                 else:
                     return self.retreat_with_ares(unit)
