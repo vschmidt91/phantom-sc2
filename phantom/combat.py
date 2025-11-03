@@ -175,19 +175,21 @@ class CombatAction:
         self.pathing_potential = np.where(self.observation.pathing < np.inf, 0.0, 1.0)
         self.targeting_cost = self._targeting_cost()
         self.optimal_targeting = self._optimal_targeting()
-        self.prediction = self.state._predict(
-            self.observation.combatants
+
+        self.prediction = self.state.bot.mediator.can_win_fight(
+            own_units=self.observation.combatants.exclude_type({UnitTypeId.QUEEN, UnitTypeId.QUEENBURROWED})
             | self.observation.overseers
             | self.observation.structures(COMBATANT_STRUCTURES),
-            self.observation.enemy_combatants | self.observation.enemy_structures(COMBATANT_STRUCTURES),
+            enemy_units=self.observation.enemy_combatants | self.observation.enemy_structures(COMBATANT_STRUCTURES),
+            timing_adjust=False,
         )
 
         self.retreat_to_creep = False
 
         if self.observation.knowledge.enemy_race not in {Race.Zerg, Race.Random}:
-            if self.prediction.outcome <= EngagementResult.LOSS_DECISIVE:
+            if self.prediction <= EngagementResult.LOSS_DECISIVE:
                 self.retreat_to_creep = True
-            elif self.prediction.outcome >= EngagementResult.VICTORY_DECISIVE:
+            elif self.prediction >= EngagementResult.VICTORY_DECISIVE:
                 self.retreat_to_creep = False
 
     def retreat_with(self, unit: Unit, limit=3) -> Action | None:
@@ -348,12 +350,11 @@ class CombatAction:
                 return UseAbility(AbilityId.STOP)
 
     def do_unburrow(self, unit: Unit) -> Action | None:
-        outcome = self.prediction.outcome_for.get(unit.tag, EngagementResult.VICTORY_DECISIVE)
-        if unit.health_percentage > 0.9 and outcome >= EngagementResult.TIE:
+        if unit.health_percentage > 0.9:
             return UseAbility(AbilityId.BURROWUP)
         elif UpgradeId.TUNNELINGCLAWS not in self.observation.upgrades:
             return None
-        elif outcome <= EngagementResult.LOSS_CLOSE:
+        elif self.state.bot.mediator.get_ground_grid[unit.position.rounded] > 1:
             return self.retreat_with(unit)
         return HoldPosition()
 
