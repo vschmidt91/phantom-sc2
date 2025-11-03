@@ -1,5 +1,5 @@
 import enum
-from collections import Counter, defaultdict
+from collections import defaultdict
 from collections.abc import Iterable
 from functools import total_ordering
 
