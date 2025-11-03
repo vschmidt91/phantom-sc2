@@ -44,7 +44,7 @@ class StrategyState:
         parameters: Parameters,
     ) -> None:
         self.knowledge = knowledge
-        self.counter_factor = parameters.add(Prior(3.0, 0.1, min=0))
+        self.counter_factor = parameters.add(Prior(2.0, 0.1, min=0))
         self.ravager_mixin = parameters.add(Prior(13, 1, min=0))
         self.corruptor_mixin = parameters.add(Prior(13, 1, min=0))
         self.tier1_drone_count = parameters.add(Prior(32, 1, min=0))
@@ -125,7 +125,7 @@ class Strategy:
         # if self.tier == StrategyTier.HATCH:
         #     return
 
-        priority = 3 * (saturation - 1)
+        priority = 5 * (saturation - 1)
 
         if priority < -1:
             return
