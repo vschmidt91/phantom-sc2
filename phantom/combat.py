@@ -187,7 +187,7 @@ class CombatAction:
         self.retreat_to_creep = False
 
         if self.observation.knowledge.enemy_race not in {Race.Zerg, Race.Random}:
-            if self.prediction <= EngagementResult.LOSS_DECISIVE:
+            if self.prediction <= EngagementResult.TIE:
                 self.retreat_to_creep = True
             elif self.prediction >= EngagementResult.VICTORY_DECISIVE:
                 self.retreat_to_creep = False
