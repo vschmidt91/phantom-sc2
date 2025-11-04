@@ -250,8 +250,6 @@ class PhantomBot(BotExporter, AresBot):
                 ability = order.ability.exact_id
                 if item := UPGRADE_BY_RESEARCH_ABILITY.get(ability):
                     self.pending_upgrades.remove(item)
-        else:
-            logger.error(f"{unit_tag=} destroyed but not found in previous observation")
 
     async def on_unit_created(self, unit: Unit):
         await super().on_unit_created(unit)
