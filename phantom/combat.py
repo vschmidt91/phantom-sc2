@@ -402,6 +402,7 @@ class CombatAction:
             or unit.health_percentage > 0.3
             or unit.is_revealed
             or not unit.weapon_cooldown
+            or self.state.bot.mediator.get_is_detected(unit=unit, by_enemy=True)
         ):
             return None
         return UseAbility(AbilityId.BURROWDOWN)
@@ -422,6 +423,10 @@ class CombatAction:
             travel_distance = max(0.0, d - a.radius - b.radius - r)
             time_to_reach = np.divide(travel_distance, a.movement_speed)
             dps = calculate_dps(a, b)
+            if (b.is_burrowed or b.is_cloaked) and not self.observation.bot.mediator.get_is_detected(
+                unit=b, by_enemy=False
+            ):
+                dps = 0.0
             time_to_kill = np.divide(b.health + b.shield, dps)
             random_offset = hash((a.tag, b.tag)) / (2**sys.hash_info.width)
             return time_to_reach + time_to_kill + 1e-10 * random_offset
