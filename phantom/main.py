@@ -110,8 +110,6 @@ class PhantomBot(BotExporter, AresBot):
 
         logger.add(handle_message, level=self.bot_config.tag_log_level, enqueue=True)
 
-        # await self.client.debug_show_map()
-
         if self.version:
             self.add_replay_tag(f"version_{self.version}")
 

@@ -65,6 +65,20 @@ def async_command(func):
     return wrapper
 
 
+def structure_perimeter(s: Unit) -> Iterable[Point]:
+    half_extent = s.footprint_radius
+    i1, j1 = np.subtract(s.position, half_extent).astype(int) - 1
+    i2, j2 = np.add(s.position, half_extent).astype(int)
+
+    for i in range(i1, i2 + 1):
+        yield i, j1
+        yield i, j2
+
+    for j in range(j1 + 1, j2):
+        yield i1, j
+        yield i2, j
+
+
 def find_closest_valid(grid: np.ndarray, p: Point, max_distance: int = 1) -> Point:
     for d in range(max_distance + 1):
         for i in range(max(0, p[0] - d), min(grid.shape[0], p[0] + d + 1)):

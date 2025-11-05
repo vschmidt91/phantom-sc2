@@ -18,7 +18,6 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
-from skimage.draw import rectangle_perimeter
 
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.constants import COMBATANT_STRUCTURES, HALF
@@ -30,6 +29,7 @@ from phantom.common.utils import (
     find_closest_valid,
     pairwise_distances,
     sample_bilinear,
+    structure_perimeter,
 )
 from phantom.knowledge import Knowledge
 from phantom.observation import Observation
@@ -181,13 +181,7 @@ class CombatAction:
 
         runby_targets_list = list[tuple[int, int]]()
         for s in self.observation.enemy_structures:
-            if s.footprint_radius % 1 == 0:
-                logger.info("yo")
-            half_extent = s.footprint_radius
-            start = np.subtract(s.position, half_extent).astype(int)
-            end = np.add(s.position, half_extent).astype(int) - 1
-            xs, ys = rectangle_perimeter(start, end, shape=self.observation.pathing.shape)
-            runby_targets_list.extend(zip(xs, ys, strict=False))
+            runby_targets_list.extend(structure_perimeter(s))
 
         for w in self.observation.enemy_units(WORKER_TYPES):
             runby_targets_list.append(w.position.rounded)
@@ -370,9 +364,10 @@ class CombatAction:
             self.state.is_attacking.discard(unit.tag)
 
         if unit.tag in self.state.is_attacking:
-
             should_runby = not self.observation.creep[p]
-            if unit.distance_to(self.observation.start_location) < unit.distance_to(self.observation.knowledge.enemy_start_locations[0]):
+            if unit.distance_to(self.observation.start_location) < unit.distance_to(
+                self.observation.knowledge.enemy_start_locations[0]
+            ):
                 should_runby = False
 
             if should_runby and unit.can_attack_ground and runby_target:
