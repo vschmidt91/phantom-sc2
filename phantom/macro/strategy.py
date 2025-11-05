@@ -230,19 +230,19 @@ class Strategy:
     def _tier(self) -> StrategyTier:
         if (
             self.obs.supply_workers < self.context.tier1_drone_count.value
-            or self.obs.townhalls.amount < 2
+            or self.obs.townhalls.amount < 3
             or self.obs.time < 3 * 60
         ):
             return StrategyTier.HATCH
         elif (
             self.obs.supply_workers < self.context.tier2_drone_count.value
-            or self.obs.townhalls.amount < 3
+            or self.obs.townhalls.amount < 4
             or self.obs.time < 6 * 60
         ):
             return StrategyTier.LAIR
         elif (
             self.obs.supply_workers < self.context.tier3_drone_count.value
-            or self.obs.townhalls.amount < 4
+            or self.obs.townhalls.amount < 5
             or self.obs.time < 9 * 60
         ):
             return StrategyTier.HIVE
