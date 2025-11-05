@@ -52,6 +52,7 @@ class PhantomBot(BotExporter, AresBot):
         self.ordered_structures = dict[int, OrderedStructure]()
         self.pending = dict[int, UnitTypeId]()
         self.pending_upgrades = set[UpgradeId]()
+        self.units_completed_this_frame = set[int]()
         self.parameters = Parameters()
 
         if os.path.isfile(self.bot_config.version_path):
@@ -203,6 +204,8 @@ class PhantomBot(BotExporter, AresBot):
             except Empty:
                 break
 
+        self.units_completed_this_frame.clear()
+
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)
 
@@ -226,6 +229,7 @@ class PhantomBot(BotExporter, AresBot):
         self.pending[unit.tag] = unit.type_id
 
     async def on_building_construction_complete(self, unit: Unit):
+        self.units_completed_this_frame.add(unit.tag)
         exists = unit.tag not in self._structures_previous_map
         logger.info(f"on_building_construction_complete {unit=}, {exists=}")
         await super().on_building_construction_complete(unit)
@@ -255,8 +259,11 @@ class PhantomBot(BotExporter, AresBot):
         await super().on_unit_created(unit)
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
+        self.units_completed_this_frame.add(unit.tag)
         actual_unit = self.all_own_units.find_by_tag(unit.tag)
-        logger.info(f"on_unit_type_changed {unit=} {previous_type=} {actual_unit=} {actual_unit.is_ready=} {actual_unit.build_progress=}")
+        logger.info(
+            f"on_unit_type_changed {unit=} {previous_type=} {actual_unit=} {actual_unit.is_ready=} {actual_unit.build_progress=}"
+        )
         await super().on_unit_type_changed(unit, previous_type)
         if unit.type_id == UnitTypeId.EGG:
             self.pending[unit.tag] = ITEM_BY_ABILITY[unit.orders[0].ability.exact_id]

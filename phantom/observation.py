@@ -120,7 +120,9 @@ class Observation:
         self.ordered_structures = self.bot.ordered_structures
         self.pending = self.bot.pending
 
-        self.actual_by_type = Counter[UnitTypeId](u.type_id for u in self.units if u.is_ready)
+        self.actual_by_type = Counter[UnitTypeId](
+            u.type_id for u in self.units if u.is_ready or u.tag in self.bot.units_completed_this_frame
+        )
         self.actual_by_type[UnitTypeId.DRONE] = self.bot.supply_workers
         self.pending_by_type = Counter[UnitTypeId](self.bot.pending.values())
         self.ordered_by_type = Counter[UnitTypeId](s.type for s in self.bot.ordered_structures.values())
