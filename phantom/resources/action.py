@@ -86,8 +86,9 @@ class ResourceAction:
         m = len(resources)
 
         cost = harvester_to_resource + 5 * return_distance + assignment_cost
-        limit = np.full(m, 2.0)
+        # limit = np.full(m, 2.0)
         is_gas = np.array([1.0 if r.mineral_contents == 0 else 0.0 for r in resources])
+        limit = np.array([self.observation.harvester_target_of_gas(r) for r in resources])
 
         problem = _get_problem(n, m)
         problem.set_total(is_gas, gas_target)

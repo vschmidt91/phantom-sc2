@@ -125,7 +125,7 @@ class Strategy:
         # if self.tier == StrategyTier.HATCH:
         #     return
 
-        priority = 5 * (saturation - 1)
+        priority = 4 * (saturation - 1)
 
         if priority < -1:
             return
@@ -297,7 +297,7 @@ class Strategy:
 
     def _macro_composition(self) -> UnitComposition:
         harvester_target = min(100, max(1.0, self.obs.max_harvesters))
-        queen_target = max(0.0, min(12, 1 * self.obs.townhalls.amount + 1))
+        queen_target = max(0.0, min(8, 2 * self.obs.townhalls.amount))
         composition = defaultdict[UnitTypeId, float](float)
 
         composition[UnitTypeId.DRONE] += harvester_target

@@ -48,6 +48,8 @@ class ResourceObservation:
                 return 0
             if not remaining(geyser):
                 return 0
+            if not self.observation.researched_speed:
+                return 3
             return 2
         else:  # resource is mineralpatch
             return 2
