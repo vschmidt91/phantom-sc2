@@ -289,6 +289,10 @@ class Agent:
                 return None
             return Move(target)
 
+        detectors = observation.units(UnitTypeId.OVERSEER)
+        nondetectors = observation.units(UnitTypeId.OVERLORD).filter(lambda u: u.tag not in self.macro.assigned_plans)
+        scout_actions = self.scout.step(observation, nondetectors, detectors, safe_overlord_spots)
+
         actions = {
             **build_order_actions,
             **{u: a for u in harvesters if (a := micro_harvester(u))},
@@ -296,7 +300,7 @@ class Agent:
             **{u: a for u in creep.active_tumors if (a := creep.spread_with_tumor(u))},
             **{u: a for u in observation.units(UnitTypeId.OVERLORD) if (a := micro_overlord(u))},
             **micro_overseers(observation.overseers),
-            **self.scout.step(observation, safe_overlord_spots),
+            **scout_actions,
             **{u: a for u in observation.units(CHANGELINGS) if (a := search_with(u))},
             **{u: a for u in observation.combatants if (a := micro_unit(u))},
             **{

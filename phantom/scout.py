@@ -5,7 +5,6 @@ from itertools import islice
 from loguru import logger
 from sc2.data import ActionResult
 from sc2.ids.ability_id import AbilityId
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
@@ -66,7 +65,9 @@ class ScoutState:
         assignment = {**scout_assignment, **detect_assignment}
         return assignment
 
-    def step(self, observation: Observation, safe_overlord_spots: list[Point2]) -> ScoutAction:
+    def step(
+        self, observation: Observation, nondetectors: Units, detectors: Units, safe_overlord_spots: list[Point2]
+    ) -> ScoutAction:
         # TODO
         if len(self.blocked_positions) > 100:
             logger.error("Too many blocked positions, resetting")
@@ -97,9 +98,6 @@ class ScoutState:
                 return False
             distance_to_enemy = min(b.distance_to(Point2(e)) for e in self.knowledge.enemy_start_locations)
             return distance_to_enemy > b.distance_to(observation.start_location)
-
-        detectors = observation.units({UnitTypeId.OVERSEER})
-        nondetectors = observation.units({UnitTypeId.OVERLORD})
 
         scout_points = list[Point]()
         scout_bases = filter(filter_base, self.knowledge.bases)
