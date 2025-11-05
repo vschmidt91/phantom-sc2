@@ -65,6 +65,16 @@ def async_command(func):
     return wrapper
 
 
+def find_closest_valid(grid: np.ndarray, p: Point, max_distance: int = 1) -> Point:
+    for d in range(max_distance + 1):
+        for i in range(max(0, p[0] - d), min(grid.shape[0], p[0] + d + 1)):
+            for j in range(max(0, p[1] - d), min(grid.shape[1], p[1] + d + 1)):
+                if grid[i, j] < np.inf:
+                    return i, j
+
+    return p
+
+
 def point_line_segment_distance(P: np.ndarray, A: np.ndarray, B: np.ndarray) -> np.floating:
     """
     Calculates the minimum distance from a point P to a finite line segment AB

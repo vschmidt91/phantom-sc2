@@ -6,6 +6,7 @@ from itertools import product
 
 import numpy as np
 import scipy.optimize
+from ares import WORKER_TYPES
 from ares.consts import EngagementResult
 from ares.main import AresBot
 from cython_extensions.dijkstra import cy_dijkstra
@@ -17,6 +18,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
+from skimage.draw import rectangle_perimeter
 
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.constants import COMBATANT_STRUCTURES, HALF
@@ -25,6 +27,7 @@ from phantom.common.graph import graph_components
 from phantom.common.utils import (
     calculate_dps,
     can_attack,
+    find_closest_valid,
     pairwise_distances,
     sample_bilinear,
 )
@@ -176,6 +179,29 @@ class CombatAction:
         self.targeting_cost = self._targeting_cost()
         self.optimal_targeting = self._optimal_targeting()
 
+        runby_targets_list = list[tuple[int, int]]()
+        for s in self.observation.enemy_structures:
+            if s.footprint_radius % 1 == 0:
+                logger.info("yo")
+            half_extent = s.footprint_radius
+            start = np.subtract(s.position, half_extent).astype(int)
+            end = np.add(s.position, half_extent).astype(int) - 1
+            xs, ys = rectangle_perimeter(start, end, shape=self.observation.pathing.shape)
+            runby_targets_list.extend(zip(xs, ys, strict=False))
+
+        for w in self.observation.enemy_units(WORKER_TYPES):
+            runby_targets_list.append(w.position.rounded)
+
+        if runby_targets_list:
+            runby_targets_list.extend(self.observation.knowledge.enemy_start_locations)
+            runby_targets = np.array(list(set(runby_targets_list)))
+            self.runby_pathing = cy_dijkstra(
+                self.observation.bot.mediator.get_ground_grid.astype(np.float64),
+                runby_targets,
+            )
+        else:
+            self.runby_pathing = None
+
         self.prediction = self.state.bot.mediator.can_win_fight(
             own_units=self.observation.combatants.exclude_type({UnitTypeId.QUEEN, UnitTypeId.QUEENBURROWED})
             | self.observation.overseers
@@ -196,6 +222,7 @@ class CombatAction:
         x = round(unit.position.x)
         y = round(unit.position.y)
         retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
+        x, y = find_closest_valid(retreat_map.distance, (x, y))
         if retreat_map.distance[x, y] == np.inf:
             return self.retreat_with_ares(unit)
         retreat_path = retreat_map.get_path((x, y), limit=limit)
@@ -270,6 +297,15 @@ class CombatAction:
             if gradient_norm > 1e-5:
                 return Move(unit.position - 2 * gradient / gradient_norm)
 
+        if self.runby_pathing:
+            runby_target = Point2(
+                self.runby_pathing.get_path(find_closest_valid(self.runby_pathing.distance, unit.position.rounded), 4)[
+                    -1
+                ]
+            ).offset(HALF)
+        else:
+            runby_target = None
+
         if not (target := self.optimal_targeting.get(unit)):
             return None
 
@@ -334,7 +370,14 @@ class CombatAction:
             self.state.is_attacking.discard(unit.tag)
 
         if unit.tag in self.state.is_attacking:
-            if unit.ground_range < 2:
+
+            should_runby = not self.observation.creep[p]
+            if unit.distance_to(self.observation.start_location) < unit.distance_to(self.observation.knowledge.enemy_start_locations[0]):
+                should_runby = False
+
+            if should_runby and unit.can_attack_ground and runby_target:
+                return Attack(runby_target)
+            elif unit.ground_range < 2:
                 return Attack(target.position)
             else:
                 return Attack(target)
