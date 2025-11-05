@@ -86,9 +86,7 @@ class Agent:
         transfuse = TransfuseAction(observation)
         creep = self.creep.step(observation, self.bot.mediator.get_ground_grid == 1.0)
 
-        safe_overlord_spots = [
-            p for p in observation.overlord_spots if self.bot.mediator.get_air_grid[p.rounded] == 1.0
-        ]
+        [p for p in observation.overlord_spots if self.bot.mediator.get_air_grid[p.rounded] == 1.0]
 
         injecters = observation.units(UnitTypeId.QUEEN)
         inject_targets = observation.townhalls.ready
@@ -226,9 +224,9 @@ class Agent:
             )
 
         def micro_overlord(u: Unit) -> Action | None:
-            return (
-                combat.retreat_with(u) if self.bot.mediator.get_air_grid[u.position.rounded] > 1.0 else None
-            ) or search_with(u)
+            if not self.bot.mediator.is_position_safe(grid=self.bot.mediator.get_air_grid, position=u.position):
+                return combat.retreat_with(u)
+            return None
 
         micro_handlers = {
             UnitTypeId.BANELING: combat.fight_with_baneling,
@@ -290,17 +288,16 @@ class Agent:
             return Move(target)
 
         detectors = observation.units(UnitTypeId.OVERSEER)
-        nondetectors = observation.units(UnitTypeId.OVERLORD).filter(lambda u: u.tag not in self.macro.assigned_plans)
-        scout_actions = self.scout.step(observation, nondetectors, detectors, safe_overlord_spots)
+        scout_actions = self.scout.step(observation, detectors)
 
         actions = {
             **build_order_actions,
             **{u: a for u in harvesters if (a := micro_harvester(u))},
             **macro_actions,
             **{u: a for u in creep.active_tumors if (a := creep.spread_with_tumor(u))},
-            **{u: a for u in observation.units(UnitTypeId.OVERLORD) if (a := micro_overlord(u))},
             **micro_overseers(observation.overseers),
             **scout_actions,
+            **{u: a for u in observation.units(UnitTypeId.OVERLORD) if (a := micro_overlord(u))},
             **{u: a for u in observation.units(CHANGELINGS) if (a := search_with(u))},
             **{u: a for u in observation.combatants if (a := micro_unit(u))},
             **{

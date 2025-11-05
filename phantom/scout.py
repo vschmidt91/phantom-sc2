@@ -1,6 +1,5 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from itertools import islice
 
 from loguru import logger
 from sc2.data import ActionResult
@@ -36,23 +35,11 @@ class ScoutState:
     def __init__(self, knowledge: Knowledge):
         self.knowledge = knowledge
         self.blocked_positions = dict[Point, float]()
-        self.enemy_natural_scouted = True  # TODO: set back to false when overlords stay safer
         self._previous_hash = 0
-        self.assignment: Mapping[Unit, Point2] = dict()
+        self.assignment: Mapping[Unit, Point] = dict()
 
-    def _assign(
-        self, nondetectors: Units, scout_targets: Sequence[Point2], detectors: Units, detect_targets: Sequence[Point2]
-    ) -> Mapping[Unit, Point2]:
+    def _assign(self, detectors: Units, detect_targets: Sequence[Point]) -> Mapping[Unit, Point]:
         logger.debug("Assigning scout targets")
-        scout_assignment = distribute(
-            nondetectors,
-            scout_targets,
-            pairwise_distances(
-                [u.position for u in nondetectors],
-                scout_targets,
-            ),
-            max_assigned=1,
-        )
         detect_assignment = distribute(
             detectors,
             detect_targets,
@@ -62,12 +49,9 @@ class ScoutState:
             ),
             max_assigned=1,
         )
-        assignment = {**scout_assignment, **detect_assignment}
-        return assignment
+        return detect_assignment
 
-    def step(
-        self, observation: Observation, nondetectors: Units, detectors: Units, safe_overlord_spots: list[Point2]
-    ) -> ScoutAction:
+    def step(self, observation: Observation, detectors: Units) -> ScoutAction:
         # TODO
         if len(self.blocked_positions) > 100:
             logger.error("Too many blocked positions, resetting")
@@ -93,40 +77,18 @@ class ScoutState:
                     self.blocked_positions[p] = observation.time
                     logger.info(f"Detected blocked base {p}")
 
-        def filter_base(b: Point2) -> bool:
-            if observation.is_visible[b]:
-                return False
-            distance_to_enemy = min(b.distance_to(Point2(e)) for e in self.knowledge.enemy_start_locations)
-            return distance_to_enemy > b.distance_to(observation.start_location)
-
-        scout_points = list[Point]()
-        scout_bases = filter(filter_base, self.knowledge.bases)
-        if not self.knowledge.is_micro_map and not self.enemy_natural_scouted and observation.enemy_natural:
-            if observation.is_visible[observation.enemy_natural]:
-                self.enemy_natural_scouted = True
-            else:
-                scout_points.append(tuple(observation.enemy_natural.rounded))
-            scout_points.extend(islice(scout_bases, len(nondetectors) - len(scout_points)))
-        else:
-            if not self.knowledge.is_micro_map:
-                scout_points.extend(tuple(pr) for p in safe_overlord_spots if filter_base(pr := p.rounded))
-            scout_points.extend(scout_bases)
-
-        scout_targets = list(map(Point2, scout_points))
-        detect_targets = list(map(Point2, self.blocked_positions))
+        detect_targets = list(self.blocked_positions)
 
         assignment_hash = hash(
             (
-                frozenset(u.tag for u in nondetectors),
                 frozenset(u.tag for u in detectors),
-                frozenset(scout_targets),
                 frozenset(detect_targets),
             )
         )
         if assignment_hash != self._previous_hash and observation.iteration % 17 == 0:
-            self.assignment = self._assign(nondetectors, scout_targets, detectors, detect_targets)
+            self.assignment = self._assign(detectors, detect_targets)
             self._previous_hash = assignment_hash
         assignment = self.assignment
 
-        actions = {u: ScoutPosition(p) for u, p in assignment.items()}
+        actions = {u: ScoutPosition(Point2(p)) for u, p in assignment.items()}
         return actions

@@ -125,7 +125,7 @@ class Strategy:
         # if self.tier == StrategyTier.HATCH:
         #     return
 
-        priority = 4 * (saturation - 1)
+        priority = 3 * (saturation - 1)
 
         if priority < -1:
             return
