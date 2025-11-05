@@ -255,7 +255,8 @@ class PhantomBot(BotExporter, AresBot):
         await super().on_unit_created(unit)
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
-        logger.info(f"on_unit_type_changed {unit=} {previous_type=}")
+        actual_unit = self.all_own_units.find_by_tag(unit.tag)
+        logger.info(f"on_unit_type_changed {unit=} {previous_type=} {actual_unit=}")
         await super().on_unit_type_changed(unit, previous_type)
         if unit.type_id == UnitTypeId.EGG:
             self.pending[unit.tag] = ITEM_BY_ABILITY[unit.orders[0].ability.exact_id]
