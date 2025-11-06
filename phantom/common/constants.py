@@ -12,7 +12,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 
 from phantom.common.utils import get_requirements
-from phantom.dummy import DummyBot, BaseBlocker
+from phantom.dummy import BaseBlocker, DummyBot
 
 WITH_TECH_EQUIVALENTS = {unit: {unit} | EQUIVALENTS_FOR_TECH_PROGRESS.get(unit, set()) for unit in UnitTypeId}
 

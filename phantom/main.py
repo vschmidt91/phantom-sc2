@@ -42,7 +42,6 @@ class PhantomBot(BotExporter, AresBot):
     def __init__(self, config: BotConfig, opponent_id: str, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self.agent: Agent | None = None
         self.bot_config = config
         self.opponent_id = opponent_id
         self.replay_tags = set[str]()
