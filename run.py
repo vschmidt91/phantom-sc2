@@ -156,13 +156,16 @@ async def run(
         players = [bot, opponent]
         kwargs = dict(
             realtime=False,
-            portconfig=Portconfig(),
         )
-        host_task = _host_game(map_settings, players, save_replay_as=replay_path_sc2, **kwargs)
         if special_build:
-            result, _ = await asyncio.gather(host_task, _join_game(players, **kwargs), return_exceptions=True)
+            kwargs["portconfig"] = Portconfig()
+            result, _ = await asyncio.gather(
+                _host_game(map_settings, players, save_replay_as=replay_path_sc2, **kwargs),
+                _join_game(players, **kwargs),
+                return_exceptions=True,
+            )
         else:
-            result = await host_task
+            result = await _host_game(map_settings, players, save_replay_as=replay_path_sc2, **kwargs)
 
     logger.info(f"Game finished with {result=}")
 
