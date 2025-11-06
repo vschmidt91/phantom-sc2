@@ -312,7 +312,7 @@ class CombatAction:
                 return Move(Point2(retreat_to_creep[-1]))
 
         # simulate battle
-        c = 0.1
+        c = 0.03
         eps = 1e-3
         a = 0.0
         alpha = 0.0
