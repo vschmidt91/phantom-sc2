@@ -8,6 +8,7 @@ from functools import cache, wraps
 import numpy as np
 import skimage.draw
 from ares import ALL_STRUCTURES
+from loguru import logger
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_tech_alias import UNIT_TECH_ALIAS
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
@@ -66,7 +67,12 @@ def async_command(func):
 
 
 def structure_perimeter(s: Unit) -> Iterable[Point]:
+    if s.is_flying:
+        return
     half_extent = s.footprint_radius
+    if s.position is None or half_extent is None:
+        logger.error(f"cannot setup structure perimeter for {s} at position {s.position} with footprint {half_extent}")
+        return
     i1, j1 = np.subtract(s.position, half_extent).astype(int) - 1
     i2, j2 = np.add(s.position, half_extent).astype(int)
 
