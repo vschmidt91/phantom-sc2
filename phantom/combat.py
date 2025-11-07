@@ -26,7 +26,6 @@ from phantom.common.graph import graph_components
 from phantom.common.utils import (
     calculate_dps,
     can_attack,
-    find_closest_valid,
     pairwise_distances,
     sample_bilinear,
     structure_perimeter,
@@ -216,10 +215,9 @@ class CombatAction:
         x = round(unit.position.x)
         y = round(unit.position.y)
         retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
-        x, y = find_closest_valid(retreat_map.distance, (x, y))
         if retreat_map.distance[x, y] == np.inf:
             return self.retreat_with_ares(unit)
-        retreat_path = retreat_map.get_path((x, y), limit=limit)
+        retreat_path = retreat_map.get_path(unit.position, limit=limit)
         if len(retreat_path) < limit:
             return self.retreat_with_ares(unit)
         retreat_point = Point2(retreat_path[-1]).offset(HALF)
@@ -292,11 +290,7 @@ class CombatAction:
                 return Move(unit.position - 2 * gradient / gradient_norm)
 
         if self.runby_pathing:
-            runby_target = Point2(
-                self.runby_pathing.get_path(find_closest_valid(self.runby_pathing.distance, unit.position.rounded), 4)[
-                    -1
-                ]
-            ).offset(HALF)
+            runby_target = Point2(self.runby_pathing.get_path(unit.position, 4)[-1]).offset(HALF)
         else:
             runby_target = None
 
@@ -307,7 +301,7 @@ class CombatAction:
             return Move(target.position)
 
         if not unit.is_flying and self.retreat_to_creep and not self.observation.creep[p]:
-            retreat_to_creep = self.retreat_creep.get_path(p, limit=4)
+            retreat_to_creep = self.retreat_creep.get_path(unit.position, limit=4)
             if len(retreat_to_creep) > 1:
                 return Move(Point2(retreat_to_creep[-1]))
 
@@ -356,7 +350,7 @@ class CombatAction:
             self.state.bot.mediator.get_air_grid if unit.is_flying else self.state.bot.mediator.get_ground_grid
         )
         retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
-        retreat_path = retreat_map.get_path(p, limit=4)
+        retreat_path = retreat_map.get_path(unit.position, limit=4)
 
         if outcome > 1 / 3:
             self.state.is_attacking.add(unit.tag)
