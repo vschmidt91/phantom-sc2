@@ -147,24 +147,6 @@ class CombatAction:
                 p = state.knowledge.in_mineral_line[observation.start_location.rounded]
                 retreat_targets.append(p)
 
-        tumors = self.observation.structures(
-            {UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN}
-        )
-        queens = self.observation.units({UnitTypeId.QUEEN, UnitTypeId.QUEENBURROWED})
-        if tumors:
-            creep_targets = np.array([t.position.rounded for t in tumors])
-        elif queens:
-            creep_targets = np.array([t.position.rounded for t in queens])
-        elif self.observation.creep.any():
-            creep_targets = np.array(np.where(self.observation.creep)).T
-        else:
-            creep_targets = np.atleast_2d(retreat_targets).astype(int)
-
-        self.retreat_creep = cy_dijkstra(
-            self.observation.bot.mediator.get_ground_grid.astype(np.float64),
-            creep_targets,
-        )
-
         self.retreat_targets = np.atleast_2d(retreat_targets).astype(int)
 
         self.retreat_air = cy_dijkstra(
@@ -212,11 +194,7 @@ class CombatAction:
                 self.retreat_to_creep = False
 
     def retreat_with(self, unit: Unit, limit=3) -> Action | None:
-        x = round(unit.position.x)
-        y = round(unit.position.y)
         retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
-        if retreat_map.distance[x, y] == np.inf:
-            return self.retreat_with_ares(unit)
         retreat_path = retreat_map.get_path(unit.position, limit=limit)
         if len(retreat_path) < limit:
             return self.retreat_with_ares(unit)
@@ -301,9 +279,7 @@ class CombatAction:
             return Move(target.position)
 
         if not unit.is_flying and self.retreat_to_creep and not self.observation.creep[p]:
-            retreat_to_creep = self.retreat_creep.get_path(unit.position, limit=4)
-            if len(retreat_to_creep) > 1:
-                return Move(Point2(retreat_to_creep[-1]))
+            return self.retreat_with(unit)
 
         # simulate battle
         c = 0.03
@@ -349,8 +325,6 @@ class CombatAction:
         retreat_grid = (
             self.state.bot.mediator.get_air_grid if unit.is_flying else self.state.bot.mediator.get_ground_grid
         )
-        retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
-        retreat_path = retreat_map.get_path(unit.position, limit=4)
 
         if outcome > 1 / 3:
             self.state.is_attacking.add(unit.tag)
@@ -372,14 +346,13 @@ class CombatAction:
                 return Attack(target)
         else:
             self.state.is_attacking.discard(unit.tag)
-            if retreat_grid[unit.position.rounded] > 1:
-                if len(retreat_path) > 1:
-                    retreat_point = Point2(retreat_path[-1]).offset(HALF)
-                    return Move(retreat_point)
-                else:
-                    return self.retreat_with_ares(unit)
-            else:
+            if self.observation.bot.mediator.is_position_safe(
+                grid=retreat_grid,
+                position=unit.position,
+            ):
                 return UseAbility(AbilityId.STOP)
+            else:
+                return self.retreat_with(unit)
 
     def do_unburrow(self, unit: Unit) -> Action | None:
         if unit.health_percentage > 0.9:

@@ -23,7 +23,6 @@ from phantom.common.constants import (
     ALL_MACRO_ABILITIES,
     ITEM_BY_ABILITY,
     RESULT_TO_FITNESS,
-    UPGRADE_BY_RESEARCH_ABILITY,
 )
 from phantom.config import BotConfig
 from phantom.exporter import BotExporter
@@ -51,7 +50,7 @@ class PhantomBot(BotExporter, AresBot):
         self.on_before_start_was_called = False
         self.ordered_structures = dict[int, OrderedStructure]()
         self.pending = dict[int, UnitTypeId]()
-        self.pending_upgrades = set[UpgradeId]()
+        self.pending_upgrades = dict[int, UpgradeId]()
         self.units_completed_this_frame = set[int]()
         self.parameters = Parameters()
 
@@ -232,11 +231,11 @@ class PhantomBot(BotExporter, AresBot):
         exists = unit.tag not in self._structures_previous_map
         logger.info(f"on_building_construction_complete {unit=}, {exists=}")
         await super().on_building_construction_complete(unit)
-
         if unit.type_id in {UnitTypeId.LAIR, UnitTypeId.HIVE, UnitTypeId.GREATERSPIRE, UnitTypeId.CREEPTUMORBURROWED}:
-            pass
-        else:
-            del self.pending[unit.tag]
+            return
+        if unit.tag not in self.pending:
+            logger.error("unit not found")
+        del self.pending[unit.tag]
 
     # async def on_enemy_unit_entered_vision(self, unit: Unit):
     #     await super().on_enemy_unit_entered_vision(unit)
@@ -248,21 +247,19 @@ class PhantomBot(BotExporter, AresBot):
         logger.info(f"on_unit_destroyed {unit_tag=}")
         await super().on_unit_destroyed(unit_tag)
         self.pending.pop(unit_tag, None)
-        if unit := (self._units_previous_map.get(unit_tag) or self._structures_previous_map.get(unit_tag)):
-            for order in unit.orders:
-                ability = order.ability.exact_id
-                if item := UPGRADE_BY_RESEARCH_ABILITY.get(ability):
-                    self.pending_upgrades.remove(item)
+        self.pending_upgrades.pop(unit_tag, None)
+        # if unit := (self._units_previous_map.get(unit_tag) or self._structures_previous_map.get(unit_tag)):
+        #     for order in unit.orders:
+        #         ability = order.ability.exact_id
+        #         if item := UPGRADE_BY_RESEARCH_ABILITY.get(ability):
+        #             self.pending_upgrades.remove(item)
 
     async def on_unit_created(self, unit: Unit):
         await super().on_unit_created(unit)
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         self.units_completed_this_frame.add(unit.tag)
-        actual_unit = self.all_own_units.find_by_tag(unit.tag)
-        logger.info(
-            f"on_unit_type_changed {unit=} {previous_type=} {actual_unit=} {actual_unit.is_ready=} {actual_unit.build_progress=}"
-        )
+        logger.info(f"on_unit_type_changed {unit=} {previous_type=}")
         await super().on_unit_type_changed(unit, previous_type)
         if unit.type_id == UnitTypeId.EGG:
             self.pending[unit.tag] = ITEM_BY_ABILITY[unit.orders[0].ability.exact_id]
@@ -274,8 +271,13 @@ class PhantomBot(BotExporter, AresBot):
     #     await super().on_unit_took_damage(unit, amount_damage_taken)
     #
     async def on_upgrade_complete(self, upgrade: UpgradeId):
+        logger.info(f"on_upgrade_complete {upgrade=}")
         await super().on_upgrade_complete(upgrade)
-        self.pending_upgrades.discard(upgrade)
+        researcher = next((t for t, u in self.pending_upgrades.items() if u == upgrade), None)
+        if researcher:
+            del self.pending_upgrades[researcher]
+        else:
+            logger.error(f"No researcher for {upgrade=}")
 
     def handle_action(self, action: ActionRawUnitCommand, tag: int) -> None:
         unit = self.unit_tag_dict.get(tag) or self._units_previous_map.get(tag)
@@ -304,7 +306,7 @@ class PhantomBot(BotExporter, AresBot):
             else:
                 del self.agent.macro.assigned_plans[lookup_tag]
                 if isinstance(item, UpgradeId):
-                    self.pending_upgrades.add(item)
+                    self.pending_upgrades[lookup_tag] = item
                 elif item in ALL_STRUCTURES and (
                     "requires_placement_position" in TRAIN_INFO[unit.type_id][item] or item == UnitTypeId.EXTRACTOR
                 ):

@@ -113,7 +113,11 @@ class Strategy:
                 plan.priority = priority
 
         for upgrade, priority in upgrade_priorities.items():
-            if upgrade in self.obs.upgrades or upgrade in self.obs.bot.pending_upgrades or self.obs.planned[upgrade]:
+            if (
+                upgrade in self.obs.upgrades
+                or upgrade in self.obs.bot.pending_upgrades.values()
+                or self.obs.planned[upgrade]
+            ):
                 continue
             yield MacroPlan(upgrade, priority=priority)
 
@@ -179,7 +183,7 @@ class Strategy:
         return not any(self.obs.get_missing_requirements(t))
 
     def filter_upgrade(self, upgrade: UpgradeId) -> bool:
-        upgrade_set = self.obs.upgrades | self.obs.bot.pending_upgrades
+        upgrade_set = self.obs.upgrades | set(self.obs.bot.pending_upgrades.values())
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
             return True
         elif self.tier == StrategyTier.HATCH:
