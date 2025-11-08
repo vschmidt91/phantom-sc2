@@ -197,12 +197,11 @@ class PhantomBot(BotExporter, AresBot):
                 stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
                 stats.dump_stats(filename=self.bot_config.profile_path)
 
-        while True:
-            try:
-                tag = self.replay_tag_queue.get(block=False)
-                await self._send_replay_tag(tag)
-            except Empty:
-                break
+        try:
+            tag = self.replay_tag_queue.get(block=False)
+            await self._send_replay_tag(tag)
+        except Empty:
+            pass
 
         self.units_completed_this_frame.clear()
 
