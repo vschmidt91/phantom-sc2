@@ -360,7 +360,7 @@ class Observation:
         for upgrade in upgrades:
             if upgrade in self.upgrades:
                 continue
-            if upgrade in self.bot.pending_upgrades:
+            if upgrade in self.bot.pending_upgrades.values():
                 continue
             return (upgrade,)
         return ()
