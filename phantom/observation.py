@@ -5,7 +5,7 @@ from itertools import chain
 import numpy as np
 from ares import AresBot, UnitTreeQueryType
 from ares.consts import UnitRole
-from cython_extensions import cy_unit_pending
+from cython_extensions import cy_can_place_structure, cy_unit_pending
 from loguru import logger
 from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
@@ -13,7 +13,6 @@ from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.game_data import UnitTypeData
-from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -227,13 +226,24 @@ class Observation:
         logger.debug(f"Query pathings {zipped_list=}")
         return await self.bot.client.query_pathings(zipped_list)
 
-    async def query_pathing(self, start: Unit | Point2 | Point3, end: Point2 | Point3) -> float:
-        logger.debug(f"Query pathing {start=} {end=}")
-        return await self.bot.client.query_pathing(start, end)
-
-    async def can_place_single(self, building: AbilityId | UnitTypeId, position: Point2) -> bool:
-        logger.debug(f"Query placement {building=} {position=}")
-        return await self.bot.can_place_single(building, position)
+    def can_place_single(self, building: UnitTypeId, position: Point2) -> bool:
+        unit_data = self.bot.game_data.units[building.value]
+        x, y = np.subtract(position, unit_data.footprint_radius).astype(int)
+        building_size = int(2 * unit_data.footprint_radius)
+        if building == UnitTypeId.HATCHERY:
+            creep_grid = self.bot.game_info.pathing_grid.data_numpy
+        else:
+            creep_grid = self.bot.state.creep.data_numpy
+        result = cy_can_place_structure(
+            building_origin=(x, y),
+            building_size=(building_size, building_size),
+            creep_grid=creep_grid,
+            placement_grid=self.bot.game_info.placement_grid.data_numpy,
+            pathing_grid=self.bot.game_info.pathing_grid.data_numpy,
+            avoid_creep=False,
+            include_addon=False,
+        )
+        return result
 
     def find_path(self, start: Point2, target: Point2, air: bool = False) -> Point2:
         grid = self.bot.mediator.get_air_grid if air else self.bot.mediator.get_ground_grid

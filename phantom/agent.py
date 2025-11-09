@@ -86,8 +86,6 @@ class Agent:
         transfuse = TransfuseAction(observation)
         creep = self.creep.step(observation, self.bot.mediator.get_ground_grid == 1.0)
 
-        [p for p in observation.overlord_spots if self.bot.mediator.get_air_grid[p.rounded] == 1.0]
-
         injecters = observation.units(UnitTypeId.QUEEN)
         inject_targets = observation.townhalls.ready
         inject_assignment = distribute(

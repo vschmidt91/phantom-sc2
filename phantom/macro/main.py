@@ -144,7 +144,7 @@ class MacroState:
 
             if (
                 isinstance(plan.target, Point2)
-                and not await obs.can_place_single(plan.item, plan.target)
+                and not obs.can_place_single(plan.item, plan.target)
                 and plan.item not in {UnitTypeId.SPORECRAWLER}
             ):
                 plan.target = None
@@ -248,12 +248,12 @@ async def premove(obs: Observation, unit: Unit, plan: MacroPlan, eta: float) -> 
     if not plan.target:
         return None
     target = plan.target.position
-    distance = await obs.query_pathing(unit, target) or 0.0
+    distance = unit.distance_to(target)
     movement_eta = 1.5 + distance / (1.4 * unit.movement_speed)
     do_premove = eta <= movement_eta
     if not do_premove:
         return None
-    if unit.distance_to(target) > 1e-3:
+    if distance > 1e-3:
         return Move(target)
     return HoldPosition()
 

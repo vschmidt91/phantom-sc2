@@ -9,7 +9,7 @@ import scipy.optimize
 from ares import WORKER_TYPES
 from ares.consts import EngagementResult
 from ares.main import AresBot
-from cython_extensions.dijkstra import cy_dijkstra
+from cython_extensions import cy_attack_ready, cy_dijkstra, cy_range_vs_target
 from loguru import logger
 from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
@@ -197,18 +197,14 @@ class CombatAction:
         retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
         retreat_path = retreat_map.get_path(unit.position, limit=limit)
         if len(retreat_path) < limit:
-            return self.retreat_with_ares(unit)
-        retreat_point = Point2(retreat_path[-1]).offset(HALF)
-        return Move(retreat_point)
-
-    def retreat_with_ares(self, unit: Unit, limit=7) -> Action | None:
-        return Move(
-            self.observation.find_safe_spot(
+            retreat_point = self.observation.find_safe_spot(
                 unit.position,
                 unit.is_flying,
                 limit,
-            ),
-        )
+            )
+        else:
+            retreat_point = Point2(retreat_path[-1]).offset(HALF)
+        return Move(retreat_point)
 
     def fight_with_baneling(self, baneling: Unit) -> Action | None:
         if not (target := self.optimal_targeting.get(baneling)):
@@ -230,9 +226,9 @@ class CombatAction:
                     return 1e10 * pathing
 
             def g(u: Unit):
-                unit_range = unit.air_range if u.is_flying else unit.ground_range
+                unit_range = cy_range_vs_target(unit=unit, target=u)
                 safety_margin = u.movement_speed * 1.0
-                enemy_range = u.air_range if unit.is_flying else u.ground_range
+                enemy_range = cy_range_vs_target(unit=u, target=unit)
                 d = np.linalg.norm(x - u.position) - u.radius - unit.radius
                 if enemy_range < unit_range and d < safety_margin + enemy_range:
                     return safety_margin + enemy_range - d
@@ -254,14 +250,19 @@ class CombatAction:
             cost += 1e-10 * random_offset
             return cost
 
-        if unit.weapon_ready and (targets := self.observation.shootable_targets.get(unit)):
+        if not (target := self.optimal_targeting.get(unit)):
+            return None
+
+        attack_ready = cy_attack_ready(unit=unit, target=target)
+
+        if attack_ready and (targets := self.observation.shootable_targets.get(unit)):
             target = min(targets, key=cost_fn)
             if unit.ground_range < 2:
                 return Attack(target.position)
             else:
                 return Attack(target)
 
-        if not unit.weapon_ready and unit.ground_range >= 2:
+        if not attack_ready and unit.ground_range >= 2:
             gradient = scipy.optimize.approx_fprime(unit.position, potential_kiting)
             gradient_norm = np.linalg.norm(gradient)
             if gradient_norm > 1e-5:
@@ -271,9 +272,6 @@ class CombatAction:
             runby_target = Point2(self.runby_pathing.get_path(unit.position, 4)[-1]).offset(HALF)
         else:
             runby_target = None
-
-        if not (target := self.optimal_targeting.get(unit)):
-            return None
 
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(target.position)
@@ -288,7 +286,7 @@ class CombatAction:
         alpha = 0.0
         for u in combatants:
             d = u.distance_to(target) - u.radius - target.radius
-            d -= u.air_range if target.is_flying else u.ground_range
+            d -= cy_range_vs_target(unit=u, target=target)
             dt = max(0, d) / max(eps, u.movement_speed)
             w = 1 / (1 + c * dt**2)
             a += w
@@ -299,7 +297,7 @@ class CombatAction:
         beta = 0.0
         for u in enemy_combatants:
             d = u.distance_to(unit) - u.radius - unit.radius
-            d -= u.air_range if unit.is_flying else u.ground_range
+            d -= cy_range_vs_target(unit=u, target=unit)
             dt = max(0, d) / max(eps, u.movement_speed)
             w = 1 / (1 + c * dt**2)
             b += w
@@ -386,7 +384,7 @@ class CombatAction:
         def cost_fn(a: Unit, b: Unit, d: float) -> float:
             if a.order_target == b.tag and can_attack(a, b):
                 return 0.0
-            r = a.air_range if b.is_flying else a.ground_range
+            r = cy_range_vs_target(unit=a, target=b)
             travel_distance = max(0.0, d - a.radius - b.radius - r)
             time_to_reach = np.divide(travel_distance, a.movement_speed)
             dps = calculate_dps(a, b)
