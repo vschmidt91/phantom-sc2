@@ -253,7 +253,7 @@ class CombatAction:
         if not (target := self.optimal_targeting.get(unit)):
             return None
 
-        attack_ready = cy_attack_ready(unit=unit, target=target)
+        attack_ready = cy_attack_ready(bot=self.observation.bot, unit=unit, target=target)
 
         if attack_ready and (targets := self.observation.shootable_targets.get(unit)):
             target = min(targets, key=cost_fn)
