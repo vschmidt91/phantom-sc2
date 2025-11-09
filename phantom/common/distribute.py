@@ -20,7 +20,8 @@ class HighsPyProblem:
         # h.setOptionValue("solver", "simplex")
         # h.setOptionValue("simplex_iteration_limit", 256)
         # h.setOptionValue("optimality_tolerance", 1e-3)
-        h.setOptionValue("log_to_console", False)
+        h.setOptionValue("parallel", "off")
+        h.setOptionValue("log_to_console", True)
 
         vs = {(i, j): h.addVariable(lb=0.0, ub=1.0) for i, j in product(range(n), range(m))}
         for i in range(n):
