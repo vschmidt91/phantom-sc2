@@ -401,6 +401,7 @@ class CombatAction:
         cost = np.array(
             [[cost_fn(ai, bj, distances[i, j]) for j, bj in enumerate(enemies)] for i, ai in enumerate(units)]
         )
+        cost = np.nan_to_num(cost, nan=np.inf)
         return cost
 
     def _optimal_targeting(self) -> dict[Unit, Unit]:
