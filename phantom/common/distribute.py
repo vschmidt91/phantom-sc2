@@ -49,6 +49,8 @@ class HighsPyProblem:
             self.set_total(np.zeros(self.m), 0)
 
     def set_total(self, coeffs: np.ndarray, limit: int) -> None:
+        logger.info(f"{coeffs=}")
+        logger.info(f"{limit=}")
         coeffs = np.pad(coeffs, (0, self.m - coeffs.shape[0]), mode="constant", constant_values=0.0)
         self.a_values[2::3] = np.tile(coeffs, self.n)
         self.lp.a_matrix_.value_ = self.a_values
@@ -56,6 +58,8 @@ class HighsPyProblem:
         self.row_upper[-1] = limit
 
     def solve(self, cost: np.ndarray, limit: np.ndarray) -> np.ndarray:
+        logger.info(f"{cost=}")
+        logger.info(f"{limit=}")
         n, m = cost.shape
         padding = (0, self.n - n), (0, self.m - m)
         cost = np.pad(cost, padding, mode="constant", constant_values=np.inf)
