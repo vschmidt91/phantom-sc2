@@ -45,8 +45,8 @@ class StrategyState:
     ) -> None:
         self.knowledge = knowledge
         self.counter_factor = parameters.add(Prior(1.5, 0.1, min=0))
-        self.ravager_mixin = parameters.add(Prior(13, 1, min=0))
-        self.corruptor_mixin = parameters.add(Prior(13, 1, min=0))
+        self.ravager_mixin = parameters.add(Prior(8, 1, min=0))
+        self.corruptor_mixin = parameters.add(Prior(8, 1, min=0))
         self.tier1_drone_count = parameters.add(Prior(32, 1, min=0))
         self.tier2_drone_count = parameters.add(Prior(66, 1, min=0))
         self.tier3_drone_count = parameters.add(Prior(80, 1, min=0))
