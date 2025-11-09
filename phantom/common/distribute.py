@@ -124,6 +124,8 @@ def distribute(
         max_assigned = np.full(m, float(max_assigned))
 
     problem = _get_problem(n, m)
+
+    problem.set_total(np.zeros(m), 0)
     x = problem.solve(cost, max_assigned)
     indices = x.argmax(axis=1)
     assignment = {ai: b[j] for (i, ai), j in zip(enumerate(a), indices, strict=False) if x[i, j] > 0}
