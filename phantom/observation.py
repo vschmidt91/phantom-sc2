@@ -6,7 +6,6 @@ import numpy as np
 from ares import AresBot, UnitTreeQueryType
 from ares.consts import UnitRole
 from cython_extensions import cy_can_place_structure, cy_unit_pending
-from loguru import logger
 from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
@@ -16,7 +15,7 @@ from sc2.game_data import UnitTypeData
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.position import Point2, Point3
+from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
@@ -221,10 +220,6 @@ class Observation:
 
     def unit_data(self, unit_type_id: UnitTypeId) -> UnitTypeData:
         return self.bot.game_data.units[unit_type_id.value]
-
-    async def query_pathings(self, zipped_list: list[list[Unit | Point2 | Point3]]) -> list[float]:
-        logger.debug(f"Query pathings {zipped_list=}")
-        return await self.bot.client.query_pathings(zipped_list)
 
     def can_place_single(self, building: UnitTypeId, position: Point2) -> bool:
         unit_data = self.bot.game_data.units[building.value]

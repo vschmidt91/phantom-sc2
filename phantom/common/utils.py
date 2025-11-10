@@ -66,15 +66,9 @@ def async_command(func):
     return wrapper
 
 
-def structure_perimeter(s: Unit) -> Iterable[Point]:
-    if s.is_flying:
-        return
-    half_extent = s.footprint_radius
-    if s.position is None or half_extent is None:
-        logger.error(f"cannot setup structure perimeter for {s} at position {s.position} with footprint {half_extent}")
-        return
-    i1, j1 = np.subtract(s.position, half_extent).astype(int) - 1
-    i2, j2 = np.add(s.position, half_extent).astype(int)
+def rectangle_perimeter(start: Point, end: Point) -> Iterable[Point]:
+    i1, j1 = start
+    i2, j2 = end
 
     for i in range(i1, i2 + 1):
         yield i, j1
@@ -83,6 +77,19 @@ def structure_perimeter(s: Unit) -> Iterable[Point]:
     for j in range(j1 + 1, j2):
         yield i1, j
         yield i2, j
+
+
+def structure_perimeter(s: Unit) -> Iterable[Point]:
+    if s.is_flying:
+        return
+    half_extent = s.footprint_radius
+    if s.position is None or half_extent is None:
+        logger.error(f"cannot setup structure perimeter for {s} at position {s.position} with footprint {half_extent}")
+        return
+    start = np.subtract(s.position, half_extent).astype(int) - 1
+    end = np.add(s.position, half_extent).astype(int)
+
+    yield from rectangle_perimeter(start, end)
 
 
 def find_closest_valid(grid: np.ndarray, p: Point, max_distance: int = 1) -> Point:

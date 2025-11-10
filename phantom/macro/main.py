@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from itertools import chain
 
 import numpy as np
-from ares.consts import UnitRole
+from ares.consts import GAS_BUILDINGS, TOWNHALL_TYPES, UnitRole
+from cython_extensions import cy_distance_to
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -78,10 +79,10 @@ class MacroState:
     def planned_by_type(self, item: MacroId) -> Iterable[MacroPlan]:
         return filter(lambda p: p.item == item, self.enumerate_plans())
 
-    async def assign_unassigned_plans(self, obs: Observation, trainers: Units, blocked_positions: Set[Point]) -> None:
+    def assign_unassigned_plans(self, trainers: Units) -> None:
         trainer_set = set(trainers)
         for plan in sorted(self.unassigned_plans, key=lambda p: p.priority, reverse=True):
-            if trainer := (await self.find_trainer(obs, trainer_set, plan.item, blocked_positions)):
+            if trainer := self._select_trainer(trainer_set, plan.item):
                 logger.info(f"Assigning {trainer=} for {plan=}")
                 if plan in self.unassigned_plans:
                     self.unassigned_plans.remove(plan)
@@ -94,14 +95,14 @@ class MacroState:
                 logger.info(f"Returning {unit=} to gathering")
                 obs.bot.mediator.assign_role(tag=unit.tag, role=UnitRole.GATHERING)
 
-    async def step(self, obs: Observation, blocked_positions: Set[Point]) -> MacroAction:
+    def step(self, obs: Observation, blocked_positions: Set[Point]) -> MacroAction:
         self.return_gatherers(obs)
 
         # TODO
         if len(self.unassigned_plans) > 100:
             obs.bot.add_replay_tag("overplanning")  # type: ignore
             self.unassigned_plans = []
-        await self.assign_unassigned_plans(obs, obs.units, blocked_positions)  # TODO: narrow this down
+        self.assign_unassigned_plans(obs.units)  # TODO: narrow this down
 
         actions = dict[Unit, Action]()
         reserve = Cost()
@@ -135,13 +136,6 @@ class MacroState:
             if any(obs.get_missing_requirements(plan.item)):
                 continue
 
-            # reset target on failure
-            # if plan.executed:
-            #     logger.info(f"resetting target for {plan=}")
-            #     plan.target = None
-            #     plan.commanded = False
-            #     plan.executed = False
-
             if (
                 isinstance(plan.target, Point2)
                 and not obs.can_place_single(plan.item, plan.target)
@@ -151,7 +145,7 @@ class MacroState:
 
             if not plan.target:
                 try:
-                    plan.target = await self.get_target(self.knowledge, obs, trainer, plan, blocked_positions)
+                    plan.target = self.get_target(self.knowledge, obs, trainer, plan, blocked_positions)
                 except PlacementNotFoundException:
                     continue
 
@@ -171,91 +165,81 @@ class MacroState:
             elif plan.target:
                 if trainer.is_carrying_resource:
                     actions[trainer] = UseAbility(AbilityId.HARVEST_RETURN)
-                elif (obs.iteration % 10 == 0) and (action := await premove(obs, trainer, plan, eta)):
+                elif (obs.iteration % 10 == 0) and (action := premove(trainer, plan, eta)):
                     actions[trainer] = action
-                # elif action := combat.fight_with(trainer):
-                #     actions[trainer] = action
 
         return actions
 
-    async def get_target(
+    def get_target(
         self, knowledge: Knowledge, obs: Observation, trainer: Unit, objective: MacroPlan, blocked_positions: Set[Point]
     ) -> Unit | Point2 | None:
-        gas_type = GAS_BY_RACE[knowledge.race]
-        if objective.item == gas_type:
-            exclude_positions = {geyser.position for geyser in obs.gas_buildings}
-            exclude_tags = {
-                order.target
-                for unit in obs.workers
-                for order in unit.orders
-                if order.ability.exact_id == AbilityId.ZERGBUILD_EXTRACTOR
-            }
-            exclude_tags.update({p.target.tag for p in self.planned_by_type(gas_type) if isinstance(p.target, Unit)})
-            geysers = [
-                geyser
-                for geyser in obs.geyers_taken
-                if (geyser.position not in exclude_positions and geyser.tag not in exclude_tags)
-            ]
-            if not any(geysers):
-                raise PlacementNotFoundException()
-            else:
-                return min(geysers, key=lambda g: g.tag)
-
-        if not (entry := MACRO_INFO.get(trainer.type_id)):
+        if objective.item in GAS_BUILDINGS:
+            return self.get_gas_target(obs)
+        if (
+            not (entry := MACRO_INFO.get(trainer.type_id))
+            or not (data := entry.get(objective.item))
+            or not data.get("requires_placement_position")
+        ):
             return None
-        if not (data := entry.get(objective.item)):
-            return None
-        # data = MACRO_INFO[trainer.unit.type_id][objective.item]
-
-        if "requires_placement_position" in data:
-            position = await get_target_position(self.knowledge, obs, objective.item, blocked_positions)
-            if not position:
-                raise PlacementNotFoundException()
-            return position
+        if objective.item in TOWNHALL_TYPES:
+            position = get_expansion_target(knowledge, obs, blocked_positions)
         else:
-            return None
+            position = get_tech_target(knowledge, obs, objective.item)
+        if not position:
+            raise PlacementNotFoundException()
+        return position
 
-    async def find_trainer(
-        self, obs: Observation, trainers: Iterable[Unit], item: MacroId, blocked_positions: Set[Point]
+    def _select_trainer(
+        self,
+        all_trainers: Iterable[Unit],
+        item: MacroId,
     ) -> Unit | None:
         trainer_types = ITEM_TRAINED_FROM_WITH_EQUIVALENTS[item]
 
-        trainers_filtered = [
+        trainers_filtered = (
             trainer
-            for trainer in trainers
+            for trainer in all_trainers
             if (
                 trainer.type_id in trainer_types
                 and trainer.is_ready
                 and (trainer.is_idle or not trainer.is_structure)
                 and trainer.tag not in self.assigned_plans
             )
+        )
+
+        return next(iter(trainers_filtered), None)
+
+    def get_gas_target(self, obs: Observation) -> Unit:
+        gas_type = GAS_BY_RACE[obs.knowledge.race]
+        exclude_positions = {geyser.position for geyser in obs.gas_buildings}
+        exclude_tags = {
+            order.target
+            for unit in obs.workers
+            for order in unit.orders
+            if order.ability.exact_id == AbilityId.ZERGBUILD_EXTRACTOR
+        }
+        exclude_tags.update({p.target.tag for p in self.planned_by_type(gas_type) if isinstance(p.target, Unit)})
+        geysers = [
+            geyser
+            for geyser in obs.geyers_taken
+            if (geyser.position not in exclude_positions and geyser.tag not in exclude_tags)
         ]
-
-        if not any(trainers_filtered):
-            return None
-
-        if item == UnitTypeId.HATCHERY:
-            target_expected = await get_target_position(self.knowledge, obs, item, blocked_positions)
-            return min(
-                trainers_filtered,
-                key=lambda t: t.distance_to(target_expected),
-            )
-
-        return trainers_filtered[0]
+        if target := min(geysers, key=lambda g: g.tag, default=None):
+            return target
+        raise PlacementNotFoundException()
 
 
-async def premove(obs: Observation, unit: Unit, plan: MacroPlan, eta: float) -> Action | None:
+def premove(unit: Unit, plan: MacroPlan, eta: float) -> Action | None:
     if not plan.target:
         return None
     target = plan.target.position
-    distance = unit.distance_to(target)
+    distance = cy_distance_to(unit.position, target)
     movement_eta = 1.5 + distance / (1.4 * unit.movement_speed)
-    do_premove = eta <= movement_eta
-    if not do_premove:
+    if eta > movement_eta:
         return None
-    if distance > 1e-3:
-        return Move(target)
-    return HoldPosition()
+    if distance < 1e-3:
+        return HoldPosition()
+    return Move(target)
 
 
 def get_eta(observation: Observation, reserve: Cost, cost: Cost) -> float:
@@ -272,35 +256,29 @@ def get_eta(observation: Observation, reserve: Cost, cost: Cost) -> float:
     )
 
 
-async def get_target_position(
-    knowledge: Knowledge, obs: Observation, target: UnitTypeId, blocked_positions: Set[Point]
-) -> Point2 | None:
+def get_expansion_target(knowledge: Knowledge, obs: Observation, blocked_positions: Set[Point]) -> Point2:
+    loss_positions = [knowledge.in_mineral_line[b] for b in obs.bases_taken]
+    loss_positions_enemy = [knowledge.in_mineral_line[s] for s in knowledge.enemy_start_locations]
+
+    def loss_fn(p: Point2) -> float:
+        distances = map(lambda q: cy_distance_to(p, q), loss_positions)
+        distances_enemy = map(lambda q: cy_distance_to(p, q), loss_positions_enemy)
+        return max(distances) - min(distances_enemy)
+
+    candidates = (b for b in knowledge.bases if b not in blocked_positions and b not in obs.townhall_at)
+    if target := min(candidates, key=loss_fn, default=None):
+        return Point2(target).offset(HALF)
+
+    raise PlacementNotFoundException()
+
+
+def get_tech_target(knowledge: Knowledge, obs: Observation, target: UnitTypeId) -> Point2:
     data = obs.unit_data(target)
-    if target in {UnitTypeId.HATCHERY}:
-        candidates = [b for b in knowledge.bases if b not in blocked_positions and b not in obs.townhall_at]
-        if not candidates:
-            return None
-        loss_positions = {knowledge.in_mineral_line[b] for b in obs.bases_taken} | {obs.start_location}
-        loss_positions_enemy = {knowledge.in_mineral_line[s] for s in knowledge.enemy_start_locations}
-
-        async def loss_fn(p: Point2) -> float:
-            distances = await obs.query_pathings([[Point2(p), Point2(q)] for q in loss_positions])
-            distances_enemy = await obs.query_pathings([[Point2(p), Point2(q)] for q in loss_positions_enemy])
-            return max(distances) - min(distances_enemy)
-
-        c_min = candidates[0]
-        loss_min = await loss_fn(c_min)
-        for c in candidates[1:]:
-            loss = await loss_fn(c)
-            if loss < loss_min:
-                loss_min = loss
-                c_min = c
-        return Point2(c_min).offset(HALF)
 
     def filter_base(b):
-        if not (th := obs.townhall_at.get(b)):
-            return False
-        return th.is_ready
+        if th := obs.townhall_at.get(b):
+            return th.is_ready
+        return False
 
     if potential_bases := list(filter(filter_base, knowledge.bases)):
         base = random.choice(potential_bases)
@@ -311,4 +289,5 @@ async def get_target_position(
         offset = data.footprint_radius % 1
         position = position.rounded.offset((offset, offset))
         return position
-    return None
+
+    raise PlacementNotFoundException()
