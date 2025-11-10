@@ -1,19 +1,21 @@
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
+import numpy as np
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.unit import Unit
 
 from phantom.common.action import Action, UseAbility
-from phantom.macro.state import MacroPlan
+from phantom.macro.main import MacroPlan
 from phantom.observation import Observation
 
 
 @dataclass(frozen=True)
 class BuildOrderStep:
     plans: list[MacroPlan]
-    actions: list[Action]
+    actions: Mapping[Unit, Action]
 
 
 class BuildOrder(ABC):
@@ -28,12 +30,12 @@ class Make(BuildOrder):
     target: int
 
     def execute(self, obs: Observation) -> BuildOrderStep | None:
-        if obs.count(self.unit, include_planned=False) < self.target:
-            if obs.count(self.unit) < self.target:
-                return BuildOrderStep([MacroPlan(self.unit)], [])
-            else:
-                return BuildOrderStep([], [])
-        return None
+        actual_or_pending = obs.count_actual(self.unit) + obs.count_pending(self.unit)
+        if actual_or_pending >= self.target:
+            return None
+        deficit = self.target - actual_or_pending - obs.count_planned(self.unit)
+        plans = [MacroPlan(self.unit) for _ in range(deficit)]
+        return BuildOrderStep(plans, {})
 
 
 @dataclass(frozen=True)
@@ -43,24 +45,33 @@ class WaitUntil(BuildOrder):
     def execute(self, obs: Observation) -> BuildOrderStep | None:
         if self.condition(obs):
             return None
-        return BuildOrderStep([], [])
+        return BuildOrderStep([], {})
 
 
 @dataclass(frozen=True)
 class ExtractorTrick(BuildOrder):
     unit_type = UnitTypeId.EXTRACTOR
     at_supply = 14
-    min_minerals = 50
+    min_minerals = 40
 
     def execute(self, obs: Observation) -> BuildOrderStep | None:
-        if self.at_supply == obs.supply_used and obs.bank.supply <= 0:
-            if obs.count(self.unit_type) == 0:
+        if obs.supply_used < self.at_supply:
+            return BuildOrderStep([], {})
+        if obs.supply_used == self.at_supply and obs.bank.supply <= 0:
+            has_extractor = any(
+                (
+                    obs.count_actual(self.unit_type),
+                    obs.count_pending(self.unit_type),
+                    obs.count_planned(self.unit_type),
+                )
+            )
+            if not has_extractor:
                 if self.min_minerals < obs.bank.minerals:
-                    return BuildOrderStep([MacroPlan(self.unit_type)], [])
+                    return BuildOrderStep([MacroPlan(self.unit_type, priority=np.inf)], {})
                 else:
-                    return BuildOrderStep([], [])
+                    return BuildOrderStep([], {})
             units = obs.structures(self.unit_type).not_ready
-            return BuildOrderStep([], [UseAbility(u, AbilityId.CANCEL) for u in units])
+            return BuildOrderStep([], {u: UseAbility(AbilityId.CANCEL) for u in units})
         return None
 
 
@@ -82,9 +93,17 @@ BUILD_ORDERS = {
             ExtractorTrick(),
             Make(UnitTypeId.OVERLORD, 2),
             Make(UnitTypeId.HATCHERY, 2),
-            Make(UnitTypeId.DRONE, 16),
-            Make(UnitTypeId.SPAWNINGPOOL, 1),
+            Make(UnitTypeId.DRONE, 17),
             Make(UnitTypeId.EXTRACTOR, 1),
+            WaitUntil(lambda obs: obs.gas_buildings),
+            # WaitUntil(lambda obs: obs.workers.amount > 16),
+            Make(UnitTypeId.SPAWNINGPOOL, 1),
+            # WaitUntil(lambda obs: obs.structures(UnitTypeId.SPAWNINGPOOL)),
+            # Make(UnitTypeId.DRONE, 19),
+            # Make(UnitTypeId.HATCHERY, 3),
+            # Make(UnitTypeId.QUEEN, 1),
+            # Make(UnitTypeId.ZERGLING, 1),
+            # Make(UnitTypeId.QUEEN, 2),
         ]
     ),
     "HATCH_FIRST": BuildOrderChain(
@@ -106,15 +125,35 @@ BUILD_ORDERS = {
             Make(UnitTypeId.DRONE, 17),
             Make(UnitTypeId.HATCHERY, 2),
             Make(UnitTypeId.DRONE, 18),
+            WaitUntil(lambda obs: obs.workers.amount > 16),
             Make(UnitTypeId.EXTRACTOR, 1),
-            WaitUntil(lambda obs: obs.gas_buildings),
+            # WaitUntil(lambda obs: obs.gas_buildings),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
-            WaitUntil(lambda obs: obs.structures(UnitTypeId.SPAWNINGPOOL)),
-            Make(UnitTypeId.DRONE, 19),
+            # WaitUntil(lambda obs: obs.structures(UnitTypeId.SPAWNINGPOOL)),
             Make(UnitTypeId.HATCHERY, 3),
+            Make(UnitTypeId.DRONE, 19),
+            Make(UnitTypeId.QUEEN, 1),
+            Make(UnitTypeId.ZERGLING, 1),
+            Make(UnitTypeId.QUEEN, 2),
+            # WaitUntil(lambda obs: obs.supply_used >= 24),
         ]
     ),
     "POOL_FIRST": BuildOrderChain(
+        [
+            Make(UnitTypeId.DRONE, 13),
+            Make(UnitTypeId.OVERLORD, 2),
+            Make(UnitTypeId.DRONE, 17),
+            WaitUntil(lambda obs: obs.workers.amount > 14),
+            Make(UnitTypeId.SPAWNINGPOOL, 1),
+            Make(UnitTypeId.EXTRACTOR, 1),
+            Make(UnitTypeId.DRONE, 18),
+            Make(UnitTypeId.HATCHERY, 2),
+            Make(UnitTypeId.QUEEN, 1),
+            Make(UnitTypeId.ZERGLING, 2),
+            # Make(UnitTypeId.HATCHERY, 3),
+        ]
+    ),
+    "ROACH_RUSH": BuildOrderChain(
         [
             Make(UnitTypeId.DRONE, 14),
             Make(UnitTypeId.OVERLORD, 2),

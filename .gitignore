@@ -135,11 +135,11 @@ dmypy.json
 .pyre/
 
 .idea
-/bot.zip
-/cython_extensions
+.vscode
 /version.txt
 /resources
 /data
-/out
-/cython-extensions-sc2/
 /ares-sc2/
+profile_output*
+/notebooks/exdata/
+/notebooks/outcmaes/

@@ -6,15 +6,14 @@ from dataclasses import dataclass
 @dataclass
 class BotConfig:
     resign_after_iteration: int | None = None
-    opponent_id: str | None = None
-    training = False
+    training = True
     debug_draw = False
     profile_path: str | None = None
     save_bot_path: str | None = None
     tag_log_level = "ERROR"
-    build_order = "HATCH_POOL_HATCH"
+    build_order = "OVERHATCH"
     version_path = "version.txt"
-    data_path = "data"
+    data_path = "./data"
     params_name = "params.pkl.xz"
     params_json_name = "params.json"
 
@@ -31,7 +30,3 @@ class BotConfig:
     @property
     def params_path(self) -> str:
         return os.path.join(self.data_path, self.params_name)
-
-    @property
-    def params_json_path(self) -> str:
-        return os.path.join(self.data_path, self.params_json_name)

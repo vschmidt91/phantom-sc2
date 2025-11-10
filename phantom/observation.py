@@ -1,35 +1,32 @@
 from collections import Counter, defaultdict
-from collections.abc import Iterable
-from dataclasses import dataclass
-from functools import cached_property
+from collections.abc import Iterable, Mapping, Sequence
 from itertools import chain
 
 import numpy as np
 from ares import AresBot, UnitTreeQueryType
-from cython_extensions import cy_unit_pending
-from loguru import logger
+from ares.consts import UnitRole
+from cython_extensions import cy_can_place_structure, cy_unit_pending
+from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.game_data import UnitTypeData
-from sc2.game_state import ActionError, ActionRawUnitCommand, EffectData
-from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.position import Point2, Point3
+from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
 from phantom.common.constants import (
     CIVILIANS,
+    COCOONS,
     ENEMY_CIVILIANS,
-    ITEM_BY_ABILITY,
+    MAX_UNIT_RADIUS,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
     WITH_TECH_EQUIVALENTS,
-    WORKERS,
     ZERG_ARMOR_UPGRADES,
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
@@ -37,230 +34,114 @@ from phantom.common.constants import (
     ZERG_RANGED_UPGRADES,
 )
 from phantom.common.cost import Cost
-from phantom.common.utils import RNG, MacroId, Point
+from phantom.common.utils import RNG, MacroId
 from phantom.knowledge import Knowledge
 
+type OrderTarget = Point2 | int
 
-@dataclass(frozen=True)
-class Observation:
-    bot: AresBot
-    knowledge: Knowledge
-    planned: Counter[MacroId]
 
-    @cached_property
-    def workers_in_geysers(self) -> int:
-        # TODO: consider dropperlords, nydus, ...
-        return int(self.bot.supply_workers) - self.bot.workers.amount
+class ObservationState:
+    def __init__(self, bot: AresBot, knowledge: Knowledge):
+        self.bot = bot
+        self.knowledge = knowledge
+        self.pathing = self._pathing()
+        self.air_pathing = self._air_pathing()
 
-    @cached_property
-    def unit_by_tag(self) -> dict[int, Unit]:
-        return self.bot.unit_tag_dict
+    def step(self, planned: Counter[MacroId]) -> "Observation":
+        #     if unit.is_structure:
+        #         continue
+        #     if unit.type_id in {UnitTypeId.EGG, UnitTypeId.RAVAGER, UnitTypeId.BROODLORD, UnitTypeId.LURKERMP}:
+        #         continue
+        #     if unit.type_id in COCOONS:
+        #         continue
+        #     if unit.is_idle and unit.type_id != UnitTypeId.LARVA:
+        #         logger.warning(f"Trainer {unit=} became idle somehow")
+        #         del self.pending[tag]
+        #         continue
+        #     ability = MACRO_INFO[unit.type_id][pending]["ability"]
+        #     if unit.orders and unit.orders[0].ability.exact_id != ability:
+        #         logger.warning(f"Trainer {unit=} has wrong order {unit.orders[0].ability.exact_id} for {pending=}")
+        #         del self.pending[tag]
+        #         continue
 
-    @property
-    def action_errors(self) -> list[ActionError]:
-        return self.bot.state.action_errors
+        if self.bot.actual_iteration % 10 == 0:
+            self.pathing = self._pathing()
+            self.air_pathing = self._air_pathing()
+        return Observation(self, planned)
 
-    @property
-    def supply_workers(self) -> float:
-        return self.bot.supply_workers
-
-    @cached_property
-    def type_of(self) -> dict[Unit, UnitTypeId]:
-        return {u: u.type_id for u in self.bot.all_units}
-
-    @property
-    def supply_cap(self) -> float:
-        return self.bot.supply_cap
-
-    @property
-    def researched_speed(self) -> bool:
-        return self.bot.already_pending_upgrade(UpgradeId.ZERGLINGMOVEMENTSPEED) > 0.0
-
-    @property
-    def effects(self) -> set[EffectData]:
-        return self.bot.state.effects
-
-    @property
-    def upgrades(self) -> set[UpgradeId]:
-        return self.bot.state.upgrades
-
-    @cached_property
-    def actions_unit_commands(self) -> dict[int, ActionRawUnitCommand]:
-        return {t: a for a in self.bot.state.actions_unit_commands for t in a.unit_tags}
-
-    @cached_property
-    def shootable_targets(self) -> dict[Unit, list[Unit]]:
-        units = self.combatants
-        base_ranges = [u.radius for u in units]
-        # base_ranges = [u.radius + MAX_UNIT_RADIUS + u.distance_to_weapon_ready for u in units]
-        ground_ranges = [b + u.ground_range for u, b in zip(units, base_ranges, strict=False)]
-        air_ranges = [b + u.air_range for u, b in zip(units, base_ranges, strict=False)]
-
-        ground_candidates = self.bot.mediator.get_units_in_range(
-            start_points=units,
-            distances=ground_ranges,
-            query_tree=UnitTreeQueryType.EnemyGround,
-        )
-        air_candidates = self.bot.mediator.get_units_in_range(
-            start_points=units,
-            distances=air_ranges,
-            query_tree=UnitTreeQueryType.EnemyFlying,
-        )
-        targets = {
-            u: list(filter(u.target_in_range, a | b))
-            for u, a, b in zip(units, ground_candidates, air_candidates, strict=False)
-        }
-        return targets
-
-    @property
-    def units(self) -> Units:
-        return self.bot.all_own_units
-
-    @property
-    def combatants(self) -> Units:
-        if self.knowledge.is_micro_map:
-            return self.bot.units
-        else:
-            return self.bot.units.exclude_type(CIVILIANS)
-
-    @property
-    def overseers(self) -> Units:
-        return self.bot.units({UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE})
-
-    @property
-    def enemy_units(self) -> Units:
-        return self.bot.all_enemy_units
-
-    @property
-    def enemy_combatants(self) -> Units:
-        if self.knowledge.is_micro_map:
-            return self.bot.enemy_units
-        else:
-            return self.bot.all_enemy_units.exclude_type(ENEMY_CIVILIANS)
-
-    @property
-    def creep(self) -> np.ndarray:
-        return self.bot.state.creep.data_numpy.T == 1.0
-
-    @property
-    def vision(self) -> np.ndarray:
-        return self.bot.state.visibility.data_numpy.T == 2
-
-    # @property
-    # def pathing(self) -> np.ndarray:
-    #     return self.bot.game_info.pathing_grid.data_numpy.T == 1.0
-
-    def is_visible(self, p: Point2 | Unit) -> bool:
-        return self.bot.is_visible(p)
-
-    @property
-    def placement(self) -> np.ndarray:
-        return self.bot.game_info.placement_grid.data_numpy.T == 1.0
-
-    @property
-    def time(self) -> float:
-        return self.bot.time
-
-    @property
-    def gas_buildings(self) -> Units:
-        return self.bot.gas_buildings
-
-    @property
-    def structures(self) -> Units:
-        return self.bot.structures
-
-    @property
-    def workers(self) -> Units:
-        return self.bot.workers
-
-    @property
-    def townhalls(self) -> Units:
-        return self.bot.townhalls
-
-    @property
-    def enemy_structures(self) -> Units:
-        return self.bot.enemy_structures
-
-    @property
-    def game_loop(self):
-        return self.bot.state.game_loop
-
-    @property
-    def max_harvesters(self):
-        return sum(
-            (
-                2 * self.all_taken_resources.mineral_field.amount,
-                3 * self.all_taken_resources.vespene_geyser.amount,
-            )
-        )
-
-    @cached_property
-    def resources(self) -> Units:
-        return self.bot.resources
-
-    @cached_property
-    def pathing(self) -> np.ndarray:
+    def _pathing(self) -> np.ndarray:
         return self.bot.mediator.get_map_data_object.get_pyastar_grid()
 
-    @cached_property
-    def pathable(self) -> np.ndarray:
-        return self.bot.mediator.get_map_data_object.get_pyastar_grid() == 1.0
-
-    @cached_property
-    def air_pathing(self) -> np.ndarray:
+    def _air_pathing(self) -> np.ndarray:
         return self.bot.mediator.get_map_data_object.get_clean_air_grid()
 
-    @cached_property
-    def unit_commands(self) -> dict[int, ActionRawUnitCommand]:
-        return {u: a for a in self.bot.state.actions_unit_commands for u in a.unit_tags}
 
-    @cached_property
-    def geyers_taken(self) -> list[Unit]:
-        # return [g for b in self.bases_taken for g in self.bot.expansion_locations_dict[b].vespene_geyser]
-        return self.all_taken_resources.vespene_geyser
+class Observation:
+    def __init__(self, state: ObservationState, planned: Counter[MacroId]):
+        self.bot = state.bot
+        self.context = state
+        self.iteration = state.bot.actual_iteration
+        self.knowledge = state.knowledge
+        self.planned = planned
+        self.unit_commands = {t: a for a in self.bot.state.actions_unit_commands for t in a.unit_tags}
+        self.player_races = {k: Race(v) for k, v in self.bot.game_info.player_races.items()}
+        self.workers_in_geysers = int(self.bot.supply_workers) - self.bot.workers.amount
+        self.pathing = state.pathing
+        self.air_pathing = state.air_pathing
+        self.unit_by_tag = self.bot.unit_tag_dict
+        self.action_errors = self.bot.state.action_errors
+        self.supply_workers = self.bot.supply_workers
+        self.supply_cap = self.bot.supply_cap
+        self.researched_speed = self.bot.already_pending_upgrade(UpgradeId.ZERGLINGMOVEMENTSPEED) > 0.0
+        self.effects = self.bot.state.effects
+        self.upgrades = self.bot.state.upgrades
+        self.units = self.bot.all_own_units
+        self.overseers = self.bot.units({UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE})
+        self.enemy_units = self.bot.all_enemy_units
+        self.combatants = self.bot.units if self.knowledge.is_micro_map else self.bot.units.exclude_type(CIVILIANS)
+        self.enemy_combatants = (
+            self.bot.enemy_units if self.knowledge.is_micro_map else self.bot.enemy_units.exclude_type(ENEMY_CIVILIANS)
+        )
+        self.creep = self.bot.state.creep.data_numpy.T == 1.0
+        self.is_visible = self.bot.state.visibility.data_numpy.T == 2.0
+        self.placement = self.bot.game_info.placement_grid.data_numpy.T == 1.0
+        self.time = self.bot.time
+        self.gas_buildings = self.bot.gas_buildings
+        self.structures = self.bot.structures
+        self.workers = self.bot.workers
+        self.eggs = self.bot.eggs
+        self.cocoons = self.units(COCOONS)
+        self.townhalls = self.bot.townhalls
+        self.enemy_structures = self.bot.enemy_structures
+        self.game_loop = self.bot.state.game_loop
+        self.resources = self.bot.resources
+        self.ordered_structures = self.bot.ordered_structures
+        self.pending = self.bot.pending
 
-    @property
-    def map_center(self) -> Point2:
-        return self.bot.game_info.map_center
+        self.actual_by_type = Counter[UnitTypeId](
+            u.type_id for u in self.units if u.is_ready or u.tag in self.bot.units_completed_this_frame
+        )
+        self.actual_by_type[UnitTypeId.DRONE] = self.bot.supply_workers
+        self.pending_by_type = Counter[UnitTypeId](self.bot.pending.values())
+        self.ordered_by_type = Counter[UnitTypeId](s.type for s in self.bot.ordered_structures.values())
 
-    @property
-    def start_location(self) -> Point2:
-        return self.bot.start_location
+        self.map_center = self.bot.game_info.map_center
+        self.start_location = self.bot.start_location
+        self.supply_used = self.bot.supply_used
+        self.enemy_natural = self.bot.mediator.get_enemy_nat if not state.knowledge.is_micro_map else None
+        self.overlord_spots = self.bot.mediator.get_ol_spots
+        self.townhall_at = {tuple(b.position.rounded): b for b in self.bot.townhalls}
+        self.resource_at = {tuple(r.position.rounded): r for r in self.bot.resources}
 
-    @property
-    def supply_used(self) -> float:
-        return self.bot.supply_used
+        self.bases_taken = set[tuple[int, int]]()
+        if not state.knowledge.is_micro_map:
+            self.bases_taken.update(
+                p
+                for b in self.bot.expansion_locations_list
+                if (th := self.townhall_at.get(p := tuple(b.rounded))) and th.is_ready
+            )
 
-    @cached_property
-    def bases_taken(self) -> set[Point]:
-        return {
-            p for b in self.bot.expansion_locations_list if (th := self.townhall_at.get(p := b.rounded)) and th.is_ready
-        }
-
-    @property
-    def enemy_natural(self) -> Point2:
-        return self.bot.mediator.get_enemy_nat
-
-    @property
-    def overlord_spots(self) -> list[Point2]:
-        return self.bot.mediator.get_ol_spots
-
-    def calculate_unit_value_weighted(self, unit_type: UnitTypeId) -> float:
-        # TODO: learn value as parameters
-        cost = self.bot.calculate_unit_value(unit_type)
-        return cost.minerals + 2 * cost.vespene
-
-    @cached_property
-    def townhall_at(self) -> dict[Point, Unit]:
-        return {tuple(b.position.rounded): b for b in self.bot.townhalls}
-
-    @cached_property
-    def resource_at(self) -> dict[Point, Unit]:
-        return {tuple(r.position.rounded): r for r in self.bot.resources}
-
-    @cached_property
-    def all_taken_resources(self) -> Units:
-        return Units(
+        self.all_taken_resources = Units(
             [
                 r
                 for base in self.knowledge.bases
@@ -270,27 +151,24 @@ class Observation:
             ],
             self.bot,
         )
+        self.max_harvesters = sum(
+            (
+                2 * self.all_taken_resources.mineral_field.amount,
+                3 * self.gas_buildings.amount,
+                22 * self.count_pending(UnitTypeId.HATCHERY),
+            )
+        )
+        self.geyers_taken = self.all_taken_resources.vespene_geyser
 
-    def count(
-        self, item: MacroId, include_pending: bool = True, include_planned: bool = True, include_actual: bool = True
-    ) -> int:
-        factor = 2 if item == UnitTypeId.ZERGLING else 1
+        self.supply_pending = 0
+        self.supply_income = 0
+        for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items():
+            total_provided = provided * cy_unit_pending(self.bot, unit_type)
+            self.supply_pending += total_provided
+            self.supply_income += total_provided / self.knowledge.build_time(unit_type)
 
-        count = 0
-        if include_actual:
-            if item in WORKERS:
-                count += self.bot.supply_workers
-            else:
-                count += len(self.actual_by_type[item])
-        if include_pending:
-            count += factor * len(self.pending_by_type[item])
-        if include_planned:
-            count += factor * self.planned[item]
+        self.bank = Cost(self.bot.minerals, self.bot.vespene, self.bot.supply_left, self.bot.larva.amount)
 
-        return count
-
-    @property
-    def income(self) -> Cost:
         larva_income = sum(
             sum(
                 (
@@ -301,39 +179,18 @@ class Observation:
             for h in self.bot.townhalls
         )
 
-        supply_income = sum(
-            cy_unit_pending(self.bot, unit_type) * provided / self.knowledge.build_time[unit_type]
-            for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
-        )
-
-        return Cost(
+        self.income = Cost(
             self.bot.state.score.collection_rate_minerals / 60.0,  # TODO: get from harvest assignment
             self.bot.state.score.collection_rate_vespene / 60.0,  # TODO: get from harvest assignment
-            supply_income,  # TODO: iterate over pending
+            self.supply_income,  # TODO: iterate over pending
             larva_income,
         )
+        self.shootable_targets = self._shootable_targets()
 
-    @cached_property
-    def actual_by_type(self) -> dict[MacroId, list[Unit]]:
-        result = defaultdict(list)
-        for unit in self.bot.all_own_units:
-            if unit.is_ready:
-                result[unit.type_id].append(unit)
-        for upgrade in self.bot.state.upgrades:
-            result[upgrade].append(upgrade)
-        return result
-
-    @cached_property
-    def pending_by_type(self) -> defaultdict[MacroId, list[Unit]]:
-        result = defaultdict(list)
-        for unit in self.bot.all_own_units:
-            if unit.is_ready:
-                for order in unit.orders:
-                    if item := ITEM_BY_ABILITY.get(order.ability.exact_id):
-                        result[item].append(unit)
-            else:
-                result[unit.type_id].append(unit)
-        return result
+    def calculate_unit_value_weighted(self, unit_type: UnitTypeId) -> float:
+        # TODO: learn value as parameters
+        cost = self.bot.calculate_unit_value(unit_type)
+        return cost.minerals + 2 * cost.vespene
 
     def is_unit_missing(self, unit: UnitTypeId) -> bool:
         if unit in {
@@ -344,35 +201,44 @@ class Observation:
             # UnitTypeId.ZERGLING,
         }:
             return False
-        return all(
-            self.count(e, include_pending=False, include_planned=False) == 0 for e in WITH_TECH_EQUIVALENTS[unit]
-        )
+        return all(self.count_actual(e) == 0 for e in WITH_TECH_EQUIVALENTS[unit])
 
-    @property
-    def supply_pending(self) -> int:
-        return sum(
-            provided * len(self.pending_by_type[unit_type])
-            for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
-        )
+    def count_actual(self, item: UnitTypeId) -> int:
+        return self.actual_by_type[item]
+
+    def count_pending(self, item: UnitTypeId) -> int:
+        factor = 2 if item == UnitTypeId.ZERGLING else 1
+        return factor * (self.pending_by_type[item] + self.ordered_by_type[item])
+        # if item in ALL_STRUCTURES:
+        #     return self.pending_by_type[item]
+        # else:
+        #     return cy_unit_pending(self.bot, item)
+
+    def count_planned(self, item: MacroId) -> int:
+        factor = 2 if item == UnitTypeId.ZERGLING else 1
+        return factor * self.planned[item]
 
     def unit_data(self, unit_type_id: UnitTypeId) -> UnitTypeData:
         return self.bot.game_data.units[unit_type_id.value]
 
-    @property
-    def bank(self) -> Cost:
-        return Cost(self.bot.minerals, self.bot.vespene, self.bot.supply_left, self.bot.larva.amount)
-
-    async def query_pathings(self, zipped_list: list[list[Unit | Point2 | Point3]]) -> list[float]:
-        logger.debug(f"Query pathings {zipped_list=}")
-        return await self.bot.client.query_pathings(zipped_list)
-
-    async def query_pathing(self, start: Unit | Point2 | Point3, end: Point2 | Point3) -> float:
-        logger.debug(f"Query pathing {start=} {end=}")
-        return await self.bot.client.query_pathing(start, end)
-
-    async def can_place_single(self, building: AbilityId | UnitTypeId, position: Point2) -> bool:
-        logger.debug(f"Query placement {building=} {position=}")
-        return await self.bot.can_place_single(building, position)
+    def can_place_single(self, building: UnitTypeId, position: Point2) -> bool:
+        unit_data = self.bot.game_data.units[building.value]
+        x, y = np.subtract(position, unit_data.footprint_radius).astype(int)
+        building_size = int(2 * unit_data.footprint_radius)
+        if building == UnitTypeId.HATCHERY:
+            creep_grid = self.bot.game_info.pathing_grid.data_numpy
+        else:
+            creep_grid = self.bot.state.creep.data_numpy
+        result = cy_can_place_structure(
+            building_origin=(x, y),
+            building_size=(building_size, building_size),
+            creep_grid=creep_grid,
+            placement_grid=self.bot.game_info.placement_grid.data_numpy,
+            pathing_grid=self.bot.game_info.pathing_grid.data_numpy,
+            avoid_creep=False,
+            include_addon=False,
+        )
+        return result
 
     def find_path(self, start: Point2, target: Point2, air: bool = False) -> Point2:
         grid = self.bot.mediator.get_air_grid if air else self.bot.mediator.get_ground_grid
@@ -404,10 +270,6 @@ class Observation:
             target = RNG.uniform((a.x, a.y), (a.right, a.top))
         return Point2(target)
 
-    @property
-    def supply_planned(self) -> int:
-        return sum(provided * self.planned[unit_type] for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items())
-
     def get_missing_requirements(self, item: MacroId) -> Iterable[MacroId]:
         if item not in REQUIREMENTS_KEYS:
             return
@@ -422,8 +284,8 @@ class Observation:
         else:
             raise ValueError(item)
 
-        if self.is_unit_missing(trainer):
-            yield trainer
+        # if self.is_unit_missing(trainer):
+        #     yield trainer
         if (required_building := info.get("required_building")) and self.is_unit_missing(required_building):
             yield required_building
         if (
@@ -445,10 +307,10 @@ class Observation:
     def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
         if unit == UnitTypeId.ZERGLING:
             return chain(
-                (UpgradeId.ZERGLINGMOVEMENTSPEED,),
-                # (UpgradeId.ZERGLINGMOVEMENTSPEED, UpgradeId.ZERGLINGATTACKSPEED),
-                # self.upgrade_sequence(ZERG_MELEE_UPGRADES),
-                # self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+                # (UpgradeId.ZERGLINGMOVEMENTSPEED,),
+                (UpgradeId.ZERGLINGMOVEMENTSPEED, UpgradeId.ZERGLINGATTACKSPEED),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
             )
         elif unit == UnitTypeId.ULTRALISK:
             return chain(
@@ -496,8 +358,52 @@ class Observation:
         else:
             return []
 
+    def get_units_from_role(self, role: UnitRole) -> Units:
+        return self.bot.mediator.get_units_from_role(role=role)
+
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
-            if not self.count(upgrade, include_planned=False):
-                return (upgrade,)
+            if upgrade in self.upgrades:
+                continue
+            if upgrade in self.bot.pending_upgrades.values():
+                continue
+            return (upgrade,)
         return ()
+
+    def _shootable_targets(self, bonus_range=0.0) -> Mapping[Unit, Sequence[Unit]]:
+        units = self.combatants.filter(lambda u: u.ground_range >= 2 and u.weapon_ready)
+
+        points_ground = list[Point2]()
+        points_air = list[Point2]()
+        distances_ground = list[float]()
+        distances_air = list[float]()
+        for unit in units:
+            base_range = bonus_range + unit.radius + MAX_UNIT_RADIUS
+            if unit.can_attack_ground:
+                points_ground.append(unit)
+                distances_ground.append(base_range + unit.ground_range)
+            if unit.can_attack_air:
+                points_air.append(unit)
+                distances_air.append(base_range + unit.air_range)
+
+        ground_candidates = self.bot.mediator.get_units_in_range(
+            start_points=points_ground,
+            distances=distances_ground,
+            query_tree=UnitTreeQueryType.EnemyGround,
+            return_as_dict=True,
+        )
+        air_candidates = self.bot.mediator.get_units_in_range(
+            start_points=points_air,
+            distances=distances_air,
+            query_tree=UnitTreeQueryType.EnemyFlying,
+            return_as_dict=True,
+        )
+        targets = defaultdict[Unit, list[Unit]](list)
+        for unit in units:
+            for target in ground_candidates.get(unit.tag, []):
+                if unit.distance_to(target) < bonus_range + unit.radius + unit.ground_range + target.radius:
+                    targets[unit].append(target)
+            for target in air_candidates.get(unit.tag, []):
+                if unit.distance_to(target) < bonus_range + unit.radius + unit.air_range + target.radius:
+                    targets[unit].append(target)
+        return dict(targets)

@@ -1,10 +1,18 @@
+copy = [
+  "ares-sc2",
+  "pyproject.toml",
+  "README.md",
+  "models",
+]
 output_path = "build"
 zip_modules = [
   "click",
-  "map_analyzer",
+  "cma",
   "cython_extensions",
   "highspy",
-  "sc2"
+  "map_analyzer",
+  "s2protocol",
+  "sc2",
 ]
 exclude = [
   "**/__pycache__",
@@ -12,6 +20,7 @@ exclude = [
   "**/*.pyd",
   "**/*.pyi",
   "**/*.pyx",
+  "**/*.SC2Map",
   "**/*-darwin.so",
   "map_analyzer/cext/mapanalyzerext*310-*",
   "map_analyzer/cext/mapanalyzerext*311-*",

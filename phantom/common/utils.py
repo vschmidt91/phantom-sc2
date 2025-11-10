@@ -1,15 +1,19 @@
 import asyncio
 import math
-from collections.abc import Callable, Iterable
+from collections import Counter
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import fields
 from functools import cache, wraps
-from typing import TypeAlias
 
 import numpy as np
 import skimage.draw
+from ares import ALL_STRUCTURES
+from loguru import logger
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
+from sc2.dicts.unit_tech_alias import UNIT_TECH_ALIAS
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
+from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
 from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -40,6 +44,12 @@ LINPROG_OPTIONS = dict(
 
 RNG = np.random.default_rng(42)
 
+type Json = Mapping[str, "Json"] | Sequence["Json"] | str | int | float | bool | None
+
+
+def count_sorted[T](items: Iterable[T]) -> dict[T, int]:
+    return dict(sorted(Counter(items).items()))
+
 
 class PlacementNotFoundException(Exception):
     pass
@@ -54,6 +64,95 @@ def async_command(func):
         return asyncio.run(func(*args, **kwargs))
 
     return wrapper
+
+
+def rectangle_perimeter(start: Point, end: Point) -> Iterable[Point]:
+    i1, j1 = start
+    i2, j2 = end
+
+    for i in range(i1, i2 + 1):
+        yield i, j1
+        yield i, j2
+
+    for j in range(j1 + 1, j2):
+        yield i1, j
+        yield i2, j
+
+
+def structure_perimeter(s: Unit) -> Iterable[Point]:
+    if s.is_flying:
+        return
+    half_extent = s.footprint_radius
+    if s.position is None or half_extent is None:
+        logger.error(f"cannot setup structure perimeter for {s} at position {s.position} with footprint {half_extent}")
+        return
+    start = np.subtract(s.position, half_extent).astype(int) - 1
+    end = np.add(s.position, half_extent).astype(int)
+
+    yield from rectangle_perimeter(start, end)
+
+
+def find_closest_valid(grid: np.ndarray, p: Point, max_distance: int = 1) -> Point:
+    for d in range(max_distance + 1):
+        for i in range(max(0, p[0] - d), min(grid.shape[0], p[0] + d + 1)):
+            for j in range(max(0, p[1] - d), min(grid.shape[1], p[1] + d + 1)):
+                if grid[i, j] < np.inf:
+                    return i, j
+
+    return p
+
+
+def point_line_segment_distance(P: np.ndarray, A: np.ndarray, B: np.ndarray) -> np.floating:
+    """
+    Calculates the minimum distance from a point P to a finite line segment AB
+    using NumPy for vectorized operations.
+
+    The line segment is defined by its two endpoints, A and B.
+    All points are assumed to be NumPy arrays (N-dimensional).
+
+    Args:
+        P: The external point (np.ndarray).
+        A: The first endpoint of the segment (np.ndarray).
+        B: The second endpoint of the segment (np.ndarray).
+
+    Returns:
+        The minimum distance from P to the segment AB.
+    """
+
+    def distance_point_to_point(p1: np.ndarray, p2: np.ndarray) -> np.floating:
+        """Calculates the Euclidean distance between two N-dimensional points (NumPy arrays)."""
+        # Uses the L2 norm (Euclidean distance) of the difference vector.
+        return np.linalg.norm(p1 - p2)
+
+    # Vector from A to B (the segment direction)
+    AB = B - A
+    # Vector from A to P (vector we are projecting)
+    AP = P - A
+
+    # 1. Calculate squared length of the segment AB (L^2 = |AB|^2)
+    L2 = np.dot(AB, AB)
+
+    # Handle the case where A and B are the same point (segment is a single point)
+    if L2 == 0.0:
+        return distance_point_to_point(P, A)
+
+    # 2. Calculate the parameter 't' of the projection C onto the infinite line AB.
+    # t = (AP . AB) / |AB|^2
+    t = np.dot(AP, AB) / L2
+
+    # 3. Determine the closest point C on the line segment AB.
+    # We use np.clip to clamp 't' between 0 and 1.
+    # If t < 0, t_clamped = 0 (closest point is A).
+    # If t > 1, t_clamped = 1 (closest point is B).
+    # If 0 <= t <= 1, t_clamped = t (closest point is on the interior).
+    t_clamped = np.clip(t, 0.0, 1.0)
+
+    # Calculate the closest point C on the segment
+    # C = A + t_clamped * AB
+    C = A + t_clamped * AB
+
+    # 4. Calculate the distance between P and the closest point C
+    return distance_point_to_point(P, C)
 
 
 def dataclass_from_dict(cls: type, parameters: dict[str, float]):
@@ -76,9 +175,11 @@ def can_attack(unit: Unit, target: Unit) -> bool:
         return unit.can_attack_ground
 
 
-def pairwise_distances(a, b):
-    if not any(a) or not any(b):
-        return np.array([])
+def pairwise_distances(a, b=None):
+    if not a:
+        return np.array([[]])
+    if isinstance(b, list) and not any(b):
+        return np.array([[]])
     return pairwise_distances_sklearn(a, b, ensure_all_finite=False)
 
 
@@ -138,6 +239,30 @@ def rectangle(start: tuple[int, int], extent: tuple[int, int], shape: tuple) -> 
     assert len(shape) == 2
     rx, ry = skimage.draw.rectangle(start, extent=extent, shape=shape)
     return rx.astype(int).flatten(), ry.astype(int).flatten()
+
+
+def sample_bilinear(a, coords):
+    coords = np.asarray(coords, dtype=float)
+    if coords.ndim == 1:
+        coords = coords[np.newaxis, :]
+    coords0 = coords.astype(int)
+    coords0 = np.clip(coords0, 0, np.asarray(a.shape) - 2)
+    coords1 = coords0 + 1
+    weights0 = coords1 - coords
+    weights1 = 1.0 - weights0
+    values00 = a[coords0[:, 0], coords0[:, 1]]
+    values01 = a[coords0[:, 0], coords1[:, 1]]
+    values10 = a[coords1[:, 0], coords0[:, 1]]
+    values11 = a[coords1[:, 0], coords1[:, 1]]
+    values = sum(
+        (
+            values00 * weights0[:, 0] * weights0[:, 1],
+            values01 * weights0[:, 0] * weights1[:, 1],
+            values10 * weights1[:, 0] * weights0[:, 1],
+            values11 * weights1[:, 0] * weights1[:, 1],
+        )
+    )
+    return values
 
 
 def get_requirements(item: UnitTypeId | UpgradeId) -> Iterable[UnitTypeId | UpgradeId]:
@@ -205,7 +330,7 @@ def logit_to_probability(x: float):
     return 1 / (1 + math.exp(-x))
 
 
-MacroId: TypeAlias = UnitTypeId | UpgradeId
+type MacroId = UnitTypeId | UpgradeId
 
 
 def calculate_dps(u: Unit, v: Unit) -> float:
@@ -221,3 +346,4 @@ DPS_OVERRIDE = {
     UnitTypeId.PLANETARYFORTRESS: 5,
     UnitTypeId.BANELING: 20,
 }
+ALL_TRAINABLE = set(ALL_STRUCTURES | UNIT_TRAINED_FROM.keys() | UNIT_TECH_ALIAS.keys() | UNIT_UNIT_ALIAS.keys())

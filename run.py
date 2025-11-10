@@ -1,24 +1,33 @@
+import asyncio
 import datetime
-import glob
 import os
 import pathlib
 import random
+import re
 import sys
-from itertools import chain
 
 import aiohttp
 import click
 from loguru import logger
 from sc2.client import Client
 from sc2.data import AIBuild, Difficulty, Race
-from sc2.main import Result, _host_game, _play_game
+from sc2.main import (
+    Result,
+    _host_game,
+    _join_game,
+    _play_game,
+    _play_replay,
+    _setup_replay,
+    get_replay_version,
+)
 from sc2.maps import Map
 from sc2.paths import Paths
 from sc2.player import Bot, Computer
 from sc2.portconfig import Portconfig
 from sc2.protocol import ConnectionAlreadyClosed
+from sc2.sc2process import SC2Process
 
-from phantom.common.constants import LOG_LEVEL_OPTIONS
+from phantom.common.constants import LOG_LEVEL_OPTIONS, SPECIAL_BUILDS
 from phantom.common.utils import async_command
 from phantom.config import BotConfig
 from phantom.main import PhantomBot
@@ -33,7 +42,9 @@ from scripts.utils import CommandWithConfigFile
 @click.option("--LadderServer", "ladder_server")
 @click.option("--OpponentId", "opponent_id")
 @click.option("--RealTime", "realtime", default=False)
-@click.option("--save-replay")
+@click.option("--load-replay", type=click.Path(exists=True, dir_okay=False))
+@click.option("--observe-id", default=1, type=int)
+@click.option("--save-replay", default="data")
 @click.option("--maps-path")
 @click.option("--map-pattern", default="*")
 @click.option("--enemy-race", default=Race.Random.name, type=click.Choice([x.name for x in Race]))
@@ -42,7 +53,12 @@ from scripts.utils import CommandWithConfigFile
     default=Difficulty.CheatInsane.name,
     type=click.Choice([x.name for x in Difficulty]),
 )
-@click.option("--enemy-build", default=AIBuild.Rush.name, type=click.Choice([x.name for x in AIBuild]))
+@click.option(
+    "--enemy-build",
+    default=AIBuild.Rush.name,
+    type=click.Choice([x.name for x in AIBuild] + list(SPECIAL_BUILDS.keys())),
+)
+@click.option("--game-time-limit", type=float)
 @click.option(
     "--assert-result",
     type=click.Choice([x.name for x in Result]),
@@ -58,12 +74,15 @@ async def run(
     ladder_server: str,
     opponent_id: str,
     realtime: bool,
+    load_replay,
+    observe_id: int,
     save_replay: str,
     maps_path: str,
     map_pattern: str,
     enemy_race: str,
     enemy_difficulty: str,
     enemy_build: str,
+    game_time_limit: float,
     assert_result: str,
     log_level: str,
     log_disable_modules: list[str],
@@ -73,7 +92,7 @@ async def run(
     for module in log_disable_modules:
         logger.debug(f"Disabling logging for {module=}")
         logger.disable(module)
-    logger.add(sys.stdout, level=log_level)  # Set different levels for different outputs
+    logger.add(sys.stdout, level=log_level)
 
     if bot_config:
         logger.info(f"Loading {bot_config=}")
@@ -81,55 +100,72 @@ async def run(
     else:
         logger.info("Using default bot config")
         bot_config_value = BotConfig()
-    bot_config_value.opponent_id = opponent_id
-    ai = PhantomBot(bot_config_value)
+    ai = PhantomBot(bot_config_value, opponent_id)
     race = ai.pick_race()
     logger.info(f"Picking {race=}")
     bot = Bot(race, ai, ai.name)
-    if save_replay:
-        replay_path = os.path.join(save_replay, f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S}.SC2REPLAY")
-        logger.info(f"Saving replay to {replay_path=}")
-        os.makedirs(save_replay, exist_ok=True)
-    else:
-        replay_path = None
+    replay_path = os.path.join(save_replay, f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S}")
+    logger.info(f"Saving replay to {replay_path=}")
+    replay_path_sc2 = replay_path + ".SC2Replay"
+    os.makedirs(save_replay, exist_ok=True)
 
-    if ladder_server:
+    result = Result.Undecided
+    if load_replay:
+        logger.info(f"Loading replay {load_replay}")
+        base_build, data_version = get_replay_version(load_replay)
+        async with SC2Process(fullscreen=False, base_build=base_build, data_hash=data_version) as server:
+            client = await _setup_replay(server, os.path.abspath(load_replay), realtime, observe_id)
+            result = await _play_replay(client, ai, realtime, observe_id)
+
+    elif ladder_server:
         logger.info("Starting ladder game")
+        ws_url = f"ws://{ladder_server}:{game_port}/sc2api"
+        session = aiohttp.ClientSession()
         port_config = Portconfig(
             server_ports=[start_port + 2, start_port + 3], player_ports=[[start_port + 4, start_port + 5]]
         )
-        ws_url = f"ws://{ladder_server}:{game_port}/sc2api"
-        ws_connection = await aiohttp.ClientSession().ws_connect(ws_url)
-        client = Client(ws_connection)
-        game_time_limit = None
+        async with session.ws_connect(ws_url) as ws_connection:
+            client = Client(ws_connection, replay_path_sc2)
 
-        try:
-            result = await _play_game(bot, client, realtime, port_config, game_time_limit)
-            if save_replay:
-                await client.save_replay(replay_path)
-        except ConnectionAlreadyClosed:
-            logger.error("Connection was closed before the game ended")
-            return None
-        finally:
-            await ws_connection.close()
+            try:
+                result = await _play_game(bot, client, realtime, port_config, game_time_limit)
+            except ConnectionAlreadyClosed:
+                logger.error("Connection was closed before the game ended")
+            finally:
+                await client.quit()
 
     else:
         logger.info("Starting local game")
         if maps_path is None:
             logger.info("No maps path provided, falling back to installation folder")
             maps_path = str(Paths.MAPS)
-        map_globs = [os.path.join(maps_path, f"{map_pattern}.{ext}") for ext in ["SC2MAP", "SC2Map"]]
-        map_choices = list(chain.from_iterable(map(glob.glob, map_globs)))
+        map_regex = re.compile(map_pattern)
+        map_choices = list(filter(map_regex.match, os.listdir(maps_path)))
+        logger.info(f"Found {map_choices=}")
         map_choice = random.choice(map_choices)
         logger.info(f"Picking {map_choice=}")
-        opponent = Computer(Race[enemy_race], Difficulty[enemy_difficulty], AIBuild[enemy_build])
 
-        result = await _host_game(
-            Map(pathlib.Path(map_choice)),
-            [bot, opponent],
-            realtime=realtime,
-            save_replay_as=replay_path,
+        if special_build := SPECIAL_BUILDS.get(enemy_build):
+            logger.info(f"Using special {enemy_build=}")
+            opponent = Bot(Race[enemy_race], special_build(), enemy_build, False)
+        else:
+            opponent = Computer(Race[enemy_race], Difficulty[enemy_difficulty], AIBuild[enemy_build])
+
+        # try:
+        map_settings = Map(pathlib.Path(map_choice))
+        players = [bot, opponent]
+        kwargs = dict(
+            realtime=False,
         )
+        if special_build:
+            kwargs["portconfig"] = Portconfig()
+            result, _ = await asyncio.gather(
+                _host_game(map_settings, players, save_replay_as=replay_path_sc2, **kwargs),
+                _join_game(players, **kwargs),
+                return_exceptions=True,
+            )
+        else:
+            result = await _host_game(map_settings, players, save_replay_as=replay_path_sc2, **kwargs)
 
     logger.info(f"Game finished with {result=}")
 

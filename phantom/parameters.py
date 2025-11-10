@@ -1,96 +1,75 @@
-import lzma
-import pickle
 from dataclasses import dataclass
+from datetime import datetime
 
-from loguru import logger
-from river.base.typing import ClfTarget
-from river.proba import Multinomial, MultivariateGaussian
-
-
-@dataclass(frozen=True)
-class AgentParameterValues:
-    continuous: dict[str, float]
-    discrete: dict[str, ClfTarget]
+import cma
+import numpy as np
 
 
 @dataclass(frozen=True)
-class AgentParameterDistributions:
-    normal: MultivariateGaussian
-    multinomial: dict[str, Multinomial]
-
-
-@dataclass(frozen=True)
-class NormalPrior:
+class Prior:
     mu: float = 0.0
     sigma: float = 1.0
-
-
-@dataclass(frozen=True)
-class CategoricalPrior:
-    categories: list[ClfTarget]
+    min: float = -np.inf
+    max: float = np.inf
 
 
 @dataclass
-class NormalParameter:
+class Parameter:
+    prior: Prior
     value: float
-    prior: NormalPrior
 
 
-@dataclass
-class CategoricalParameter:
-    value: ClfTarget
-    prior: CategoricalPrior
-
-
-class AgentParameters:
+class Parameters:
     def __init__(self) -> None:
-        self.prior_evidence = 32
-        self.seed = 32
-        self.distributions: AgentParameterDistributions | None = None
-        self._continuous = dict[str, NormalParameter]()
-        self._discrete = dict[str, CategoricalParameter]()
+        self.strategy: cma.CMAEvolutionStrategy | None = None
+        self.parameters = list[Parameter]()
+        self.population = list[np.ndarray]()
+        self.population_fitness = list[float]()
+        self.timestamp = datetime.now()
 
-    def normal(self, name: str, prior: NormalPrior) -> NormalParameter:
-        return self._continuous.setdefault(name, NormalParameter(prior.mu, prior))
+    def add(self, prior: Prior) -> Parameter:
+        parameter = Parameter(prior, prior.mu)
+        self.parameters.append(parameter)
+        return parameter
 
-    def discrete(self, name: str, prior: CategoricalPrior) -> CategoricalParameter:
-        return self._discrete.setdefault(name, CategoricalParameter(prior.categories[0], prior))
+    def _initialize_strategy(self) -> cma.CMAEvolutionStrategy:
+        x0 = np.array([p.prior.mu for p in self.parameters])
+        sigma0 = 1.0
+        sigma0_vec = np.array([p.prior.sigma for p in self.parameters])
+        bounds_min = [p.prior.min for p in self.parameters]
+        bounds_max = [p.prior.max for p in self.parameters]
+        options = cma.CMAOptions()
+        options.set("CMA_stds", sigma0_vec)
+        options.set("bounds", [bounds_min, bounds_max])
+        strategy = cma.CMAEvolutionStrategy(x0, sigma0, options)
+        return strategy
 
-    def load(self, path: str) -> None:
-        logger.info(f"Reading parameters from {path=}")
-        with lzma.open(path, "rb") as f:
-            self.distributions = pickle.load(f)
+    def _set_values(self, values: np.ndarray) -> None:
+        for parameter, value in zip(self.parameters, values, strict=False):
+            parameter.value = float(value)
 
-    def save(self, path: str) -> None:
-        with lzma.open(path, "wb") as f:
-            pickle.dump(self.distributions, f)
+    def ask_best(self):
+        if self.strategy is None:
+            self.strategy = self._initialize_strategy()
+        values = self.strategy.best.x or np.array([p.prior.mu for p in self.parameters])
+        self._set_values(values)
 
-    def sample(self):
-        if not self.distributions:
-            self.load_priors()
-        for k, v in self.distributions.normal.sample().items():
-            self._continuous[k].value = v
-        for k, p in self.distributions.multinomial.items():
-            self._discrete[k].value = p.sample()
+    def ask(self) -> None:
+        if self.strategy is None:
+            self.strategy = self._initialize_strategy()
 
-    def load_priors(self) -> None:
-        cov = {(i, j): p.prior.sigma if i == j else 0.0 for i, p in self._continuous.items() for j in self._continuous}
-        normal = MultivariateGaussian._from_state(
-            n=self.prior_evidence,
-            mean={k: p.prior.mu for k, p in self._continuous.items()},
-            cov=cov,
-            ddof=1,
-            seed=self.seed,
-        )
-        print(normal.sample())
-        multinomial = {k: Multinomial(p.prior.categories, self.seed) for k, p in self._discrete.items()}
-        self.distributions = AgentParameterDistributions(
-            normal=normal,
-            multinomial=multinomial,
-        )
+        if not self.population:
+            self.population = self.strategy.ask()
+            self.population_fitness.clear()
 
-    def update_distribution(self) -> None:
-        assert self.distributions
-        self.distributions.normal.update({k: p.value for k, p in self._continuous.items()})
-        for k, p in self._discrete.items():
-            self.distributions.multinomial[k].update(p.value)
+        values = self.population[len(self.population_fitness)]
+        self._set_values(values)
+
+    def tell(self, fitness: float) -> None:
+        if not self.strategy:
+            raise Exception("tell was called before ask")
+        self.population_fitness.append(fitness)
+        if len(self.population_fitness) == len(self.population):
+            self.strategy.tell(self.population, self.population_fitness)
+            self.population.clear()
+            self.population_fitness.clear()

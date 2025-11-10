@@ -1,6 +1,5 @@
 import math
-from collections.abc import Hashable
-from functools import cache
+from collections.abc import Hashable, Mapping, Sequence
 from itertools import product
 from typing import TypeVar
 
@@ -13,45 +12,102 @@ TValue = TypeVar("TValue", bound=Hashable)
 
 
 class HighsPyProblem:
-    def __init__(self, n: int, m: int) -> None:
+    def __init__(self, n: int, m: int, include_total=True) -> None:
+        logger.info(f"Compiling highspy problem with {n=}, {m=}, {include_total=}")
         h = highspy.Highs()
+        h.setOptionValue("time_limit", 1.0)
         h.setOptionValue("presolve", "off")
-        h.setOptionValue("log_to_console", "off")
+        # h.setOptionValue("solver", "simplex")
+        # h.setOptionValue("simplex_iteration_limit", 256)
+        # h.setOptionValue("optimality_tolerance", 1e-3)
+        h.setOptionValue("parallel", "off")
+        h.setOptionValue("log_to_console", False)
 
         vs = {(i, j): h.addVariable(lb=0.0, ub=1.0) for i, j in product(range(n), range(m))}
         for i in range(n):
             h.addConstr(sum(vs[i, j] for j in range(m)) == 1.0)
         for j in range(m):
             h.addConstr(sum(vs[i, j] for i in range(n)) <= 1.0)
+        if include_total:
+            h.addConstr(sum(vs[i, j] for i in range(n) for j in range(m)) == 1.0)
         h.minimize(sum(vs[i, j] for i in range(n) for j in range(m)))
 
         self.n = n
         self.m = m
+        self.include_total = include_total
         self.highspy = h
         self.lp = h.getLp()
 
+        self.cost = [0.0] * (self.n * self.m)
+        self.row_lower = [1.0] * self.n + [0.0] * self.m
+        self.row_upper = [1.0] * self.n + [0.0] * self.m
+
+        if include_total:
+            self.row_lower.append(0.0)
+            self.row_upper.append(0.0)
+            self.a_values = [1.0] * (3 * self.n * self.m)
+            self.set_total(np.zeros(self.m), 0)
+
+    def set_total(self, coeffs: np.ndarray, limit: int) -> None:
+        coeffs = np.pad(coeffs, (0, self.m - coeffs.shape[0]), mode="constant", constant_values=0.0)
+        self.a_values[2::3] = np.tile(coeffs, self.n)
+        self.lp.a_matrix_.value_ = self.a_values
+        self.row_lower[-1] = limit
+        self.row_upper[-1] = limit
+
     def solve(self, cost: np.ndarray, limit: np.ndarray) -> np.ndarray:
-        self.lp.col_cost_ = cost.flatten()
-        self.lp.row_upper_ = np.concatenate((np.ones(self.n), limit))
+        n, m = cost.shape
+        padding = (0, self.n - n), (0, self.m - m)
+        cost = np.pad(cost, padding, mode="constant", constant_values=np.inf)
+        cost[n:, m:] = 0.0
+        limit = np.pad(limit, (0, self.m - limit.shape[0]), mode="constant", constant_values=n)
+
+        self.cost[:] = cost.flat
+        if self.include_total:
+            self.row_upper[self.n : -1] = limit
+        else:
+            self.row_upper[self.n :] = limit
+
+        self.lp.col_cost_ = self.cost
+        self.lp.row_lower_ = self.row_lower
+        self.lp.row_upper_ = self.row_upper
+
         self.highspy.passModel(self.lp)
         self.highspy.run()
-        solution_flat = list(self.highspy.getSolution().col_value)
-        solution = np.asarray(solution_flat).reshape((self.n, self.m))
-        return solution
+
+        result = self.highspy.getSolution()
+        solution = np.reshape(result.col_value, (self.n, self.m))
+
+        return solution[:n, :m]
 
 
-@cache
-def get_highspy_problem(n, m):
-    logger.debug(f"Creating HighsPyProblem with {n=}, {m=}")
-    return HighsPyProblem(n, m)
+_PROBLEM_CACHE = dict[tuple[int, int], HighsPyProblem]()
+PROBLEM_RESOLUTION = 8
+
+
+def _get_problem(n: int, m: int) -> HighsPyProblem:
+    n2 = math.ceil(n / PROBLEM_RESOLUTION) * PROBLEM_RESOLUTION
+    if n < n2:
+        m += 1  # source padding also requires target padding
+    m2 = math.ceil(m / PROBLEM_RESOLUTION) * PROBLEM_RESOLUTION
+    key = n2, m2
+
+    if n2 > 100 or m2 > 100:
+        logger.warning(
+            f"Compiling a large assignment problem. Distributing {n} sources to {m} targets, using {n2}x{m2} problem resolution."
+        )
+
+    if not (problem := _PROBLEM_CACHE.get(key)):
+        _PROBLEM_CACHE[key] = (problem := HighsPyProblem(*key))
+    return problem
 
 
 def distribute(
-    a: list[TKey],
-    b: list[TValue],
+    a: Sequence[TKey],
+    b: Sequence[TValue],
     cost: np.ndarray,
     max_assigned: np.ndarray | int | None = None,
-) -> dict[TKey, TValue]:
+) -> Mapping[TKey, TValue]:
     n = len(a)
     m = len(b)
     if n == 0:
@@ -61,9 +117,11 @@ def distribute(
     if max_assigned is None:
         max_assigned = math.ceil(n / m)
     if isinstance(max_assigned, int):
-        max_assigned = np.full(m, max_assigned)
+        max_assigned = np.full(m, float(max_assigned))
 
-    problem = get_highspy_problem(n, m)
+    problem = _get_problem(n, m)
+
+    problem.set_total(np.zeros(m), 0)
     x = problem.solve(cost, max_assigned)
     indices = x.argmax(axis=1)
     assignment = {ai: b[j] for (i, ai), j in zip(enumerate(a), indices, strict=False) if x[i, j] > 0}

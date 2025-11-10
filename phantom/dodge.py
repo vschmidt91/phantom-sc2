@@ -65,12 +65,12 @@ class DodgeAction:
         if distance_have + distance_bonus >= distance_want + self.safety_distance:
             return None
         if unit.is_burrowed and not self.observation.can_move(unit):
-            return UseAbility(unit, AbilityId.BURROWUP)
+            return UseAbility(AbilityId.BURROWUP)
         dodge_from = item.position
         if distance_have < self.min_distance:
             dodge_from += Point2(RNG.normal(loc=0.0, scale=self.min_distance, size=2))
         target = dodge_from.towards(unit, distance_want + self.safety_distance)
-        return Move(unit, target)
+        return Move(target)
 
 
 class DodgeState:

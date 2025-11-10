@@ -1,7 +1,7 @@
 from itertools import chain
 
 from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS, SPEED_INCREASE_DICT, SPEED_UPGRADE_DICT
-from sc2.data import Race
+from sc2.data import Race, Result
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -12,8 +12,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 
 from phantom.common.utils import get_requirements
-
-UNKNOWN_VERSION = "unknown_version"
+from phantom.dummy import BaseBlocker, DummyBot
 
 WITH_TECH_EQUIVALENTS = {unit: {unit} | EQUIVALENTS_FOR_TECH_PROGRESS.get(unit, set()) for unit in UnitTypeId}
 
@@ -123,6 +122,13 @@ SUPPLY_PROVIDED = {
     },
 }
 
+RESULT_TO_FITNESS = {
+    Result.Defeat: +1.0,
+    Result.Tie: 0.0,
+    Result.Undecided: 0.0,
+    Result.Victory: -1.0,
+}
+
 MINING_RADIUS = 1.325
 MINING_RADIUS_GEYSER = 2.0
 
@@ -161,6 +167,14 @@ ENEMY_CIVILIANS = {
     *WITH_TECH_EQUIVALENTS[UnitTypeId.DRONE],
 }
 
+COMBATANT_STRUCTURES = {
+    UnitTypeId.SPINECRAWLER,
+    UnitTypeId.SPORECRAWLER,
+    UnitTypeId.PHOTONCANNON,
+    UnitTypeId.BUNKER,
+    UnitTypeId.MISSILETURRET,
+}
+
 UNIT_BY_TRAIN_ABILITY: dict[AbilityId, UnitTypeId] = {
     unit_element["ability"]: unit
     for trainer_element in TRAIN_INFO.values()
@@ -173,7 +187,18 @@ UPGRADE_BY_RESEARCH_ABILITY: dict[AbilityId, UpgradeId] = {
     for upgrade, upgrade_element in research_element.items()
 }
 
+MORPHERS = {
+    UnitTypeId.HATCHERY,
+    UnitTypeId.LAIR,
+    UnitTypeId.SPIRE,
+}
+
 ITEM_BY_ABILITY = {**UNIT_BY_TRAIN_ABILITY, **UPGRADE_BY_RESEARCH_ABILITY}
+TRAINER_TYPES = {
+    *chain.from_iterable(UNIT_TRAINED_FROM.values()),
+    *UPGRADE_RESEARCHED_FROM.values(),
+    UnitTypeId.EGG,
+}
 
 GAS_BY_RACE: dict[Race, UnitTypeId] = {
     Race.Zerg: UnitTypeId.EXTRACTOR,
@@ -254,11 +279,11 @@ UNIT_COUNTER_DICT = {
     # UnitTypeId.PROBE: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
     UnitTypeId.MARINE: [UnitTypeId.BROODLORD, UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
     UnitTypeId.MARAUDER: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
-    UnitTypeId.REAPER: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
+    UnitTypeId.REAPER: [UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
     UnitTypeId.GHOST: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
     UnitTypeId.HELLION: [UnitTypeId.BROODLORD, UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
     UnitTypeId.SIEGETANK: [UnitTypeId.BROODLORD, UnitTypeId.ZERGLING, UnitTypeId.HYDRALISK, UnitTypeId.ROACH],
-    UnitTypeId.THOR: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
+    UnitTypeId.THOR: [UnitTypeId.BROODLORD, UnitTypeId.ROACH, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING],
     UnitTypeId.WIDOWMINE: [UnitTypeId.BROODLORD, UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.CYCLONE: [UnitTypeId.HYDRALISK, UnitTypeId.ZERGLING, UnitTypeId.ROACH],
     UnitTypeId.VIKINGFIGHTER: [UnitTypeId.HYDRALISK, UnitTypeId.ROACH, UnitTypeId.ZERGLING],
@@ -302,48 +327,57 @@ UNIT_COUNTER_DICT = {
 }
 
 
-SPORE_TRIGGERS: dict[Race, set[UnitTypeId]] = {
-    Race.Zerg: {
-        UnitTypeId.DRONEBURROWED,
-        UnitTypeId.QUEENBURROWED,
-        UnitTypeId.ZERGLINGBURROWED,
-        UnitTypeId.BANELINGBURROWED,
-        UnitTypeId.ROACHBURROWED,
-        UnitTypeId.RAVAGERBURROWED,
-        UnitTypeId.HYDRALISKBURROWED,
-        UnitTypeId.LURKERMP,
-        UnitTypeId.LURKERMPBURROWED,
-        UnitTypeId.INFESTORBURROWED,
-        UnitTypeId.SWARMHOSTBURROWEDMP,
-        UnitTypeId.ULTRALISKBURROWED,
-        UnitTypeId.MUTALISK,
-        UnitTypeId.SPIRE,
-    },
-    Race.Protoss: {
-        UnitTypeId.STARGATE,
-        UnitTypeId.ORACLE,
-        UnitTypeId.VOIDRAY,
-        UnitTypeId.CARRIER,
-        UnitTypeId.TEMPEST,
-        UnitTypeId.PHOENIX,
-    },
-    Race.Terran: {
-        UnitTypeId.STARPORT,
-        UnitTypeId.STARPORTFLYING,
-        UnitTypeId.MEDIVAC,
-        UnitTypeId.LIBERATOR,
-        UnitTypeId.RAVEN,
-        UnitTypeId.BANSHEE,
-        UnitTypeId.BATTLECRUISER,
-        UnitTypeId.WIDOWMINE,
-        UnitTypeId.WIDOWMINEBURROWED,
-    },
+SPORE_TRIGGERS_ZERG = {
+    # UnitTypeId.DRONEBURROWED,
+    # UnitTypeId.QUEENBURROWED,
+    # UnitTypeId.ZERGLINGBURROWED,
+    # UnitTypeId.BANELINGBURROWED,
+    # UnitTypeId.ROACHBURROWED,
+    # UnitTypeId.RAVAGERBURROWED,
+    # UnitTypeId.HYDRALISKBURROWED,
+    # UnitTypeId.LURKERMP,
+    # UnitTypeId.LURKERMPBURROWED,
+    # UnitTypeId.INFESTORBURROWED,
+    # UnitTypeId.SWARMHOSTBURROWEDMP,
+    # UnitTypeId.ULTRALISKBURROWED,
+    UnitTypeId.MUTALISK,
+    UnitTypeId.SPIRE,
 }
-SPORE_TRIGGERS[Race.Random] = {
-    *SPORE_TRIGGERS[Race.Terran],
-    *SPORE_TRIGGERS[Race.Protoss],
-    *SPORE_TRIGGERS[Race.Zerg],
+SPORE_TRIGGERS_PROTOSS = {
+    UnitTypeId.STARGATE,
+    UnitTypeId.ORACLE,
+    UnitTypeId.VOIDRAY,
+    UnitTypeId.CARRIER,
+    UnitTypeId.TEMPEST,
+    UnitTypeId.PHOENIX,
 }
+SPORE_TRIGGERS_TERRAN = {
+    UnitTypeId.STARPORT,
+    UnitTypeId.STARPORTFLYING,
+    UnitTypeId.MEDIVAC,
+    UnitTypeId.LIBERATOR,
+    UnitTypeId.RAVEN,
+    UnitTypeId.BANSHEE,
+    UnitTypeId.BATTLECRUISER,
+    UnitTypeId.WIDOWMINE,
+    UnitTypeId.WIDOWMINEBURROWED,
+}
+SPORE_TRIGGERS = {
+    Race.Terran: SPORE_TRIGGERS_TERRAN,
+    Race.Protoss: SPORE_TRIGGERS_PROTOSS,
+    Race.Zerg: SPORE_TRIGGERS_ZERG,
+    Race.Random: SPORE_TRIGGERS_TERRAN | SPORE_TRIGGERS_PROTOSS | SPORE_TRIGGERS_ZERG,
+}
+
+COCOONS = {
+    UnitTypeId.BANELINGCOCOON,
+    UnitTypeId.RAVAGERCOCOON,
+    UnitTypeId.OVERLORDCOCOON,
+    UnitTypeId.TRANSPORTOVERLORDCOCOON,
+    UnitTypeId.BROODLORDCOCOON,
+}
+
+UPGRADE_RESEARCHERS = set(UPGRADE_RESEARCHED_FROM.values())
 
 IMPOSSIBLE_TASK_COST = 1e8
 HALF = Point2((0.5, 0.5))
@@ -351,3 +385,19 @@ HALF = Point2((0.5, 0.5))
 MICRO_MAP_REGEX = "Micro AI Arena"
 MAX_UNIT_RADIUS = 1.375  # Mothership
 LOG_LEVEL_OPTIONS = ["TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"]
+REPLAY_TYPE_ENCODING = "ascii"
+
+SPECIAL_BUILDS = {
+    "Dummy": DummyBot,
+    "BaseBlocker": BaseBlocker,
+}
+
+SPORE_TIMING_ZERG = 7 * 60
+SPORE_TIMING_PROTOSS = 5 * 60
+SPORE_TIMING_TERRAN = 5 * 60
+SPORE_TIMINGS = {
+    Race.Zerg: SPORE_TIMING_ZERG,
+    Race.Protoss: SPORE_TIMING_PROTOSS,
+    Race.Terran: SPORE_TIMING_TERRAN,
+    Race.Random: min(SPORE_TIMING_ZERG, SPORE_TIMING_PROTOSS, SPORE_TIMING_TERRAN),
+}
