@@ -147,6 +147,13 @@ class CombatAction:
                 p = state.knowledge.in_mineral_line[observation.start_location.rounded]
                 retreat_targets.append(p)
 
+        self.combatants = (
+            self.observation.combatants | self.observation.overseers | self.observation.structures(COMBATANT_STRUCTURES)
+        )
+        self.enemy_combatants = self.observation.enemy_combatants | self.observation.enemy_structures(
+            COMBATANT_STRUCTURES
+        )
+
         self.retreat_targets = np.atleast_2d(retreat_targets).astype(int)
 
         self.retreat_air = cy_dijkstra(
@@ -157,7 +164,6 @@ class CombatAction:
         )
 
         self.pathing_potential = np.where(self.observation.pathing < np.inf, 0.0, 1.0)
-        self.targeting_cost = self._targeting_cost()
         self.optimal_targeting = self._optimal_targeting()
 
         runby_targets_list = list[tuple[int, int]]()
@@ -178,10 +184,8 @@ class CombatAction:
             self.runby_pathing = None
 
         self.prediction = self.state.bot.mediator.can_win_fight(
-            own_units=self.observation.combatants.exclude_type({UnitTypeId.QUEEN, UnitTypeId.QUEENBURROWED})
-            | self.observation.overseers
-            | self.observation.structures(COMBATANT_STRUCTURES),
-            enemy_units=self.observation.enemy_combatants | self.observation.enemy_structures(COMBATANT_STRUCTURES),
+            own_units=self.combatants,
+            enemy_units=self.enemy_combatants,
             timing_adjust=False,
         )
 
@@ -212,11 +216,6 @@ class CombatAction:
         return UseAbility(AbilityId.ATTACK, target.position)
 
     def fight_with(self, unit: Unit) -> Action | None:
-        combatants = (
-            self.observation.combatants | self.observation.overseers | self.observation.structures(COMBATANT_STRUCTURES)
-        )
-        enemy_combatants = self.observation.enemy_combatants | self.observation.enemy_structures(COMBATANT_STRUCTURES)
-
         p = tuple(unit.position.rounded)
 
         def potential_kiting(x: np.ndarray) -> float:
@@ -236,7 +235,7 @@ class CombatAction:
                 #     return d - unit_range
                 return 0.0
 
-            return sum(g(u) for u in enemy_combatants)
+            return sum(g(u) for u in self.enemy_combatants)
 
         def cost_fn(u: Unit) -> float:
             hp = u.health + u.shield
@@ -284,7 +283,7 @@ class CombatAction:
         eps = 1e-3
         a = 0.0
         alpha = 0.0
-        for u in combatants:
+        for u in self.combatants:
             d = u.distance_to(target) - u.radius - target.radius
             d -= cy_range_vs_target(unit=u, target=target)
             dt = max(0, d) / max(eps, u.movement_speed)
@@ -295,7 +294,7 @@ class CombatAction:
 
         b = 0.0
         beta = 0.0
-        for u in enemy_combatants:
+        for u in self.enemy_combatants:
             d = u.distance_to(unit) - u.radius - unit.radius
             d -= cy_range_vs_target(unit=u, target=unit)
             dt = max(0, d) / max(eps, u.movement_speed)
@@ -372,42 +371,65 @@ class CombatAction:
             return None
         return UseAbility(AbilityId.BURROWDOWN)
 
-    def _targeting_cost(self) -> np.ndarray:
-        units = self.observation.combatants
-        enemies = self.observation.enemy_combatants
+    def _targeting_cost(self, units: Sequence[Unit], enemies: Sequence[Unit]) -> np.ndarray:
         distances = pairwise_distances(
             [u.position for u in units],
             [u.position for u in enemies],
         )
-        # return distances
+        movement_speed = np.array([u.movement_speed for u in units])
+        movement_speed = np.repeat(movement_speed[:, np.newaxis], len(enemies), axis=1)
+        time_to_attack = np.divide(distances, movement_speed)
 
-        def cost_fn(a: Unit, b: Unit, d: float) -> float:
-            if a.order_target == b.tag and can_attack(a, b):
-                return 0.0
-            r = cy_range_vs_target(unit=a, target=b)
-            travel_distance = max(0.0, d - a.radius - b.radius - r)
-            time_to_reach = np.divide(travel_distance, a.movement_speed)
-            dps = calculate_dps(a, b)
-            if (b.is_burrowed or b.is_cloaked) and not self.observation.bot.mediator.get_is_detected(
-                unit=b, by_enemy=False
-            ):
-                dps = 0.0
-            time_to_kill = np.divide(b.health + b.shield, dps)
-            random_offset = hash((a.tag, b.tag)) / (2**sys.hash_info.width)
-            return time_to_reach + time_to_kill + 1e-10 * random_offset
+        ground_dps = np.array([u.ground_dps for u in units])
+        air_dps = np.array([u.air_dps for u in units])
 
-        cost = np.array(
-            [[cost_fn(ai, bj, distances[i, j]) for j, bj in enumerate(enemies)] for i, ai in enumerate(units)]
-        )
+        def is_attackable(u: Unit) -> bool:
+            if u.is_burrowed or u.is_cloaked:
+                return self.observation.bot.mediator.get_is_detected(unit=u, by_enemy=u.is_mine)
+            return True
+
+        enemy_attackable = np.array([1.0 if is_attackable(u) else 0.0 for u in enemies])
+        enemy_flying = np.array([1.0 if u.is_flying else 0.0 for u in enemies])
+        enemy_ground = 1.0 - enemy_flying
+        dps = np.outer(ground_dps, enemy_attackable * enemy_ground) + np.outer(air_dps, enemy_attackable * enemy_flying)
+
+        enemy_hp = np.array([u.health + u.shield for u in enemies])
+        enemy_hp = np.repeat(enemy_hp[np.newaxis, :], len(units), axis=0)
+
+        time_to_kill = np.divide(enemy_hp, dps)
+
+        cost = time_to_attack + time_to_kill
+
+        # def cost_fn(a: Unit, b: Unit, d: float) -> float:
+        #     if a.order_target == b.tag and can_attack(a, b):
+        #         return 0.0
+        #     r = cy_range_vs_target(unit=a, target=b)
+        #     travel_distance = max(0.0, d - a.radius - b.radius - r)
+        #     time_to_reach = np.divide(travel_distance, a.movement_speed)
+        #     dps = calculate_dps(a, b)
+        #     if (b.is_burrowed or b.is_cloaked) and not self.observation.bot.mediator.get_is_detected(
+        #         unit=b, by_enemy=False
+        #     ):
+        #         dps = 0.0
+        #     time_to_kill = np.divide(b.health + b.shield, dps)
+        #     random_offset = hash((a.tag, b.tag)) / (2**sys.hash_info.width)
+        #     return time_to_reach + time_to_kill + 1e-10 * random_offset
+        #
+        # cost = np.array(
+        #     [[cost_fn(ai, bj, distances[i, j]) for j, bj in enumerate(enemies)] for i, ai in enumerate(units)]
+        # )
+
         cost = np.nan_to_num(cost, nan=np.inf)
         return cost
 
-    def _optimal_targeting(self) -> dict[Unit, Unit]:
-        units = self.observation.combatants
-        enemies = self.observation.enemy_combatants
+    def _optimal_targeting(self) -> Mapping[Unit, Unit]:
+        units = self.combatants
+        enemies = self.enemy_combatants
 
         if not any(units) or not any(enemies):
             return {}
+
+        cost = self._targeting_cost(units, enemies)
 
         if self.state.knowledge.is_micro_map:
             max_assigned = None
@@ -418,14 +440,11 @@ class CombatAction:
         else:
             max_assigned = 1
 
-        max_assigned = len(enemies)
-
         assignment = distribute(
             units,
             enemies,
-            self.targeting_cost,
+            cost,
             max_assigned=max_assigned,
         )
-        assignment = {a: b for a, b in assignment.items() if can_attack(a, b)}
 
         return assignment
