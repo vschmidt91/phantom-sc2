@@ -280,7 +280,7 @@ class CombatAction:
             return self.retreat_with(unit)
 
         # simulate battle
-        c = 0.03
+        c = 0.1
         eps = 1e-3
         a = 0.0
         alpha = 0.0
