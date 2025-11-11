@@ -33,6 +33,8 @@ STATIC_DEFENSE_BY_RACE = {
     Race.Protoss: UnitTypeId.PHOTONCANNON,
 }
 
+MIN_WEAPON_COOLDOWN = 2.0 / 22.4
+
 COCOON_FIX: dict[UnitTypeId, UnitTypeId] = {
     UnitTypeId.OVERLORDCOCOON: UnitTypeId.OVERLORD,
     UnitTypeId.TRANSPORTOVERLORDCOCOON: UnitTypeId.OVERLORD,

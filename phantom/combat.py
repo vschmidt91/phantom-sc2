@@ -8,7 +8,7 @@ import scipy.optimize
 from ares import WORKER_TYPES
 from ares.consts import EngagementResult
 from ares.main import AresBot
-from cython_extensions import cy_attack_ready, cy_dijkstra, cy_pick_enemy_target, cy_range_vs_target
+from cython_extensions import cy_dijkstra, cy_pick_enemy_target, cy_range_vs_target
 from loguru import logger
 from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
@@ -18,7 +18,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
-from phantom.common.constants import COMBATANT_STRUCTURES, HALF
+from phantom.common.constants import COMBATANT_STRUCTURES, HALF, MIN_WEAPON_COOLDOWN
 from phantom.common.distribute import distribute
 from phantom.common.graph import graph_components
 from phantom.common.utils import (
@@ -237,7 +237,7 @@ class CombatAction:
         if not (target := self.optimal_targeting.get(unit)):
             return None
 
-        attack_ready = cy_attack_ready(bot=self.observation.bot, unit=unit, target=target)
+        attack_ready = unit.weapon_cooldown <= MIN_WEAPON_COOLDOWN
 
         if attack_ready and (targets := self.observation.shootable_targets.get(unit)):
             target = cy_pick_enemy_target(enemies=targets)
@@ -273,9 +273,9 @@ class CombatAction:
             self.state.bot.mediator.get_air_grid if unit.is_flying else self.state.bot.mediator.get_ground_grid
         )
 
-        if outcome >= EngagementResult.VICTORY_DECISIVE:
+        if outcome >= EngagementResult.VICTORY_CLOSE:
             self.state.is_attacking.add(unit.tag)
-        elif outcome <= EngagementResult.LOSS_DECISIVE:
+        elif outcome <= EngagementResult.LOSS_CLOSE:
             self.state.is_attacking.discard(unit.tag)
 
         if unit.tag in self.state.is_attacking:

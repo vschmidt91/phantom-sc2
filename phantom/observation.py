@@ -24,6 +24,7 @@ from phantom.common.constants import (
     COCOONS,
     ENEMY_CIVILIANS,
     MAX_UNIT_RADIUS,
+    MIN_WEAPON_COOLDOWN,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
     WITH_TECH_EQUIVALENTS,
@@ -371,7 +372,7 @@ class Observation:
         return ()
 
     def _shootable_targets(self, bonus_range=0.0) -> Mapping[Unit, Sequence[Unit]]:
-        units = self.combatants.filter(lambda u: u.ground_range >= 2 and u.weapon_ready)
+        units = self.combatants.filter(lambda u: u.ground_range >= 2 and u.weapon_cooldown <= MIN_WEAPON_COOLDOWN)
 
         points_ground = list[Point2]()
         points_air = list[Point2]()
