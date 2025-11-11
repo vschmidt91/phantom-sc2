@@ -273,9 +273,9 @@ class CombatAction:
             self.state.bot.mediator.get_air_grid if unit.is_flying else self.state.bot.mediator.get_ground_grid
         )
 
-        if outcome >= EngagementResult.VICTORY_CLOSE:
+        if outcome >= EngagementResult.VICTORY_DECISIVE:
             self.state.is_attacking.add(unit.tag)
-        elif outcome <= EngagementResult.LOSS_CLOSE:
+        elif outcome <= EngagementResult.LOSS_DECISIVE:
             self.state.is_attacking.discard(unit.tag)
 
         if unit.tag in self.state.is_attacking:
