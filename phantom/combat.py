@@ -153,8 +153,9 @@ class CombatAction:
         time_to_kill = self.time_to_kill
         enemy_time_to_kill = self._time_to_kill(enemy_units, units)
 
-        contact = (time_to_attack < 3) & (time_to_kill < np.inf)
-        enemy_contact = (enemy_time_to_attack < 3) & (enemy_time_to_kill < np.inf)
+        time_horizon = 5.0
+        contact = (time_to_attack < time_horizon) & (time_to_kill < np.inf)
+        enemy_contact = (enemy_time_to_attack < time_horizon) & (enemy_time_to_kill < np.inf)
 
         contact_symmetrical = contact | enemy_contact.T
 
