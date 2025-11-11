@@ -124,9 +124,9 @@ class CombatAction:
         self.prediction = self.predict()
 
         if self.observation.knowledge.enemy_race not in {Race.Zerg, Race.Random}:
-            if self.prediction.outcome <= EngagementResult.LOSS_DECISIVE:
+            if self.prediction.outcome <= EngagementResult.LOSS_CLOSE:
                 self.state.retreat_to_creep = True
-            elif self.prediction.outcome >= EngagementResult.VICTORY_DECISIVE:
+            elif self.prediction.outcome >= EngagementResult.VICTORY_CLOSE:
                 self.state.retreat_to_creep = False
 
     def _predict_trivial(self, units: Sequence[Unit], enemy_units: Sequence[Unit]) -> EngagementResult | None:
