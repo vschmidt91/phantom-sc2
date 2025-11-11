@@ -9,7 +9,7 @@ import scipy.optimize
 from ares import WORKER_TYPES
 from ares.consts import EngagementResult
 from ares.main import AresBot
-from cython_extensions import cy_attack_ready, cy_dijkstra, cy_range_vs_target
+from cython_extensions import cy_attack_ready, cy_dijkstra, cy_range_vs_target, cy_pick_enemy_target
 from loguru import logger
 from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
@@ -126,9 +126,9 @@ class CombatAction:
         self.prediction = self.predict()
 
         if self.observation.knowledge.enemy_race not in {Race.Zerg, Race.Random}:
-            if self.prediction.outcome <= EngagementResult.LOSS_MARGINAL:
+            if self.prediction.outcome <= EngagementResult.LOSS_DECISIVE:
                 self.state.retreat_to_creep = True
-            elif self.prediction.outcome >= EngagementResult.VICTORY_CLOSE:
+            elif self.prediction.outcome >= EngagementResult.VICTORY_DECISIVE:
                 self.state.retreat_to_creep = False
 
     def _predict_trivial(self, units: Sequence[Unit], enemy_units: Sequence[Unit]) -> EngagementResult | None:
@@ -236,25 +236,13 @@ class CombatAction:
 
             return sum(g(u) for u in self.enemy_combatants)
 
-        def cost_fn(u: Unit) -> float:
-            hp = u.health + u.shield
-            dps = calculate_dps(unit, u)
-            reward = self.enemy_values[u.tag]
-            if u.is_structure:
-                reward /= 10
-            risk = np.divide(hp, dps)
-            cost = np.divide(risk, reward)
-            random_offset = hash((unit.tag, u.tag)) / (2**sys.hash_info.width)
-            cost += 1e-10 * random_offset
-            return cost
-
         if not (target := self.optimal_targeting.get(unit)):
             return None
 
         attack_ready = cy_attack_ready(bot=self.observation.bot, unit=unit, target=target)
 
         if attack_ready and (targets := self.observation.shootable_targets.get(unit)):
-            target = min(targets, key=cost_fn)
+            target = cy_pick_enemy_target(enemies=targets)
             if unit.ground_range < 2:
                 return Attack(target.position)
             else:
@@ -287,9 +275,9 @@ class CombatAction:
             self.state.bot.mediator.get_air_grid if unit.is_flying else self.state.bot.mediator.get_ground_grid
         )
 
-        if outcome >= EngagementResult.VICTORY_CLOSE:
+        if outcome >= EngagementResult.VICTORY_DECISIVE:
             self.state.is_attacking.add(unit.tag)
-        elif outcome <= EngagementResult.LOSS_MARGINAL:
+        elif outcome <= EngagementResult.LOSS_DECISIVE:
             self.state.is_attacking.discard(unit.tag)
 
         if unit.tag in self.state.is_attacking:
