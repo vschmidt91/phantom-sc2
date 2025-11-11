@@ -332,6 +332,10 @@ class CombatAction:
         return UseAbility(AbilityId.BURROWDOWN)
 
     def _time_to_kill(self, units: Sequence[Unit], enemies: Sequence[Unit]) -> np.ndarray:
+
+        if not any(units) or not any(enemies):
+            return np.array([])
+
         ground_dps = np.array([u.ground_dps for u in units])
         air_dps = np.array([u.air_dps for u in units])
 
@@ -352,6 +356,10 @@ class CombatAction:
         return time_to_kill
 
     def _time_to_attack(self, units: Sequence[Unit], enemies: Sequence[Unit]) -> np.ndarray:
+
+        if not any(units) or not any(enemies):
+            return np.array([])
+
         ground_range = np.array([u.ground_range for u in units])
         air_range = np.array([u.air_range for u in units])
         radius = np.array([u.radius for u in units])
