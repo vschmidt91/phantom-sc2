@@ -1,5 +1,4 @@
 import math
-import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from itertools import product
@@ -9,7 +8,7 @@ import scipy.optimize
 from ares import WORKER_TYPES
 from ares.consts import EngagementResult
 from ares.main import AresBot
-from cython_extensions import cy_attack_ready, cy_dijkstra, cy_range_vs_target, cy_pick_enemy_target
+from cython_extensions import cy_attack_ready, cy_dijkstra, cy_pick_enemy_target, cy_range_vs_target
 from loguru import logger
 from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
@@ -23,7 +22,6 @@ from phantom.common.constants import COMBATANT_STRUCTURES, HALF
 from phantom.common.distribute import distribute
 from phantom.common.graph import graph_components
 from phantom.common.utils import (
-    calculate_dps,
     pairwise_distances,
     sample_bilinear,
     structure_perimeter,
@@ -320,7 +318,6 @@ class CombatAction:
         return UseAbility(AbilityId.BURROWDOWN)
 
     def _time_to_kill(self, units: Sequence[Unit], enemies: Sequence[Unit]) -> np.ndarray:
-
         if not any(units) or not any(enemies):
             return np.array([])
 
@@ -344,7 +341,6 @@ class CombatAction:
         return time_to_kill
 
     def _time_to_attack(self, units: Sequence[Unit], enemies: Sequence[Unit]) -> np.ndarray:
-
         if not any(units) or not any(enemies):
             return np.array([])
 
