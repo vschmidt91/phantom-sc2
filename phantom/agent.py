@@ -45,7 +45,7 @@ class Agent:
         self.build_order = BUILD_ORDERS[build_order_name]
         self.parameters = parameters
         self.knowledge = knowledge
-        self.combat = CombatState(bot, knowledge)
+        self.combat = CombatState(bot, knowledge, parameters)
         self.observation = ObservationState(bot, knowledge)
         self.macro = MacroState(knowledge)
         self.creep = CreepState(knowledge)

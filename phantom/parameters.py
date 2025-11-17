@@ -24,7 +24,7 @@ class Parameters:
         self.strategy: cma.CMAEvolutionStrategy | None = None
         self.parameters = list[Parameter]()
         self.population = list[np.ndarray]()
-        self.population_fitness = list[float]()
+        self.loss_values = list[float]()
         self.timestamp = datetime.now()
 
     def add(self, prior: Prior) -> Parameter:
@@ -60,16 +60,16 @@ class Parameters:
 
         if not self.population:
             self.population = self.strategy.ask()
-            self.population_fitness.clear()
+            self.loss_values.clear()
 
-        values = self.population[len(self.population_fitness)]
+        values = self.population[len(self.loss_values)]
         self._set_values(values)
 
     def tell(self, fitness: float) -> None:
         if not self.strategy:
             raise Exception("tell was called before ask")
-        self.population_fitness.append(fitness)
-        if len(self.population_fitness) == len(self.population):
-            self.strategy.tell(self.population, self.population_fitness)
+        self.loss_values.append(-fitness)
+        if len(self.loss_values) == len(self.population):
+            self.strategy.tell(self.population, self.loss_values)
             self.population.clear()
-            self.population_fitness.clear()
+            self.loss_values.clear()

@@ -118,6 +118,7 @@ module = [
     "phantom.cython.*",
     "s2protocol.*",
     "sc2.*",
+    "sc2_helper.*",
     "scipy.*",
     "skimage.*",
     "sklearn.*",

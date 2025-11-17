@@ -10,6 +10,7 @@ from queue import Empty, Queue
 from ares import AresBot
 from ares.consts import ALL_STRUCTURES
 from loguru import logger
+from s2clientprotocol.score_pb2 import CategoryScoreDetails
 from sc2.data import Race, Result
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.game_state import ActionRawUnitCommand
@@ -22,7 +23,6 @@ from phantom.agent import Agent
 from phantom.common.constants import (
     ALL_MACRO_ABILITIES,
     ITEM_BY_ABILITY,
-    RESULT_TO_FITNESS,
 )
 from phantom.config import BotConfig
 from phantom.exporter import BotExporter
@@ -93,7 +93,7 @@ class PhantomBot(BotExporter, AresBot):
                 parameters = pickle.load(f)
                 self.parameters.strategy = parameters.strategy
                 self.parameters.population = parameters.population
-                self.parameters.population_fitness = parameters.population_fitness
+                self.parameters.loss_values = parameters.loss_values
         except Exception as error:
             logger.warning(f"{error=} while loading {self.bot_config.params_path}")
 
@@ -131,6 +131,9 @@ class PhantomBot(BotExporter, AresBot):
         # local only: skip first iteration like on the ladder
         if iteration == 0:
             return
+
+        if self.time > 5 * 60:
+            await self.client.debug_kill_unit(self.structures)
 
         # await self.client.save_replay("tmp.SC2Replay")
         # cheat = Replay.from_file("tmp.SC2Replay")
@@ -208,11 +211,43 @@ class PhantomBot(BotExporter, AresBot):
         await super().on_end(game_result)
 
         if self.agent and self.bot_config.training:
-            fitness = RESULT_TO_FITNESS[game_result]
+            fitness = self.get_fitness_value()
             logger.info(f"Training parameters with {fitness=}")
             self.parameters.tell(fitness)
             with lzma.open(self.bot_config.params_path, "wb") as f:
                 pickle.dump(self.parameters, f)
+
+    def get_fitness_value(self, vespene_weight: float = 2.0) -> float:
+        def sum_category(category: CategoryScoreDetails) -> float:
+            return sum(
+                (
+                    category.army,
+                    category.economy,
+                    category.none,
+                    category.technology,
+                    category.upgrade,
+                )
+            )
+
+        lost_minerals = sum(
+            (
+                sum_category(self.state.score._proto.lost_minerals),
+                sum_category(self.state.score._proto.friendly_fire_minerals),
+            )
+        )
+        lost_vespene = sum(
+            (
+                sum_category(self.state.score._proto.lost_vespene),
+                sum_category(self.state.score._proto.friendly_fire_vespene),
+            )
+        )
+        lost_total = lost_minerals + lost_vespene * vespene_weight
+
+        killed_minerals = sum_category(self.state.score._proto.killed_minerals)
+        killed_vespene = sum_category(self.state.score._proto.killed_vespene)
+        killed_total = killed_minerals + killed_vespene * vespene_weight
+
+        return lost_total / max(1.0, lost_total + killed_total)
 
     # async def on_before_start(self):
     #     await super().on_before_start()
