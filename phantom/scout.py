@@ -1,5 +1,6 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from loguru import logger
 from sc2.data import ActionResult
@@ -11,8 +12,10 @@ from sc2.units import Units
 from phantom.common.action import Action
 from phantom.common.distribute import distribute
 from phantom.common.utils import Point, pairwise_distances
-from phantom.knowledge import Knowledge
 from phantom.observation import Observation
+
+if TYPE_CHECKING:
+    from phantom.main import PhantomBot
 
 
 @dataclass
@@ -32,8 +35,8 @@ type ScoutAction = Mapping[Unit, Action]
 
 
 class ScoutState:
-    def __init__(self, knowledge: Knowledge):
-        self.knowledge = knowledge
+    def __init__(self, bot: "PhantomBot"):
+        self.bot = bot
         self.blocked_positions = dict[Point, float]()
         self._previous_hash = 0
         self.assignment: Mapping[Unit, Point] = dict()
@@ -69,7 +72,7 @@ class ScoutState:
             if (
                 error_ability not in {AbilityId.BUILD_CREEPTUMOR_TUMOR, AbilityId.BUILD_CREEPTUMOR_QUEEN}
                 and error_result in {ActionResult.CantBuildLocationInvalid, ActionResult.CouldntReachTarget}
-                and (unit := observation.bot._units_previous_map.get(error.unit_tag))
+                and (unit := self.bot._units_previous_map.get(error.unit_tag))
             ):
                 if isinstance(unit.order_target, Point2):
                     p = tuple(unit.order_target.rounded)

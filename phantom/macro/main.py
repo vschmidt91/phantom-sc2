@@ -3,6 +3,7 @@ import random
 from collections.abc import Iterable, Mapping, Set
 from dataclasses import dataclass
 from itertools import chain
+from typing import TYPE_CHECKING
 
 import numpy as np
 from ares.consts import GAS_BUILDINGS, TOWNHALL_TYPES, UnitRole
@@ -26,8 +27,10 @@ from phantom.common.constants import (
 from phantom.common.cost import Cost
 from phantom.common.unit_composition import UnitComposition
 from phantom.common.utils import PlacementNotFoundException, Point
-from phantom.knowledge import Knowledge
 from phantom.observation import Observation
+
+if TYPE_CHECKING:
+    from phantom.main import PhantomBot
 
 rng = np.random.default_rng()
 
@@ -44,8 +47,8 @@ class MacroPlan:
 
 
 class MacroState:
-    def __init__(self, knowledge: Knowledge) -> None:
-        self.knowledge = knowledge
+    def __init__(self, bot: "PhantomBot") -> None:
+        self.bot = bot
         self.unassigned_plans = list[MacroPlan]()
         self.assigned_plans = dict[int, MacroPlan]()
 
@@ -145,11 +148,11 @@ class MacroState:
 
             if not plan.target:
                 try:
-                    plan.target = self.get_target(self.knowledge, obs, trainer, plan, blocked_positions)
+                    plan.target = self.get_target(obs, trainer, plan, blocked_positions)
                 except PlacementNotFoundException:
                     continue
 
-            cost = self.knowledge.cost.of(plan.item)
+            cost = self.bot.cost.of(plan.item)
             eta = get_eta(obs, reserve, cost)
 
             if eta < math.inf:
@@ -171,7 +174,7 @@ class MacroState:
         return actions
 
     def get_target(
-        self, knowledge: Knowledge, obs: Observation, trainer: Unit, objective: MacroPlan, blocked_positions: Set[Point]
+        self, obs: Observation, trainer: Unit, objective: MacroPlan, blocked_positions: Set[Point]
     ) -> Unit | Point2 | None:
         if objective.item in GAS_BUILDINGS:
             return self.get_gas_target(obs)
@@ -182,9 +185,9 @@ class MacroState:
         ):
             return None
         if objective.item in TOWNHALL_TYPES:
-            position = get_expansion_target(knowledge, obs, blocked_positions)
+            position = self.get_expansion_target(obs, blocked_positions)
         else:
-            position = get_tech_target(knowledge, obs, objective.item)
+            position = self.get_tech_target(obs, objective.item)
         if not position:
             raise PlacementNotFoundException()
         return position
@@ -210,7 +213,7 @@ class MacroState:
         return next(iter(trainers_filtered), None)
 
     def get_gas_target(self, obs: Observation) -> Unit:
-        gas_type = GAS_BY_RACE[obs.knowledge.race]
+        gas_type = GAS_BY_RACE[self.bot.race]
         exclude_positions = {geyser.position for geyser in obs.gas_buildings}
         exclude_tags = {
             order.target
@@ -226,6 +229,41 @@ class MacroState:
         ]
         if target := min(geysers, key=lambda g: g.tag, default=None):
             return target
+        raise PlacementNotFoundException()
+
+    def get_expansion_target(self, obs: Observation, blocked_positions: Set[Point]) -> Point2:
+        loss_positions = [self.bot.in_mineral_line[b] for b in obs.bases_taken]
+        loss_positions_enemy = [self.bot.in_mineral_line[s] for s in self.bot.enemy_start_locations_rounded]
+
+        def loss_fn(p: Point2) -> float:
+            distances = map(lambda q: cy_distance_to(p, q), loss_positions)
+            distances_enemy = map(lambda q: cy_distance_to(p, q), loss_positions_enemy)
+            return max(distances, default=0.0) - min(distances_enemy, default=0.0)
+
+        candidates = (b for b in self.bot.bases if b not in blocked_positions and b not in obs.townhall_at)
+        if target := min(candidates, key=loss_fn, default=None):
+            return Point2(target).offset(HALF)
+
+        raise PlacementNotFoundException()
+
+    def get_tech_target(self, obs: Observation, target: UnitTypeId) -> Point2:
+        data = obs.unit_data(target)
+
+        def filter_base(b):
+            if th := obs.townhall_at.get(b):
+                return th.is_ready
+            return False
+
+        if potential_bases := list(filter(filter_base, self.bot.bases)):
+            base = random.choice(potential_bases)
+            distance = rng.uniform(8, 12)
+            mineral_line = Point2(self.bot.in_mineral_line[base])
+            behind_mineral_line = Point2(base).towards(mineral_line, distance)
+            position = Point2(base).towards_with_random_angle(behind_mineral_line, distance)
+            offset = data.footprint_radius % 1
+            position = position.rounded.offset((offset, offset))
+            return position
+
         raise PlacementNotFoundException()
 
 
@@ -254,40 +292,3 @@ def get_eta(observation: Observation, reserve: Cost, cost: Cost) -> float:
             eta.supply if deficit.supply > 0 and cost.supply > 0 else 0.0,
         )
     )
-
-
-def get_expansion_target(knowledge: Knowledge, obs: Observation, blocked_positions: Set[Point]) -> Point2:
-    loss_positions = [knowledge.in_mineral_line[b] for b in obs.bases_taken]
-    loss_positions_enemy = [knowledge.in_mineral_line[s] for s in knowledge.enemy_start_locations]
-
-    def loss_fn(p: Point2) -> float:
-        distances = map(lambda q: cy_distance_to(p, q), loss_positions)
-        distances_enemy = map(lambda q: cy_distance_to(p, q), loss_positions_enemy)
-        return max(distances) - min(distances_enemy)
-
-    candidates = (b for b in knowledge.bases if b not in blocked_positions and b not in obs.townhall_at)
-    if target := min(candidates, key=loss_fn, default=None):
-        return Point2(target).offset(HALF)
-
-    raise PlacementNotFoundException()
-
-
-def get_tech_target(knowledge: Knowledge, obs: Observation, target: UnitTypeId) -> Point2:
-    data = obs.unit_data(target)
-
-    def filter_base(b):
-        if th := obs.townhall_at.get(b):
-            return th.is_ready
-        return False
-
-    if potential_bases := list(filter(filter_base, knowledge.bases)):
-        base = random.choice(potential_bases)
-        distance = rng.uniform(8, 12)
-        mineral_line = Point2(knowledge.in_mineral_line[base])
-        behind_mineral_line = Point2(base).towards(mineral_line, distance)
-        position = Point2(base).towards_with_random_angle(behind_mineral_line, distance)
-        offset = data.footprint_radius % 1
-        position = position.rounded.offset((offset, offset))
-        return position
-
-    raise PlacementNotFoundException()

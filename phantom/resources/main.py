@@ -1,4 +1,6 @@
 import math
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
 from loguru import logger
@@ -8,38 +10,49 @@ from sc2.units import Units
 from phantom.common.action import Action, DoNothing, Smart
 from phantom.common.distribute import _get_problem
 from phantom.common.utils import pairwise_distances
-from phantom.knowledge import Knowledge
 from phantom.resources.gather import GatherAction, ReturnResource
 from phantom.resources.observation import HarvesterAssignment, ResourceObservation
+
+if TYPE_CHECKING:
+    from phantom.main import PhantomBot
 
 
 class SolverError(Exception):
     pass
 
 
+@dataclass
+class ResourceState:
+    bot: "PhantomBot"
+    assignment: HarvesterAssignment = field(default_factory=HarvesterAssignment)
+    gather_hash = 0
+
+    def step(self, observation: ResourceObservation) -> "ResourceAction":
+        action = ResourceAction(self, observation)
+        self.assignment = action.harvester_assignment
+        self.gather_hash = observation.gather_hash
+        return action
+
+
 class ResourceAction:
     def __init__(
         self,
-        knowledge: Knowledge,
+        state: ResourceState,
         observation: ResourceObservation,
-        previous_assignment: HarvesterAssignment,
-        previous_hash: int,
     ):
-        self.knowledge = knowledge
+        self.state = state
         self.observation = observation
-        self.previous_assignment = previous_assignment
-        self.previous_hash = previous_hash
         self.gas_target = math.ceil(observation.harvesters.amount * observation.gas_ratio)
         self.harvester_assignment = self._harvester_assignment()
 
     def _harvester_assignment(self) -> HarvesterAssignment:
-        if self.observation.gather_hash == self.previous_hash:
-            return self.previous_assignment
+        if self.observation.gather_hash == self.state.gather_hash:
+            return self.state.assignment
         elif solution := self.solve():
             return solution
         else:
             logger.error("Harvester assignment solve failed")
-            return self.previous_assignment
+            return self.state.assignment
 
     def solve(self) -> HarvesterAssignment | None:
         harvesters = self.observation.harvesters
@@ -70,16 +83,16 @@ class ResourceAction:
 
         harvester_to_resource = pairwise_distances(
             [h.position for h in harvesters],
-            [self.knowledge.speedmining_positions[r.position.rounded] for r in resources],
+            [self.state.bot.speedmining_positions[r.position.rounded] for r in resources],
         )
 
-        return_distance = np.array([self.knowledge.return_distances[r.position.rounded] for r in resources])
+        return_distance = np.array([self.state.bot.return_distances[r.position.rounded] for r in resources])
         return_distance = np.repeat(return_distance[None, ...], len(harvesters), axis=0)
 
         assignment_cost = np.ones((len(harvesters), len(resources)))
         resource_index_by_position = {r.position.rounded: i for i, r in enumerate(resources)}
         for i, hi in enumerate(harvesters):
-            if (ti := self.previous_assignment.get(hi.tag)) and (j := resource_index_by_position.get(ti)) is not None:
+            if (ti := self.state.assignment.get(hi.tag)) and (j := resource_index_by_position.get(ti)) is not None:
                 assignment_cost[i, j] = 0.0
 
         n = len(harvesters)
@@ -117,17 +130,17 @@ class ResourceAction:
             logger.error(f"No gas building found at {target_pos}")
             return None
         if unit.is_idle:
-            return GatherAction(target, self.knowledge.speedmining_positions[target_pos])
+            return GatherAction(target, self.state.bot.speedmining_positions[target_pos])
             # return Smart(target)
         elif len(unit.orders) >= 2:
             return DoNothing()
         elif unit.is_gathering:
-            return GatherAction(target, self.knowledge.speedmining_positions[target_pos])
+            return GatherAction(target, self.state.bot.speedmining_positions[target_pos])
         elif unit.is_returning:
             if not any(return_targets):
                 return None
             return_target = min(return_targets, key=lambda th: th.distance_to(unit))
-            return_point = self.knowledge.return_point[target_pos]
+            return_point = self.state.bot.return_point[target_pos]
             return ReturnResource(return_target, return_point)
         logger.warning(f"Unexpected worker behaviour {unit.orders=}")
         return Smart(target)

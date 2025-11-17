@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 import numpy as np
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -8,8 +10,10 @@ from scipy.ndimage import gaussian_filter
 from phantom.common.action import Action, UseAbility
 from phantom.common.constants import ENERGY_COST, HALF
 from phantom.common.utils import circle, circle_perimeter, line
-from phantom.knowledge import Knowledge
 from phantom.observation import Observation
+
+if TYPE_CHECKING:
+    from phantom.main import PhantomBot
 
 TUMOR_RANGE = 10
 _TUMOR_COOLDOWN = 304
@@ -17,11 +21,11 @@ _BASE_SIZE = (5, 5)
 
 
 class CreepState:
-    def __init__(self, knowledge: Knowledge) -> None:
-        self.knowledge = knowledge
+    def __init__(self, bot: "PhantomBot") -> None:
+        self.bot = bot
         self.created_at_step = dict[int, int]()
         self.spread_at_step = dict[int, int]()
-        self.placement_map = np.zeros(knowledge.map_size)
+        self.placement_map = np.zeros(bot.game_info.map_size)
         self.value_map = np.zeros_like(self.placement_map)
         self.value_map_blurred = np.zeros_like(self.placement_map)
 
@@ -29,7 +33,7 @@ class CreepState:
         self.placement_map = obs.creep & obs.is_visible & (obs.pathing == 1) & mask
         self.value_map = (~obs.creep & (obs.pathing == 1)).astype(float)
         size = _BASE_SIZE
-        for b in self.knowledge.bases:
+        for b in self.bot.bases:
             i0 = b[0] - size[0] // 2
             j0 = b[1] - size[1] // 2
             i1 = i0 + size[0]

@@ -1,9 +1,10 @@
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from itertools import chain
+from typing import TYPE_CHECKING
 
 import numpy as np
-from ares import AresBot, UnitTreeQueryType
+from ares import UnitTreeQueryType
 from ares.consts import UnitRole
 from cython_extensions import cy_can_place_structure, cy_unit_pending
 from sc2.data import Race
@@ -36,15 +37,16 @@ from phantom.common.constants import (
 )
 from phantom.common.cost import Cost
 from phantom.common.utils import RNG, MacroId
-from phantom.knowledge import Knowledge
+
+if TYPE_CHECKING:
+    from phantom.main import PhantomBot
 
 type OrderTarget = Point2 | int
 
 
 class ObservationState:
-    def __init__(self, bot: AresBot, knowledge: Knowledge):
+    def __init__(self, bot: "PhantomBot"):
         self.bot = bot
-        self.knowledge = knowledge
         self.pathing = self._pathing()
         self.air_pathing = self._air_pathing()
 
@@ -82,7 +84,6 @@ class Observation:
         self.bot = state.bot
         self.context = state
         self.iteration = state.bot.actual_iteration
-        self.knowledge = state.knowledge
         self.planned = planned
         self.unit_commands = {t: a for a in self.bot.state.actions_unit_commands for t in a.unit_tags}
         self.player_races = {k: Race(v) for k, v in self.bot.game_info.player_races.items()}
@@ -99,23 +100,23 @@ class Observation:
         self.units = self.bot.all_own_units
         self.overseers = self.bot.units({UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE})
         self.enemy_units = self.bot.all_enemy_units
-        self.combatants = self.bot.units if self.knowledge.is_micro_map else self.bot.units.exclude_type(CIVILIANS)
+        self.combatants = self.bot.units if self.bot.is_micro_map else self.bot.units.exclude_type(CIVILIANS)
         self.enemy_combatants = (
-            self.bot.enemy_units if self.knowledge.is_micro_map else self.bot.enemy_units.exclude_type(ENEMY_CIVILIANS)
+            self.bot.enemy_units if self.bot.is_micro_map else self.bot.enemy_units.exclude_type(ENEMY_CIVILIANS)
         )
         self.creep = self.bot.state.creep.data_numpy.T == 1.0
         self.is_visible = self.bot.state.visibility.data_numpy.T == 2.0
         self.placement = self.bot.game_info.placement_grid.data_numpy.T == 1.0
         self.time = self.bot.time
-        self.gas_buildings = self.bot.gas_buildings
-        self.structures = self.bot.structures
-        self.workers = self.bot.workers
-        self.eggs = self.bot.eggs
-        self.cocoons = self.units(COCOONS)
-        self.townhalls = self.bot.townhalls
-        self.enemy_structures = self.bot.enemy_structures
+        self.gas_buildings: Units = self.bot.gas_buildings
+        self.structures: Units = self.bot.structures
+        self.workers: Units = self.bot.workers
+        self.eggs: Units = self.bot.eggs
+        self.cocoons: Units = self.units(COCOONS)
+        self.townhalls: Units = self.bot.townhalls
+        self.enemy_structures: Units = self.bot.enemy_structures
         self.game_loop = self.bot.state.game_loop
-        self.resources = self.bot.resources
+        self.resources: Units = self.bot.resources
         self.ordered_structures = self.bot.ordered_structures
         self.pending = self.bot.pending
 
@@ -129,13 +130,13 @@ class Observation:
         self.map_center = self.bot.game_info.map_center
         self.start_location = self.bot.start_location
         self.supply_used = self.bot.supply_used
-        self.enemy_natural = self.bot.mediator.get_enemy_nat if not state.knowledge.is_micro_map else None
+        self.enemy_natural = self.bot.mediator.get_enemy_nat if not self.bot.is_micro_map else None
         self.overlord_spots = self.bot.mediator.get_ol_spots
         self.townhall_at = {tuple(b.position.rounded): b for b in self.bot.townhalls}
         self.resource_at = {tuple(r.position.rounded): r for r in self.bot.resources}
 
         self.bases_taken = set[tuple[int, int]]()
-        if not state.knowledge.is_micro_map:
+        if not self.bot.is_micro_map:
             self.bases_taken.update(
                 p
                 for b in self.bot.expansion_locations_list
@@ -145,9 +146,9 @@ class Observation:
         self.all_taken_resources = Units(
             [
                 r
-                for base in self.knowledge.bases
+                for base in self.bot.bases
                 if (th := self.townhall_at.get(base)) and th.is_ready
-                for p in self.knowledge.expansion_resource_positions[base]
+                for p in self.bot.expansion_resource_positions[base]
                 if (r := self.resource_at.get(p))
             ],
             self.bot,
@@ -166,7 +167,7 @@ class Observation:
         for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items():
             total_provided = provided * cy_unit_pending(self.bot, unit_type)
             self.supply_pending += total_provided
-            self.supply_income += total_provided / self.knowledge.build_time(unit_type)
+            self.supply_income += total_provided / self.bot.build_time(unit_type)
 
         self.bank = Cost(self.bot.minerals, self.bot.vespene, self.bot.supply_left, self.bot.larva.amount)
 

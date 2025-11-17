@@ -4,10 +4,10 @@ from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import chain
+from typing import TYPE_CHECKING
 
 import numpy as np
 from ares.consts import UnitRole
-from ares.main import AresBot
 from cython_extensions import cy_closest_to
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
@@ -26,34 +26,35 @@ from phantom.common.utils import pairwise_distances
 from phantom.corrosive_bile import CorrosiveBile
 from phantom.creep import CreepState
 from phantom.dodge import DodgeState
-from phantom.knowledge import Knowledge
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.main import MacroPlan, MacroState
 from phantom.macro.strategy import StrategyState
 from phantom.observation import ObservationState
 from phantom.parameters import Parameters
+from phantom.resources.main import ResourceState
 from phantom.resources.observation import ResourceObservation
-from phantom.resources.state import ResourceState
 from phantom.scout import ScoutState
 from phantom.transfuse import TransfuseAction
+
+if TYPE_CHECKING:
+    from phantom.main import PhantomBot
 
 
 @dataclass
 class Agent:
-    def __init__(self, bot: AresBot, build_order_name: str, parameters: Parameters, knowledge: Knowledge) -> None:
+    def __init__(self, bot: "PhantomBot", build_order_name: str, parameters: Parameters) -> None:
         self.bot = bot
         self.build_order = BUILD_ORDERS[build_order_name]
         self.parameters = parameters
-        self.knowledge = knowledge
-        self.combat = CombatState(bot, knowledge, parameters)
-        self.observation = ObservationState(bot, knowledge)
-        self.macro = MacroState(knowledge)
-        self.creep = CreepState(knowledge)
+        self.combat = CombatState(bot, parameters)
+        self.observation = ObservationState(bot)
+        self.macro = MacroState(bot)
+        self.creep = CreepState(bot)
         self.corrosive_biles = CorrosiveBile()
         self.dodge = DodgeState()
-        self.scout = ScoutState(knowledge)
-        self.strategy = StrategyState(knowledge, parameters)
-        self.resources = ResourceState(self.knowledge)
+        self.scout = ScoutState(bot)
+        self.strategy = StrategyState(bot, parameters)
+        self.resources = ResourceState(bot)
         self.build_order_completed = False
 
     async def step(self) -> Mapping[Unit, Action]:
@@ -63,7 +64,7 @@ class Agent:
         strategy = self.strategy.step(observation)
 
         build_order_actions = dict[Unit, Action]()
-        if not self.knowledge.is_micro_map:
+        if not self.bot.is_micro_map:
             if not self.build_order_completed:
                 if step := self.build_order.execute(observation):
                     build_order_actions.update(step.actions)
@@ -107,25 +108,25 @@ class Agent:
         def should_harvest_resource(r: Unit) -> bool:
             p = tuple(r.position.rounded)
             check_points = [
-                self.knowledge.speedmining_positions[p].rounded,
-                tuple(self.knowledge.return_point[p].rounded),
+                self.bot.speedmining_positions[p].rounded,
+                tuple(self.bot.return_point[p].rounded),
             ]
             return all(self.bot.mediator.get_ground_grid[p] < 6.0 for p in check_points)
 
         harvesters = self.bot.mediator.get_units_from_role(role=UnitRole.GATHERING)
 
-        if self.knowledge.is_micro_map:
+        if self.bot.is_micro_map:
             resources_to_harvest = observation.resources
             gas_ratio = 0.0
         else:
             resources_to_harvest = observation.all_taken_resources.filter(should_harvest_resource)
             required = Cost()
-            required += sum((self.knowledge.cost.of(plan.item) for plan in self.macro.unassigned_plans), Cost())
+            required += sum((self.bot.cost.of(plan.item) for plan in self.macro.unassigned_plans), Cost())
             required += sum(
-                (self.knowledge.cost.of(plan.item) for plan in self.macro.assigned_plans.values()),
+                (self.bot.cost.of(plan.item) for plan in self.macro.assigned_plans.values()),
                 Cost(),
             )
-            required += self.knowledge.cost.of_composition(strategy.composition_deficit)
+            required += self.bot.cost.of_composition(strategy.composition_deficit)
             required -= observation.bank
 
             if required.minerals <= 0 and required.vespene <= 0:
@@ -149,7 +150,7 @@ class Agent:
         )
         harvester_return_targets = observation.townhalls.ready
 
-        gas_type = GAS_BY_RACE[self.knowledge.race]
+        gas_type = GAS_BY_RACE[self.bot.race]
         gas_depleted = observation.gas_buildings.filter(lambda g: not g.has_vespene).amount
         gas_have = (
             observation.count_actual(gas_type)
@@ -251,7 +252,7 @@ class Agent:
                 return None
             if not (
                 target_base := min(
-                    filter(lambda b: not observation.is_visible[b], self.knowledge.bases),
+                    filter(lambda b: not observation.is_visible[b], self.bot.bases),
                     key=lambda b: unit.distance_to(b),
                     default=None,
                 )
@@ -270,8 +271,8 @@ class Agent:
         def search_with(unit: Unit) -> Action | None:
             if not (unit.is_idle or unit.is_gathering or unit.is_returning):
                 return None
-            elif observation.time < 8 * 60 and self.knowledge.enemy_start_locations:
-                return Move(Point2(random.choice(self.knowledge.enemy_start_locations)))
+            elif observation.time < 8 * 60 and self.bot.enemy_start_locations:
+                return Move(Point2(random.choice(self.bot.enemy_start_locations)))
             elif observation.enemy_combatants:
                 target = cy_closest_to(unit.position, observation.enemy_combatants)
                 return Attack(target.position)

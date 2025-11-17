@@ -4,9 +4,11 @@ import lzma
 import os
 import pickle
 import pstats
+import re
 from dataclasses import dataclass
 from queue import Empty, Queue
 
+import numpy as np
 from ares import AresBot
 from ares.consts import ALL_STRUCTURES
 from loguru import logger
@@ -23,10 +25,13 @@ from phantom.agent import Agent
 from phantom.common.constants import (
     ALL_MACRO_ABILITIES,
     ITEM_BY_ABILITY,
+    MICRO_MAP_REGEX,
+    MINING_RADIUS,
 )
+from phantom.common.cost import CostManager
+from phantom.common.utils import Point, center, get_intersections, project_point_onto_line
 from phantom.config import BotConfig
 from phantom.exporter import BotExporter
-from phantom.knowledge import Knowledge
 from phantom.macro.main import MacroPlan
 from phantom.parameters import Parameters
 
@@ -53,6 +58,7 @@ class PhantomBot(BotExporter, AresBot):
         self.pending_upgrades = dict[int, UpgradeId]()
         self.units_completed_this_frame = set[int]()
         self.parameters = Parameters()
+        self.cost = CostManager(self)
 
         if os.path.isfile(self.bot_config.version_path):
             logger.info(f"Reading version from {self.bot_config.version_path}")
@@ -76,17 +82,60 @@ class PhantomBot(BotExporter, AresBot):
         logger.debug("Bot starting")
         await super().on_start()
 
-        # if self.bot_config.profile_path:
-        #     logger.info("Creating profiler")
-        #     self.profiler = cProfile.Profile()
-        # self.profiler.enable()
+        self.is_micro_map = re.match(MICRO_MAP_REGEX, self.game_info.map_name)
 
-        knowledge = Knowledge(self)
-        self.agent = Agent(self, self.bot_config.build_order, self.parameters, knowledge)
+        self.expansion_resource_positions = dict[Point, list[Point]]()
+        self.return_point = dict[Point, Point2]()
+        self.spore_position = dict[Point, Point2]()
+        self.speedmining_positions = dict[Point, Point2]()
+        self.return_distances = dict[Point, float]()
+        self.enemy_start_locations_rounded = [tuple(p.rounded) for p in self.enemy_start_locations]
+        self.bases = [] if self.is_micro_map else [p.rounded for p in self.expansion_locations_list]
 
-        for p in [".", "./data"]:
-            logger.info(f"Listing path {p}")
-            logger.info(os.listdir(p))
+        if self.is_micro_map:
+            pass
+        else:
+            worker_radius = self.workers[0].radius
+            for base_position, resources in self.expansion_locations_dict.items():
+                mineral_center = Point2(np.mean([r.position for r in resources], axis=0))
+                self.spore_position[base_position.rounded] = base_position.towards(mineral_center, 5.0).rounded
+                for geyser in resources.vespene_geyser:
+                    target = geyser.position.towards(base_position, geyser.radius + worker_radius)
+                    self.speedmining_positions[geyser.position.rounded] = target
+                for patch in resources.mineral_field:
+                    target = patch.position.towards(base_position, MINING_RADIUS)
+                    for patch2 in resources.mineral_field:
+                        if patch.position == patch2.position:
+                            continue
+                        position = project_point_onto_line(target, target - base_position, patch2.position)
+                        distance1 = patch.position.distance_to(base_position)
+                        distance2 = patch2.position.distance_to(base_position)
+                        if distance1 < distance2:
+                            continue
+                        if patch2.position.distance_to(position) >= MINING_RADIUS:
+                            continue
+                        intersections = list(
+                            get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS)
+                        )
+                        if intersections:
+                            intersection1, intersection2 = intersections
+                            if intersection1.distance_to(base_position) < intersection2.distance_to(base_position):
+                                target = intersection1
+                            else:
+                                target = intersection2
+                            break
+                    self.speedmining_positions[patch.position.rounded] = target
+
+                b = tuple(base_position.rounded)
+                self.expansion_resource_positions[b] = [tuple(r.position.rounded) for r in resources]
+                for r in resources:
+                    p = tuple(r.position.rounded)
+                    return_point = base_position.towards(r, 3.125)
+                    self.return_point[p] = return_point
+                    self.return_distances[p] = self.speedmining_positions[p].distance_to(return_point)
+        self.in_mineral_line = {b: tuple(center(self.expansion_resource_positions[b]).rounded) for b in self.bases}
+
+        self.agent = Agent(self, self.bot_config.build_order, self.parameters)
 
         try:
             with lzma.open(self.bot_config.params_path, "rb") as f:
@@ -406,3 +455,6 @@ class PhantomBot(BotExporter, AresBot):
         logger.info(f"Adding {replay_tag=}")
         self.replay_tags.add(replay_tag)
         await self.client.chat_send(f"Tag:{replay_tag}", True)
+
+    def build_time(self, t: UnitTypeId) -> float:
+        return self.game_data.units[t.value].cost.time

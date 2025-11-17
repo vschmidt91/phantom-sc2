@@ -2,6 +2,7 @@ import enum
 from collections import defaultdict
 from collections.abc import Iterable
 from functools import total_ordering
+from typing import TYPE_CHECKING
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -15,10 +16,12 @@ from phantom.common.constants import (
     ZERG_FLYER_UPGRADES,
 )
 from phantom.common.unit_composition import UnitComposition, add_compositions, composition_of, sub_compositions
-from phantom.knowledge import Knowledge
 from phantom.macro.main import MacroPlan
 from phantom.observation import Observation
 from phantom.parameters import Parameters, Prior
+
+if TYPE_CHECKING:
+    from phantom.main import PhantomBot
 
 # TODO: investigate numpy versioning mismatch
 # with lzma.open(Path(__file__).parent.parent.parent / "models" / "scout.pkl.xz") as f:
@@ -40,10 +43,10 @@ class StrategyTier(enum.Enum):
 class StrategyState:
     def __init__(
         self,
-        knowledge: Knowledge,
+        bot: "PhantomBot",
         parameters: Parameters,
     ) -> None:
-        self.knowledge = knowledge
+        self.bot = bot
         self.counter_factor = parameters.add(Prior(3.0, 0.1, min=0))
         self.ravager_mixin = parameters.add(Prior(8, 1, min=0))
         self.corruptor_mixin = parameters.add(Prior(8, 1, min=0))
@@ -66,7 +69,7 @@ class Strategy:
         context: StrategyState,
         obs: Observation,
     ) -> None:
-        self.context = context
+        self.state = context
         self.obs = obs
 
         self.composition = composition_of(obs.units)
@@ -100,22 +103,22 @@ class Strategy:
             return
 
         upgrade_priorities = {
-            k: self.context.tech_priority_offset.value + self.context.tech_priority_scale.value * v / total
+            k: self.state.tech_priority_offset.value + self.state.tech_priority_scale.value * v / total
             for k, v in upgrade_weights.items()
         }
 
-        for plan in self.obs.bot.agent.macro.unassigned_plans:
+        for plan in self.state.bot.agent.macro.unassigned_plans:
             if priority := upgrade_priorities.get(plan.item):
                 plan.priority = priority
 
-        for plan in self.obs.bot.agent.macro.assigned_plans.values():
+        for plan in self.state.bot.agent.macro.assigned_plans.values():
             if priority := upgrade_priorities.get(plan.item):
                 plan.priority = priority
 
         for upgrade, priority in upgrade_priorities.items():
             if (
                 upgrade in self.obs.upgrades
-                or upgrade in self.obs.bot.pending_upgrades.values()
+                or upgrade in self.state.bot.pending_upgrades.values()
                 or self.obs.planned[upgrade]
             ):
                 continue
@@ -148,7 +151,7 @@ class Strategy:
         if self.obs.iteration % 31 != 0:
             return
 
-        timing = SPORE_TIMINGS[self.obs.knowledge.enemy_race]
+        timing = SPORE_TIMINGS[self.state.bot.enemy_race]
         if self.obs.time < timing:
             return
 
@@ -158,13 +161,13 @@ class Strategy:
         if planned_or_pending > 0:
             return
 
-        triggers = SPORE_TRIGGERS[self.obs.knowledge.enemy_race]
+        triggers = SPORE_TRIGGERS[self.state.bot.enemy_race]
         if not self.obs.enemy_units(triggers).exists:
             return
 
         spore_dict = {tuple(s.position.rounded): s for s in self.obs.structures(UnitTypeId.SPORECRAWLER)}
         for base in self.obs.bases_taken:
-            spore_position = self.obs.knowledge.spore_position[base]
+            spore_position = self.state.bot.spore_position[base]
             if tuple(spore_position.rounded) in spore_dict:
                 continue
             yield MacroPlan(UnitTypeId.SPORECRAWLER, target=spore_position)
@@ -233,19 +236,19 @@ class Strategy:
 
     def _tier(self) -> StrategyTier:
         if (
-            self.obs.supply_workers < self.context.tier1_drone_count.value
+            self.obs.supply_workers < self.state.tier1_drone_count.value
             or self.obs.townhalls.amount < 3
             or self.obs.time < 3 * 60
         ):
             return StrategyTier.HATCH
         elif (
-            self.obs.supply_workers < self.context.tier2_drone_count.value
+            self.obs.supply_workers < self.state.tier2_drone_count.value
             or self.obs.townhalls.amount < 4
             or self.obs.time < 6 * 60
         ):
             return StrategyTier.LAIR
         elif (
-            self.obs.supply_workers < self.context.tier3_drone_count.value
+            self.obs.supply_workers < self.state.tier3_drone_count.value
             or self.obs.townhalls.amount < 5
             or self.obs.time < 9 * 60
         ):
@@ -257,12 +260,12 @@ class Strategy:
         # TODO: check if necessary
         if not self.obs.structures({UnitTypeId.SPAWNINGPOOL}).ready:
             return {}
-        counter_composition = {k: self.context.counter_factor.value * v for k, v in self.counter_composition.items()}
+        counter_composition = {k: self.state.counter_factor.value * v for k, v in self.counter_composition.items()}
         composition = defaultdict[UnitTypeId, float](float, counter_composition)
-        corruptor_mixin = int(composition[UnitTypeId.BROODLORD] / self.context.corruptor_mixin.value)
+        corruptor_mixin = int(composition[UnitTypeId.BROODLORD] / self.state.corruptor_mixin.value)
         if corruptor_mixin > 0:
             composition[UnitTypeId.CORRUPTOR] += corruptor_mixin
-        ravager_mixin = int(composition[UnitTypeId.ROACH] / self.context.ravager_mixin.value)
+        ravager_mixin = int(composition[UnitTypeId.ROACH] / self.state.ravager_mixin.value)
         if ravager_mixin > 0:
             composition[UnitTypeId.RAVAGER] += ravager_mixin
         if sum(composition.values()) < 1:
@@ -277,19 +280,19 @@ class Strategy:
             self.obs.bank.larva,
         )
         can_afford_queens = self.obs.bank.minerals / 150
-        if self.context.hydras_when_banking.value < can_afford_hydras:
+        if self.state.hydras_when_banking.value < can_afford_hydras:
             composition[UnitTypeId.HYDRALISK] += can_afford_hydras
             composition[UnitTypeId.BROODLORD] += can_afford_hydras
         else:
-            if self.context.lings_when_banking.value < can_afford_lings:
+            if self.state.lings_when_banking.value < can_afford_lings:
                 composition[UnitTypeId.ZERGLING] += can_afford_lings
-            if self.context.queens_when_banking.value < can_afford_queens:
+            if self.state.queens_when_banking.value < can_afford_queens:
                 composition[UnitTypeId.QUEEN] += can_afford_queens
         return composition
 
     def _counter_composition(self) -> UnitComposition:
         def total_cost(t: UnitTypeId) -> float:
-            return self.context.knowledge.cost.of(t).total_resources
+            return self.state.bot.cost.of(t).total_resources
 
         composition = defaultdict[UnitTypeId, float](float)
         for enemy_type, count in self.enemy_composition_predicted.items():
@@ -300,7 +303,7 @@ class Strategy:
         return composition
 
     def _macro_composition(self) -> UnitComposition:
-        harvester_target = min(100, max(1.0, self.obs.max_harvesters))
+        harvester_target = min(100, max(1, self.obs.max_harvesters))
         queen_target = max(0.0, min(8, 2 * self.obs.townhalls.amount))
         composition = defaultdict[UnitTypeId, float](float)
 

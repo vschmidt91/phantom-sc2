@@ -2,12 +2,12 @@ import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from itertools import product
+from typing import TYPE_CHECKING
 
 import numpy as np
 import scipy.optimize
 from ares import WORKER_TYPES
 from ares.consts import EngagementResult
-from ares.main import AresBot
 from cython_extensions import cy_dijkstra, cy_pick_enemy_target, cy_range_vs_target
 from loguru import logger
 from sc2.data import Race
@@ -27,9 +27,11 @@ from phantom.common.utils import (
     sample_bilinear,
     structure_perimeter,
 )
-from phantom.knowledge import Knowledge
 from phantom.observation import Observation
 from phantom.parameters import Parameters, Prior
+
+if TYPE_CHECKING:
+    from phantom.main import PhantomBot
 
 
 @dataclass(frozen=True)
@@ -39,9 +41,8 @@ class CombatPrediction:
 
 
 class CombatState:
-    def __init__(self, bot: AresBot, knowledge: Knowledge, parameters: Parameters) -> None:
+    def __init__(self, bot: "PhantomBot", parameters: Parameters) -> None:
         self.bot = bot
-        self.knowledge = knowledge
         self.attacking_local = set[int]()
         self.attacking_global = True
         self.time_horizon = parameters.add(Prior(3.0, 1.0, min=0))
@@ -90,7 +91,7 @@ class CombatAction:
             u.tag: observation.calculate_unit_value_weighted(u.type_id) for u in observation.enemy_units
         }
 
-        if state.knowledge.is_micro_map:
+        if self.state.bot.is_micro_map:
             retreat_targets = list()
             for dx, dy in product([-10, 0, 10], repeat=2):
                 p = observation.map_center.rounded + Point2((dx, dy))
@@ -101,7 +102,7 @@ class CombatAction:
         else:
             retreat_targets = list()
             for b in observation.bases_taken:
-                p = state.knowledge.in_mineral_line[b]
+                p = self.state.bot.in_mineral_line[b]
                 if state.bot.mediator.get_ground_grid[p] == 1.0:
                     retreat_targets.append(p)
             if not retreat_targets:
@@ -113,7 +114,7 @@ class CombatAction:
                 retreat_targets.extend(combatant_positions)
             if not retreat_targets:
                 logger.warning("No retreat targets, falling back to start mineral line")
-                p = state.knowledge.in_mineral_line[observation.start_location.rounded]
+                p = self.state.bot.in_mineral_line[observation.start_location.rounded]
                 retreat_targets.append(p)
 
         self.combatants = (
@@ -146,7 +147,7 @@ class CombatAction:
             runby_targets_list.append(w.position.rounded)
 
         if runby_targets_list:
-            runby_targets_list.extend(self.observation.knowledge.enemy_start_locations)
+            runby_targets_list.extend(self.state.bot.enemy_start_locations_rounded)
             runby_targets = np.array(list(set(runby_targets_list)))
             self.runby_pathing = cy_dijkstra(
                 self.observation.bot.mediator.get_ground_grid.astype(np.float64),
@@ -157,7 +158,7 @@ class CombatAction:
 
         self.prediction = self.predict()
 
-        if self.observation.knowledge.enemy_race not in {Race.Zerg, Race.Random}:
+        if self.state.bot.enemy_race not in {Race.Zerg, Race.Random}:
             if self.prediction.outcome_global >= self.state.engagement_threshold_global.value:
                 self.state.attacking_global = True
             elif self.prediction.outcome_global <= self.state.disengagement_threshold_global.value:
@@ -419,7 +420,7 @@ class CombatAction:
         cost = self.time_to_attack + self.time_to_kill
         cost = np.nan_to_num(cost, nan=np.inf)
 
-        if self.state.knowledge.is_micro_map:
+        if self.state.bot.is_micro_map:
             max_assigned = None
         elif enemies:
             optimal_assigned = len(units) / len(enemies)
