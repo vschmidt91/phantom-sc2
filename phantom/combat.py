@@ -37,7 +37,6 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class CombatPrediction:
     outcome_global: float
-    outcome_local: Mapping[int, float]
 
 
 class CombatState:
@@ -178,7 +177,7 @@ class CombatAction:
         enemy_units = self.enemy_combatants
 
         if (trivial_outcome := self._predict_trivial(units, enemy_units)) is not None:
-            return CombatPrediction(trivial_outcome, {})
+            return CombatPrediction(trivial_outcome)
 
         # time_to_attack = self._time_to_attack(units, enemy_units)
         time_to_attack = self.time_to_attack
@@ -199,7 +198,7 @@ class CombatAction:
             [[contact_internal, contact_symmetrical], [contact_symmetrical.T, enemy_contact_internal]]
         )
 
-        components = graph_components(adjacency_matrix)
+        clusters = graph_components(adjacency_matrix)
 
         outcome_global = self.state.simulate(
             units=units,
@@ -211,21 +210,32 @@ class CombatAction:
 
         all_units = [*units, *enemy_units]
         outcome_local = dict[int, EngagementResult]()
-        for component in components:
-            local_units = [all_units[i] for i in component]
-            local_attacking = sum(1 for u in local_units if u.tag in self.state.attacking_local) / len(local_units)
-            local_own = [u for u in local_units if u.is_mine]
-            local_enemies = [u for u in local_units if u.is_enemy]
-            local_outcome = self._predict_trivial(local_own, local_enemies) or self.state.simulate(
-                units=local_own,
-                enemy_units=local_enemies,
+        attacking_local = dict[int, float]()
+        for cluster in clusters:
+            cluster_units = [all_units[i] for i in cluster]
+            cluster_attacking = sum(1 for u in cluster_units if u.tag in self.state.attacking_local) / len(
+                cluster_units
+            )
+            cluster_own = [u for u in cluster_units if u.is_mine]
+            cluster_enemies = [u for u in cluster_units if u.is_enemy]
+            cluster_outcome = self._predict_trivial(cluster_own, cluster_enemies) or self.state.simulate(
+                units=cluster_own,
+                enemy_units=cluster_enemies,
                 timing_adjustment=True,
-                attacking=local_attacking > 0.5,
+                attacking=cluster_attacking > 0.5,
                 optimistic=False,
             )
-            outcome_local.update({u.tag: local_outcome for u in local_units})
 
-        return CombatPrediction(outcome_global, outcome_local)
+            for unit in cluster_own:
+                if cluster_outcome >= self.state.engagement_threshold.value:
+                    self.state.attacking_local.add(unit.tag)
+                elif cluster_outcome <= self.state.disengagement_threshold.value:
+                    self.state.attacking_local.discard(unit.tag)
+
+            outcome_local.update({u.tag: cluster_outcome for u in cluster_units})
+            attacking_local.update({u.tag: cluster_attacking for u in cluster_units})
+
+        return CombatPrediction(outcome_global)
 
     def retreat_with(self, unit: Unit, limit=3) -> Action | None:
         retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
@@ -296,20 +306,9 @@ class CombatAction:
         if not unit.is_flying and not self.state.attacking_global and not self.observation.creep[p]:
             return self.retreat_with(unit)
 
-        outcome = self.prediction.outcome_local[unit.tag]
-
-        # outcome_state = self.state.outcome_state.setdefault(unit.tag, 0.0)
-        # outcome_state += .1 * (outcome - outcome_state)
-        # self.state.outcome_state[unit.tag] = outcome_state
-
         retreat_grid = (
             self.state.bot.mediator.get_air_grid if unit.is_flying else self.state.bot.mediator.get_ground_grid
         )
-
-        if outcome >= self.state.engagement_threshold.value:
-            self.state.attacking_local.add(unit.tag)
-        elif outcome <= self.state.disengagement_threshold.value:
-            self.state.attacking_local.discard(unit.tag)
 
         if unit.tag in self.state.attacking_local:
             should_runby = not self.observation.creep[p]
@@ -320,7 +319,6 @@ class CombatAction:
             else:
                 return Attack(target)
         else:
-            self.state.attacking_local.discard(unit.tag)
             if self.observation.bot.mediator.is_position_safe(
                 grid=retreat_grid,
                 position=unit.position,
