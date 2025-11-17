@@ -307,7 +307,7 @@ class CombatAction:
 
         if outcome >= self.state.engagement_threshold.value:
             self.state.attacking_local.add(unit.tag)
-        elif outcome <= -self.state.disengagement_threshold.value:
+        elif outcome <= self.state.disengagement_threshold.value:
             self.state.attacking_local.discard(unit.tag)
 
         if unit.tag in self.state.attacking_local:
