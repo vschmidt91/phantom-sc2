@@ -132,8 +132,8 @@ class PhantomBot(BotExporter, AresBot):
         if iteration == 0:
             return
 
-        if self.time > 5 * 60:
-            await self.client.debug_kill_unit(self.structures)
+        # if self.time > 5 * 60:
+        #     await self.client.debug_kill_unit(self.structures)
 
         # await self.client.save_replay("tmp.SC2Replay")
         # cheat = Replay.from_file("tmp.SC2Replay")
