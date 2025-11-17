@@ -247,7 +247,7 @@ class PhantomBot(BotExporter, AresBot):
         killed_vespene = sum_category(self.state.score._proto.killed_vespene)
         killed_total = killed_minerals + killed_vespene * vespene_weight
 
-        return lost_total / max(1.0, lost_total + killed_total)
+        return killed_total / max(1.0, lost_total + killed_total)
 
     # async def on_before_start(self):
     #     await super().on_before_start()
