@@ -34,7 +34,7 @@ class StepwiseCombatSimulator(CombatSimulator):
         self.bot = bot
         self.time_horizon = 30.0
         self.num_steps = 100
-        self.future_discount = 0.5
+        self.future_discount = 0.1
         self.vespene_weight = 2.0
 
     def is_attackable(self, u: Unit) -> bool:
