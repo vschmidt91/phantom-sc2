@@ -134,16 +134,16 @@ class Strategy:
 
         priority = 3 * (saturation - 1)
 
+        for plan in self.obs.bot.agent.macro.assigned_plans.values():
+            if plan.item == UnitTypeId.HATCHERY:
+                plan.priority = priority
+
         if priority < -1:
             return
         if self.obs.count_planned(UnitTypeId.HATCHERY) > 0:
             return
         if self.obs.ordered_by_type[UnitTypeId.HATCHERY] > 0:
             return
-
-        for plan in self.obs.bot.agent.macro.assigned_plans.values():
-            if plan.item == UnitTypeId.HATCHERY:
-                plan.priority = priority
 
         yield MacroPlan(UnitTypeId.HATCHERY, priority=priority)
 

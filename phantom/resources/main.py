@@ -7,7 +7,7 @@ from loguru import logger
 from sc2.unit import Unit
 from sc2.units import Units
 
-from phantom.common.action import Action, DoNothing, Smart
+from phantom.common.action import Action, DoNothing
 from phantom.common.distribute import _get_problem
 from phantom.common.utils import pairwise_distances
 from phantom.resources.gather import GatherAction, ReturnResource
@@ -145,5 +145,6 @@ class ResourceAction:
             return_target = min(return_targets, key=lambda th: th.distance_to(unit))
             return_point = self.state.bot.return_point[target_pos]
             return ReturnResource(return_target, return_point)
-        logger.warning(f"Unexpected worker behaviour {unit.orders=}")
-        return Smart(target)
+        # logger.warning(f"Unexpected worker behaviour {unit.orders=}")
+        return None
+        # return Smart(target)

@@ -34,46 +34,18 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class CombatPrediction:
     outcome_global: float
+    outcome_local: Mapping[int, float]
 
 
 class CombatState:
     def __init__(self, bot: "PhantomBot", parameters: Parameters) -> None:
         self.bot = bot
-        self.attacking_local = set[int]()
-        self.attacking_global = True
-        self.engagement_threshold = parameters.add(Prior(0.25, 0.1, min=-1, max=1))
-        self.disengagement_threshold = parameters.add(Prior(0.0, 0.1, min=-1, max=1))
-        self.engagement_threshold_global = parameters.add(Prior(0.25, 0.1, min=-1, max=1))
-        self.disengagement_threshold_global = parameters.add(Prior(0.0, 0.1, min=-1, max=1))
+        self.engagement_threshold = parameters.add(Prior(0.0, 0.1, min=-1, max=1))
+        self.engagement_threshold_global = parameters.add(Prior(0.0, 0.1, min=-1, max=1))
         self.simulator = StepwiseCombatSimulator(bot)
 
     def step(self, observation: Observation) -> "CombatAction":
         return CombatAction(self, observation)
-
-    # def simulate(
-    #     self,
-    #     units: Sequence[Unit],
-    #     enemy_units: Sequence[Unit],
-    #     timing_adjustment: bool = True,
-    #     attacking: bool = True,
-    #     optimistic: bool = True,
-    # ) -> float:
-    #     self.simulator.enable_timing_adjustment(timing_adjustment)
-    #
-    #     health = sum([u.health + u.shield for u in units])
-    #     enemy_health = sum([u.health + u.shield for u in enemy_units])
-    #
-    #     defender = 2 if attacking else 1
-    #     win, health_remaining = self.simulator.predict_engage(
-    #         own_units=units,
-    #         enemy_units=enemy_units,
-    #         optimistic=optimistic,
-    #         defender_player=defender,
-    #     )
-    #     if win:
-    #         return health_remaining / max(1, health)
-    #     else:
-    #         return -health_remaining / max(1, enemy_health)
 
 
 class CombatAction:
@@ -123,12 +95,11 @@ class CombatAction:
 
         self.retreat_targets = np.atleast_2d(retreat_targets).astype(int)
 
-        self.retreat_air = cy_dijkstra(
-            self.observation.bot.mediator.get_air_grid.astype(np.float64), self.retreat_targets
-        )
-        self.retreat_ground = cy_dijkstra(
-            self.observation.bot.mediator.get_ground_grid.astype(np.float64), self.retreat_targets
-        )
+        self.air_grid = self.observation.bot.mediator.get_air_grid
+        self.ground_grid = self.observation.bot.mediator.get_ground_grid
+
+        self.retreat_air = cy_dijkstra(self.air_grid.astype(np.float64), self.retreat_targets)
+        self.retreat_ground = cy_dijkstra(self.ground_grid.astype(np.float64), self.retreat_targets)
 
         self.pathing_potential = np.where(self.observation.pathing < np.inf, 0.0, 1.0)
         self.optimal_targeting = self._optimal_targeting()
@@ -140,22 +111,17 @@ class CombatAction:
         for w in self.observation.enemy_units(WORKER_TYPES):
             runby_targets_list.append(w.position.rounded)
 
-        if runby_targets_list:
+        if not runby_targets_list:
             runby_targets_list.extend(self.state.bot.enemy_start_locations_rounded)
-            runby_targets = np.array(list(set(runby_targets_list)))
-            self.runby_pathing = cy_dijkstra(
-                self.observation.bot.mediator.get_ground_grid.astype(np.float64),
-                runby_targets,
-            )
-        else:
-            self.runby_pathing = None
+
+        runby_targets = np.array(list(set(runby_targets_list)))
+        self.runby_pathing = cy_dijkstra(
+            self.ground_grid.astype(np.float64),
+            runby_targets,
+        )
 
         self.prediction = self.predict()
-
-        if self.prediction.outcome_global >= self.state.engagement_threshold_global.value:
-            self.state.attacking_global = True
-        elif self.prediction.outcome_global <= self.state.disengagement_threshold_global.value:
-            self.state.attacking_global = False
+        self.attacking_global = self.prediction.outcome_global > self.state.engagement_threshold_global.value
 
     def _predict_trivial(self, units: Sequence[Unit], enemy_units: Sequence[Unit]) -> float | None:
         if not any(units) and not any(enemy_units):
@@ -171,7 +137,7 @@ class CombatAction:
         enemy_units = self.enemy_combatants
 
         if (trivial_outcome := self._predict_trivial(units, enemy_units)) is not None:
-            return CombatPrediction(trivial_outcome)
+            return CombatPrediction(trivial_outcome, {})
 
         simulation = self.state.simulator.simulate(CombatSetup(units1=units, units2=enemy_units))
 
@@ -185,77 +151,7 @@ class CombatAction:
         outcome_own = [simulation.outcome[u.tag] for u in units]
         outcome_global = float(np.mean(outcome_own))
 
-        for unit in units:
-            outcome_local = simulation.outcome[unit.tag]
-            if outcome_local >= self.state.engagement_threshold.value:
-                self.state.attacking_local.add(unit.tag)
-            elif outcome_local <= self.state.disengagement_threshold.value:
-                self.state.attacking_local.discard(unit.tag)
-
-        # if self.state.attacking_global:
-        #     for unit in units:
-        #         self.state.attacking_local.add(unit.tag)
-        # else:
-        #     for unit in units:
-        #         self.state.attacking_local.discard(unit.tag)
-
-        return CombatPrediction(outcome_global)
-
-        # time_to_attack = self.time_to_attack
-        # enemy_time_to_attack = self._time_to_attack(enemy_units, units)
-        #
-        # time_to_kill = self.time_to_kill
-        # enemy_time_to_kill = self._time_to_kill(enemy_units, units)
-        #
-        # contact = (time_to_attack < self.state.time_horizon.value) & (time_to_kill < np.inf)
-        # enemy_contact = (enemy_time_to_attack < self.state.time_horizon_enemy.value) & (enemy_time_to_kill < np.inf)
-        #
-        # contact_symmetrical = contact | enemy_contact.T
-        #
-        # contact_internal = np.zeros((len(units), len(units)))
-        # enemy_contact_internal = np.zeros((len(enemy_units), len(enemy_units)))
-        # adjacency_matrix = np.block(
-        #     [[contact_internal, contact_symmetrical], [contact_symmetrical.T, enemy_contact_internal]]
-        # )
-        #
-        # clusters = graph_components(adjacency_matrix)
-        #
-        # outcome_global = self.state.simulate(
-        #     units=units,
-        #     enemy_units=enemy_units,
-        #     attacking=self.state.attacking_global,
-        #     timing_adjustment=False,
-        #     optimistic=False,
-        # )
-        #
-        # all_units = [*units, *enemy_units]
-        # outcome_local = dict[int, EngagementResult]()
-        # attacking_local = dict[int, float]()
-        # for cluster in clusters:
-        #     cluster_units = [all_units[i] for i in cluster]
-        #     cluster_attacking = sum(1 for u in cluster_units if u.tag in self.state.attacking_local) / len(
-        #         cluster_units
-        #     )
-        #     cluster_own = [u for u in cluster_units if u.is_mine]
-        #     cluster_enemies = [u for u in cluster_units if u.is_enemy]
-        #     cluster_outcome = self._predict_trivial(cluster_own, cluster_enemies) or self.state.simulate(
-        #         units=cluster_own,
-        #         enemy_units=cluster_enemies,
-        #         timing_adjustment=True,
-        #         attacking=cluster_attacking > 0.5,
-        #         optimistic=False,
-        #     )
-        #
-        #     for unit in cluster_own:
-        #         if cluster_outcome >= self.state.engagement_threshold.value:
-        #             self.state.attacking_local.add(unit.tag)
-        #         elif cluster_outcome <= self.state.disengagement_threshold.value:
-        #             self.state.attacking_local.discard(unit.tag)
-        #
-        #     outcome_local.update({u.tag: cluster_outcome for u in cluster_units})
-        #     attacking_local.update({u.tag: cluster_attacking for u in cluster_units})
-        #
-        # return CombatPrediction(outcome_global)
+        return CombatPrediction(outcome_global, simulation.outcome)
 
     def retreat_with(self, unit: Unit, limit=3) -> Action | None:
         retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
@@ -279,11 +175,6 @@ class CombatAction:
         p = tuple(unit.position.rounded)
 
         def potential_kiting(x: np.ndarray) -> float:
-            if not unit.is_flying:
-                pathing = sample_bilinear(self.pathing_potential, x)
-                if pathing > 0.1:
-                    return 1e10 * pathing
-
             def g(u: Unit):
                 unit_range = cy_range_vs_target(unit=unit, target=u)
                 safety_margin = u.movement_speed * 1.0
@@ -309,36 +200,38 @@ class CombatAction:
             else:
                 return Attack(target)
 
-        if not attack_ready and unit.ground_range >= 2:
+        if (
+            not attack_ready
+            and unit.ground_range >= 2
+            and (unit.is_flying or sample_bilinear(self.pathing_potential, unit.position) < 0.1)
+        ):
             gradient = scipy.optimize.approx_fprime(unit.position, potential_kiting)
             gradient_norm = np.linalg.norm(gradient)
             if gradient_norm > 1e-5:
                 return Move(unit.position - 2 * gradient / gradient_norm)
 
-        if self.runby_pathing:
-            runby_target = Point2(self.runby_pathing.get_path(unit.position, 4)[-1]).offset(HALF)
-        else:
-            runby_target = None
+        runby_target = Point2(self.runby_pathing.get_path(unit.position, 4)[-1]).offset(HALF)
 
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(target.position)
 
-        if not unit.is_flying and not self.state.attacking_global and not self.observation.creep[p]:
+        if not unit.is_flying and not self.attacking_global and not self.observation.creep[p]:
             return self.retreat_with(unit)
 
-        retreat_grid = (
-            self.state.bot.mediator.get_air_grid if unit.is_flying else self.state.bot.mediator.get_ground_grid
+        retreat_grid = self.air_grid if unit.is_flying else self.ground_grid
+        retreat_pathing = self.retreat_air if unit.is_flying else self.retreat_ground
+        is_safe = self.observation.bot.mediator.is_position_safe(
+            grid=retreat_grid,
+            position=unit.position,
         )
 
-        retreat_pathing = self.retreat_air if unit.is_flying else self.retreat_ground
+        outcome_local = self.prediction.outcome_local[unit.tag]
 
-        if unit.tag in self.state.attacking_local:
-            should_runby = False
-            if runby_target and not unit.is_flying:
-                if not self.observation.creep[p]:
-                    should_runby = True
-                if self.runby_pathing and self.runby_pathing.distance[p] < retreat_pathing.distance[p]:
-                    should_runby = True
+        if outcome_local >= self.state.engagement_threshold.value:
+            far_from_home = not self.observation.creep[p] or (
+                self.runby_pathing.distance[p] < retreat_pathing.distance[p]
+            )
+            should_runby = far_from_home and is_safe and self.attacking_global
             if should_runby:
                 return Attack(runby_target)
             elif unit.ground_range < 2:
@@ -346,10 +239,7 @@ class CombatAction:
             else:
                 return Attack(target)
         else:
-            if self.observation.bot.mediator.is_position_safe(
-                grid=retreat_grid,
-                position=unit.position,
-            ):
+            if is_safe:
                 return UseAbility(AbilityId.STOP)
             else:
                 return self.retreat_with(unit)

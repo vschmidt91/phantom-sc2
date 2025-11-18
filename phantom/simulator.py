@@ -32,6 +32,10 @@ class CombatSimulator(ABC):
 class StepwiseCombatSimulator(CombatSimulator):
     def __init__(self, bot: "PhantomBot") -> None:
         self.bot = bot
+        self.time_horizon = 30.0
+        self.num_steps = 100
+        self.future_discount = 0.5
+        self.vespene_weight = 2.0
 
     def is_attackable(self, u: Unit) -> bool:
         if u.is_burrowed or u.is_cloaked:
@@ -41,7 +45,14 @@ class StepwiseCombatSimulator(CombatSimulator):
     def simulate(self, setup: CombatSetup) -> CombatResult:
         units = [*setup.units1, *setup.units2]
         n1 = len(setup.units1)
-        len(setup.units2)
+
+        costs = [self.bot.cost.of(u.type_id) for u in units]
+        values = np.array(
+            [
+                (c.minerals + self.vespene_weight * c.vespene) / max(1.0, u.shield_max + u.health_max)
+                for u, c in zip(units, costs, strict=False)
+            ]
+        )
 
         ground_range = np.array([u.ground_range for u in units])
         air_range = np.array([u.air_range for u in units])
@@ -70,9 +81,10 @@ class StepwiseCombatSimulator(CombatSimulator):
         health = np.array([u.health + u.shield for u in units])
         health_projection = health.copy()
 
-        times = np.linspace(start=-3.0, stop=3.0, num=100)
-        times = np.exp(times)
+        times = np.linspace(start=0.0, stop=self.time_horizon, num=self.num_steps + 1)[1:]
         times_diff = np.diff(times, prepend=0.0)
+
+        loss_accumulation = np.zeros_like(health)
 
         for t, dt in zip(times, times_diff, strict=False):
             distance_projection = distance - movement_speed * t
@@ -88,8 +100,9 @@ class StepwiseCombatSimulator(CombatSimulator):
             attack_weight = np.where(attack, 1.0, 0.0)
             attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
 
-            dps_received = (attack_probability * dps).sum(axis=0)
-            health_projection -= dt * dps_received
+            damage_received = dt * (attack_probability * dps).sum(axis=0)
+            loss_accumulation += damage_received * np.exp(-self.future_discount * t)
+            health_projection -= damage_received
 
         mixing_own = np.reciprocal(1.0 + distance)
         mixing_enemy = mixing_own.copy()
@@ -102,12 +115,13 @@ class StepwiseCombatSimulator(CombatSimulator):
         mixing_own /= mixing_own.sum(axis=1, keepdims=True)
         mixing_enemy /= mixing_enemy.sum(axis=1, keepdims=True)
 
-        losses = np.maximum(0.0, health - health_projection)
-        losses_own = mixing_own @ losses
-        losses_enemy = mixing_enemy @ losses
+        # losses = values * np.maximum(0.0, health - health_projection)
+        losses_weighted = values * loss_accumulation
+        losses_own = mixing_own @ losses_weighted
+        losses_enemy = mixing_enemy @ losses_weighted
         outcome_vector = (losses_enemy - losses_own) / np.maximum(1e-10, losses_enemy + losses_own)
 
-        health_remaining = {u.tag: max(0.0, h) for u, h in zip(units, health, strict=False)}
+        health_remaining = {u.tag: max(0.0, h) for u, h in zip(units, health_projection, strict=False)}
         outcome = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
         result = CombatResult(health_remaining=health_remaining, outcome=outcome)
         return result

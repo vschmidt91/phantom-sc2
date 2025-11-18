@@ -201,7 +201,12 @@ class PhantomBot(BotExporter, AresBot):
             logger.warning(f"{error=}")
 
         if self.bot_config.debug_draw:
-            for i, (t, plan) in enumerate(self.agent.macro.assigned_plans.items()):
+            all_plans = [
+                *[(None, p) for p in self.agent.macro.unassigned_plans],
+                *self.agent.macro.assigned_plans.items(),
+            ]
+            plans_sorted = sorted(all_plans, key=lambda p: p[1].priority, reverse=True)
+            for i, (t, plan) in enumerate(plans_sorted):
                 self._debug_draw_plan(self.unit_tag_dict.get(t), plan, index=i)
 
         if self.bot_config.profile_path:
@@ -422,7 +427,6 @@ class PhantomBot(BotExporter, AresBot):
         unit: Unit | None,
         plan: MacroPlan,
         index: int,
-        eta: float = 0.0,
         font_color=(255, 255, 255),
         font_size=16,
     ) -> None:
@@ -439,7 +443,7 @@ class PhantomBot(BotExporter, AresBot):
             height = self.get_terrain_z_height(unit)
             positions.append(Point3((unit.position.x, unit.position.y, height)))
 
-        text = f"{plan.item.name} {eta:.2f}"
+        text = f"{plan.item.name} {round(plan.priority, 2)}"
 
         for position in positions:
             self.client.debug_text_world(text, position, color=font_color, size=font_size)
@@ -450,7 +454,9 @@ class PhantomBot(BotExporter, AresBot):
             position_to += Point3((0.0, 0.0, 0.1))
             self.client.debug_line_out(position_from, position_to, color=font_color)
 
-        self.client.debug_text_screen(f"{1 + index} {round(eta or 0, 1)} {plan.item.name}", (0.01, 0.1 + 0.01 * index))
+        self.client.debug_text_screen(
+            f"{1 + index} {round(plan.priority, 2)} {plan.item.name}", (0.01, 0.1 + 0.01 * index)
+        )
 
     async def _send_replay_tag(self, replay_tag: str) -> None:
         if replay_tag in self.replay_tags:
