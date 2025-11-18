@@ -48,8 +48,8 @@ class CombatState:
         self.time_horizon_enemy = parameters.add(Prior(3.0, 1.0, min=0))
         self.engagement_threshold = parameters.add(Prior(+1 / 3, 0.1, min=-1, max=1))
         self.disengagement_threshold = parameters.add(Prior(-1 / 3, 0.1, min=-1, max=1))
-        self.engagement_threshold_global = parameters.add(Prior(+1 / 3, 0.1, min=-1, max=1))
-        self.disengagement_threshold_global = parameters.add(Prior(-1 / 3, 0.1, min=-1, max=1))
+        self.engagement_threshold_global = parameters.add(Prior(+0.5, 0.1, min=-1, max=1))
+        self.disengagement_threshold_global = parameters.add(Prior(0.0, 0.1, min=-1, max=1))
         self.simulator = CombatSimulator()
 
     def step(self, observation: Observation) -> "CombatAction":
@@ -310,9 +310,16 @@ class CombatAction:
             self.state.bot.mediator.get_air_grid if unit.is_flying else self.state.bot.mediator.get_ground_grid
         )
 
+        retreat_pathing = self.retreat_air if unit.is_flying else self.retreat_ground
+
         if unit.tag in self.state.attacking_local:
-            should_runby = not self.observation.creep[p]
-            if should_runby and unit.can_attack_ground and runby_target:
+            should_runby = False
+            if runby_target and not unit.is_flying:
+                if not self.observation.creep[p]:
+                    should_runby = True
+                if self.runby_pathing and self.runby_pathing.distance[p] < retreat_pathing.distance[p]:
+                    should_runby = True
+            if should_runby:
                 return Attack(runby_target)
             elif unit.ground_range < 2:
                 return Attack(target.position)
