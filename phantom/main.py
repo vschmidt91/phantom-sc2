@@ -133,9 +133,12 @@ class PhantomBot(BotExporter, AresBot):
                     return_point = base_position.towards(r, 3.125)
                     self.return_point[p] = return_point
                     self.return_distances[p] = self.speedmining_positions[p].distance_to(return_point)
-        self.in_mineral_line = {b: tuple(center(self.expansion_resource_positions[b]).rounded) for b in self.bases}
 
+        self.in_mineral_line = {b: tuple(center(self.expansion_resource_positions[b]).rounded) for b in self.bases}
         self.agent = Agent(self, self.bot_config.build_order, self.parameters)
+
+        for overlord in self.units(UnitTypeId.OVERLORD):
+            overlord.move(self.game_info.map_center)
 
         try:
             with lzma.open(self.bot_config.params_path, "rb") as f:
