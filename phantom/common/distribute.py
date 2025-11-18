@@ -15,7 +15,7 @@ class HighsPyProblem:
     def __init__(self, n: int, m: int, include_total=True) -> None:
         logger.info(f"Compiling highspy problem with {n=}, {m=}, {include_total=}")
         h = highspy.Highs()
-        h.setOptionValue("time_limit", 1.0)
+        # h.setOptionValue("time_limit", 1.0)
         h.setOptionValue("presolve", "off")
         # h.setOptionValue("solver", "simplex")
         # h.setOptionValue("simplex_iteration_limit", 256)

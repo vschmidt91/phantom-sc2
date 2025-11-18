@@ -48,7 +48,7 @@ class ResourceAction:
     def _harvester_assignment(self) -> HarvesterAssignment:
         if self.observation.gather_hash == self.state.gather_hash:
             return self.state.assignment
-        elif solution := self.solve():
+        elif (solution := self.solve()) is not None:
             return solution
         else:
             logger.error("Harvester assignment solve failed")
@@ -114,8 +114,11 @@ class ResourceAction:
         assignment = {
             ai.tag: tuple(resources[j].position.rounded)
             for (i, ai), j in zip(enumerate(harvesters), indices, strict=False)
-            if x[i, j] > 0
+            # if x[i, j] > 0
         }
+
+        if len(assignment) < n:
+            return None
 
         return assignment
 

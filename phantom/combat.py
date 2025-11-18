@@ -7,21 +7,17 @@ from typing import TYPE_CHECKING
 import numpy as np
 import scipy.optimize
 from ares import WORKER_TYPES
-from ares.consts import EngagementResult
 from cython_extensions import cy_dijkstra, cy_pick_enemy_target, cy_range_vs_target
 from loguru import logger
-from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
-from sc2_helper.combat_simulator import CombatSimulator
 
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.constants import COMBATANT_STRUCTURES, HALF, MIN_WEAPON_COOLDOWN
 from phantom.common.distribute import distribute
-from phantom.common.graph import graph_components
 from phantom.common.utils import (
     pairwise_distances,
     sample_bilinear,
@@ -29,6 +25,7 @@ from phantom.common.utils import (
 )
 from phantom.observation import Observation
 from phantom.parameters import Parameters, Prior
+from phantom.simulator import CombatSetup, StepwiseCombatSimulator
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -44,41 +41,39 @@ class CombatState:
         self.bot = bot
         self.attacking_local = set[int]()
         self.attacking_global = True
-        self.time_horizon = parameters.add(Prior(3.0, 1.0, min=0))
-        self.time_horizon_enemy = parameters.add(Prior(3.0, 1.0, min=0))
-        self.engagement_threshold = parameters.add(Prior(+1 / 3, 0.1, min=-1, max=1))
-        self.disengagement_threshold = parameters.add(Prior(-1 / 3, 0.1, min=-1, max=1))
-        self.engagement_threshold_global = parameters.add(Prior(+0.5, 0.1, min=-1, max=1))
+        self.engagement_threshold = parameters.add(Prior(0.25, 0.1, min=-1, max=1))
+        self.disengagement_threshold = parameters.add(Prior(0.0, 0.1, min=-1, max=1))
+        self.engagement_threshold_global = parameters.add(Prior(0.25, 0.1, min=-1, max=1))
         self.disengagement_threshold_global = parameters.add(Prior(0.0, 0.1, min=-1, max=1))
-        self.simulator = CombatSimulator()
+        self.simulator = StepwiseCombatSimulator(bot)
 
     def step(self, observation: Observation) -> "CombatAction":
         return CombatAction(self, observation)
 
-    def simulate(
-        self,
-        units: Sequence[Unit],
-        enemy_units: Sequence[Unit],
-        timing_adjustment: bool = True,
-        attacking: bool = True,
-        optimistic: bool = True,
-    ) -> float:
-        self.simulator.enable_timing_adjustment(timing_adjustment)
-
-        health = sum([u.health + u.shield for u in units])
-        enemy_health = sum([u.health + u.shield for u in enemy_units])
-
-        defender = 2 if attacking else 1
-        win, health_remaining = self.simulator.predict_engage(
-            own_units=units,
-            enemy_units=enemy_units,
-            optimistic=optimistic,
-            defender_player=defender,
-        )
-        if win:
-            return health_remaining / max(1, health)
-        else:
-            return -health_remaining / max(1, enemy_health)
+    # def simulate(
+    #     self,
+    #     units: Sequence[Unit],
+    #     enemy_units: Sequence[Unit],
+    #     timing_adjustment: bool = True,
+    #     attacking: bool = True,
+    #     optimistic: bool = True,
+    # ) -> float:
+    #     self.simulator.enable_timing_adjustment(timing_adjustment)
+    #
+    #     health = sum([u.health + u.shield for u in units])
+    #     enemy_health = sum([u.health + u.shield for u in enemy_units])
+    #
+    #     defender = 2 if attacking else 1
+    #     win, health_remaining = self.simulator.predict_engage(
+    #         own_units=units,
+    #         enemy_units=enemy_units,
+    #         optimistic=optimistic,
+    #         defender_player=defender,
+    #     )
+    #     if win:
+    #         return health_remaining / max(1, health)
+    #     else:
+    #         return -health_remaining / max(1, enemy_health)
 
 
 class CombatAction:
@@ -157,11 +152,10 @@ class CombatAction:
 
         self.prediction = self.predict()
 
-        if self.state.bot.enemy_race not in {Race.Zerg, Race.Random}:
-            if self.prediction.outcome_global >= self.state.engagement_threshold_global.value:
-                self.state.attacking_global = True
-            elif self.prediction.outcome_global <= self.state.disengagement_threshold_global.value:
-                self.state.attacking_global = False
+        if self.prediction.outcome_global >= self.state.engagement_threshold_global.value:
+            self.state.attacking_global = True
+        elif self.prediction.outcome_global <= self.state.disengagement_threshold_global.value:
+            self.state.attacking_global = False
 
     def _predict_trivial(self, units: Sequence[Unit], enemy_units: Sequence[Unit]) -> float | None:
         if not any(units) and not any(enemy_units):
@@ -179,63 +173,89 @@ class CombatAction:
         if (trivial_outcome := self._predict_trivial(units, enemy_units)) is not None:
             return CombatPrediction(trivial_outcome)
 
-        # time_to_attack = self._time_to_attack(units, enemy_units)
-        time_to_attack = self.time_to_attack
-        enemy_time_to_attack = self._time_to_attack(enemy_units, units)
+        simulation = self.state.simulator.simulate(CombatSetup(units1=units, units2=enemy_units))
 
-        # time_to_kill = self._time_to_kill(units, enemy_units)
-        time_to_kill = self.time_to_kill
-        enemy_time_to_kill = self._time_to_kill(enemy_units, units)
+        # health_remaining = np.array([simulation.health_remaining[u.tag] for u in units])
+        # enemy_health_remaining = np.array([simulation.health_remaining[u.tag] for u in enemy_units])
+        #
+        # losses = sum(u.health + u.shield for u in units) - health_remaining.sum()
+        # enemy_losses = sum(u.health + u.shield for u in enemy_units) - enemy_health_remaining.sum()
+        # outcome_global = (enemy_losses - losses) / (enemy_losses + losses)
 
-        contact = (time_to_attack < self.state.time_horizon.value) & (time_to_kill < np.inf)
-        enemy_contact = (enemy_time_to_attack < self.state.time_horizon_enemy.value) & (enemy_time_to_kill < np.inf)
+        outcome_own = [simulation.outcome[u.tag] for u in units]
+        outcome_global = float(np.mean(outcome_own))
 
-        contact_symmetrical = contact | enemy_contact.T
+        for unit in units:
+            outcome_local = simulation.outcome[unit.tag]
+            if outcome_local >= self.state.engagement_threshold.value:
+                self.state.attacking_local.add(unit.tag)
+            elif outcome_local <= self.state.disengagement_threshold.value:
+                self.state.attacking_local.discard(unit.tag)
 
-        contact_internal = np.zeros((len(units), len(units)))
-        enemy_contact_internal = np.zeros((len(enemy_units), len(enemy_units)))
-        adjacency_matrix = np.block(
-            [[contact_internal, contact_symmetrical], [contact_symmetrical.T, enemy_contact_internal]]
-        )
-
-        clusters = graph_components(adjacency_matrix)
-
-        outcome_global = self.state.simulate(
-            units=units,
-            enemy_units=enemy_units,
-            attacking=self.state.attacking_global,
-            timing_adjustment=False,
-            optimistic=False,
-        )
-
-        all_units = [*units, *enemy_units]
-        outcome_local = dict[int, EngagementResult]()
-        attacking_local = dict[int, float]()
-        for cluster in clusters:
-            cluster_units = [all_units[i] for i in cluster]
-            cluster_attacking = sum(1 for u in cluster_units if u.tag in self.state.attacking_local) / len(
-                cluster_units
-            )
-            cluster_own = [u for u in cluster_units if u.is_mine]
-            cluster_enemies = [u for u in cluster_units if u.is_enemy]
-            cluster_outcome = self._predict_trivial(cluster_own, cluster_enemies) or self.state.simulate(
-                units=cluster_own,
-                enemy_units=cluster_enemies,
-                timing_adjustment=True,
-                attacking=cluster_attacking > 0.5,
-                optimistic=False,
-            )
-
-            for unit in cluster_own:
-                if cluster_outcome >= self.state.engagement_threshold.value:
-                    self.state.attacking_local.add(unit.tag)
-                elif cluster_outcome <= self.state.disengagement_threshold.value:
-                    self.state.attacking_local.discard(unit.tag)
-
-            outcome_local.update({u.tag: cluster_outcome for u in cluster_units})
-            attacking_local.update({u.tag: cluster_attacking for u in cluster_units})
+        # if self.state.attacking_global:
+        #     for unit in units:
+        #         self.state.attacking_local.add(unit.tag)
+        # else:
+        #     for unit in units:
+        #         self.state.attacking_local.discard(unit.tag)
 
         return CombatPrediction(outcome_global)
+
+        # time_to_attack = self.time_to_attack
+        # enemy_time_to_attack = self._time_to_attack(enemy_units, units)
+        #
+        # time_to_kill = self.time_to_kill
+        # enemy_time_to_kill = self._time_to_kill(enemy_units, units)
+        #
+        # contact = (time_to_attack < self.state.time_horizon.value) & (time_to_kill < np.inf)
+        # enemy_contact = (enemy_time_to_attack < self.state.time_horizon_enemy.value) & (enemy_time_to_kill < np.inf)
+        #
+        # contact_symmetrical = contact | enemy_contact.T
+        #
+        # contact_internal = np.zeros((len(units), len(units)))
+        # enemy_contact_internal = np.zeros((len(enemy_units), len(enemy_units)))
+        # adjacency_matrix = np.block(
+        #     [[contact_internal, contact_symmetrical], [contact_symmetrical.T, enemy_contact_internal]]
+        # )
+        #
+        # clusters = graph_components(adjacency_matrix)
+        #
+        # outcome_global = self.state.simulate(
+        #     units=units,
+        #     enemy_units=enemy_units,
+        #     attacking=self.state.attacking_global,
+        #     timing_adjustment=False,
+        #     optimistic=False,
+        # )
+        #
+        # all_units = [*units, *enemy_units]
+        # outcome_local = dict[int, EngagementResult]()
+        # attacking_local = dict[int, float]()
+        # for cluster in clusters:
+        #     cluster_units = [all_units[i] for i in cluster]
+        #     cluster_attacking = sum(1 for u in cluster_units if u.tag in self.state.attacking_local) / len(
+        #         cluster_units
+        #     )
+        #     cluster_own = [u for u in cluster_units if u.is_mine]
+        #     cluster_enemies = [u for u in cluster_units if u.is_enemy]
+        #     cluster_outcome = self._predict_trivial(cluster_own, cluster_enemies) or self.state.simulate(
+        #         units=cluster_own,
+        #         enemy_units=cluster_enemies,
+        #         timing_adjustment=True,
+        #         attacking=cluster_attacking > 0.5,
+        #         optimistic=False,
+        #     )
+        #
+        #     for unit in cluster_own:
+        #         if cluster_outcome >= self.state.engagement_threshold.value:
+        #             self.state.attacking_local.add(unit.tag)
+        #         elif cluster_outcome <= self.state.disengagement_threshold.value:
+        #             self.state.attacking_local.discard(unit.tag)
+        #
+        #     outcome_local.update({u.tag: cluster_outcome for u in cluster_units})
+        #     attacking_local.update({u.tag: cluster_attacking for u in cluster_units})
+        #
+        # return CombatPrediction(outcome_global)
 
     def retreat_with(self, unit: Unit, limit=3) -> Action | None:
         retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
