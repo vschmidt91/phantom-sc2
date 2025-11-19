@@ -96,13 +96,17 @@ class MacroAction:
                 logger.info(f"Returning {unit=} to gathering")
                 self.obs.bot.mediator.assign_role(tag=unit.tag, role=UnitRole.GATHERING)
 
+        # unassign all larvae
+        for larva in self.state.bot.larva:
+            if plan := self.state.assigned_plans.pop(larva.tag, None):
+                self.state.unassigned_plans.append(plan)
+
         self.assign_unassigned_plans(self.obs.units)  # TODO: narrow this down
 
         actions = dict[Unit, Action]()
         reserve = Cost()
         plans_prioritized = sorted(self.state.assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
         for _i, (tag, plan) in enumerate(plans_prioritized):
-
             trainer = self.obs.unit_by_tag.get(tag)
             if not trainer:
                 del self.state.assigned_plans[tag]
@@ -164,7 +168,8 @@ class MacroAction:
         trainer_set = set(trainers)
         for plan in sorted(self.state.unassigned_plans, key=lambda p: p.priority, reverse=True):
             if trainer := self._select_trainer(trainer_set, plan.item):
-                logger.info(f"Assigning {trainer=} for {plan=}")
+                if trainer.type_id != UnitTypeId.LARVA:
+                    logger.info(f"Assigning {trainer=} for {plan=}")
                 if plan in self.state.unassigned_plans:
                     self.state.unassigned_plans.remove(plan)
                 self.state.assigned_plans[trainer.tag] = plan
@@ -264,7 +269,8 @@ class MacroAction:
         raise PlacementNotFoundException()
 
     def get_eta(self, reserve: Cost, cost: Cost) -> float:
-        deficit = reserve + cost - self.obs.bank
+        bank = Cost(self.obs.bank.minerals, self.obs.bank.vespene, self.obs.bank.supply, min(1, self.obs.bank.larva))
+        deficit = reserve + cost - bank
         eta = deficit / self.obs.income
         return max(
             (
