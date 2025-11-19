@@ -410,6 +410,7 @@ class PhantomBot(BotExporter, AresBot):
                                 item, self.unit_tag_dict[unit.order_target].position
                             )
                 else:
+                    logger.info(f"Pending {item=} through {tag=}, {unit=}")
                     self.pending[tag] = item
                 logger.info(f"Executed {plan=} through {action}")
         elif action.exact_id in ALL_MACRO_ABILITIES:
