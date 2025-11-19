@@ -55,7 +55,7 @@ class MacroState:
         for unit, target in composition.items():
             have = observation.count_actual(unit) + observation.count_pending(unit)
             planned = observation.count_planned(unit)
-            priority = -have / max(1.0, target)
+            priority = -(have + 0.5) / max(1.0, target)
             unit_priorities[unit] = priority
             if target < 1 or target <= have + planned:
                 continue
