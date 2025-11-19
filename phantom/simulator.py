@@ -36,7 +36,7 @@ class StepwiseCombatSimulator(CombatSimulator):
         self.num_steps = 100
         self.future_discount = 0.1
         self.vespene_weight = 2.0
-        self.distance_constant = 10.0
+        self.distance_constant = 1.0
 
     def is_attackable(self, u: Unit) -> bool:
         if u.is_burrowed or u.is_cloaked:
@@ -105,20 +105,15 @@ class StepwiseCombatSimulator(CombatSimulator):
             loss_accumulation += damage_received * np.exp(-self.future_discount * t)
             health_projection -= damage_received
 
-        mixing_own = np.reciprocal(self.distance_constant + distance)
-        mixing_enemy = mixing_own.copy()
+        mixing_enemy = np.reciprocal(self.distance_constant + distance)
 
-        mixing_own[:n1, n1:] = 0.0
-        mixing_own[n1:, :n1] = 0.0
         mixing_enemy[:n1, :n1] = 0.0
         mixing_enemy[n1:, n1:] = 0.0
 
-        mixing_own /= mixing_own.sum(axis=1, keepdims=True)
         mixing_enemy /= mixing_enemy.sum(axis=1, keepdims=True)
 
-        # losses = values * np.maximum(0.0, health - health_projection)
         losses_weighted = values * loss_accumulation
-        losses_own = mixing_own @ losses_weighted
+        losses_own = losses_weighted
         losses_enemy = mixing_enemy @ losses_weighted
         outcome_vector = (losses_enemy - losses_own) / np.maximum(1e-10, losses_enemy + losses_own)
 
