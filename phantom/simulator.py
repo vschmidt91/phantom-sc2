@@ -32,9 +32,8 @@ class CombatSimulator(ABC):
 class StepwiseCombatSimulator(CombatSimulator):
     def __init__(self, bot: "PhantomBot") -> None:
         self.bot = bot
-        self.time_horizon = 30.0
         self.num_steps = 100
-        self.future_discount = 0.1
+        self.future_discount_lambda = 1.0
         self.vespene_weight = 2.0
         self.distance_constant = 1.0
 
@@ -82,13 +81,15 @@ class StepwiseCombatSimulator(CombatSimulator):
         health = np.array([u.health + u.shield for u in units])
         health_projection = health.copy()
 
-        times = np.linspace(start=0.0, stop=self.time_horizon, num=self.num_steps + 1)[1:]
-        times_diff = np.diff(times, prepend=0.0)
+        p = np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
+        times = -np.log(1.0 - p) / self.future_discount_lambda
+        weights = 1 - p
+        # times = np.linspace(start=0.0, stop=self.time_horizon, num=self.num_steps + 1)[1:]
+        times_diff = np.diff(times)
 
-        loss_accumulation = np.zeros_like(health)
-
-        for t, dt in zip(times, times_diff, strict=False):
-            distance_projection = distance - movement_speed * t
+        damage_accumulation = np.full((len(units)), 0.0)
+        for t, dt, w in zip(times, times_diff, weights, strict=False):
+            distance_projection = distance - movement_speed * np.sqrt(t)
             in_range = distance_projection <= ranges
             alive = health_projection > 0.0
             attack = (
@@ -102,20 +103,24 @@ class StepwiseCombatSimulator(CombatSimulator):
             attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
 
             damage_received = dt * (attack_probability * dps).sum(axis=0)
-            loss_accumulation += damage_received * np.exp(-self.future_discount * t)
+            damage_accumulation += w * damage_received
             health_projection -= damage_received
 
         mixing_enemy = np.reciprocal(self.distance_constant + distance)
+        mixing_own = mixing_enemy.copy()
 
+        mixing_own[:n1, n1:] = 0.0
+        mixing_own[n1:, :n1] = 0.0
         mixing_enemy[:n1, :n1] = 0.0
         mixing_enemy[n1:, n1:] = 0.0
 
+        mixing_own /= mixing_own.sum(axis=1, keepdims=True)
         mixing_enemy /= mixing_enemy.sum(axis=1, keepdims=True)
 
-        losses_weighted = values * loss_accumulation
-        losses_own = losses_weighted
+        losses_weighted = values * damage_accumulation
+        losses_own = mixing_own @ losses_weighted
         losses_enemy = mixing_enemy @ losses_weighted
-        outcome_vector = (losses_enemy - losses_own) / np.maximum(1e-10, losses_enemy + losses_own)
+        outcome_vector = (losses_enemy - losses_own) / (losses_enemy + losses_own)
 
         health_remaining = {u.tag: max(0.0, h) for u, h in zip(units, health_projection, strict=False)}
         outcome = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}

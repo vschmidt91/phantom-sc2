@@ -61,8 +61,8 @@ class CreepState:
             return creation_step + _TUMOR_COOLDOWN <= obs.game_loop
 
         all_tumors = obs.structures({UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMOR})
-        for t in all_tumors:
-            self.created_at_step.setdefault(t.tag, obs.game_loop)
+        for tumor in all_tumors:
+            self.created_at_step.setdefault(tumor.tag, obs.game_loop)
         active_tumors = {t for t in all_tumors if is_active(t)}
 
         return CreepAction(

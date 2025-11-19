@@ -40,8 +40,12 @@ class CombatPrediction:
 class CombatState:
     def __init__(self, bot: "PhantomBot", parameters: Parameters) -> None:
         self.bot = bot
-        self.engagement_threshold = parameters.add(Prior(0.0, 0.1, min=-1, max=1))
-        self.engagement_threshold_global = parameters.add(Prior(0.0, 0.1, min=-1, max=1))
+        self.engagement_threshold = parameters.add(Prior(0.0, 0.1, min=-1, max=1)).value
+        self.disengagement_threshold = self.engagement_threshold
+        self.engagement_threshold_global = parameters.add(Prior(0.0, 0.1, min=-1, max=1)).value
+        self.disengagement_threshold_global = self.engagement_threshold_global
+        self.attacking_global = True
+        self.attacking_local = set[int]()
         self.simulator = StepwiseCombatSimulator(bot)
 
     def step(self, observation: Observation) -> "CombatAction":
@@ -121,7 +125,17 @@ class CombatAction:
         )
 
         self.prediction = self.predict()
-        self.attacking_global = self.prediction.outcome_global > self.state.engagement_threshold_global.value
+
+        if self.prediction.outcome_global > self.state.engagement_threshold:
+            self.state.attacking_global = True
+        elif self.prediction.outcome_global < self.state.disengagement_threshold:
+            self.state.attacking_global = False
+
+        for tag, outcome in self.prediction.outcome_local.items():
+            if outcome > self.state.engagement_threshold:
+                self.state.attacking_local.add(tag)
+            elif outcome < self.state.disengagement_threshold:
+                self.state.attacking_local.discard(tag)
 
     def _predict_trivial(self, units: Sequence[Unit], enemy_units: Sequence[Unit]) -> float | None:
         if not any(units) and not any(enemy_units):
@@ -215,7 +229,7 @@ class CombatAction:
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(target.position)
 
-        if not unit.is_flying and not self.attacking_global and not self.observation.creep[p]:
+        if not unit.is_flying and not self.state.attacking_global and not self.observation.creep[p]:
             return self.retreat_with(unit)
 
         retreat_grid = self.air_grid if unit.is_flying else self.ground_grid
@@ -225,13 +239,11 @@ class CombatAction:
             position=unit.position,
         )
 
-        outcome_local = self.prediction.outcome_local[unit.tag]
-
-        if outcome_local >= self.state.engagement_threshold.value:
+        if unit.tag in self.state.attacking_local:
             far_from_home = not self.observation.creep[p] or (
                 self.runby_pathing.distance[p] < retreat_pathing.distance[p]
             )
-            should_runby = far_from_home and is_safe and self.attacking_global
+            should_runby = far_from_home and is_safe and self.state.attacking_global
             if should_runby:
                 return Attack(runby_target)
             elif unit.ground_range < 2:
