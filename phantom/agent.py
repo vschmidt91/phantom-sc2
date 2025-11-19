@@ -292,7 +292,6 @@ class Agent:
         actions = {
             **build_order_actions,
             **{u: a for u in harvesters if (a := micro_harvester(u))},
-            **macro_actions,
             **{u: a for u in creep.active_tumors if (a := creep.spread_with_tumor(u))},
             **micro_overseers(observation.overseers),
             **scout_actions,
@@ -304,6 +303,7 @@ class Agent:
                 for u in observation.structures
                 if not u.is_ready and u.health_percentage < 0.1
             },
+            **macro_actions,
             **self.corrosive_biles.step(observation),
             **dode_actions,
         }

@@ -7,7 +7,7 @@ from loguru import logger
 from sc2.unit import Unit
 from sc2.units import Units
 
-from phantom.common.action import Action, DoNothing
+from phantom.common.action import Action
 from phantom.common.distribute import _get_problem
 from phantom.common.utils import pairwise_distances
 from phantom.resources.gather import GatherAction, ReturnResource
@@ -136,7 +136,7 @@ class ResourceAction:
             return GatherAction(target, self.state.bot.speedmining_positions[target_pos])
             # return Smart(target)
         elif len(unit.orders) >= 2:
-            return DoNothing()
+            return None
         elif unit.is_gathering:
             return GatherAction(target, self.state.bot.speedmining_positions[target_pos])
         elif unit.is_returning:
