@@ -92,12 +92,11 @@ def _get_problem(n: int, m: int) -> HighsPyProblem:
     m2 = math.ceil(m / PROBLEM_RESOLUTION) * PROBLEM_RESOLUTION
     key = n2, m2
 
-    if n2 > 100 or m2 > 100:
-        logger.warning(
-            f"Compiling a large assignment problem. Distributing {n} sources to {m} targets, using {n2}x{m2} problem resolution."
-        )
-
     if not (problem := _PROBLEM_CACHE.get(key)):
+        if n2 > 100 or m2 > 100:
+            logger.warning(
+                f"Compiling a large assignment problem. Distributing {n} sources to {m} targets, using {n2}x{m2} problem resolution."
+            )
         _PROBLEM_CACHE[key] = (problem := HighsPyProblem(*key))
     return problem
 
