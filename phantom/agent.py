@@ -100,7 +100,7 @@ class Agent:
         dodge = self.dodge.step(observation)
         dode_actions = {u: a for u in observation.units if (a := dodge.dodge_with(u))}
 
-        macro_actions = self.macro.step(observation, set(self.scout.blocked_positions))
+        macro_step = self.macro.step(observation, set(self.scout.blocked_positions))
 
         should_inject = observation.supply_used + observation.bank.larva < 200
         should_spread_creep = self.creep.unspread_tumor_count < 50
@@ -303,7 +303,7 @@ class Agent:
                 for u in observation.structures
                 if not u.is_ready and u.health_percentage < 0.1
             },
-            **macro_actions,
+            **macro_step.get_actions(),
             **self.corrosive_biles.step(observation),
             **dode_actions,
         }
