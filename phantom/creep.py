@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from phantom.main import PhantomBot
 
 TUMOR_RANGE = 10
-_TUMOR_COOLDOWN = 304
+_TUMOR_COOLDOWN = 544
 _BASE_SIZE = (5, 5)
 
 
@@ -55,12 +55,14 @@ class CreepState:
                 self.spread_at_step[t] = obs.game_loop
 
         def is_active(t: Unit) -> bool:
-            creation_step = self.created_at_step.setdefault(t.tag, obs.game_loop)
+            creation_step = self.created_at_step[t.tag]
             if t.tag in self.spread_at_step:
                 return False
             return creation_step + _TUMOR_COOLDOWN <= obs.game_loop
 
         all_tumors = obs.structures({UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMOR})
+        for t in all_tumors:
+            self.created_at_step.setdefault(t.tag, obs.game_loop)
         active_tumors = {t for t in all_tumors if is_active(t)}
 
         return CreepAction(
