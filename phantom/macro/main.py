@@ -57,12 +57,12 @@ class MacroState:
         for unit, target in composition.items():
             have = observation.count_actual(unit) + observation.count_pending(unit)
             planned = observation.count_planned(unit)
+            priority = -have / target
+            unit_priorities[unit] = priority
             if target < 1 or target <= have + planned:
                 continue
             if any(observation.get_missing_requirements(unit)):
                 continue
-            priority = -have / target
-            unit_priorities[unit] = priority
             if planned == 0:
                 yield MacroPlan(unit, priority=priority)
 
