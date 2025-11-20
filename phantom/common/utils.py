@@ -332,18 +332,37 @@ def logit_to_probability(x: float):
 
 type MacroId = UnitTypeId | UpgradeId
 
-
-def calculate_dps(u: Unit, v: Unit) -> float:
-    if dps := DPS_OVERRIDE.get(u.type_id):
-        return dps
-    if not can_attack(u, v):
-        return 0.0
-    return u.air_dps if v.is_flying else u.ground_dps
-
-
-DPS_OVERRIDE = {
-    UnitTypeId.BUNKER: 40,
-    UnitTypeId.PLANETARYFORTRESS: 5,
-    UnitTypeId.BANELING: 20,
+# Bunker values assume 4 marines inside
+GROUND_DPS_OVERRIDE = {
+    UnitTypeId.BANELING: 16.0,
+    UnitTypeId.BATTLECRUISER: 49.8 / 1.4,
+    UnitTypeId.BUNKER: 4 * 7.0,
+    UnitTypeId.ORACLE: 24.4 / 1.4,
+    UnitTypeId.SENTRY: 8.4 / 1.4,
+    UnitTypeId.VOIDRAY: 12.0,
 }
+
+GROUND_RANGE_OVERRIDE = {
+    UnitTypeId.BANELING: 2.2,
+    UnitTypeId.BATTLECRUISER: 6.0,
+    UnitTypeId.BUNKER: 5.0,
+    UnitTypeId.ORACLE: 4.0,
+    UnitTypeId.SENTRY: 5.0,
+    UnitTypeId.VOIDRAY: 12.0,
+}
+
+AIR_DPS_OVERRIDE = {
+    UnitTypeId.BATTLECRUISER: 31.1 / 1.4,
+    UnitTypeId.BUNKER: 4 * 7.0,
+    UnitTypeId.SENTRY: 8.4 / 1.4,
+    UnitTypeId.VOIDRAY: 6.0,
+}
+
+AIR_RANGE_OVERRIDE = {
+    UnitTypeId.BATTLECRUISER: 6.0,
+    UnitTypeId.BUNKER: 5.0,
+    UnitTypeId.SENTRY: 5.0,
+    UnitTypeId.VOIDRAY: 6.0,
+}
+
 ALL_TRAINABLE = set(ALL_STRUCTURES | UNIT_TRAINED_FROM.keys() | UNIT_TECH_ALIAS.keys() | UNIT_UNIT_ALIAS.keys())
