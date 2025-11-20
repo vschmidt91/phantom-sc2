@@ -407,4 +407,5 @@ class Observation:
             for target in air_candidates.get(unit.tag, []):
                 if unit.distance_to(target) < bonus_range + unit.radius + unit.air_range + target.radius:
                     targets[unit].append(target)
-        return dict(targets)
+        targets_sorted = {unit: sorted(ts, key=lambda u: u.tag) for unit, ts in targets.items()}
+        return targets_sorted

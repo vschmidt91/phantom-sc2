@@ -55,7 +55,7 @@ class PlacementNotFoundException(Exception):
     pass
 
 
-Point = tuple[int, int]
+type Point = tuple[int, int]
 
 
 def async_command(func):
