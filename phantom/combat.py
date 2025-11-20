@@ -1,4 +1,3 @@
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from itertools import product
@@ -128,13 +127,13 @@ class CombatAction:
 
         self.prediction = self.predict()
 
-        if self.prediction.outcome_global > self.state.engagement_threshold:
+        if self.prediction.outcome_global >= self.state.engagement_threshold:
             self.state.attacking_global = True
         elif self.prediction.outcome_global < self.state.disengagement_threshold:
             self.state.attacking_global = False
 
         for tag, outcome in self.prediction.outcome_local.items():
-            if outcome > self.state.engagement_threshold:
+            if outcome >= self.state.engagement_threshold:
                 self.state.attacking_local.add(tag)
             elif outcome < self.state.disengagement_threshold:
                 self.state.attacking_local.discard(tag)
@@ -157,17 +156,7 @@ class CombatAction:
 
         simulation = self.state.simulator.simulate(CombatSetup(units1=units, units2=enemy_units))
 
-        # health_remaining = np.array([simulation.health_remaining[u.tag] for u in units])
-        # enemy_health_remaining = np.array([simulation.health_remaining[u.tag] for u in enemy_units])
-        #
-        # losses = sum(u.health + u.shield for u in units) - health_remaining.sum()
-        # enemy_losses = sum(u.health + u.shield for u in enemy_units) - enemy_health_remaining.sum()
-        # outcome_global = (enemy_losses - losses) / (enemy_losses + losses)
-
-        outcome_own = [simulation.outcome[u.tag] for u in units]
-        outcome_global = float(np.mean(outcome_own))
-
-        return CombatPrediction(outcome_global, simulation.outcome)
+        return CombatPrediction(simulation.outcome_global, simulation.outcome_local)
 
     def retreat_with(self, unit: Unit, limit=3) -> Action | None:
         retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground

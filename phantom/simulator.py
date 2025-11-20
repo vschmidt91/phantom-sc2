@@ -19,8 +19,8 @@ class CombatSetup:
 
 @dataclass
 class CombatResult:
-    health_remaining: Mapping[int, float]
-    outcome: Mapping[int, float]
+    outcome_global: float
+    outcome_local: Mapping[int, float]
 
 
 class CombatSimulator(ABC):
@@ -84,7 +84,6 @@ class StepwiseCombatSimulator(CombatSimulator):
         p = np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
         times = -np.log(1.0 - p) / self.future_discount_lambda
         weights = 1 - p
-        # times = np.linspace(start=0.0, stop=self.time_horizon, num=self.num_steps + 1)[1:]
         times_diff = np.diff(times)
 
         damage_accumulation = np.full((len(units)), 0.0)
@@ -120,9 +119,12 @@ class StepwiseCombatSimulator(CombatSimulator):
         losses_weighted = values * damage_accumulation
         losses_own = mixing_own @ losses_weighted
         losses_enemy = mixing_enemy @ losses_weighted
-        outcome_vector = (losses_enemy - losses_own) / (losses_enemy + losses_own)
+        outcome_vector = (losses_enemy - losses_own) / np.maximum(1e-10, losses_enemy + losses_own)
 
-        health_remaining = {u.tag: max(0.0, h) for u, h in zip(units, health_projection, strict=False)}
-        outcome = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
-        result = CombatResult(health_remaining=health_remaining, outcome=outcome)
+        losses_own_global = losses_weighted[:n1].sum()
+        losses_enemy_global = losses_weighted[n1:].sum()
+        outcome_global = (losses_enemy_global - losses_own_global) / max(1e-10, losses_enemy_global + losses_own_global)
+
+        outcome_local = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
+        result = CombatResult(outcome_local=outcome_local, outcome_global=outcome_global)
         return result
