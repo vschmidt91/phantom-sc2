@@ -132,8 +132,11 @@ class MacroAction:
 
             if (
                 isinstance(plan.target, Point2)
-                and not self.obs.can_place_single(plan.item, plan.target)
-                and plan.item not in {UnitTypeId.SPORECRAWLER}
+                and not self.state.bot.mediator.can_place_structure(
+                    position=plan.target,
+                    structure_type=plan.item,
+                    include_addon=False,
+                )
             ):
                 plan.target = None
 
