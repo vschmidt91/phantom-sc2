@@ -36,7 +36,7 @@ from phantom.common.constants import (
     ZERG_RANGED_UPGRADES,
 )
 from phantom.common.cost import Cost
-from phantom.common.utils import RNG, MacroId
+from phantom.common.utils import RNG, MacroId, air_range_of, ground_range_of
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -372,7 +372,7 @@ class Observation:
         return ()
 
     def _shootable_targets(self, bonus_range=0.0) -> Mapping[Unit, Sequence[Unit]]:
-        units = self.combatants.filter(lambda u: u.ground_range >= 2 and u.weapon_cooldown <= MIN_WEAPON_COOLDOWN)
+        units = self.combatants.filter(lambda u: ground_range_of(u) >= 2 and u.weapon_cooldown <= MIN_WEAPON_COOLDOWN)
 
         points_ground = list[Point2]()
         points_air = list[Point2]()
@@ -382,10 +382,10 @@ class Observation:
             base_range = bonus_range + unit.radius + MAX_UNIT_RADIUS
             if unit.can_attack_ground:
                 points_ground.append(unit)
-                distances_ground.append(base_range + unit.ground_range)
+                distances_ground.append(base_range + ground_range_of(unit))
             if unit.can_attack_air:
                 points_air.append(unit)
-                distances_air.append(base_range + unit.air_range)
+                distances_air.append(base_range + air_range_of(unit))
 
         ground_candidates = self.bot.mediator.get_units_in_range(
             start_points=points_ground,
@@ -402,10 +402,10 @@ class Observation:
         targets = defaultdict[Unit, list[Unit]](list)
         for unit in units:
             for target in ground_candidates.get(unit.tag, []):
-                if unit.distance_to(target) < bonus_range + unit.radius + unit.ground_range + target.radius:
+                if unit.distance_to(target) < bonus_range + unit.radius + ground_range_of(unit) + target.radius:
                     targets[unit].append(target)
             for target in air_candidates.get(unit.tag, []):
-                if unit.distance_to(target) < bonus_range + unit.radius + unit.air_range + target.radius:
+                if unit.distance_to(target) < bonus_range + unit.radius + air_range_of(unit) + target.radius:
                     targets[unit].append(target)
         targets_sorted = {unit: sorted(ts, key=lambda u: u.tag) for unit, ts in targets.items()}
         return targets_sorted

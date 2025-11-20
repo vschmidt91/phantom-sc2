@@ -7,7 +7,12 @@ import numpy as np
 from sc2.unit import Unit
 from sklearn.metrics import pairwise_distances
 
-from phantom.common.utils import AIR_DPS_OVERRIDE, AIR_RANGE_OVERRIDE, GROUND_DPS_OVERRIDE, GROUND_RANGE_OVERRIDE
+from phantom.common.utils import (
+    air_dps_of,
+    air_range_of,
+    ground_dps_of,
+    ground_range_of,
+)
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -56,10 +61,10 @@ class StepwiseCombatSimulator(CombatSimulator):
             ]
         )
 
-        ground_range = np.array([GROUND_RANGE_OVERRIDE.get(u.type_id, u.ground_range) for u in units])
-        air_range = np.array([AIR_RANGE_OVERRIDE.get(u.type_id, u.air_range) for u in units])
-        ground_dps = np.array([GROUND_DPS_OVERRIDE.get(u.type_id, u.ground_dps) for u in units])
-        air_dps = np.array([AIR_DPS_OVERRIDE.get(u.type_id, u.air_dps) for u in units])
+        ground_range = np.array([ground_range_of(u) for u in units])
+        air_range = np.array([air_range_of(u) for u in units])
+        ground_dps = np.array([ground_dps_of(u) for u in units])
+        air_dps = np.array([air_dps_of(u) for u in units])
         radius = np.array([u.radius for u in units])
         attackable = np.array([self.is_attackable(u) for u in units])
         flying = np.array([u.is_flying for u in units])

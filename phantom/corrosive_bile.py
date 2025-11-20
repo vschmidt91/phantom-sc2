@@ -6,6 +6,7 @@ from sc2.unit import Unit
 
 from phantom.common.action import Action, UseAbility
 from phantom.common.constants import CHANGELINGS, COOLDOWN
+from phantom.common.utils import air_dps_of, ground_dps_of
 from phantom.observation import Observation
 
 type CorrosiveBileAction = Mapping[Unit, Action]
@@ -35,7 +36,7 @@ class CorrosiveBile:
             )
 
         def bile_priority(t: Unit) -> float:
-            priority = 10.0 + max(t.ground_dps, t.air_dps)
+            priority = 10.0 + max(ground_dps_of(t), air_dps_of(t))
             priority /= 100.0 + t.health + t.shield
             priority /= 1.0 + 10 * t.movement_speed
             return priority

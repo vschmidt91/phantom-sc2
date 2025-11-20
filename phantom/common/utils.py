@@ -160,10 +160,6 @@ def dataclass_from_dict(cls: type, parameters: dict[str, float]):
     return cls(**{k: v for k, v in parameters.items() if k in field_names})
 
 
-def unit_value(u: Unit, d: np.ndarray) -> float:
-    return pow(u.health + u.shield, d[u.position.rounded]) * max(u.ground_dps, u.air_dps)
-
-
 def can_attack(unit: Unit, target: Unit) -> bool:
     if target.is_cloaked and not target.is_revealed:
         return False
@@ -364,5 +360,36 @@ AIR_RANGE_OVERRIDE = {
     UnitTypeId.SENTRY: 5.0,
     UnitTypeId.VOIDRAY: 6.0,
 }
+
+
+def ground_dps_of(unit: Unit) -> float:
+    return GROUND_DPS_OVERRIDE.get(unit.type_id, unit.ground_dps)
+
+
+def air_dps_of(unit: Unit) -> float:
+    return AIR_DPS_OVERRIDE.get(unit.type_id, unit.air_dps)
+
+
+def ground_range_of(unit: Unit) -> float:
+    return GROUND_RANGE_OVERRIDE.get(unit.type_id, unit.ground_range)
+
+
+def air_range_of(unit: Unit) -> float:
+    return AIR_RANGE_OVERRIDE.get(unit.type_id, unit.air_range)
+
+
+def range_vs(unit: Unit, vs: Unit) -> float:
+    if vs.is_flying:
+        return air_range_of(unit)
+    else:
+        return ground_range_of(unit)
+
+
+def dps_vs(unit: Unit, vs: Unit) -> float:
+    if vs.is_flying:
+        return air_dps_of(unit)
+    else:
+        return ground_dps_of(unit)
+
 
 ALL_TRAINABLE = set(ALL_STRUCTURES | UNIT_TRAINED_FROM.keys() | UNIT_TECH_ALIAS.keys() | UNIT_UNIT_ALIAS.keys())

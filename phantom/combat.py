@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import scipy.optimize
 from ares import WORKER_TYPES
-from cython_extensions import cy_dijkstra, cy_pick_enemy_target, cy_range_vs_target
+from cython_extensions import cy_dijkstra, cy_pick_enemy_target
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -18,7 +18,12 @@ from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.constants import COMBATANT_STRUCTURES, HALF, MIN_WEAPON_COOLDOWN
 from phantom.common.distribute import distribute
 from phantom.common.utils import (
+    air_dps_of,
+    air_range_of,
+    ground_dps_of,
+    ground_range_of,
     pairwise_distances,
+    range_vs,
     sample_bilinear,
     structure_perimeter,
 )
@@ -177,13 +182,14 @@ class CombatAction:
         return UseAbility(AbilityId.ATTACK, target.position)
 
     def fight_with(self, unit: Unit) -> Action | None:
+        ground_range = ground_range_of(unit)
         p = tuple(unit.position.rounded)
 
         def potential_kiting(x: np.ndarray) -> float:
             def g(u: Unit):
-                unit_range = cy_range_vs_target(unit=unit, target=u)
+                unit_range = range_vs(unit, u)
                 safety_margin = u.movement_speed * 1.0
-                enemy_range = cy_range_vs_target(unit=u, target=unit)
+                enemy_range = range_vs(u, unit)
                 d = np.linalg.norm(x - u.position) - u.radius - unit.radius
                 if enemy_range < unit_range and d < safety_margin + enemy_range:
                     return safety_margin + enemy_range - d
@@ -200,7 +206,7 @@ class CombatAction:
 
         if attack_ready and (targets := self.observation.shootable_targets.get(unit)):
             target = cy_pick_enemy_target(enemies=targets)
-            if unit.ground_range < 2:
+            if ground_range < 2:
                 return Attack(target.position)
             else:
                 return Attack(target)
@@ -223,7 +229,7 @@ class CombatAction:
         if unit.tag in self.state.attacking_local:
             if (
                 not attack_ready
-                and unit.ground_range >= 2
+                and ground_range >= 2
                 and (unit.is_flying or sample_bilinear(self.pathing_potential, unit.position) < 0.1)
             ):
                 gradient = scipy.optimize.approx_fprime(unit.position, potential_kiting)
@@ -236,7 +242,7 @@ class CombatAction:
             should_runby = not unit.is_flying and far_from_home and is_safe and self.state.attacking_global
             if should_runby:
                 return Attack(runby_target)
-            elif unit.ground_range < 2:
+            elif ground_range < 2:
                 return Attack(target.position)
             else:
                 return Attack(target)
@@ -270,8 +276,8 @@ class CombatAction:
         if not any(units) or not any(enemies):
             return np.array([])
 
-        ground_dps = np.array([u.ground_dps for u in units])
-        air_dps = np.array([u.air_dps for u in units])
+        ground_dps = np.array([ground_dps_of(u) for u in units])
+        air_dps = np.array([air_dps_of(u) for u in units])
 
         def is_attackable(u: Unit) -> bool:
             if u.is_burrowed or u.is_cloaked:
@@ -293,8 +299,8 @@ class CombatAction:
         if not any(units) or not any(enemies):
             return np.array([])
 
-        ground_range = np.array([u.ground_range for u in units])
-        air_range = np.array([u.air_range for u in units])
+        ground_range = np.array([ground_range_of(u) for u in units])
+        air_range = np.array([air_range_of(u) for u in units])
         radius = np.array([u.radius for u in units])
         enemy_radius = np.array([u.radius for u in enemies])
 
