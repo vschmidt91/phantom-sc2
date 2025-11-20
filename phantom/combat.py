@@ -349,14 +349,16 @@ class CombatAction:
         cost = self.time_to_attack + self.time_to_kill
         cost = np.nan_to_num(cost, nan=np.inf)
 
-        if self.state.bot.is_micro_map:
-            max_assigned = None
-        elif enemies:
-            optimal_assigned = len(units) / len(enemies)
-            medium_assigned = math.sqrt(len(units))
-            max_assigned = math.ceil(max(medium_assigned, optimal_assigned))
-        else:
-            max_assigned = 1
+        # if self.state.bot.is_micro_map:
+        #     max_assigned = None
+        # elif enemies:
+        #     optimal_assigned = len(units) / len(enemies)
+        #     medium_assigned = math.sqrt(len(units))
+        #     max_assigned = math.ceil(max(medium_assigned, optimal_assigned))
+        # else:
+        #     max_assigned = 1
+
+        max_assigned = len(units)
 
         assignment = distribute(
             units,
