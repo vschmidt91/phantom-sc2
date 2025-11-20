@@ -130,13 +130,10 @@ class MacroAction:
             if any(self.obs.get_missing_requirements(plan.item)):
                 continue
 
-            if (
-                isinstance(plan.target, Point2)
-                and not self.state.bot.mediator.can_place_structure(
-                    position=plan.target,
-                    structure_type=plan.item,
-                    include_addon=False,
-                )
+            if isinstance(plan.target, Point2) and not self.state.bot.mediator.can_place_structure(
+                position=plan.target,
+                structure_type=plan.item,
+                include_addon=False,
             ):
                 plan.target = None
 

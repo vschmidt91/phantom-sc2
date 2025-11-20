@@ -86,7 +86,7 @@ class PhantomBot(BotExporter, AresBot):
 
         self.expansion_resource_positions = dict[Point, list[Point]]()
         self.return_point = dict[Point, Point2]()
-        self.spore_position = dict[Point, Point2]()
+        self.spore_position = dict[Point, Point]()
         self.speedmining_positions = dict[Point, Point2]()
         self.return_distances = dict[Point, float]()
         self.enemy_start_locations_rounded = [tuple(p.rounded) for p in self.enemy_start_locations]
@@ -98,7 +98,7 @@ class PhantomBot(BotExporter, AresBot):
             worker_radius = self.workers[0].radius
             for base_position, resources in self.expansion_locations_dict.items():
                 mineral_center = Point2(np.mean([r.position for r in resources], axis=0))
-                self.spore_position[base_position.rounded] = base_position.towards(mineral_center, 5.0).rounded
+                self.spore_position[base_position.rounded] = tuple(base_position.towards(mineral_center, 4.0).rounded)
                 for geyser in resources.vespene_geyser:
                     target = geyser.position.towards(base_position, geyser.radius + worker_radius)
                     self.speedmining_positions[geyser.position.rounded] = target

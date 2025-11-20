@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
+from sc2.position import Point2
 
 from phantom.common.constants import (
     SPORE_TIMINGS,
@@ -165,12 +166,18 @@ class Strategy:
         if not self.obs.enemy_units(triggers).exists:
             return
 
-        spore_dict = {tuple(s.position.rounded): s for s in self.obs.structures(UnitTypeId.SPORECRAWLER)}
+        spore_positions = {tuple(s.position.rounded): s for s in self.obs.structures(UnitTypeId.SPORECRAWLER)}
         for base in self.obs.bases_taken:
             spore_position = self.state.bot.spore_position[base]
-            if tuple(spore_position.rounded) in spore_dict:
+            if spore_position in spore_positions:
                 continue
-            yield MacroPlan(UnitTypeId.SPORECRAWLER, target=spore_position)
+            if not self.state.bot.mediator.can_place_structure(
+                position=spore_position,
+                structure_type=UnitTypeId.SPORECRAWLER,
+                include_addon=False,
+            ):
+                continue
+            yield MacroPlan(UnitTypeId.SPORECRAWLER, target=Point2(spore_position))
 
     def morph_overlord(self) -> Iterable[MacroPlan]:
         supply_planned = sum(
