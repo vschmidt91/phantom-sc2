@@ -245,7 +245,7 @@ class CombatAction:
             far_from_home = not self.observation.creep[p] or (
                 self.runby_pathing.distance[p] < retreat_pathing.distance[p]
             )
-            should_runby = far_from_home and is_safe and self.state.attacking_global
+            should_runby = not unit.is_flying and far_from_home and is_safe and self.state.attacking_global
             if should_runby:
                 return Attack(runby_target)
             elif unit.ground_range < 2:
