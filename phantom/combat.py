@@ -216,16 +216,6 @@ class CombatAction:
             else:
                 return Attack(target)
 
-        if (
-            not attack_ready
-            and unit.ground_range >= 2
-            and (unit.is_flying or sample_bilinear(self.pathing_potential, unit.position) < 0.1)
-        ):
-            gradient = scipy.optimize.approx_fprime(unit.position, potential_kiting)
-            gradient_norm = np.linalg.norm(gradient)
-            if gradient_norm > 1e-5:
-                return Move(unit.position - 2 * gradient / gradient_norm)
-
         runby_target = Point2(self.runby_pathing.get_path(unit.position, 4)[-1]).offset(HALF)
 
         if unit.type_id in {UnitTypeId.BANELING}:
@@ -242,6 +232,15 @@ class CombatAction:
         )
 
         if unit.tag in self.state.attacking_local:
+            if (
+                not attack_ready
+                and unit.ground_range >= 2
+                and (unit.is_flying or sample_bilinear(self.pathing_potential, unit.position) < 0.1)
+            ):
+                gradient = scipy.optimize.approx_fprime(unit.position, potential_kiting)
+                gradient_norm = np.linalg.norm(gradient)
+                if gradient_norm > 1e-5:
+                    return Move(unit.position - 2 * gradient / gradient_norm)
             far_from_home = not self.observation.creep[p] or (
                 self.runby_pathing.distance[p] < retreat_pathing.distance[p]
             )
