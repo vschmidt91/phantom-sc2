@@ -125,7 +125,7 @@ class Strategy:
             yield MacroPlan(upgrade, priority=priority)
 
     def expand(self) -> Iterable[MacroPlan]:
-        worker_max = self.obs.max_harvesters
+        worker_max = self.obs.max_harvesters + 22 * self.obs.count_pending(UnitTypeId.HATCHERY)
         saturation = self.obs.supply_workers / max(1, worker_max)
         saturation = max(0.0, min(1.0, saturation))
 
