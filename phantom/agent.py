@@ -188,27 +188,41 @@ class Agent:
             )
 
         def micro_overseers(overseers: Units) -> Mapping[Unit, Action]:
-            targets = distribute(
-                overseers,
-                observation.enemy_combatants,
-                pairwise_distances(
-                    [a.position for a in overseers],
-                    [b.position for b in observation.enemy_combatants],
-                ),
+            if not overseers:
+                return {}
+
+            detection_range = overseers[0].detect_range
+
+            targets = observation.enemy_combatants or observation.enemy_units
+
+            distance = pairwise_distances(
+                [a.position for a in overseers],
+                [b.position for b in targets],
             )
+            if overseers.amount > 1 and targets:
+                second_smallest_distances = np.partition(distance, kth=1, axis=0)[1, :]
+                second_smallest_distances = np.minimum(second_smallest_distances, 2.0 * detection_range)
+                second_smallest_distances = np.repeat(second_smallest_distances[None, :], len(overseers), axis=0)
+                cost = distance - second_smallest_distances
+            else:
+                cost = distance
+
+            assignment = distribute(overseers, targets, cost)
 
             def micro_overseer(u: Unit) -> Action | None:
-                local_threat = self.bot.mediator.get_air_grid[u.position.rounded] - 1
-                if action := ((combat.retreat_with(u) if local_threat > 0 else None) or spawn_changeling(u)):
+                is_safe = self.bot.mediator.is_position_safe(grid=self.bot.mediator.get_air_grid, position=u.position)
+                if not is_safe:
+                    return combat.retreat_with(u)
+                elif action := spawn_changeling(u):
                     return action
-                elif target := targets.get(u):
+                elif target := assignment.get(u):
                     target_point = observation.find_path(
                         start=u.position,
                         target=target.position,
                         air=True,
                     )
                     return Move(target_point)
-                return None
+                return search_with(u)
 
             return {u: a for u in overseers if (a := micro_overseer(u))}
 

@@ -29,7 +29,27 @@ class DistributeTest(unittest.TestCase):
         )
         result = problem.solve(cost, limit)
         np.testing.assert_almost_equal(result, solution)
-        pass
+
+    def test_negative(self):
+        problem = _get_problem(3, 1)
+        cost = np.array(
+            [
+                [-1],
+                [1],
+                [1],
+            ],
+            dtype=float,
+        )
+        limit = np.array([3], dtype=float)
+        solution = np.array(
+            [
+                [1],
+                [1],
+                [1],
+            ]
+        )
+        result = problem.solve(cost, limit)
+        np.testing.assert_almost_equal(result, solution)
 
     def test_padding(self):
         cost = np.array(
