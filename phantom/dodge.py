@@ -47,8 +47,8 @@ class DodgeAction:
     observation: Observation
     items: dict[DodgeItem, float]
 
-    safety_distance: float = 1.0
-    safety_time = 0.1
+    safety_distance: float = 1.5
+    safety_time = 0.5
     min_distance = 1e-3
 
     def dodge_with(self, unit: Unit) -> Action | None:
