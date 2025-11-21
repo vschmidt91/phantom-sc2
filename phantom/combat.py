@@ -291,7 +291,7 @@ class CombatAction:
         dps = np.outer(ground_dps, enemy_attackable * enemy_ground) + np.outer(air_dps, enemy_attackable * enemy_flying)
 
         enemy_hp = np.array([u.health + u.shield for u in enemies])
-        enemy_hp = np.repeat(enemy_hp[np.newaxis, :], len(units), axis=0)
+        enemy_hp = np.repeat(enemy_hp[None, :], len(units), axis=0)
 
         time_to_kill = np.divide(enemy_hp, dps)
         return time_to_kill
@@ -323,12 +323,12 @@ class CombatAction:
             [u.position for u in enemies],
         )
         distances -= ranges
-        distances -= np.repeat(radius[:, np.newaxis], len(enemies), axis=1)
-        distances -= np.repeat(enemy_radius[np.newaxis, :], len(units), axis=0)
+        distances -= np.repeat(radius[:, None], len(enemies), axis=1)
+        distances -= np.repeat(enemy_radius[None, :], len(units), axis=0)
         distances = np.maximum(distances, 0.0)
 
         movement_speed = np.array([u.movement_speed for u in units])
-        movement_speed = np.repeat(movement_speed[:, np.newaxis], len(enemies), axis=1)
+        movement_speed = np.repeat(movement_speed[:, None], len(enemies), axis=1)
 
         time_to_attack = np.divide(distances, movement_speed)
         return time_to_attack

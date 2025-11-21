@@ -240,7 +240,7 @@ def rectangle(start: tuple[int, int], extent: tuple[int, int], shape: tuple) -> 
 def sample_bilinear(a, coords):
     coords = np.asarray(coords, dtype=float)
     if coords.ndim == 1:
-        coords = coords[np.newaxis, :]
+        coords = coords[None, :]
     coords0 = coords.astype(int)
     coords0 = np.clip(coords0, 0, np.asarray(a.shape) - 2)
     coords1 = coords0 + 1
