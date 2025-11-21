@@ -227,15 +227,11 @@ class Agent:
             return {u: a for u in overseers if (a := micro_overseer(u))}
 
         def micro_harvester(u: Unit) -> Action | None:
-            return (
-                (
-                    combat.retreat_with(u)
-                    if 6.0 < self.bot.mediator.get_ground_grid[u.position.rounded] < np.inf
-                    else None
-                )
-                or resources.gather_with(u, harvester_return_targets)
-                # or (drone_scout(u) if harvester_return_targets.amount < 2 else None)
-            )
+            if (6.0 < self.bot.mediator.get_ground_grid[u.position.rounded] < np.inf) and combat.enemy_combatants:
+                closest_enemy = cy_closest_to(u.position, combat.enemy_combatants)
+                if combat.prediction.outcome_local[closest_enemy.tag] > 0:
+                    return combat.retreat_with(u)
+            return resources.gather_with(u, harvester_return_targets)
 
         def micro_overlord(u: Unit) -> Action | None:
             if not self.bot.mediator.is_position_safe(grid=self.bot.mediator.get_air_grid, position=u.position):
