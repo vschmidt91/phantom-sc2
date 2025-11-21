@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
+from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -25,10 +26,11 @@ ALL_TUMORS = {UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN, UnitTyp
 class CreepState:
     def __init__(self, bot: "PhantomBot") -> None:
         self.bot = bot
-        self.tumor_active_on_game_loop = dict[int, int]()
-        self.active_tumors = set[int]()
+        self.tumor_created_at = dict[int, int]()
+        self.tumor_active_since = dict[int, int]()
         self.placement_map = np.zeros(bot.game_info.map_size)
         self.value_map = np.zeros_like(self.placement_map)
+        self.tumor_stuck_game_loops = 100  # remove the tumor if it fails to spread longer than this
 
     def _update_maps(self) -> None:
         creep_grid = self.bot.mediator.get_creep_grid.T == 1
@@ -48,13 +50,14 @@ class CreepState:
 
     @property
     def unspread_tumor_count(self):
-        return len(self.active_tumors)
+        return len(self.tumor_active_since)
 
     def on_tumor_spread(self, tags: Iterable[int]) -> None:
-        self.active_tumors.difference_update(tags)
+        for tag in tags:
+            del self.tumor_active_since[tag]
 
     def on_tumor_completed(self, tumor: Unit, spread_by_queen: bool) -> None:
-        self.tumor_active_on_game_loop[tumor.tag] = self.bot.state.game_loop + TUMOR_COOLDOWN
+        self.tumor_created_at[tumor.tag] = self.bot.state.game_loop
 
     def step(self) -> "CreepAction":
         game_loop = self.bot.state.game_loop
@@ -62,18 +65,21 @@ class CreepState:
             self._update_maps()
 
         # find tumors becoming active
-        for tag, active_on_game_loop in list(self.tumor_active_on_game_loop.items()):
-            if active_on_game_loop <= game_loop:
-                del self.tumor_active_on_game_loop[tag]
-                self.active_tumors.add(tag)
+        for tag, created_at in list(self.tumor_created_at.items()):
+            if created_at + TUMOR_COOLDOWN <= game_loop:
+                del self.tumor_created_at[tag]
+                self.tumor_active_since[tag] = game_loop
 
         active_tumors = list[Unit]()
-        for tag in list(self.active_tumors):
-            if tumor := self.bot.unit_tag_dict.get(tag):
+        for tag, active_since in list(self.tumor_active_since.items()):
+            if active_since + self.tumor_stuck_game_loops <= game_loop:
+                logger.info(f"tumor with {tag=} failed to spread for {self.tumor_stuck_game_loops} loops")
+                del self.tumor_active_since[tag]
+            elif tumor := self.bot.unit_tag_dict.get(tag):
                 active_tumors.append(tumor)
             else:
-                # tumor was destroyed
-                self.active_tumors.remove(tag)
+                logger.info(f"tumor with {tag=} was destroyed")
+                del self.tumor_active_since[tag]
 
         return CreepAction(
             self.placement_map,
