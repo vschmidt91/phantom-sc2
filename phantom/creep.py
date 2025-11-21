@@ -25,7 +25,7 @@ ALL_TUMORS = {UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN, UnitTyp
 class CreepState:
     def __init__(self, bot: "PhantomBot") -> None:
         self.bot = bot
-        self.tumors_on_cooldown = dict[int, int]()
+        self.tumor_active_on_game_loop = dict[int, int]()
         self.active_tumors = set[int]()
         self.placement_map = np.zeros(bot.game_info.map_size)
         self.value_map = np.zeros_like(self.placement_map)
@@ -53,16 +53,17 @@ class CreepState:
         self.active_tumors.difference_update(tags)
 
     def on_tumor_completed(self, tumor: Unit, spread_by_queen: bool) -> None:
-        self.tumors_on_cooldown[tumor.tag] = self.bot.state.game_loop
+        self.tumor_active_on_game_loop[tumor.tag] = self.bot.state.game_loop + TUMOR_COOLDOWN
 
     def step(self, mask: np.ndarray) -> "CreepAction":
         game_loop = self.bot.state.game_loop
         if self.bot.actual_iteration % 10 == 0:
             self._update(mask)
 
-        for tag, spread in list(self.tumors_on_cooldown.items()):
-            if spread + TUMOR_COOLDOWN <= game_loop:
-                del self.tumors_on_cooldown[tag]
+        # find tumors becoming active
+        for tag, active_on_game_loop in list(self.tumor_active_on_game_loop.items()):
+            if active_on_game_loop <= game_loop:
+                del self.tumor_active_on_game_loop[tag]
                 self.active_tumors.add(tag)
 
         active_tumors = list[Unit]()
@@ -70,6 +71,7 @@ class CreepState:
             if tumor := self.bot.unit_tag_dict.get(tag):
                 active_tumors.append(tumor)
             else:
+                # tumor was destroyed
                 self.active_tumors.remove(tag)
 
         return CreepAction(
