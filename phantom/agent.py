@@ -85,7 +85,7 @@ class Agent:
 
         combat = self.combat.step(observation)
         transfuse = TransfuseAction(observation)
-        creep = self.creep.step(np.equal(self.bot.mediator.get_ground_grid, 1.0))
+        creep = self.creep.step()
 
         injecters = observation.units(UnitTypeId.QUEEN)
         inject_targets = observation.townhalls.ready

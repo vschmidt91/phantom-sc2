@@ -30,10 +30,11 @@ class CreepState:
         self.placement_map = np.zeros(bot.game_info.map_size)
         self.value_map = np.zeros_like(self.placement_map)
 
-    def _update(self, mask: np.ndarray) -> None:
+    def _update_maps(self) -> None:
         creep_grid = self.bot.mediator.get_creep_grid.T == 1
-        pathing_grid = self.bot.mediator.get_ground_grid < np.inf
-        self.placement_map = creep_grid & self.bot.visibility_grid & pathing_grid & mask
+        pathing_grid = self.bot.mediator.get_cached_ground_grid == 1.0
+        safety_grid = self.bot.mediator.get_ground_grid == 1.0
+        self.placement_map = creep_grid & self.bot.visibility_grid & safety_grid
         value_map = np.where(~creep_grid & pathing_grid, 1.0, 0.0)
         size = BASE_SIZE
         for b in self.bot.bases:
@@ -55,10 +56,10 @@ class CreepState:
     def on_tumor_completed(self, tumor: Unit, spread_by_queen: bool) -> None:
         self.tumor_active_on_game_loop[tumor.tag] = self.bot.state.game_loop + TUMOR_COOLDOWN
 
-    def step(self, mask: np.ndarray) -> "CreepAction":
+    def step(self) -> "CreepAction":
         game_loop = self.bot.state.game_loop
         if self.bot.actual_iteration % 10 == 0:
-            self._update(mask)
+            self._update_maps()
 
         # find tumors becoming active
         for tag, active_on_game_loop in list(self.tumor_active_on_game_loop.items()):
