@@ -1,3 +1,5 @@
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -10,103 +12,105 @@ from scipy.ndimage import gaussian_filter
 from phantom.common.action import Action, UseAbility
 from phantom.common.constants import ENERGY_COST, HALF
 from phantom.common.utils import circle, circle_perimeter, line
-from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
 
 TUMOR_RANGE = 10
-_TUMOR_COOLDOWN = 544
-_BASE_SIZE = (5, 5)
+TUMOR_COOLDOWN = 304
+BASE_SIZE = (5, 5)
+ALL_TUMORS = {UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMOR}
 
 
 class CreepState:
     def __init__(self, bot: "PhantomBot") -> None:
         self.bot = bot
-        self.created_at_step = dict[int, int]()
-        self.spread_at_step = dict[int, int]()
+        self.tumors_on_cooldown = dict[int, int]()
+        self.active_tumors = set[int]()
         self.placement_map = np.zeros(bot.game_info.map_size)
         self.value_map = np.zeros_like(self.placement_map)
-        self.value_map_blurred = np.zeros_like(self.placement_map)
 
-    def _update(self, obs: Observation, mask: np.ndarray) -> None:
-        self.placement_map = obs.creep & obs.is_visible & (obs.pathing == 1) & mask
-        self.value_map = (~obs.creep & (obs.pathing == 1)).astype(float)
-        size = _BASE_SIZE
+    def _update(self, mask: np.ndarray) -> None:
+        creep_grid = self.bot.mediator.get_creep_grid.T == 1
+        pathing_grid = self.bot.mediator.get_ground_grid < np.inf
+        self.placement_map = creep_grid & self.bot.visibility_grid & pathing_grid & mask
+        value_map = np.where(~creep_grid & pathing_grid, 1.0, 0.0)
+        size = BASE_SIZE
         for b in self.bot.bases:
             i0 = b[0] - size[0] // 2
             j0 = b[1] - size[1] // 2
             i1 = i0 + size[0]
             j1 = j0 + size[1]
             self.placement_map[i0:i1, j0:j1] = False
-            self.value_map[i0:i1, j0:j1] *= 3
-        self.value_map_blurred = gaussian_filter(self.value_map, 3) * (obs.pathing == 1).astype(float)
+            value_map[i0:i1, j0:j1] *= 3
+        self.value_map = gaussian_filter(value_map, 3) * np.where(pathing_grid, 1.0, 0.0)
 
     @property
     def unspread_tumor_count(self):
-        return len(self.created_at_step) - len(self.spread_at_step)
+        return len(self.active_tumors)
 
-    def step(self, obs: Observation, mask: np.ndarray) -> "CreepAction":
-        if obs.iteration % 10 == 0:
-            self._update(obs, mask)
+    def on_tumor_spread(self, tags: Iterable[int]) -> None:
+        self.active_tumors.difference_update(tags)
 
-        for t in set(self.created_at_step) - set(self.spread_at_step):
-            if (cmd := obs.unit_commands.get(t)) and cmd.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
-                self.spread_at_step[t] = obs.game_loop
+    def on_tumor_completed(self, tumor: Unit, spread_by_queen: bool) -> None:
+        self.tumors_on_cooldown[tumor.tag] = self.bot.state.game_loop
 
-        def is_active(t: Unit) -> bool:
-            creation_step = self.created_at_step[t.tag]
-            if t.tag in self.spread_at_step:
-                return False
-            return creation_step + _TUMOR_COOLDOWN <= obs.game_loop
+    def step(self, mask: np.ndarray) -> "CreepAction":
+        game_loop = self.bot.state.game_loop
+        if self.bot.actual_iteration % 10 == 0:
+            self._update(mask)
 
-        all_tumors = obs.structures({UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMOR})
-        for tumor in all_tumors:
-            self.created_at_step.setdefault(tumor.tag, obs.game_loop)
-        active_tumors = {t for t in all_tumors if is_active(t)}
+        for tag, spread in list(self.tumors_on_cooldown.items()):
+            if spread + TUMOR_COOLDOWN <= game_loop:
+                del self.tumors_on_cooldown[tag]
+                self.active_tumors.add(tag)
+
+        active_tumors = list[Unit]()
+        for tag in list(self.active_tumors):
+            if tumor := self.bot.unit_tag_dict.get(tag):
+                active_tumors.append(tumor)
+            else:
+                self.active_tumors.remove(tag)
 
         return CreepAction(
-            self,
-            obs,
-            mask,
+            self.placement_map,
+            self.value_map,
             active_tumors,
         )
 
 
+@dataclass
 class CreepAction:
-    def __init__(self, context: CreepState, obs: Observation, mask: np.ndarray, active_tumors: set[Unit]):
-        self.context = context
-        self.obs = obs
-        self.mask = mask
-        self.active_tumors = active_tumors
+    placement_map: np.ndarray
+    value_map: np.ndarray
+    active_tumors: Sequence[Unit]
 
     def _place_tumor(self, unit: Unit, r: int, full_circle=False) -> Action | None:
         x0 = round(unit.position.x)
         y0 = round(unit.position.y)
 
         circle_fn = circle if full_circle else circle_perimeter
-        targets = circle_fn(x0, y0, r, shape=self.obs.creep.shape)
+        targets = circle_fn(x0, y0, r, shape=self.placement_map.shape)
         if not any(targets):
             return None
 
-        target = max(targets, key=lambda t: self.context.value_map_blurred[t])
+        target = max(targets, key=lambda t: self.value_map[t])
 
         if unit.is_structure:
             target = unit.position.towards(Point2(target), TUMOR_RANGE).rounded
 
         advance = line(target[0], target[1], x0, y0)
         for p in advance:
-            if self.context.placement_map[p]:
+            if self.placement_map[p]:
                 target_point = Point2(p).offset(HALF)
                 return UseAbility(AbilityId.BUILD_CREEPTUMOR, target_point)
 
-        # logger.warning("No creep tumor placement found.")
         return None
+
+    def spread_active_tumors(self) -> Mapping[Unit, Action]:
+        return {tumor: action for tumor in self.active_tumors if (action := self._place_tumor(tumor, 10))}
 
     def spread_with_queen(self, queen: Unit) -> Action | None:
         if 10 + ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN] <= queen.energy:
             return self._place_tumor(queen, 12, full_circle=True)
         return None
-
-    def spread_with_tumor(self, tumor: Unit) -> Action | None:
-        return self._place_tumor(tumor, 10)

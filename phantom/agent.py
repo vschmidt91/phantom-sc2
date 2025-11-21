@@ -85,7 +85,7 @@ class Agent:
 
         combat = self.combat.step(observation)
         transfuse = TransfuseAction(observation)
-        creep = self.creep.step(observation, self.bot.mediator.get_ground_grid == 1.0)
+        creep = self.creep.step(np.equal(self.bot.mediator.get_ground_grid, 1.0))
 
         injecters = observation.units(UnitTypeId.QUEEN)
         inject_targets = observation.townhalls.ready
@@ -248,27 +248,6 @@ class Agent:
                 return None
             return UseAbility(AbilityId.SPAWNCHANGELING_SPAWNCHANGELING)
 
-        def drone_scout(unit: Unit) -> Action | None:
-            if not (unit.is_idle or unit.is_gathering or unit.is_returning):
-                return None
-            if not (
-                target_base := min(
-                    filter(lambda b: not observation.is_visible[b], self.bot.bases),
-                    key=lambda b: unit.distance_to(b),
-                    default=None,
-                )
-            ):
-                return None
-            # target = unit.position.towards_with_random_angle(
-            #     p=random.choice(observation.enemy_start_locations),
-            #     distance=random.normalvariate(10, 10))
-            target = observation.random_point(near=target_base)
-            if observation.is_visible[target.rounded]:
-                return None
-            if not observation.pathing[target.rounded]:
-                return None
-            return Move(target)
-
         def search_with(unit: Unit) -> Action | None:
             if not (unit.is_idle or unit.is_gathering or unit.is_returning):
                 return None
@@ -293,7 +272,7 @@ class Agent:
         actions = {
             **build_order_actions,
             **{u: a for u in harvesters if (a := micro_harvester(u))},
-            **{u: a for u in creep.active_tumors if (a := creep.spread_with_tumor(u))},
+            **creep.spread_active_tumors(),
             **micro_overseers(observation.overseers),
             **scout_actions,
             **{u: a for u in observation.units(UnitTypeId.OVERLORD) if (a := micro_overlord(u))},
@@ -310,3 +289,10 @@ class Agent:
         }
 
         return actions
+
+    def on_building_construction_started(self, unit: Unit) -> None:
+        pass
+
+    def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId) -> None:
+        if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
+            self.creep.on_tumor_completed(unit, previous_type == UnitTypeId.CREEPTUMORQUEEN)

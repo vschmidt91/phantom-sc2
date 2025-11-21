@@ -4,7 +4,6 @@ from itertools import product
 from typing import TYPE_CHECKING
 
 import numpy as np
-import scipy.optimize
 from ares import WORKER_TYPES
 from cython_extensions import cy_dijkstra, cy_pick_enemy_target
 from loguru import logger
@@ -13,6 +12,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
+from scipy.optimize import approx_fprime
 
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.constants import COMBATANT_STRUCTURES, HALF, MIN_WEAPON_COOLDOWN
@@ -232,7 +232,7 @@ class CombatAction:
                 and ground_range >= 2
                 and (unit.is_flying or sample_bilinear(self.pathing_potential, unit.position) < 0.1)
             ):
-                gradient = scipy.optimize.approx_fprime(unit.position, potential_kiting)
+                gradient = approx_fprime(unit.position, potential_kiting)
                 gradient_norm = np.linalg.norm(gradient)
                 if gradient_norm > 1e-5:
                     return Move(unit.position - 2 * gradient / gradient_norm)

@@ -13,9 +13,11 @@ from ares import AresBot
 from ares.consts import ALL_STRUCTURES
 from loguru import logger
 from s2clientprotocol.score_pb2 import CategoryScoreDetails
+from sc2.cache import property_cache_once_per_frame
 from sc2.data import Race, Result
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.game_state import ActionRawUnitCommand
+from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
@@ -312,6 +314,7 @@ class PhantomBot(BotExporter, AresBot):
     async def on_building_construction_started(self, unit: Unit):
         logger.info(f"on_building_construction_started {unit=}")
         await super().on_building_construction_started(unit)
+        self.agent.on_building_construction_started(unit)
         if ordered_from := self.ordered_structure_position_to_tag.get(unit.position):
             self.ordered_structures.pop(ordered_from, None)
         else:
@@ -351,6 +354,7 @@ class PhantomBot(BotExporter, AresBot):
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         self.units_completed_this_frame.add(unit.tag)
+        self.agent.on_unit_type_changed(unit, previous_type)
         logger.info(f"on_unit_type_changed {unit=} {previous_type=}")
         await super().on_unit_type_changed(unit, previous_type)
         if unit.type_id == UnitTypeId.EGG:
@@ -375,46 +379,48 @@ class PhantomBot(BotExporter, AresBot):
         unit = self.unit_tag_dict.get(tag) or self._units_previous_map.get(tag)
         if not (item := ITEM_BY_ABILITY.get(action.exact_id)):
             return
-        if item in {
-            UnitTypeId.CREEPTUMORQUEEN,
-            UnitTypeId.CREEPTUMOR,
-            UnitTypeId.CHANGELING,
-        }:
-            return
-        lookup_tag = tag
-        if unit and unit.type_id == UnitTypeId.EGG:
-            # commands issued to a specific larva will be received by a random one
-            # therefore, a direct lookup will often be incorrect
-            # instead, all plans are checked for a match
-            for t, p in self.agent.macro.assigned_plans.items():
-                if item == p.item:
-                    if tag != t:
-                        logger.info(f"Correcting morph tag from {tag} to {t=}")
-                        lookup_tag = t
-                    break
-        if plan := self.agent.macro.assigned_plans.get(lookup_tag):
-            if item != plan.item:
-                logger.info(f"{action=} for {item=} does not match {plan=}")
-            else:
-                del self.agent.macro.assigned_plans[lookup_tag]
-                if isinstance(item, UpgradeId):
-                    self.pending_upgrades[lookup_tag] = item
-                elif item in ALL_STRUCTURES and (
-                    "requires_placement_position" in TRAIN_INFO[unit.type_id][item] or item == UnitTypeId.EXTRACTOR
-                ):
-                    if tag in self.unit_tag_dict:
-                        if isinstance(unit.order_target, Point2):
-                            self.ordered_structures[tag] = OrderedStructure(item, unit.order_target)
-                        elif isinstance(unit.order_target, int):
-                            self.ordered_structures[tag] = OrderedStructure(
-                                item, self.unit_tag_dict[unit.order_target].position
-                            )
+        if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
+            self.agent.creep.on_tumor_spread(action.unit_tags)
+        elif (
+            action.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN
+            or action.exact_id == AbilityId.SPAWNCHANGELING_SPAWNCHANGELING
+        ):
+            pass
+        else:
+            lookup_tag = tag
+            if unit and unit.type_id == UnitTypeId.EGG:
+                # commands issued to a specific larva will be received by a random one
+                # therefore, a direct lookup will often be incorrect
+                # instead, all plans are checked for a match
+                for t, p in self.agent.macro.assigned_plans.items():
+                    if item == p.item:
+                        if tag != t:
+                            logger.info(f"Correcting morph tag from {tag} to {t=}")
+                            lookup_tag = t
+                        break
+            if plan := self.agent.macro.assigned_plans.get(lookup_tag):
+                if item != plan.item:
+                    logger.info(f"{action=} for {item=} does not match {plan=}")
                 else:
-                    logger.info(f"Pending {item=} through {tag=}, {unit=}")
-                    self.pending[tag] = item
-                logger.info(f"Executed {plan=} through {action}")
-        elif action.exact_id in ALL_MACRO_ABILITIES:
-            logger.info(f"Unplanned {action=}")
+                    del self.agent.macro.assigned_plans[lookup_tag]
+                    if isinstance(item, UpgradeId):
+                        self.pending_upgrades[lookup_tag] = item
+                    elif item in ALL_STRUCTURES and (
+                        "requires_placement_position" in TRAIN_INFO[unit.type_id][item] or item == UnitTypeId.EXTRACTOR
+                    ):
+                        if tag in self.unit_tag_dict:
+                            if isinstance(unit.order_target, Point2):
+                                self.ordered_structures[tag] = OrderedStructure(item, unit.order_target)
+                            elif isinstance(unit.order_target, int):
+                                self.ordered_structures[tag] = OrderedStructure(
+                                    item, self.unit_tag_dict[unit.order_target].position
+                                )
+                    else:
+                        logger.info(f"Pending {item=} through {tag=}, {unit=}")
+                        self.pending[tag] = item
+                    logger.info(f"Executed {plan=} through {action}")
+            elif action.exact_id in ALL_MACRO_ABILITIES:
+                logger.info(f"Unplanned {action=}")
 
     @property
     def name(self) -> str:
@@ -468,3 +474,7 @@ class PhantomBot(BotExporter, AresBot):
 
     def build_time(self, t: UnitTypeId) -> float:
         return self.game_data.units[t.value].cost.time
+
+    @property_cache_once_per_frame
+    def visibility_grid(self) -> np.ndarray:
+        return np.equal(self.state.visibility.data_numpy.T, 2.0)

@@ -95,7 +95,7 @@ class CostManager:
         try:
             cost = self.context.calculate_cost(item)
             supply = self.context.calculate_supply_cost(item)
-        except Exception:
+        except AttributeError:
             return self.zero
         larva = LARVA_COST.get(item, 0.0)
         cost = Cost(float(cost.minerals), float(cost.vespene), supply, larva)
