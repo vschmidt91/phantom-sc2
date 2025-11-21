@@ -52,6 +52,7 @@ class CombatState:
         )
         self.attacking_global = True
         self.attacking_local = set[int]()
+        self.targeting = dict[Unit, Unit]()
         self.simulator = StepwiseCombatSimulator(bot)
 
     def step(self, observation: Observation) -> "CombatAction":
@@ -112,7 +113,7 @@ class CombatAction:
         self.retreat_ground = cy_dijkstra(self.ground_grid.astype(np.float64), self.retreat_targets)
 
         self.pathing_potential = np.where(self.observation.pathing < np.inf, 0.0, 1.0)
-        self.optimal_targeting = self._optimal_targeting()
+        self.state.targeting = self._assign_targets()
 
         runby_targets_list = list[tuple[int, int]]()
         for s in self.observation.enemy_structures:
@@ -177,7 +178,7 @@ class CombatAction:
         return Move(retreat_point)
 
     def fight_with_baneling(self, baneling: Unit) -> Action | None:
-        if not (target := self.optimal_targeting.get(baneling)):
+        if not (target := self.state.targeting.get(baneling)):
             return None
         return UseAbility(AbilityId.ATTACK, target.position)
 
@@ -199,7 +200,7 @@ class CombatAction:
 
             return sum(g(u) for u in self.enemy_combatants)
 
-        if not (target := self.optimal_targeting.get(unit)):
+        if not (target := self.state.targeting.get(unit)):
             return None
 
         attack_ready = unit.weapon_cooldown <= MIN_WEAPON_COOLDOWN
@@ -332,15 +333,22 @@ class CombatAction:
         time_to_attack = np.divide(distances, movement_speed)
         return time_to_attack
 
-    def _optimal_targeting(self) -> Mapping[Unit, Unit]:
+    def _assign_targets(self) -> dict[Unit, Unit]:
+        previous_targets = self.state.targeting
         units = self.combatants
         enemies = self.enemy_combatants
 
         if not any(units) or not any(enemies):
             return {}
 
-        # cost = self._time_to_attack(units, enemies) + self._time_to_kill(units, enemies)
-        cost = self.time_to_attack + self.time_to_kill
+        cost = self.time_to_attack.copy()
+
+        enemy_to_index = {e: j for j, e in enumerate(enemies)}
+        for i, unit in enumerate(units):
+            if (target := previous_targets.get(unit)) and (j := enemy_to_index.get(target)) is not None:
+                cost[i, j] = 0.0
+
+        cost += self.time_to_kill
         cost = np.nan_to_num(cost, nan=np.inf)
 
         # if self.state.bot.is_micro_map:
@@ -361,4 +369,4 @@ class CombatAction:
             max_assigned=max_assigned,
         )
 
-        return assignment
+        return dict(assignment)
