@@ -1,3 +1,4 @@
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from itertools import product
@@ -360,7 +361,7 @@ class CombatAction:
         # else:
         #     max_assigned = 1
 
-        max_assigned = len(units)
+        max_assigned = max(12, math.ceil(len(units) / len(enemies)))
 
         assignment = distribute(
             units,
