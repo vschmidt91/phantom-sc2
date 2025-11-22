@@ -303,10 +303,12 @@ class Strategy:
 
         composition = defaultdict[UnitTypeId, float](float)
         for enemy_type, count in self.enemy_composition_predicted.items():
-            for counter in UNIT_COUNTER_DICT.get(enemy_type, []):
-                if self.can_build(counter):
-                    composition[counter] += count * total_cost(enemy_type) / total_cost(counter)
-                    break
+            enemy_cost = total_cost(enemy_type)
+            if counters := UNIT_COUNTER_DICT.get(enemy_type):
+                buildable_counters = {k: v for k, v in counters.items() if self.can_build(k)}
+                sum_weights = sum(buildable_counters.values())
+                for counter, weight in buildable_counters.items():
+                    composition[counter] += count * (enemy_cost / total_cost(counter)) * (weight / sum_weights)
         return composition
 
     def _macro_composition(self) -> UnitComposition:
