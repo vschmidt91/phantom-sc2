@@ -48,7 +48,7 @@ class StrategyState:
         parameters: Parameters,
     ) -> None:
         self.bot = bot
-        self.counter_factor = parameters.add(Prior(2.0, 0.1, min=0))
+        self.counter_factor = parameters.add(Prior(2.5, 0.1, min=0))
         self.ravager_mixin = parameters.add(Prior(8, 1, min=0))
         self.corruptor_mixin = parameters.add(Prior(8, 1, min=0))
         self.tier1_drone_count = parameters.add(Prior(32, 1, min=0))
