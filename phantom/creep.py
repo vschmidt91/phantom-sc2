@@ -30,7 +30,7 @@ class CreepState:
         self.tumor_active_since = dict[int, int]()
         self.placement_map = np.zeros(bot.game_info.map_size)
         self.value_map = np.zeros_like(self.placement_map)
-        self.tumor_stuck_game_loops = 100  # remove the tumor if it fails to spread longer than this
+        self.tumor_stuck_game_loops = 1000  # remove the tumor if it fails to spread longer than this
 
     def _update_maps(self) -> None:
         creep_grid = self.bot.mediator.get_creep_grid.T == 1

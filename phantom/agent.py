@@ -104,7 +104,7 @@ class Agent:
         macro_actions = macro_step.get_actions()
 
         should_inject = observation.supply_used + observation.bank.larva < 200
-        should_spread_creep = self.creep.unspread_tumor_count < 10
+        should_spread_creep = self.creep.unspread_tumor_count < observation.count_actual(UnitTypeId.QUEEN)
 
         def should_harvest_resource(r: Unit) -> bool:
             p = tuple(r.position.rounded)

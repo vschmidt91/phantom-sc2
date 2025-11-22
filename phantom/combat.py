@@ -361,13 +361,13 @@ class CombatAction:
         # else:
         #     max_assigned = 1
 
-        max_assigned = max(12, math.ceil(len(units) / len(enemies)))
+        # max_assigned = max(12, math.ceil(len(units) / len(enemies)))
 
         assignment = distribute(
             units,
             enemies,
             cost,
-            max_assigned=max_assigned,
+            # max_assigned=max_assigned,
         )
 
         return dict(assignment)
