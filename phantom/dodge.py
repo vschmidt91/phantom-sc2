@@ -25,7 +25,7 @@ DODGE_UNITS = {
 
 DODGE_EFFECTS = {
     EffectId.LURKERMP: [DodgeCircle(0.5, 20.0)],
-    EffectId.PSISTORMPERSISTENT: [DodgeCircle(1.5, 80.0)],
+    EffectId.PSISTORMPERSISTENT: [DodgeCircle(1.5, 96.0)],
     EffectId.RAVAGERCORROSIVEBILECP: [DodgeCircle(1.0, 60)],
     EffectId.NUKEPERSISTENT: [DodgeCircle(4, 150), DodgeCircle(6, 75), DodgeCircle(8, 75)],
 }
@@ -98,6 +98,6 @@ class DodgeState:
             if time_of_impact < observation.time:
                 del self.effects[item]
                 if item in active_effects:
-                    logger.error(f"Effect impacted earlier than expected: {item}")
+                    logger.error(f"Effect ended earlier than expected: {item}")
 
         return DodgeAction(observation, self.effects | units)
