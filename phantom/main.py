@@ -10,7 +10,9 @@ from queue import Empty, Queue
 
 import numpy as np
 from ares import WORKER_TYPES, AresBot
+from ares.behaviors.macro.mining import TOWNHALL_RADIUS
 from ares.consts import ALL_STRUCTURES
+from cython_extensions import cy_distance_to
 from loguru import logger
 from s2clientprotocol.score_pb2 import CategoryScoreDetails
 from sc2.cache import property_cache_once_per_frame
@@ -145,8 +147,7 @@ class PhantomBot(BotExporter, AresBot):
         self.in_mineral_line = {b: tuple(center(self.expansion_resource_positions[b]).rounded) for b in self.bases}
         self.agent = Agent(self, self.bot_config.build_order, self.parameters)
 
-        for overlord in self.units(UnitTypeId.OVERLORD):
-            overlord.move(self.game_info.map_center)
+        self.send_overlord_scout()
 
         try:
             with lzma.open(self.bot_config.params_path, "rb") as f:
@@ -520,3 +521,40 @@ class PhantomBot(BotExporter, AresBot):
     @property_cache_once_per_frame
     def visibility_grid(self) -> np.ndarray:
         return np.equal(self.state.visibility.data_numpy.T, 2.0)
+
+    def send_overlord_scout(self) -> None:
+        scout_overlord = self.units(UnitTypeId.OVERLORD)[0]
+        scout_path = list[Point2]()
+        sight_range = scout_overlord.radius + scout_overlord.sight_range
+        townhall_size = self.game_data.units[UnitTypeId.NEXUS.value].footprint_radius
+        barracks_size = self.game_data.units[UnitTypeId.GATEWAY.value].footprint_radius
+        worker_speed = self.workers[0].movement_speed
+        sensitivity = int(0.5 * sight_range)
+        rush_path = self.mediator.find_raw_path(
+            start=self.start_location,
+            target=self.enemy_start_locations[0],
+            grid=self.mediator.get_cached_ground_grid,
+            sensitivity=sensitivity,
+        )
+        for p in rush_path:
+            overlord_duration = (
+                cy_distance_to(scout_overlord.position, p) - sight_range
+            ) / scout_overlord.movement_speed
+            worker_duration = cy_distance_to(self.enemy_start_locations[0], p) / worker_speed
+            if overlord_duration < worker_duration:
+                continue
+            if cy_distance_to(p, self.mediator.get_enemy_nat) < sight_range + townhall_size:
+                break
+            if cy_distance_to(p, self.mediator.get_enemy_ramp.barracks_correct_placement) < sight_range + barracks_size:
+                break
+            scout_path.append(p)
+        nat_scout_point = self.mediator.get_enemy_nat.towards(scout_path[-1], TOWNHALL_RADIUS + sight_range)
+        scout_path.append(nat_scout_point)
+        if self.enemy_race in {Race.Zerg, Race.Random}:
+            safe_spot = rush_path[len(rush_path) // 2]
+        else:
+            safe_spot = self.mediator.get_ol_spot_near_enemy_nat
+        scout_path.append(safe_spot)
+        for overlord in self.units(UnitTypeId.OVERLORD):
+            for p in scout_path:
+                overlord.move(p, queue=True)
