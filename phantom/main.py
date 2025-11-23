@@ -529,7 +529,7 @@ class PhantomBot(BotExporter, AresBot):
         townhall_size = self.game_data.units[UnitTypeId.NEXUS.value].footprint_radius
         barracks_size = self.game_data.units[UnitTypeId.GATEWAY.value].footprint_radius
         worker_speed = self.workers[0].movement_speed
-        sensitivity = int(0.5 * sight_range)
+        sensitivity = int(sight_range)
         rush_path = self.mediator.find_raw_path(
             start=self.start_location,
             target=self.enemy_start_locations[0],
