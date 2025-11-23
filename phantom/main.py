@@ -134,9 +134,10 @@ class PhantomBot(BotExporter, AresBot):
                 self.expansion_resource_positions[b] = [tuple(r.position.rounded) for r in resources]
                 for r in resources:
                     p = tuple(r.position.rounded)
-                    return_point = base_position.towards(r, 3.125)
+                    ps = self.speedmining_positions[p]
+                    return_point = base_position.towards(ps, 3.125)
                     self.return_point[p] = return_point
-                    self.return_distances[p] = self.speedmining_positions[p].distance_to(return_point)
+                    self.return_distances[p] = ps.distance_to(return_point)
 
         self.in_mineral_line = {b: tuple(center(self.expansion_resource_positions[b]).rounded) for b in self.bases}
         self.agent = Agent(self, self.bot_config.build_order, self.parameters)
