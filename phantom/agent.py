@@ -79,6 +79,7 @@ class Agent:
                     strategy.make_upgrades(),
                     strategy.morph_overlord(),
                     strategy.expand(),
+                    strategy.make_spines(),
                     strategy.make_spores(),
                 ):
                     self.macro.add(plan)

@@ -96,10 +96,12 @@ class PhantomBot(BotExporter, AresBot):
         self.expansion_resource_positions = dict[Point, list[Point]]()
         self.return_point = dict[Point, Point2]()
         self.spore_position = dict[Point, Point]()
+        self.spine_position = dict[Point, Point]()
         self.speedmining_positions = dict[Point, Point2]()
         self.return_distances = dict[Point, float]()
         self.enemy_start_locations_rounded = [tuple(p.rounded) for p in self.enemy_start_locations]
         self.bases = [] if self.is_micro_map else [p.rounded for p in self.expansion_locations_list]
+        self.structure_dict = dict[Point, Unit | OrderedStructure | MacroPlan]()
 
         if self.is_micro_map:
             pass
@@ -108,6 +110,15 @@ class PhantomBot(BotExporter, AresBot):
             for base_position, resources in self.expansion_locations_dict.items():
                 mineral_center = Point2(np.mean([r.position for r in resources], axis=0))
                 self.spore_position[base_position.rounded] = tuple(base_position.towards(mineral_center, 4.0).rounded)
+                self.spine_position[base_position.rounded] = tuple(
+                    self.mediator.find_path_next_point(
+                        start=base_position,
+                        target=self.enemy_start_locations[0],
+                        grid=self.mediator.get_cached_ground_grid,
+                        sensitivity=4,
+                        sense_danger=False,
+                    ).rounded
+                )
                 for geyser in resources.vespene_geyser:
                     target = geyser.position.towards(base_position, geyser.radius + worker_radius)
                     self.speedmining_positions[geyser.position.rounded] = target
@@ -192,6 +203,15 @@ class PhantomBot(BotExporter, AresBot):
         # local only: skip first iteration like on the ladder
         if iteration == 0:
             return
+
+        self.structure_dict.clear()
+        self.structure_dict.update({tuple(s.position.rounded): s for s in self.structures})
+        for plan in self.agent.macro.enumerate_plans():
+            if plan.item in ALL_STRUCTURES and plan.target:
+                self.structure_dict[tuple(plan.target.position.rounded)] = plan
+        for ordered in self.ordered_structures.values():
+            if ordered.type in ALL_STRUCTURES:
+                self.structure_dict[ordered.position.rounded] = ordered
 
         # if self.time > 5 * 60:
         #     await self.client.debug_kill_unit(self.structures)

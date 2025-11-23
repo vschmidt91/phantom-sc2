@@ -148,6 +148,25 @@ class Strategy:
 
         yield MacroPlan(UnitTypeId.HATCHERY, priority=priority)
 
+    def make_spines(self) -> Iterable[MacroPlan]:
+        if not self.obs.bot.mediator.get_did_enemy_rush:
+            return
+
+        if self.obs.time > 300:
+            return
+
+        for base in self.obs.bases_taken:
+            spine_position = self.state.bot.spine_position[base]
+            if spine_position in self.state.bot.structure_dict:
+                continue
+            if not self.state.bot.mediator.can_place_structure(
+                position=spine_position,
+                structure_type=UnitTypeId.SPINECRAWLER,
+                include_addon=False,
+            ):
+                continue
+            yield MacroPlan(UnitTypeId.SPINECRAWLER, target=Point2(spine_position))
+
     def make_spores(self) -> Iterable[MacroPlan]:
         if self.obs.iteration % 31 != 0:
             return
@@ -156,20 +175,13 @@ class Strategy:
         if self.obs.time < timing:
             return
 
-        planned_or_pending = self.obs.count_planned(UnitTypeId.SPORECRAWLER) + self.obs.count_pending(
-            UnitTypeId.SPORECRAWLER
-        )
-        if planned_or_pending > 0:
-            return
-
         triggers = SPORE_TRIGGERS[self.state.bot.enemy_race]
         if not self.obs.enemy_units(triggers).exists:
             return
 
-        spore_positions = {tuple(s.position.rounded): s for s in self.obs.structures(UnitTypeId.SPORECRAWLER)}
         for base in self.obs.bases_taken:
             spore_position = self.state.bot.spore_position[base]
-            if spore_position in spore_positions:
+            if spore_position in self.state.bot.structure_dict:
                 continue
             if not self.state.bot.mediator.can_place_structure(
                 position=spore_position,
