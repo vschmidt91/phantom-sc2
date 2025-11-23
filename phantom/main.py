@@ -24,6 +24,7 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
 from phantom.agent import Agent
+from phantom.common.action import Action
 from phantom.common.constants import (
     ALL_MACRO_ABILITIES,
     ITEM_BY_ABILITY,
@@ -36,6 +37,7 @@ from phantom.config import BotConfig
 from phantom.exporter import BotExporter
 from phantom.macro.main import MacroPlan
 from phantom.parameters import Parameters
+from phantom.resources.gather import GatherAction, ReturnResource
 
 
 @dataclass(frozen=True)
@@ -63,6 +65,7 @@ class PhantomBot(BotExporter, AresBot):
         self.cost = CostManager(self)
         self.worker_tags = set[int]()
         self.workers_in_gas_buildings = set[int]()
+        self.action_cache = dict[Unit, Action]()
 
         if os.path.isfile(self.bot_config.version_path):
             logger.info(f"Reading version from {self.bot_config.version_path}")
@@ -243,7 +246,25 @@ class PhantomBot(BotExporter, AresBot):
                 del self.ordered_structures[tag]
 
         actions = await self.agent.step()
-        for unit, action in actions.items():
+
+        new_actions = dict[Unit, Action]()
+
+        # clear cache for units that got no order
+        for unit in list(self.action_cache):
+            if unit not in actions:
+                del self.action_cache[unit]
+
+        # remove duplicated actions
+        for unit, action in list(actions.items()):
+            if (
+                isinstance(action, GatherAction | ReturnResource)
+                or not (cached_action := self.action_cache.get(unit))
+                or (action != cached_action)
+            ):
+                self.action_cache[unit] = action
+                new_actions[unit] = action
+
+        for unit, action in new_actions.items():
             if not await action.execute(unit):
                 self.add_replay_tag("action_failed")
                 logger.error(f"Action failed: {action}")
