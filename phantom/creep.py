@@ -50,7 +50,7 @@ class CreepState:
 
     @property
     def unspread_tumor_count(self):
-        return len(self.tumor_active_since)
+        return len(self.tumor_active_since) + len(self.tumor_created_at)
 
     def on_tumor_spread(self, tags: Iterable[int]) -> None:
         for tag in tags:
