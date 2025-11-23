@@ -55,26 +55,29 @@ class ResourceAction:
             return self.state.assignment
 
     def solve(self) -> HarvesterAssignment | None:
-        harvesters = self.observation.harvesters
+        harvesters = [*self.observation.harvesters, *self.observation.workers_in_geysers.values()]
         resources = list(self.observation.mineral_fields + self.observation.gas_buildings)
+
+        if self.observation.workers_in_geysers:
+            logger.info("yo")
 
         if not any(resources):
             return {}
 
         resource_limit = {tuple(r.position.rounded): self.observation.harvester_target_of_gas(r) for r in resources}
-        assignment_workers_in_gas_buildings = HarvesterAssignment()
-        for tag in self.observation.workers_in_geysers:
-            if target := self.state.assignment.get(tag):
-                resource_limit[target] -= 1
-                assignment_workers_in_gas_buildings[tag] = target
-            else:
-                logger.warning(f"Worker in geyser {tag} not assigned to resource")
+        # assignment_workers_in_gas_buildings = HarvesterAssignment()
+        # for tag in self.observation.workers_in_geysers:
+        #     if target := self.state.assignment.get(tag):
+        #         resource_limit[target] -= 1
+        #         assignment_workers_in_gas_buildings[tag] = target
+        #     else:
+        #         logger.warning(f"Worker in geyser {tag} not assigned to resource")
 
         mineral_max = 2 * self.observation.mineral_fields.amount
         gas_max = sum(resource_limit[tuple(g.position.rounded)] for g in self.observation.gas_buildings)
 
         if self.observation.observation.researched_speed:
-            gas_target = self.gas_target - len(assignment_workers_in_gas_buildings)
+            gas_target = self.gas_target
         elif self.observation.observation.bank.vespene < 100:
             gas_target = gas_max
         else:
@@ -131,7 +134,7 @@ class ResourceAction:
         # if len(assignment) < n:
         #     return None
 
-        assignment.update(assignment_workers_in_gas_buildings)
+        # assignment.update(assignment_workers_in_gas_buildings)
 
         return assignment
 

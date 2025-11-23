@@ -63,8 +63,8 @@ class PhantomBot(BotExporter, AresBot):
         self.units_completed_this_frame = set[int]()
         self.parameters = Parameters()
         self.cost = CostManager(self)
-        self.worker_tags = set[int]()
-        self.workers_in_gas_buildings = set[int]()
+        self.worker_memory = dict[int, Unit]()
+        self.workers_in_gas_buildings = dict[int, Unit]()
         self.action_cache = dict[Unit, Action]()
 
         if os.path.isfile(self.bot_config.version_path):
@@ -90,7 +90,7 @@ class PhantomBot(BotExporter, AresBot):
         await super().on_start()
 
         self.is_micro_map = re.match(MICRO_MAP_REGEX, self.game_info.map_name)
-        self.worker_tags.update(self.workers.tags)
+        self.worker_memory.update({u.tag: u for u in self.workers})
         self.expansion_resource_positions = dict[Point, list[Point]]()
         self.return_point = dict[Point, Point2]()
         self.spore_position = dict[Point, Point]()
@@ -225,14 +225,14 @@ class PhantomBot(BotExporter, AresBot):
                 self.handle_action(action, tag)
 
         self.workers_in_gas_buildings.clear()
-        for tag in list(self.worker_tags):
-            if unit := self.unit_tag_dict.get(tag):
-                pass
+        for tag, unit in list(self.worker_memory.items()):
+            if new_unit := self.unit_tag_dict.get(tag):
+                self.worker_memory[tag] = new_unit
             elif ordered_structure := self.ordered_structures.get(tag):
                 # the drone morphed into something
-                self.worker_tags.discard(tag)
+                self.worker_memory.pop(tag, None)
             else:
-                self.workers_in_gas_buildings.add(tag)
+                self.workers_in_gas_buildings[tag] = unit
                 # the worker entered a geyser, nydus or dropperlord
 
         for tag, ordered_structure in list(self.ordered_structures.items()):
@@ -352,7 +352,7 @@ class PhantomBot(BotExporter, AresBot):
         self.agent.on_building_construction_started(unit)
         if ordered_from := self.ordered_structure_position_to_tag.get(unit.position):
             self.ordered_structures.pop(ordered_from, None)
-            self.worker_tags.discard(ordered_from)
+            self.worker_memory.pop(ordered_from, None)
         else:
             logger.info(f"{unit=} was started before being ordered")
         self.pending[unit.tag] = unit.type_id
@@ -379,7 +379,7 @@ class PhantomBot(BotExporter, AresBot):
         await super().on_unit_destroyed(unit_tag)
         self.pending.pop(unit_tag, None)
         self.pending_upgrades.pop(unit_tag, None)
-        self.worker_tags.discard(unit_tag)
+        self.worker_memory.pop(unit_tag, None)
         # if unit := (self._units_previous_map.get(unit_tag) or self._structures_previous_map.get(unit_tag)):
         #     for order in unit.orders:
         #         ability = order.ability.exact_id
@@ -389,7 +389,7 @@ class PhantomBot(BotExporter, AresBot):
     async def on_unit_created(self, unit: Unit):
         await super().on_unit_created(unit)
         if unit.type_id in WORKER_TYPES:
-            self.worker_tags.add(unit.tag)
+            self.worker_memory[unit.tag] = unit
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         self.units_completed_this_frame.add(unit.tag)
@@ -456,7 +456,7 @@ class PhantomBot(BotExporter, AresBot):
                                 )
                         else:
                             logger.info("ordered unit not found, assuming it was a drone morphing")
-                            self.worker_tags.discard(tag)
+                            self.worker_memory.pop(tag, None)
                     else:
                         logger.info(f"Pending {item=} through {tag=}, {unit=}")
                         self.pending[tag] = item
