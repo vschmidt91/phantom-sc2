@@ -54,7 +54,8 @@ class CreepState:
 
     def on_tumor_spread(self, tags: Iterable[int]) -> None:
         for tag in tags:
-            del self.tumor_active_since[tag]
+            # the tumor might already be marked as stuck if the spread order got delayed due to the APM limit
+            self.tumor_active_since.pop(tag, None)
 
     def on_tumor_completed(self, tumor: Unit, spread_by_queen: bool) -> None:
         self.tumor_created_at[tumor.tag] = self.bot.state.game_loop
