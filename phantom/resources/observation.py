@@ -1,3 +1,5 @@
+from collections.abc import Set
+
 from sc2.unit import Unit
 from sc2.units import Units
 
@@ -17,6 +19,7 @@ class ResourceObservation:
         vespene_geysers: Units,
         mineral_fields: Units,
         gas_ratio: float,
+        workers_in_geysers: Set[int],
     ):
         self.observation = observation
         self.harvesters = harvesters
@@ -24,10 +27,12 @@ class ResourceObservation:
         self.vespene_geysers = vespene_geysers
         self.mineral_fields = mineral_fields
         self.gas_ratio = gas_ratio
+        self.workers_in_geysers = workers_in_geysers
 
         self.gather_hash = hash(
             (
-                frozenset(self.harvesters),
+                frozenset(harvesters),
+                frozenset(workers_in_geysers),
                 frozenset(self.gas_buildings),
                 frozenset(self.mineral_fields),
                 self.gas_ratio,

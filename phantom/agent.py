@@ -147,6 +147,7 @@ class Agent:
                 resources_to_harvest.vespene_geyser,
                 resources_to_harvest.mineral_field,
                 gas_ratio,
+                self.bot.workers_in_gas_buildings,
             )
         )
         harvester_return_targets = observation.townhalls.ready

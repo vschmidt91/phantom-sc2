@@ -61,17 +61,28 @@ class ResourceAction:
         if not any(resources):
             return {}
 
+        resource_limit = {tuple(r.position.rounded): self.observation.harvester_target_of_gas(r) for r in resources}
+        assignment_workers_in_gas_buildings = HarvesterAssignment()
+        for tag in self.observation.workers_in_geysers:
+            if target := self.state.assignment.get(tag):
+                resource_limit[target] -= 1
+                assignment_workers_in_gas_buildings[tag] = target
+            else:
+                logger.warning(f"Worker in geyser {tag} not assigned to resource")
+
         mineral_max = 2 * self.observation.mineral_fields.amount
-        gas_max = sum(self.observation.harvester_target_of_gas(g) for g in self.observation.gas_buildings)
+        gas_max = sum(resource_limit[tuple(g.position.rounded)] for g in self.observation.gas_buildings)
 
         if self.observation.observation.researched_speed:
-            gas_target = self.gas_target
+            gas_target = self.gas_target - len(assignment_workers_in_gas_buildings)
         elif self.observation.observation.bank.vespene < 100:
             gas_target = gas_max
         else:
             gas_target = 0
+
         # gas_target = self.gas_target
-        gas_target -= self.observation.observation.workers_in_geysers
+        # gas_target -= self.observation.observation.workers_in_geysers
+        # gas_target -= len(assignment_workers_in_gas_buildings)
         gas_target = max(0, min(gas_max, gas_target))
 
         harvester_max = mineral_max + gas_target
@@ -101,7 +112,7 @@ class ResourceAction:
         cost = harvester_to_resource + 5 * return_distance + assignment_cost
         # limit = np.full(m, 2.0)
         is_gas = np.array([1.0 if r.mineral_contents == 0 else 0.0 for r in resources])
-        limit = np.array([self.observation.harvester_target_of_gas(r) for r in resources])
+        limit = np.array(list(resource_limit.values()))
 
         problem = _get_problem(n, m)
         problem.set_total(is_gas, gas_target)
@@ -117,8 +128,10 @@ class ResourceAction:
             # if x[i, j] > 0
         }
 
-        if len(assignment) < n:
-            return None
+        # if len(assignment) < n:
+        #     return None
+
+        assignment.update(assignment_workers_in_gas_buildings)
 
         return assignment
 
