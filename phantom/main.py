@@ -546,8 +546,7 @@ class PhantomBot(BotExporter, AresBot):
         scout_overlord = self.units(UnitTypeId.OVERLORD)[0]
         scout_path = list[Point2]()
         sight_range = scout_overlord.radius + scout_overlord.sight_range
-        townhall_size = self.game_data.units[UnitTypeId.NEXUS.value].footprint_radius
-        barracks_size = self.game_data.units[UnitTypeId.GATEWAY.value].footprint_radius
+        townhall_size = self.townhalls[0].radius
         worker_speed = self.workers[0].movement_speed
         sensitivity = int(sight_range)
         rush_path = self.mediator.find_raw_path(
@@ -565,7 +564,7 @@ class PhantomBot(BotExporter, AresBot):
                 continue
             if cy_distance_to(p, self.mediator.get_enemy_nat) < sight_range + townhall_size:
                 break
-            if cy_distance_to(p, self.mediator.get_enemy_ramp.barracks_correct_placement) < sight_range + barracks_size:
+            if cy_distance_to(p, self.mediator.get_enemy_ramp.barracks_correct_placement) < sight_range:
                 break
             scout_path.append(p)
         nat_scout_point = self.mediator.get_enemy_nat.towards(scout_path[-1], TOWNHALL_RADIUS + sight_range)
