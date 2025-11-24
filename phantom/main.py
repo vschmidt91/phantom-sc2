@@ -112,7 +112,7 @@ class PhantomBot(BotExporter, AresBot):
                         start=base_position,
                         target=self.enemy_start_locations[0],
                         grid=self.mediator.get_cached_ground_grid,
-                        sensitivity=4,
+                        sensitivity=5,
                         sense_danger=False,
                     ).rounded
                 )

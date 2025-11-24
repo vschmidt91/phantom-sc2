@@ -95,8 +95,8 @@ class StepwiseCombatSimulator(CombatSimulator):
 
         damage_accumulation = np.full((len(units)), 0.0)
         for t, dt, w in zip(times, times_diff, weights, strict=False):
-            distance_projection = distance - movement_speed * np.sqrt(t)
-            in_range = distance_projection <= ranges
+            range_projection = ranges + movement_speed * np.sqrt(t)
+            in_range = distance <= range_projection
             alive = health_projection > 0.0
             attack = (
                 in_range
@@ -105,7 +105,9 @@ class StepwiseCombatSimulator(CombatSimulator):
                 & (dps > 0.0)
             )
 
-            attack_weight = np.where(attack, 1.0, 0.0)
+            attack_weight = np.where(
+                attack, np.reciprocal(np.maximum(self.distance_constant, range_projection - distance)), 0.0
+            )
             attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
 
             damage_received = dt * (attack_probability * dps).sum(axis=0)
@@ -123,7 +125,7 @@ class StepwiseCombatSimulator(CombatSimulator):
         mixing_own /= mixing_own.sum(axis=1, keepdims=True)
         mixing_enemy /= mixing_enemy.sum(axis=1, keepdims=True)
 
-        losses_weighted = values * damage_accumulation
+        losses_weighted = np.maximum(0.0, values * damage_accumulation - 1.0)
         losses_own = mixing_own @ losses_weighted
         losses_enemy = mixing_enemy @ losses_weighted
         outcome_vector = (losses_enemy - losses_own) / np.maximum(1e-10, losses_enemy + losses_own)
