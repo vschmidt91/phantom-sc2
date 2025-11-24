@@ -293,7 +293,7 @@ class CombatAction:
         enemy_hp = np.array([u.health + u.shield for u in enemies])
         enemy_hp = np.repeat(enemy_hp[None, :], len(units), axis=0)
 
-        time_to_kill = np.divide(enemy_hp, dps)
+        time_to_kill = np.nan_to_num(np.divide(enemy_hp, dps), nan=np.inf)
         return time_to_kill
 
     def _time_to_attack(self, units: Sequence[Unit], enemies: Sequence[Unit]) -> np.ndarray:
@@ -330,7 +330,7 @@ class CombatAction:
         movement_speed = np.array([u.movement_speed for u in units])
         movement_speed = np.repeat(movement_speed[:, None], len(enemies), axis=1)
 
-        time_to_attack = np.divide(distances, movement_speed)
+        time_to_attack = np.nan_to_num(np.divide(distances, movement_speed), nan=np.inf)
         return time_to_attack
 
     def _assign_targets(self) -> dict[Unit, Unit]:
@@ -349,7 +349,10 @@ class CombatAction:
                 cost[i, j] = 0.0
 
         cost += self.time_to_kill
-        cost = np.nan_to_num(cost, nan=np.inf)
+
+        if np.isnan(cost).any():
+            logger.error("assignment cost array contains NaN values")
+            cost = np.nan_to_num(cost, nan=np.inf)
 
         # if self.state.bot.is_micro_map:
         #     max_assigned = None
