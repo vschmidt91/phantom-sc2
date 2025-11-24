@@ -110,7 +110,8 @@ class Agent:
             + observation.count_pending(UnitTypeId.CREEPTUMOR)
             + observation.count_pending(UnitTypeId.CREEPTUMORQUEEN)
         )
-        should_spread_creep = tumor_count < observation.count_actual(UnitTypeId.QUEEN)
+        tumor_limit = min(2.0 * observation.count_actual(UnitTypeId.QUEEN), observation.time / 60)
+        should_spread_creep = tumor_count < tumor_limit
 
         def should_harvest_resource(r: Unit) -> bool:
             p = tuple(r.position.rounded)
