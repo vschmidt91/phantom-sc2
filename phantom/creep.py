@@ -67,7 +67,9 @@ class CreepState:
 
         # find tumors becoming active
         for tag, created_at in list(self.tumor_created_at.items()):
-            if created_at + TUMOR_COOLDOWN <= game_loop:
+            if tag not in self.bot.unit_tag_dict:
+                del self.tumor_created_at[tag]
+            elif created_at + TUMOR_COOLDOWN <= game_loop:
                 del self.tumor_created_at[tag]
                 self.tumor_active_since[tag] = game_loop
 
@@ -79,7 +81,6 @@ class CreepState:
             elif tumor := self.bot.unit_tag_dict.get(tag):
                 active_tumors.append(tumor)
             else:
-                logger.info(f"tumor with {tag=} was destroyed")
                 del self.tumor_active_since[tag]
 
         return CreepAction(
