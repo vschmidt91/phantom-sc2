@@ -546,7 +546,7 @@ class PhantomBot(BotExporter, AresBot):
         scout_overlord = self.units(UnitTypeId.OVERLORD)[0]
         scout_path = list[Point2]()
         sight_range = scout_overlord.radius + scout_overlord.sight_range
-        townhall_size = self.townhalls[0].radius
+        townhall_size = self.townhalls[0].radius - 1.0
         worker_speed = self.workers[0].movement_speed
         sensitivity = int(sight_range)
         rush_path = self.mediator.find_raw_path(
