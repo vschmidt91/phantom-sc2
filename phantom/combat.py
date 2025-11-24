@@ -52,7 +52,7 @@ class CombatState:
         )
         self.attacking_global = True
         self.attacking_local = set[int]()
-        self.targeting = dict[Unit, Unit]()
+        self.targeting = dict[int, Unit]()
         self.simulator = StepwiseCombatSimulator(bot)
 
     def step(self, observation: Observation) -> "CombatAction":
@@ -178,7 +178,7 @@ class CombatAction:
         return Move(retreat_point)
 
     def fight_with_baneling(self, baneling: Unit) -> Action | None:
-        if not (target := self.state.targeting.get(baneling)):
+        if not (target := self.state.targeting.get(baneling.tag)):
             return None
         return UseAbility(AbilityId.ATTACK, target.position)
 
@@ -200,7 +200,7 @@ class CombatAction:
 
             return sum(g(u) for u in self.enemy_combatants)
 
-        if not (target := self.state.targeting.get(unit)):
+        if not (target := self.state.targeting.get(unit.tag)):
             return None
 
         attack_ready = unit.weapon_cooldown <= MIN_WEAPON_COOLDOWN
@@ -343,9 +343,9 @@ class CombatAction:
 
         cost = self.time_to_attack.copy()
 
-        enemy_to_index = {e: j for j, e in enumerate(enemies)}
+        enemy_tag_to_index = {e.tag: j for j, e in enumerate(enemies)}
         for i, unit in enumerate(units):
-            if (target := previous_targets.get(unit)) and (j := enemy_to_index.get(target)) is not None:
+            if (target := previous_targets.get(unit.tag)) and (j := enemy_tag_to_index.get(target.tag)) is not None:
                 cost[i, j] = 0.0
 
         cost += self.time_to_kill
@@ -363,7 +363,7 @@ class CombatAction:
         # max_assigned = max(12, math.ceil(len(units) / len(enemies)))
 
         assignment = distribute(
-            units,
+            units.tags,
             enemies,
             cost,
             # max_assigned=max_assigned,
