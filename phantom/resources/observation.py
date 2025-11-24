@@ -35,6 +35,7 @@ class ResourceObservation:
                 frozenset(harvester_tags),
                 frozenset(self.gas_buildings),
                 frozenset(self.mineral_fields),
+                observation.researched_speed,
                 self.gas_ratio,
             )
         )
