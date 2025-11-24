@@ -58,9 +58,6 @@ class ResourceAction:
         harvesters = [*self.observation.harvesters, *self.observation.workers_in_geysers.values()]
         resources = list(self.observation.mineral_fields + self.observation.gas_buildings)
 
-        if self.observation.workers_in_geysers:
-            logger.info("yo")
-
         if not any(resources):
             return {}
 
@@ -140,7 +137,6 @@ class ResourceAction:
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
         if not (target_pos := self.harvester_assignment.get(unit.tag)):
-            logger.debug(f"Unassigned harvester {unit}")
             return None
         if not (target := self.observation.resource_at.get(target_pos)):
             logger.error(f"No resource found at {target_pos}")
