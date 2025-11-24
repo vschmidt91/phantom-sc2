@@ -156,6 +156,8 @@ class Strategy:
             return
 
         for base in self.obs.bases_taken:
+            if base == self.state.bot.start_location.rounded:
+                continue
             spine_position = self.state.bot.spine_position[base]
             if spine_position in self.state.bot.structure_dict:
                 continue
