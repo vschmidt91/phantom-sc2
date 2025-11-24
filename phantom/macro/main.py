@@ -242,7 +242,14 @@ class MacroAction:
             distances_enemy = map(lambda q: cy_distance_to(p, q), loss_positions_enemy)
             return max(distances, default=0.0) - min(distances_enemy, default=0.0)
 
-        candidates = (b for b in self.state.bot.bases if b not in blocked_positions and b not in obs.townhall_at)
+        def is_viable(b: Point) -> bool:
+            if b in blocked_positions:
+                return False
+            if b in obs.bot.structure_dict:
+                return False
+            return obs.bot.mediator.is_position_safe(grid=obs.bot.mediator.get_ground_grid, position=Point2(b))
+
+        candidates = filter(is_viable, self.state.bot.bases)
         if target := min(candidates, key=loss_fn, default=None):
             return Point2(target).offset(HALF)
 
