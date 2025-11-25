@@ -8,6 +8,7 @@ import numpy as np
 from ares import UnitTreeQueryType
 from cython_extensions import cy_dijkstra, cy_pick_enemy_target
 from loguru import logger
+from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -193,7 +194,7 @@ class CombatAction:
 
     def fight_with(self, unit: Unit) -> Action | None:
         ground_range = ground_range_of(unit)
-        is_on_creep = self.bot.has_creep(unit)
+        is_on_creep = self.bot.has_creep(unit) or self.bot.enemy_race == Race.Zerg
         p = tuple(unit.position.rounded)
 
         def potential_kiting(x: np.ndarray) -> float:
