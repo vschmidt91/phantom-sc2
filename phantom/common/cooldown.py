@@ -19,7 +19,7 @@ class CooldownTracker:
             for tag in action.unit_tags:
                 self.last_used[tag] = self.bot.state.game_loop
 
-    def is_on_cooldown(self, unit: Unit) -> bool:
-        return (
-            last_used := self.last_used.get(unit.tag)
-        ) is not None and self.bot.state.game_loop < last_used + self.cooldown
+    def get_cooldown(self, unit: Unit) -> int:
+        if last_used := self.last_used.get(unit.tag):
+            return max(0, last_used + self.cooldown - self.bot.state.game_loop)
+        return 0
