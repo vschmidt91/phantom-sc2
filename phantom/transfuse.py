@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 from ares import UnitTreeQueryType
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
 from phantom.common.action import Action, UseAbility
@@ -18,6 +19,7 @@ class Transfuse:
         self.ability_range = bot.game_data.abilities[self.ability.value]._proto.cast_range
         self.ability_energy_cost = 50
         self.min_wounded = 75
+        self.transfuse_structures = {UnitTypeId.SPINECRAWLER, UnitTypeId.SPORECRAWLER}
 
     def transfuse_with(self, unit: Unit) -> Action | None:
         if unit.energy < self.ability_energy_cost:
@@ -30,7 +32,12 @@ class Transfuse:
         )
 
         def is_eligible(t: Unit) -> bool:
-            return t != unit and BuffId.TRANSFUSION not in t.buffs and t.health + self.min_wounded <= t.health_max
+            return (
+                t != unit
+                and BuffId.TRANSFUSION not in t.buffs
+                and t.health + self.min_wounded <= t.health_max
+                and (not t.is_structure or t.type_id in self.transfuse_structures)
+            )
 
         def priority(t: Unit) -> float:
             return 1 - t.shield_health_percentage
