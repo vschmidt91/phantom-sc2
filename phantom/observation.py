@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from ares.consts import UnitRole
-from cython_extensions import cy_can_place_structure, cy_unit_pending
+from cython_extensions import cy_unit_pending
 from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
@@ -40,52 +40,14 @@ if TYPE_CHECKING:
 type OrderTarget = Point2 | int
 
 
-class ObservationState:
-    def __init__(self, bot: "PhantomBot"):
-        self.bot = bot
-        self.pathing = self._pathing()
-        self.air_pathing = self._air_pathing()
-
-    def step(self, planned: Counter[MacroId]) -> "Observation":
-        #     if unit.is_structure:
-        #         continue
-        #     if unit.type_id in {UnitTypeId.EGG, UnitTypeId.RAVAGER, UnitTypeId.BROODLORD, UnitTypeId.LURKERMP}:
-        #         continue
-        #     if unit.type_id in COCOONS:
-        #         continue
-        #     if unit.is_idle and unit.type_id != UnitTypeId.LARVA:
-        #         logger.warning(f"Trainer {unit=} became idle somehow")
-        #         del self.pending[tag]
-        #         continue
-        #     ability = MACRO_INFO[unit.type_id][pending]["ability"]
-        #     if unit.orders and unit.orders[0].ability.exact_id != ability:
-        #         logger.warning(f"Trainer {unit=} has wrong order {unit.orders[0].ability.exact_id} for {pending=}")
-        #         del self.pending[tag]
-        #         continue
-
-        if self.bot.actual_iteration % 10 == 0:
-            self.pathing = self._pathing()
-            self.air_pathing = self._air_pathing()
-        return Observation(self, planned)
-
-    def _pathing(self) -> np.ndarray:
-        return self.bot.mediator.get_map_data_object.get_pyastar_grid()
-
-    def _air_pathing(self) -> np.ndarray:
-        return self.bot.mediator.get_map_data_object.get_clean_air_grid()
-
-
 class Observation:
-    def __init__(self, state: ObservationState, planned: Counter[MacroId]):
-        self.bot = state.bot
-        self.context = state
-        self.iteration = state.bot.actual_iteration
+    def __init__(self, bot: "PhantomBot", planned: Counter[MacroId]):
+        self.bot = bot
+        self.iteration = self.bot.actual_iteration
         self.planned = planned
         self.unit_commands = {t: a for a in self.bot.state.actions_unit_commands for t in a.unit_tags}
         self.player_races = {k: Race(v) for k, v in self.bot.game_info.player_races.items()}
         self.workers_in_geysers = int(self.bot.supply_workers) - self.bot.workers.amount
-        self.pathing = state.pathing
-        self.air_pathing = state.air_pathing
         self.unit_by_tag = self.bot.unit_tag_dict
         self.action_errors = self.bot.state.action_errors
         self.supply_workers = self.bot.supply_workers
@@ -216,25 +178,6 @@ class Observation:
 
     def unit_data(self, unit_type_id: UnitTypeId) -> UnitTypeData:
         return self.bot.game_data.units[unit_type_id.value]
-
-    def can_place_single(self, building: UnitTypeId, position: Point2) -> bool:
-        unit_data = self.bot.game_data.units[building.value]
-        x, y = np.subtract(position, unit_data.footprint_radius).astype(int)
-        building_size = int(2 * unit_data.footprint_radius)
-        if building == UnitTypeId.HATCHERY:
-            creep_grid = self.bot.game_info.pathing_grid.data_numpy
-        else:
-            creep_grid = self.bot.state.creep.data_numpy
-        result = cy_can_place_structure(
-            building_origin=(x, y),
-            building_size=(building_size, building_size),
-            creep_grid=creep_grid,
-            placement_grid=self.bot.game_info.placement_grid.data_numpy,
-            pathing_grid=self.bot.game_info.pathing_grid.data_numpy,
-            avoid_creep=False,
-            include_addon=False,
-        )
-        return result
 
     def find_path(self, start: Point2, target: Point2, air: bool = False) -> Point2:
         grid = self.bot.mediator.get_air_grid if air else self.bot.mediator.get_ground_grid

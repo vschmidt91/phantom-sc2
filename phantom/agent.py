@@ -29,7 +29,7 @@ from phantom.dodge import DodgeState
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.main import MacroPlan, MacroState
 from phantom.macro.strategy import StrategyState
-from phantom.observation import ObservationState
+from phantom.observation import Observation
 from phantom.parameters import Parameters
 from phantom.resources.main import ResourceState
 from phantom.resources.observation import ResourceObservation
@@ -47,7 +47,6 @@ class Agent:
         self.build_order = BUILD_ORDERS[build_order_name]
         self.parameters = parameters
         self.combat = CombatState(bot, parameters)
-        self.observation = ObservationState(bot)
         self.macro = MacroState(bot)
         self.creep_tumors = CreepTumors(bot)
         self.creep_spread = CreepSpread(bot)
@@ -61,7 +60,7 @@ class Agent:
 
     async def step(self) -> Mapping[Unit, Action]:
         planned = Counter(p.item for p in self.macro.enumerate_plans())
-        observation = self.observation.step(planned)
+        observation = Observation(self.bot, planned)
 
         strategy = self.strategy.step(observation)
 
@@ -266,7 +265,7 @@ class Agent:
 
         def spawn_changeling(unit: Unit) -> Action | None:
             if (
-                not observation.pathing[unit.position.rounded]
+                self.bot.mediator.get_cached_ground_grid[unit.position.rounded] == np.inf
                 or unit.energy < ENERGY_COST[AbilityId.SPAWNCHANGELING_SPAWNCHANGELING]
             ):
                 return None
@@ -286,7 +285,7 @@ class Agent:
             target = observation.random_point(near=unit.position)
             if observation.is_visible[target.rounded]:
                 return None
-            if not observation.pathing[target.rounded] and not unit.is_flying:
+            if self.bot.mediator.get_cached_ground_grid[target.rounded] == np.inf and not unit.is_flying:
                 return None
             return Move(target)
 

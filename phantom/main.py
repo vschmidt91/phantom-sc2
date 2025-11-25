@@ -103,6 +103,7 @@ class PhantomBot(BotExporter, AresBot):
         self.enemy_start_locations_rounded = [tuple(p.rounded) for p in self.enemy_start_locations]
         self.bases = [] if self.is_micro_map else [p.rounded for p in self.expansion_locations_list]
         self.structure_dict = dict[Point, Unit | OrderedStructure | MacroPlan]()
+        self.air_grid = np.ones_like(self.mediator.get_air_grid)
 
         if self.is_micro_map:
             pass
