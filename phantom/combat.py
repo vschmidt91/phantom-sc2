@@ -27,7 +27,6 @@ from phantom.common.constants import (
 )
 from phantom.common.distribute import distribute
 from phantom.common.utils import (
-    Point,
     air_dps_of,
     air_range_of,
     ground_dps_of,
@@ -64,15 +63,14 @@ class CombatState:
         self.targeting = dict[int, Unit]()
         self.simulator = StepwiseCombatSimulator(bot)
 
-    def step(self, bases_taken: set[Point]) -> "CombatAction":
-        return CombatAction(self, self.bot, bases_taken)
+    def step(self) -> "CombatAction":
+        return CombatAction(self)
 
 
 class CombatAction:
-    def __init__(self, state: CombatState, bot: "PhantomBot", bases_taken: set[Point]) -> None:
+    def __init__(self, state: CombatState) -> None:
         self.state = state
-        self.bot = bot
-        self.bases_taken = bases_taken
+        self.bot = state.bot
 
         if self.bot.is_micro_map:
             self.combatants = self.bot.units
@@ -83,7 +81,7 @@ class CombatAction:
                 COMBATANT_STRUCTURES
             )
 
-            if self.state.bot.is_micro_map:
+            if self.bot.is_micro_map:
                 retreat_targets = list()
                 for dx, dy in product([-10, 0, 10], repeat=2):
                     p = self.bot.game_info.map_center.rounded + Point2((dx, dy))
@@ -93,8 +91,8 @@ class CombatAction:
                     retreat_targets.append(self.bot.game_info.map_center)
             else:
                 retreat_targets = list()
-                for b in self.bases_taken:
-                    p = self.state.bot.in_mineral_line[b]
+                for b in self.bot.bases_taken:
+                    p = self.bot.in_mineral_line[b]
                     if state.bot.mediator.get_ground_grid[p] == 1.0:
                         retreat_targets.append(p)
                 if not retreat_targets:
@@ -106,7 +104,7 @@ class CombatAction:
                     retreat_targets.extend(combatant_positions)
                 if not retreat_targets:
                     logger.warning("No retreat targets, falling back to start mineral line")
-                    p = self.state.bot.in_mineral_line[self.bot.start_location.rounded]
+                    p = self.bot.in_mineral_line[self.bot.start_location.rounded]
                     retreat_targets.append(p)
 
         self.time_to_kill = self._time_to_kill(self.combatants, self.enemy_combatants)
@@ -267,7 +265,7 @@ class CombatAction:
             return UseAbility(AbilityId.BURROWUP)
         elif UpgradeId.TUNNELINGCLAWS not in self.bot.state.upgrades:
             return None
-        elif self.state.bot.mediator.get_ground_grid[unit.position.rounded] > 1:
+        elif self.bot.mediator.get_ground_grid[unit.position.rounded] > 1:
             return self.retreat_with(unit)
         return HoldPosition()
 
@@ -277,7 +275,7 @@ class CombatAction:
             or unit.health_percentage > 0.3
             or unit.is_revealed
             or not unit.weapon_cooldown
-            or self.state.bot.mediator.get_is_detected(unit=unit, by_enemy=True)
+            or self.bot.mediator.get_is_detected(unit=unit, by_enemy=True)
         ):
             return None
         return UseAbility(AbilityId.BURROWDOWN)
@@ -342,7 +340,7 @@ class CombatAction:
         time_to_attack = np.nan_to_num(np.divide(distances, movement_speed), nan=np.inf)
         return time_to_attack
 
-    def _assign_targets(self) -> dict[Unit, Unit]:
+    def _assign_targets(self) -> dict[int, Unit]:
         previous_targets = self.state.targeting
         units = self.combatants
         enemies = self.enemy_combatants
@@ -363,7 +361,7 @@ class CombatAction:
             logger.error("assignment cost array contains NaN values")
             cost = np.nan_to_num(cost, nan=np.inf)
 
-        # if self.state.bot.is_micro_map:
+        # if self.bot.is_micro_map:
         #     max_assigned = None
         # elif enemies:
         #     optimal_assigned = len(units) / len(enemies)
@@ -375,7 +373,7 @@ class CombatAction:
         max_assigned = len(units)
 
         assignment = distribute(
-            units.tags,
+            [u.tag for u in units],
             enemies,
             cost,
             max_assigned=max_assigned,
@@ -386,8 +384,8 @@ class CombatAction:
     def _shootable_targets(self, bonus_range=0.0) -> Mapping[Unit, Sequence[Unit]]:
         units = self.combatants.filter(lambda u: ground_range_of(u) >= 2 and u.weapon_cooldown <= MIN_WEAPON_COOLDOWN)
 
-        points_ground = list[Point2]()
-        points_air = list[Point2]()
+        points_ground = list[Unit]()
+        points_air = list[Unit]()
         distances_ground = list[float]()
         distances_air = list[float]()
         for unit in units:

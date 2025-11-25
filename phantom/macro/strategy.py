@@ -18,7 +18,6 @@ from phantom.common.constants import (
 )
 from phantom.common.unit_composition import UnitComposition, add_compositions, composition_of, sub_compositions
 from phantom.macro.main import MacroPlan
-from phantom.observation import Observation
 from phantom.parameters import Parameters, Prior
 
 if TYPE_CHECKING:
@@ -41,40 +40,35 @@ class StrategyTier(enum.Enum):
         return self.value >= other.value
 
 
-class StrategyState:
+class StrategyParameters:
     def __init__(
         self,
-        bot: "PhantomBot",
         parameters: Parameters,
     ) -> None:
-        self.bot = bot
-        self.counter_factor = parameters.add(Prior(2.5, 0.1, min=0))
-        self.ravager_mixin = parameters.add(Prior(8, 1, min=0))
-        self.corruptor_mixin = parameters.add(Prior(8, 1, min=0))
-        self.tier1_drone_count = parameters.add(Prior(32, 1, min=0))
-        self.tier2_drone_count = parameters.add(Prior(66, 1, min=0))
-        self.tier3_drone_count = parameters.add(Prior(80, 1, min=0))
-        self.tech_priority_offset = parameters.add(Prior(-1.0, 0.01))
-        self.tech_priority_scale = parameters.add(Prior(0.5, 0.01, min=0))
-        self.hydras_when_banking = parameters.add(Prior(5, 1, min=0))
-        self.lings_when_banking = parameters.add(Prior(10, 1, min=0))
-        self.queens_when_banking = parameters.add(Prior(3, 1, min=0))
-
-    def step(self, observation: Observation) -> "Strategy":
-        return Strategy(self, observation)
+        self.counter_factor = parameters.add(Prior(2.5, 0.1, min=0)).value
+        self.ravager_mixin = parameters.add(Prior(8, 1, min=0)).value
+        self.corruptor_mixin = parameters.add(Prior(8, 1, min=0)).value
+        self.tier1_drone_count = parameters.add(Prior(32, 1, min=0)).value
+        self.tier2_drone_count = parameters.add(Prior(66, 1, min=0)).value
+        self.tier3_drone_count = parameters.add(Prior(80, 1, min=0)).value
+        self.tech_priority_offset = parameters.add(Prior(-1.0, 0.01)).value
+        self.tech_priority_scale = parameters.add(Prior(0.5, 0.01, min=0)).value
+        self.hydras_when_banking = parameters.add(Prior(5, 1, min=0)).value
+        self.lings_when_banking = parameters.add(Prior(10, 1, min=0)).value
+        self.queens_when_banking = parameters.add(Prior(3, 1, min=0)).value
 
 
 class Strategy:
     def __init__(
         self,
-        context: StrategyState,
-        obs: Observation,
+        bot: "PhantomBot",
+        parameters: StrategyParameters,
     ) -> None:
-        self.state = context
-        self.obs = obs
+        self.bot = bot
+        self.parameters = parameters
 
-        self.composition = composition_of(obs.units)
-        self.enemy_composition = composition_of(obs.enemy_units)
+        self.composition = composition_of(bot.all_own_units)
+        self.enemy_composition = composition_of(bot.all_enemy_units)
         self.enemy_composition_predicted = self._predict_enemy_composition()
         self.counter_composition = self._counter_composition()
         self.army_composition = self._army_composition()
@@ -86,12 +80,12 @@ class Strategy:
     def make_upgrades(self) -> Iterable[MacroPlan]:
         upgrade_weights = dict[UpgradeId, float]()
         for unit, count in self.composition_target.items():
-            for upgrade in self.obs.upgrades_by_unit(unit):
+            for upgrade in self.bot.upgrades_by_unit(unit):
                 upgrade_weights[upgrade] = upgrade_weights.setdefault(upgrade, 0.0) + count
 
-        # unit_counts = Counter(u.type_id for u in self.obs.combatants)
+        # unit_counts = Counter(u.type_id for u in self.bot.combatants)
         # for unit, count in unit_counts.items():
-        #     for upgrade in self.obs.upgrades_by_unit(unit):
+        #     for upgrade in self.bot.upgrades_by_unit(unit):
         #         upgrade_weights[upgrade] = upgrade_weights.setdefault(upgrade, 0.0) + count
 
         # strategy specific filter
@@ -104,30 +98,30 @@ class Strategy:
             return
 
         upgrade_priorities = {
-            k: self.state.tech_priority_offset.value + self.state.tech_priority_scale.value * v / total
+            k: self.parameters.tech_priority_offset + self.parameters.tech_priority_scale * v / total
             for k, v in upgrade_weights.items()
         }
 
-        for plan in self.state.bot.agent.macro.unassigned_plans:
+        for plan in self.bot.agent.macro.unassigned_plans:
             if priority := upgrade_priorities.get(plan.item):
                 plan.priority = priority
 
-        for plan in self.state.bot.agent.macro.assigned_plans.values():
+        for plan in self.bot.agent.macro.assigned_plans.values():
             if priority := upgrade_priorities.get(plan.item):
                 plan.priority = priority
 
         for upgrade, priority in upgrade_priorities.items():
             if (
-                upgrade in self.obs.upgrades
-                or upgrade in self.state.bot.pending_upgrades.values()
-                or self.obs.planned[upgrade]
+                upgrade in self.bot.state.upgrades
+                or upgrade in self.bot.pending_upgrades.values()
+                or self.bot.planned[upgrade]
             ):
                 continue
             yield MacroPlan(upgrade, priority=priority)
 
     def expand(self) -> Iterable[MacroPlan]:
-        worker_max = self.obs.max_harvesters + 22 * self.obs.count_pending(UnitTypeId.HATCHERY)
-        saturation = self.obs.supply_workers / max(1, worker_max)
+        worker_max = self.bot.max_harvesters + 22 * self.bot.count_pending(UnitTypeId.HATCHERY)
+        saturation = self.bot.supply_workers / max(1, worker_max)
         saturation = max(0.0, min(1.0, saturation))
 
         # if self.tier == StrategyTier.HATCH:
@@ -135,33 +129,33 @@ class Strategy:
 
         priority = 3 * (saturation - 1)
 
-        for plan in self.obs.bot.agent.macro.assigned_plans.values():
+        for plan in self.bot.agent.macro.assigned_plans.values():
             if plan.item == UnitTypeId.HATCHERY:
                 plan.priority = priority
 
         if priority < -1:
             return
-        if self.obs.count_planned(UnitTypeId.HATCHERY) > 0:
+        if self.bot.count_planned(UnitTypeId.HATCHERY) > 0:
             return
-        if self.obs.ordered_by_type[UnitTypeId.HATCHERY] > 0:
+        if self.bot.ordered_by_type[UnitTypeId.HATCHERY] > 0:
             return
 
         yield MacroPlan(UnitTypeId.HATCHERY, priority=priority)
 
     def make_spines(self) -> Iterable[MacroPlan]:
-        if not self.obs.bot.mediator.get_did_enemy_rush:
+        if not self.bot.mediator.get_did_enemy_rush:
             return
 
-        if self.obs.time > 300:
+        if self.bot.time > 300:
             return
 
-        for base in self.obs.bases_taken:
-            if base == self.state.bot.start_location.rounded:
+        for base in self.bot.bases_taken:
+            if base == self.bot.start_location.rounded:
                 continue
-            spine_position = self.state.bot.spine_position[base]
-            if spine_position in self.state.bot.structure_dict:
+            spine_position = self.bot.spine_position[base]
+            if spine_position in self.bot.structure_dict:
                 continue
-            if not self.state.bot.mediator.can_place_structure(
+            if not self.bot.mediator.can_place_structure(
                 position=spine_position,
                 structure_type=UnitTypeId.SPINECRAWLER,
                 include_addon=False,
@@ -170,22 +164,22 @@ class Strategy:
             yield MacroPlan(UnitTypeId.SPINECRAWLER, target=Point2(spine_position))
 
     def make_spores(self) -> Iterable[MacroPlan]:
-        if self.obs.iteration % 31 != 0:
+        if self.bot.actual_iteration % 31 != 0:
             return
 
-        timing = SPORE_TIMINGS[self.state.bot.enemy_race]
-        if self.obs.time < timing:
+        timing = SPORE_TIMINGS[self.bot.enemy_race]
+        if self.bot.time < timing:
             return
 
-        triggers = SPORE_TRIGGERS[self.state.bot.enemy_race]
-        if not self.obs.enemy_units(triggers).exists:
+        triggers = SPORE_TRIGGERS[self.bot.enemy_race]
+        if not self.bot.enemy_units(triggers).exists:
             return
 
-        for base in self.obs.bases_taken:
-            spore_position = self.state.bot.spore_position[base]
-            if spore_position in self.state.bot.structure_dict:
+        for base in self.bot.bases_taken:
+            spore_position = self.bot.spore_position[base]
+            if spore_position in self.bot.structure_dict:
                 continue
-            if not self.state.bot.mediator.can_place_structure(
+            if not self.bot.mediator.can_place_structure(
                 position=spore_position,
                 structure_type=UnitTypeId.SPORECRAWLER,
                 include_addon=False,
@@ -195,19 +189,19 @@ class Strategy:
 
     def morph_overlord(self) -> Iterable[MacroPlan]:
         supply_planned = sum(
-            provided * self.obs.planned[unit_type] for unit_type, provided in SUPPLY_PROVIDED[self.obs.bot.race].items()
+            provided * self.bot.planned[unit_type] for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
         )
-        supply = self.obs.supply_cap + self.obs.supply_pending + supply_planned
-        supply_target = min(200.0, self.obs.supply_used + 2 + 20 * self.obs.income.larva)
+        supply = self.bot.supply_cap + self.bot.supply_pending + supply_planned
+        supply_target = min(200.0, self.bot.supply_used + 2 + 20 * self.bot.income.larva)
         if supply_target <= supply:
             return
         yield MacroPlan(UnitTypeId.OVERLORD, priority=1)
 
     def can_build(self, t: UnitTypeId) -> bool:
-        return not any(self.obs.get_missing_requirements(t))
+        return not any(self.bot.get_missing_requirements(t))
 
     def filter_upgrade(self, upgrade: UpgradeId) -> bool:
-        upgrade_set = self.obs.upgrades | set(self.obs.bot.pending_upgrades.values())
+        upgrade_set = self.bot.state.upgrades | set(self.bot.pending_upgrades.values())
         if upgrade == UpgradeId.ZERGLINGMOVEMENTSPEED:
             return True
         elif self.tier == StrategyTier.HATCH:
@@ -225,7 +219,7 @@ class Strategy:
             UpgradeId.ZERGMELEEWEAPONSLEVEL1,
             UpgradeId.ZERGMISSILEWEAPONSLEVEL1,
         }:
-            return self.obs.count_actual(UnitTypeId.ROACHWARREN) > 0
+            return self.bot.count_actual(UnitTypeId.ROACHWARREN) > 0
         # elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL1:
         #     return self.tier >= StrategyTier.LAIR
         # elif upgrade == UpgradeId.ZERGGROUNDARMORSLEVEL2:
@@ -239,8 +233,8 @@ class Strategy:
         # elif upgrade in {UpgradeId.ZERGMISSILEWEAPONSLEVEL3, UpgradeId.ZERGMELEEWEAPONSLEVEL3}:
         #     return UpgradeId.ZERGGROUNDARMORSLEVEL3 in upgrade_set
         elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
-            return bool(self.obs.count_actual(UnitTypeId.GREATERSPIRE)) or bool(
-                self.obs.count_pending(UnitTypeId.GREATERSPIRE)
+            return bool(self.bot.count_actual(UnitTypeId.GREATERSPIRE)) or bool(
+                self.bot.count_pending(UnitTypeId.GREATERSPIRE)
             )
         elif upgrade == UpgradeId.OVERLORDSPEED:
             return self.tier >= StrategyTier.HIVE
@@ -249,29 +243,29 @@ class Strategy:
 
     def _predict_enemy_composition(self) -> UnitComposition:
         return self.enemy_composition
-        # vision = PlayerVision.from_units(self.obs.units | self.obs.enemy_units)
-        # enemy_vision = SCOUT_PREDICTOR.predict(self.obs.game_loop, vision, self.obs.player_races)
+        # vision = PlayerVision.from_units(self.bot.units | self.bot.enemy_units)
+        # enemy_vision = SCOUT_PREDICTOR.predict(self.bot.game_loop, vision, self.bot.player_races)
         # composition = UnitComposition(dict(enemy_vision.composition)) + self.enemy_composition
         # composition = UnitComposition({k: v for k, v in composition.items() if v >= 1})
         # return composition
 
     def _tier(self) -> StrategyTier:
         if (
-            self.obs.supply_workers < self.state.tier1_drone_count.value
-            or self.obs.townhalls.amount < 3
-            or self.obs.time < 3 * 60
+            self.bot.supply_workers < self.parameters.tier1_drone_count
+            or self.bot.townhalls.amount < 3
+            or self.bot.time < 3 * 60
         ):
             return StrategyTier.HATCH
         elif (
-            self.obs.supply_workers < self.state.tier2_drone_count.value
-            or self.obs.townhalls.amount < 4
-            or self.obs.time < 6 * 60
+            self.bot.supply_workers < self.parameters.tier2_drone_count
+            or self.bot.townhalls.amount < 4
+            or self.bot.time < 6 * 60
         ):
             return StrategyTier.LAIR
         elif (
-            self.obs.supply_workers < self.state.tier3_drone_count.value
-            or self.obs.townhalls.amount < 5
-            or self.obs.time < 9 * 60
+            self.bot.supply_workers < self.parameters.tier3_drone_count
+            or self.bot.townhalls.amount < 5
+            or self.bot.time < 9 * 60
         ):
             return StrategyTier.HIVE
         return StrategyTier.LATEGAME
@@ -279,41 +273,41 @@ class Strategy:
     def _army_composition(self) -> UnitComposition:
         # force droning up to 21
         # TODO: check if necessary
-        if not self.obs.structures({UnitTypeId.SPAWNINGPOOL}).ready:
+        if not self.bot.structures({UnitTypeId.SPAWNINGPOOL}).ready:
             return {}
-        counter_composition = {k: self.state.counter_factor.value * v for k, v in self.counter_composition.items()}
+        counter_composition = {k: self.parameters.counter_factor * v for k, v in self.counter_composition.items()}
         composition = defaultdict[UnitTypeId, float](float, counter_composition)
-        corruptor_mixin = int(composition[UnitTypeId.BROODLORD] / self.state.corruptor_mixin.value)
+        corruptor_mixin = int(composition[UnitTypeId.BROODLORD] / self.parameters.corruptor_mixin)
         if corruptor_mixin > 0:
             composition[UnitTypeId.CORRUPTOR] += corruptor_mixin
-        ravager_mixin = int(composition[UnitTypeId.ROACH] / self.state.ravager_mixin.value)
+        ravager_mixin = int(composition[UnitTypeId.ROACH] / self.parameters.ravager_mixin)
         if ravager_mixin > 0:
             composition[UnitTypeId.RAVAGER] += ravager_mixin
         if sum(composition.values()) < 1:
             composition[UnitTypeId.ZERGLING] += 4
         can_afford_hydras = min(
-            self.obs.bank.minerals / 100,
-            self.obs.bank.vespene / 50,
-            self.obs.bank.larva,
+            self.bot.bank.minerals / 100,
+            self.bot.bank.vespene / 50,
+            self.bot.bank.larva,
         )
         can_afford_lings = min(
-            self.obs.bank.minerals / 50,
-            self.obs.bank.larva,
+            self.bot.bank.minerals / 50,
+            self.bot.bank.larva,
         )
-        can_afford_queens = self.obs.bank.minerals / 150
-        if self.state.hydras_when_banking.value < can_afford_hydras:
+        can_afford_queens = self.bot.bank.minerals / 150
+        if self.parameters.hydras_when_banking < can_afford_hydras:
             composition[UnitTypeId.HYDRALISK] += can_afford_hydras
             composition[UnitTypeId.BROODLORD] += can_afford_hydras
         else:
-            if self.state.lings_when_banking.value < can_afford_lings:
+            if self.parameters.lings_when_banking < can_afford_lings:
                 composition[UnitTypeId.ZERGLING] += can_afford_lings
-            if self.state.queens_when_banking.value < can_afford_queens:
+            if self.parameters.queens_when_banking < can_afford_queens:
                 composition[UnitTypeId.QUEEN] += can_afford_queens
         return composition
 
     def _counter_composition(self) -> UnitComposition:
         def total_cost(t: UnitTypeId) -> float:
-            return float(self.state.bot.cost.of(t).total_resources)
+            return float(self.bot.cost.of(t).total_resources)
 
         composition = defaultdict[UnitTypeId, float](float)
         for enemy_type, count in self.enemy_composition_predicted.items():
@@ -327,8 +321,8 @@ class Strategy:
         return composition
 
     def _macro_composition(self) -> UnitComposition:
-        harvester_target = min(100, max(1, self.obs.max_harvesters))
-        queen_target = max(0.0, min(8, 2 * self.obs.townhalls.amount))
+        harvester_target = min(100, max(1, self.bot.max_harvesters))
+        queen_target = max(0.0, min(8, 2 * self.bot.townhalls.amount))
         composition = defaultdict[UnitTypeId, float](float)
 
         composition[UnitTypeId.DRONE] += harvester_target

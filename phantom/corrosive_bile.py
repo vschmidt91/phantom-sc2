@@ -48,13 +48,12 @@ class CorrosiveBile:
             distances=[unit.radius + self.ability_range + bonus_distance],
             query_tree=UnitTreeQueryType.AllEnemy,
         )
-        if not targets:
-            return None
-        target = max(filter(self._can_be_targeted, targets), key=_target_priority)
-        if cy_distance_to(unit.position, target.position) <= unit.radius + self.ability_range:
-            return UseAbility(self.ability, target=target.position)
-        else:
-            return Move(target.position)
+        if target := max(filter(self._can_be_targeted, targets), key=_target_priority, default=None):
+            if cy_distance_to(unit.position, target.position) <= unit.radius + self.ability_range:
+                return UseAbility(self.ability, target=target.position)
+            else:
+                return Move(target.position)
+        return None
 
     def _can_be_targeted(self, unit: Unit) -> bool:
         return self.bot.is_visible(unit) and not unit.is_hallucination and unit.type_id not in CHANGELINGS

@@ -27,7 +27,6 @@ from phantom.common.constants import (
 from phantom.common.cost import Cost
 from phantom.common.unit_composition import UnitComposition
 from phantom.common.utils import PlacementNotFoundException, Point
-from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -50,16 +49,16 @@ class MacroState:
         self.unassigned_plans = list[MacroPlan]()
         self.assigned_plans = dict[int, MacroPlan]()
 
-    def make_composition(self, observation: Observation, composition: UnitComposition) -> Iterable[MacroPlan]:
+    def make_composition(self, composition: UnitComposition) -> Iterable[MacroPlan]:
         unit_priorities = dict[UnitTypeId, float]()
         for unit, target in composition.items():
-            have = observation.count_actual(unit) + observation.count_pending(unit)
-            planned = observation.count_planned(unit)
+            have = self.bot.count_actual(unit) + self.bot.count_pending(unit)
+            planned = self.bot.count_planned(unit)
             priority = -(have + 0.5) / max(1.0, target)
             unit_priorities[unit] = priority
             if target < 1 or target <= have + planned:
                 continue
-            if any(observation.get_missing_requirements(unit)):
+            if any(self.bot.get_missing_requirements(unit)):
                 continue
             if planned == 0:
                 yield MacroPlan(unit, priority=priority)
@@ -80,34 +79,34 @@ class MacroState:
     def planned_by_type(self, item: MacroId) -> Iterable[MacroPlan]:
         return filter(lambda p: p.item == item, self.enumerate_plans())
 
-    def step(self, obs: Observation, blocked_positions: Set[Point]) -> "MacroAction":
-        return MacroAction(self, obs, blocked_positions)
+    def step(self, blocked_positions: Set[Point]) -> "MacroAction":
+        return MacroAction(self, blocked_positions)
 
 
 class MacroAction:
-    def __init__(self, state: MacroState, obs: Observation, blocked_positions: Set[Point]) -> None:
+    def __init__(self, state: MacroState, blocked_positions: Set[Point]) -> None:
         self.state = state
-        self.obs = obs
+        self.bot = state.bot
         self.blocked_positions = blocked_positions
 
     def get_actions(self) -> Mapping[Unit, Action]:
-        for unit in self.obs.get_units_from_role(UnitRole.PERSISTENT_BUILDER):
-            if unit.tag not in self.state.assigned_plans and unit.tag not in self.obs.ordered_structures:
+        for unit in self.bot.mediator.get_units_from_role(role=UnitRole.PERSISTENT_BUILDER):
+            if unit.tag not in self.state.assigned_plans and unit.tag not in self.bot.ordered_structures:
                 logger.info(f"Returning {unit=} to gathering")
-                self.obs.bot.mediator.assign_role(tag=unit.tag, role=UnitRole.GATHERING)
+                self.bot.mediator.assign_role(tag=unit.tag, role=UnitRole.GATHERING)
 
         # unassign all larvae
         for larva in self.state.bot.larva:
             if plan := self.state.assigned_plans.pop(larva.tag, None):
                 self.state.unassigned_plans.append(plan)
 
-        self.assign_unassigned_plans(self.obs.units)  # TODO: narrow this down
+        self.assign_unassigned_plans(self.bot.all_own_units)  # TODO: narrow this down
 
         actions = dict[Unit, Action]()
         reserve = Cost()
         plans_prioritized = sorted(self.state.assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
         for _i, (tag, plan) in enumerate(plans_prioritized):
-            trainer = self.obs.unit_by_tag.get(tag)
+            trainer = self.bot.unit_tag_dict.get(tag)
             if not trainer:
                 del self.state.assigned_plans[tag]
                 self.state.unassigned_plans.append(plan)
@@ -127,7 +126,7 @@ class MacroAction:
                 logger.info(f"{trainer=} is unable to execute {plan=}")
                 continue
 
-            if any(self.obs.get_missing_requirements(plan.item)):
+            if any(self.bot.get_missing_requirements(plan.item)):
                 continue
 
             if isinstance(plan.target, Point2) and not self.state.bot.mediator.can_place_structure(
@@ -139,7 +138,7 @@ class MacroAction:
 
             if not plan.target:
                 try:
-                    plan.target = self.get_target(self.obs, trainer, plan, self.blocked_positions)
+                    plan.target = self.get_target(trainer, plan)
                 except PlacementNotFoundException:
                     continue
 
@@ -147,19 +146,19 @@ class MacroAction:
             eta = self.get_eta(reserve, cost)
 
             if eta < math.inf:
-                expected_income = self.obs.income * eta
+                expected_income = self.bot.income * eta
                 needs_to_reserve = Cost.max(Cost(), cost - expected_income)
                 reserve += needs_to_reserve
 
             if trainer.type_id in WORKERS:
-                self.obs.bot.mediator.assign_role(tag=trainer.tag, role=UnitRole.PERSISTENT_BUILDER)
+                self.bot.mediator.assign_role(tag=trainer.tag, role=UnitRole.PERSISTENT_BUILDER)
 
             if eta == 0.0:
                 actions[trainer] = UseAbility(ability, target=plan.target)
             elif plan.target:
                 if trainer.is_carrying_resource:
                     actions[trainer] = UseAbility(AbilityId.HARVEST_RETURN)
-                elif (self.obs.iteration % 10 == 0) and (action := premove(trainer, plan, eta)):
+                elif (self.bot.actual_iteration % 10 == 0) and (action := premove(trainer, plan, eta)):
                     actions[trainer] = action
 
         return actions
@@ -175,11 +174,9 @@ class MacroAction:
                 self.state.assigned_plans[trainer.tag] = plan
                 trainer_set.remove(trainer)
 
-    def get_target(
-        self, obs: Observation, trainer: Unit, objective: MacroPlan, blocked_positions: Set[Point]
-    ) -> Unit | Point2 | None:
+    def get_target(self, trainer: Unit, objective: MacroPlan) -> Unit | Point2 | None:
         if objective.item in GAS_BUILDINGS:
-            return self.get_gas_target(obs)
+            return self.get_gas_target()
         if (
             not (entry := MACRO_INFO.get(trainer.type_id))
             or not (data := entry.get(objective.item))
@@ -187,9 +184,9 @@ class MacroAction:
         ):
             return None
         if objective.item in TOWNHALL_TYPES:
-            position = self.get_expansion_target(obs, blocked_positions)
+            position = self.get_expansion_target()
         else:
-            position = self.get_tech_target(obs, objective.item)
+            position = self.get_tech_target(objective.item)
         if not position:
             raise PlacementNotFoundException()
         return position
@@ -214,28 +211,28 @@ class MacroAction:
 
         return next(iter(trainers_filtered), None)
 
-    def get_gas_target(self, obs: Observation) -> Unit:
+    def get_gas_target(self) -> Unit:
         gas_type = GAS_BY_RACE[self.state.bot.race]
-        exclude_positions = {geyser.position for geyser in obs.gas_buildings}
+        exclude_positions = {geyser.position for geyser in self.bot.gas_buildings}
         exclude_tags = {
             order.target
-            for unit in obs.workers
+            for unit in self.bot.workers
             for order in unit.orders
             if order.ability.exact_id == AbilityId.ZERGBUILD_EXTRACTOR
         }
         exclude_tags.update({p.target.tag for p in self.state.planned_by_type(gas_type) if isinstance(p.target, Unit)})
         geysers = [
             geyser
-            for geyser in obs.geyers_taken
+            for geyser in self.bot.all_taken_resources.vespene_geyser
             if (geyser.position not in exclude_positions and geyser.tag not in exclude_tags)
         ]
         if target := min(geysers, key=lambda g: g.tag, default=None):
             return target
         raise PlacementNotFoundException()
 
-    def get_expansion_target(self, obs: Observation, blocked_positions: Set[Point]) -> Point2:
-        loss_positions = [self.state.bot.in_mineral_line[b] for b in obs.bases_taken]
-        loss_positions_enemy = [self.state.bot.in_mineral_line[s] for s in self.state.bot.enemy_start_locations_rounded]
+    def get_expansion_target(self) -> Point2:
+        loss_positions = [self.bot.in_mineral_line[b] for b in self.bot.bases_taken]
+        loss_positions_enemy = [self.bot.in_mineral_line[s] for s in self.state.bot.enemy_start_locations_rounded]
 
         def loss_fn(p: Point2) -> float:
             distances = map(lambda q: cy_distance_to(p, q), loss_positions)
@@ -243,11 +240,11 @@ class MacroAction:
             return max(distances, default=0.0) - min(distances_enemy, default=0.0)
 
         def is_viable(b: Point) -> bool:
-            if b in blocked_positions:
+            if b in self.bot.blocked_positions:
                 return False
-            if b in obs.bot.structure_dict:
+            if b in self.bot.structure_dict:
                 return False
-            return obs.bot.mediator.is_position_safe(grid=obs.bot.mediator.get_ground_grid, position=Point2(b))
+            return self.bot.mediator.is_position_safe(grid=self.bot.mediator.get_ground_grid, position=Point2(b))
 
         candidates = filter(is_viable, self.state.bot.bases)
         if target := min(candidates, key=loss_fn, default=None):
@@ -255,11 +252,11 @@ class MacroAction:
 
         raise PlacementNotFoundException()
 
-    def get_tech_target(self, obs: Observation, target: UnitTypeId) -> Point2:
-        data = obs.unit_data(target)
+    def get_tech_target(self, target: UnitTypeId) -> Point2:
+        data = self.state.bot.game_data.units[target.value]
 
         def filter_base(b):
-            if th := obs.townhall_at.get(b):
+            if th := self.bot.townhall_at.get(b):
                 return th.is_ready
             return False
 
@@ -276,9 +273,9 @@ class MacroAction:
         raise PlacementNotFoundException()
 
     def get_eta(self, reserve: Cost, cost: Cost) -> float:
-        bank = Cost(self.obs.bank.minerals, self.obs.bank.vespene, self.obs.bank.supply, min(1, self.obs.bank.larva))
+        bank = Cost(self.bot.bank.minerals, self.bot.bank.vespene, self.bot.bank.supply, min(1, self.bot.bank.larva))
         deficit = reserve + cost - bank
-        eta = deficit / self.obs.income
+        eta = deficit / self.bot.income
         return max(
             (
                 0.0,

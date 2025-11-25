@@ -5,8 +5,10 @@ import os
 import pickle
 import pstats
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
+from collections.abc import Iterable, Set
 from dataclasses import dataclass
+from itertools import chain
 from queue import Empty, Queue
 
 import numpy as np
@@ -18,14 +20,19 @@ from loguru import logger
 from s2clientprotocol.score_pb2 import CategoryScoreDetails
 from sc2.cache import property_cache_once_per_frame
 from sc2.data import Race, Result
+from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
+from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
+from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
+from sc2.units import Units
 
 from phantom.agent import Agent
 from phantom.common.constants import (
@@ -33,9 +40,17 @@ from phantom.common.constants import (
     ITEM_BY_ABILITY,
     MICRO_MAP_REGEX,
     MINING_RADIUS,
+    REQUIREMENTS_KEYS,
+    SUPPLY_PROVIDED,
+    WITH_TECH_EQUIVALENTS,
+    ZERG_ARMOR_UPGRADES,
+    ZERG_FLYER_ARMOR_UPGRADES,
+    ZERG_FLYER_UPGRADES,
+    ZERG_MELEE_UPGRADES,
+    ZERG_RANGED_UPGRADES,
 )
-from phantom.common.cost import CostManager
-from phantom.common.utils import Point, center, get_intersections, project_point_onto_line
+from phantom.common.cost import Cost, CostManager
+from phantom.common.utils import RNG, MacroId, Point, center, get_intersections, project_point_onto_line
 from phantom.config import BotConfig
 from phantom.exporter import BotExporter
 from phantom.macro.main import MacroPlan
@@ -164,8 +179,8 @@ class PhantomBot(BotExporter, AresBot):
 
         # await self.client.debug_create_unit(
         #     [
-        #         [UnitTypeId.RAVAGER, 1, self.game_info.map_center, 1],
-        #         [UnitTypeId.ROACH, 2, self.game_info.map_center, 2],
+        #         [UnitTypeId.ROACH, 13, self.game_info.map_center, 1],
+        #         [UnitTypeId.ROACH, 13, self.game_info.map_center, 2],
         #     ]
         # )
 
@@ -277,7 +292,69 @@ class PhantomBot(BotExporter, AresBot):
                 del self.ordered_structures[tag]
         self.ordered_structure_position_to_tag = {s.position: tag for tag, s in self.ordered_structures.items()}
 
-        actions = await self.agent.step()
+        self.actual_by_type = Counter[UnitTypeId](
+            u.type_id for u in self.all_own_units if u.is_ready or u.tag in self.units_completed_this_frame
+        )
+        self.actual_by_type[UnitTypeId.DRONE] = int(self.supply_workers)
+        self.pending_by_type = Counter[UnitTypeId](self.pending.values())
+        self.ordered_by_type = Counter[UnitTypeId](s.type for s in self.ordered_structures.values())
+        self.townhall_at = {tuple(b.position.rounded): b for b in self.townhalls}
+        self.resource_at = {tuple(r.position.rounded): r for r in self.resources}
+
+        self.bases_taken = set[tuple[int, int]]()
+        if not self.is_micro_map:
+            self.bases_taken.update(
+                p
+                for b in self.expansion_locations_list
+                if (th := self.townhall_at.get(p := tuple(b.rounded))) and th.is_ready
+            )
+
+        self.all_taken_resources = Units(
+            [
+                r
+                for base in self.bases
+                if (th := self.townhall_at.get(base)) and th.is_ready
+                for p in self.expansion_resource_positions[base]
+                if (r := self.resource_at.get(p))
+            ],
+            self,
+        )
+        self.max_harvesters = sum(
+            (
+                2 * self.all_taken_resources.mineral_field.amount,
+                3 * self.gas_buildings.amount,
+                # 22 * self.townhalls.not_ready.amount,
+            )
+        )
+
+        self.supply_pending = 0
+        self.supply_income = 0.0
+        for unit_type, provided in SUPPLY_PROVIDED[self.race].items():
+            total_provided = provided * self.count_pending(unit_type)
+            self.supply_pending += total_provided
+            self.supply_income += total_provided / self.build_time(unit_type)
+
+        larva_income = sum(
+            sum(
+                (
+                    1 / 11 if h.is_ready else 0.0,
+                    3 / 29 if h.has_buff(BuffId.QUEENSPAWNLARVATIMER) else 0.0,  # TODO: track actual injects
+                )
+            )
+            for h in self.townhalls
+        )
+        self.income = Cost(
+            self.state.score.collection_rate_minerals / 60.0,  # TODO: get from harvest assignment
+            self.state.score.collection_rate_vespene / 60.0,  # TODO: get from harvest assignment
+            self.supply_income,  # TODO: iterate over pending
+            larva_income,
+        )
+
+        self.bank = Cost(self.minerals, self.vespene, self.supply_left, self.larva.amount)
+
+        self.planned = Counter(p.item for p in self.agent.macro.enumerate_plans())
+
+        actions = self.agent.step()
 
         for unit, action in actions.items():
             if not await action.execute(unit):
@@ -578,3 +655,127 @@ class PhantomBot(BotExporter, AresBot):
                 return UpgradeId.TUNNELINGCLAWS in self.state.upgrades
             return False
         return unit.movement_speed > 0
+
+    def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
+        if unit == UnitTypeId.ZERGLING:
+            return chain(
+                # (UpgradeId.ZERGLINGMOVEMENTSPEED,),
+                (UpgradeId.ZERGLINGMOVEMENTSPEED, UpgradeId.ZERGLINGATTACKSPEED),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.ULTRALISK:
+            return chain(
+                (UpgradeId.CHITINOUSPLATING, UpgradeId.ANABOLICSYNTHESIS),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.BANELING:
+            return chain(
+                (UpgradeId.CENTRIFICALHOOKS,),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.ROACH:
+            return chain(
+                (UpgradeId.GLIALRECONSTITUTION, UpgradeId.BURROW, UpgradeId.TUNNELINGCLAWS),
+                # (UpgradeId.GLIALRECONSTITUTION,),
+                self.upgrade_sequence(ZERG_RANGED_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.HYDRALISK:
+            return chain(
+                (UpgradeId.EVOLVEGROOVEDSPINES, UpgradeId.EVOLVEMUSCULARAUGMENTS),
+                self.upgrade_sequence(ZERG_RANGED_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.QUEEN:
+            return chain(
+                # self.upgradeSequence(ZERG_RANGED_UPGRADES),
+                # self.upgradeSequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit in (UnitTypeId.MUTALISK, UnitTypeId.CORRUPTOR):
+            return chain(
+                self.upgrade_sequence(ZERG_FLYER_UPGRADES),
+                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.BROODLORD:
+            return chain(
+                self.upgrade_sequence(ZERG_FLYER_ARMOR_UPGRADES),
+                self.upgrade_sequence(ZERG_MELEE_UPGRADES),
+                self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
+            )
+        elif unit == UnitTypeId.OVERSEER:
+            return (UpgradeId.OVERLORDSPEED,)
+        else:
+            return []
+
+    def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
+        for upgrade in upgrades:
+            if upgrade in self.state.upgrades:
+                continue
+            if upgrade in self.pending_upgrades.values():
+                continue
+            return (upgrade,)
+        return ()
+
+    def random_point(self, near: Point2 | None) -> Point2:
+        a = self.game_info.playable_area
+        scale = min(self.game_info.map_size) / 5
+        if near:
+            target = np.clip(
+                RNG.normal((near.x, near.y), scale),
+                (0.0, 0.0),
+                (a.right, a.top),
+            )
+        else:
+            target = RNG.uniform((a.x, a.y), (a.right, a.top))
+        return Point2(target)
+
+    def is_unit_missing(self, unit: UnitTypeId) -> bool:
+        if unit in {
+            UnitTypeId.LARVA,
+        }:
+            return False
+        return all(self.count_actual(e) == 0 for e in WITH_TECH_EQUIVALENTS[unit])
+
+    def count_actual(self, item: UnitTypeId) -> int:
+        return self.actual_by_type[item]
+
+    def count_pending(self, item: UnitTypeId) -> int:
+        factor = 2 if item == UnitTypeId.ZERGLING else 1
+        return factor * (self.pending_by_type[item] + self.ordered_by_type[item])
+
+    def count_planned(self, item: MacroId) -> int:
+        factor = 2 if item == UnitTypeId.ZERGLING else 1
+        return factor * self.planned[item]
+
+    def get_missing_requirements(self, item: MacroId) -> Iterable[MacroId]:
+        if item not in REQUIREMENTS_KEYS:
+            return
+
+        if isinstance(item, UnitTypeId):
+            trainers = UNIT_TRAINED_FROM[item]
+            trainer = min(trainers, key=lambda v: v.value)
+            info = TRAIN_INFO[trainer][item]
+        elif isinstance(item, UpgradeId):
+            trainer = UPGRADE_RESEARCHED_FROM[item]
+            info = RESEARCH_INFO[trainer][item]
+        else:
+            raise ValueError(item)
+
+        # if self.is_unit_missing(trainer):
+        #     yield trainer
+        yield from self.get_missing_requirements(trainer)
+        if (required_building := info.get("required_building")) and self.is_unit_missing(required_building):
+            yield required_building
+        if (
+            (required_upgrade := info.get("required_upgrade"))
+            and isinstance(required_upgrade, UpgradeId)
+            and required_upgrade not in self.state.upgrades
+        ):
+            yield required_upgrade
+
+    @property_cache_once_per_frame
+    def blocked_positions(self) -> Set[Point2]:
+        return set(self.agent.scout.blocked_positions)

@@ -1,6 +1,5 @@
 import math
 import random
-from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import chain
@@ -19,7 +18,7 @@ from sc2.units import Units
 
 from phantom.combat import CombatState
 from phantom.common.action import Action, Attack, Move, UseAbility
-from phantom.common.constants import CHANGELINGS, ENERGY_COST, GAS_BY_RACE
+from phantom.common.constants import CHANGELINGS, CIVILIANS, ENEMY_CIVILIANS, ENERGY_COST, GAS_BY_RACE
 from phantom.common.cost import Cost
 from phantom.common.distribute import distribute
 from phantom.common.utils import pairwise_distances
@@ -28,8 +27,7 @@ from phantom.creep import CreepSpread, CreepTumors
 from phantom.dodge import DodgeState
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.main import MacroPlan, MacroState
-from phantom.macro.strategy import StrategyState
-from phantom.observation import Observation
+from phantom.macro.strategy import Strategy, StrategyParameters
 from phantom.parameters import Parameters
 from phantom.resources.main import ResourceState
 from phantom.resources.observation import ResourceObservation
@@ -53,7 +51,7 @@ class Agent:
         self.corrosive_biles = CorrosiveBile(bot)
         self.dodge = DodgeState(bot)
         self.scout = ScoutState(bot)
-        self.strategy = StrategyState(bot, parameters)
+        self.strategy_paramaters = StrategyParameters(parameters)
         self.resources = ResourceState(bot)
         self.transfuse = Transfuse(bot)
         self.build_order_completed = False
@@ -63,11 +61,12 @@ class Agent:
         if self.bot.mediator.get_did_enemy_rush:
             self.build_order_completed = True
 
-    async def step(self) -> Mapping[Unit, Action]:
-        planned = Counter(p.item for p in self.macro.enumerate_plans())
-        observation = Observation(self.bot, planned)
-
-        strategy = self.strategy.step(observation)
+    def step(self) -> Mapping[Unit, Action]:
+        enemy_combatants = (
+            self.bot.enemy_units if self.bot.is_micro_map else self.bot.enemy_units.exclude_type(ENEMY_CIVILIANS)
+        )
+        combatants = self.bot.units if self.bot.is_micro_map else self.bot.units.exclude_type(CIVILIANS)
+        strategy = Strategy(self.bot, self.strategy_paramaters)
 
         build_order_actions = dict[Unit, Action]()
         if not self.build_order_completed:
@@ -77,7 +76,7 @@ class Agent:
                 weight_safety_limit=10.0,
             ):
                 self.build_order_completed = True
-            if step := self.build_order.execute(observation):
+            if step := self.build_order.execute(self.bot):
                 build_order_actions.update(step.actions)
                 for plan in step.plans:
                     self.macro.add(plan)
@@ -86,7 +85,7 @@ class Agent:
                 self.build_order_completed = True
         else:
             for plan in chain(
-                self.macro.make_composition(observation, strategy.composition_target),
+                self.macro.make_composition(strategy.composition_target),
                 strategy.make_upgrades(),
                 strategy.morph_overlord(),
                 strategy.expand(),
@@ -95,14 +94,14 @@ class Agent:
             ):
                 self.macro.add(plan)
 
-        combat = self.combat.step(observation.bases_taken)
+        combat = self.combat.step()
 
         self.corrosive_biles.on_step()
         self.creep_tumors.on_step()
         self.creep_spread.on_step()
 
-        injecters = observation.units(UnitTypeId.QUEEN)
-        inject_targets = observation.townhalls.ready
+        injecters = self.bot.units(UnitTypeId.QUEEN)
+        inject_targets = self.bot.townhalls.ready
         inject_assignment = distribute(
             injecters,
             inject_targets,
@@ -113,16 +112,16 @@ class Agent:
         )
         self.dodge.on_step()
 
-        macro_step = self.macro.step(observation, set(self.scout.blocked_positions))
+        macro_step = self.macro.step(set(self.scout.blocked_positions))
         macro_actions = macro_step.get_actions()
 
-        should_inject = observation.supply_used + observation.bank.larva < 200
+        should_inject = self.bot.supply_used + self.bot.bank.larva < 200
         tumor_count = (
             self.creep_tumors.unspread_tumor_count
-            + observation.count_pending(UnitTypeId.CREEPTUMOR)
-            + observation.count_pending(UnitTypeId.CREEPTUMORQUEEN)
+            + self.bot.count_pending(UnitTypeId.CREEPTUMOR)
+            + self.bot.count_pending(UnitTypeId.CREEPTUMORQUEEN)
         )
-        tumor_limit = min(2.0 * observation.count_actual(UnitTypeId.QUEEN), observation.time / 60)
+        tumor_limit = min(3.0 * self.bot.count_actual(UnitTypeId.QUEEN), self.bot.time / 30.0)
         should_spread_creep = tumor_count < tumor_limit
 
         def should_harvest_resource(r: Unit) -> bool:
@@ -136,10 +135,10 @@ class Agent:
         harvesters = self.bot.mediator.get_units_from_role(role=UnitRole.GATHERING)
 
         if self.bot.is_micro_map:
-            resources_to_harvest = observation.resources
+            resources_to_harvest = self.bot.resources
             gas_ratio = 0.0
         else:
-            resources_to_harvest = observation.all_taken_resources.filter(should_harvest_resource)
+            resources_to_harvest = self.bot.all_taken_resources.filter(should_harvest_resource)
             required = Cost()
             required += sum((self.bot.cost.of(plan.item) for plan in self.macro.unassigned_plans), Cost())
             required += sum(
@@ -147,7 +146,7 @@ class Agent:
                 Cost(),
             )
             required += self.bot.cost.of_composition(strategy.composition_deficit)
-            required -= observation.bank
+            required -= self.bot.bank
 
             if required.minerals <= 0 and required.vespene <= 0:
                 # TODO
@@ -158,29 +157,24 @@ class Agent:
                 optimal_gas_ratio = vespene_trips / (mineral_trips + vespene_trips)
             gas_ratio = optimal_gas_ratio
 
-        resources = self.resources.step(
-            ResourceObservation(
-                self.bot,
-                harvesters,
-                observation.gas_buildings.ready,
-                resources_to_harvest.vespene_geyser,
-                resources_to_harvest.mineral_field,
-                gas_ratio,
-                self.bot.workers_in_gas_buildings,
-            )
+        resoure_observation = ResourceObservation(
+            self.bot,
+            harvesters,
+            self.bot.gas_buildings.ready,
+            resources_to_harvest.vespene_geyser,
+            resources_to_harvest.mineral_field,
+            gas_ratio,
+            self.bot.workers_in_gas_buildings,
         )
-        harvester_return_targets = observation.townhalls.ready
+        resources = self.resources.step(resoure_observation)
+        harvester_return_targets = self.bot.townhalls.ready
 
         gas_type = GAS_BY_RACE[self.bot.race]
-        gas_depleted = observation.gas_buildings.filter(lambda g: not g.has_vespene).amount
-        gas_have = (
-            observation.count_actual(gas_type)
-            + observation.count_pending(gas_type)
-            + observation.count_planned(gas_type)
-        )
-        gas_max = resources.observation.vespene_geysers.amount
+        gas_depleted = self.bot.gas_buildings.filter(lambda g: not g.has_vespene).amount
+        gas_have = self.bot.count_actual(gas_type) + self.bot.count_pending(gas_type) + self.bot.count_planned(gas_type)
+        gas_max = resoure_observation.vespene_geysers.amount
         gas_want = min(gas_max, gas_depleted + math.ceil((resources.gas_target - 1) / 3))
-        # if not observation.count(UnitTypeId.LAIR, include_planned=False):
+        # if not self.bot.count(UnitTypeId.LAIR, include_planned=False):
         #     gas_want = min(1, gas_want)
         if gas_have < gas_want:
             self.macro.add(MacroPlan(gas_type))
@@ -203,7 +197,7 @@ class Agent:
                 or (combat.fight_with(q) if 1 < self.bot.mediator.get_ground_grid[p] < np.inf else None)
                 or inject_with_queen(q)
                 or (self.creep_spread.spread_with(q) if should_spread_creep else None)
-                or (combat.retreat_with(q) if not observation.creep[p] else None)
+                or (combat.retreat_with(q) if not self.bot.has_creep(q) else None)
                 or combat.fight_with(q)
             )
 
@@ -213,7 +207,7 @@ class Agent:
 
             detection_range = overseers[0].detect_range
 
-            targets = observation.enemy_combatants or observation.enemy_units
+            targets = enemy_combatants or self.bot.enemy_units
 
             distance = pairwise_distances(
                 [a.position for a in overseers],
@@ -236,10 +230,11 @@ class Agent:
                 elif action := spawn_changeling(u):
                     return action
                 elif target := assignment.get(u):
-                    target_point = observation.find_path(
+                    target_point = self.bot.mediator.find_path_next_point(
                         start=u.position,
                         target=target.position,
-                        air=True,
+                        grid=self.bot.mediator.get_air_grid,
+                        smoothing=True,
                     )
                     return Move(target_point)
                 return search_with(u)
@@ -284,35 +279,35 @@ class Agent:
         def search_with(unit: Unit) -> Action | None:
             if not (unit.is_idle or unit.is_gathering or unit.is_returning):
                 return None
-            elif observation.time < 8 * 60 and self.bot.enemy_start_locations:
+            elif self.bot.time < 8 * 60 and self.bot.enemy_start_locations:
                 return Move(Point2(random.choice(self.bot.enemy_start_locations)))
-            elif observation.enemy_combatants:
-                target = cy_closest_to(unit.position, observation.enemy_combatants)
+            # elif self.bot.enemy_combatants:
+            #     target = cy_closest_to(unit.position, self.bot.enemy_combatants)
+            #     return Attack(target.position)
+            elif self.bot.enemy_units:
+                target = cy_closest_to(unit.position, self.bot.enemy_units)
                 return Attack(target.position)
-            elif observation.enemy_units:
-                target = cy_closest_to(unit.position, observation.enemy_units)
-                return Attack(target.position)
-            target = observation.random_point(near=unit.position)
-            if observation.is_visible[target.rounded]:
+            target = self.bot.random_point(near=unit.position)
+            if self.bot.is_visible(target):
                 return None
             if self.bot.mediator.get_cached_ground_grid[target.rounded] == np.inf and not unit.is_flying:
                 return None
             return Move(target)
 
-        detectors = observation.units(UnitTypeId.OVERSEER)
-        scout_actions = self.scout.on_step(detectors)
+        overseers = self.bot.units(UnitTypeId.OVERSEER)
+        scout_actions = self.scout.on_step(overseers)
 
         actions = {
             **build_order_actions,
             **{u: a for u in harvesters if (a := micro_harvester(u))},
-            **micro_overseers(observation.overseers),
+            **micro_overseers(overseers),
             **scout_actions,
-            **{u: a for u in observation.units(UnitTypeId.OVERLORD) if (a := micro_overlord(u))},
-            **{u: a for u in observation.units(CHANGELINGS) if (a := search_with(u))},
-            **{u: a for u in observation.combatants if (a := micro_unit(u))},
+            **{u: a for u in self.bot.units(UnitTypeId.OVERLORD) if (a := micro_overlord(u))},
+            **{u: a for u in self.bot.units(CHANGELINGS) if (a := search_with(u))},
+            **{u: a for u in combatants if (a := micro_unit(u))},
             **{
                 u: UseAbility(AbilityId.CANCEL)
-                for u in observation.structures
+                for u in self.bot.structures
                 if not u.is_ready and u.health_percentage < 0.1
             },
             **macro_actions,
@@ -322,7 +317,7 @@ class Agent:
             if action := self.creep_spread.spread_with(tumor):
                 actions[tumor] = action
 
-        for unit in observation.units:
+        for unit in self.bot.units:
             if action := self.dodge.dodge_with(unit):
                 actions[unit] = action
 

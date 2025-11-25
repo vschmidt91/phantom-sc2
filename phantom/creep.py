@@ -82,7 +82,7 @@ class CreepTumors:
         self.bot = bot
         self.tumor_created_at = dict[int, int]()
         self.tumor_active_since = dict[int, int]()
-        self.tumor_stuck_game_loops = 1000  # remove the tumor if it fails to spread longer than this
+        self.tumor_stuck_game_loops = 3000  # remove the tumor if it fails to spread longer than this
         self.tumor_cooldown = 304
 
     @property
