@@ -107,9 +107,7 @@ class StepwiseCombatSimulator(CombatSimulator):
                 & (dps > 0.0)
             )
 
-            attack_weight = np.where(
-                attack, 1.0, 0.0
-            )
+            attack_weight = np.where(attack, 1.0, 0.0)
             attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
 
             damage_received = dt * (attack_probability * dps).sum(axis=0)
@@ -139,10 +137,7 @@ class StepwiseCombatSimulator(CombatSimulator):
         health1 = sum(u.health + u.shield for u in setup.units1)
         health2 = sum(u.health + u.shield for u in setup.units2)
         win, health_result = self.combat_sim.predict_engage(setup.units1, setup.units2)
-        if win:
-            outcome_global = health_result / max(1e-10, health1)
-        else:
-            outcome_global = -health_result / max(1e-10, health2)
+        outcome_global = health_result / max(1e-10, health1) if win else -health_result / max(1e-10, health2)
 
         outcome_local = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
         result = CombatResult(outcome_local=outcome_local, outcome_global=outcome_global)
