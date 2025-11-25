@@ -96,15 +96,10 @@ BUILD_ORDERS = {
             Make(UnitTypeId.DRONE, 17),
             Make(UnitTypeId.EXTRACTOR, 1),
             WaitUntil(lambda obs: obs.gas_buildings),
-            # WaitUntil(lambda obs: obs.workers.amount > 16),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
             Make(UnitTypeId.DRONE, 19),
             Make(UnitTypeId.OVERLORD, 3),
             WaitUntil(lambda obs: obs.structures(UnitTypeId.SPAWNINGPOOL).ready),
-            # Make(UnitTypeId.HATCHERY, 3),
-            # Make(UnitTypeId.QUEEN, 1),
-            # Make(UnitTypeId.ZERGLING, 1),
-            # Make(UnitTypeId.QUEEN, 2),
         ]
     ),
     "HATCH_FIRST": BuildOrderChain(

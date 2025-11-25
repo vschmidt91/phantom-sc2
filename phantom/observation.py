@@ -115,6 +115,7 @@ class Observation:
             (
                 2 * self.all_taken_resources.mineral_field.amount,
                 3 * self.gas_buildings.amount,
+                # 22 * self.bot.townhalls.not_ready.amount,
             )
         )
         self.geyers_taken = self.all_taken_resources.vespene_geyser
@@ -225,6 +226,7 @@ class Observation:
 
         # if self.is_unit_missing(trainer):
         #     yield trainer
+        yield from self.get_missing_requirements(trainer)
         if (required_building := info.get("required_building")) and self.is_unit_missing(required_building):
             yield required_building
         if (

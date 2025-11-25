@@ -12,7 +12,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 
 from phantom.common.utils import get_requirements
-from phantom.dummy import BaseBlocker, DummyBot
+from phantom.dummy import BaseBlock, CannonRush, DummyBot
 
 WITH_TECH_EQUIVALENTS = {unit: {unit} | EQUIVALENTS_FOR_TECH_PROGRESS.get(unit, set()) for unit in UnitTypeId}
 
@@ -569,7 +569,8 @@ REPLAY_TYPE_ENCODING = "ascii"
 
 SPECIAL_BUILDS = {
     "Dummy": DummyBot,
-    "BaseBlocker": BaseBlocker,
+    "BaseBlock": BaseBlock,
+    "CannonRush": CannonRush,
 }
 
 SPORE_TIMING_ZERG = 7 * 60

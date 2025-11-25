@@ -197,7 +197,7 @@ class Strategy:
         supply_planned = sum(
             provided * self.obs.planned[unit_type] for unit_type, provided in SUPPLY_PROVIDED[self.obs.bot.race].items()
         )
-        supply = self.obs.supply_cap + self.obs.supply_pending / 2 + supply_planned
+        supply = self.obs.supply_cap + self.obs.supply_pending + supply_planned
         supply_target = min(200.0, self.obs.supply_used + 2 + 20 * self.obs.income.larva)
         if supply_target <= supply:
             return

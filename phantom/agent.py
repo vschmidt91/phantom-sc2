@@ -58,6 +58,11 @@ class Agent:
         self.transfuse = Transfuse(bot)
         self.build_order_completed = False
 
+        if self.bot.is_micro_map:
+            self.build_order_completed = True
+        if self.bot.mediator.get_did_enemy_rush:
+            self.build_order_completed = True
+
     async def step(self) -> Mapping[Unit, Action]:
         planned = Counter(p.item for p in self.macro.enumerate_plans())
         observation = Observation(self.bot, planned)
@@ -65,25 +70,30 @@ class Agent:
         strategy = self.strategy.step(observation)
 
         build_order_actions = dict[Unit, Action]()
-        if not self.bot.is_micro_map:
-            if not self.build_order_completed:
-                if step := self.build_order.execute(observation):
-                    build_order_actions.update(step.actions)
-                    for plan in step.plans:
-                        self.macro.add(plan)
-                else:
-                    logger.info("Build order completed.")
-                    self.build_order_completed = True
-            else:
-                for plan in chain(
-                    self.macro.make_composition(observation, strategy.composition_target),
-                    strategy.make_upgrades(),
-                    strategy.morph_overlord(),
-                    strategy.expand(),
-                    strategy.make_spines(),
-                    strategy.make_spores(),
-                ):
+        if not self.build_order_completed:
+            if not self.bot.mediator.is_position_safe(
+                grid=self.bot.mediator.get_ground_grid,
+                position=self.bot.mediator.get_own_nat,
+                weight_safety_limit=10.0,
+            ):
+                self.build_order_completed = True
+            if step := self.build_order.execute(observation):
+                build_order_actions.update(step.actions)
+                for plan in step.plans:
                     self.macro.add(plan)
+            else:
+                logger.info("Build order completed.")
+                self.build_order_completed = True
+        else:
+            for plan in chain(
+                self.macro.make_composition(observation, strategy.composition_target),
+                strategy.make_upgrades(),
+                strategy.morph_overlord(),
+                strategy.expand(),
+                strategy.make_spines(),
+                strategy.make_spores(),
+            ):
+                self.macro.add(plan)
 
         combat = self.combat.step(observation.bases_taken)
 
