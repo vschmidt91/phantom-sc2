@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from sc2.unit import Unit
+from sc2_helper.combat_simulator import CombatSimulator as SC2CombatSimulator
 from sklearn.metrics import pairwise_distances
 
 from phantom.common.utils import (
@@ -43,6 +44,7 @@ class StepwiseCombatSimulator(CombatSimulator):
         self.future_discount_lambda = 1.0
         self.vespene_weight = 2.0
         self.distance_constant = 1.0
+        self.combat_sim = SC2CombatSimulator()
 
     def is_attackable(self, u: Unit) -> bool:
         if u.is_burrowed or u.is_cloaked:
@@ -106,7 +108,7 @@ class StepwiseCombatSimulator(CombatSimulator):
             )
 
             attack_weight = np.where(
-                attack, np.reciprocal(np.maximum(self.distance_constant, range_projection - distance)), 0.0
+                attack, 1.0, 0.0
             )
             attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
 
@@ -125,14 +127,22 @@ class StepwiseCombatSimulator(CombatSimulator):
         mixing_own /= mixing_own.sum(axis=1, keepdims=True)
         mixing_enemy /= mixing_enemy.sum(axis=1, keepdims=True)
 
-        losses_weighted = np.maximum(0.0, values * damage_accumulation - 1.0)
+        losses_weighted = np.maximum(0.0, values * damage_accumulation - 10.0)
         losses_own = mixing_own @ losses_weighted
         losses_enemy = mixing_enemy @ losses_weighted
         outcome_vector = (losses_enemy - losses_own) / np.maximum(1e-10, losses_enemy + losses_own)
 
-        losses_own_global = losses_weighted[:n1].sum()
-        losses_enemy_global = losses_weighted[n1:].sum()
-        outcome_global = (losses_enemy_global - losses_own_global) / max(1e-10, losses_enemy_global + losses_own_global)
+        # losses_own_global = losses_weighted[:n1].sum()
+        # losses_enemy_global = losses_weighted[n1:].sum()
+        # outcome_global = (losses_enemy_global - losses_own_global) / max(1e-10, losses_enemy_global + losses_own_global)
+
+        health1 = sum(u.health + u.shield for u in setup.units1)
+        health2 = sum(u.health + u.shield for u in setup.units2)
+        win, health_result = self.combat_sim.predict_engage(setup.units1, setup.units2)
+        if win:
+            outcome_global = health_result / max(1e-10, health1)
+        else:
+            outcome_global = -health_result / max(1e-10, health2)
 
         outcome_local = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
         result = CombatResult(outcome_local=outcome_local, outcome_global=outcome_global)
