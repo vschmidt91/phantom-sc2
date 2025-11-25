@@ -1,10 +1,9 @@
-from collections import Counter, defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections import Counter
+from collections.abc import Iterable
 from itertools import chain
 from typing import TYPE_CHECKING
 
 import numpy as np
-from ares import UnitTreeQueryType
 from ares.consts import UnitRole
 from cython_extensions import cy_can_place_structure, cy_unit_pending
 from sc2.data import Race
@@ -17,15 +16,12 @@ from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
-from sc2.unit import Unit
 from sc2.units import Units
 
 from phantom.common.constants import (
     CIVILIANS,
     COCOONS,
     ENEMY_CIVILIANS,
-    MAX_UNIT_RADIUS,
-    MIN_WEAPON_COOLDOWN,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
     WITH_TECH_EQUIVALENTS,
@@ -36,7 +32,7 @@ from phantom.common.constants import (
     ZERG_RANGED_UPGRADES,
 )
 from phantom.common.cost import Cost
-from phantom.common.utils import RNG, MacroId, air_range_of, ground_range_of
+from phantom.common.utils import RNG, MacroId
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -186,7 +182,6 @@ class Observation:
             self.supply_income,  # TODO: iterate over pending
             larva_income,
         )
-        self.shootable_targets = self._shootable_targets()
 
     def calculate_unit_value_weighted(self, unit_type: UnitTypeId) -> float:
         # TODO: learn value as parameters
@@ -296,15 +291,6 @@ class Observation:
         ):
             yield required_upgrade
 
-    def can_move(self, unit: Unit) -> bool:
-        if unit.is_burrowed:
-            if unit.type_id == UnitTypeId.INFESTORBURROWED:
-                return True
-            elif unit.type_id == UnitTypeId.ROACHBURROWED:
-                return UpgradeId.TUNNELINGCLAWS in self.bot.state.upgrades
-            return False
-        return unit.movement_speed > 0
-
     def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
         if unit == UnitTypeId.ZERGLING:
             return chain(
@@ -370,42 +356,3 @@ class Observation:
                 continue
             return (upgrade,)
         return ()
-
-    def _shootable_targets(self, bonus_range=0.0) -> Mapping[Unit, Sequence[Unit]]:
-        units = self.combatants.filter(lambda u: ground_range_of(u) >= 2 and u.weapon_cooldown <= MIN_WEAPON_COOLDOWN)
-
-        points_ground = list[Point2]()
-        points_air = list[Point2]()
-        distances_ground = list[float]()
-        distances_air = list[float]()
-        for unit in units:
-            base_range = bonus_range + unit.radius + MAX_UNIT_RADIUS
-            if unit.can_attack_ground:
-                points_ground.append(unit)
-                distances_ground.append(base_range + ground_range_of(unit))
-            if unit.can_attack_air:
-                points_air.append(unit)
-                distances_air.append(base_range + air_range_of(unit))
-
-        ground_candidates = self.bot.mediator.get_units_in_range(
-            start_points=points_ground,
-            distances=distances_ground,
-            query_tree=UnitTreeQueryType.EnemyGround,
-            return_as_dict=True,
-        )
-        air_candidates = self.bot.mediator.get_units_in_range(
-            start_points=points_air,
-            distances=distances_air,
-            query_tree=UnitTreeQueryType.EnemyFlying,
-            return_as_dict=True,
-        )
-        targets = defaultdict[Unit, list[Unit]](list)
-        for unit in units:
-            for target in ground_candidates.get(unit.tag, []):
-                if unit.distance_to(target) < bonus_range + unit.radius + ground_range_of(unit) + target.radius:
-                    targets[unit].append(target)
-            for target in air_candidates.get(unit.tag, []):
-                if unit.distance_to(target) < bonus_range + unit.radius + air_range_of(unit) + target.radius:
-                    targets[unit].append(target)
-        targets_sorted = {unit: sorted(ts, key=lambda u: u.tag) for unit, ts in targets.items()}
-        return targets_sorted

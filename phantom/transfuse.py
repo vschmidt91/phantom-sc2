@@ -1,31 +1,41 @@
+from typing import TYPE_CHECKING
+
+from ares import UnitTreeQueryType
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.unit import Unit
 
 from phantom.common.action import Action, UseAbility
-from phantom.common.constants import ENERGY_COST
-from phantom.observation import Observation
+
+if TYPE_CHECKING:
+    from phantom.main import PhantomBot
 
 
-class TransfuseAction:
-    def __init__(self, observation: Observation):
-        self.observation = observation
+class Transfuse:
+    def __init__(self, bot: "PhantomBot"):
+        self.bot = bot
         self.ability = AbilityId.TRANSFUSION_TRANSFUSION
-        self.eligible_targets = self.observation.combatants.filter(
-            lambda t: t.health + 75 <= t.health_max and BuffId.TRANSFUSION not in t.buffs
-        )
+        self.ability_range = bot.game_data.abilities[self.ability.value]._proto.cast_range
+        self.ability_energy_cost = 50
+        self.min_wounded = 75
 
     def transfuse_with(self, unit: Unit) -> Action | None:
-        if unit.energy < ENERGY_COST[self.ability]:
+        if unit.energy < self.ability_energy_cost:
             return None
 
-        def eligible(t: Unit) -> bool:
-            return t.tag != unit.tag and unit.in_ability_cast_range(self.ability, t)
+        (targets,) = self.bot.mediator.get_units_in_range(
+            start_points=[unit],
+            distances=[unit.radius + self.ability_range],
+            query_tree=UnitTreeQueryType.AllOwn,
+        )
+
+        def is_eligible(t: Unit) -> bool:
+            return t != unit and BuffId.TRANSFUSION not in t.buffs and t.health + self.min_wounded <= t.health_max
 
         def priority(t: Unit) -> float:
             return 1 - t.shield_health_percentage
 
-        if target := max(filter(eligible, self.eligible_targets), key=priority, default=None):
+        if target := max(filter(is_eligible, targets), key=priority, default=None):
             return UseAbility(self.ability, target=target)
 
         return None

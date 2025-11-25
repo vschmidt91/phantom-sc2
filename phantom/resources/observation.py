@@ -1,19 +1,23 @@
 from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
+from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
 from sc2.units import Units
 
 from phantom.common.utils import Point
-from phantom.observation import Observation
 from phantom.resources.utils import remaining
 
-HarvesterAssignment = dict[int, Point]
+if TYPE_CHECKING:
+    from phantom.main import PhantomBot
+
+type HarvesterAssignment = dict[int, Point]
 
 
 class ResourceObservation:
     def __init__(
         self,
-        observation: Observation,
+        bot: "PhantomBot",
         harvesters: Units,
         gas_buildings: Units,
         vespene_geysers: Units,
@@ -21,7 +25,8 @@ class ResourceObservation:
         gas_ratio: float,
         workers_in_geysers: Mapping[int, Unit],
     ):
-        self.observation = observation
+        self.bot = bot
+        self.researched_speed = self.bot.already_pending_upgrade(UpgradeId.ZERGLINGMOVEMENTSPEED) > 0.0
         self.harvesters = harvesters
         self.gas_buildings = gas_buildings
         self.vespene_geysers = vespene_geysers
@@ -35,7 +40,7 @@ class ResourceObservation:
                 frozenset(harvester_tags),
                 frozenset(self.gas_buildings),
                 frozenset(self.mineral_fields),
-                observation.researched_speed,
+                self.researched_speed,
                 self.gas_ratio,
             )
         )
@@ -54,7 +59,7 @@ class ResourceObservation:
                 return 0
             if not remaining(geyser):
                 return 0
-            if not self.observation.researched_speed:
+            if not self.researched_speed:
                 return 3
             return 2
         else:  # resource is mineralpatch

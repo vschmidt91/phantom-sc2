@@ -1,53 +1,50 @@
 from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
+from ares import UnitTreeQueryType
 from sc2.ids.ability_id import AbilityId
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
 from phantom.common.action import Action, UseAbility
-from phantom.common.constants import CHANGELINGS, COOLDOWN
+from phantom.common.constants import CHANGELINGS
+from phantom.common.cooldown import CooldownTracker
 from phantom.common.utils import air_dps_of, ground_dps_of
-from phantom.observation import Observation
+
+if TYPE_CHECKING:
+    from phantom.main import PhantomBot
 
 type CorrosiveBileAction = Mapping[Unit, Action]
 
 
+def _target_priority(u: Unit) -> float:
+    priority = 10.0 + max(ground_dps_of(u), air_dps_of(u))
+    priority /= 100.0 + u.health + u.shield
+    priority /= 1.0 + 10 * u.movement_speed
+    return priority
+
+
 class CorrosiveBile:
-    def __init__(self) -> None:
+    def __init__(self, bot: "PhantomBot") -> None:
+        self.bot = bot
         self.bile_last_used = dict[int, int]()
         self.ability = AbilityId.EFFECT_CORROSIVEBILE
+        self.ability_range = bot.game_data.abilities[self.ability.value]._proto.cast_range
+        self.cooldown_tracker = CooldownTracker(bot, self.ability, 160)
 
-    def step(self, obs: Observation) -> CorrosiveBileAction:
-        ravagers = obs.combatants(UnitTypeId.RAVAGER)
-        for ravager in ravagers:
-            if (action := obs.unit_commands.get(ravager.tag)) and action.exact_id == self.ability:
-                self.bile_last_used[ravager.tag] = action.game_loop
+    def on_step(self):
+        self.cooldown_tracker.on_step()
 
-        actions = {r: a for r in ravagers if (a := self._bile_with(obs, r))}
-        return actions
-
-    def _bile_with(self, obs: Observation, unit: Unit) -> Action | None:
-        def filter_target(t: Unit) -> bool:
-            return (
-                obs.is_visible[t.position.rounded]
-                and unit.in_ability_cast_range(self.ability, t.position)
-                and not t.is_hallucination
-                and t.type_id not in CHANGELINGS
-            )
-
-        def bile_priority(t: Unit) -> float:
-            priority = 10.0 + max(ground_dps_of(t), air_dps_of(t))
-            priority /= 100.0 + t.health + t.shield
-            priority /= 1.0 + 10 * t.movement_speed
-            return priority
-
-        last_used = self.bile_last_used.get(unit.tag)
-        if last_used is not None and obs.game_loop < last_used + COOLDOWN[AbilityId.EFFECT_CORROSIVEBILE]:
+    def bile_with(self, unit: Unit) -> Action | None:
+        if self.cooldown_tracker.is_on_cooldown(unit):
             return None
+        (targets,) = self.bot.mediator.get_units_in_range(
+            start_points=[unit],
+            distances=[unit.radius + self.ability_range],
+            query_tree=UnitTreeQueryType.AllEnemy,
+        )
+        if target := max(filter(self._can_be_targeted, targets), key=_target_priority, default=None):
+            return UseAbility(self.ability, target=target.position)
+        return None
 
-        targets = obs.enemy_units.filter(filter_target)
-        if not any(targets):
-            return None
-
-        target = max(targets, key=bile_priority)
-        return UseAbility(self.ability, target=target.position)
+    def _can_be_targeted(self, unit: Unit) -> bool:
+        return self.bot.is_visible(unit) and not unit.is_hallucination and unit.type_id not in CHANGELINGS

@@ -24,7 +24,7 @@ from phantom.common.cost import Cost
 from phantom.common.distribute import distribute
 from phantom.common.utils import pairwise_distances
 from phantom.corrosive_bile import CorrosiveBile
-from phantom.creep import CreepState
+from phantom.creep import CreepSpread, CreepTumors
 from phantom.dodge import DodgeState
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.main import MacroPlan, MacroState
@@ -34,7 +34,7 @@ from phantom.parameters import Parameters
 from phantom.resources.main import ResourceState
 from phantom.resources.observation import ResourceObservation
 from phantom.scout import ScoutState
-from phantom.transfuse import TransfuseAction
+from phantom.transfuse import Transfuse
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -49,12 +49,14 @@ class Agent:
         self.combat = CombatState(bot, parameters)
         self.observation = ObservationState(bot)
         self.macro = MacroState(bot)
-        self.creep = CreepState(bot)
-        self.corrosive_biles = CorrosiveBile()
-        self.dodge = DodgeState()
+        self.creep_tumors = CreepTumors(bot)
+        self.creep_spread = CreepSpread(bot)
+        self.corrosive_biles = CorrosiveBile(bot)
+        self.dodge = DodgeState(bot)
         self.scout = ScoutState(bot)
         self.strategy = StrategyState(bot, parameters)
         self.resources = ResourceState(bot)
+        self.transfuse = Transfuse(bot)
         self.build_order_completed = False
 
     async def step(self) -> Mapping[Unit, Action]:
@@ -84,9 +86,11 @@ class Agent:
                 ):
                     self.macro.add(plan)
 
-        combat = self.combat.step(observation)
-        transfuse = TransfuseAction(observation)
-        creep = self.creep.step()
+        combat = self.combat.step(observation.bases_taken)
+
+        self.corrosive_biles.on_step()
+        self.creep_tumors.on_step()
+        self.creep_spread.on_step()
 
         injecters = observation.units(UnitTypeId.QUEEN)
         inject_targets = observation.townhalls.ready
@@ -98,15 +102,14 @@ class Agent:
                 [b.position for b in inject_targets],
             ),
         )
-        dodge = self.dodge.step(observation)
-        dode_actions = {u: a for u in observation.units if (a := dodge.dodge_with(u))}
+        self.dodge.on_step()
 
         macro_step = self.macro.step(observation, set(self.scout.blocked_positions))
         macro_actions = macro_step.get_actions()
 
         should_inject = observation.supply_used + observation.bank.larva < 200
         tumor_count = (
-            self.creep.unspread_tumor_count
+            self.creep_tumors.unspread_tumor_count
             + observation.count_pending(UnitTypeId.CREEPTUMOR)
             + observation.count_pending(UnitTypeId.CREEPTUMORQUEEN)
         )
@@ -148,7 +151,7 @@ class Agent:
 
         resources = self.resources.step(
             ResourceObservation(
-                observation,
+                self.bot,
                 harvesters,
                 observation.gas_buildings.ready,
                 resources_to_harvest.vespene_geyser,
@@ -187,10 +190,10 @@ class Agent:
         def micro_queen(q: Unit) -> Action | None:
             p = tuple(q.position.rounded)
             return (
-                transfuse.transfuse_with(q)
+                self.transfuse.transfuse_with(q)
                 or (combat.fight_with(q) if 1 < self.bot.mediator.get_ground_grid[p] < np.inf else None)
                 or inject_with_queen(q)
-                or (creep.spread_with_queen(q) if should_spread_creep else None)
+                or (self.creep_spread.spread_with(q) if should_spread_creep else None)
                 or (combat.retreat_with(q) if not observation.creep[p] else None)
                 or combat.fight_with(q)
             )
@@ -249,6 +252,7 @@ class Agent:
             return None
 
         micro_handlers = {
+            UnitTypeId.RAVAGER: self.corrosive_biles.bile_with,
             UnitTypeId.BANELING: combat.fight_with_baneling,
             UnitTypeId.ROACH: combat.do_burrow,
             UnitTypeId.ROACHBURROWED: combat.do_unburrow,
@@ -287,12 +291,11 @@ class Agent:
             return Move(target)
 
         detectors = observation.units(UnitTypeId.OVERSEER)
-        scout_actions = self.scout.step(observation, detectors)
+        scout_actions = self.scout.on_step(detectors)
 
         actions = {
             **build_order_actions,
             **{u: a for u in harvesters if (a := micro_harvester(u))},
-            **creep.spread_active_tumors(),
             **micro_overseers(observation.overseers),
             **scout_actions,
             **{u: a for u in observation.units(UnitTypeId.OVERLORD) if (a := micro_overlord(u))},
@@ -304,9 +307,15 @@ class Agent:
                 if not u.is_ready and u.health_percentage < 0.1
             },
             **macro_actions,
-            **self.corrosive_biles.step(observation),
-            **dode_actions,
         }
+
+        for tumor in self.creep_tumors.active_tumors:
+            if action := self.creep_spread.spread_with(tumor):
+                actions[tumor] = action
+
+        for unit in observation.units:
+            if action := self.dodge.dodge_with(unit):
+                actions[unit] = action
 
         return actions
 
@@ -315,4 +324,4 @@ class Agent:
 
     def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId) -> None:
         if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
-            self.creep.on_tumor_completed(unit, previous_type == UnitTypeId.CREEPTUMORQUEEN)
+            self.creep_tumors.on_tumor_completed(unit, previous_type == UnitTypeId.CREEPTUMORQUEEN)

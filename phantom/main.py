@@ -5,6 +5,7 @@ import os
 import pickle
 import pstats
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 from queue import Empty, Queue
 
@@ -24,6 +25,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
+from sc2.unit_command import UnitCommand
 
 from phantom.agent import Agent
 from phantom.common.constants import (
@@ -65,6 +67,8 @@ class PhantomBot(BotExporter, AresBot):
         self.cost = CostManager(self)
         self.worker_memory = dict[int, Unit]()
         self.workers_in_gas_buildings = dict[int, Unit]()
+        self.actions_by_ability = defaultdict[AbilityId, list[UnitCommand]](list)
+        self.ordered_structure_position_to_tag = dict[Point2, int]()
 
         if os.path.isfile(self.bot_config.version_path):
             logger.info(f"Reading version from {self.bot_config.version_path}")
@@ -157,6 +161,13 @@ class PhantomBot(BotExporter, AresBot):
 
         self.send_overlord_scout()
 
+        # await self.client.debug_create_unit(
+        #     [
+        #         [UnitTypeId.RAVAGER, 1, self.game_info.map_center, 1],
+        #         [UnitTypeId.ROACH, 2, self.game_info.map_center, 2],
+        #     ]
+        # )
+
         try:
             with lzma.open(self.bot_config.params_path, "rb") as f:
                 parameters = pickle.load(f)
@@ -192,8 +203,6 @@ class PhantomBot(BotExporter, AresBot):
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
-
-        self.ordered_structure_position_to_tag = {s.position: tag for tag, s in self.ordered_structures.items()}
 
         # await self.client.save_replay(self.client.save_replay_path)
 
@@ -238,7 +247,9 @@ class PhantomBot(BotExporter, AresBot):
         if self.bot_config.profile_path:
             self.profiler.enable()
 
+        self.actions_by_ability.clear()
         for action in self.state.actions_unit_commands:
+            self.actions_by_ability[action.exact_id].append(action)
             for tag in action.unit_tags:
                 self.handle_action(action, tag)
 
@@ -250,9 +261,10 @@ class PhantomBot(BotExporter, AresBot):
                 # the drone morphed into something
                 self.worker_memory.pop(tag, None)
             else:
-                self.workers_in_gas_buildings[tag] = unit
                 # the worker entered a geyser, nydus or dropperlord
+                self.workers_in_gas_buildings[tag] = unit
 
+        # track ordered structures
         for tag, ordered_structure in list(self.ordered_structures.items()):
             if unit := self.unit_tag_dict.get(tag):
                 ability = TRAIN_INFO[unit.type_id][ordered_structure.type]["ability"]
@@ -262,6 +274,7 @@ class PhantomBot(BotExporter, AresBot):
             else:
                 logger.info(f"Trainer {tag=} is MIA for {ordered_structure=}")
                 del self.ordered_structures[tag]
+        self.ordered_structure_position_to_tag = {s.position: tag for tag, s in self.ordered_structures.items()}
 
         actions = await self.agent.step()
 
@@ -419,9 +432,7 @@ class PhantomBot(BotExporter, AresBot):
         unit = self.unit_tag_dict.get(tag) or self._units_previous_map.get(tag)
         if not (item := ITEM_BY_ABILITY.get(action.exact_id)):
             return
-        if action.exact_id == AbilityId.BUILD_CREEPTUMOR_TUMOR:
-            self.agent.creep.on_tumor_spread(action.unit_tags)
-        elif (
+        if (
             action.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN
             or action.exact_id == AbilityId.SPAWNCHANGELING_SPAWNCHANGELING
         ):
@@ -557,3 +568,12 @@ class PhantomBot(BotExporter, AresBot):
         for overlord in self.units(UnitTypeId.OVERLORD):
             for p in scout_path:
                 overlord.move(p, queue=True)
+
+    def can_move(self, unit: Unit) -> bool:
+        if unit.is_burrowed:
+            if unit.type_id == UnitTypeId.INFESTORBURROWED:
+                return True
+            elif unit.type_id == UnitTypeId.ROACHBURROWED:
+                return UpgradeId.TUNNELINGCLAWS in self.state.upgrades
+            return False
+        return unit.movement_speed > 0

@@ -12,7 +12,6 @@ from sc2.units import Units
 from phantom.common.action import Action
 from phantom.common.distribute import distribute
 from phantom.common.utils import Point, pairwise_distances
-from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -31,42 +30,21 @@ class ScoutPosition(Action):
             return unit.move(self.target)
 
 
-type ScoutAction = Mapping[Unit, Action]
-
-
 class ScoutState:
     def __init__(self, bot: "PhantomBot"):
         self.bot = bot
         self.blocked_positions = dict[Point, float]()
-        self._previous_hash = 0
         self.assignment: Mapping[Unit, Point] = dict()
+        self.assignment_interval = 17
+        self._previous_hash = 0
 
-    def _assign(self, detectors: Units, detect_targets: Sequence[Point]) -> Mapping[Unit, Point]:
-        logger.debug("Assigning scout targets")
-        detect_assignment = distribute(
-            detectors,
-            detect_targets,
-            pairwise_distances(
-                [u.position for u in detectors],
-                detect_targets,
-            ),
-            max_assigned=1,
-        )
-        return detect_assignment
-
-    def step(self, observation: Observation, detectors: Units) -> ScoutAction:
-        # TODO
-        if len(self.blocked_positions) > 100:
-            logger.error("Too many blocked positions, resetting")
-            observation.bot.add_replay_tag("blocked_positions_reset")  # type: ignore
-            self.blocked_positions = dict()
-
+    def on_step(self, detectors: Units) -> Mapping[Unit, Action]:
         for p, blocked_since in list(self.blocked_positions.items()):
-            if blocked_since + 60 < observation.time:
+            if blocked_since + 60 < self.bot.time:
                 logger.info(f"Resetting blocked base {p}")
                 del self.blocked_positions[p]
 
-        for error in observation.action_errors:
+        for error in self.bot.state.action_errors:
             error_ability = AbilityId(error.ability_id)
             error_result = ActionResult(error.result)
             if (
@@ -79,21 +57,32 @@ class ScoutState:
                 else:
                     p = tuple(unit.position.rounded)
                 if p not in self.blocked_positions:
-                    self.blocked_positions[p] = observation.time
+                    self.blocked_positions[p] = self.bot.time
                     logger.info(f"Detected blocked base {p}")
 
-        detect_targets = list(self.blocked_positions)
+        if self.bot.actual_iteration % self.assignment_interval == 0:
+            self._update_assignment(detectors)
 
+        actions = {u: ScoutPosition(Point2(p)) for u, p in self.assignment.items()}
+        return actions
+
+    def _update_assignment(self, detectors: Sequence[Unit]) -> None:
+        detect_targets = list(self.blocked_positions)
+        detectors_limited = sorted(detectors, key=lambda u: u.tag)[: len(detect_targets)]
         assignment_hash = hash(
             (
-                frozenset(u.tag for u in detectors),
+                frozenset(u.tag for u in detectors_limited),
                 frozenset(detect_targets),
             )
         )
-        if assignment_hash != self._previous_hash and observation.iteration % 17 == 0:
-            self.assignment = self._assign(detectors, detect_targets)
+        if assignment_hash != self._previous_hash and self.bot.actual_iteration % self.assignment_interval == 0:
+            logger.debug("Assigning scout targets")
+            self.assignment = distribute(
+                detectors_limited[: len(detect_targets)],
+                detect_targets,
+                pairwise_distances(
+                    [u.position for u in detectors_limited],
+                    detect_targets,
+                ),
+            )
             self._previous_hash = assignment_hash
-        assignment = self.assignment
-
-        actions = {u: ScoutPosition(Point2(p)) for u, p in assignment.items()}
-        return actions

@@ -31,6 +31,7 @@ class BaseBlocker(AresBot):
         await super().on_start()
         await self.client.debug_create_unit(
             [
+                [UnitTypeId.ZERGLINGBURROWED, 1, self.mediator.get_enemy_nat, 2],
                 [UnitTypeId.ZERGLINGBURROWED, 1, self.mediator.get_enemy_third, 2],
                 [UnitTypeId.ZERGLINGBURROWED, 1, self.mediator.get_enemy_fourth, 2],
             ]

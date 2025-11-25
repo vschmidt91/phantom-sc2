@@ -1,5 +1,4 @@
-from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -17,20 +16,27 @@ from phantom.common.utils import circle, circle_perimeter, line
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
 
-TUMOR_RANGE = 10
-TUMOR_COOLDOWN = 304
 BASE_SIZE = (5, 5)
-ALL_TUMORS = {UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.CREEPTUMOR}
 
 
-class CreepState:
+class CreepSpread:
     def __init__(self, bot: "PhantomBot") -> None:
         self.bot = bot
-        self.tumor_created_at = dict[int, int]()
-        self.tumor_active_since = dict[int, int]()
         self.placement_map = np.zeros(bot.game_info.map_size)
         self.value_map = np.zeros_like(self.placement_map)
-        self.tumor_stuck_game_loops = 1000  # remove the tumor if it fails to spread longer than this
+        self.update_interval = 10
+
+    def on_step(self) -> None:
+        if self.bot.actual_iteration % self.update_interval == 0:
+            self._update_maps()
+
+    def spread_with(self, unit: Unit) -> Action | None:
+        if unit.type_id == UnitTypeId.QUEEN:
+            if 10 + ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN] <= unit.energy:
+                return self._place_tumor(unit, 12, full_circle=True)
+        elif unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
+            return self._place_tumor(unit, 10)
+        return None
 
     def _update_maps(self) -> None:
         creep_grid = self.bot.mediator.get_creep_grid.T == 1
@@ -48,54 +54,6 @@ class CreepState:
             value_map[i0:i1, j0:j1] *= 3
         self.value_map = gaussian_filter(value_map, 3) * np.where(pathing_grid, 1.0, 0.0)
 
-    @property
-    def unspread_tumor_count(self):
-        return len(self.tumor_active_since) + len(self.tumor_created_at)
-
-    def on_tumor_spread(self, tags: Iterable[int]) -> None:
-        for tag in tags:
-            # the tumor might already be marked as stuck if the spread order got delayed due to the APM limit
-            self.tumor_active_since.pop(tag, None)
-
-    def on_tumor_completed(self, tumor: Unit, spread_by_queen: bool) -> None:
-        self.tumor_created_at[tumor.tag] = self.bot.state.game_loop
-
-    def step(self) -> "CreepAction":
-        game_loop = self.bot.state.game_loop
-        if self.bot.actual_iteration % 10 == 0:
-            self._update_maps()
-
-        # find tumors becoming active
-        for tag, created_at in list(self.tumor_created_at.items()):
-            if tag not in self.bot.unit_tag_dict:
-                del self.tumor_created_at[tag]
-            elif created_at + TUMOR_COOLDOWN <= game_loop:
-                del self.tumor_created_at[tag]
-                self.tumor_active_since[tag] = game_loop
-
-        active_tumors = list[Unit]()
-        for tag, active_since in list(self.tumor_active_since.items()):
-            if active_since + self.tumor_stuck_game_loops <= game_loop:
-                logger.info(f"tumor with {tag=} failed to spread for {self.tumor_stuck_game_loops} loops")
-                del self.tumor_active_since[tag]
-            elif tumor := self.bot.unit_tag_dict.get(tag):
-                active_tumors.append(tumor)
-            else:
-                del self.tumor_active_since[tag]
-
-        return CreepAction(
-            self.placement_map,
-            self.value_map,
-            active_tumors,
-        )
-
-
-@dataclass
-class CreepAction:
-    placement_map: np.ndarray
-    value_map: np.ndarray
-    active_tumors: Sequence[Unit]
-
     def _place_tumor(self, unit: Unit, r: int, full_circle=False) -> Action | None:
         x0 = round(unit.position.x)
         y0 = round(unit.position.y)
@@ -108,7 +66,7 @@ class CreepAction:
         target = max(targets, key=lambda t: self.value_map[t])
 
         if unit.is_structure:
-            target = unit.position.towards(Point2(target), TUMOR_RANGE).rounded
+            target = unit.position.towards(Point2(target), r).rounded
 
         advance = line(target[0], target[1], x0, y0)
         for p in advance:
@@ -118,10 +76,48 @@ class CreepAction:
 
         return None
 
-    def spread_active_tumors(self) -> Mapping[Unit, Action]:
-        return {tumor: action for tumor in self.active_tumors if (action := self._place_tumor(tumor, 10))}
 
-    def spread_with_queen(self, queen: Unit) -> Action | None:
-        if 10 + ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN] <= queen.energy:
-            return self._place_tumor(queen, 12, full_circle=True)
-        return None
+class CreepTumors:
+    def __init__(self, bot: "PhantomBot") -> None:
+        self.bot = bot
+        self.tumor_created_at = dict[int, int]()
+        self.tumor_active_since = dict[int, int]()
+        self.tumor_stuck_game_loops = 1000  # remove the tumor if it fails to spread longer than this
+        self.tumor_cooldown = 304
+
+    @property
+    def unspread_tumor_count(self):
+        return len(self.tumor_active_since) + len(self.tumor_created_at)
+
+    @property
+    def active_tumors(self) -> Sequence[Unit]:
+        return [self.bot.unit_tag_dict[t] for t in self.tumor_active_since]
+
+    def on_tumor_completed(self, tumor: Unit, spread_by_queen: bool) -> None:
+        self.tumor_created_at[tumor.tag] = self.bot.state.game_loop
+
+    def on_step(self) -> None:
+        game_loop = self.bot.state.game_loop
+
+        for action in self.bot.actions_by_ability[AbilityId.BUILD_CREEPTUMOR_TUMOR]:
+            for tag in action.unit_tags:
+                # the tumor might already be marked as stuck if the spread order got delayed due to the APM limit
+                self.tumor_active_since.pop(tag, None)
+
+        # find tumors becoming active
+        for tag, created_at in list(self.tumor_created_at.items()):
+            if tag not in self.bot.unit_tag_dict:
+                del self.tumor_created_at[tag]
+            elif created_at + self.tumor_cooldown <= game_loop:
+                del self.tumor_created_at[tag]
+                self.tumor_active_since[tag] = game_loop
+
+        active_tumors = list[Unit]()
+        for tag, active_since in list(self.tumor_active_since.items()):
+            if active_since + self.tumor_stuck_game_loops <= game_loop:
+                logger.info(f"tumor with {tag=} failed to spread for {self.tumor_stuck_game_loops} loops")
+                del self.tumor_active_since[tag]
+            elif tumor := self.bot.unit_tag_dict.get(tag):
+                active_tumors.append(tumor)
+            else:
+                del self.tumor_active_since[tag]

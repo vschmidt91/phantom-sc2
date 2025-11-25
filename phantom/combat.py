@@ -1,10 +1,11 @@
+from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from itertools import product
 from typing import TYPE_CHECKING
 
 import numpy as np
-from ares import WORKER_TYPES
+from ares import UnitTreeQueryType
 from cython_extensions import cy_dijkstra, cy_pick_enemy_target
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
@@ -15,9 +16,17 @@ from sc2.unit import Unit
 from scipy.optimize import approx_fprime
 
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
-from phantom.common.constants import COMBATANT_STRUCTURES, HALF, MIN_WEAPON_COOLDOWN
+from phantom.common.constants import (
+    CIVILIANS,
+    COMBATANT_STRUCTURES,
+    ENEMY_CIVILIANS,
+    HALF,
+    MAX_UNIT_RADIUS,
+    MIN_WEAPON_COOLDOWN,
+)
 from phantom.common.distribute import distribute
 from phantom.common.utils import (
+    Point,
     air_dps_of,
     air_range_of,
     ground_dps_of,
@@ -27,7 +36,6 @@ from phantom.common.utils import (
     sample_bilinear,
     structure_perimeter,
 )
-from phantom.observation import Observation
 from phantom.parameters import Parameters, Prior
 from phantom.simulator import CombatSetup, StepwiseCombatSimulator
 
@@ -55,75 +63,75 @@ class CombatState:
         self.targeting = dict[int, Unit]()
         self.simulator = StepwiseCombatSimulator(bot)
 
-    def step(self, observation: Observation) -> "CombatAction":
-        return CombatAction(self, observation)
+    def step(self, bases_taken: set[Point]) -> "CombatAction":
+        return CombatAction(self, self.bot, bases_taken)
 
 
 class CombatAction:
-    def __init__(self, state: CombatState, observation: Observation) -> None:
+    def __init__(self, state: CombatState, bot: "PhantomBot", bases_taken: set[Point]) -> None:
         self.state = state
-        self.observation = observation
+        self.bot = bot
+        self.bases_taken = bases_taken
 
-        self.enemy_values = {
-            u.tag: observation.calculate_unit_value_weighted(u.type_id) for u in observation.enemy_units
-        }
-
-        if self.state.bot.is_micro_map:
-            retreat_targets = list()
-            for dx, dy in product([-10, 0, 10], repeat=2):
-                p = observation.map_center.rounded + Point2((dx, dy))
-                if observation.bot.mediator.get_ground_grid[p] == 1.0:
-                    retreat_targets.append(p)
-            if not retreat_targets:
-                retreat_targets.append(self.observation.map_center)
+        if self.bot.is_micro_map:
+            self.combatants = self.bot.units
+            self.enemy_combatants = self.bot.enemy_units
         else:
-            retreat_targets = list()
-            for b in observation.bases_taken:
-                p = self.state.bot.in_mineral_line[b]
-                if state.bot.mediator.get_ground_grid[p] == 1.0:
-                    retreat_targets.append(p)
-            if not retreat_targets:
-                combatant_positions = {
-                    p
-                    for u in observation.combatants
-                    if state.bot.mediator.get_ground_grid[p := tuple(u.position.rounded)] == 1.0
-                }
-                retreat_targets.extend(combatant_positions)
-            if not retreat_targets:
-                logger.warning("No retreat targets, falling back to start mineral line")
-                p = self.state.bot.in_mineral_line[observation.start_location.rounded]
-                retreat_targets.append(p)
+            self.combatants = self.bot.units.exclude_type(CIVILIANS) | self.bot.structures(COMBATANT_STRUCTURES)
+            self.enemy_combatants = self.bot.enemy_units.exclude_type(ENEMY_CIVILIANS) | self.bot.enemy_structures(
+                COMBATANT_STRUCTURES
+            )
 
-        self.combatants = (
-            self.observation.combatants | self.observation.overseers | self.observation.structures(COMBATANT_STRUCTURES)
-        )
-        self.enemy_combatants = self.observation.enemy_combatants | self.observation.enemy_structures(
-            COMBATANT_STRUCTURES
-        )
+            if self.state.bot.is_micro_map:
+                retreat_targets = list()
+                for dx, dy in product([-10, 0, 10], repeat=2):
+                    p = self.bot.game_info.map_center.rounded + Point2((dx, dy))
+                    if self.bot.mediator.get_ground_grid[p] == 1.0:
+                        retreat_targets.append(p)
+                if not retreat_targets:
+                    retreat_targets.append(self.bot.game_info.map_center)
+            else:
+                retreat_targets = list()
+                for b in self.bases_taken:
+                    p = self.state.bot.in_mineral_line[b]
+                    if state.bot.mediator.get_ground_grid[p] == 1.0:
+                        retreat_targets.append(p)
+                if not retreat_targets:
+                    combatant_positions = {
+                        p
+                        for u in self.combatants
+                        if state.bot.mediator.get_ground_grid[p := tuple(u.position.rounded)] == 1.0
+                    }
+                    retreat_targets.extend(combatant_positions)
+                if not retreat_targets:
+                    logger.warning("No retreat targets, falling back to start mineral line")
+                    p = self.state.bot.in_mineral_line[self.bot.start_location.rounded]
+                    retreat_targets.append(p)
 
         self.time_to_kill = self._time_to_kill(self.combatants, self.enemy_combatants)
         self.time_to_attack = self._time_to_attack(self.combatants, self.enemy_combatants)
 
         self.retreat_targets = np.atleast_2d(retreat_targets).astype(int)
 
-        self.air_grid = self.observation.bot.mediator.get_air_grid
-        self.ground_grid = self.observation.bot.mediator.get_ground_grid
+        self.air_grid = self.bot.mediator.get_air_grid
+        self.ground_grid = self.bot.mediator.get_ground_grid
 
         self.retreat_air = cy_dijkstra(self.air_grid.astype(np.float64), self.retreat_targets)
         self.retreat_ground = cy_dijkstra(self.ground_grid.astype(np.float64), self.retreat_targets)
 
-        self.pathing_potential = np.where(self.observation.pathing < np.inf, 0.0, 1.0)
+        self.pathing_potential = np.where(self.bot.mediator.get_cached_ground_grid < np.inf, 0.0, 1.0)
         self.state.targeting = self._assign_targets()
+        self.shootable_targets = self._shootable_targets()
 
         runby_targets_list = list[tuple[int, int]]()
-        for s in self.observation.enemy_structures:
+        for s in self.bot.enemy_structures:
             runby_targets_list.extend(structure_perimeter(s))
 
-        for w in self.observation.enemy_units(WORKER_TYPES):
+        for w in self.bot.enemy_workers:
             runby_targets_list.append(w.position.rounded)
 
         if not runby_targets_list:
-            runby_targets_list.extend(self.state.bot.enemy_start_locations_rounded)
+            runby_targets_list.extend(self.bot.enemy_start_locations_rounded)
 
         runby_targets = np.array(list(set(runby_targets_list)))
         self.runby_pathing = cy_dijkstra(
@@ -168,10 +176,11 @@ class CombatAction:
         retreat_map = self.retreat_air if unit.is_flying else self.retreat_ground
         retreat_path = retreat_map.get_path(unit.position, limit=limit)
         if len(retreat_path) < limit:
-            retreat_point = self.observation.find_safe_spot(
-                unit.position,
-                unit.is_flying,
-                limit,
+            retreat_grid = self.air_grid if unit.is_flying else self.ground_grid
+            retreat_point = self.bot.mediator.find_closest_safe_spot(
+                from_pos=unit.position,
+                grid=retreat_grid,
+                radius=limit,
             )
         else:
             retreat_point = Point2(retreat_path[-1]).offset(HALF)
@@ -184,6 +193,7 @@ class CombatAction:
 
     def fight_with(self, unit: Unit) -> Action | None:
         ground_range = ground_range_of(unit)
+        is_on_creep = self.bot.has_creep(unit)
         p = tuple(unit.position.rounded)
 
         def potential_kiting(x: np.ndarray) -> float:
@@ -205,7 +215,7 @@ class CombatAction:
 
         attack_ready = unit.weapon_cooldown <= MIN_WEAPON_COOLDOWN
 
-        if attack_ready and (targets := self.observation.shootable_targets.get(unit)):
+        if attack_ready and (targets := self.shootable_targets.get(unit)):
             target = cy_pick_enemy_target(enemies=targets)
             if ground_range < 2:
                 return Attack(target.position)
@@ -217,12 +227,12 @@ class CombatAction:
         if unit.type_id in {UnitTypeId.BANELING}:
             return Move(target.position)
 
-        if not unit.is_flying and not self.state.attacking_global and not self.observation.creep[p]:
+        if not unit.is_flying and not self.state.attacking_global and not is_on_creep:
             return self.retreat_with(unit)
 
         retreat_grid = self.air_grid if unit.is_flying else self.ground_grid
         retreat_pathing = self.retreat_air if unit.is_flying else self.retreat_ground
-        is_safe = self.observation.bot.mediator.is_position_safe(
+        is_safe = self.bot.mediator.is_position_safe(
             grid=retreat_grid,
             position=unit.position,
         )
@@ -237,9 +247,7 @@ class CombatAction:
                 gradient_norm = np.linalg.norm(gradient)
                 if gradient_norm > 1e-5:
                     return Move(unit.position - 2 * gradient / gradient_norm)
-            far_from_home = not self.observation.creep[p] or (
-                self.runby_pathing.distance[p] < retreat_pathing.distance[p]
-            )
+            far_from_home = not is_on_creep or (self.runby_pathing.distance[p] < retreat_pathing.distance[p])
             should_runby = not unit.is_flying and far_from_home and is_safe and self.state.attacking_global
             if should_runby:
                 return Attack(runby_target)
@@ -256,7 +264,7 @@ class CombatAction:
     def do_unburrow(self, unit: Unit) -> Action | None:
         if unit.health_percentage > 0.9:
             return UseAbility(AbilityId.BURROWUP)
-        elif UpgradeId.TUNNELINGCLAWS not in self.observation.upgrades:
+        elif UpgradeId.TUNNELINGCLAWS not in self.bot.state.upgrades:
             return None
         elif self.state.bot.mediator.get_ground_grid[unit.position.rounded] > 1:
             return self.retreat_with(unit)
@@ -264,7 +272,7 @@ class CombatAction:
 
     def do_burrow(self, unit: Unit) -> Action | None:
         if (
-            UpgradeId.BURROW not in self.observation.upgrades
+            UpgradeId.BURROW not in self.bot.state.upgrades
             or unit.health_percentage > 0.3
             or unit.is_revealed
             or not unit.weapon_cooldown
@@ -282,7 +290,7 @@ class CombatAction:
 
         def is_attackable(u: Unit) -> bool:
             if u.is_burrowed or u.is_cloaked:
-                return self.observation.bot.mediator.get_is_detected(unit=u, by_enemy=u.is_mine)
+                return self.bot.mediator.get_is_detected(unit=u, by_enemy=u.is_mine)
             return True
 
         enemy_attackable = np.array([1.0 if is_attackable(u) else 0.0 for u in enemies])
@@ -307,7 +315,7 @@ class CombatAction:
 
         def is_attackable(u: Unit) -> bool:
             if u.is_burrowed or u.is_cloaked:
-                return self.observation.bot.mediator.get_is_detected(unit=u, by_enemy=u.is_mine)
+                return self.bot.mediator.get_is_detected(unit=u, by_enemy=u.is_mine)
             return True
 
         enemy_attackable = np.array([1.0 if is_attackable(u) else 0.0 for u in enemies])
@@ -373,3 +381,42 @@ class CombatAction:
         )
 
         return dict(assignment)
+
+    def _shootable_targets(self, bonus_range=0.0) -> Mapping[Unit, Sequence[Unit]]:
+        units = self.combatants.filter(lambda u: ground_range_of(u) >= 2 and u.weapon_cooldown <= MIN_WEAPON_COOLDOWN)
+
+        points_ground = list[Point2]()
+        points_air = list[Point2]()
+        distances_ground = list[float]()
+        distances_air = list[float]()
+        for unit in units:
+            base_range = bonus_range + unit.radius + MAX_UNIT_RADIUS
+            if unit.can_attack_ground:
+                points_ground.append(unit)
+                distances_ground.append(base_range + ground_range_of(unit))
+            if unit.can_attack_air:
+                points_air.append(unit)
+                distances_air.append(base_range + air_range_of(unit))
+
+        ground_candidates = self.bot.mediator.get_units_in_range(
+            start_points=points_ground,
+            distances=distances_ground,
+            query_tree=UnitTreeQueryType.EnemyGround,
+            return_as_dict=True,
+        )
+        air_candidates = self.bot.mediator.get_units_in_range(
+            start_points=points_air,
+            distances=distances_air,
+            query_tree=UnitTreeQueryType.EnemyFlying,
+            return_as_dict=True,
+        )
+        targets = defaultdict[Unit, list[Unit]](list)
+        for unit in units:
+            for target in ground_candidates.get(unit.tag, []):
+                if unit.distance_to(target) < bonus_range + unit.radius + ground_range_of(unit) + target.radius:
+                    targets[unit].append(target)
+            for target in air_candidates.get(unit.tag, []):
+                if unit.distance_to(target) < bonus_range + unit.radius + air_range_of(unit) + target.radius:
+                    targets[unit].append(target)
+        targets_sorted = {unit: sorted(ts, key=lambda u: u.tag) for unit, ts in targets.items()}
+        return targets_sorted

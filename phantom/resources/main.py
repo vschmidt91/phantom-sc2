@@ -24,7 +24,7 @@ class SolverError(Exception):
 @dataclass
 class ResourceState:
     bot: "PhantomBot"
-    assignment: HarvesterAssignment = field(default_factory=HarvesterAssignment)
+    assignment: HarvesterAssignment = field(default_factory=dict)
     gather_hash = 0
 
     def step(self, observation: ResourceObservation) -> "ResourceAction":
@@ -73,9 +73,9 @@ class ResourceAction:
         mineral_max = 2 * self.observation.mineral_fields.amount
         gas_max = sum(resource_limit[tuple(g.position.rounded)] for g in self.observation.gas_buildings)
 
-        if self.observation.observation.researched_speed:
+        if self.observation.researched_speed:
             gas_target = self.gas_target
-        elif self.observation.observation.bank.vespene < 100:
+        elif self.observation.bot.vespene < 100:
             gas_target = gas_max
         else:
             gas_target = 0
