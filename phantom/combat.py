@@ -97,7 +97,7 @@ class CombatAction:
         for townhall in self.bot.townhalls.ready:
             retreat_to_creep_targets.extend(structure_perimeter(townhall))
         for tumor in self.bot.structures(UnitTypeId.CREEPTUMORBURROWED):
-            retreat_to_creep_targets.extend(tumor.position.rounded)
+            retreat_to_creep_targets.append(tumor.position.rounded)
         if retreat_to_creep_targets:
             self.retreat_to_creep_pathing = cy_dijkstra(
                 self.bot.mediator.get_ground_grid.astype(np.float64), np.atleast_2d(retreat_to_creep_targets)
