@@ -116,7 +116,7 @@ class PhantomBot(BotExporter, AresBot):
         self.speedmining_positions = dict[Point, Point2]()
         self.return_distances = dict[Point, float]()
         self.enemy_start_locations_rounded = [tuple(p.rounded) for p in self.enemy_start_locations]
-        self.bases = list[Point]()
+        self.bases = [] if self.is_micro_map else [p.rounded for p in self.expansion_locations_list]
         self.structure_dict = dict[Point, Unit | OrderedStructure | MacroPlan]()
         self.air_grid = np.ones_like(self.mediator.get_air_grid)
 
@@ -125,11 +125,6 @@ class PhantomBot(BotExporter, AresBot):
         else:
             worker_radius = self.workers[0].radius
             for base_position, resources in self.expansion_locations_dict.items():
-                pathing = await self.client.query_pathing(self.workers[0], base_position)
-                if pathing is not None:
-                    self.bases.append(tuple(base_position.rounded))
-                else:
-                    print("no path to base")
                 mineral_center = Point2(np.mean([r.position for r in resources], axis=0))
                 self.spore_position[base_position.rounded] = tuple(base_position.towards(mineral_center, 4.0).rounded)
                 self.spine_position[base_position.rounded] = tuple(
@@ -308,7 +303,11 @@ class PhantomBot(BotExporter, AresBot):
 
         self.bases_taken = set[tuple[int, int]]()
         if not self.is_micro_map:
-            self.bases_taken.update(b for b in self.bases if (th := self.townhall_at.get(b)) and th.is_ready)
+            self.bases_taken.update(
+                p
+                for b in self.expansion_locations_list
+                if (th := self.townhall_at.get(p := tuple(b.rounded))) and th.is_ready
+            )
 
         self.all_taken_resources = Units(
             [
