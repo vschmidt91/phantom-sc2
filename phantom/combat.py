@@ -62,7 +62,7 @@ class CombatState:
         self.disengagement_threshold = self.engagement_threshold - parameters.add(Prior(0.0, 0.01, min=0, max=1)).value
         self.engagement_threshold_global = parameters.add(Prior(0.0, 0.01, min=-1, max=1)).value
         self.disengagement_threshold_global = (
-            self.engagement_threshold_global - parameters.add(Prior(-0.3, 0.01, min=0, max=1)).value
+            self.engagement_threshold_global - parameters.add(Prior(0.3, 0.01, min=0, max=1)).value
         )
         self.attacking_global = True
         self.attacking_local = set[int]()
