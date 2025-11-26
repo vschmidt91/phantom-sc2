@@ -7,10 +7,9 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from ares.consts import UnitRole
-from cython_extensions import cy_closest_to
+from cython_extensions import cy_closest_to, cy_distance_to
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
-from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -18,7 +17,14 @@ from sc2.units import Units
 
 from phantom.combat import CombatState
 from phantom.common.action import Action, Attack, Move, UseAbility
-from phantom.common.constants import CHANGELINGS, CIVILIANS, ENEMY_CIVILIANS, ENERGY_COST, GAS_BY_RACE
+from phantom.common.constants import (
+    CHANGELINGS,
+    CIVILIANS,
+    ENEMY_CIVILIANS,
+    ENERGY_COST,
+    ENERGY_GENERATION_RATE,
+    GAS_BY_RACE,
+)
 from phantom.common.cost import Cost
 from phantom.common.distribute import distribute
 from phantom.common.utils import pairwise_distances
@@ -99,6 +105,7 @@ class Agent:
         self.corrosive_biles.on_step()
         self.creep_tumors.on_step()
         self.creep_spread.on_step()
+        self.dodge.on_step()
 
         injecters = self.bot.units(UnitTypeId.QUEEN)
         inject_targets = self.bot.townhalls.ready
@@ -110,7 +117,6 @@ class Agent:
                 [b.position for b in inject_targets],
             ),
         )
-        self.dodge.on_step()
 
         macro_step = self.macro.step(set(self.scout.blocked_positions))
         macro_actions = macro_step.get_actions()
@@ -182,12 +188,16 @@ class Agent:
         def inject_with_queen(q: Unit) -> Action | None:
             if not should_inject:
                 return None
-            if q.energy < ENERGY_COST[AbilityId.EFFECT_INJECTLARVA]:
-                return None
             if target := inject_assignment.get(q):
-                if target.has_buff(BuffId.QUEENSPAWNLARVATIMER):
-                    return None
-                return UseAbility(AbilityId.EFFECT_INJECTLARVA, target=target)
+                distance = cy_distance_to(q.position, target.position) - q.radius - target.radius
+                time_to_reach_target = distance / (1.4 * q.real_speed)
+                time_until_buff_runs_out = target.buff_duration_remain / 22.4
+                time_to_generate_energy = max(0.0, 25 - q.energy) / (22.4 * ENERGY_GENERATION_RATE)
+                time_until_order = max(time_until_buff_runs_out, time_to_generate_energy)
+                if time_until_order == 0:
+                    return UseAbility(AbilityId.EFFECT_INJECTLARVA, target=target)
+                elif time_until_order < time_to_reach_target:
+                    return Move(target.position)
             return None
 
         def micro_queen(q: Unit) -> Action | None:
