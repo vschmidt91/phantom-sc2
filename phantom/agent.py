@@ -191,15 +191,18 @@ class Agent:
             return None
 
         def micro_queen(q: Unit) -> Action | None:
-            p = tuple(q.position.rounded)
-            return (
-                self.transfuse.transfuse_with(q)
-                or (combat.fight_with(q) if 1 < self.bot.mediator.get_ground_grid[p] < np.inf else None)
-                or inject_with_queen(q)
-                or (self.creep_spread.spread_with(q) if should_spread_creep else None)
-                or (combat.retreat_with(q) if not self.bot.has_creep(q) else None)
-                or combat.fight_with(q)
-            )
+            if action := self.transfuse.transfuse_with(q):
+                return action
+            elif not self.bot.mediator.is_position_safe(grid=self.bot.mediator.get_ground_grid, position=q.position):
+                return combat.fight_with(q)
+            elif (action := inject_with_queen(q)) or (
+                should_spread_creep and (action := self.creep_spread.spread_with(q))
+            ):
+                return action
+            elif not self.bot.has_creep(q):
+                return combat.retreat_to_creep(q)
+            else:
+                return None
 
         def micro_overseers(overseers: Units) -> Mapping[Unit, Action]:
             if not overseers:
@@ -225,10 +228,10 @@ class Agent:
 
             def micro_overseer(u: Unit) -> Action | None:
                 is_safe = self.bot.mediator.is_position_safe(grid=self.bot.mediator.get_air_grid, position=u.position)
-                if not is_safe:
-                    return combat.retreat_with(u)
-                elif action := spawn_changeling(u):
+                if action := spawn_changeling(u):
                     return action
+                elif not is_safe:
+                    return combat.retreat_with(u)
                 elif target := assignment.get(u):
                     target_point = self.bot.mediator.find_path_next_point(
                         start=u.position,
@@ -281,11 +284,11 @@ class Agent:
                 return None
             elif self.bot.time < 8 * 60 and self.bot.enemy_start_locations:
                 return Move(Point2(random.choice(self.bot.enemy_start_locations)))
-            # elif self.bot.enemy_combatants:
-            #     target = cy_closest_to(unit.position, self.bot.enemy_combatants)
+            # elif self.bot.enemy_units:
+            #     target = cy_closest_to(unit.position, self.bot.enemy_units)
             #     return Attack(target.position)
-            elif self.bot.enemy_units:
-                target = cy_closest_to(unit.position, self.bot.enemy_units)
+            elif self.bot.all_enemy_units:
+                target = cy_closest_to(unit.position, self.bot.all_enemy_units)
                 return Attack(target.position)
             target = self.bot.random_point(near=unit.position)
             if self.bot.is_visible(target):

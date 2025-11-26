@@ -292,7 +292,7 @@ def premove(unit: Unit, plan: MacroPlan, eta: float) -> Action | None:
         return None
     target = plan.target.position
     distance = cy_distance_to(unit.position, target)
-    movement_eta = 1.5 + distance / (1.4 * unit.movement_speed)
+    movement_eta = 2.0 + distance / (1.4 * unit.movement_speed)
     if eta > movement_eta:
         return None
     if distance < 1e-3:

@@ -284,7 +284,7 @@ class Strategy:
         if ravager_mixin > 0:
             composition[UnitTypeId.RAVAGER] += ravager_mixin
         if sum(composition.values()) < 1:
-            composition[UnitTypeId.ZERGLING] += 4
+            composition[UnitTypeId.ZERGLING] += 2
         can_afford_hydras = min(
             self.bot.bank.minerals / 100,
             self.bot.bank.vespene / 50,
