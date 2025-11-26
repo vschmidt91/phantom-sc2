@@ -10,7 +10,7 @@ requires-python = ">=3.12, <3.13"
 dependencies = [
     "burnysc2 @ git+https://github.com/august-k/python-sc2.git@develop",
     "click (>=8.1.8,<9.0.0)",
-    "cython-extensions-sc2 (>=0.10.0,<0.11.0)",
+    "cython-extensions-sc2>=0.11.0",
     "highspy (>=1.10.0,<2.0.0)",
     "pyarrow (>=20.0.0,<21.0.0)",
     "pyyaml (>=6.0.2,<7.0.0)",
