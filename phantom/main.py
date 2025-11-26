@@ -616,7 +616,8 @@ class PhantomBot(BotExporter, AresBot):
         scout_path = list[Point2]()
         sight_range = scout_overlord.sight_range
         townhall_size = self.townhalls[0].radius - 1.0
-        worker_speed = self.workers[0].movement_speed
+        worker_speed = 1.4 * self.workers[0].real_speed
+        overlord_speed = 1.4 * scout_overlord.real_speed
         sensitivity = int(sight_range)
         rush_path = self.mediator.find_raw_path(
             start=self.start_location,
@@ -625,9 +626,7 @@ class PhantomBot(BotExporter, AresBot):
             sensitivity=sensitivity,
         )
         for p in rush_path:
-            overlord_duration = (
-                cy_distance_to(scout_overlord.position, p) - sight_range
-            ) / scout_overlord.movement_speed
+            overlord_duration = (cy_distance_to(scout_overlord.position, p) - sight_range) / overlord_speed
             worker_duration = cy_distance_to(self.enemy_start_locations[0], p) / worker_speed
             if overlord_duration < worker_duration:
                 continue

@@ -82,7 +82,7 @@ class StepwiseCombatSimulator(CombatSimulator):
         dps[n1:, n1:] = 0.0
 
         distance = pairwise_distances([u.position for u in units])
-        movement_speed_vector = np.array([u.movement_speed for u in units])
+        movement_speed_vector = np.array([1.4 * u.real_speed for u in units])
         movement_speed = np.repeat(movement_speed_vector[:, None], len(units), axis=1) + np.repeat(
             movement_speed_vector[None, :], len(units), axis=0
         )

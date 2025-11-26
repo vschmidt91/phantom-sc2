@@ -335,7 +335,7 @@ class CombatAction:
         distances -= np.repeat(enemy_radius[None, :], len(units), axis=0)
         distances = np.maximum(distances, 0.0)
 
-        movement_speed = np.array([u.movement_speed for u in units])
+        movement_speed = np.array([1.4 * u.real_speed for u in units])
         movement_speed = np.repeat(movement_speed[:, None], len(enemies), axis=1)
 
         time_to_attack = np.nan_to_num(np.divide(distances, movement_speed), nan=np.inf)
