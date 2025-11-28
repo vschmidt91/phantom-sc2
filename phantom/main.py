@@ -704,12 +704,11 @@ class PhantomBot(BotExporter, AresBot):
 
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
-            if upgrade in self.state.upgrades:
-                continue
-            if upgrade in self.pending_upgrades.values():
-                continue
-            return (upgrade,)
-        return ()
+            if upgrade not in self.state.upgrades:
+                if upgrade not in self.pending_upgrades.values():
+                    yield upgrade
+                else:
+                    return
 
     def random_point(self, near: Point2 | None) -> Point2:
         a = self.game_info.playable_area
