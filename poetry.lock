@@ -4948,9 +4948,10 @@ zstd = ["zstandard (>=0.18.0)"]
 name = "vulture"
 version = "2.14"
 description = "Find dead code"
-optional = false
+optional = true
 python-versions = ">=3.8"
 groups = ["main"]
+markers = "extra == \"dev\""
 files = [
     {file = "vulture-2.14-py2.py3-none-any.whl", hash = "sha256:d9a90dba89607489548a49d557f8bac8112bd25d3cbc8aeef23e860811bd5ed9"},
     {file = "vulture-2.14.tar.gz", hash = "sha256:cb8277902a1138deeab796ec5bef7076a6e0248ca3607a3f3dee0b6d9e9b8415"},
@@ -5231,10 +5232,10 @@ files = [
 
 [extras]
 build = ["map-analyzer", "requests"]
-dev = ["dask", "jupyter", "matplotlib", "notebook", "pandas", "plotly", "s2protocol", "snakeviz"]
+dev = ["dask", "jupyter", "matplotlib", "notebook", "pandas", "plotly", "s2protocol", "snakeviz", "vulture"]
 test = ["mypy", "ruff", "types-requests", "types-s2clientprotocol", "types-tqdm", "yamllint"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12, <3.13"
-content-hash = "6326e18ba992b8135f561942aebc4c0a31a9d4cab8bb34a9ee8b6f9bc599d4c9"
+content-hash = "330b5214bc0e8c59184bbfc9849f2f03e39a0057255d3256b63180892922da5e"
