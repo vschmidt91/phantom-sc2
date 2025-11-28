@@ -51,7 +51,20 @@ class StepwiseCombatSimulator(CombatSimulator):
             return self.bot.mediator.get_is_detected(unit=u, by_enemy=u.is_mine)
         return True
 
+    def _simulate_trivial(self, setup: CombatSetup) -> CombatResult | None:
+        if not any(setup.units1) and not any(setup.units2):
+            return CombatResult(0., {})
+        elif not any(setup.units1):
+            return CombatResult(-1., {u.tag: 1. for u in setup.units2})
+        elif not any(setup.units2):
+            return CombatResult(1., {u.tag: 1. for u in setup.units1})
+        return None
+
     def simulate(self, setup: CombatSetup) -> CombatResult:
+
+        if trivial_result := self._simulate_trivial(setup):
+            return trivial_result
+
         units = [*setup.units1, *setup.units2]
         n1 = len(setup.units1)
 

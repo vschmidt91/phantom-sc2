@@ -1,8 +1,7 @@
 import asyncio
 import math
 from collections import Counter
-from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import fields
+from collections.abc import Iterable
 from functools import cache, wraps
 
 import numpy as np
@@ -21,30 +20,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sklearn.metrics import pairwise_distances as pairwise_distances_sklearn
 
-CVXPY_OPTIONS = dict(
-    solver="ECOS",
-    # verbose=True,
-)
-
-LINPROG_OPTIONS = dict(
-    method="highs",
-    # bounds=(0.0, None),
-    # options=dict(
-    #     # maxiter=100,
-    #     disp=False,
-    #     presolve=False,
-    #     time_limit=10e-3,
-    #     primal_feasibility_tolerance=1e-3,  # default: 1e-7
-    #     dual_feasibility_tolerance=1e-3,  # default: 1e-7
-    #     ipm_optimality_tolerance=1e-5,  # default: 1e-12
-    # ),
-    # x0=None,
-    # integrality=0,
-)
-
 RNG = np.random.default_rng(42)
-
-type Json = Mapping[str, "Json"] | Sequence["Json"] | str | int | float | bool | None
 
 
 def count_sorted[T](items: Iterable[T]) -> dict[T, int]:
@@ -90,85 +66,6 @@ def structure_perimeter(s: Unit) -> Iterable[Point]:
     end = np.add(s.position, half_extent).astype(int)
 
     yield from rectangle_perimeter(start, end)
-
-
-def find_closest_valid(grid: np.ndarray, p: Point, max_distance: int = 1) -> Point:
-    for d in range(max_distance + 1):
-        for i in range(max(0, p[0] - d), min(grid.shape[0], p[0] + d + 1)):
-            for j in range(max(0, p[1] - d), min(grid.shape[1], p[1] + d + 1)):
-                if grid[i, j] < np.inf:
-                    return i, j
-
-    return p
-
-
-def point_line_segment_distance(P: np.ndarray, A: np.ndarray, B: np.ndarray) -> np.floating:
-    """
-    Calculates the minimum distance from a point P to a finite line segment AB
-    using NumPy for vectorized operations.
-
-    The line segment is defined by its two endpoints, A and B.
-    All points are assumed to be NumPy arrays (N-dimensional).
-
-    Args:
-        P: The external point (np.ndarray).
-        A: The first endpoint of the segment (np.ndarray).
-        B: The second endpoint of the segment (np.ndarray).
-
-    Returns:
-        The minimum distance from P to the segment AB.
-    """
-
-    def distance_point_to_point(p1: np.ndarray, p2: np.ndarray) -> np.floating:
-        """Calculates the Euclidean distance between two N-dimensional points (NumPy arrays)."""
-        # Uses the L2 norm (Euclidean distance) of the difference vector.
-        return np.linalg.norm(p1 - p2)
-
-    # Vector from A to B (the segment direction)
-    AB = B - A
-    # Vector from A to P (vector we are projecting)
-    AP = P - A
-
-    # 1. Calculate squared length of the segment AB (L^2 = |AB|^2)
-    L2 = np.dot(AB, AB)
-
-    # Handle the case where A and B are the same point (segment is a single point)
-    if L2 == 0.0:
-        return distance_point_to_point(P, A)
-
-    # 2. Calculate the parameter 't' of the projection C onto the infinite line AB.
-    # t = (AP . AB) / |AB|^2
-    t = np.dot(AP, AB) / L2
-
-    # 3. Determine the closest point C on the line segment AB.
-    # We use np.clip to clamp 't' between 0 and 1.
-    # If t < 0, t_clamped = 0 (closest point is A).
-    # If t > 1, t_clamped = 1 (closest point is B).
-    # If 0 <= t <= 1, t_clamped = t (closest point is on the interior).
-    t_clamped = np.clip(t, 0.0, 1.0)
-
-    # Calculate the closest point C on the segment
-    # C = A + t_clamped * AB
-    C = A + t_clamped * AB
-
-    # 4. Calculate the distance between P and the closest point C
-    return distance_point_to_point(P, C)
-
-
-def dataclass_from_dict(cls: type, parameters: dict[str, float]):
-    field_names = {f.name for f in fields(cls)}
-    return cls(**{k: v for k, v in parameters.items() if k in field_names})
-
-
-def can_attack(unit: Unit, target: Unit) -> bool:
-    if target.is_cloaked and not target.is_revealed:
-        return False
-    # elif target.is_burrowed and not any(self.units_detecting(target)):
-    #     return False
-    elif target.is_flying:
-        return unit.can_attack_air
-    else:
-        return unit.can_attack_ground
 
 
 def pairwise_distances(a, b=None):
@@ -282,18 +179,6 @@ def get_requirements(item: UnitTypeId | UpgradeId) -> Iterable[UnitTypeId | Upgr
         yield from get_requirements(requirement1)
 
 
-FLOOD_FILL_OFFSETS = {
-    Point2((-1, 0)),
-    Point2((0, -1)),
-    Point2((0, +1)),
-    Point2((+1, 0)),
-    # Point2((-1, -1)),
-    # Point2((-1, +1)),
-    # Point2((+1, -1)),
-    # Point2((+1, +1)),
-}
-
-
 @cache
 def disk(radius: float) -> tuple[np.ndarray, np.ndarray]:
     r = int(radius + 0.5)
@@ -301,29 +186,6 @@ def disk(radius: float) -> tuple[np.ndarray, np.ndarray]:
     n = 2 * r + 1
     dx, dy = skimage.draw.disk(center=p, radius=radius, shape=(n, n))
     return dx - r, dy - r
-
-
-def combine_comparers[T](fns: list[Callable[[T, T], int]]) -> Callable[[T, T], int]:
-    def combined(a, b):
-        for f in fns:
-            r = f(a, b)
-            if r != 0:
-                return r
-        return 0
-
-    return combined
-
-
-def points_of_structure(s: Unit) -> list[Point]:
-    dx, dy = disk(s.radius)
-    px, py = s.position.rounded
-    dx += px
-    dy += py
-    return list(zip(dx, dy, strict=False))
-
-
-def logit_to_probability(x: float):
-    return 1 / (1 + math.exp(-x))
 
 
 type MacroId = UnitTypeId | UpgradeId

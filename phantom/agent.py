@@ -11,12 +11,13 @@ from cython_extensions import cy_closest_to, cy_distance_to
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from phantom.combat import CombatState
-from phantom.common.action import Action, Attack, Move, UseAbility
+from phantom.combat import CombatParameters, CombatState
+from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.constants import (
     CHANGELINGS,
     CIVILIANS,
@@ -49,8 +50,7 @@ class Agent:
     def __init__(self, bot: "PhantomBot", build_order_name: str, parameters: Parameters) -> None:
         self.bot = bot
         self.build_order = BUILD_ORDERS[build_order_name]
-        self.parameters = parameters
-        self.combat = CombatState(bot, parameters)
+        self.combat = CombatState(bot, CombatParameters.sample(parameters))
         self.macro = MacroState(bot)
         self.creep_tumors = CreepTumors(bot)
         self.creep_spread = CreepSpread(bot)
@@ -67,7 +67,7 @@ class Agent:
         if self.bot.mediator.get_did_enemy_rush:
             self.build_order_completed = True
 
-    def step(self) -> Mapping[Unit, Action]:
+    def on_step(self) -> Mapping[Unit, Action]:
         enemy_combatants = (
             self.bot.enemy_units if self.bot.is_micro_map else self.bot.enemy_units.exclude_type(ENEMY_CIVILIANS)
         )
@@ -255,10 +255,10 @@ class Agent:
             return {u: a for u in overseers if (a := micro_overseer(u))}
 
         def micro_harvester(u: Unit) -> Action | None:
-            if (6.0 < self.bot.mediator.get_ground_grid[u.position.rounded] < np.inf) and combat.enemy_combatants:
-                closest_enemy = cy_closest_to(u.position, combat.enemy_combatants)
+            if (6.0 < self.bot.mediator.get_ground_grid[u.position.rounded] < np.inf) and combat.ctx.enemy_combatants:
+                closest_enemy = cy_closest_to(u.position, combat.ctx.enemy_combatants)
                 if (
-                    local_outcome := combat.prediction.outcome_local.get(closest_enemy.tag) is not None
+                    local_outcome := combat.ctx.prediction.outcome_local.get(closest_enemy.tag) is not None
                 ) and local_outcome > 0:
                     return combat.retreat_with(u)
             return resources.gather_with(u, harvester_return_targets)
@@ -268,11 +268,30 @@ class Agent:
                 return combat.retreat_with(u)
             return None
 
+        def do_unburrow(u: Unit) -> Action | None:
+            if u.health_percentage > 0.9:
+                return UseAbility(AbilityId.BURROWUP)
+            elif UpgradeId.TUNNELINGCLAWS not in self.bot.state.upgrades:
+                return None
+            elif self.bot.mediator.get_ground_grid[u.position.rounded] > 1:
+                return combat.retreat_with(u)
+            return HoldPosition()
+
+        def do_burrow(u: Unit) -> Action | None:
+            if (
+                UpgradeId.BURROW not in self.bot.state.upgrades
+                or u.health_percentage > 0.3
+                or u.is_revealed
+                or not u.weapon_cooldown
+                or self.bot.mediator.get_is_detected(unit=u, by_enemy=True)
+            ):
+                return None
+            return UseAbility(AbilityId.BURROWDOWN)
+
         micro_handlers = {
             UnitTypeId.RAVAGER: self.corrosive_biles.bile_with,
-            UnitTypeId.BANELING: combat.fight_with_baneling,
-            UnitTypeId.ROACH: combat.do_burrow,
-            UnitTypeId.ROACHBURROWED: combat.do_unburrow,
+            UnitTypeId.ROACH: do_burrow,
+            UnitTypeId.ROACHBURROWED: do_unburrow,
             UnitTypeId.QUEEN: micro_queen,
         }
 
@@ -335,9 +354,6 @@ class Agent:
                 actions[unit] = action
 
         return actions
-
-    def on_building_construction_started(self, unit: Unit) -> None:
-        pass
 
     def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId) -> None:
         if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:

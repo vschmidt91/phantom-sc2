@@ -12,11 +12,6 @@ class Action(ABC):
         raise NotImplementedError
 
 
-class DoNothing(Action):
-    async def execute(self, unit: Unit) -> bool:
-        return True
-
-
 @dataclass(frozen=True)
 class Move(Action):
     target: Point2

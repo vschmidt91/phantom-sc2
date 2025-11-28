@@ -118,7 +118,6 @@ class PhantomBot(BotExporter, AresBot):
         self.enemy_start_locations_rounded = [tuple(p.rounded) for p in self.enemy_start_locations]
         self.bases = [] if self.is_micro_map else [p.rounded for p in self.expansion_locations_list]
         self.structure_dict = dict[Point, Unit | OrderedStructure | MacroPlan]()
-        self.air_grid = np.ones_like(self.mediator.get_air_grid)
 
         if self.is_micro_map:
             pass
@@ -354,7 +353,7 @@ class PhantomBot(BotExporter, AresBot):
 
         self.planned = Counter(p.item for p in self.agent.macro.enumerate_plans())
 
-        actions = self.agent.step()
+        actions = self.agent.on_step()
 
         for unit, action in actions.items():
             if not await action.execute(unit):
@@ -441,7 +440,6 @@ class PhantomBot(BotExporter, AresBot):
     async def on_building_construction_started(self, unit: Unit):
         logger.info(f"on_building_construction_started {unit=}")
         await super().on_building_construction_started(unit)
-        self.agent.on_building_construction_started(unit)
         if ordered_from := self.ordered_structure_position_to_tag.get(unit.position):
             self.ordered_structures.pop(ordered_from, None)
             self.worker_memory.pop(ordered_from, None)
@@ -472,11 +470,6 @@ class PhantomBot(BotExporter, AresBot):
         self.pending.pop(unit_tag, None)
         self.pending_upgrades.pop(unit_tag, None)
         self.worker_memory.pop(unit_tag, None)
-        # if unit := (self._units_previous_map.get(unit_tag) or self._structures_previous_map.get(unit_tag)):
-        #     for order in unit.orders:
-        #         ability = order.ability.exact_id
-        #         if item := UPGRADE_BY_RESEARCH_ABILITY.get(ability):
-        #             self.pending_upgrades.remove(item)
 
     async def on_unit_created(self, unit: Unit):
         await super().on_unit_created(unit)
@@ -493,10 +486,10 @@ class PhantomBot(BotExporter, AresBot):
         elif unit.is_structure and unit.type_id not in {UnitTypeId.CREEPTUMORBURROWED}:
             del self.pending[unit.tag]
 
-    #
     # async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
     #     await super().on_unit_took_damage(unit, amount_damage_taken)
     #
+
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         logger.info(f"on_upgrade_complete {upgrade=}")
         await super().on_upgrade_complete(upgrade)

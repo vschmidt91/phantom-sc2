@@ -27,11 +27,18 @@ from sc2.portconfig import Portconfig
 from sc2.protocol import ConnectionAlreadyClosed
 from sc2.sc2process import SC2Process
 
-from phantom.common.constants import LOG_LEVEL_OPTIONS, SPECIAL_BUILDS
 from phantom.common.utils import async_command
 from phantom.config import BotConfig
+from phantom.dummy import BaseBlock, CannonRush, DummyBot
 from phantom.main import PhantomBot
 from scripts.utils import CommandWithConfigFile
+
+LOG_LEVEL_OPTIONS = ["TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"]
+SPECIAL_BUILDS = {
+    "Dummy": DummyBot,
+    "BaseBlock": BaseBlock,
+    "CannonRush": CannonRush,
+}
 
 
 @click.command(cls=CommandWithConfigFile("config"))

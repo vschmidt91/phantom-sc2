@@ -10,6 +10,7 @@ requires-python = ">=3.12, <3.13"
 dependencies = [
     "burnysc2 @ git+https://github.com/august-k/python-sc2.git@develop",
     "click (>=8.1.8,<9.0.0)",
+    "cma (>=4.4.0,<5.0.0)",
     "cython-extensions-sc2>=0.11.0",
     "highspy (>=1.10.0,<2.0.0)",
     "pyarrow (>=20.0.0,<21.0.0)",
@@ -19,7 +20,6 @@ dependencies = [
     "scikit-image>=0.24.0",
     "scikit-learn (>=1.6.1,<2.0.0)",
     "tqdm>=4.67.0",
-    "cma (>=4.4.0,<5.0.0)",
 ]
 
 [project.urls]
@@ -35,6 +35,7 @@ dev = [
     "plotly (>=6.0.1,<7.0.0)",
     "s2protocol>=5.0.13.92440.4",
     "snakeviz>=2.2.0",
+    "vulture (>=2.14,<3.0)",
 ]
 test = [
     "mypy>=1.12.0",

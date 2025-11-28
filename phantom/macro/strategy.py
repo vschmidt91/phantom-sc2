@@ -23,11 +23,6 @@ from phantom.parameters import Parameters, Prior
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
 
-# TODO: investigate numpy versioning mismatch
-# with lzma.open(Path(__file__).parent.parent.parent / "models" / "scout.pkl.xz") as f:
-#     SCOUT_PREDICTOR = ScoutPredictor(pickle.load(f))
-SCOUT_PREDICTOR = None
-
 
 @total_ordering
 class StrategyTier(enum.Enum):

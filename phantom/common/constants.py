@@ -1,7 +1,7 @@
 from itertools import chain
 
-from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS, SPEED_INCREASE_DICT, SPEED_UPGRADE_DICT
-from sc2.data import Race, Result
+from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
+from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -10,9 +10,6 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
-
-from phantom.common.utils import get_requirements
-from phantom.dummy import BaseBlock, CannonRush, DummyBot
 
 WITH_TECH_EQUIVALENTS = {unit: {unit} | EQUIVALENTS_FOR_TECH_PROGRESS.get(unit, set()) for unit in UnitTypeId}
 
@@ -27,52 +24,14 @@ UPGRADE_RESEARCHED_FROM_WITH_EQUIVALENTS = {
 
 ITEM_TRAINED_FROM_WITH_EQUIVALENTS = {**UNIT_TRAINED_FROM_WITH_EQUIVALENTS, **UPGRADE_RESEARCHED_FROM_WITH_EQUIVALENTS}
 
-STATIC_DEFENSE_BY_RACE = {
-    Race.Zerg: UnitTypeId.SPORECRAWLER,
-    Race.Terran: UnitTypeId.MISSILETURRET,
-    Race.Protoss: UnitTypeId.PHOTONCANNON,
-}
-
 MIN_WEAPON_COOLDOWN = 2.0 / 22.4
-
-COCOON_FIX: dict[UnitTypeId, UnitTypeId] = {
-    UnitTypeId.OVERLORDCOCOON: UnitTypeId.OVERLORD,
-    UnitTypeId.TRANSPORTOVERLORDCOCOON: UnitTypeId.OVERLORD,
-    UnitTypeId.BANELINGCOCOON: UnitTypeId.ZERGLING,
-    UnitTypeId.RAVAGERCOCOON: UnitTypeId.RAVAGER,
-    UnitTypeId.BROODLORDCOCOON: UnitTypeId.CORRUPTOR,
-}
-
-RANGE_UPGRADES: dict[UnitTypeId, dict[UpgradeId, int]] = {
-    UnitTypeId.COLOSSUS: {UpgradeId.EXTENDEDTHERMALLANCE: 2},
-    UnitTypeId.HYDRALISK: {UpgradeId.EVOLVEGROOVEDSPINES: 1},
-    UnitTypeId.PHOENIX: {UpgradeId.PHOENIXRANGEUPGRADE: 2},
-    UnitTypeId.PLANETARYFORTRESS: {UpgradeId.HISECAUTOTRACKING: 1},
-    UnitTypeId.MISSILETURRET: {UpgradeId.HISECAUTOTRACKING: 1},
-    UnitTypeId.AUTOTURRET: {UpgradeId.HISECAUTOTRACKING: 1},
-}
-
-SPEED_UPGRADES: dict[UnitTypeId, dict[UpgradeId, float]] = {
-    unit_type: {upgrade: SPEED_INCREASE_DICT[unit_type]} for unit_type, upgrade in SPEED_UPGRADE_DICT.items()
-}
 
 MACRO_INFO = {
     unit_type: {**TRAIN_INFO.get(unit_type, {}), **RESEARCH_INFO.get(unit_type, {})}
     for unit_type in set(chain(TRAIN_INFO, RESEARCH_INFO))
 }
 
-MACRO_ABILITIES = {
-    trainer_type: {e["ability"] for item, e in element.items()} for trainer_type, element in MACRO_INFO.items()
-}
-
-ALL_MACRO_ABILITIES: set[AbilityId] = {
-    e["ability"] for trainer_type, element in MACRO_INFO.items() for item, e in element.items()
-}
-
-COOLDOWN = {
-    AbilityId.EFFECT_CORROSIVEBILE: 7 * 22.4,
-    AbilityId.BUILD_CREEPTUMOR_TUMOR: 22 * 22.4,
-}
+ALL_MACRO_ABILITIES: set[AbilityId] = {e["ability"] for _, element in MACRO_INFO.items() for item, e in element.items()}
 
 ENERGY_GENERATION_RATE = 9 / 256  # = 0.7875 / 22.4
 
@@ -126,15 +85,7 @@ SUPPLY_PROVIDED = {
     },
 }
 
-RESULT_TO_FITNESS = {
-    Result.Defeat: +1.0,
-    Result.Tie: 0.0,
-    Result.Undecided: 0.0,
-    Result.Victory: -1.0,
-}
-
 MINING_RADIUS = 1.325
-MINING_RADIUS_GEYSER = 2.0
 
 CHANGELINGS = {
     UnitTypeId.CHANGELING,
@@ -203,18 +154,7 @@ UPGRADE_BY_RESEARCH_ABILITY: dict[AbilityId, UpgradeId] = {
     for upgrade, upgrade_element in research_element.items()
 }
 
-MORPHERS = {
-    UnitTypeId.HATCHERY,
-    UnitTypeId.LAIR,
-    UnitTypeId.SPIRE,
-}
-
 ITEM_BY_ABILITY = {**UNIT_BY_TRAIN_ABILITY, **UPGRADE_BY_RESEARCH_ABILITY}
-TRAINER_TYPES = {
-    *chain.from_iterable(UNIT_TRAINED_FROM.values()),
-    *UPGRADE_RESEARCHED_FROM.values(),
-    UnitTypeId.EGG,
-}
 
 GAS_BY_RACE: dict[Race, UnitTypeId] = {
     Race.Zerg: UnitTypeId.EXTRACTOR,
@@ -229,11 +169,6 @@ REQUIREMENTS_EXCLUDE = {
 }
 
 REQUIREMENTS_KEYS = {*UNIT_TRAINED_FROM.keys(), *UPGRADE_RESEARCHED_FROM.keys()}.difference(REQUIREMENTS_EXCLUDE)
-
-REQUIREMENTS = {
-    item: {requirement for requirement in get_requirements(item) if requirement in REQUIREMENTS_KEYS}
-    for item in REQUIREMENTS_KEYS
-}
 
 ZERG_MELEE_UPGRADES = [
     UpgradeId.ZERGMELEEWEAPONSLEVEL1,
@@ -264,11 +199,6 @@ ZERG_FLYER_ARMOR_UPGRADES = [
     UpgradeId.ZERGFLYERARMORSLEVEL2,
     UpgradeId.ZERGFLYERARMORSLEVEL3,
 ]
-IGNORED_UNIT_TYPES = {
-    UnitTypeId.BROODLING,
-    UnitTypeId.LOCUSTMP,
-    UnitTypeId.LOCUSTMPFLYING,
-}
 UNIT_COUNTER_DICT = {
     UnitTypeId.ZEALOT: {
         UnitTypeId.BROODLORD: 1e4,
@@ -562,21 +492,11 @@ SPORE_TRIGGERS = {
     Race.Random: SPORE_TRIGGERS_TERRAN | SPORE_TRIGGERS_PROTOSS | SPORE_TRIGGERS_ZERG,
 }
 
-UPGRADE_RESEARCHERS = set(UPGRADE_RESEARCHED_FROM.values())
-
-IMPOSSIBLE_TASK_COST = 1e8
 HALF = Point2((0.5, 0.5))
 
 MICRO_MAP_REGEX = "Micro AI Arena"
 MAX_UNIT_RADIUS = 1.375  # Mothership
-LOG_LEVEL_OPTIONS = ["TRACE", "DEBUG", "INFO", "SUCCESS", "WARNING", "ERROR", "CRITICAL"]
 REPLAY_TYPE_ENCODING = "ascii"
-
-SPECIAL_BUILDS = {
-    "Dummy": DummyBot,
-    "BaseBlock": BaseBlock,
-    "CannonRush": CannonRush,
-}
 
 SPORE_TIMING_ZERG = 7 * 60
 SPORE_TIMING_PROTOSS = 5 * 60

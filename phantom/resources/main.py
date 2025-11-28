@@ -17,10 +17,6 @@ if TYPE_CHECKING:
     from phantom.main import PhantomBot
 
 
-class SolverError(Exception):
-    pass
-
-
 @dataclass
 class ResourceState:
     bot: "PhantomBot"

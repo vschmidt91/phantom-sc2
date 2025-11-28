@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from datetime import datetime
 
 import cma
 import numpy as np
@@ -25,7 +24,6 @@ class Parameters:
         self.parameters = list[Parameter]()
         self.population = list[np.ndarray]()
         self.loss_values = list[float]()
-        self.timestamp = datetime.now()
 
     def add(self, prior: Prior) -> Parameter:
         parameter = Parameter(prior, prior.mu)

@@ -15,7 +15,6 @@ class BotConfig:
     version_path = "version.txt"
     data_path = "./data"
     params_name = "params.pkl.xz"
-    params_json_name = "params.json"
 
     @classmethod
     def from_toml(cls, path: str) -> "BotConfig":

@@ -4945,6 +4945,18 @@ socks = ["pysocks (>=1.5.6,!=1.5.7,<2.0)"]
 zstd = ["zstandard (>=0.18.0)"]
 
 [[package]]
+name = "vulture"
+version = "2.14"
+description = "Find dead code"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "vulture-2.14-py2.py3-none-any.whl", hash = "sha256:d9a90dba89607489548a49d557f8bac8112bd25d3cbc8aeef23e860811bd5ed9"},
+    {file = "vulture-2.14.tar.gz", hash = "sha256:cb8277902a1138deeab796ec5bef7076a6e0248ca3607a3f3dee0b6d9e9b8415"},
+]
+
+[[package]]
 name = "wcwidth"
 version = "0.2.14"
 description = "Measures the displayed width of unicode strings in a terminal"
@@ -5225,4 +5237,4 @@ test = ["mypy", "ruff", "types-requests", "types-s2clientprotocol", "types-tqdm"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12, <3.13"
-content-hash = "2f54da0ed94e3ff9702709b2867894e44ba8ec9472fe28d39e9f5a2d8d14678c"
+content-hash = "6326e18ba992b8135f561942aebc4c0a31a9d4cab8bb34a9ee8b6f9bc599d4c9"
