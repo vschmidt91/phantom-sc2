@@ -95,9 +95,7 @@ class StepwiseCombatSimulator(CombatSimulator):
 
         distance = pairwise_distances([u.position for u in units])
         movement_speed_vector = np.array([1.4 * u.real_speed for u in units])
-        movement_speed = np.repeat(movement_speed_vector[:, None], len(units), axis=1) + np.repeat(
-            movement_speed_vector[None, :], len(units), axis=0
-        )
+        movement_speed = np.repeat(movement_speed_vector[:, None], len(units), axis=1)
 
         health = np.array([u.health + u.shield for u in units])
         health_projection = health.copy()
