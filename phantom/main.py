@@ -721,6 +721,7 @@ class PhantomBot(BotExporter, AresBot):
             if upgrade not in self.state.upgrades:
                 if upgrade not in self.pending_upgrades.values():
                     yield upgrade
+                    break
                 else:
                     return
 
