@@ -50,7 +50,15 @@ from phantom.common.constants import (
     ZERG_RANGED_UPGRADES,
 )
 from phantom.common.cost import Cost, CostManager
-from phantom.common.utils import RNG, MacroId, Point, center, get_intersections, project_point_onto_line
+from phantom.common.utils import (
+    RNG,
+    MacroId,
+    Point,
+    center,
+    get_intersections,
+    project_point_onto_line,
+    rectangle_perimeter,
+)
 from phantom.config import BotConfig
 from phantom.exporter import BotExporter
 from phantom.macro.main import MacroPlan
@@ -125,7 +133,13 @@ class PhantomBot(BotExporter, AresBot):
             worker_radius = self.workers[0].radius
             for base_position, resources in self.expansion_locations_dict.items():
                 mineral_center = Point2(np.mean([r.position for r in resources], axis=0))
-                self.spore_position[base_position.rounded] = tuple(base_position.towards(mineral_center, 4.0).rounded)
+
+                perimeter_start = np.subtract(base_position, 3).astype(int)
+                perimeter_end = np.add(base_position, 4).astype(int)
+                spore_position = min(
+                    rectangle_perimeter(perimeter_start, perimeter_end), key=lambda p: cy_distance_to(p, mineral_center)
+                )
+                self.spore_position[base_position.rounded] = spore_position
                 self.spine_position[base_position.rounded] = tuple(
                     self.mediator.find_path_next_point(
                         start=base_position,
