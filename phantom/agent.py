@@ -133,9 +133,6 @@ class Agent:
             ]
             return all(self.bot.mediator.get_ground_grid[p] < 6.0 for p in check_points)
 
-        harvesters = self.bot.mediator.get_units_from_role(role=UnitRole.GATHERING)
-
-        resources_to_harvest = self.bot.all_taken_resources.filter(should_harvest_resource)
         required = Cost()
         required += sum((self.bot.cost.of(plan.item) for plan in self.macro.unassigned_plans), Cost())
         required += sum(
@@ -146,31 +143,42 @@ class Agent:
         required -= self.bot.bank
 
         if required.minerals <= 0 and required.vespene <= 0:
-            # TODO
-            optimal_gas_ratio = 5 / 9
+            gas_ratio = 5 / 9
         else:
             mineral_trips = max(0.0, required.minerals / 5)
             vespene_trips = max(0.0, required.vespene / 4)
-            optimal_gas_ratio = vespene_trips / (mineral_trips + vespene_trips)
-        gas_ratio = optimal_gas_ratio
+            gas_ratio = vespene_trips / (mineral_trips + vespene_trips)
+
+        harvesters = list[Unit]()
+        harvesters.extend(self.bot.mediator.get_units_from_role(role=UnitRole.GATHERING))
+        harvesters.extend(self.bot.workers_in_gas_buildings.values())
+
+        gas_target = math.ceil(len(harvesters) * gas_ratio)
+        # TODO: make this cleaner, e.g. by passing an overriding argument
+        if self.bot.harvesters_per_gas_building == 3 and self.bot.harvestable_gas_buildings:
+            gas_target = 3
+
+        mineral_fields = [m for m in self.bot.all_taken_minerals if should_harvest_resource(m)]
+        gas_buildings = [g for g in self.bot.harvestable_gas_buildings if should_harvest_resource(g)]
 
         resoure_observation = ResourceObservation(
             self.bot,
             harvesters,
-            self.bot.gas_buildings.ready,
-            resources_to_harvest.vespene_geyser,
-            resources_to_harvest.mineral_field,
-            gas_ratio,
-            self.bot.workers_in_gas_buildings,
+            mineral_fields,
+            gas_buildings,
+            gas_target,
         )
         resources = self.resources.step(resoure_observation)
         harvester_return_targets = self.bot.townhalls.ready
 
         gas_type = GAS_BY_RACE[self.bot.race]
-        gas_depleted = self.bot.gas_buildings.filter(lambda g: not g.has_vespene).amount
-        gas_have = self.bot.count_actual(gas_type) + self.bot.count_pending(gas_type) + self.bot.count_planned(gas_type)
-        gas_max = resoure_observation.vespene_geysers.amount
-        gas_want = min(gas_max, gas_depleted + math.ceil((resources.gas_target - 1) / 3))
+        gas_have = (
+            len(self.bot.harvestable_gas_buildings)
+            + self.bot.count_pending(gas_type)
+            + self.bot.count_planned(gas_type)
+        )
+        gas_max = len(self.bot.all_taken_geysers)
+        gas_want = min(gas_max, math.ceil(resoure_observation.gas_target / self.bot.harvesters_per_gas_building))
         # if not self.bot.count(UnitTypeId.LAIR, include_planned=False):
         #     gas_want = min(1, gas_want)
         if gas_have < gas_want:

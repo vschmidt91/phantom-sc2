@@ -31,7 +31,6 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
-from sc2.units import Units
 
 from phantom.agent import Agent
 from phantom.common.constants import (
@@ -52,7 +51,6 @@ from phantom.common.utils import (
     RNG,
     MacroId,
     Point,
-    center,
     get_intersections,
     project_point_onto_line,
     rectangle_perimeter,
@@ -90,7 +88,9 @@ class PhantomBot(AresBot):
         self.workers_in_gas_buildings = dict[int, Unit]()
         self.actions_by_ability = defaultdict[AbilityId, list[UnitCommand]](list)
         self.ordered_structure_position_to_tag = dict[Point2, int]()
-        self.expansion_resource_positions = dict[Point, list[Point]]()
+        self.expansion_mineral_positions = dict[Point, list[Point]]()
+        self.expansion_geyser_positions = dict[Point, list[Point]]()
+        self.expansion_mineral_center = dict[Point, Point]()
         self.return_point = dict[Point, Point2]()
         self.spore_position = dict[Point, Point]()
         self.spine_position = dict[Point, Point]()
@@ -99,6 +99,8 @@ class PhantomBot(AresBot):
         self.enemy_start_locations_rounded = list[Point]()
         self.bases = list[Point]()
         self.structure_dict = dict[Point, Unit | OrderedStructure | MacroPlan]()
+        self.vespene_geyser_at = dict[Point, Unit]()
+        self.mineral_field_at = dict[Point, Unit]()
 
         if os.path.isfile(self.bot_config.version_path):
             logger.info(f"Reading version from {self.bot_config.version_path}")
@@ -131,27 +133,16 @@ class PhantomBot(AresBot):
         worker_radius = self.workers[0].radius
         for base_position, resources in self.expansion_locations_dict.items():
             b = to_point(base_position)
-            mineral_center = Point2(np.mean([r.position for r in resources], axis=0))
-
-            perimeter_start = np.subtract(base_position, 3).astype(int)
-            perimeter_end = np.add(base_position, 4).astype(int)
-            spore_position = min(
-                rectangle_perimeter(perimeter_start, perimeter_end), key=lambda p: cy_distance_to(p, mineral_center)
-            )
-            self.spore_position[b] = spore_position
-            self.spine_position[b] = to_point(
-                self.mediator.find_path_next_point(
-                    start=base_position,
-                    target=self.enemy_start_locations[0],
-                    grid=self.mediator.get_cached_ground_grid,
-                    sensitivity=5,
-                    sense_danger=False,
-                )
-            )
+            self.expansion_mineral_positions[b] = list[Point]()
+            self.expansion_geyser_positions[b] = list[Point]()
             for geyser in resources.vespene_geyser:
+                p = to_point(geyser.position)
+                self.expansion_geyser_positions[b].append(p)
                 target = geyser.position.towards(base_position, geyser.radius + worker_radius)
-                self.speedmining_positions[to_point(geyser.position)] = target
+                self.speedmining_positions[p] = target
             for patch in resources.mineral_field:
+                p = to_point(patch.position)
+                self.expansion_mineral_positions[b].append(p)
                 target = patch.position.towards(base_position, MINING_RADIUS)
                 for patch2 in resources.mineral_field:
                     if patch.position == patch2.position:
@@ -175,7 +166,23 @@ class PhantomBot(AresBot):
                         break
                 self.speedmining_positions[to_point(patch.position)] = target
 
-            self.expansion_resource_positions[b] = [to_point(r.position) for r in resources]
+            mineral_center = Point2(np.mean(self.expansion_mineral_positions[b], axis=0))
+            perimeter_start = np.subtract(base_position, 3).astype(int)
+            perimeter_end = np.add(base_position, 4).astype(int)
+            spore_position = min(
+                rectangle_perimeter(perimeter_start, perimeter_end), key=lambda p: cy_distance_to(p, mineral_center)
+            )
+            self.spore_position[b] = spore_position
+            self.spine_position[b] = to_point(
+                self.mediator.find_path_next_point(
+                    start=base_position,
+                    target=self.enemy_start_locations[0],
+                    grid=self.mediator.get_cached_ground_grid,
+                    sensitivity=5,
+                    sense_danger=False,
+                )
+            )
+
             for r in resources:
                 p = to_point(r.position)
                 ps = self.speedmining_positions[p]
@@ -183,7 +190,8 @@ class PhantomBot(AresBot):
                 self.return_point[p] = return_point
                 self.return_distances[p] = ps.distance_to(return_point)
 
-        self.in_mineral_line = {b: to_point(center(self.expansion_resource_positions[b])) for b in self.bases}
+            self.expansion_mineral_center[b] = to_point(mineral_center)
+
         self.agent = Agent(self, self.bot_config.build_order, self.parameters)
 
         self.send_overlord_scout()
@@ -228,15 +236,6 @@ class PhantomBot(AresBot):
         # local only: skip first iteration like on the ladder
         if iteration == 0:
             return
-
-        self.structure_dict.clear()
-        self.structure_dict.update({to_point(s.position): s for s in self.structures})
-        for plan in self.agent.macro.enumerate_plans():
-            if plan.item in ALL_STRUCTURES and plan.target:
-                self.structure_dict[to_point(plan.target.position)] = plan
-        for ordered in self.ordered_structures.values():
-            if ordered.type in ALL_STRUCTURES:
-                self.structure_dict[to_point(ordered.position)] = ordered
 
         if self.bot_config.resign_after_iteration is not None and self.bot_config.resign_after_iteration < iteration:
             logger.info(f"Reached iteration {self.bot_config.resign_after_iteration}, resigning.")
@@ -287,6 +286,15 @@ class PhantomBot(AresBot):
 
         self.ordered_structure_position_to_tag = {s.position: tag for tag, s in self.ordered_structures.items()}
 
+        self.structure_dict.clear()
+        self.structure_dict.update({to_point(s.position): s for s in self.structures})
+        for plan in self.agent.macro.enumerate_plans():
+            if plan.item in ALL_STRUCTURES and plan.target:
+                self.structure_dict[to_point(plan.target.position)] = plan
+        for ordered in self.ordered_structures.values():
+            if ordered.type in ALL_STRUCTURES:
+                self.structure_dict[to_point(ordered.position)] = ordered
+
         self.actual_by_type = Counter[UnitTypeId](
             u.type_id for u in self.all_own_units if u.is_ready or u.tag in self.units_completed_this_frame
         )
@@ -294,25 +302,42 @@ class PhantomBot(AresBot):
         self.pending_upgrade_set = set(self.pending_upgrades.values())
         self.pending_by_type = Counter[UnitTypeId](self.pending.values())
         self.ordered_by_type = Counter[UnitTypeId](s.type for s in self.ordered_structures.values())
-        self.townhall_at = {to_point(b.position): b for b in self.townhalls}
-        self.resource_at = {to_point(r.position): r for r in self.resources}
 
-        self.bases_taken = {b for b in self.bases if (th := self.townhall_at.get(b)) and th.is_ready}
+        self.vespene_geyser_at.clear()
+        self.mineral_field_at.clear()
+        for resource in self.resources:
+            p = to_point(resource.position)
+            if resource.is_mineral_field:
+                self.mineral_field_at[p] = resource
+            else:
+                self.vespene_geyser_at[p] = resource
 
-        self.all_taken_resources = Units(
-            [
-                r
-                for base in self.bases
-                if (th := self.townhall_at.get(base)) and th.is_ready
-                for p in self.expansion_resource_positions[base]
-                if (r := self.resource_at.get(p))
-            ],
-            self,
-        )
+        self.bases_taken = {b for b in self.bases if isinstance(th := self.structure_dict.get(b), Unit) and th.is_ready}
+
+        self.all_taken_minerals = [
+            r
+            for base in self.bases_taken
+            for p in self.expansion_mineral_positions[base]
+            if (r := self.mineral_field_at.get(p))
+        ]
+        self.all_taken_geysers = [
+            r
+            for base in self.bases_taken
+            for p in self.expansion_geyser_positions[base]
+            if (r := self.vespene_geyser_at.get(p))
+        ]
+        self.harvestable_gas_buildings = [
+            gas_building
+            for geyser in self.all_taken_geysers
+            if isinstance(gas_building := self.structure_dict.get(to_point(geyser.position)), Unit)
+            and gas_building.is_ready
+            and geyser.has_vespene
+        ]
         self.max_harvesters = sum(
             (
-                2 * self.all_taken_resources.mineral_field.amount,
-                3 * self.gas_buildings.amount,
+                self.harvesters_per_mineral_field * len(self.all_taken_minerals),
+                self.harvesters_per_gas_building
+                * len(self.harvestable_gas_buildings),  # TODO: take into account mined out geysers
                 # 22 * self.townhalls.not_ready.amount,
             )
         )
@@ -566,6 +591,20 @@ class PhantomBot(AresBot):
 
     def build_time(self, t: UnitTypeId) -> float:
         return self.game_data.units[t.value].cost.time
+
+    @property
+    def harvesters_per_mineral_field(self) -> int:
+        return 2
+
+    @property_cache_once_per_frame
+    def harvesters_per_gas_building(self) -> int:
+        if (
+            self.count_actual(UpgradeId.ZERGLINGMOVEMENTSPEED)
+            or self.count_pending(UpgradeId.ZERGLINGMOVEMENTSPEED) > 0
+        ):
+            return 2
+        else:
+            return 3
 
     @property_cache_once_per_frame
     def visibility_grid(self) -> np.ndarray:

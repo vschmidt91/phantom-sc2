@@ -25,7 +25,7 @@ from phantom.common.constants import (
 )
 from phantom.common.cost import Cost
 from phantom.common.unit_composition import UnitComposition
-from phantom.common.utils import PlacementNotFoundException, Point
+from phantom.common.utils import PlacementNotFoundException, Point, to_point
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -211,19 +211,19 @@ class Macro:
         return next(iter(trainers_filtered), None)
 
     def _get_gas_target(self, near: Point2) -> Unit:
-        gas_type = GAS_BY_RACE[self.bot.race]
-        exclude_positions = {geyser.position for geyser in self.bot.gas_buildings}
-        exclude_tags = {
-            order.target
-            for unit in self.bot.workers
-            for order in unit.orders
-            if order.ability.exact_id == AbilityId.ZERGBUILD_EXTRACTOR
-        }
-        exclude_tags.update({p.target.tag for p in self.planned_by_type(gas_type) if isinstance(p.target, Unit)})
+        GAS_BY_RACE[self.bot.race]
+        # exclude_positions = {geyser.position for geyser in self.bot.gas_buildings}
+        # exclude_tags = {
+        #     order.target
+        #     for unit in self.bot.workers
+        #     for order in unit.orders
+        #     if order.ability.exact_id == AbilityId.ZERGBUILD_EXTRACTOR
+        # }
+        # exclude_tags.update({p.target.tag for p in self.planned_by_type(gas_type) if isinstance(p.target, Unit)})
         geysers = [
             geyser
-            for geyser in self.bot.all_taken_resources.vespene_geyser
-            if (geyser.position not in exclude_positions and geyser.tag not in exclude_tags)
+            for geyser in self.bot.all_taken_geysers
+            if (to_point(geyser.position) not in self.bot.structure_dict)
         ]
         if not geysers:
             raise PlacementNotFoundException()
@@ -231,8 +231,8 @@ class Macro:
         return target
 
     def _get_expansion_target(self) -> Point2:
-        loss_positions = [self.bot.in_mineral_line[b] for b in self.bot.bases_taken]
-        loss_positions_enemy = [self.bot.in_mineral_line[s] for s in self.bot.enemy_start_locations_rounded]
+        loss_positions = [self.bot.expansion_mineral_center[b] for b in self.bot.bases_taken]
+        loss_positions_enemy = [self.bot.expansion_mineral_center[s] for s in self.bot.enemy_start_locations_rounded]
 
         def loss_fn(p: Point2) -> float:
             distances = map(lambda q: cy_distance_to(p, q), loss_positions)
@@ -256,14 +256,14 @@ class Macro:
         data = self.bot.game_data.units[structure_type.value]
 
         def filter_base(b):
-            if th := self.bot.townhall_at.get(b):
-                return th.is_ready
+            if isinstance(th := self.bot.structure_dict.get(b), Unit):
+                return th.type_id in TOWNHALL_TYPES and th.is_ready
             return False
 
         if potential_bases := list(filter(filter_base, self.bot.bases)):
             base = random.choice(potential_bases)
             distance = rng.uniform(8, 12)
-            mineral_line = Point2(self.bot.in_mineral_line[base])
+            mineral_line = Point2(self.bot.expansion_mineral_center[base])
             behind_mineral_line = Point2(base).towards(mineral_line, distance)
             position = Point2(base).towards_with_random_angle(behind_mineral_line, distance)
             offset = data.footprint_radius % 1

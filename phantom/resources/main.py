@@ -1,4 +1,3 @@
-import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -38,7 +37,6 @@ class ResourceAction:
     ):
         self.state = state
         self.observation = observation
-        self.gas_target = math.ceil(observation.harvesters.amount * observation.gas_ratio)
         self.harvester_assignment = self._harvester_assignment()
 
     def _harvester_assignment(self) -> HarvesterAssignment:
@@ -51,25 +49,22 @@ class ResourceAction:
             return self.state.assignment
 
     def solve(self) -> HarvesterAssignment | None:
-        harvesters = [*self.observation.harvesters, *self.observation.workers_in_geysers.values()]
-        resources = list(self.observation.mineral_fields + self.observation.gas_buildings)
+        harvesters = self.observation.harvesters
+
+        resources = list[Unit]()
+        resources.extend(self.observation.mineral_fields)
+        resources.extend(self.observation.gas_buildings)
+        mineral_limits = len(self.observation.mineral_fields) * [self.observation.bot.harvesters_per_mineral_field]
+        gas_limits = len(self.observation.gas_buildings) * [self.observation.bot.harvesters_per_gas_building]
+        resource_limit = [*mineral_limits, *gas_limits]
 
         if not any(resources):
             return {}
 
-        resource_limit = {to_point(r.position): self.observation.harvester_target_of(r) for r in resources}
+        mineral_max = sum(mineral_limits)
+        gas_max = sum(gas_limits)
 
-        mineral_max = 2 * self.observation.mineral_fields.amount
-        gas_max = sum(resource_limit[to_point(g.position)] for g in self.observation.gas_buildings)
-
-        if self.observation.researched_speed:
-            gas_target = self.gas_target
-        elif self.observation.bot.vespene < 100:
-            gas_target = gas_max
-        else:
-            gas_target = 0
-
-        gas_target = max(0, min(gas_max, gas_target))
+        gas_target = min(gas_max, self.observation.gas_target)
 
         harvester_max = mineral_max + gas_target
         if harvester_max < len(harvesters):
@@ -97,7 +92,7 @@ class ResourceAction:
 
         cost = harvester_to_resource + 5 * return_distance + assignment_cost
         is_gas = np.array([1.0 if r.mineral_contents == 0 else 0.0 for r in resources])
-        limit = np.array(list(resource_limit.values()))
+        limit = np.array(resource_limit)
 
         problem = get_assignment_solver(n, m)
         problem.set_total(is_gas, gas_target)
@@ -115,15 +110,14 @@ class ResourceAction:
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
         if not (target_pos := self.harvester_assignment.get(unit.tag)):
             return None
-        if not (target := self.observation.resource_at.get(target_pos)):
+        if not (target := self.observation.resource_by_position.get(target_pos)):
             logger.error(f"No resource found at {target_pos}")
             return None
-        if target.is_vespene_geyser and not (target := self.observation.gas_building_at.get(target_pos)):
-            logger.error(f"No gas building found at {target_pos}")
-            return None
-        if unit.is_idle:
-            return GatherAction(target, self.state.bot.speedmining_positions[target_pos])
-            # return Smart(target)
+        # if target.is_vespene_geyser and not (target := self.observation.gas_building_at.get(target_pos)):
+        #     logger.error(f"No gas building found at {target_pos}")
+        #     return None
+        # if unit.is_idle:
+        #     return GatherAction(target, self.state.bot.speedmining_positions[target_pos])
         elif len(unit.orders) >= 2:
             return None
         elif unit.is_gathering:
