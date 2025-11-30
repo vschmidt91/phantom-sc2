@@ -60,6 +60,7 @@ class Macro:
         self.bot = bot
         self.unassigned_plans = list[MacroPlan]()
         self.assigned_plans = dict[int, MacroPlan]()
+        self.min_priority = -1.0
 
     def make_composition(self, composition: UnitComposition) -> Iterable[MacroPlan]:
         unit_priorities = dict[UnitTypeId, float]()
@@ -102,6 +103,7 @@ class Macro:
             if plan := self.assigned_plans.pop(larva.tag, None):
                 self.unassigned_plans.append(plan)
 
+        self._cancel_low_priority_plans(self.min_priority)
         self._assign_unassigned_plans(self.bot.all_own_units)  # TODO: narrow this down
 
         actions = dict[Unit, Action]()
@@ -164,6 +166,14 @@ class Macro:
                     actions[trainer] = action
 
         return actions
+
+    def _cancel_low_priority_plans(self, min_priority: float) -> None:
+        for plan in list(self.unassigned_plans):
+            if plan.priority < min_priority:
+                self.unassigned_plans.remove(plan)
+        for tag, plan in list(self.assigned_plans.items()):
+            if plan.priority < min_priority:
+                del self.assigned_plans[tag]
 
     def _assign_unassigned_plans(self, trainers: Iterable[Unit]) -> None:
         for plan in sorted(self.unassigned_plans, key=lambda p: p.priority, reverse=True):
