@@ -97,8 +97,12 @@ BUILD_ORDERS = {
             Make(UnitTypeId.OVERLORD, 2),
             Make(UnitTypeId.HATCHERY, 2),
             Make(UnitTypeId.DRONE, 17),
-            Make(UnitTypeId.SPAWNINGPOOL, 1),
             Make(UnitTypeId.EXTRACTOR, 1),
+            WaitUntil(lambda bot: bot.gas_buildings),
+            Make(UnitTypeId.SPAWNINGPOOL, 1),
+            # Make(UnitTypeId.DRONE, 20),
+            # Make(UnitTypeId.OVERLORD, 3),
+            # WaitUntil(lambda bot: bot.structures(UnitTypeId.SPAWNINGPOOL).ready),
         ]
     ),
     "HATCH_FIRST": BuildOrderChain(
