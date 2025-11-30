@@ -1,4 +1,4 @@
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, Sequence, Set
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -89,7 +89,7 @@ class CombatStepContext:
     retreat_ground: DijkstraOutput
     runby_pathing: DijkstraOutput
     shootable_targets: Mapping[Unit, Sequence[Unit]]
-    targeting: Mapping[int, Unit]
+    targeting: Mapping[Unit, Unit]
 
     @classmethod
     def build(cls, state: "CombatState") -> "CombatStepContext":
@@ -181,31 +181,33 @@ class CombatState:
     def __init__(self, bot: "PhantomBot", parameters: CombatParameters) -> None:
         self.bot = bot
         self.parameters = parameters
-        self.attacking_global = True
-        self.attacking_local = set[int]()
+        self._attacking_global = True
+        self._attacking_local = set[int]()
         self.simulator = StepwiseCombatSimulator(bot)
 
     def on_step(self) -> "CombatStep":
         context = CombatStepContext.build(self)
 
         if context.prediction.outcome_global >= self.parameters.global_engagement_threshold:
-            self.attacking_global = True
+            self._attacking_global = True
         elif context.prediction.outcome_global < self.parameters.global_disengagement_threshold:
-            self.attacking_global = False
+            self._attacking_global = False
 
         for tag, outcome in context.prediction.outcome_local.items():
             if outcome >= self.parameters.engagement_threshold:
-                self.attacking_local.add(tag)
+                self._attacking_local.add(tag)
             elif outcome < self.parameters.disengagement_threshold:
-                self.attacking_local.discard(tag)
+                self._attacking_local.discard(tag)
 
-        return CombatStep(context)
+        return CombatStep(context, self._attacking_global, frozenset(self._attacking_local))
 
 
 class CombatStep:
-    def __init__(self, context: CombatStepContext) -> None:
+    def __init__(self, context: CombatStepContext, attacking_global: bool, attacking_local: Set[int]) -> None:
         self.bot = context.state.bot
         self.context = context
+        self.attacking_global = attacking_global
+        self.attacking_local = attacking_local
 
     def retreat_with(self, unit: Unit, limit=3) -> Action | None:
         retreat_map = self.context.retreat_air if unit.is_flying else self.context.retreat_ground
@@ -247,16 +249,16 @@ class CombatStep:
 
             return sum(g(u) for u in self.context.enemy_combatants)
 
-        if not unit.is_flying and not self.context.state.attacking_global and not is_on_creep:
+        if not unit.is_flying and not self.attacking_global and not is_on_creep:
             return self.retreat_to_creep(unit)
 
         if attack_ready and (targets := self.context.shootable_targets.get(unit)):
             return Attack(cy_pick_enemy_target(enemies=targets))
 
-        if not (target := self.context.targeting.get(unit.tag)):
+        if not (target := self.context.targeting.get(unit)):
             return None
 
-        if unit.tag in self.context.state.attacking_local:
+        if unit.tag in self.attacking_local:
             if (
                 not attack_ready
                 and ground_range >= 2

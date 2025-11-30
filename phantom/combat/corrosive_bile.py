@@ -8,7 +8,7 @@ from sc2.unit import Unit
 
 from phantom.common.action import Action, Move, UseAbility
 from phantom.common.constants import CHANGELINGS
-from phantom.common.cooldown import CooldownTracker
+from phantom.common.cooldown_tracker import CooldownTracker
 from phantom.common.utils import air_dps_of, ground_dps_of
 
 if TYPE_CHECKING:
@@ -27,7 +27,6 @@ def _target_priority(u: Unit) -> float:
 class CorrosiveBile:
     def __init__(self, bot: "PhantomBot") -> None:
         self.bot = bot
-        self.bile_last_used = dict[int, int]()
         self.ability = AbilityId.EFFECT_CORROSIVEBILE
         self.ability_range = bot.game_data.abilities[self.ability.value]._proto.cast_range
         self.cooldown_tracker = CooldownTracker(bot, self.ability, 160)

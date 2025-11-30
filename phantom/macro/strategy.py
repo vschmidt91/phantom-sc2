@@ -62,7 +62,7 @@ class Strategy:
         self.composition_target = add_compositions(self.macro_composition, self.army_composition)
         self.composition_deficit = sub_compositions(self.composition_target, self.composition)
 
-    def make_upgrades(self) -> Iterable[MacroPlan]:
+    def make_upgrades(self, plans: Iterable[MacroPlan]) -> Iterable[MacroPlan]:
         upgrade_weights = dict[UpgradeId, float]()
         for unit, count in self.composition_target.items():
             cost = self.bot.cost.of(unit)
@@ -84,11 +84,7 @@ class Strategy:
             for k, v in upgrade_weights.items()
         }
 
-        for plan in self.bot.agent.macro.unassigned_plans:
-            if priority := upgrade_priorities.get(plan.item):
-                plan.priority = priority
-
-        for plan in self.bot.agent.macro.assigned_plans.values():
+        for plan in plans:
             if priority := upgrade_priorities.get(plan.item):
                 plan.priority = priority
 

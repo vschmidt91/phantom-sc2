@@ -12,7 +12,7 @@ from loguru import logger
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.position import Point2
+from sc2.position import Point2, Point3
 from sc2.unit import Unit
 
 from phantom.common.action import Action, HoldPosition, Move, UseAbility
@@ -82,9 +82,27 @@ class Macro:
             if override_priority := unit_priorities.get(plan.item):
                 plan.priority = override_priority
 
+    def debug_draw_plans(self) -> None:
+        plans = chain(
+            ((0, plan) for plan in self.unassigned_plans),
+            self.assigned_plans.items(),
+        )
+        plans_sorted = sorted(plans, key=lambda p: p[1].priority, reverse=True)
+        for i, (tag, plan) in enumerate(plans_sorted):
+            trainer = self.bot.unit_tag_dict.get(tag)
+            self._debug_draw_plan(trainer, plan, index=i)
+
     def add(self, plan: MacroPlan) -> None:
         self.unassigned_plans.append(plan)
         logger.info(f"Adding {plan=}")
+
+    def get_planned_cost(self) -> Cost:
+        cost = Cost()
+        for plan in self.unassigned_plans:
+            cost += self.bot.cost.of(plan.item)
+        for plan in self.assigned_plans.values():
+            cost += self.bot.cost.of(plan.item)
+        return cost
 
     def enumerate_plans(self) -> Iterable[MacroPlan]:
         return chain(self.assigned_plans.values(), self.unassigned_plans)
@@ -294,4 +312,40 @@ class Macro:
                 eta.larva if deficit.larva > 0 and cost.larva > 0 else 0.0,
                 eta.supply if deficit.supply > 0 and cost.supply > 0 else 0.0,
             )
+        )
+
+    def _debug_draw_plan(
+        self,
+        unit: Unit | None,
+        plan: MacroPlan,
+        index: int,
+        font_color=(255, 255, 255),
+        font_size=16,
+    ) -> None:
+        positions = []
+        if isinstance(plan.target, Unit):
+            positions.append(plan.target.position3d)
+        elif isinstance(plan.target, Point3):
+            positions.append(plan.target)
+        elif isinstance(plan.target, Point2):
+            height = self.bot.get_terrain_z_height(plan.target)
+            positions.append(Point3((plan.target.x, plan.target.y, height)))
+
+        if unit:
+            height = self.bot.get_terrain_z_height(unit)
+            positions.append(Point3((unit.position.x, unit.position.y, height)))
+
+        text = f"{plan.item.name} {round(plan.priority, 2)}"
+
+        for position in positions:
+            self.bot.client.debug_text_world(text, position, color=font_color, size=font_size)
+
+        if len(positions) == 2:
+            position_from, position_to = positions
+            position_from += Point3((0.0, 0.0, 0.1))
+            position_to += Point3((0.0, 0.0, 0.1))
+            self.bot.client.debug_line_out(position_from, position_to, color=font_color)
+
+        self.bot.client.debug_text_screen(
+            f"{1 + index} {round(plan.priority, 2)} {plan.item.name}", (0.01, 0.1 + 0.01 * index)
         )

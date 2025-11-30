@@ -28,7 +28,7 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.position import Point2, Point3
+from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 
@@ -245,13 +245,7 @@ class PhantomBot(AresBot):
             logger.warning(f"{error=}")
 
         if self.bot_config.debug_draw:
-            all_plans = [
-                *[(None, p) for p in self.agent.macro.unassigned_plans],
-                *self.agent.macro.assigned_plans.items(),
-            ]
-            plans_sorted = sorted(all_plans, key=lambda p: p[1].priority, reverse=True)
-            for i, (t, plan) in enumerate(plans_sorted):
-                self._debug_draw_plan(self.unit_tag_dict.get(t), plan, index=i)
+            self.agent.macro.debug_draw_plans()
 
         if self.bot_config.profile_path:
             self.profiler.enable()
@@ -545,42 +539,6 @@ class PhantomBot(AresBot):
 
     def pick_race(self) -> Race:
         return Race.Zerg
-
-    def _debug_draw_plan(
-        self,
-        unit: Unit | None,
-        plan: MacroPlan,
-        index: int,
-        font_color=(255, 255, 255),
-        font_size=16,
-    ) -> None:
-        positions = []
-        if isinstance(plan.target, Unit):
-            positions.append(plan.target.position3d)
-        elif isinstance(plan.target, Point3):
-            positions.append(plan.target)
-        elif isinstance(plan.target, Point2):
-            height = self.get_terrain_z_height(plan.target)
-            positions.append(Point3((plan.target.x, plan.target.y, height)))
-
-        if unit:
-            height = self.get_terrain_z_height(unit)
-            positions.append(Point3((unit.position.x, unit.position.y, height)))
-
-        text = f"{plan.item.name} {round(plan.priority, 2)}"
-
-        for position in positions:
-            self.client.debug_text_world(text, position, color=font_color, size=font_size)
-
-        if len(positions) == 2:
-            position_from, position_to = positions
-            position_from += Point3((0.0, 0.0, 0.1))
-            position_to += Point3((0.0, 0.0, 0.1))
-            self.client.debug_line_out(position_from, position_to, color=font_color)
-
-        self.client.debug_text_screen(
-            f"{1 + index} {round(plan.priority, 2)} {plan.item.name}", (0.01, 0.1 + 0.01 * index)
-        )
 
     async def _send_replay_tag(self, replay_tag: str) -> None:
         if replay_tag in self.replay_tags:

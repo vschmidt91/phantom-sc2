@@ -88,7 +88,7 @@ class Agent:
         else:
             for plan in chain(
                 self.macro.make_composition(strategy.composition_target),
-                strategy.make_upgrades(),
+                strategy.make_upgrades(self.macro.enumerate_plans()),
                 strategy.morph_overlord(),
                 strategy.expand(),
                 strategy.make_spines(),
@@ -134,11 +134,7 @@ class Agent:
             return all(self.bot.mediator.get_ground_grid[p] < 6.0 for p in check_points)
 
         required = Cost()
-        required += sum((self.bot.cost.of(plan.item) for plan in self.macro.unassigned_plans), Cost())
-        required += sum(
-            (self.bot.cost.of(plan.item) for plan in self.macro.assigned_plans.values()),
-            Cost(),
-        )
+        required += self.macro.get_planned_cost()
         required += self.bot.cost.of_composition(strategy.composition_deficit)
         required -= self.bot.bank
 

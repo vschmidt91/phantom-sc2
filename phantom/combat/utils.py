@@ -120,7 +120,7 @@ def time_to_kill(mediator: ManagerMediator, units: Sequence[Unit], enemies: Sequ
     return result
 
 
-def assign_targets(mediator: ManagerMediator, units: Sequence[Unit], enemies: Sequence[Unit]) -> dict[int, Unit]:
+def assign_targets(mediator: ManagerMediator, units: Sequence[Unit], enemies: Sequence[Unit]) -> Mapping[Unit, Unit]:
     if not any(units) or not any(enemies):
         return {}
 
@@ -140,10 +140,10 @@ def assign_targets(mediator: ManagerMediator, units: Sequence[Unit], enemies: Se
     max_assigned = len(units)
 
     assignment = distribute(
-        [u.tag for u in units],
+        units,
         enemies,
         cost,
         max_assigned=max_assigned,
     )
 
-    return dict(assignment)
+    return assignment

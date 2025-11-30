@@ -21,10 +21,10 @@ class Transfuse:
         self.min_wounded = 75
         self.bonus_distance = 2.0
         self.transfuse_structures = {UnitTypeId.SPINECRAWLER, UnitTypeId.SPORECRAWLER}
-        self.transused_this_step = set[int]()
+        self._transused_this_step = set[int]()
 
     def on_step(self):
-        self.transused_this_step.clear()
+        self._transused_this_step.clear()
 
     def transfuse_with(self, unit: Unit) -> Action | None:
         if unit.energy < self.ability_energy_cost:
@@ -46,7 +46,7 @@ class Transfuse:
         def is_eligible(t: Unit) -> bool:
             return (
                 t != unit
-                and t.tag not in self.transused_this_step
+                and t.tag not in self._transused_this_step
                 and t.health + self.min_wounded <= t.health_max
                 and (not t.is_structure or t.type_id in self.transfuse_structures)
             )
@@ -56,7 +56,7 @@ class Transfuse:
 
         if target := max(filter(is_eligible, targets), key=priority, default=None):
             if cy_distance_to(unit.position, target.position) <= unit.radius + self.ability_range:
-                self.transused_this_step.add(target.tag)
+                self._transused_this_step.add(target.tag)
                 return UseAbility(self.ability, target=target)
             else:
                 return Move(target.position)
