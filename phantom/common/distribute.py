@@ -7,7 +7,7 @@ import highspy
 import numpy as np
 from loguru import logger
 
-from phantom.common.utils import Point
+type Point = tuple[int, int]
 
 TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
