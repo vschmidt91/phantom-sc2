@@ -494,7 +494,6 @@ SPORE_TRIGGERS = {
 
 HALF = Point2((0.5, 0.5))
 
-MICRO_MAP_REGEX = "Micro AI Arena"
 MAX_UNIT_RADIUS = 1.375  # Mothership
 REPLAY_TYPE_ENCODING = "ascii"
 

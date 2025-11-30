@@ -11,7 +11,7 @@ from sc2.units import Units
 
 from phantom.common.action import Action
 from phantom.common.distribute import distribute
-from phantom.common.utils import Point, pairwise_distances
+from phantom.common.utils import Point, pairwise_distances, to_point
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -52,10 +52,7 @@ class ScoutState:
                 and error_result in {ActionResult.CantBuildLocationInvalid, ActionResult.CouldntReachTarget}
                 and (unit := self.bot._units_previous_map.get(error.unit_tag))
             ):
-                if isinstance(unit.order_target, Point2):
-                    p = tuple(unit.order_target.rounded)
-                else:
-                    p = tuple(unit.position.rounded)
+                p = to_point(unit.order_target) if isinstance(unit.order_target, Point2) else to_point(unit.position)
                 if p not in self.blocked_positions:
                     self.blocked_positions[p] = self.bot.time
                     logger.info(f"Detected blocked base {p}")

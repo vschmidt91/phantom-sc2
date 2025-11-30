@@ -11,7 +11,7 @@ from scipy.ndimage import gaussian_filter
 
 from phantom.common.action import Action, UseAbility
 from phantom.common.constants import ENERGY_COST, HALF
-from phantom.common.utils import circle, circle_perimeter, line
+from phantom.common.utils import circle, circle_perimeter, line, to_point
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -66,7 +66,7 @@ class CreepSpread:
         target = max(targets, key=lambda t: self.value_map[t])
 
         if unit.is_structure:
-            target = unit.position.towards(Point2(target), r).rounded
+            target = to_point(unit.position.towards(Point2(target), r))
 
         advance = line(target[0], target[1], x0, y0)
         for p in advance:

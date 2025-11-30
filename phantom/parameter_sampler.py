@@ -18,7 +18,7 @@ class Parameter:
     value: float
 
 
-class Parameters:
+class ParameterSampler:
     def __init__(self) -> None:
         self.strategy: cma.CMAEvolutionStrategy | None = None
         self.parameters = list[Parameter]()

@@ -1,12 +1,12 @@
 from typing import TYPE_CHECKING
 
 from ares import UnitTreeQueryType
+from cython_extensions import cy_distance_to
 from sc2.ids.ability_id import AbilityId
-from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
-from phantom.common.action import Action, UseAbility
+from phantom.common.action import Action, Move, UseAbility
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -19,22 +19,34 @@ class Transfuse:
         self.ability_range = bot.game_data.abilities[self.ability.value]._proto.cast_range
         self.ability_energy_cost = 50
         self.min_wounded = 75
+        self.bonus_distance = 2.0
         self.transfuse_structures = {UnitTypeId.SPINECRAWLER, UnitTypeId.SPORECRAWLER}
+        self.transused_this_step = set[int]()
+
+    def on_step(self):
+        self.transused_this_step.clear()
 
     def transfuse_with(self, unit: Unit) -> Action | None:
         if unit.energy < self.ability_energy_cost:
             return None
 
+        if self.bot.mediator.is_position_safe(
+            grid=self.bot.mediator.get_ground_grid, position=unit.position
+        ) and self.bot.has_creep(unit):
+            bonus_distance = self.bonus_distance
+        else:
+            bonus_distance = 0.0
+
         (targets,) = self.bot.mediator.get_units_in_range(
             start_points=[unit],
-            distances=[unit.radius + self.ability_range],
+            distances=[unit.radius + self.ability_range + bonus_distance],
             query_tree=UnitTreeQueryType.AllOwn,
         )
 
         def is_eligible(t: Unit) -> bool:
             return (
                 t != unit
-                and BuffId.TRANSFUSION not in t.buffs
+                and t.tag not in self.transused_this_step
                 and t.health + self.min_wounded <= t.health_max
                 and (not t.is_structure or t.type_id in self.transfuse_structures)
             )
@@ -43,6 +55,10 @@ class Transfuse:
             return 1 - t.shield_health_percentage
 
         if target := max(filter(is_eligible, targets), key=priority, default=None):
-            return UseAbility(self.ability, target=target)
+            if cy_distance_to(unit.position, target.position) <= unit.radius + self.ability_range:
+                self.transused_this_step.add(target.tag)
+                return UseAbility(self.ability, target=target)
+            else:
+                return Move(target.position)
 
         return None

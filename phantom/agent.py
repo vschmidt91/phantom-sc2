@@ -16,7 +16,10 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from phantom.combat import CombatParameters, CombatState
+from phantom.combat.corrosive_bile import CorrosiveBile
+from phantom.combat.dodge import DodgeState
+from phantom.combat.main import CombatParameters, CombatState
+from phantom.combat.transfuse import Transfuse
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.constants import (
     CHANGELINGS,
@@ -28,18 +31,15 @@ from phantom.common.constants import (
 )
 from phantom.common.cost import Cost
 from phantom.common.distribute import distribute
-from phantom.common.utils import pairwise_distances
-from phantom.corrosive_bile import CorrosiveBile
+from phantom.common.utils import pairwise_distances, to_point
 from phantom.creep import CreepSpread, CreepTumors
-from phantom.dodge import DodgeState
 from phantom.macro.build_order import BUILD_ORDERS
-from phantom.macro.main import MacroPlan, MacroState
+from phantom.macro.main import Macro, MacroPlan
 from phantom.macro.strategy import Strategy, StrategyParameters
-from phantom.parameters import Parameters
+from phantom.parameter_sampler import ParameterSampler
 from phantom.resources.main import ResourceState
 from phantom.resources.observation import ResourceObservation
 from phantom.scout import ScoutState
-from phantom.transfuse import Transfuse
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -47,11 +47,11 @@ if TYPE_CHECKING:
 
 @dataclass
 class Agent:
-    def __init__(self, bot: "PhantomBot", build_order_name: str, parameters: Parameters) -> None:
+    def __init__(self, bot: "PhantomBot", build_order_name: str, parameters: ParameterSampler) -> None:
         self.bot = bot
         self.build_order = BUILD_ORDERS[build_order_name]
-        self.combat = CombatState(bot, CombatParameters.sample(parameters))
-        self.macro = MacroState(bot)
+        self.combat = CombatState(bot, CombatParameters(parameters))
+        self.macro = Macro(bot)
         self.creep_tumors = CreepTumors(bot)
         self.creep_spread = CreepSpread(bot)
         self.corrosive_biles = CorrosiveBile(bot)
@@ -62,17 +62,13 @@ class Agent:
         self.transfuse = Transfuse(bot)
         self.build_order_completed = False
 
-        if self.bot.is_micro_map:
-            self.build_order_completed = True
+    def on_step(self) -> Mapping[Unit, Action]:
+        enemy_combatants = self.bot.enemy_units.exclude_type(ENEMY_CIVILIANS)
+        combatants = self.bot.units.exclude_type(CIVILIANS)
+        strategy = Strategy(self.bot, self.strategy_paramaters)
+
         if self.bot.mediator.get_did_enemy_rush:
             self.build_order_completed = True
-
-    def on_step(self) -> Mapping[Unit, Action]:
-        enemy_combatants = (
-            self.bot.enemy_units if self.bot.is_micro_map else self.bot.enemy_units.exclude_type(ENEMY_CIVILIANS)
-        )
-        combatants = self.bot.units if self.bot.is_micro_map else self.bot.units.exclude_type(CIVILIANS)
-        strategy = Strategy(self.bot, self.strategy_paramaters)
 
         build_order_actions = dict[Unit, Action]()
         if not self.build_order_completed:
@@ -100,8 +96,7 @@ class Agent:
             ):
                 self.macro.add(plan)
 
-        combat = self.combat.step()
-
+        combat = self.combat.on_step()
         self.corrosive_biles.on_step()
         self.creep_tumors.on_step()
         self.creep_spread.on_step()
@@ -118,8 +113,7 @@ class Agent:
             ),
         )
 
-        macro_step = self.macro.step(set(self.scout.blocked_positions))
-        macro_actions = macro_step.get_actions()
+        macro_actions = self.macro.get_actions()
 
         should_inject = self.bot.supply_used + self.bot.bank.larva < 200
         tumor_count = (
@@ -131,37 +125,33 @@ class Agent:
         should_spread_creep = tumor_count < tumor_limit
 
         def should_harvest_resource(r: Unit) -> bool:
-            p = tuple(r.position.rounded)
+            p = to_point(r.position)
             check_points = [
-                self.bot.speedmining_positions[p].rounded,
-                tuple(self.bot.return_point[p].rounded),
+                to_point(self.bot.speedmining_positions[p]),
+                to_point(self.bot.return_point[p]),
             ]
             return all(self.bot.mediator.get_ground_grid[p] < 6.0 for p in check_points)
 
         harvesters = self.bot.mediator.get_units_from_role(role=UnitRole.GATHERING)
 
-        if self.bot.is_micro_map:
-            resources_to_harvest = self.bot.resources
-            gas_ratio = 0.0
-        else:
-            resources_to_harvest = self.bot.all_taken_resources.filter(should_harvest_resource)
-            required = Cost()
-            required += sum((self.bot.cost.of(plan.item) for plan in self.macro.unassigned_plans), Cost())
-            required += sum(
-                (self.bot.cost.of(plan.item) for plan in self.macro.assigned_plans.values()),
-                Cost(),
-            )
-            required += self.bot.cost.of_composition(strategy.composition_deficit)
-            required -= self.bot.bank
+        resources_to_harvest = self.bot.all_taken_resources.filter(should_harvest_resource)
+        required = Cost()
+        required += sum((self.bot.cost.of(plan.item) for plan in self.macro.unassigned_plans), Cost())
+        required += sum(
+            (self.bot.cost.of(plan.item) for plan in self.macro.assigned_plans.values()),
+            Cost(),
+        )
+        required += self.bot.cost.of_composition(strategy.composition_deficit)
+        required -= self.bot.bank
 
-            if required.minerals <= 0 and required.vespene <= 0:
-                # TODO
-                optimal_gas_ratio = 5 / 9
-            else:
-                mineral_trips = max(0.0, required.minerals / 5)
-                vespene_trips = max(0.0, required.vespene / 4)
-                optimal_gas_ratio = vespene_trips / (mineral_trips + vespene_trips)
-            gas_ratio = optimal_gas_ratio
+        if required.minerals <= 0 and required.vespene <= 0:
+            # TODO
+            optimal_gas_ratio = 5 / 9
+        else:
+            mineral_trips = max(0.0, required.minerals / 5)
+            vespene_trips = max(0.0, required.vespene / 4)
+            optimal_gas_ratio = vespene_trips / (mineral_trips + vespene_trips)
+        gas_ratio = optimal_gas_ratio
 
         resoure_observation = ResourceObservation(
             self.bot,
@@ -255,10 +245,12 @@ class Agent:
             return {u: a for u in overseers if (a := micro_overseer(u))}
 
         def micro_harvester(u: Unit) -> Action | None:
-            if (6.0 < self.bot.mediator.get_ground_grid[u.position.rounded] < np.inf) and combat.ctx.enemy_combatants:
-                closest_enemy = cy_closest_to(u.position, combat.ctx.enemy_combatants)
+            if (
+                6.0 < self.bot.mediator.get_ground_grid[to_point(u.position)] < np.inf
+            ) and combat.context.enemy_combatants:
+                closest_enemy = cy_closest_to(u.position, combat.context.enemy_combatants)
                 if (
-                    local_outcome := combat.ctx.prediction.outcome_local.get(closest_enemy.tag) is not None
+                    local_outcome := combat.context.prediction.outcome_local.get(closest_enemy.tag) is not None
                 ) and local_outcome > 0:
                     return combat.retreat_with(u)
             return resources.gather_with(u, harvester_return_targets)
@@ -273,7 +265,7 @@ class Agent:
                 return UseAbility(AbilityId.BURROWUP)
             elif UpgradeId.TUNNELINGCLAWS not in self.bot.state.upgrades:
                 return None
-            elif self.bot.mediator.get_ground_grid[u.position.rounded] > 1:
+            elif self.bot.mediator.get_ground_grid[to_point(u.position)] > 1:
                 return combat.retreat_with(u)
             return HoldPosition()
 
@@ -302,7 +294,7 @@ class Agent:
 
         def spawn_changeling(unit: Unit) -> Action | None:
             if (
-                self.bot.mediator.get_cached_ground_grid[unit.position.rounded] == np.inf
+                self.bot.mediator.get_cached_ground_grid[to_point(unit.position)] == np.inf
                 or unit.energy < ENERGY_COST[AbilityId.SPAWNCHANGELING_SPAWNCHANGELING]
             ):
                 return None
@@ -322,7 +314,7 @@ class Agent:
             target = self.bot.random_point(near=unit.position)
             if self.bot.is_visible(target):
                 return None
-            if self.bot.mediator.get_cached_ground_grid[target.rounded] == np.inf and not unit.is_flying:
+            if self.bot.mediator.get_cached_ground_grid[to_point(target)] == np.inf and not unit.is_flying:
                 return None
             return Move(target)
 

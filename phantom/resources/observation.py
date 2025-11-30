@@ -5,7 +5,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
 from sc2.units import Units
 
-from phantom.common.utils import Point
+from phantom.common.utils import Point, to_point
 from phantom.resources.utils import remaining
 
 if TYPE_CHECKING:
@@ -26,7 +26,11 @@ class ResourceObservation:
         workers_in_geysers: Mapping[int, Unit],
     ):
         self.bot = bot
-        self.researched_speed = self.bot.already_pending_upgrade(UpgradeId.ZERGLINGMOVEMENTSPEED) > 0.0
+        self.researched_speed = (
+            self.bot.count_actual(UpgradeId.ZERGLINGMOVEMENTSPEED)
+            + self.bot.count_pending(UpgradeId.ZERGLINGMOVEMENTSPEED)
+            > 0
+        )
         self.harvesters = harvesters
         self.gas_buildings = gas_buildings
         self.vespene_geysers = vespene_geysers
@@ -45,16 +49,16 @@ class ResourceObservation:
             )
         )
 
-        self.mineral_field_at = {tuple(r.position.rounded): r for r in self.mineral_fields}
-        self.gas_building_at = {tuple(g.position.rounded): g for g in self.gas_buildings}
-        self.vespene_geyser_at = {tuple(g.position.rounded): g for g in self.vespene_geysers}
+        self.mineral_field_at = {to_point(r.position): r for r in self.mineral_fields}
+        self.gas_building_at = {to_point(g.position): g for g in self.gas_buildings}
+        self.vespene_geyser_at = {to_point(g.position): g for g in self.vespene_geysers}
         self.resource_at = self.mineral_field_at | self.gas_building_at
 
-    def harvester_target_of_gas(self, resource: Unit) -> int:
+    def harvester_target_of(self, resource: Unit) -> int:
         if resource.mineral_contents == 0:
             if not resource.is_ready:
                 return 0
-            p = tuple(resource.position.rounded)
+            p = to_point(resource.position)
             if not (geyser := self.vespene_geyser_at.get(p)):
                 return 0
             if not remaining(geyser):

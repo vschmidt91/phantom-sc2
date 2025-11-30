@@ -135,7 +135,7 @@ class StepwiseCombatSimulator(CombatSimulator):
         mixing_own /= mixing_own.sum(axis=1, keepdims=True)
         mixing_enemy /= mixing_enemy.sum(axis=1, keepdims=True)
 
-        losses_weighted = np.maximum(0.0, values * damage_accumulation - 10.0)
+        losses_weighted = np.maximum(0.0, values * damage_accumulation)
         losses_own = mixing_own @ losses_weighted
         losses_enemy = mixing_enemy @ losses_weighted
         outcome_vector = (losses_enemy - losses_own) / np.maximum(1e-10, losses_enemy + losses_own)

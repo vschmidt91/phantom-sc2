@@ -99,7 +99,7 @@ async def run(
     for module in log_disable_modules:
         logger.debug(f"Disabling logging for {module=}")
         logger.disable(module)
-    logger.add(sys.stdout, level=log_level)
+    logger.add(sys.stdout, level=log_level.upper())
 
     if bot_config:
         logger.info(f"Loading {bot_config=}")

@@ -7,11 +7,13 @@ import highspy
 import numpy as np
 from loguru import logger
 
+from phantom.common.utils import Point
+
 TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
 
 
-class HighsPyProblem:
+class HighsPySolver:
     def __init__(self, n: int, m: int, include_total=True) -> None:
         logger.info(f"Compiling highspy problem with {n=}, {m=}, {include_total=}")
         h = highspy.Highs()
@@ -81,11 +83,11 @@ class HighsPyProblem:
         return solution[:n, :m]
 
 
-_PROBLEM_CACHE = dict[tuple[int, int], HighsPyProblem]()
+_PROBLEM_CACHE = dict[Point, HighsPySolver]()
 PROBLEM_RESOLUTION = 8
 
 
-def _get_problem(n: int, m: int) -> HighsPyProblem:
+def get_assignment_solver(n: int, m: int) -> HighsPySolver:
     n2 = math.ceil(n / PROBLEM_RESOLUTION) * PROBLEM_RESOLUTION
     if n < n2:
         m += 1  # source padding also requires target padding
@@ -97,7 +99,7 @@ def _get_problem(n: int, m: int) -> HighsPyProblem:
             logger.warning(
                 f"Compiling a large assignment problem. Distributing {n} sources to {m} targets, using {n2}x{m2} problem resolution."
             )
-        _PROBLEM_CACHE[key] = (problem := HighsPyProblem(*key))
+        _PROBLEM_CACHE[key] = (problem := HighsPySolver(*key))
     return problem
 
 
@@ -118,10 +120,10 @@ def distribute(
     if isinstance(max_assigned, int):
         max_assigned = np.full(m, float(max_assigned))
 
-    problem = _get_problem(n, m)
+    solver = get_assignment_solver(n, m)
 
-    problem.set_total(np.zeros(m), 0)
-    x = problem.solve(cost, max_assigned)
+    solver.set_total(np.zeros(m), 0)
+    x = solver.solve(cost, max_assigned)
     indices = x.argmax(axis=1)
     assignment = {ai: b[j] for (i, ai), j in zip(enumerate(a), indices, strict=False) if cost[i, j] < np.inf}
 

@@ -4,7 +4,6 @@ import lzma
 import os
 import pickle
 import pstats
-import re
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Set
 from dataclasses import dataclass
@@ -38,7 +37,6 @@ from phantom.agent import Agent
 from phantom.common.constants import (
     ALL_MACRO_ABILITIES,
     ITEM_BY_ABILITY,
-    MICRO_MAP_REGEX,
     MINING_RADIUS,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
@@ -58,11 +56,11 @@ from phantom.common.utils import (
     get_intersections,
     project_point_onto_line,
     rectangle_perimeter,
+    to_point,
 )
 from phantom.config import BotConfig
-from phantom.exporter import BotExporter
 from phantom.macro.main import MacroPlan
-from phantom.parameters import Parameters
+from phantom.parameter_sampler import ParameterSampler
 
 
 @dataclass(frozen=True)
@@ -71,7 +69,7 @@ class OrderedStructure:
     position: Point2
 
 
-class PhantomBot(BotExporter, AresBot):
+class PhantomBot(AresBot):
     def __init__(self, config: BotConfig, opponent_id: str, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
@@ -86,12 +84,21 @@ class PhantomBot(BotExporter, AresBot):
         self.pending = dict[int, UnitTypeId]()
         self.pending_upgrades = dict[int, UpgradeId]()
         self.units_completed_this_frame = set[int]()
-        self.parameters = Parameters()
+        self.parameters = ParameterSampler()
         self.cost = CostManager(self)
         self.worker_memory = dict[int, Unit]()
         self.workers_in_gas_buildings = dict[int, Unit]()
         self.actions_by_ability = defaultdict[AbilityId, list[UnitCommand]](list)
         self.ordered_structure_position_to_tag = dict[Point2, int]()
+        self.expansion_resource_positions = dict[Point, list[Point]]()
+        self.return_point = dict[Point, Point2]()
+        self.spore_position = dict[Point, Point]()
+        self.spine_position = dict[Point, Point]()
+        self.speedmining_positions = dict[Point, Point2]()
+        self.return_distances = dict[Point, float]()
+        self.enemy_start_locations_rounded = list[Point]()
+        self.bases = list[Point]()
+        self.structure_dict = dict[Point, Unit | OrderedStructure | MacroPlan]()
 
         if os.path.isfile(self.bot_config.version_path):
             logger.info(f"Reading version from {self.bot_config.version_path}")
@@ -109,83 +116,74 @@ class PhantomBot(BotExporter, AresBot):
 
     async def on_start(self) -> None:
         if not self.on_before_start_was_called:
-            logger.debug("on_before_start was not called, calling it now.")
+            logger.warning("on_before_start was not called, calling it now.")
             await self.on_before_start()
 
         logger.debug("Bot starting")
         await super().on_start()
 
-        self.is_micro_map = re.match(MICRO_MAP_REGEX, self.game_info.map_name)
         self.worker_memory.update({u.tag: u for u in self.workers})
-        self.expansion_resource_positions = dict[Point, list[Point]]()
-        self.return_point = dict[Point, Point2]()
-        self.spore_position = dict[Point, Point]()
-        self.spine_position = dict[Point, Point]()
-        self.speedmining_positions = dict[Point, Point2]()
-        self.return_distances = dict[Point, float]()
-        self.enemy_start_locations_rounded = [tuple(p.rounded) for p in self.enemy_start_locations]
-        self.bases = [] if self.is_micro_map else [p.rounded for p in self.expansion_locations_list]
-        self.structure_dict = dict[Point, Unit | OrderedStructure | MacroPlan]()
 
-        if self.is_micro_map:
-            pass
-        else:
-            worker_radius = self.workers[0].radius
-            for base_position, resources in self.expansion_locations_dict.items():
-                mineral_center = Point2(np.mean([r.position for r in resources], axis=0))
+        self.start_location_rounded = to_point(self.start_location)
+        self.enemy_start_locations_rounded.extend(map(to_point, self.enemy_start_locations))
+        self.bases.extend(map(to_point, self.expansion_locations_list))
 
-                perimeter_start = np.subtract(base_position, 3).astype(int)
-                perimeter_end = np.add(base_position, 4).astype(int)
-                spore_position = min(
-                    rectangle_perimeter(perimeter_start, perimeter_end), key=lambda p: cy_distance_to(p, mineral_center)
+        worker_radius = self.workers[0].radius
+        for base_position, resources in self.expansion_locations_dict.items():
+            b = to_point(base_position)
+            mineral_center = Point2(np.mean([r.position for r in resources], axis=0))
+
+            perimeter_start = np.subtract(base_position, 3).astype(int)
+            perimeter_end = np.add(base_position, 4).astype(int)
+            spore_position = min(
+                rectangle_perimeter(perimeter_start, perimeter_end), key=lambda p: cy_distance_to(p, mineral_center)
+            )
+            self.spore_position[b] = spore_position
+            self.spine_position[b] = to_point(
+                self.mediator.find_path_next_point(
+                    start=base_position,
+                    target=self.enemy_start_locations[0],
+                    grid=self.mediator.get_cached_ground_grid,
+                    sensitivity=5,
+                    sense_danger=False,
                 )
-                self.spore_position[base_position.rounded] = spore_position
-                self.spine_position[base_position.rounded] = tuple(
-                    self.mediator.find_path_next_point(
-                        start=base_position,
-                        target=self.enemy_start_locations[0],
-                        grid=self.mediator.get_cached_ground_grid,
-                        sensitivity=5,
-                        sense_danger=False,
-                    ).rounded
-                )
-                for geyser in resources.vespene_geyser:
-                    target = geyser.position.towards(base_position, geyser.radius + worker_radius)
-                    self.speedmining_positions[geyser.position.rounded] = target
-                for patch in resources.mineral_field:
-                    target = patch.position.towards(base_position, MINING_RADIUS)
-                    for patch2 in resources.mineral_field:
-                        if patch.position == patch2.position:
-                            continue
-                        position = project_point_onto_line(target, target - base_position, patch2.position)
-                        distance1 = patch.position.distance_to(base_position)
-                        distance2 = patch2.position.distance_to(base_position)
-                        if distance1 < distance2:
-                            continue
-                        if patch2.position.distance_to(position) >= MINING_RADIUS:
-                            continue
-                        intersections = list(
-                            get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS)
-                        )
-                        if intersections:
-                            intersection1, intersection2 = intersections
-                            if intersection1.distance_to(base_position) < intersection2.distance_to(base_position):
-                                target = intersection1
-                            else:
-                                target = intersection2
-                            break
-                    self.speedmining_positions[patch.position.rounded] = target
+            )
+            for geyser in resources.vespene_geyser:
+                target = geyser.position.towards(base_position, geyser.radius + worker_radius)
+                self.speedmining_positions[to_point(geyser.position)] = target
+            for patch in resources.mineral_field:
+                target = patch.position.towards(base_position, MINING_RADIUS)
+                for patch2 in resources.mineral_field:
+                    if patch.position == patch2.position:
+                        continue
+                    position = project_point_onto_line(target, target - base_position, patch2.position)
+                    distance1 = patch.position.distance_to(base_position)
+                    distance2 = patch2.position.distance_to(base_position)
+                    if distance1 < distance2:
+                        continue
+                    if patch2.position.distance_to(position) >= MINING_RADIUS:
+                        continue
+                    intersections = list(
+                        get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS)
+                    )
+                    if intersections:
+                        intersection1, intersection2 = intersections
+                        if intersection1.distance_to(base_position) < intersection2.distance_to(base_position):
+                            target = intersection1
+                        else:
+                            target = intersection2
+                        break
+                self.speedmining_positions[to_point(patch.position)] = target
 
-                b = tuple(base_position.rounded)
-                self.expansion_resource_positions[b] = [tuple(r.position.rounded) for r in resources]
-                for r in resources:
-                    p = tuple(r.position.rounded)
-                    ps = self.speedmining_positions[p]
-                    return_point = base_position.towards(ps, 3.125)
-                    self.return_point[p] = return_point
-                    self.return_distances[p] = ps.distance_to(return_point)
+            self.expansion_resource_positions[b] = [to_point(r.position) for r in resources]
+            for r in resources:
+                p = to_point(r.position)
+                ps = self.speedmining_positions[p]
+                return_point = base_position.towards(ps, 3.125)
+                self.return_point[p] = return_point
+                self.return_distances[p] = ps.distance_to(return_point)
 
-        self.in_mineral_line = {b: tuple(center(self.expansion_resource_positions[b]).rounded) for b in self.bases}
+        self.in_mineral_line = {b: to_point(center(self.expansion_resource_positions[b])) for b in self.bases}
         self.agent = Agent(self, self.bot_config.build_order, self.parameters)
 
         self.send_overlord_scout()
@@ -222,14 +220,6 @@ class PhantomBot(BotExporter, AresBot):
         if self.version:
             self.add_replay_tag(f"version_{self.version}")
 
-        if self.bot_config.save_bot_path:
-            output_path = os.path.join(self.bot_config.save_bot_path, f"{self.game_info.map_name}.xz")
-            logger.info(f"Saving game info to {output_path=}")
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            export = await self.export()
-            with lzma.open(output_path, "wb") as f:
-                pickle.dump(export, f)
-
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
 
@@ -240,26 +230,17 @@ class PhantomBot(BotExporter, AresBot):
             return
 
         self.structure_dict.clear()
-        self.structure_dict.update({tuple(s.position.rounded): s for s in self.structures})
+        self.structure_dict.update({to_point(s.position): s for s in self.structures})
         for plan in self.agent.macro.enumerate_plans():
             if plan.item in ALL_STRUCTURES and plan.target:
-                self.structure_dict[tuple(plan.target.position.rounded)] = plan
+                self.structure_dict[to_point(plan.target.position)] = plan
         for ordered in self.ordered_structures.values():
             if ordered.type in ALL_STRUCTURES:
-                self.structure_dict[ordered.position.rounded] = ordered
-
-        # if self.time > 5 * 60:
-        #     await self.client.debug_kill_unit(self.structures)
-
-        # await self.client.save_replay("tmp.SC2Replay")
-        # cheat = Replay.from_file("tmp.SC2Replay")
-        # cheat_state = cheat.steps[max(cheat.steps.keys())]
-        # logger.debug(str(cheat_state.player_compositions()[2]))
+                self.structure_dict[to_point(ordered.position)] = ordered
 
         if self.bot_config.resign_after_iteration is not None and self.bot_config.resign_after_iteration < iteration:
             logger.info(f"Reached iteration {self.bot_config.resign_after_iteration}, resigning.")
             await self.client.debug_kill_unit(self.structures)
-            # await self.client.leave()
 
         for error in self.state.action_errors:
             logger.warning(f"{error=}")
@@ -303,24 +284,20 @@ class PhantomBot(BotExporter, AresBot):
             else:
                 logger.info(f"Trainer {tag=} is MIA for {ordered_structure=}")
                 del self.ordered_structures[tag]
+
         self.ordered_structure_position_to_tag = {s.position: tag for tag, s in self.ordered_structures.items()}
 
         self.actual_by_type = Counter[UnitTypeId](
             u.type_id for u in self.all_own_units if u.is_ready or u.tag in self.units_completed_this_frame
         )
         self.actual_by_type[UnitTypeId.DRONE] = int(self.supply_workers)
+        self.pending_upgrade_set = set(self.pending_upgrades.values())
         self.pending_by_type = Counter[UnitTypeId](self.pending.values())
         self.ordered_by_type = Counter[UnitTypeId](s.type for s in self.ordered_structures.values())
-        self.townhall_at = {tuple(b.position.rounded): b for b in self.townhalls}
-        self.resource_at = {tuple(r.position.rounded): r for r in self.resources}
+        self.townhall_at = {to_point(b.position): b for b in self.townhalls}
+        self.resource_at = {to_point(r.position): r for r in self.resources}
 
-        self.bases_taken = set[tuple[int, int]]()
-        if not self.is_micro_map:
-            self.bases_taken.update(
-                p
-                for b in self.expansion_locations_list
-                if (th := self.townhall_at.get(p := tuple(b.rounded))) and th.is_ready
-            )
+        self.bases_taken = {b for b in self.bases if (th := self.townhall_at.get(b)) and th.is_ready}
 
         self.all_taken_resources = Units(
             [
@@ -340,31 +317,7 @@ class PhantomBot(BotExporter, AresBot):
             )
         )
 
-        self.supply_pending = 0
-        self.supply_income = 0.0
-        for unit_type, provided in SUPPLY_PROVIDED[self.race].items():
-            total_provided = provided * self.count_pending(unit_type)
-            self.supply_pending += total_provided
-            self.supply_income += total_provided / self.build_time(unit_type)
-
-        larva_income = sum(
-            sum(
-                (
-                    1 / 11 if h.is_ready else 0.0,
-                    3 / 29 if h.has_buff(BuffId.QUEENSPAWNLARVATIMER) else 0.0,  # TODO: track actual injects
-                )
-            )
-            for h in self.townhalls
-        )
-        self.income = Cost(
-            self.state.score.collection_rate_minerals / 60.0,  # TODO: get from harvest assignment
-            self.state.score.collection_rate_vespene / 60.0,  # TODO: get from harvest assignment
-            self.supply_income,  # TODO: iterate over pending
-            larva_income,
-        )
-
         self.bank = Cost(self.minerals, self.vespene, self.supply_left, self.larva.amount)
-
         self.planned = Counter(p.item for p in self.agent.macro.enumerate_plans())
 
         actions = self.agent.on_step()
@@ -618,6 +571,30 @@ class PhantomBot(BotExporter, AresBot):
     def visibility_grid(self) -> np.ndarray:
         return np.equal(self.state.visibility.data_numpy.T, 2.0)
 
+    @property_cache_once_per_frame
+    def income(self) -> Cost:
+        supply_income = 0.0
+        for unit_type, provided in SUPPLY_PROVIDED[self.race].items():
+            total_provided = provided * self.count_pending(unit_type)
+            supply_income += total_provided / self.build_time(unit_type)
+
+        larva_income = sum(
+            sum(
+                (
+                    1 / 11 if h.is_ready else 0.0,
+                    3 / 29 if h.has_buff(BuffId.QUEENSPAWNLARVATIMER) else 0.0,
+                )
+            )
+            for h in self.townhalls
+        )
+        income = Cost(
+            self.state.score.collection_rate_minerals / 60.0,
+            self.state.score.collection_rate_vespene / 60.0,
+            supply_income,
+            larva_income,
+        )
+        return income
+
     def send_overlord_scout(self) -> None:
         scout_overlord = self.units(UnitTypeId.OVERLORD)[0]
         scout_path = list[Point2]()
@@ -719,11 +696,11 @@ class PhantomBot(BotExporter, AresBot):
     def upgrade_sequence(self, upgrades) -> Iterable[UpgradeId]:
         for upgrade in upgrades:
             if upgrade not in self.state.upgrades:
-                if upgrade not in self.pending_upgrades.values():
-                    yield upgrade
-                    break
+                if self.count_pending(upgrade):
+                    return []
                 else:
-                    return
+                    return [upgrade]
+        return []
 
     def random_point(self, near: Point2 | None) -> Point2:
         a = self.game_info.playable_area
@@ -745,12 +722,22 @@ class PhantomBot(BotExporter, AresBot):
             return False
         return all(self.count_actual(e) == 0 for e in WITH_TECH_EQUIVALENTS[unit])
 
-    def count_actual(self, item: UnitTypeId) -> int:
-        return self.actual_by_type[item]
+    def count_actual(self, item: MacroId) -> int:
+        if isinstance(item, UnitTypeId):
+            return self.actual_by_type[item]
+        elif isinstance(item, UpgradeId):
+            return 1 if item in self.state.upgrades else 0
+        else:
+            raise TypeError(item)
 
-    def count_pending(self, item: UnitTypeId) -> int:
-        factor = 2 if item == UnitTypeId.ZERGLING else 1
-        return factor * (self.pending_by_type[item] + self.ordered_by_type[item])
+    def count_pending(self, item: MacroId) -> int:
+        if isinstance(item, UnitTypeId):
+            factor = 2 if item == UnitTypeId.ZERGLING else 1
+            return factor * (self.pending_by_type[item] + self.ordered_by_type[item])
+        elif isinstance(item, UpgradeId):
+            return 1 if item in self.pending_upgrade_set else 0
+        else:
+            raise TypeError(item)
 
     def count_planned(self, item: MacroId) -> int:
         factor = 2 if item == UnitTypeId.ZERGLING else 1

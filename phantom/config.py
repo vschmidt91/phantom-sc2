@@ -9,7 +9,6 @@ class BotConfig:
     training = False
     debug_draw = False
     profile_path: str | None = None
-    save_bot_path: str | None = None
     tag_log_level = "ERROR"
     build_order = "OVERHATCH"
     version_path = "version.txt"

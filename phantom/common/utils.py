@@ -1,7 +1,7 @@
 import asyncio
 import math
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from functools import cache, wraps
 
 import numpy as np
@@ -32,6 +32,10 @@ class PlacementNotFoundException(Exception):
 
 
 type Point = tuple[int, int]
+
+
+def to_point(p: Sequence[float]) -> Point:
+    return int(p[0]), int(p[1])
 
 
 def async_command(func):
@@ -111,24 +115,24 @@ def center(points: Iterable[Point]) -> Point2:
     return Point2((x_sum, y_sum))
 
 
-def line(x0: int, y0: int, x1: int, y1: int) -> list[tuple[int, int]]:
+def line(x0: int, y0: int, x1: int, y1: int) -> list[Point]:
     lx, ly = skimage.draw.line(x0, y0, x1, y1)
     return [(int(x), int(y)) for x, y in zip(lx, ly, strict=False)]
 
 
-def circle_perimeter(x0: int, y0: int, r: int, shape: tuple) -> list[tuple[int, int]]:
+def circle_perimeter(x0: int, y0: int, r: int, shape: tuple) -> list[Point]:
     assert len(shape) == 2
     tx, ty = skimage.draw.circle_perimeter(x0, y0, r, shape=shape)
     return [(int(x), int(y)) for x, y in zip(tx, ty, strict=False)]
 
 
-def circle(x0: int, y0: int, r: int, shape: tuple) -> list[tuple[int, int]]:
+def circle(x0: int, y0: int, r: int, shape: Point) -> list[Point]:
     assert len(shape) == 2
     tx, ty = skimage.draw.ellipse(x0, y0, r, r, shape=shape)
     return [(int(x), int(y)) for x, y in zip(tx, ty, strict=False)]
 
 
-def rectangle(start: tuple[int, int], extent: tuple[int, int], shape: tuple) -> tuple[np.ndarray, np.ndarray]:
+def rectangle(start: Point, extent: Point, shape: Point) -> tuple[np.ndarray, np.ndarray]:
     assert len(shape) == 2
     rx, ry = skimage.draw.rectangle(start, extent=extent, shape=shape)
     return rx.astype(int).flatten(), ry.astype(int).flatten()

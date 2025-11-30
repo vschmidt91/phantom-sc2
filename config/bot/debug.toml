@@ -1,4 +1,3 @@
 training = false
 debug_draw = true
-save_bot_path = "resources\\maps"
 tag_log_level = "WARNING"

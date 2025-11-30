@@ -76,6 +76,7 @@ build-backend = "poetry.core.masonry.api"
 line-length = 120
 exclude = [
     "ares-sc2",
+    "notebooks",
 ]
 
 [tool.ruff.lint]
@@ -96,7 +97,7 @@ select = [
     "FURB", # refurb
     "RUF",  # ruff specific
 ]
-ignore = ["E501", "B019", "PD901"]
+ignore = ["E501"]
 fixable = ["ALL"]
 
 [tool.mypy]
