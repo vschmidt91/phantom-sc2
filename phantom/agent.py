@@ -101,6 +101,7 @@ class Agent:
         self.creep_tumors.on_step()
         self.creep_spread.on_step()
         self.dodge.on_step()
+        self.transfuse.on_step()
 
         injecters = self.bot.units(UnitTypeId.QUEEN)
         inject_targets = self.bot.townhalls.ready
