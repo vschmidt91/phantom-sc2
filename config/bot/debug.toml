@@ -1,3 +1,4 @@
 training = false
 debug_draw = true
+profile_path = "resources\\profiling.prof"
 tag_log_level = "WARNING"

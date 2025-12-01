@@ -34,7 +34,7 @@ from phantom.common.distribute import distribute
 from phantom.common.utils import pairwise_distances, to_point
 from phantom.creep import CreepSpread, CreepTumors
 from phantom.macro.build_order import BUILD_ORDERS
-from phantom.macro.main import Macro, MacroPlan
+from phantom.macro.main import Macro, MacroParameters, MacroPlan
 from phantom.macro.strategy import Strategy, StrategyParameters
 from phantom.parameter_sampler import ParameterSampler
 from phantom.resources.main import ResourceState
@@ -51,7 +51,7 @@ class Agent:
         self.bot = bot
         self.build_order = BUILD_ORDERS[build_order_name]
         self.combat = CombatState(bot, CombatParameters(parameters))
-        self.macro = Macro(bot)
+        self.macro = Macro(bot, MacroParameters(parameters))
         self.creep_tumors = CreepTumors(bot)
         self.creep_spread = CreepSpread(bot)
         self.corrosive_biles = CorrosiveBile(bot)
@@ -61,6 +61,8 @@ class Agent:
         self.resources = ResourceState(bot)
         self.transfuse = Transfuse(bot)
         self.build_order_completed = False
+        self._gas_ratio = 0.0
+        self._gas_ratio_step = 1e-3 * self.bot.client.game_step
 
     def on_step(self) -> Mapping[Unit, Action]:
         enemy_combatants = self.bot.enemy_units.exclude_type(ENEMY_CIVILIANS)
@@ -88,9 +90,9 @@ class Agent:
         else:
             for plan in chain(
                 self.macro.make_composition(strategy.composition_target),
-                strategy.make_upgrades(self.macro.enumerate_plans()),
+                self.macro.make_upgrades(strategy.composition_target, strategy.filter_upgrade),
                 strategy.morph_overlord(),
-                strategy.expand(),
+                self.macro.expand(),
                 strategy.make_spines(),
                 strategy.make_spores(),
             ):
@@ -114,7 +116,7 @@ class Agent:
             ),
         )
 
-        macro_actions = self.macro.get_actions()
+        macro_actions = self.macro.on_step()
 
         should_inject = self.bot.supply_used + self.bot.bank.larva < 200
         tumor_count = (
@@ -144,14 +146,15 @@ class Agent:
             mineral_trips = max(0.0, required.minerals / 5)
             vespene_trips = max(0.0, required.vespene / 4)
             gas_ratio = vespene_trips / (mineral_trips + vespene_trips)
+        self._gas_ratio += self._gas_ratio_step * np.sign(gas_ratio - self._gas_ratio)
+        self._gas_ratio = max(0, min(1, self._gas_ratio))
 
         harvesters = list[Unit]()
         harvesters.extend(self.bot.mediator.get_units_from_role(role=UnitRole.GATHERING))
-        harvesters.extend(self.bot.workers_in_gas_buildings.values())
+        harvesters.extend(self.bot.workers_off_map.values())
 
-        gas_target = math.ceil(len(harvesters) * gas_ratio)
-        # TODO: make this cleaner, e.g. by passing an overriding argument
-        if self.bot.harvesters_per_gas_building == 3 and self.bot.harvestable_gas_buildings:
+        gas_target = math.ceil(len(harvesters) * self._gas_ratio)
+        if not self.bot.researched_speed and self.bot.harvestable_gas_buildings:
             gas_target = 3
 
         mineral_fields = [m for m in self.bot.all_taken_minerals if should_harvest_resource(m)]

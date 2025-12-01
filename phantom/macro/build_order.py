@@ -69,7 +69,7 @@ class ExtractorTrick(BuildOrder):
                 or bot.count_planned(self.unit_type) > 0
             )
             if not has_extractor:
-                if self.min_minerals < bot.bank.minerals:
+                if self.min_minerals <= bot.bank.minerals:
                     return BuildOrderStep([MacroPlan(self.unit_type, priority=np.inf)], {})
                 else:
                     return BuildOrderStep([], {})
@@ -98,7 +98,7 @@ BUILD_ORDERS = {
             Make(UnitTypeId.HATCHERY, 2),
             Make(UnitTypeId.DRONE, 17),
             Make(UnitTypeId.EXTRACTOR, 1),
-            WaitUntil(lambda bot: bot.gas_buildings),
+            # WaitUntil(lambda bot: bot.gas_buildings),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
         ]
     ),

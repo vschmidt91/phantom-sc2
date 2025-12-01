@@ -8,6 +8,7 @@ class BotConfig:
     resign_after_iteration: int | None = None
     training = False
     debug_draw = False
+    profile_interval = 100
     profile_path: str | None = None
     tag_log_level = "ERROR"
     build_order = "OVERHATCH"

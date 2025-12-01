@@ -1,5 +1,6 @@
 from itertools import chain
 
+from ares.consts import ALL_STRUCTURES
 from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
@@ -102,6 +103,13 @@ COCOONS = {
     UnitTypeId.OVERLORDCOCOON,
     UnitTypeId.TRANSPORTOVERLORDCOCOON,
     UnitTypeId.BROODLORDCOCOON,
+}
+
+TRAINER_TYPES = {
+    UnitTypeId.EGG,
+    *COCOONS,
+    *ALL_STRUCTURES,
+    *WORKERS,
 }
 
 CIVILIANS = {

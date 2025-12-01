@@ -8,22 +8,20 @@ from collections import Counter, defaultdict
 from collections.abc import Iterable, Set
 from dataclasses import dataclass
 from itertools import chain
-from queue import Empty, Queue
 
 import numpy as np
-from ares import WORKER_TYPES, AresBot
+from ares import AresBot
 from ares.behaviors.macro.mining import TOWNHALL_RADIUS
 from ares.consts import ALL_STRUCTURES
 from cython_extensions import cy_distance_to
 from loguru import logger
 from s2clientprotocol.score_pb2 import CategoryScoreDetails
 from sc2.cache import property_cache_once_per_frame
-from sc2.data import Race, Result
+from sc2.data import ActionResult, Race, Result
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
-from sc2.game_state import ActionRawUnitCommand
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -34,11 +32,11 @@ from sc2.unit_command import UnitCommand
 
 from phantom.agent import Agent
 from phantom.common.constants import (
-    ALL_MACRO_ABILITIES,
     ITEM_BY_ABILITY,
     MINING_RADIUS,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
+    TRAINER_TYPES,
     WITH_TECH_EQUIVALENTS,
     ZERG_ARMOR_UPGRADES,
     ZERG_FLYER_ARMOR_UPGRADES,
@@ -74,20 +72,16 @@ class PhantomBot(AresBot):
         self.bot_config = config
         self.opponent_id = opponent_id
         self.replay_tags = set[str]()
-        self.replay_tag_queue = Queue[str]()
+        self.replay_tag_queue = set[str]()
         self.version: str | None = None
         self.profiler = cProfile.Profile()
-        self.on_before_start_was_called = False
-        self.ordered_structures = dict[int, OrderedStructure]()
-        self.pending = dict[int, UnitTypeId]()
-        self.pending_upgrades = dict[int, UpgradeId]()
+        self.pending = dict[int, MacroId]()
         self.units_completed_this_frame = set[int]()
         self.parameters = ParameterSampler()
         self.cost = CostManager(self)
         self.worker_memory = dict[int, Unit]()
-        self.workers_in_gas_buildings = dict[int, Unit]()
+        self.workers_off_map = dict[int, Unit]()
         self.actions_by_ability = defaultdict[AbilityId, list[UnitCommand]](list)
-        self.ordered_structure_position_to_tag = dict[Point2, int]()
         self.expansion_mineral_positions = dict[Point, list[Point]]()
         self.expansion_geyser_positions = dict[Point, list[Point]]()
         self.expansion_mineral_center = dict[Point, Point]()
@@ -99,8 +93,6 @@ class PhantomBot(AresBot):
         self.enemy_start_locations_rounded = list[Point]()
         self.bases = list[Point]()
         self.structure_dict = dict[Point, Unit | OrderedStructure | MacroPlan]()
-        self.vespene_geyser_at = dict[Point, Unit]()
-        self.mineral_field_at = dict[Point, Unit]()
 
         if os.path.isfile(self.bot_config.version_path):
             logger.info(f"Reading version from {self.bot_config.version_path}")
@@ -110,22 +102,15 @@ class PhantomBot(AresBot):
             logger.warning(f"Version not found: {self.bot_config.version_path}")
 
     def add_replay_tag(self, replay_tag: str) -> None:
-        self.replay_tag_queue.put(replay_tag)
+        self.replay_tag_queue.add(replay_tag)
 
     async def on_before_start(self) -> None:
         await super().on_before_start()
-        self.on_before_start_was_called = True
 
     async def on_start(self) -> None:
-        if not self.on_before_start_was_called:
-            logger.warning("on_before_start was not called, calling it now.")
-            await self.on_before_start()
-
-        logger.debug("Bot starting")
         await super().on_start()
 
-        self.worker_memory.update({u.tag: u for u in self.workers})
-
+        logger.info("on_start")
         self.start_location_rounded = to_point(self.start_location)
         self.enemy_start_locations_rounded.extend(map(to_point, self.enemy_start_locations))
         self.bases.extend(map(to_point, self.expansion_locations_list))
@@ -196,13 +181,6 @@ class PhantomBot(AresBot):
 
         self.send_overlord_scout()
 
-        # await self.client.debug_create_unit(
-        #     [
-        #         [UnitTypeId.ROACH, 13, self.game_info.map_center, 1],
-        #         [UnitTypeId.ROACH, 13, self.game_info.map_center, 2],
-        #     ]
-        # )
-
         try:
             with lzma.open(self.bot_config.params_path, "rb") as f:
                 parameters = pickle.load(f)
@@ -231,8 +209,6 @@ class PhantomBot(AresBot):
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
 
-        # await self.client.save_replay(self.client.save_replay_path)
-
         # local only: skip first iteration like on the ladder
         if iteration == 0:
             return
@@ -242,7 +218,8 @@ class PhantomBot(AresBot):
             await self.client.debug_kill_unit(self.structures)
 
         for error in self.state.action_errors:
-            logger.warning(f"{error=}")
+            result = ActionResult(error.result)
+            logger.info(f"{error} with {result}")
 
         if self.bot_config.debug_draw:
             self.agent.macro.debug_draw_plans()
@@ -253,72 +230,65 @@ class PhantomBot(AresBot):
         self.actions_by_ability.clear()
         for action in self.state.actions_unit_commands:
             self.actions_by_ability[action.exact_id].append(action)
-            for tag in action.unit_tags:
-                self.handle_action(action, tag)
 
-        self.workers_in_gas_buildings.clear()
+        self.workers_off_map.clear()
+        self.worker_memory.update({u.tag: u for u in self.workers})
         for tag, unit in list(self.worker_memory.items()):
-            if new_unit := self.unit_tag_dict.get(tag):
-                self.worker_memory[tag] = new_unit
-            elif ordered_structure := self.ordered_structures.get(tag):
-                # the drone morphed into something
-                self.worker_memory.pop(tag, None)
+            memory_age = self.state.game_loop - unit.game_loop
+            if tag in self.unit_tag_dict:
+                pass
+            elif tag in self.state.dead_units:
+                del self.worker_memory[tag]
+            elif pending := self.pending.get(tag):
+                logger.info(f"{unit} morphed into {pending}")
+                del self.worker_memory[tag]
+            elif structure := self.structure_dict.get(to_point(unit.position)):
+                logger.info(f"{unit} morphed instantly into {structure}")
+                del self.worker_memory[tag]
+            elif memory_age > 32:
+                logger.info(f"{unit} missing for {memory_age} game loops, assuming it is gone")
+                del self.worker_memory[tag]
             else:
                 # the worker entered a geyser, nydus or dropperlord
-                self.workers_in_gas_buildings[tag] = unit
-
-        # track ordered structures
-        for tag, ordered_structure in list(self.ordered_structures.items()):
-            if unit := self.unit_tag_dict.get(tag):
-                ability = TRAIN_INFO[unit.type_id][ordered_structure.type]["ability"]
-                if not unit.is_using_ability(ability):
-                    logger.warning(f"{unit=} is doing {unit.orders} and not as {ordered_structure=}")
-                    del self.ordered_structures[tag]
-            else:
-                logger.info(f"Trainer {tag=} is MIA for {ordered_structure=}")
-                del self.ordered_structures[tag]
-
-        self.ordered_structure_position_to_tag = {s.position: tag for tag, s in self.ordered_structures.items()}
+                self.workers_off_map[tag] = unit
 
         self.structure_dict.clear()
+        self.pending.clear()
+        trainers = self.all_own_units(TRAINER_TYPES)
+        for unit in trainers:
+            if not unit.is_ready:
+                self.pending[unit.tag] = unit.type_id
+            elif (order := next(iter(unit.orders), None)) and (item := ITEM_BY_ABILITY.get(order.ability.exact_id)):
+                if item in ALL_STRUCTURES:
+                    target: Point2 | None = None
+                    if isinstance(order.target, Point2):
+                        target = order.target
+                    elif isinstance(order.target, int):
+                        target = None if order.target == 0 else self.unit_tag_dict[order.target].position
+                    if target is not None:
+                        self.structure_dict[to_point(target)] = OrderedStructure(item, target)
+                self.pending[unit.tag] = item
+
         self.structure_dict.update({to_point(s.position): s for s in self.structures})
         for plan in self.agent.macro.enumerate_plans():
             if plan.item in ALL_STRUCTURES and plan.target:
                 self.structure_dict[to_point(plan.target.position)] = plan
-        for ordered in self.ordered_structures.values():
-            if ordered.type in ALL_STRUCTURES:
-                self.structure_dict[to_point(ordered.position)] = ordered
 
         self.actual_by_type = Counter[UnitTypeId](
             u.type_id for u in self.all_own_units if u.is_ready or u.tag in self.units_completed_this_frame
         )
         self.actual_by_type[UnitTypeId.DRONE] = int(self.supply_workers)
-        self.pending_upgrade_set = set(self.pending_upgrades.values())
         self.pending_by_type = Counter[UnitTypeId](self.pending.values())
-        self.ordered_by_type = Counter[UnitTypeId](s.type for s in self.ordered_structures.values())
 
-        self.vespene_geyser_at.clear()
-        self.mineral_field_at.clear()
-        for resource in self.resources:
-            p = to_point(resource.position)
-            if resource.is_mineral_field:
-                self.mineral_field_at[p] = resource
-            else:
-                self.vespene_geyser_at[p] = resource
+        resources_at = {to_point(r.position): r for r in self.resources}
 
         self.bases_taken = {b for b in self.bases if isinstance(th := self.structure_dict.get(b), Unit) and th.is_ready}
 
         self.all_taken_minerals = [
-            r
-            for base in self.bases_taken
-            for p in self.expansion_mineral_positions[base]
-            if (r := self.mineral_field_at.get(p))
+            r for base in self.bases_taken for p in self.expansion_mineral_positions[base] if (r := resources_at.get(p))
         ]
         self.all_taken_geysers = [
-            r
-            for base in self.bases_taken
-            for p in self.expansion_geyser_positions[base]
-            if (r := self.vespene_geyser_at.get(p))
+            r for base in self.bases_taken for p in self.expansion_geyser_positions[base] if (r := resources_at.get(p))
         ]
         self.harvestable_gas_buildings = [
             gas_building
@@ -330,9 +300,8 @@ class PhantomBot(AresBot):
         self.max_harvesters = sum(
             (
                 self.harvesters_per_mineral_field * len(self.all_taken_minerals),
-                self.harvesters_per_gas_building
-                * len(self.harvestable_gas_buildings),  # TODO: take into account mined out geysers
-                # 22 * self.townhalls.not_ready.amount,
+                self.harvesters_per_gas_building * len(self.harvestable_gas_buildings),
+                int(20 * sum(th.build_progress for th in self.townhalls.not_ready)),
             )
         )
 
@@ -348,33 +317,12 @@ class PhantomBot(AresBot):
 
         if self.bot_config.profile_path:
             self.profiler.disable()
+            if self.actual_iteration % self.bot_config.profile_interval == 0:
+                self._write_profile(self.bot_config.profile_path)
 
-            if self.actual_iteration % 100 == 0:
-                logger.info(f"Writing profiling to {self.bot_config.profile_path}")
-
-                s = io.StringIO()
-                stats = pstats.Stats(self.profiler, stream=s)
-                stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
-                stats.print_callers()
-                with open(self.bot_config.profile_path + ".callers", "w+") as f:
-                    f.write(s.getvalue())
-
-                s = io.StringIO()
-                stats = pstats.Stats(self.profiler, stream=s)
-                stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
-                stats.print_callees()
-                with open(self.bot_config.profile_path + ".callees", "w+") as f:
-                    f.write(s.getvalue())
-
-                stats = pstats.Stats(self.profiler)
-                stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
-                stats.dump_stats(filename=self.bot_config.profile_path)
-
-        try:
-            tag = self.replay_tag_queue.get(block=False)
-            await self._send_replay_tag(tag)
-        except Empty:
-            pass
+        for replay_tag in self.replay_tag_queue:
+            await self._send_replay_tag(replay_tag)
+        self.replay_tag_queue.clear()
 
         self.units_completed_this_frame.clear()
 
@@ -382,156 +330,47 @@ class PhantomBot(AresBot):
         await super().on_end(game_result)
 
         if self.agent and self.bot_config.training:
-            fitness = self.get_fitness_value()
+            fitness = self._get_fitness_value()
             logger.info(f"Training parameters with {fitness=}")
             self.parameters.tell(fitness)
             with lzma.open(self.bot_config.params_path, "wb") as f:
                 pickle.dump(self.parameters, f)
 
-    def get_fitness_value(self, vespene_weight: float = 2.0) -> float:
-        def sum_category(category: CategoryScoreDetails) -> float:
-            return sum(
-                (
-                    category.army,
-                    category.economy,
-                    category.none,
-                    category.technology,
-                    category.upgrade,
-                )
-            )
-
-        lost_minerals = sum(
-            (
-                sum_category(self.state.score._proto.lost_minerals),
-                sum_category(self.state.score._proto.friendly_fire_minerals),
-            )
-        )
-        lost_vespene = sum(
-            (
-                sum_category(self.state.score._proto.lost_vespene),
-                sum_category(self.state.score._proto.friendly_fire_vespene),
-            )
-        )
-        lost_total = lost_minerals + lost_vespene * vespene_weight
-
-        killed_minerals = sum_category(self.state.score._proto.killed_minerals)
-        killed_vespene = sum_category(self.state.score._proto.killed_vespene)
-        killed_total = killed_minerals + killed_vespene * vespene_weight
-
-        return killed_total / max(1.0, lost_total + killed_total)
-
-    # async def on_before_start(self):
-    #     await super().on_before_start()
     #
     async def on_building_construction_started(self, unit: Unit):
-        logger.info(f"on_building_construction_started {unit=}")
+        logger.info(f"on_building_construction_started {unit}")
         await super().on_building_construction_started(unit)
-        if ordered_from := self.ordered_structure_position_to_tag.get(unit.position):
-            self.ordered_structures.pop(ordered_from, None)
-            self.worker_memory.pop(ordered_from, None)
-        else:
-            logger.info(f"{unit=} was started before being ordered")
-        self.pending[unit.tag] = unit.type_id
 
     async def on_building_construction_complete(self, unit: Unit):
         self.units_completed_this_frame.add(unit.tag)
-        exists = unit.tag not in self._structures_previous_map
-        logger.info(f"on_building_construction_complete {unit=}, {exists=}")
+        logger.info(f"on_building_construction_complete {unit}")
         await super().on_building_construction_complete(unit)
-        if unit.type_id in {UnitTypeId.LAIR, UnitTypeId.HIVE, UnitTypeId.GREATERSPIRE, UnitTypeId.CREEPTUMORBURROWED}:
-            return
-        if unit.tag not in self.pending:
-            logger.error("unit not found")
-        del self.pending[unit.tag]
-
-    # async def on_enemy_unit_entered_vision(self, unit: Unit):
-    #     await super().on_enemy_unit_entered_vision(unit)
-    #
-    # async def on_enemy_unit_left_vision(self, unit_tag: int):
-    #     await super().on_enemy_unit_left_vision(unit_tag)
-    #
-    async def on_unit_destroyed(self, unit_tag: int):
-        logger.info(f"on_unit_destroyed {unit_tag=}")
-        await super().on_unit_destroyed(unit_tag)
-        self.pending.pop(unit_tag, None)
-        self.pending_upgrades.pop(unit_tag, None)
-        self.worker_memory.pop(unit_tag, None)
-
-    async def on_unit_created(self, unit: Unit):
-        await super().on_unit_created(unit)
-        if unit.type_id in WORKER_TYPES:
-            self.worker_memory[unit.tag] = unit
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         self.units_completed_this_frame.add(unit.tag)
         self.agent.on_unit_type_changed(unit, previous_type)
-        logger.info(f"on_unit_type_changed {unit=} {previous_type=}")
         await super().on_unit_type_changed(unit, previous_type)
-        if unit.type_id == UnitTypeId.EGG:
-            self.pending[unit.tag] = ITEM_BY_ABILITY[unit.orders[0].ability.exact_id]
-        elif unit.is_structure and unit.type_id not in {UnitTypeId.CREEPTUMORBURROWED}:
-            del self.pending[unit.tag]
+
+    # async def on_before_start(self):
+    #     await super().on_before_start()
+
+    # async def on_enemy_unit_entered_vision(self, unit: Unit):
+    #     await super().on_enemy_unit_entered_vision(unit)
+
+    # async def on_enemy_unit_left_vision(self, unit_tag: int):
+    #     await super().on_enemy_unit_left_vision(unit_tag)
+    # #
+    # async def on_unit_destroyed(self, unit_tag: int):
+    #     await super().on_unit_destroyed(unit_tag)
+
+    # async def on_unit_created(self, unit: Unit):
+    #     await super().on_unit_created(unit)
 
     # async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
     #     await super().on_unit_took_damage(unit, amount_damage_taken)
-    #
 
-    async def on_upgrade_complete(self, upgrade: UpgradeId):
-        logger.info(f"on_upgrade_complete {upgrade=}")
-        await super().on_upgrade_complete(upgrade)
-        researcher = next((t for t, u in self.pending_upgrades.items() if u == upgrade), None)
-        if researcher:
-            del self.pending_upgrades[researcher]
-        else:
-            logger.error(f"No researcher for {upgrade=}")
-
-    def handle_action(self, action: ActionRawUnitCommand, tag: int) -> None:
-        unit = self.unit_tag_dict.get(tag) or self._units_previous_map.get(tag)
-        if not (item := ITEM_BY_ABILITY.get(action.exact_id)):
-            return
-        if (
-            action.exact_id == AbilityId.BUILD_CREEPTUMOR_QUEEN
-            or action.exact_id == AbilityId.SPAWNCHANGELING_SPAWNCHANGELING
-        ):
-            pass
-        else:
-            lookup_tag = tag
-            if unit and unit.type_id == UnitTypeId.EGG:
-                # commands issued to a specific larva will be received by a random one
-                # therefore, a direct lookup will often be incorrect
-                # instead, all plans are checked for a match
-                for t, p in self.agent.macro.assigned_plans.items():
-                    if item == p.item:
-                        if tag != t:
-                            logger.info(f"Correcting morph tag from {tag} to {t=}")
-                            lookup_tag = t
-                        break
-            if plan := self.agent.macro.assigned_plans.get(lookup_tag):
-                if item != plan.item:
-                    logger.info(f"{action=} for {item=} does not match {plan=}")
-                else:
-                    del self.agent.macro.assigned_plans[lookup_tag]
-                    if isinstance(item, UpgradeId):
-                        self.pending_upgrades[lookup_tag] = item
-                    elif item in ALL_STRUCTURES and (
-                        "requires_placement_position" in TRAIN_INFO[unit.type_id][item] or item == UnitTypeId.EXTRACTOR
-                    ):
-                        if tag in self.unit_tag_dict:
-                            if isinstance(unit.order_target, Point2):
-                                self.ordered_structures[tag] = OrderedStructure(item, unit.order_target)
-                            elif isinstance(unit.order_target, int):
-                                self.ordered_structures[tag] = OrderedStructure(
-                                    item, self.unit_tag_dict[unit.order_target].position
-                                )
-                        else:
-                            logger.info("ordered unit not found, assuming it was a drone morphing")
-                            self.worker_memory.pop(tag, None)
-                    else:
-                        logger.info(f"Pending {item=} through {tag=}, {unit=}")
-                        self.pending[tag] = item
-                    logger.info(f"Executed {plan=} through {action}")
-            elif action.exact_id in ALL_MACRO_ABILITIES:
-                logger.info(f"Unplanned {action=}")
+    # async def on_upgrade_complete(self, upgrade: UpgradeId):
+    #     await super().on_upgrade_complete(upgrade)
 
     @property
     def name(self) -> str:
@@ -555,11 +394,16 @@ class PhantomBot(AresBot):
         return 2
 
     @property_cache_once_per_frame
-    def harvesters_per_gas_building(self) -> int:
-        if (
-            self.count_actual(UpgradeId.ZERGLINGMOVEMENTSPEED)
+    def researched_speed(self) -> bool:
+        return (
+            self.count_actual(UpgradeId.ZERGLINGMOVEMENTSPEED) > 0
             or self.count_pending(UpgradeId.ZERGLINGMOVEMENTSPEED) > 0
-        ):
+            or self.vespene >= 96
+        )
+
+    @property_cache_once_per_frame
+    def harvesters_per_gas_building(self) -> int:
+        if self.researched_speed:
             return 2
         else:
             return 3
@@ -728,13 +572,8 @@ class PhantomBot(AresBot):
             raise TypeError(item)
 
     def count_pending(self, item: MacroId) -> int:
-        if isinstance(item, UnitTypeId):
-            factor = 2 if item == UnitTypeId.ZERGLING else 1
-            return factor * (self.pending_by_type[item] + self.ordered_by_type[item])
-        elif isinstance(item, UpgradeId):
-            return 1 if item in self.pending_upgrade_set else 0
-        else:
-            raise TypeError(item)
+        factor = 2 if item == UnitTypeId.ZERGLING else 1
+        return factor * self.pending_by_type[item]
 
     def count_planned(self, item: MacroId) -> int:
         factor = 2 if item == UnitTypeId.ZERGLING else 1
@@ -769,3 +608,56 @@ class PhantomBot(AresBot):
     @property_cache_once_per_frame
     def blocked_positions(self) -> Set[Point2]:
         return set(self.agent.scout.blocked_positions)
+
+    def _get_fitness_value(self, vespene_weight: float = 2.0) -> float:
+        def sum_category(category: CategoryScoreDetails) -> float:
+            return sum(
+                (
+                    category.army,
+                    category.economy,
+                    category.none,
+                    category.technology,
+                    category.upgrade,
+                )
+            )
+
+        lost_minerals = sum(
+            (
+                sum_category(self.state.score._proto.lost_minerals),
+                sum_category(self.state.score._proto.friendly_fire_minerals),
+            )
+        )
+        lost_vespene = sum(
+            (
+                sum_category(self.state.score._proto.lost_vespene),
+                sum_category(self.state.score._proto.friendly_fire_vespene),
+            )
+        )
+        lost_total = lost_minerals + lost_vespene * vespene_weight
+
+        killed_minerals = sum_category(self.state.score._proto.killed_minerals)
+        killed_vespene = sum_category(self.state.score._proto.killed_vespene)
+        killed_total = killed_minerals + killed_vespene * vespene_weight
+
+        return killed_total / max(1.0, lost_total + killed_total)
+
+    def _write_profile(self, path: str) -> None:
+        logger.info(f"Writing profiling to {path}")
+
+        s = io.StringIO()
+        stats = pstats.Stats(self.profiler, stream=s)
+        stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
+        stats.print_callers()
+        with open(path + ".callers", "w+") as f:
+            f.write(s.getvalue())
+
+        s = io.StringIO()
+        stats = pstats.Stats(self.profiler, stream=s)
+        stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
+        stats.print_callees()
+        with open(path + ".callees", "w+") as f:
+            f.write(s.getvalue())
+
+        stats = pstats.Stats(self.profiler)
+        stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
+        stats.dump_stats(filename=path)

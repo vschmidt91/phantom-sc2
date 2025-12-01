@@ -35,13 +35,11 @@ class StrategyTier(enum.IntEnum):
 class StrategyParameters:
     def __init__(self, parameters: ParameterSampler) -> None:
         self.counter_factor = parameters.add(Prior(2.5, 0.1, min=0))
-        self.ravager_mixin = parameters.add(Prior(8, 1, min=0))
-        self.corruptor_mixin = parameters.add(Prior(8, 1, min=0))
+        self.ravager_mixin = parameters.add(Prior(13, 1, min=0))
+        self.corruptor_mixin = parameters.add(Prior(5, 1, min=0))
         self.tier1_drone_count = parameters.add(Prior(32, 1, min=0))
         self.tier2_drone_count = parameters.add(Prior(66, 1, min=0))
         self.tier3_drone_count = parameters.add(Prior(80, 1, min=0))
-        self.tech_priority_offset = parameters.add(Prior(-1.0, 0.01))
-        self.tech_priority_scale = parameters.add(Prior(0.5, 0.01, min=0))
         self.hydras_when_banking = parameters.add(Prior(5, 1, min=0))
         self.lings_when_banking = parameters.add(Prior(10, 1, min=0))
         self.queens_when_banking = parameters.add(Prior(3, 1, min=0))
@@ -61,64 +59,6 @@ class Strategy:
         self.macro_composition = self._macro_composition()
         self.composition_target = add_compositions(self.macro_composition, self.army_composition)
         self.composition_deficit = sub_compositions(self.composition_target, self.composition)
-
-    def make_upgrades(self, plans: Iterable[MacroPlan]) -> Iterable[MacroPlan]:
-        upgrade_weights = dict[UpgradeId, float]()
-        for unit, count in self.composition_target.items():
-            cost = self.bot.cost.of(unit)
-            total_cost = cost.minerals + 2 * cost.vespene
-            for upgrade in self.bot.upgrades_by_unit(unit):
-                upgrade_weights[upgrade] = upgrade_weights.setdefault(upgrade, 0.0) + count / total_cost
-
-        # strategy specific filter
-        upgrade_weights = {k: v for k, v in upgrade_weights.items() if self.filter_upgrade(k)}
-
-        if not upgrade_weights:
-            return
-        total = max(upgrade_weights.values())
-        if total == 0:
-            return
-
-        upgrade_priorities = {
-            k: self.parameters.tech_priority_offset.value + self.parameters.tech_priority_scale.value * v / total
-            for k, v in upgrade_weights.items()
-        }
-
-        for plan in plans:
-            if priority := upgrade_priorities.get(plan.item):
-                plan.priority = priority
-
-        for upgrade, priority in upgrade_priorities.items():
-            if (
-                upgrade in self.bot.state.upgrades
-                or upgrade in self.bot.pending_upgrades.values()
-                or self.bot.count_planned(upgrade)
-            ):
-                continue
-            yield MacroPlan(upgrade, priority=priority)
-
-    def expand(self) -> Iterable[MacroPlan]:
-        worker_max = self.bot.max_harvesters + 22 * self.bot.count_pending(UnitTypeId.HATCHERY)
-        saturation = self.bot.supply_workers / max(1, worker_max)
-        saturation = max(0.0, min(1.0, saturation))
-
-        # if self.tier == StrategyTier.HATCH:
-        #     return
-
-        priority = 3 * (saturation - 1)
-
-        for plan in self.bot.agent.macro.assigned_plans.values():
-            if plan.item == UnitTypeId.HATCHERY:
-                plan.priority = priority
-
-        if priority < -1:
-            return
-        if self.bot.count_planned(UnitTypeId.HATCHERY) > 0:
-            return
-        if self.bot.ordered_by_type[UnitTypeId.HATCHERY] > 0:
-            return
-
-        yield MacroPlan(UnitTypeId.HATCHERY, priority=priority)
 
     def make_spines(self) -> Iterable[MacroPlan]:
         if not self.bot.mediator.get_did_enemy_rush:

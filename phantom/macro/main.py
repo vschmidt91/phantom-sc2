@@ -1,6 +1,6 @@
 import math
 import random
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from itertools import chain
 from typing import TYPE_CHECKING
@@ -19,6 +19,7 @@ from phantom.common.action import Action, HoldPosition, Move, UseAbility
 from phantom.common.constants import (
     GAS_BY_RACE,
     HALF,
+    ITEM_BY_ABILITY,
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
     MACRO_INFO,
     WORKERS,
@@ -26,6 +27,7 @@ from phantom.common.constants import (
 from phantom.common.cost import Cost
 from phantom.common.unit_composition import UnitComposition
 from phantom.common.utils import PlacementNotFoundException, Point, to_point
+from phantom.parameter_sampler import ParameterSampler, Prior
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -33,6 +35,12 @@ if TYPE_CHECKING:
 rng = np.random.default_rng()
 
 type MacroId = UnitTypeId | UpgradeId
+
+EXCLUDE_ABILTIES = {
+    AbilityId.BUILD_CREEPTUMOR_TUMOR,
+    AbilityId.BUILD_CREEPTUMOR_QUEEN,
+    AbilityId.SPAWNCHANGELING_SPAWNCHANGELING,
+}
 
 
 @dataclass
@@ -47,7 +55,7 @@ def _premove(unit: Unit, plan: MacroPlan, eta: float) -> Action | None:
         return None
     target = plan.target.position
     distance = cy_distance_to(unit.position, target)
-    movement_eta = 2.0 + distance / (1.4 * unit.movement_speed)
+    movement_eta = (4 / 3) * distance / (1.4 * unit.real_speed)
     if eta > movement_eta:
         return None
     if distance < 1e-3:
@@ -55,11 +63,18 @@ def _premove(unit: Unit, plan: MacroPlan, eta: float) -> Action | None:
     return Move(target)
 
 
+class MacroParameters:
+    def __init__(self, parameters: ParameterSampler) -> None:
+        self.tech_priority_offset = parameters.add(Prior(-1.0, 0.01))
+        self.tech_priority_scale = parameters.add(Prior(0.5, 0.01, min=0))
+
+
 class Macro:
-    def __init__(self, bot: "PhantomBot") -> None:
+    def __init__(self, bot: "PhantomBot", parameters: MacroParameters) -> None:
         self.bot = bot
-        self.unassigned_plans = list[MacroPlan]()
-        self.assigned_plans = dict[int, MacroPlan]()
+        self.parameters = parameters
+        self._unassigned_plans = list[MacroPlan]()
+        self._assigned_plans = dict[int, MacroPlan]()
         self.min_priority = -1.0
 
     def make_composition(self, composition: UnitComposition) -> Iterable[MacroPlan]:
@@ -67,7 +82,7 @@ class Macro:
         for unit, target in composition.items():
             have = self.bot.count_actual(unit) + self.bot.count_pending(unit)
             planned = self.bot.count_planned(unit)
-            priority = -(have + 0.5) / max(1.0, target)
+            priority = -(have + 0.5) / max(1.0, math.ceil(target))
             unit_priorities[unit] = priority
             if target < 1 or target <= have + planned:
                 continue
@@ -76,7 +91,7 @@ class Macro:
             if planned == 0:
                 yield MacroPlan(unit, priority=priority)
 
-        for plan in self.assigned_plans.values():
+        for plan in self._assigned_plans.values():
             if plan.priority == math.inf:
                 continue
             if override_priority := unit_priorities.get(plan.item):
@@ -84,8 +99,8 @@ class Macro:
 
     def debug_draw_plans(self) -> None:
         plans = chain(
-            ((0, plan) for plan in self.unassigned_plans),
-            self.assigned_plans.items(),
+            ((0, p) for p in self._unassigned_plans),
+            self._assigned_plans.items(),
         )
         plans_sorted = sorted(plans, key=lambda p: p[1].priority, reverse=True)
         for i, (tag, plan) in enumerate(plans_sorted):
@@ -93,59 +108,134 @@ class Macro:
             self._debug_draw_plan(trainer, plan, index=i)
 
     def add(self, plan: MacroPlan) -> None:
-        self.unassigned_plans.append(plan)
-        logger.info(f"Adding {plan=}")
+        self._unassigned_plans.append(plan)
+        logger.info(f"Adding {plan}")
 
     def get_planned_cost(self) -> Cost:
         cost = Cost()
-        for plan in self.unassigned_plans:
+        for plan in self._unassigned_plans:
             cost += self.bot.cost.of(plan.item)
-        for plan in self.assigned_plans.values():
+        for plan in self._assigned_plans.values():
             cost += self.bot.cost.of(plan.item)
         return cost
 
     def enumerate_plans(self) -> Iterable[MacroPlan]:
-        return chain(self.assigned_plans.values(), self.unassigned_plans)
+        return chain(self._assigned_plans.values(), self._unassigned_plans)
 
     def planned_by_type(self, item: MacroId) -> Iterable[MacroPlan]:
         return filter(lambda p: p.item == item, self.enumerate_plans())
 
-    def get_actions(self) -> Mapping[Unit, Action]:
+    def expand(self) -> Iterable[MacroPlan]:
+        worker_max = self.bot.max_harvesters + 22 * self.bot.count_pending(UnitTypeId.HATCHERY)
+        saturation = self.bot.supply_workers / max(1, worker_max)
+        saturation = max(0.0, min(1.0, saturation))
+
+        # if self.tier == StrategyTier.HATCH:
+        #     return
+
+        priority = 3 * (saturation - 1)
+
+        for plan in self._assigned_plans.values():
+            if plan.item == UnitTypeId.HATCHERY:
+                plan.priority = priority
+
+        if priority < -1:
+            return
+        if self.bot.count_planned(UnitTypeId.HATCHERY) > 0:
+            return
+
+        # ordered = self.bot.count_pending(UnitTypeId.HATCHERY) - self.bot.townhalls.not_ready.amount
+        # if ordered > 0:
+        #     return
+
+        yield MacroPlan(UnitTypeId.HATCHERY, priority=priority)
+
+    def make_upgrades(
+        self, composition: UnitComposition, upgrade_filter: Callable[[UpgradeId], bool]
+    ) -> Iterable[MacroPlan]:
+        upgrade_weights = dict[UpgradeId, float]()
+        for unit, count in composition.items():
+            cost = self.bot.cost.of(unit)
+            total_cost = cost.minerals + 2 * cost.vespene
+            for upgrade in self.bot.upgrades_by_unit(unit):
+                upgrade_weights[upgrade] = upgrade_weights.setdefault(upgrade, 0.0) + count / total_cost
+
+        # strategy specific filter
+        upgrade_weights = {k: v for k, v in upgrade_weights.items() if upgrade_filter(k)}
+
+        if not upgrade_weights:
+            return
+        total = max(upgrade_weights.values())
+        if total == 0:
+            return
+
+        upgrade_priorities = {
+            k: self.parameters.tech_priority_offset.value + self.parameters.tech_priority_scale.value * v / total
+            for k, v in upgrade_weights.items()
+        }
+
+        for plan in self.enumerate_plans():
+            if priority := upgrade_priorities.get(plan.item):
+                plan.priority = priority
+
+        for upgrade, priority in upgrade_priorities.items():
+            if self.bot.count_actual(upgrade) or self.bot.count_pending(upgrade) or self.bot.count_planned(upgrade):
+                continue
+            yield MacroPlan(upgrade, priority=priority)
+
+    def on_step(self) -> Mapping[Unit, Action]:
+        # detect executed plans
+        morphers = list(chain[Unit](self.bot.larva, self.bot.eggs))
+        for action in self.bot.state.actions_unit_commands:
+            if action.exact_id not in EXCLUDE_ABILTIES and (item := ITEM_BY_ABILITY.get(action.exact_id)):
+                for tag in action.unit_tags:
+                    unit = self.bot.unit_tag_dict.get(tag) or self.bot._units_previous_map.get(tag)
+                    if not unit:
+                        raise Exception("Trainer not found")
+                    if unit.type_id in {UnitTypeId.EGG, UnitTypeId.LARVA}:
+                        unit = next(u for u in morphers if (p := self._assigned_plans.get(u.tag)) and p.item == item)
+                    if plan := self._assigned_plans.get(unit.tag):
+                        if plan.item != item:
+                            raise Exception("Different macro action than planned")
+                        del self._assigned_plans[unit.tag]
+                    else:
+                        raise Exception("Unplanned macro action")
+
         for unit in self.bot.mediator.get_units_from_role(role=UnitRole.PERSISTENT_BUILDER):
-            if unit.tag not in self.assigned_plans and unit.tag not in self.bot.ordered_structures:
-                logger.info(f"Returning {unit=} to gathering")
+            if unit.tag not in self._assigned_plans and unit.tag not in self.bot.pending:
+                logger.info(f"Returning {unit} to gathering")
                 self.bot.mediator.assign_role(tag=unit.tag, role=UnitRole.GATHERING)
 
         # unassign all larvae
         for larva in self.bot.larva:
-            if plan := self.assigned_plans.pop(larva.tag, None):
-                self.unassigned_plans.append(plan)
+            if plan := self._assigned_plans.pop(larva.tag, None):
+                self._unassigned_plans.append(plan)
 
         self._cancel_low_priority_plans(self.min_priority)
         self._assign_unassigned_plans(self.bot.all_own_units)  # TODO: narrow this down
 
         actions = dict[Unit, Action]()
         reserve = Cost()
-        plans_prioritized = sorted(self.assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
+        plans_prioritized = sorted(self._assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
         for _i, (tag, plan) in enumerate(plans_prioritized):
             trainer = self.bot.unit_tag_dict.get(tag)
             if not trainer:
-                del self.assigned_plans[tag]
-                self.unassigned_plans.append(plan)
-                logger.info(f"{tag=} is MIA for {plan=}")
+                del self._assigned_plans[tag]
+                self._unassigned_plans.append(plan)
+                logger.info(f"{tag=} is MIA for {plan}")
                 continue
 
             if trainer.type_id == UnitTypeId.EGG:
-                del self.assigned_plans[tag]
-                self.unassigned_plans.append(plan)
+                del self._assigned_plans[tag]
+                self._unassigned_plans.append(plan)
                 logger.info(f"{trainer} is an egg")
                 continue
 
             ability = MACRO_INFO.get(trainer.type_id, {}).get(plan.item, {}).get("ability")
             if not ability:
-                del self.assigned_plans[tag]
-                self.unassigned_plans.append(plan)
-                logger.info(f"{trainer=} is unable to execute {plan=}")
+                del self._assigned_plans[tag]
+                self._unassigned_plans.append(plan)
+                logger.info(f"{trainer} is unable to execute {plan}")
                 continue
 
             if any(self.bot.get_missing_requirements(plan.item)):
@@ -186,20 +276,20 @@ class Macro:
         return actions
 
     def _cancel_low_priority_plans(self, min_priority: float) -> None:
-        for plan in list(self.unassigned_plans):
+        for plan in list(self._unassigned_plans):
             if plan.priority < min_priority:
-                self.unassigned_plans.remove(plan)
-        for tag, plan in list(self.assigned_plans.items()):
+                self._unassigned_plans.remove(plan)
+        for tag, plan in list(self._assigned_plans.items()):
             if plan.priority < min_priority:
-                del self.assigned_plans[tag]
+                del self._assigned_plans[tag]
 
     def _assign_unassigned_plans(self, trainers: Iterable[Unit]) -> None:
-        for plan in sorted(self.unassigned_plans, key=lambda p: p.priority, reverse=True):
+        for plan in sorted(self._unassigned_plans, key=lambda p: p.priority, reverse=True):
             if trainer := self._select_trainer(trainers, plan.item):
                 if trainer.type_id != UnitTypeId.LARVA:
-                    logger.info(f"Assigning {trainer=} for {plan=}")
-                self.unassigned_plans.remove(plan)
-                self.assigned_plans[trainer.tag] = plan
+                    logger.info(f"Assigning {plan} to {trainer}")
+                self._unassigned_plans.remove(plan)
+                self._assigned_plans[trainer.tag] = plan
 
     def _get_target(self, trainer: Unit, plan: MacroPlan) -> Unit | Point2 | None:
         if plan.item in GAS_BUILDINGS:
@@ -232,7 +322,7 @@ class Macro:
                 trainer.type_id in trainer_types
                 and trainer.is_ready
                 and (trainer.is_idle or not trainer.is_structure)
-                and trainer.tag not in self.assigned_plans
+                and trainer.tag not in self._assigned_plans
             )
         )
 
