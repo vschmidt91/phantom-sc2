@@ -3154,6 +3154,43 @@ files = [
 ]
 
 [[package]]
+name = "numpy-typing-compat"
+version = "20250818.2.3"
+description = "Static typing compatibility layer for older versions of NumPy"
+optional = true
+python-versions = ">=3.11"
+groups = ["main"]
+markers = "extra == \"test\""
+files = [
+    {file = "numpy_typing_compat-20250818.2.3-py3-none-any.whl", hash = "sha256:930413d34dd9083c0bf418815576222f1c66ea2d68950f447fd27ea1a78b26b0"},
+    {file = "numpy_typing_compat-20250818.2.3.tar.gz", hash = "sha256:72e83d535b635d668ba7315e43ae80be1469a6faea6fc96d312516f39b3d8fa5"},
+]
+
+[package.dependencies]
+numpy = ">=2.3,<2.4"
+
+[[package]]
+name = "optype"
+version = "0.14.0"
+description = "Building Blocks for Precise & Flexible Type Hints"
+optional = true
+python-versions = ">=3.11"
+groups = ["main"]
+markers = "extra == \"test\""
+files = [
+    {file = "optype-0.14.0-py3-none-any.whl", hash = "sha256:50d02edafd04edf2e5e27d6249760a51b2198adb9f6ffd778030b3d2806b026b"},
+    {file = "optype-0.14.0.tar.gz", hash = "sha256:925cf060b7d1337647f880401f6094321e7d8e837533b8e159b9a92afa3157c6"},
+]
+
+[package.dependencies]
+numpy = {version = ">=1.25", optional = true, markers = "extra == \"numpy\""}
+numpy-typing-compat = {version = ">=20250818.1.25,<20250819", optional = true, markers = "extra == \"numpy\""}
+typing-extensions = {version = ">=4.10", markers = "python_full_version < \"3.13.0\""}
+
+[package.extras]
+numpy = ["numpy (>=1.25)", "numpy-typing-compat (>=20250818.1.25,<20250819)"]
+
+[[package]]
 name = "packaging"
 version = "25.0"
 description = "Core utilities for Python packages"
@@ -4621,6 +4658,25 @@ doc = ["intersphinx_registry", "jupyterlite-pyodide-kernel", "jupyterlite-sphinx
 test = ["Cython", "array-api-strict (>=2.3.1)", "asv", "gmpy2", "hypothesis (>=6.30)", "meson", "mpmath", "ninja ; sys_platform != \"emscripten\"", "pooch", "pytest (>=8.0.0)", "pytest-cov", "pytest-timeout", "pytest-xdist", "scikit-umfpack", "threadpoolctl"]
 
 [[package]]
+name = "scipy-stubs"
+version = "1.16.3.2"
+description = "Type annotations for SciPy"
+optional = true
+python-versions = ">=3.11"
+groups = ["main"]
+markers = "extra == \"test\""
+files = [
+    {file = "scipy_stubs-1.16.3.2-py3-none-any.whl", hash = "sha256:c8df8975d69d77237a12e7b32f0bce08a7cc27bbb53ff7f4671ef1e9de033490"},
+    {file = "scipy_stubs-1.16.3.2.tar.gz", hash = "sha256:04c498da2bfb445cf1dce06cb012bbaafd30fa19d9c7b03852a0574e7e83df3a"},
+]
+
+[package.dependencies]
+optype = {version = ">=0.14.0,<0.15", extras = ["numpy"]}
+
+[package.extras]
+scipy = ["scipy (>=1.16.3,<1.17)"]
+
+[[package]]
 name = "send2trash"
 version = "1.8.3"
 description = "Send file to trash natively under Mac OS X, Windows and Linux"
@@ -5300,9 +5356,9 @@ files = [
 [extras]
 build = ["map-analyzer", "requests"]
 dev = ["dask", "jupyter", "matplotlib", "notebook", "pandas", "plotly", "s2protocol", "snakeviz", "vulture"]
-test = ["mypy", "ruff", "types-requests", "types-s2clientprotocol", "types-tqdm", "yamllint"]
+test = ["mypy", "ruff", "scipy-stubs", "types-requests", "types-s2clientprotocol", "types-tqdm", "yamllint"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12, <3.13"
-content-hash = "330b5214bc0e8c59184bbfc9849f2f03e39a0057255d3256b63180892922da5e"
+content-hash = "7e830b6c7b5fd92f8b7f5ceb2e5ea8d56edeb6bbd7fbe9364b1ac071a5fa4cd3"

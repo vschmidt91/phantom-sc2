@@ -1,6 +1,6 @@
 map_pattern = "PersephoneAIE_v4\\.SC2(MAP|Map)"
-enemy_race = "Zerg"
-enemy_build = "Macro"
+enemy_race = "Protoss"
+enemy_build = "Rush"
 save_replay = "resources\\replays\\local"
 bot_config = "config\\bot\\debug.toml"
 log_level = "Trace"
