@@ -45,6 +45,7 @@ class StepwiseCombatSimulator(CombatSimulator):
         self.vespene_weight = 2.0
         self.distance_constant = 1.0
         self.combat_sim = SC2CombatSimulator()
+        self.combat_sim.enable_timing_adjustment(True)
 
     def is_attackable(self, u: Unit) -> bool:
         if u.is_burrowed or u.is_cloaked:
@@ -146,7 +147,9 @@ class StepwiseCombatSimulator(CombatSimulator):
 
         health1 = sum(u.health + u.shield for u in setup.units1)
         health2 = sum(u.health + u.shield for u in setup.units2)
-        win, health_result = self.combat_sim.predict_engage(setup.units1, setup.units2)
+        win, health_result = self.combat_sim.predict_engage(
+            setup.units1, setup.units2, optimistic=True, defender_player=2
+        )
         outcome_global = health_result / max(1e-10, health1) if win else -health_result / max(1e-10, health2)
 
         outcome_local = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}

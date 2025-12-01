@@ -10,7 +10,6 @@ from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
-from scipy.optimize import approx_fprime
 
 from phantom.combat.simulator import CombatResult, CombatSetup, StepwiseCombatSimulator
 from phantom.combat.utils import assign_targets, get_shootable_targets, medoid
@@ -26,7 +25,6 @@ from phantom.common.utils import (
     Point,
     ground_range_of,
     range_vs,
-    sample_bilinear,
     structure_perimeter,
     to_point,
 )
@@ -70,7 +68,7 @@ class CombatParameters:
     @property
     def global_engagement_threshold(self) -> float:
         # return np.tanh(self.global_engagement_level_param.value + self.global_engagement_hysteresis)
-        return 0.0
+        return 0.3
 
     @property
     def global_disengagement_threshold(self):
@@ -259,17 +257,17 @@ class CombatStep:
             return None
 
         if unit.tag in self.attacking_local:
-            if (
-                not attack_ready
-                and ground_range >= 2
-                and (
-                    unit.is_flying or sample_bilinear(self.bot.mediator.get_cached_ground_grid, unit.position) < np.inf
-                )
-            ):
-                gradient = approx_fprime(unit.position, potential_kiting)
-                gradient_norm = np.linalg.norm(gradient)
-                if gradient_norm > 1e-5:
-                    return Move(unit.position - (2 / gradient_norm) * Point2(gradient))
+            # if (
+            #     not attack_ready
+            #     and ground_range >= 2
+            #     and (
+            #         unit.is_flying or sample_bilinear(self.bot.mediator.get_cached_ground_grid, unit.position) < np.inf
+            #     )
+            # ):
+            #     gradient = approx_fprime(unit.position, potential_kiting)
+            #     gradient_norm = np.linalg.norm(gradient)
+            #     if gradient_norm > 1e-5:
+            #         return Move(unit.position - (2 / gradient_norm) * Point2(gradient))
 
             should_runby = not unit.is_flying and not is_on_creep and is_safe
             if should_runby:
