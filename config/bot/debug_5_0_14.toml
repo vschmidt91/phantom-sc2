@@ -1,0 +1,3 @@
+debug_draw = true
+skip_first_iteration = true
+tag_log_level = "TRACE"

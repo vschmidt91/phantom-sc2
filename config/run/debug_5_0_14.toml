@@ -1,0 +1,6 @@
+map_pattern = "PylonAIE_5_0_14"
+enemy_race = "Terran"
+enemy_build = "BunkerTestBot"
+save_replay = "resources\\replays\\local"
+bot_config = "config\\bot\\debug_5_0_14.toml"
+log_level = "Trace"
