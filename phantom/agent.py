@@ -41,7 +41,6 @@ from phantom.micro.dodge import DodgeState
 from phantom.micro.main import CombatParameters, CombatState, CombatStep
 from phantom.micro.overseers import Overseers
 from phantom.micro.queens import Queens
-from phantom.micro.transfuse import Transfuse
 from phantom.parameter_sampler import ParameterSampler, Prior
 from phantom.resources.main import ResourceState
 from phantom.resources.observation import ResourceObservation
