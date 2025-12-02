@@ -101,7 +101,6 @@ class Agent:
         self.queens = Queens(bot)
         self.strategy_paramaters = StrategyParameters(self.parameters)
         self.resources = ResourceState(bot)
-        self.transfuse = Transfuse(bot)
         self.build_order_completed = False
         self.gas_ratio = 0.0
         self.gas_ratio_learning_rate_log = self.parameters.add(Prior(-7, 1, max=0))
@@ -159,7 +158,6 @@ class Agent:
         self.creep_tumors.on_step()
         self.creep_spread.on_step()
         self.dodge.on_step()
-        self.transfuse.on_step()
         self.blocked_positions.on_step()
         self.macro.on_step()
 

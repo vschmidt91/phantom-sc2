@@ -51,6 +51,7 @@ class Queens:
                 )
             )
         }
+        self.transfuse.on_step()
         return actions
 
     def _get_action(
