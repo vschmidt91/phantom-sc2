@@ -22,10 +22,6 @@ from sc2.score import ScoreDetails
 from sc2.unit import Unit
 
 from phantom.blocked_positions import BlockedPositionTracker
-from phantom.combat.corrosive_bile import CorrosiveBile
-from phantom.combat.dodge import DodgeState
-from phantom.combat.main import CombatParameters, CombatState, CombatStep
-from phantom.combat.transfuse import Transfuse
 from phantom.common.action import Action, Attack, HoldPosition, Move, MovePath, UseAbility
 from phantom.common.constants import (
     CHANGELINGS,
@@ -36,13 +32,17 @@ from phantom.common.constants import (
 from phantom.common.cost import Cost
 from phantom.common.utils import to_point
 from phantom.config import BotConfig
-from phantom.creep import CreepSpread, CreepTumors
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.main import Macro, MacroParameters, MacroPlan
 from phantom.macro.strategy import Strategy, StrategyParameters
-from phantom.overseers import Overseers
+from phantom.micro.corrosive_bile import CorrosiveBile
+from phantom.micro.creep import CreepSpread, CreepTumors
+from phantom.micro.dodge import DodgeState
+from phantom.micro.main import CombatParameters, CombatState, CombatStep
+from phantom.micro.overseers import Overseers
+from phantom.micro.queens import Queens
+from phantom.micro.transfuse import Transfuse
 from phantom.parameter_sampler import ParameterSampler, Prior
-from phantom.queens import Queens
 from phantom.resources.main import ResourceState
 from phantom.resources.observation import ResourceObservation
 

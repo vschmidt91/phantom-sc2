@@ -11,8 +11,6 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from phantom.combat.simulator import CombatResult, CombatSetup, StepwiseCombatSimulator
-from phantom.combat.utils import assign_targets, get_shootable_targets, medoid
 from phantom.common.action import Action, Attack, Move
 from phantom.common.constants import (
     CIVILIANS,
@@ -28,6 +26,8 @@ from phantom.common.utils import (
     structure_perimeter,
     to_point,
 )
+from phantom.micro.simulator import CombatResult, CombatSetup, StepwiseCombatSimulator
+from phantom.micro.utils import assign_targets, get_shootable_targets, medoid
 from phantom.parameter_sampler import ParameterSampler, Prior
 
 if TYPE_CHECKING:

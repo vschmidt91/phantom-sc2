@@ -7,10 +7,10 @@ from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from phantom.combat.main import CombatStep
 from phantom.common.action import Action, Move, UseAbility
 from phantom.common.distribute import distribute
 from phantom.common.utils import pairwise_distances
+from phantom.micro.main import CombatStep
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
