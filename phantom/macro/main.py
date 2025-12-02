@@ -191,15 +191,22 @@ class Macro:
                 for tag in action.unit_tags:
                     unit = self.bot.unit_tag_dict.get(tag) or self.bot._units_previous_map.get(tag)
                     if not unit:
-                        raise Exception("Trainer not found")
+                        self.bot.add_replay_tag("trainer_not_found")
+                        logger.error("Trainer not found")
+                        continue
                     if unit.type_id in {UnitTypeId.EGG, UnitTypeId.LARVA}:
-                        unit = next(u for u in morphers if (p := self._assigned_plans.get(u.tag)) and p.item == item)
+                        unit = next((u for u in morphers if (p := self._assigned_plans.get(u.tag)) and p.item == item), None)
+                    if not unit:
+                        self.bot.add_replay_tag("trainer_not_found")
+                        logger.error("Trainer not found")
+                        continue
                     if plan := self._assigned_plans.get(unit.tag):
                         if plan.item != item:
                             raise Exception("Different macro action than planned")
                         del self._assigned_plans[unit.tag]
                     else:
-                        raise Exception("Unplanned macro action")
+                        self.bot.add_replay_tag("unplanned_macro_action")
+                        logger.error("Unplanned macro action")
 
         for unit in self.bot.mediator.get_units_from_role(role=UnitRole.PERSISTENT_BUILDER):
             if unit.tag not in self._assigned_plans and unit.tag not in self.bot.pending:
