@@ -15,10 +15,11 @@ class BlockedPositionTracker:
     def __init__(self, bot: "PhantomBot"):
         self.bot = bot
         self.blocked_positions = dict[Point, float]()
+        self.reset_after = 2000
 
     def on_step(self) -> None:
         for p, blocked_since in list(self.blocked_positions.items()):
-            if blocked_since + 60 < self.bot.time:
+            if blocked_since + self.reset_after < self.bot.state.game_loop:
                 logger.info(f"Resetting blocked base {p}")
                 del self.blocked_positions[p]
 
@@ -32,5 +33,5 @@ class BlockedPositionTracker:
             ):
                 p = to_point(unit.order_target) if isinstance(unit.order_target, Point2) else to_point(unit.position)
                 if p not in self.blocked_positions:
-                    self.blocked_positions[p] = self.bot.time
+                    self.blocked_positions[p] = self.bot.state.game_loop
                     logger.info(f"Detected blocked base {p}")
