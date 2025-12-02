@@ -135,7 +135,7 @@ class CombatStepContext:
 
         if not retreat_targets:
             logger.warning("No retreat targets, falling back to start mineral line")
-            p = state.bot.expansion_mineral_center[to_point(state.bot.start_location)]
+            p = state.bot.expansions[to_point(state.bot.start_location)].mineral_center
             retreat_targets.append(p)
 
         shootable_targets = get_shootable_targets(state.bot.mediator, combatants)
