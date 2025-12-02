@@ -225,6 +225,10 @@ class CombatStep:
         path = self.context.retreat_to_creep_pathing.get_path(unit.position, limit=limit)
         return Move(Point2(path[-1]).offset(HALF))
 
+    def is_unit_safe(self, unit: Unit) -> bool:
+        grid = self.bot.mediator.get_air_grid if unit.is_flying else self.bot.mediator.get_ground_grid
+        return self.bot.mediator.is_position_safe(grid=grid, position=unit.position)
+
     def fight_with(self, unit: Unit) -> Action | None:
         ground_range = ground_range_of(unit)
         is_on_creep = self.bot.has_creep(unit) or self.bot.enemy_race == Race.Zerg

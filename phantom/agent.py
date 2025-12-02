@@ -2,7 +2,7 @@ import lzma
 import math
 import pickle
 import random
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from itertools import chain
 from typing import TYPE_CHECKING
@@ -20,33 +20,31 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.score import ScoreDetails
 from sc2.unit import Unit
-from sc2.units import Units
 
+from phantom.blocked_positions import BlockedPositionTracker
 from phantom.combat.corrosive_bile import CorrosiveBile
 from phantom.combat.dodge import DodgeState
-from phantom.combat.main import CombatParameters, CombatState
+from phantom.combat.main import CombatParameters, CombatState, CombatStep
 from phantom.combat.transfuse import Transfuse
 from phantom.common.action import Action, Attack, HoldPosition, Move, MovePath, UseAbility
 from phantom.common.constants import (
     CHANGELINGS,
     CIVILIANS,
     ENEMY_CIVILIANS,
-    ENERGY_COST,
-    ENERGY_GENERATION_RATE,
     GAS_BY_RACE,
 )
 from phantom.common.cost import Cost
-from phantom.common.distribute import distribute
-from phantom.common.utils import pairwise_distances, to_point
+from phantom.common.utils import to_point
 from phantom.config import BotConfig
 from phantom.creep import CreepSpread, CreepTumors
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.main import Macro, MacroParameters, MacroPlan
 from phantom.macro.strategy import Strategy, StrategyParameters
+from phantom.overseers import Overseers
 from phantom.parameter_sampler import ParameterSampler, Prior
+from phantom.queens import Queens
 from phantom.resources.main import ResourceState
 from phantom.resources.observation import ResourceObservation
-from phantom.scout import ScoutState
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -98,7 +96,9 @@ class Agent:
         self.creep_spread = CreepSpread(bot)
         self.corrosive_biles = CorrosiveBile(bot)
         self.dodge = DodgeState(bot)
-        self.scout = ScoutState(bot)
+        self.overseers = Overseers(bot)
+        self.blocked_positions = BlockedPositionTracker(bot)
+        self.queens = Queens(bot)
         self.strategy_paramaters = StrategyParameters(self.parameters)
         self.resources = ResourceState(bot)
         self.transfuse = Transfuse(bot)
@@ -116,7 +116,13 @@ class Agent:
             self.macro.debug_draw_plans()
 
         enemy_combatants = self.bot.enemy_units.exclude_type(ENEMY_CIVILIANS)
-        combatants = self.bot.units.exclude_type(CIVILIANS)
+        combatants = self.bot.units.exclude_type(
+            {
+                *CIVILIANS,
+                UnitTypeId.QUEEN,
+                UnitTypeId.QUEENBURROWED,
+            }
+        )
         strategy = Strategy(self.bot, self.strategy_paramaters)
 
         if self.bot.mediator.get_did_enemy_rush:
@@ -154,28 +160,8 @@ class Agent:
         self.creep_spread.on_step()
         self.dodge.on_step()
         self.transfuse.on_step()
-
-        injecters = self.bot.units(UnitTypeId.QUEEN)
-        inject_targets = self.bot.townhalls.ready
-        inject_assignment = distribute(
-            injecters,
-            inject_targets,
-            pairwise_distances(
-                [a.position for a in injecters],
-                [b.position for b in inject_targets],
-            ),
-        )
-
-        macro_actions = self.macro.on_step()
-
-        should_inject = self.bot.supply_used + self.bot.bank.larva < 200
-        tumor_count = (
-            self.creep_tumors.unspread_tumor_count
-            + self.bot.count_pending(UnitTypeId.CREEPTUMOR)
-            + self.bot.count_pending(UnitTypeId.CREEPTUMORQUEEN)
-        )
-        tumor_limit = min(3.0 * self.bot.count_actual(UnitTypeId.QUEEN), self.bot.time / 30.0)
-        should_spread_creep = tumor_count < tumor_limit
+        self.blocked_positions.on_step()
+        self.macro.on_step()
 
         def should_harvest_resource(r: Unit) -> bool:
             p = to_point(r.position)
@@ -228,79 +214,8 @@ class Agent:
         )
         gas_max = len(self.bot.all_taken_geysers)
         gas_want = min(gas_max, math.ceil(resoure_observation.gas_target / self.bot.harvesters_per_gas_building))
-        # if not self.bot.count(UnitTypeId.LAIR, include_planned=False):
-        #     gas_want = min(1, gas_want)
         if gas_have < gas_want:
             self.macro.add(MacroPlan(gas_type))
-
-        def inject_with_queen(q: Unit) -> Action | None:
-            if not should_inject:
-                return None
-            if target := inject_assignment.get(q):
-                distance = cy_distance_to(q.position, target.position) - q.radius - target.radius
-                time_to_reach_target = distance / (1.4 * q.real_speed)
-                time_until_buff_runs_out = target.buff_duration_remain / 22.4
-                time_to_generate_energy = max(0.0, 25 - q.energy) / (22.4 * ENERGY_GENERATION_RATE)
-                time_until_order = max(time_until_buff_runs_out, time_to_generate_energy)
-                if time_until_order == 0:
-                    return UseAbility(AbilityId.EFFECT_INJECTLARVA, target=target)
-                elif time_until_order < time_to_reach_target:
-                    return Move(target.position)
-            return None
-
-        def micro_queen(q: Unit) -> Action | None:
-            if action := self.transfuse.transfuse_with(q):
-                return action
-            elif not self.bot.mediator.is_position_safe(grid=self.bot.mediator.get_ground_grid, position=q.position):
-                return combat.fight_with(q)
-            elif (action := inject_with_queen(q)) or (
-                should_spread_creep and (action := self.creep_spread.spread_with(q))
-            ):
-                return action
-            elif not self.bot.has_creep(q):
-                return combat.retreat_to_creep(q)
-            else:
-                return None
-
-        def micro_overseers(overseers: Units) -> Mapping[Unit, Action]:
-            if not overseers:
-                return {}
-
-            detection_range = overseers[0].detect_range
-
-            targets = enemy_combatants or self.bot.enemy_units
-
-            distance = pairwise_distances(
-                [a.position for a in overseers],
-                [b.position for b in targets],
-            )
-            if overseers.amount > 1 and targets:
-                second_smallest_distances = np.partition(distance, kth=1, axis=0)[1, :]
-                second_smallest_distances = np.minimum(second_smallest_distances, 2.0 * detection_range)
-                second_smallest_distances = np.repeat(second_smallest_distances[None, :], len(overseers), axis=0)
-                cost = distance - second_smallest_distances
-            else:
-                cost = distance
-
-            assignment = distribute(overseers, targets, cost)
-
-            def micro_overseer(u: Unit) -> Action | None:
-                is_safe = self.bot.mediator.is_position_safe(grid=self.bot.mediator.get_air_grid, position=u.position)
-                if action := spawn_changeling(u):
-                    return action
-                elif not is_safe:
-                    return combat.retreat_with(u)
-                elif target := assignment.get(u):
-                    target_point = self.bot.mediator.find_path_next_point(
-                        start=u.position,
-                        target=target.position,
-                        grid=self.bot.mediator.get_air_grid,
-                        smoothing=True,
-                    )
-                    return Move(target_point)
-                return search_with(u)
-
-            return {u: a for u in overseers if (a := micro_overseer(u))}
 
         def micro_harvester(u: Unit) -> Action | None:
             if (
@@ -313,9 +228,9 @@ class Agent:
                     return combat.retreat_with(u)
             return resources.gather_with(u, harvester_return_targets)
 
-        def micro_overlord(u: Unit) -> Action | None:
-            if not self.bot.mediator.is_position_safe(grid=self.bot.mediator.get_air_grid, position=u.position):
-                return combat.retreat_with(u)
+        def keep_unit_safe(unit: Unit) -> Action | None:
+            if not combat.is_unit_safe(unit):
+                return combat.retreat_with(unit)
             return None
 
         def do_unburrow(u: Unit) -> Action | None:
@@ -342,21 +257,12 @@ class Agent:
             UnitTypeId.RAVAGER: self.corrosive_biles.bile_with,
             UnitTypeId.ROACH: do_burrow,
             UnitTypeId.ROACHBURROWED: do_unburrow,
-            UnitTypeId.QUEEN: micro_queen,
         }
 
         def micro_unit(u: Unit) -> Action | None:
             if (handler := micro_handlers.get(u.type_id)) and (action := handler(u)):
                 return action
             return combat.fight_with(u) or search_with(u)
-
-        def spawn_changeling(unit: Unit) -> Action | None:
-            if (
-                self.bot.mediator.get_cached_ground_grid[to_point(unit.position)] == np.inf
-                or unit.energy < ENERGY_COST[AbilityId.SPAWNCHANGELING_SPAWNCHANGELING]
-            ):
-                return None
-            return UseAbility(AbilityId.SPAWNCHANGELING_SPAWNCHANGELING)
 
         def search_with(unit: Unit) -> Action | None:
             if not (unit.is_idle or unit.is_gathering or unit.is_returning):
@@ -376,28 +282,52 @@ class Agent:
                 return None
             return Move(target)
 
-        overseers = self.bot.units(UnitTypeId.OVERSEER)
-        scout_actions = self.scout.on_step(overseers)
-
         actions = {
             **build_order_actions,
             **{u: a for u in harvesters if (a := micro_harvester(u))},
-            **micro_overseers(overseers),
-            **scout_actions,
-            **{u: a for u in self.bot.units(UnitTypeId.OVERLORD) if (a := micro_overlord(u))},
             **{u: a for u in self.bot.units(CHANGELINGS) if (a := search_with(u))},
             **{u: a for u in combatants if (a := micro_unit(u))},
-            **{
-                u: UseAbility(AbilityId.CANCEL)
-                for u in self.bot.structures
-                if not u.is_ready and u.health_percentage < 0.1
-            },
-            **macro_actions,
         }
 
-        if self.bot.actual_iteration == 1:
-            for unit in self.bot.units(UnitTypeId.OVERLORD):
-                actions[unit] = self._send_overlord_scout(unit)
+        actions.update(self.macro.get_actions())
+
+        for changeling in self.bot.units(CHANGELINGS):
+            if action := search_with(changeling):
+                actions[changeling] = action
+
+        for structure in self.bot.structures.not_ready:
+            if structure.health_percentage < 0.05:
+                actions[structure] = UseAbility(AbilityId.CANCEL)
+
+        queens = self.bot.units(
+            {
+                UnitTypeId.QUEEN,
+                UnitTypeId.QUEENBURROWED,
+            }
+        )
+        actions.update(self._micro_queens(queens, combat))
+
+        overseers = self.bot.units(
+            {
+                UnitTypeId.OVERSEER,
+                UnitTypeId.OVERSEERSIEGEMODE,
+            }
+        )
+        detection_targets = list(map(Point2, self.blocked_positions.blocked_positions))
+        actions.update(
+            self.overseers.get_actions(
+                overseers=overseers,
+                scout_targets=enemy_combatants or self.bot.all_enemy_units,
+                detection_targets=detection_targets,
+                combat=combat,
+            )
+        )
+
+        for overlord in self.bot.units(UnitTypeId.OVERLORD):
+            if self.bot.actual_iteration == 1:
+                actions[overlord] = self._send_overlord_scout(overlord)
+            if action := keep_unit_safe(overlord):
+                actions[overlord] = action
 
         for tumor in self.creep_tumors.active_tumors:
             if action := self.creep_spread.spread_with(tumor):
@@ -420,6 +350,22 @@ class Agent:
             self.parameters.tell(fitness)
             with lzma.open(self.config.params_path, "wb") as f:
                 pickle.dump(self.parameters, f)
+
+    def _micro_queens(self, queens: Sequence[Unit], combat: CombatStep) -> Mapping[Unit, Action]:
+        should_inject = self.bot.supply_used + self.bot.bank.larva < 200
+        tumor_count = (
+            self.creep_tumors.unspread_tumor_count
+            + self.bot.count_pending(UnitTypeId.CREEPTUMOR)
+            + self.bot.count_pending(UnitTypeId.CREEPTUMORQUEEN)
+        )
+        tumor_limit = min(3.0 * len(queens), self.bot.time / 30.0)
+        should_spread_creep = tumor_count < tumor_limit
+        return self.queens.get_actions(
+            queens=queens,
+            inject_targets=self.bot.townhalls.ready if should_inject else [],
+            creep=self.creep_spread if should_spread_creep else None,
+            combat=combat,
+        )
 
     def _send_overlord_scout(self, overlord: Unit) -> Action:
         scout_path = list[Point2]()

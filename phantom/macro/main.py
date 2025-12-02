@@ -183,7 +183,7 @@ class Macro:
                 continue
             yield MacroPlan(upgrade, priority=priority)
 
-    def on_step(self) -> Mapping[Unit, Action]:
+    def on_step(self) -> None:
         # detect executed plans
         morphers = list(chain[Unit](self.bot.larva, self.bot.eggs))
         for action in self.bot.state.actions_unit_commands:
@@ -211,6 +211,7 @@ class Macro:
             if plan := self._assigned_plans.pop(larva.tag, None):
                 self._unassigned_plans.append(plan)
 
+    def get_actions(self) -> Mapping[Unit, Action]:
         self._cancel_low_priority_plans(self.min_priority)
         self._assign_unassigned_plans(self.bot.all_own_units)  # TODO: narrow this down
 

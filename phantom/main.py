@@ -89,10 +89,8 @@ class PhantomBot(AresBot):
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
-
         if self.actual_iteration == 1 and self.bot_config.skip_first_iteration:
             return
-
         if self.bot_config.profile_path:
             self.profiler.enable()
 
@@ -111,8 +109,7 @@ class PhantomBot(AresBot):
 
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)
-        if self.agent:
-            self.agent.on_end(game_result)
+        self.agent.on_end(game_result)
 
     async def on_building_construction_started(self, unit: Unit) -> None:
         logger.info(f"on_building_construction_started {unit}")
@@ -213,7 +210,6 @@ class PhantomBot(AresBot):
     def upgrades_by_unit(self, unit: UnitTypeId) -> Iterable[UpgradeId]:
         if unit == UnitTypeId.ZERGLING:
             return chain(
-                # (UpgradeId.ZERGLINGMOVEMENTSPEED,),
                 (UpgradeId.ZERGLINGMOVEMENTSPEED, UpgradeId.ZERGLINGATTACKSPEED),
                 self.upgrade_sequence(ZERG_MELEE_UPGRADES),
                 self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
@@ -233,7 +229,6 @@ class PhantomBot(AresBot):
         elif unit == UnitTypeId.ROACH:
             return chain(
                 (UpgradeId.GLIALRECONSTITUTION, UpgradeId.BURROW, UpgradeId.TUNNELINGCLAWS),
-                # (UpgradeId.GLIALRECONSTITUTION,),
                 self.upgrade_sequence(ZERG_RANGED_UPGRADES),
                 self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
             )
@@ -242,11 +237,6 @@ class PhantomBot(AresBot):
                 (UpgradeId.EVOLVEGROOVEDSPINES, UpgradeId.EVOLVEMUSCULARAUGMENTS),
                 self.upgrade_sequence(ZERG_RANGED_UPGRADES),
                 self.upgrade_sequence(ZERG_ARMOR_UPGRADES),
-            )
-        elif unit == UnitTypeId.QUEEN:
-            return chain(
-                # self.upgradeSequence(ZERG_RANGED_UPGRADES),
-                # self.upgradeSequence(ZERG_ARMOR_UPGRADES),
             )
         elif unit in (UnitTypeId.MUTALISK, UnitTypeId.CORRUPTOR):
             return chain(
@@ -323,8 +313,6 @@ class PhantomBot(AresBot):
         else:
             raise ValueError(item)
 
-        # if self.is_unit_missing(trainer):
-        #     yield trainer
         yield from self.get_missing_requirements(trainer)
         if (required_building := info.get("required_building")) and self.is_unit_missing(required_building):
             yield required_building
@@ -337,7 +325,7 @@ class PhantomBot(AresBot):
 
     @property_cache_once_per_frame
     def blocked_positions(self) -> Set[Point2]:
-        return set(self.agent.scout.blocked_positions)
+        return set(self.agent.blocked_positions.blocked_positions)
 
     def _write_profile(self, path: str) -> None:
         logger.info(f"Writing profiling to {path}")
@@ -385,71 +373,6 @@ class PhantomBot(AresBot):
         self.gather_targets = dict(p for e in self.expansions.values() for p in e.gather_targets.items())
         self.return_targets = dict(p for e in self.expansions.values() for p in e.return_targets.items())
         self.return_distances = dict(p for e in self.expansions.values() for p in e.return_distances.items())
-
-        # self.start_location_rounded = to_point(self.start_location)
-        # self.enemy_start_locations_rounded = [to_point(b) for b in self.enemy_start_locations]
-        # self.bases = [to_point(b) for b in self.expansion_locations_list]
-        # worker_radius = self.workers[0].radius
-        # for base_position, resources in self.expansion_locations_dict.items():
-        #     b = to_point(base_position)
-        #     self.expansion_mineral_positions[b] = list[Point]()
-        #     self.expansion_geyser_positions[b] = list[Point]()
-        #     for geyser in resources.vespene_geyser:
-        #         p = to_point(geyser.position)
-        #         self.expansion_geyser_positions[b].append(p)
-        #         target = geyser.position.towards(base_position, geyser.radius + worker_radius)
-        #         self.speedmining_positions[p] = target
-        #     for patch in resources.mineral_field:
-        #         p = to_point(patch.position)
-        #         self.expansion_mineral_positions[b].append(p)
-        #         target = patch.position.towards(base_position, MINING_RADIUS)
-        #         for patch2 in resources.mineral_field:
-        #             if patch.position == patch2.position:
-        #                 continue
-        #             position = project_point_onto_line(target, target - base_position, patch2.position)
-        #             distance1 = patch.position.distance_to(base_position)
-        #             distance2 = patch2.position.distance_to(base_position)
-        #             if distance1 < distance2:
-        #                 continue
-        #             if patch2.position.distance_to(position) >= MINING_RADIUS:
-        #                 continue
-        #             intersections = list(
-        #                 get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS)
-        #             )
-        #             if intersections:
-        #                 intersection1, intersection2 = intersections
-        #                 if intersection1.distance_to(base_position) < intersection2.distance_to(base_position):
-        #                     target = intersection1
-        #                 else:
-        #                     target = intersection2
-        #                 break
-        #         self.speedmining_positions[to_point(patch.position)] = target
-
-        #     mineral_center = Point2(np.mean(self.expansion_mineral_positions[b], axis=0))
-        #     perimeter_start = np.subtract(base_position, 3).astype(int)
-        #     perimeter_end = np.add(base_position, 4).astype(int)
-        #     spore_position = min(
-        #         rectangle_perimeter(perimeter_start, perimeter_end), key=lambda p: cy_distance_to(p, mineral_center)
-        #     )
-        #     self.spore_position[b] = spore_position
-        #     self.spine_position[b] = to_point(
-        #         self.mediator.find_path_next_point(
-        #             start=base_position,
-        #             target=self.enemy_start_locations[0],
-        #             grid=self.mediator.get_cached_ground_grid,
-        #             sensitivity=5,
-        #             sense_danger=False,
-        #         )
-        #     )
-
-        #     for r in resources:
-        #         p = to_point(r.position)
-        #         ps = self.speedmining_positions[p]
-        #         return_point = base_position.towards(ps, 3.125)
-        #         self.return_point[p] = return_point
-        #         self.return_distances[p] = ps.distance_to(return_point)
-
-        #     self.expansion_mineral_center[b] = to_point(mineral_center)
 
     def _update_tables(self) -> None:
         self.actions_by_ability.clear()
