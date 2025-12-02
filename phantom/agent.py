@@ -302,7 +302,7 @@ class Agent:
             + self.bot.count_pending(UnitTypeId.CREEPTUMORQUEEN)
         )
         tumor_limit = min(3.0 * len(queens), self.bot.time / 30.0)
-        should_spread_creep = tumor_count < tumor_limit
+        should_spread_creep = tumor_count < tumor_limit and self.bot.mediator.get_creep_coverage < 90
         return self.queens.get_actions(
             queens=queens,
             inject_targets=self.bot.townhalls.ready if should_inject else [],
