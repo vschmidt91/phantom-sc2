@@ -106,7 +106,7 @@ class Overseers:
             return Move(
                 self.bot.mediator.find_path_next_point(
                     start=overseer.position,
-                    target=scout_target,
+                    target=scout_target.position,
                     grid=self.bot.mediator.get_air_grid,
                     smoothing=True,
                 )
