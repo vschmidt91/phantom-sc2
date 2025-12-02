@@ -108,9 +108,9 @@ async def run(
         logger.info("Using default bot config")
         bot_config_value = BotConfig()
     ai = PhantomBot(bot_config_value, opponent_id)
-    race = ai.pick_race()
-    logger.info(f"Picking {race=}")
-    bot = Bot(race, ai, ai.name)
+    race = Race[bot_config_value.race]
+    name = bot_config_value.name
+    bot = Bot(race, ai, name)
     replay_path = os.path.join(save_replay, f"{datetime.datetime.now():%Y-%m-%d-%H-%M-%S}")
     logger.info(f"Saving replay to {replay_path=}")
     replay_path_sc2 = replay_path + ".SC2Replay"

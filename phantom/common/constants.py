@@ -86,6 +86,7 @@ SUPPLY_PROVIDED = {
     },
 }
 
+WORKER_RADIUS = 1.0
 MINING_RADIUS = 1.325
 
 CHANGELINGS = {
@@ -217,7 +218,6 @@ UNIT_COUNTER_DICT = {
     UnitTypeId.STALKER: {
         UnitTypeId.ZERGLING: 3e2,
         UnitTypeId.HYDRALISK: 1e2,
-        UnitTypeId.RAVAGER: 1e0,
         UnitTypeId.ROACH: 1e0,
     },
     UnitTypeId.SENTRY: {

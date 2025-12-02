@@ -39,13 +39,14 @@ class CreepSpread:
         return None
 
     def _update_maps(self) -> None:
+        visibility_grid = np.equal(self.bot.state.visibility.data_numpy.T, 2.0)
         creep_grid = self.bot.mediator.get_creep_grid.T == 1
         pathing_grid = self.bot.mediator.get_cached_ground_grid == 1.0
         safety_grid = self.bot.mediator.get_ground_grid == 1.0
-        self.placement_map = creep_grid & self.bot.visibility_grid & safety_grid
+        self.placement_map = creep_grid & visibility_grid & safety_grid
         value_map = np.where(~creep_grid & pathing_grid, 1.0, 0.0)
         size = BASE_SIZE
-        for b in self.bot.bases:
+        for b in self.bot.expansions:
             i0 = b[0] - size[0] // 2
             j0 = b[1] - size[1] // 2
             i1 = i0 + size[0]

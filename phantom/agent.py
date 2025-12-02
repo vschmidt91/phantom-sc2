@@ -1,4 +1,6 @@
+import lzma
 import math
+import pickle
 import random
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -6,13 +8,17 @@ from itertools import chain
 from typing import TYPE_CHECKING
 
 import numpy as np
+from ares.behaviors.macro.mining import TOWNHALL_RADIUS
 from ares.consts import UnitRole
 from cython_extensions import cy_closest_to, cy_distance_to
 from loguru import logger
+from s2clientprotocol.score_pb2 import CategoryScoreDetails
+from sc2.data import Race, Result
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
+from sc2.score import ScoreDetails
 from sc2.unit import Unit
 from sc2.units import Units
 
@@ -20,7 +26,7 @@ from phantom.combat.corrosive_bile import CorrosiveBile
 from phantom.combat.dodge import DodgeState
 from phantom.combat.main import CombatParameters, CombatState
 from phantom.combat.transfuse import Transfuse
-from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
+from phantom.common.action import Action, Attack, HoldPosition, Move, MovePath, UseAbility
 from phantom.common.constants import (
     CHANGELINGS,
     CIVILIANS,
@@ -32,11 +38,12 @@ from phantom.common.constants import (
 from phantom.common.cost import Cost
 from phantom.common.distribute import distribute
 from phantom.common.utils import pairwise_distances, to_point
+from phantom.config import BotConfig
 from phantom.creep import CreepSpread, CreepTumors
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.main import Macro, MacroParameters, MacroPlan
 from phantom.macro.strategy import Strategy, StrategyParameters
-from phantom.parameter_sampler import ParameterSampler
+from phantom.parameter_sampler import ParameterSampler, Prior
 from phantom.resources.main import ResourceState
 from phantom.resources.observation import ResourceObservation
 from phantom.scout import ScoutState
@@ -45,26 +52,69 @@ if TYPE_CHECKING:
     from phantom.main import PhantomBot
 
 
+def score_to_fitness(score: ScoreDetails, vespene_weight: float = 2.0) -> float:
+    def sum_category(category: CategoryScoreDetails) -> float:
+        return sum(
+            (
+                category.army,
+                category.economy,
+                category.none,
+                category.technology,
+                category.upgrade,
+            )
+        )
+
+    lost_minerals = sum(
+        (
+            sum_category(score._proto.lost_minerals),
+            sum_category(score._proto.friendly_fire_minerals),
+        )
+    )
+    lost_vespene = sum(
+        (
+            sum_category(score._proto.lost_vespene),
+            sum_category(score._proto.friendly_fire_vespene),
+        )
+    )
+    lost_total = lost_minerals + lost_vespene * vespene_weight
+
+    killed_minerals = sum_category(score._proto.killed_minerals)
+    killed_vespene = sum_category(score._proto.killed_vespene)
+    killed_total = killed_minerals + killed_vespene * vespene_weight
+
+    return killed_total / max(1.0, lost_total + killed_total)
+
+
 @dataclass
 class Agent:
-    def __init__(self, bot: "PhantomBot", build_order_name: str, parameters: ParameterSampler) -> None:
+    def __init__(self, bot: "PhantomBot", config: BotConfig) -> None:
         self.bot = bot
-        self.build_order = BUILD_ORDERS[build_order_name]
-        self.combat = CombatState(bot, CombatParameters(parameters))
-        self.macro = Macro(bot, MacroParameters(parameters))
+        self.config = config
+        self.parameters = ParameterSampler()
+        self.build_order = BUILD_ORDERS[self.config.build_order]
+        self.combat = CombatState(bot, CombatParameters(self.parameters))
+        self.macro = Macro(bot, MacroParameters(self.parameters))
         self.creep_tumors = CreepTumors(bot)
         self.creep_spread = CreepSpread(bot)
         self.corrosive_biles = CorrosiveBile(bot)
         self.dodge = DodgeState(bot)
         self.scout = ScoutState(bot)
-        self.strategy_paramaters = StrategyParameters(parameters)
+        self.strategy_paramaters = StrategyParameters(self.parameters)
         self.resources = ResourceState(bot)
         self.transfuse = Transfuse(bot)
         self.build_order_completed = False
-        self._gas_ratio = 0.0
-        self._gas_ratio_step = 1e-3 * self.bot.client.game_step
+        self.gas_ratio = 0.0
+        self.gas_ratio_learning_rate_log = self.parameters.add(Prior(-7, 1, max=0))
+        self._load_parameters()
+
+    @property
+    def gas_ratio_learning_rate(self) -> float:
+        return np.exp(self.gas_ratio_learning_rate_log.value)
 
     def on_step(self) -> Mapping[Unit, Action]:
+        if self.config.debug_draw:
+            self.macro.debug_draw_plans()
+
         enemy_combatants = self.bot.enemy_units.exclude_type(ENEMY_CIVILIANS)
         combatants = self.bot.units.exclude_type(CIVILIANS)
         strategy = Strategy(self.bot, self.strategy_paramaters)
@@ -130,8 +180,8 @@ class Agent:
         def should_harvest_resource(r: Unit) -> bool:
             p = to_point(r.position)
             check_points = [
-                to_point(self.bot.speedmining_positions[p]),
-                to_point(self.bot.return_point[p]),
+                to_point(self.bot.gather_targets[p]),
+                to_point(self.bot.return_targets[p]),
             ]
             return all(self.bot.mediator.get_ground_grid[p] < 6.0 for p in check_points)
 
@@ -146,14 +196,14 @@ class Agent:
             mineral_trips = max(0.0, required.minerals / 5)
             vespene_trips = max(0.0, required.vespene / 4)
             gas_ratio = vespene_trips / (mineral_trips + vespene_trips)
-        self._gas_ratio += self._gas_ratio_step * np.sign(gas_ratio - self._gas_ratio)
-        self._gas_ratio = max(0, min(1, self._gas_ratio))
+        self.gas_ratio += self.gas_ratio_learning_rate * np.sign(gas_ratio - self.gas_ratio)
+        self.gas_ratio = max(0, min(1, self.gas_ratio))
 
         harvesters = list[Unit]()
         harvesters.extend(self.bot.mediator.get_units_from_role(role=UnitRole.GATHERING))
         harvesters.extend(self.bot.workers_off_map.values())
 
-        gas_target = math.ceil(len(harvesters) * self._gas_ratio)
+        gas_target = math.ceil(len(harvesters) * self.gas_ratio)
         if not self.bot.researched_speed and self.bot.harvestable_gas_buildings:
             gas_target = 3
 
@@ -345,6 +395,10 @@ class Agent:
             **macro_actions,
         }
 
+        if self.bot.actual_iteration == 1:
+            for unit in self.bot.units(UnitTypeId.OVERLORD):
+                actions[unit] = self._send_overlord_scout(unit)
+
         for tumor in self.creep_tumors.active_tumors:
             if action := self.creep_spread.spread_with(tumor):
                 actions[tumor] = action
@@ -358,3 +412,60 @@ class Agent:
     def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId) -> None:
         if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
             self.creep_tumors.on_tumor_completed(unit, previous_type == UnitTypeId.CREEPTUMORQUEEN)
+
+    def on_end(self, game_result: Result):
+        if self.config.training:
+            fitness = score_to_fitness(self.bot.state.score)
+            logger.info(f"Training parameters with {fitness=}")
+            self.parameters.tell(fitness)
+            with lzma.open(self.config.params_path, "wb") as f:
+                pickle.dump(self.parameters, f)
+
+    def _send_overlord_scout(self, overlord: Unit) -> Action:
+        scout_path = list[Point2]()
+        sight_range = overlord.sight_range
+        townhall_size = self.bot.townhalls[0].radius - 1.0
+        worker_speed = 1.4 * self.bot.workers[0].real_speed
+        overlord_speed = 1.4 * overlord.real_speed
+        sensitivity = int(sight_range)
+        rush_path = self.bot.mediator.find_raw_path(
+            start=self.bot.start_location,
+            target=self.bot.enemy_start_locations[0],
+            grid=self.bot.mediator.get_cached_ground_grid,
+            sensitivity=sensitivity,
+        )
+        for p in rush_path:
+            overlord_duration = (cy_distance_to(overlord.position, p) - sight_range) / overlord_speed
+            worker_duration = cy_distance_to(self.bot.enemy_start_locations[0], p) / worker_speed
+            if overlord_duration < worker_duration:
+                continue
+            if cy_distance_to(p, self.bot.mediator.get_enemy_nat) < sight_range + townhall_size:
+                break
+            if cy_distance_to(p, self.bot.mediator.get_enemy_ramp.barracks_correct_placement) < sight_range:
+                break
+            scout_path.append(p)
+        nat_scout_point = self.bot.mediator.get_enemy_nat.towards(scout_path[-1], TOWNHALL_RADIUS + sight_range)
+        scout_path.append(nat_scout_point)
+        if self.bot.enemy_race in {Race.Zerg, Race.Random}:
+            safe_spot = rush_path[len(rush_path) // 2]
+        else:
+            safe_spot = self.bot.mediator.get_ol_spot_near_enemy_nat
+        scout_path.append(safe_spot)
+        return MovePath(scout_path)
+
+    def _load_parameters(self) -> None:
+        try:
+            with lzma.open(self.config.params_path, "rb") as f:
+                parameters: ParameterSampler = pickle.load(f)
+                self.parameters.strategy = parameters.strategy
+                self.parameters.population = parameters.population
+                self.parameters.loss_values = parameters.loss_values
+        except Exception as error:
+            logger.warning(f"{error=} while loading {self.config.params_path}")
+
+        if self.config.training:
+            logger.info("Sampling bot parameters")
+            self.parameters.ask()
+        else:
+            self.parameters.ask_best()
+        logger.info(f"{self.parameters.parameters=}")

@@ -1,4 +1,5 @@
 training = false
 debug_draw = true
 profile_path = "resources\\profiling.prof"
+skip_first_iteration = true
 tag_log_level = "WARNING"

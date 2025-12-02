@@ -5,7 +5,9 @@ from dataclasses import dataclass
 
 @dataclass
 class BotConfig:
-    resign_after_iteration: int | None = None
+    race = "Zerg"
+    name = "PhantomBot"
+    skip_first_iteration = False
     training = False
     debug_draw = False
     profile_interval = 100

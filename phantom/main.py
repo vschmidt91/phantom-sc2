@@ -1,8 +1,6 @@
 import cProfile
 import io
-import lzma
 import os
-import pickle
 import pstats
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Set
@@ -11,13 +9,10 @@ from itertools import chain
 
 import numpy as np
 from ares import AresBot
-from ares.behaviors.macro.mining import TOWNHALL_RADIUS
 from ares.consts import ALL_STRUCTURES
-from cython_extensions import cy_distance_to
 from loguru import logger
-from s2clientprotocol.score_pb2 import CategoryScoreDetails
 from sc2.cache import property_cache_once_per_frame
-from sc2.data import ActionResult, Race, Result
+from sc2.data import Result
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -33,7 +28,6 @@ from sc2.unit_command import UnitCommand
 from phantom.agent import Agent
 from phantom.common.constants import (
     ITEM_BY_ABILITY,
-    MINING_RADIUS,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
     TRAINER_TYPES,
@@ -49,14 +43,11 @@ from phantom.common.utils import (
     RNG,
     MacroId,
     Point,
-    get_intersections,
-    project_point_onto_line,
-    rectangle_perimeter,
     to_point,
 )
 from phantom.config import BotConfig
+from phantom.expansion import Expansion
 from phantom.macro.main import MacroPlan
-from phantom.parameter_sampler import ParameterSampler
 
 
 @dataclass(frozen=True)
@@ -71,327 +62,111 @@ class PhantomBot(AresBot):
 
         self.bot_config = config
         self.opponent_id = opponent_id
-        self.replay_tags = set[str]()
-        self.replay_tag_queue = set[str]()
+        self._replay_tags_sent = set[str]()
+        self._replay_tags_unsent = list[str]()
         self.version: str | None = None
         self.profiler = cProfile.Profile()
         self.pending = dict[int, MacroId]()
         self.units_completed_this_frame = set[int]()
-        self.parameters = ParameterSampler()
         self.cost = CostManager(self)
         self.worker_memory = dict[int, Unit]()
         self.workers_off_map = dict[int, Unit]()
         self.actions_by_ability = defaultdict[AbilityId, list[UnitCommand]](list)
-        self.expansion_mineral_positions = dict[Point, list[Point]]()
-        self.expansion_geyser_positions = dict[Point, list[Point]]()
-        self.expansion_mineral_center = dict[Point, Point]()
-        self.return_point = dict[Point, Point2]()
-        self.spore_position = dict[Point, Point]()
-        self.spine_position = dict[Point, Point]()
-        self.speedmining_positions = dict[Point, Point2]()
-        self.return_distances = dict[Point, float]()
-        self.enemy_start_locations_rounded = list[Point]()
-        self.bases = list[Point]()
+        self.expansions = dict[Point, Expansion]()
         self.structure_dict = dict[Point, Unit | OrderedStructure | MacroPlan]()
 
-        if os.path.isfile(self.bot_config.version_path):
-            logger.info(f"Reading version from {self.bot_config.version_path}")
-            with open(self.bot_config.version_path) as f:
-                self.version = f.read()
-        else:
-            logger.warning(f"Version not found: {self.bot_config.version_path}")
-
-    def add_replay_tag(self, replay_tag: str) -> None:
-        self.replay_tag_queue.add(replay_tag)
+        self._setup_logging()
+        self._read_version()
 
     async def on_before_start(self) -> None:
         await super().on_before_start()
 
     async def on_start(self) -> None:
         await super().on_start()
-
         logger.info("on_start")
-        self.start_location_rounded = to_point(self.start_location)
-        self.enemy_start_locations_rounded.extend(map(to_point, self.enemy_start_locations))
-        self.bases.extend(map(to_point, self.expansion_locations_list))
-
-        worker_radius = self.workers[0].radius
-        for base_position, resources in self.expansion_locations_dict.items():
-            b = to_point(base_position)
-            self.expansion_mineral_positions[b] = list[Point]()
-            self.expansion_geyser_positions[b] = list[Point]()
-            for geyser in resources.vespene_geyser:
-                p = to_point(geyser.position)
-                self.expansion_geyser_positions[b].append(p)
-                target = geyser.position.towards(base_position, geyser.radius + worker_radius)
-                self.speedmining_positions[p] = target
-            for patch in resources.mineral_field:
-                p = to_point(patch.position)
-                self.expansion_mineral_positions[b].append(p)
-                target = patch.position.towards(base_position, MINING_RADIUS)
-                for patch2 in resources.mineral_field:
-                    if patch.position == patch2.position:
-                        continue
-                    position = project_point_onto_line(target, target - base_position, patch2.position)
-                    distance1 = patch.position.distance_to(base_position)
-                    distance2 = patch2.position.distance_to(base_position)
-                    if distance1 < distance2:
-                        continue
-                    if patch2.position.distance_to(position) >= MINING_RADIUS:
-                        continue
-                    intersections = list(
-                        get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS)
-                    )
-                    if intersections:
-                        intersection1, intersection2 = intersections
-                        if intersection1.distance_to(base_position) < intersection2.distance_to(base_position):
-                            target = intersection1
-                        else:
-                            target = intersection2
-                        break
-                self.speedmining_positions[to_point(patch.position)] = target
-
-            mineral_center = Point2(np.mean(self.expansion_mineral_positions[b], axis=0))
-            perimeter_start = np.subtract(base_position, 3).astype(int)
-            perimeter_end = np.add(base_position, 4).astype(int)
-            spore_position = min(
-                rectangle_perimeter(perimeter_start, perimeter_end), key=lambda p: cy_distance_to(p, mineral_center)
-            )
-            self.spore_position[b] = spore_position
-            self.spine_position[b] = to_point(
-                self.mediator.find_path_next_point(
-                    start=base_position,
-                    target=self.enemy_start_locations[0],
-                    grid=self.mediator.get_cached_ground_grid,
-                    sensitivity=5,
-                    sense_danger=False,
-                )
-            )
-
-            for r in resources:
-                p = to_point(r.position)
-                ps = self.speedmining_positions[p]
-                return_point = base_position.towards(ps, 3.125)
-                self.return_point[p] = return_point
-                self.return_distances[p] = ps.distance_to(return_point)
-
-            self.expansion_mineral_center[b] = to_point(mineral_center)
-
-        self.agent = Agent(self, self.bot_config.build_order, self.parameters)
-
-        self.send_overlord_scout()
-
-        try:
-            with lzma.open(self.bot_config.params_path, "rb") as f:
-                parameters = pickle.load(f)
-                self.parameters.strategy = parameters.strategy
-                self.parameters.population = parameters.population
-                self.parameters.loss_values = parameters.loss_values
-        except Exception as error:
-            logger.warning(f"{error=} while loading {self.bot_config.params_path}")
-
-        if self.bot_config.training:
-            logger.info("Sampling bot parameters")
-            self.parameters.ask()
-        else:
-            self.parameters.ask_best()
-        logger.info(f"{self.parameters.parameters=}")
-
-        def handle_message(message):
-            severity = message.record["level"]
-            self.add_replay_tag(f"log_{severity.name.lower()}")
-
-        logger.add(handle_message, level=self.bot_config.tag_log_level, enqueue=True)
-
-        if self.version:
-            self.add_replay_tag(f"version_{self.version}")
+        self._initialize_map()
+        self.agent = Agent(self, self.bot_config)
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
 
-        # local only: skip first iteration like on the ladder
-        if iteration == 0:
+        if self.actual_iteration == 1 and self.bot_config.skip_first_iteration:
             return
-
-        if self.bot_config.resign_after_iteration is not None and self.bot_config.resign_after_iteration < iteration:
-            logger.info(f"Reached iteration {self.bot_config.resign_after_iteration}, resigning.")
-            await self.client.debug_kill_unit(self.structures)
-
-        for error in self.state.action_errors:
-            result = ActionResult(error.result)
-            logger.info(f"{error} with {result}")
-
-        if self.bot_config.debug_draw:
-            self.agent.macro.debug_draw_plans()
 
         if self.bot_config.profile_path:
             self.profiler.enable()
 
-        self.actions_by_ability.clear()
-        for action in self.state.actions_unit_commands:
-            self.actions_by_ability[action.exact_id].append(action)
-
-        self.workers_off_map.clear()
-        self.worker_memory.update({u.tag: u for u in self.workers})
-        for tag, unit in list(self.worker_memory.items()):
-            memory_age = self.state.game_loop - unit.game_loop
-            if tag in self.unit_tag_dict:
-                pass
-            elif tag in self.state.dead_units:
-                del self.worker_memory[tag]
-            elif pending := self.pending.get(tag):
-                logger.info(f"{unit} morphed into {pending}")
-                del self.worker_memory[tag]
-            elif structure := self.structure_dict.get(to_point(unit.position)):
-                logger.info(f"{unit} morphed instantly into {structure}")
-                del self.worker_memory[tag]
-            elif memory_age > 32:
-                logger.info(f"{unit} missing for {memory_age} game loops, assuming it is gone")
-                del self.worker_memory[tag]
-            else:
-                # the worker entered a geyser, nydus or dropperlord
-                self.workers_off_map[tag] = unit
-
-        self.structure_dict.clear()
-        self.pending.clear()
-        trainers = self.all_own_units(TRAINER_TYPES)
-        for unit in trainers:
-            if not unit.is_ready:
-                self.pending[unit.tag] = unit.type_id
-            elif (order := next(iter(unit.orders), None)) and (item := ITEM_BY_ABILITY.get(order.ability.exact_id)):
-                if item in ALL_STRUCTURES:
-                    target: Point2 | None = None
-                    if isinstance(order.target, Point2):
-                        target = order.target
-                    elif isinstance(order.target, int):
-                        target = None if order.target == 0 else self.unit_tag_dict[order.target].position
-                    if target is not None:
-                        self.structure_dict[to_point(target)] = OrderedStructure(item, target)
-                self.pending[unit.tag] = item
-
-        self.structure_dict.update({to_point(s.position): s for s in self.structures})
-        for plan in self.agent.macro.enumerate_plans():
-            if plan.item in ALL_STRUCTURES and plan.target:
-                self.structure_dict[to_point(plan.target.position)] = plan
-
-        self.actual_by_type = Counter[UnitTypeId](
-            u.type_id for u in self.all_own_units if u.is_ready or u.tag in self.units_completed_this_frame
-        )
-        self.actual_by_type[UnitTypeId.DRONE] = int(self.supply_workers)
-        self.pending_by_type = Counter[UnitTypeId](self.pending.values())
-
-        resources_at = {to_point(r.position): r for r in self.resources}
-
-        self.bases_taken = {b for b in self.bases if isinstance(th := self.structure_dict.get(b), Unit) and th.is_ready}
-
-        self.all_taken_minerals = [
-            r for base in self.bases_taken for p in self.expansion_mineral_positions[base] if (r := resources_at.get(p))
-        ]
-        self.all_taken_geysers = [
-            r for base in self.bases_taken for p in self.expansion_geyser_positions[base] if (r := resources_at.get(p))
-        ]
-        self.harvestable_gas_buildings = [
-            gas_building
-            for geyser in self.all_taken_geysers
-            if isinstance(gas_building := self.structure_dict.get(to_point(geyser.position)), Unit)
-            and gas_building.is_ready
-            and geyser.has_vespene
-        ]
-        self.max_harvesters = sum(
-            (
-                self.harvesters_per_mineral_field * len(self.all_taken_minerals),
-                self.harvesters_per_gas_building * len(self.harvestable_gas_buildings),
-                int(20 * sum(th.build_progress for th in self.townhalls.not_ready)),
-            )
-        )
-
-        self.bank = Cost(self.minerals, self.vespene, self.supply_left, self.larva.amount)
-        self.planned = Counter(p.item for p in self.agent.macro.enumerate_plans())
-
+        self._update_tables()
         actions = self.agent.on_step()
-
         for unit, action in actions.items():
-            if not await action.execute(unit):
-                self.add_replay_tag("action_failed")
-                logger.error(f"Action failed: {action}")
+            await action.execute(unit)
 
         if self.bot_config.profile_path:
             self.profiler.disable()
             if self.actual_iteration % self.bot_config.profile_interval == 0:
                 self._write_profile(self.bot_config.profile_path)
 
-        for replay_tag in self.replay_tag_queue:
-            await self._send_replay_tag(replay_tag)
-        self.replay_tag_queue.clear()
-
+        await self._send_replay_tags()
         self.units_completed_this_frame.clear()
 
     async def on_end(self, game_result: Result):
         await super().on_end(game_result)
+        if self.agent:
+            self.agent.on_end(game_result)
 
-        if self.agent and self.bot_config.training:
-            fitness = self._get_fitness_value()
-            logger.info(f"Training parameters with {fitness=}")
-            self.parameters.tell(fitness)
-            with lzma.open(self.bot_config.params_path, "wb") as f:
-                pickle.dump(self.parameters, f)
-
-    #
-    async def on_building_construction_started(self, unit: Unit):
+    async def on_building_construction_started(self, unit: Unit) -> None:
         logger.info(f"on_building_construction_started {unit}")
         await super().on_building_construction_started(unit)
 
-    async def on_building_construction_complete(self, unit: Unit):
+    async def on_building_construction_complete(self, unit: Unit) -> None:
         self.units_completed_this_frame.add(unit.tag)
         logger.info(f"on_building_construction_complete {unit}")
         await super().on_building_construction_complete(unit)
 
-    async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
+    async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId) -> None:
         self.units_completed_this_frame.add(unit.tag)
         self.agent.on_unit_type_changed(unit, previous_type)
         await super().on_unit_type_changed(unit, previous_type)
 
-    # async def on_before_start(self):
-    #     await super().on_before_start()
+    async def on_enemy_unit_entered_vision(self, unit: Unit) -> None:
+        await super().on_enemy_unit_entered_vision(unit)
 
-    # async def on_enemy_unit_entered_vision(self, unit: Unit):
-    #     await super().on_enemy_unit_entered_vision(unit)
+    async def on_enemy_unit_left_vision(self, unit_tag: int) -> None:
+        await super().on_enemy_unit_left_vision(unit_tag)
 
-    # async def on_enemy_unit_left_vision(self, unit_tag: int):
-    #     await super().on_enemy_unit_left_vision(unit_tag)
-    # #
-    # async def on_unit_destroyed(self, unit_tag: int):
-    #     await super().on_unit_destroyed(unit_tag)
+    async def on_unit_destroyed(self, unit_tag: int) -> None:
+        await super().on_unit_destroyed(unit_tag)
 
-    # async def on_unit_created(self, unit: Unit):
-    #     await super().on_unit_created(unit)
+    async def on_unit_created(self, unit: Unit) -> None:
+        await super().on_unit_created(unit)
 
-    # async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
-    #     await super().on_unit_took_damage(unit, amount_damage_taken)
+    async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float) -> None:
+        await super().on_unit_took_damage(unit, amount_damage_taken)
 
-    # async def on_upgrade_complete(self, upgrade: UpgradeId):
-    #     await super().on_upgrade_complete(upgrade)
+    async def on_upgrade_complete(self, upgrade: UpgradeId) -> None:
+        await super().on_upgrade_complete(upgrade)
 
-    @property
-    def name(self) -> str:
-        return self.__class__.__name__
+    def add_replay_tag(self, replay_tag: str) -> None:
+        self._replay_tags_unsent.append(replay_tag)
 
-    def pick_race(self) -> Race:
-        return Race.Zerg
-
-    async def _send_replay_tag(self, replay_tag: str) -> None:
-        if replay_tag in self.replay_tags:
-            return
-        logger.info(f"Adding {replay_tag=}")
-        self.replay_tags.add(replay_tag)
-        await self.client.chat_send(f"Tag:{replay_tag}", True)
-
-    def build_time(self, t: UnitTypeId) -> float:
-        return self.game_data.units[t.value].cost.time
+    async def _send_replay_tags(self) -> None:
+        tags_to_send = set(self._replay_tags_unsent) - self._replay_tags_sent
+        for tag in tags_to_send:
+            logger.info(f"Adding {tag=}")
+            self._replay_tags_sent.add(tag)
+            await self.client.chat_send(f"Tag:{tag}", True)
+        self._replay_tags_unsent.clear()
 
     @property
     def harvesters_per_mineral_field(self) -> int:
         return 2
+
+    @property
+    def harvesters_per_gas_building(self) -> int:
+        if self.researched_speed:
+            return 2
+        else:
+            return 3
 
     @property_cache_once_per_frame
     def researched_speed(self) -> bool:
@@ -402,22 +177,12 @@ class PhantomBot(AresBot):
         )
 
     @property_cache_once_per_frame
-    def harvesters_per_gas_building(self) -> int:
-        if self.researched_speed:
-            return 2
-        else:
-            return 3
-
-    @property_cache_once_per_frame
-    def visibility_grid(self) -> np.ndarray:
-        return np.equal(self.state.visibility.data_numpy.T, 2.0)
-
-    @property_cache_once_per_frame
     def income(self) -> Cost:
         supply_income = 0.0
         for unit_type, provided in SUPPLY_PROVIDED[self.race].items():
+            build_time = self.game_data.units[unit_type.value].cost.time
             total_provided = provided * self.count_pending(unit_type)
-            supply_income += total_provided / self.build_time(unit_type)
+            supply_income += total_provided / build_time
 
         larva_income = sum(
             sum(
@@ -435,41 +200,6 @@ class PhantomBot(AresBot):
             larva_income,
         )
         return income
-
-    def send_overlord_scout(self) -> None:
-        scout_overlord = self.units(UnitTypeId.OVERLORD)[0]
-        scout_path = list[Point2]()
-        sight_range = scout_overlord.sight_range
-        townhall_size = self.townhalls[0].radius - 1.0
-        worker_speed = 1.4 * self.workers[0].real_speed
-        overlord_speed = 1.4 * scout_overlord.real_speed
-        sensitivity = int(sight_range)
-        rush_path = self.mediator.find_raw_path(
-            start=self.start_location,
-            target=self.enemy_start_locations[0],
-            grid=self.mediator.get_cached_ground_grid,
-            sensitivity=sensitivity,
-        )
-        for p in rush_path:
-            overlord_duration = (cy_distance_to(scout_overlord.position, p) - sight_range) / overlord_speed
-            worker_duration = cy_distance_to(self.enemy_start_locations[0], p) / worker_speed
-            if overlord_duration < worker_duration:
-                continue
-            if cy_distance_to(p, self.mediator.get_enemy_nat) < sight_range + townhall_size:
-                break
-            if cy_distance_to(p, self.mediator.get_enemy_ramp.barracks_correct_placement) < sight_range:
-                break
-            scout_path.append(p)
-        nat_scout_point = self.mediator.get_enemy_nat.towards(scout_path[-1], TOWNHALL_RADIUS + sight_range)
-        scout_path.append(nat_scout_point)
-        if self.enemy_race in {Race.Zerg, Race.Random}:
-            safe_spot = rush_path[len(rush_path) // 2]
-        else:
-            safe_spot = self.mediator.get_ol_spot_near_enemy_nat
-        scout_path.append(safe_spot)
-        for overlord in self.units(UnitTypeId.OVERLORD):
-            for p in scout_path:
-                overlord.move(p, queue=True)
 
     def can_move(self, unit: Unit) -> bool:
         if unit.is_burrowed:
@@ -609,38 +339,6 @@ class PhantomBot(AresBot):
     def blocked_positions(self) -> Set[Point2]:
         return set(self.agent.scout.blocked_positions)
 
-    def _get_fitness_value(self, vespene_weight: float = 2.0) -> float:
-        def sum_category(category: CategoryScoreDetails) -> float:
-            return sum(
-                (
-                    category.army,
-                    category.economy,
-                    category.none,
-                    category.technology,
-                    category.upgrade,
-                )
-            )
-
-        lost_minerals = sum(
-            (
-                sum_category(self.state.score._proto.lost_minerals),
-                sum_category(self.state.score._proto.friendly_fire_minerals),
-            )
-        )
-        lost_vespene = sum(
-            (
-                sum_category(self.state.score._proto.lost_vespene),
-                sum_category(self.state.score._proto.friendly_fire_vespene),
-            )
-        )
-        lost_total = lost_minerals + lost_vespene * vespene_weight
-
-        killed_minerals = sum_category(self.state.score._proto.killed_minerals)
-        killed_vespene = sum_category(self.state.score._proto.killed_vespene)
-        killed_total = killed_minerals + killed_vespene * vespene_weight
-
-        return killed_total / max(1.0, lost_total + killed_total)
-
     def _write_profile(self, path: str) -> None:
         logger.info(f"Writing profiling to {path}")
 
@@ -661,3 +359,180 @@ class PhantomBot(AresBot):
         stats = pstats.Stats(self.profiler)
         stats = stats.strip_dirs().sort_stats(pstats.SortKey.CUMULATIVE)
         stats.dump_stats(filename=path)
+
+    def _setup_logging(self) -> None:
+        def handle_message(message):
+            severity = message.record["level"]
+            self.add_replay_tag(f"log_{severity.name.lower()}")
+
+        logger.add(handle_message, level=self.bot_config.tag_log_level, enqueue=True)
+
+    def _read_version(self) -> None:
+        if os.path.isfile(self.bot_config.version_path):
+            logger.info(f"Reading version from {self.bot_config.version_path}")
+            with open(self.bot_config.version_path) as f:
+                self.version = f.read()
+        else:
+            logger.warning(f"Version not found: {self.bot_config.version_path}")
+        if self.version:
+            self.add_replay_tag(f"version_{self.version}")
+
+    def _initialize_map(self) -> None:
+        self.expansions = {
+            to_point(p): Expansion.from_resources(p, resources)
+            for p, resources in self.expansion_locations_dict.items()
+        }
+        self.gather_targets = dict(p for e in self.expansions.values() for p in e.gather_targets.items())
+        self.return_targets = dict(p for e in self.expansions.values() for p in e.return_targets.items())
+        self.return_distances = dict(p for e in self.expansions.values() for p in e.return_distances.items())
+
+        # self.start_location_rounded = to_point(self.start_location)
+        # self.enemy_start_locations_rounded = [to_point(b) for b in self.enemy_start_locations]
+        # self.bases = [to_point(b) for b in self.expansion_locations_list]
+        # worker_radius = self.workers[0].radius
+        # for base_position, resources in self.expansion_locations_dict.items():
+        #     b = to_point(base_position)
+        #     self.expansion_mineral_positions[b] = list[Point]()
+        #     self.expansion_geyser_positions[b] = list[Point]()
+        #     for geyser in resources.vespene_geyser:
+        #         p = to_point(geyser.position)
+        #         self.expansion_geyser_positions[b].append(p)
+        #         target = geyser.position.towards(base_position, geyser.radius + worker_radius)
+        #         self.speedmining_positions[p] = target
+        #     for patch in resources.mineral_field:
+        #         p = to_point(patch.position)
+        #         self.expansion_mineral_positions[b].append(p)
+        #         target = patch.position.towards(base_position, MINING_RADIUS)
+        #         for patch2 in resources.mineral_field:
+        #             if patch.position == patch2.position:
+        #                 continue
+        #             position = project_point_onto_line(target, target - base_position, patch2.position)
+        #             distance1 = patch.position.distance_to(base_position)
+        #             distance2 = patch2.position.distance_to(base_position)
+        #             if distance1 < distance2:
+        #                 continue
+        #             if patch2.position.distance_to(position) >= MINING_RADIUS:
+        #                 continue
+        #             intersections = list(
+        #                 get_intersections(patch.position, MINING_RADIUS, patch2.position, MINING_RADIUS)
+        #             )
+        #             if intersections:
+        #                 intersection1, intersection2 = intersections
+        #                 if intersection1.distance_to(base_position) < intersection2.distance_to(base_position):
+        #                     target = intersection1
+        #                 else:
+        #                     target = intersection2
+        #                 break
+        #         self.speedmining_positions[to_point(patch.position)] = target
+
+        #     mineral_center = Point2(np.mean(self.expansion_mineral_positions[b], axis=0))
+        #     perimeter_start = np.subtract(base_position, 3).astype(int)
+        #     perimeter_end = np.add(base_position, 4).astype(int)
+        #     spore_position = min(
+        #         rectangle_perimeter(perimeter_start, perimeter_end), key=lambda p: cy_distance_to(p, mineral_center)
+        #     )
+        #     self.spore_position[b] = spore_position
+        #     self.spine_position[b] = to_point(
+        #         self.mediator.find_path_next_point(
+        #             start=base_position,
+        #             target=self.enemy_start_locations[0],
+        #             grid=self.mediator.get_cached_ground_grid,
+        #             sensitivity=5,
+        #             sense_danger=False,
+        #         )
+        #     )
+
+        #     for r in resources:
+        #         p = to_point(r.position)
+        #         ps = self.speedmining_positions[p]
+        #         return_point = base_position.towards(ps, 3.125)
+        #         self.return_point[p] = return_point
+        #         self.return_distances[p] = ps.distance_to(return_point)
+
+        #     self.expansion_mineral_center[b] = to_point(mineral_center)
+
+    def _update_tables(self) -> None:
+        self.actions_by_ability.clear()
+        for action in self.state.actions_unit_commands:
+            self.actions_by_ability[action.exact_id].append(action)
+
+        self.workers_off_map.clear()
+        self.worker_memory.update({u.tag: u for u in self.workers})
+        for tag, unit in list(self.worker_memory.items()):
+            memory_age = self.state.game_loop - unit.game_loop
+            if tag in self.unit_tag_dict:
+                pass
+            elif tag in self.state.dead_units:
+                del self.worker_memory[tag]
+            elif pending := self.pending.get(tag):
+                logger.info(f"{unit} morphed into {pending}")
+                del self.worker_memory[tag]
+            elif structure := self.structure_dict.get(to_point(unit.position)):
+                logger.info(f"{unit} morphed instantly into {structure}")
+                del self.worker_memory[tag]
+            elif memory_age > 32:
+                logger.info(f"{unit} missing for {memory_age} game loops, assuming it is gone")
+                del self.worker_memory[tag]
+            else:
+                # the worker entered a geyser, nydus or dropperlord
+                self.workers_off_map[tag] = unit
+
+        self.structure_dict.clear()
+        self.pending.clear()
+        trainers = self.all_own_units(TRAINER_TYPES)
+        for unit in trainers:
+            if not unit.is_ready:
+                self.pending[unit.tag] = unit.type_id
+            elif (order := next(iter(unit.orders), None)) and (item := ITEM_BY_ABILITY.get(order.ability.exact_id)):
+                if item in ALL_STRUCTURES:
+                    target: Point2 | None = None
+                    if isinstance(order.target, Point2):
+                        target = order.target
+                    elif isinstance(order.target, int):
+                        target = None if order.target == 0 else self.unit_tag_dict[order.target].position
+                    if target is not None:
+                        self.structure_dict[to_point(target)] = OrderedStructure(item, target)
+                self.pending[unit.tag] = item
+
+        self.structure_dict.update({to_point(s.position): s for s in self.structures})
+        for plan in self.agent.macro.enumerate_plans():
+            if plan.item in ALL_STRUCTURES and plan.target:
+                self.structure_dict[to_point(plan.target.position)] = plan
+
+        self.actual_by_type = Counter[UnitTypeId](
+            u.type_id for u in self.all_own_units if u.is_ready or u.tag in self.units_completed_this_frame
+        )
+        self.actual_by_type[UnitTypeId.DRONE] = int(self.supply_workers)
+        self.pending_by_type = Counter[UnitTypeId](self.pending.values())
+
+        resources_at = {to_point(r.position): r for r in self.resources}
+
+        self.bases_taken = {
+            b: e
+            for b, e in self.expansions.items()
+            if isinstance(th := self.structure_dict.get(b), Unit) and th.is_ready
+        }
+
+        self.all_taken_minerals = [
+            r for base in self.bases_taken.values() for p in base.mineral_positions if (r := resources_at.get(p))
+        ]
+        self.all_taken_geysers = [
+            r for base in self.bases_taken.values() for p in base.geyser_positions if (r := resources_at.get(p))
+        ]
+        self.harvestable_gas_buildings = [
+            gas_building
+            for geyser in self.all_taken_geysers
+            if isinstance(gas_building := self.structure_dict.get(to_point(geyser.position)), Unit)
+            and gas_building.is_ready
+            and geyser.has_vespene
+        ]
+        self.max_harvesters = sum(
+            (
+                self.harvesters_per_mineral_field * len(self.all_taken_minerals),
+                self.harvesters_per_gas_building * len(self.harvestable_gas_buildings),
+                int(20 * sum(th.build_progress for th in self.townhalls.not_ready)),
+            )
+        )
+
+        self.bank = Cost(self.minerals, self.vespene, self.supply_left, self.larva.amount)
+        self.planned = Counter(p.item for p in self.agent.macro.enumerate_plans())

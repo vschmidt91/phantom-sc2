@@ -349,8 +349,8 @@ class Macro:
         return target
 
     def _get_expansion_target(self) -> Point2:
-        loss_positions = [self.bot.expansion_mineral_center[b] for b in self.bot.bases_taken]
-        loss_positions_enemy = [self.bot.expansion_mineral_center[s] for s in self.bot.enemy_start_locations_rounded]
+        loss_positions = [b.mineral_center for b in self.bot.bases_taken.values()]
+        loss_positions_enemy = self.bot.enemy_start_locations
 
         def loss_fn(p: Point2) -> float:
             distances = map(lambda q: cy_distance_to(p, q), loss_positions)
@@ -364,7 +364,7 @@ class Macro:
                 return False
             return self.bot.mediator.is_position_safe(grid=self.bot.mediator.get_ground_grid, position=Point2(b))
 
-        candidates = filter(is_viable, self.bot.bases)
+        candidates = filter(is_viable, self.bot.expansions)
         if target := min(candidates, key=loss_fn, default=None):
             return Point2(target).offset(HALF)
 
@@ -378,10 +378,10 @@ class Macro:
                 return th.type_id in TOWNHALL_TYPES and th.is_ready
             return False
 
-        if potential_bases := list(filter(filter_base, self.bot.bases)):
+        if potential_bases := list(filter(filter_base, self.bot.expansions)):
             base = random.choice(potential_bases)
             distance = rng.uniform(8, 12)
-            mineral_line = Point2(self.bot.expansion_mineral_center[base])
+            mineral_line = Point2(self.bot.expansions[base].mineral_center)
             behind_mineral_line = Point2(base).towards(mineral_line, distance)
             position = Point2(base).towards_with_random_angle(behind_mineral_line, distance)
             offset = data.footprint_radius % 1

@@ -75,7 +75,7 @@ class ResourceAction:
 
         harvester_to_resource = pairwise_distances(
             [h.position for h in harvesters],
-            [self.state.bot.speedmining_positions[to_point(r.position)] for r in resources],
+            [self.state.bot.gather_targets[to_point(r.position)] for r in resources],
         )
 
         return_distance = np.array([self.state.bot.return_distances[to_point(r.position)] for r in resources])
@@ -117,16 +117,16 @@ class ResourceAction:
         #     logger.error(f"No gas building found at {target_pos}")
         #     return None
         # if unit.is_idle:
-        #     return GatherAction(target, self.state.bot.speedmining_positions[target_pos])
+        #     return GatherAction(target, self.state.bot.gather_targets[target_pos])
         elif len(unit.orders) >= 2:
             return None
         elif unit.is_gathering:
-            return GatherAction(target, self.state.bot.speedmining_positions[target_pos])
+            return GatherAction(target, self.state.bot.gather_targets[target_pos])
         elif unit.is_returning:
             if not any(return_targets):
                 return None
             return_target = min(return_targets, key=lambda th: th.distance_to(unit))
-            return_point = self.state.bot.return_point[target_pos]
+            return_point = self.state.bot.return_targets[target_pos]
             return ReturnResource(return_target, return_point)
         # logger.warning(f"Unexpected worker behaviour {unit.orders=}")
         return Smart(target)

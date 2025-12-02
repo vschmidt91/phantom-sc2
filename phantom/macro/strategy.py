@@ -34,7 +34,7 @@ class StrategyTier(enum.IntEnum):
 
 class StrategyParameters:
     def __init__(self, parameters: ParameterSampler) -> None:
-        self.counter_factor = parameters.add(Prior(2.5, 0.1, min=0))
+        self.counter_factor = parameters.add(Prior(2.0, 0.1, min=0))
         self.ravager_mixin = parameters.add(Prior(13, 1, min=0))
         self.corruptor_mixin = parameters.add(Prior(5, 1, min=0))
         self.tier1_drone_count = parameters.add(Prior(32, 1, min=0))
@@ -67,19 +67,18 @@ class Strategy:
         if self.bot.time > 300:
             return
 
-        for base in self.bot.bases_taken:
-            if base == self.bot.start_location_rounded:
+        for expansion in self.bot.bases_taken.values():
+            if expansion.townhall_position == self.bot.start_location:
                 continue
-            spine_position = self.bot.spine_position[base]
-            if spine_position in self.bot.structure_dict:
+            if expansion.spine_position in self.bot.structure_dict:
                 continue
             if not self.bot.mediator.can_place_structure(
-                position=spine_position,
+                position=expansion.spine_position,
                 structure_type=UnitTypeId.SPINECRAWLER,
                 include_addon=False,
             ):
                 continue
-            yield MacroPlan(UnitTypeId.SPINECRAWLER, target=Point2(spine_position))
+            yield MacroPlan(UnitTypeId.SPINECRAWLER, target=Point2(expansion.spine_position))
 
     def make_spores(self) -> Iterable[MacroPlan]:
         if self.bot.actual_iteration % 31 != 0:
@@ -93,17 +92,16 @@ class Strategy:
         if not self.bot.enemy_units(triggers).exists:
             return
 
-        for base in self.bot.bases_taken:
-            spore_position = self.bot.spore_position[base]
-            if spore_position in self.bot.structure_dict:
+        for expansion in self.bot.bases_taken.values():
+            if expansion.spore_position in self.bot.structure_dict:
                 continue
             if not self.bot.mediator.can_place_structure(
-                position=spore_position,
+                position=expansion.spore_position,
                 structure_type=UnitTypeId.SPORECRAWLER,
                 include_addon=False,
             ):
                 continue
-            yield MacroPlan(UnitTypeId.SPORECRAWLER, target=Point2(spore_position))
+            yield MacroPlan(UnitTypeId.SPORECRAWLER, target=Point2(expansion.spore_position))
 
     def morph_overlord(self) -> Iterable[MacroPlan]:
         supply_planned = sum(
