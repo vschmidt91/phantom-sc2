@@ -2,7 +2,7 @@ import lzma
 import math
 import pickle
 import random
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from itertools import chain
 from typing import TYPE_CHECKING
@@ -121,12 +121,23 @@ class Agent:
                 UnitTypeId.QUEENBURROWED,
             }
         )
+        queens = self.bot.units(
+            {
+                UnitTypeId.QUEEN,
+                UnitTypeId.QUEENBURROWED,
+            }
+        )
+        overseers = self.bot.units(
+            {
+                UnitTypeId.OVERSEER,
+                UnitTypeId.OVERSEERSIEGEMODE,
+            }
+        )
+        harvester_return_targets = self.bot.townhalls.ready
         strategy = Strategy(self.bot, self.strategy_paramaters)
 
-        if self.bot.mediator.get_did_enemy_rush:
-            self.build_order_completed = True
-
-        build_order_actions = dict[Unit, Action]()
+        actions = dict[Unit, Action]()
+        macro_plans = list[MacroPlan]()
         if not self.build_order_completed:
             if not self.bot.mediator.is_position_safe(
                 grid=self.bot.mediator.get_ground_grid,
@@ -134,23 +145,25 @@ class Agent:
                 weight_safety_limit=10.0,
             ):
                 self.build_order_completed = True
+            if self.bot.mediator.get_did_enemy_rush:
+                self.build_order_completed = True
             if step := self.build_order.execute(self.bot):
-                build_order_actions.update(step.actions)
-                for plan in step.plans:
-                    self.macro.add(plan)
+                actions.update(step.actions)
+                macro_plans.extend(step.plans)
             else:
                 logger.info("Build order completed.")
                 self.build_order_completed = True
         else:
-            for plan in chain(
-                self.macro.make_composition(strategy.composition_target),
-                self.macro.make_upgrades(strategy.composition_target, strategy.filter_upgrade),
-                strategy.morph_overlord(),
-                self.macro.expand(),
-                strategy.make_spines(),
-                strategy.make_spores(),
-            ):
-                self.macro.add(plan)
+            macro_plans.extend(
+                chain(
+                    self.macro.make_composition(strategy.composition_target),
+                    self.macro.make_upgrades(strategy.composition_target, strategy.filter_upgrade),
+                    strategy.morph_overlord(),
+                    self.macro.expand(),
+                    strategy.make_spines(),
+                    strategy.make_spores(),
+                )
+            )
 
         combat = self.combat.on_step()
         self.corrosive_biles.on_step()
@@ -158,7 +171,6 @@ class Agent:
         self.creep_spread.on_step()
         self.dodge.on_step()
         self.blocked_positions.on_step()
-        self.macro.on_step()
 
         def should_harvest_resource(r: Unit) -> bool:
             p = to_point(r.position)
@@ -190,6 +202,12 @@ class Agent:
         if not self.bot.researched_speed and self.bot.harvestable_gas_buildings:
             gas_target = 3
 
+        macro_plans.extend(self._build_gas(gas_target))
+
+        for plan in macro_plans:
+            self.macro.add(plan)
+        self.macro.on_step()
+
         mineral_fields = [m for m in self.bot.all_taken_minerals if should_harvest_resource(m)]
         gas_buildings = [g for g in self.bot.harvestable_gas_buildings if should_harvest_resource(g)]
 
@@ -201,115 +219,44 @@ class Agent:
             gas_target,
         )
         resources = self.resources.step(resoure_observation)
-        harvester_return_targets = self.bot.townhalls.ready
-
-        gas_type = GAS_BY_RACE[self.bot.race]
-        gas_have = (
-            len(self.bot.harvestable_gas_buildings)
-            + self.bot.count_pending(gas_type)
-            + self.bot.count_planned(gas_type)
-        )
-        gas_max = len(self.bot.all_taken_geysers)
-        gas_want = min(gas_max, math.ceil(resoure_observation.gas_target / self.bot.harvesters_per_gas_building))
-        if gas_have < gas_want:
-            self.macro.add(MacroPlan(gas_type))
-
-        def micro_harvester(u: Unit) -> Action | None:
-            if (
-                6.0 < self.bot.mediator.get_ground_grid[to_point(u.position)] < np.inf
-            ) and combat.context.enemy_combatants:
-                closest_enemy = cy_closest_to(u.position, combat.context.enemy_combatants)
-                if (
-                    local_outcome := combat.context.prediction.outcome_local.get(closest_enemy.tag) is not None
-                ) and local_outcome > 0:
-                    return combat.retreat_with(u)
-            return resources.gather_with(u, harvester_return_targets)
 
         def keep_unit_safe(unit: Unit) -> Action | None:
             if not combat.is_unit_safe(unit):
                 return combat.retreat_with(unit)
             return None
 
-        def do_unburrow(u: Unit) -> Action | None:
-            if u.health_percentage > 0.9:
-                return UseAbility(AbilityId.BURROWUP)
-            elif UpgradeId.TUNNELINGCLAWS not in self.bot.state.upgrades:
-                return None
-            elif self.bot.mediator.get_ground_grid[to_point(u.position)] > 1:
-                return combat.retreat_with(u)
-            return HoldPosition()
+        for harvester in harvesters:
+            if not combat.is_unit_safe(harvester, weight_safety_limit=6.0):
+                actions[harvester] = combat.retreat_with(harvester)
+            elif action := resources.gather_with(harvester, harvester_return_targets):
+                actions[harvester] = action
 
-        def do_burrow(u: Unit) -> Action | None:
+        for changeling in self.bot.units(CHANGELINGS):
+            if action := self._search_with(changeling):
+                actions[changeling] = action
+
+        for combatant in combatants:
             if (
-                UpgradeId.BURROW not in self.bot.state.upgrades
-                or u.health_percentage > 0.3
-                or u.is_revealed
-                or not u.weapon_cooldown
-                or self.bot.mediator.get_is_detected(unit=u, by_enemy=True)
+                (combatant.type_id == UnitTypeId.RAVAGER and (action := self.corrosive_biles.bile_with(combatant)))
+                or (combatant.type_id == UnitTypeId.ROACH and (action := self._burrow(combatant)))
+                or (combatant.type_id == UnitTypeId.ROACHBURROWED and (action := self._unburrow(combatant, combat)))
+                or (action := combat.fight_with(combatant))
+                or (action := self._search_with(combatant))
             ):
-                return None
-            return UseAbility(AbilityId.BURROWDOWN)
-
-        micro_handlers = {
-            UnitTypeId.RAVAGER: self.corrosive_biles.bile_with,
-            UnitTypeId.ROACH: do_burrow,
-            UnitTypeId.ROACHBURROWED: do_unburrow,
-        }
-
-        def micro_unit(u: Unit) -> Action | None:
-            if (handler := micro_handlers.get(u.type_id)) and (action := handler(u)):
-                return action
-            return combat.fight_with(u) or search_with(u)
-
-        def search_with(unit: Unit) -> Action | None:
-            if not (unit.is_idle or unit.is_gathering or unit.is_returning):
-                return None
-            elif self.bot.time < 8 * 60 and self.bot.enemy_start_locations:
-                return Move(Point2(random.choice(self.bot.enemy_start_locations)))
-            # elif self.bot.enemy_units:
-            #     target = cy_closest_to(unit.position, self.bot.enemy_units)
-            #     return Attack(target.position)
-            elif self.bot.all_enemy_units:
-                target = cy_closest_to(unit.position, self.bot.all_enemy_units)
-                return Attack(target.position)
-            target = self.bot.random_point(near=unit.position)
-            if self.bot.is_visible(target):
-                return None
-            if self.bot.mediator.get_cached_ground_grid[to_point(target)] == np.inf and not unit.is_flying:
-                return None
-            return Move(target)
-
-        actions = {
-            **build_order_actions,
-            **{u: a for u in harvesters if (a := micro_harvester(u))},
-            **{u: a for u in self.bot.units(CHANGELINGS) if (a := search_with(u))},
-            **{u: a for u in combatants if (a := micro_unit(u))},
-        }
+                actions[combatant] = action
 
         actions.update(self.macro.get_actions())
 
         for changeling in self.bot.units(CHANGELINGS):
-            if action := search_with(changeling):
+            if action := self._search_with(changeling):
                 actions[changeling] = action
 
         for structure in self.bot.structures.not_ready:
             if structure.health_percentage < 0.05:
                 actions[structure] = UseAbility(AbilityId.CANCEL)
 
-        queens = self.bot.units(
-            {
-                UnitTypeId.QUEEN,
-                UnitTypeId.QUEENBURROWED,
-            }
-        )
         actions.update(self._micro_queens(queens, combat))
 
-        overseers = self.bot.units(
-            {
-                UnitTypeId.OVERSEER,
-                UnitTypeId.OVERSEERSIEGEMODE,
-            }
-        )
         detection_targets = list(map(Point2, self.blocked_positions.blocked_positions))
         actions.update(
             self.overseers.get_actions(
@@ -323,8 +270,8 @@ class Agent:
         for overlord in self.bot.units(UnitTypeId.OVERLORD):
             if self.bot.actual_iteration == 1:
                 actions[overlord] = self._send_overlord_scout(overlord)
-            elif action := keep_unit_safe(overlord):
-                actions[overlord] = action
+            if not combat.is_unit_safe(overlord):
+                actions[overlord] = combat.retreat_with(overlord)
 
         for tumor in self.creep_tumors.active_tumors:
             if action := self.creep_spread.spread_with(tumor):
@@ -412,3 +359,53 @@ class Agent:
         else:
             self.parameters.ask_best()
         logger.info(f"{self.parameters.parameters=}")
+
+    def _build_gas(self, gas_harvester_target: int) -> Iterable[MacroPlan]:
+        gas_type = GAS_BY_RACE[self.bot.race]
+        gas_have = (
+            len(self.bot.harvestable_gas_buildings)
+            + self.bot.count_pending(gas_type)
+            + self.bot.count_planned(gas_type)
+        )
+        gas_max = len(self.bot.all_taken_geysers)
+        gas_want = min(gas_max, math.ceil(gas_harvester_target / self.bot.harvesters_per_gas_building))
+        for _ in range(gas_have, gas_want):
+            yield MacroPlan(gas_type)
+
+    def _search_with(self, unit: Unit) -> Action | None:
+        if not (unit.is_idle or unit.is_gathering or unit.is_returning):
+            return None
+        elif self.bot.time < 8 * 60 and self.bot.enemy_start_locations:
+            return Move(Point2(random.choice(self.bot.enemy_start_locations)))
+        # elif self.bot.enemy_units:
+        #     target = cy_closest_to(unit.position, self.bot.enemy_units)
+        #     return Attack(target.position)
+        elif self.bot.all_enemy_units:
+            target = cy_closest_to(unit.position, self.bot.all_enemy_units)
+            return Attack(target.position)
+        target = self.bot.random_point(near=unit.position)
+        if self.bot.is_visible(target):
+            return None
+        if self.bot.mediator.get_cached_ground_grid[to_point(target)] == np.inf and not unit.is_flying:
+            return None
+        return Move(target)
+
+    def _burrow(self, unit: Unit) -> Action | None:
+        if (
+            UpgradeId.BURROW not in self.bot.state.upgrades
+            or unit.health_percentage > 0.3
+            or unit.is_revealed
+            or not unit.weapon_cooldown
+            or self.bot.mediator.get_is_detected(unit=unit, by_enemy=True)
+        ):
+            return None
+        return UseAbility(AbilityId.BURROWDOWN)
+
+    def _unburrow(self, unit: Unit, combat: CombatStep) -> Action | None:
+        if unit.health_percentage > 0.9:
+            return UseAbility(AbilityId.BURROWUP)
+        elif UpgradeId.TUNNELINGCLAWS not in self.bot.state.upgrades:
+            return None
+        elif self.bot.mediator.get_ground_grid[to_point(unit.position)] > 1:
+            return combat.retreat_with(unit)
+        return HoldPosition()

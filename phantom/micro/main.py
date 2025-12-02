@@ -207,7 +207,7 @@ class CombatStep:
         self.attacking_global = attacking_global
         self.attacking_local = attacking_local
 
-    def retreat_with(self, unit: Unit, limit=3) -> Action | None:
+    def retreat_with(self, unit: Unit, limit=3) -> Action:
         retreat_map = self.context.retreat_air if unit.is_flying else self.context.retreat_ground
         retreat_path = retreat_map.get_path(unit.position, limit=limit)
         if len(retreat_path) < limit:
@@ -221,13 +221,15 @@ class CombatStep:
             retreat_point = Point2(retreat_path[-1]).offset(HALF)
         return Move(retreat_point)
 
-    def retreat_to_creep(self, unit: Unit, limit=3) -> Action | None:
+    def retreat_to_creep(self, unit: Unit, limit=3) -> Action:
         path = self.context.retreat_to_creep_pathing.get_path(unit.position, limit=limit)
         return Move(Point2(path[-1]).offset(HALF))
 
-    def is_unit_safe(self, unit: Unit) -> bool:
+    def is_unit_safe(self, unit: Unit, weight_safety_limit: float = 1.0) -> bool:
         grid = self.bot.mediator.get_air_grid if unit.is_flying else self.bot.mediator.get_ground_grid
-        return self.bot.mediator.is_position_safe(grid=grid, position=unit.position)
+        return self.bot.mediator.is_position_safe(
+            grid=grid, position=unit.position, weight_safety_limit=weight_safety_limit
+        )
 
     def fight_with(self, unit: Unit) -> Action | None:
         ground_range = ground_range_of(unit)
