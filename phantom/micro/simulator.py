@@ -108,7 +108,7 @@ class StepwiseCombatSimulator(CombatSimulator):
 
         damage_accumulation = np.full((len(units)), 0.0)
         for t, dt, w in zip(times, times_diff, weights, strict=False):
-            range_projection = ranges + movement_speed * t
+            range_projection = ranges + movement_speed * np.sqrt(t)
             in_range = distance <= range_projection
             alive = health_projection > 0.0
             attack = (
