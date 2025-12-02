@@ -72,7 +72,7 @@ class Cost:
 
 
 class CostContext(Protocol):
-    def calculate_cost(self, item: UnitTypeId) -> SC2Cost:
+    def calculate_cost(self, item: MacroId) -> SC2Cost:
         raise NotImplementedError()
 
     def calculate_supply_cost(self, item: UnitTypeId) -> float:

@@ -5,6 +5,7 @@ import pathlib
 import random
 import re
 import sys
+from functools import wraps
 
 import aiohttp
 import click
@@ -27,8 +28,7 @@ from sc2.portconfig import Portconfig
 from sc2.protocol import ConnectionAlreadyClosed
 from sc2.sc2process import SC2Process
 
-from phantom.common.utils import async_command
-from phantom.config import BotConfig
+from phantom.common.config import BotConfig
 from phantom.dummy import BaseBlock, CannonRush, DummyBot
 from phantom.main import PhantomBot
 from scripts.utils import CommandWithConfigFile
@@ -39,6 +39,14 @@ SPECIAL_BUILDS = {
     "BaseBlock": BaseBlock,
     "CannonRush": CannonRush,
 }
+
+
+def async_command(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return asyncio.run(func(*args, **kwargs))
+
+    return wrapper
 
 
 @click.command(cls=CommandWithConfigFile("config"))
@@ -146,7 +154,7 @@ async def run(
         if maps_path is None:
             logger.info("No maps path provided, falling back to installation folder")
             maps_path = str(Paths.MAPS)
-        map_regex = re.compile(map_pattern)
+        map_regex = re.compile(map_pattern + "\\.SC2(MAP|Map)")
         map_choices = list(filter(map_regex.match, os.listdir(maps_path)))
         logger.info(f"Found {map_choices=}")
         map_choice = random.choice(map_choices)
@@ -158,7 +166,6 @@ async def run(
         else:
             opponent = Computer(Race[enemy_race], Difficulty[enemy_difficulty], AIBuild[enemy_build])
 
-        # try:
         map_settings = Map(pathlib.Path(map_choice))
         players = [bot, opponent]
         kwargs = dict(
@@ -176,9 +183,13 @@ async def run(
 
     logger.info(f"Game finished with {result=}")
 
-    if assert_result and result.name != assert_result:
-        raise Exception(f"Expected {assert_result}, got {result.name}")
+    if isinstance(result, BaseException):
+        raise result
+    elif isinstance(result, Result) and assert_result and result.name != assert_result:
+        raise AssertionError(f"Expected {assert_result}, got {result.name}")
 
 
 if __name__ == "__main__":
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
     run()

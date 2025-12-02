@@ -16,9 +16,9 @@ from phantom.common.constants import (
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
 )
+from phantom.common.parameter_sampler import ParameterSampler, Prior
 from phantom.common.unit_composition import UnitComposition, add_compositions, composition_of, sub_compositions
-from phantom.macro.main import MacroPlan
-from phantom.parameter_sampler import ParameterSampler, Prior
+from phantom.macro.builder import MacroPlan
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -34,7 +34,7 @@ class StrategyTier(enum.IntEnum):
 
 class StrategyParameters:
     def __init__(self, parameters: ParameterSampler) -> None:
-        self.counter_factor = parameters.add(Prior(2.0, 0.1, min=0))
+        self.counter_factor = parameters.add(Prior(1.5, 0.1, min=0))
         self.ravager_mixin = parameters.add(Prior(13, 1, min=0))
         self.corruptor_mixin = parameters.add(Prior(5, 1, min=0))
         self.tier1_drone_count = parameters.add(Prior(32, 1, min=0))
@@ -150,12 +150,6 @@ class Strategy:
             return upgrade_researched_or_pending(UpgradeId.ZERGMISSILEWEAPONSLEVEL3) or upgrade_researched_or_pending(
                 UpgradeId.ZERGMELEEWEAPONSLEVEL3
             )
-        # elif upgrade in {UpgradeId.ZERGMISSILEWEAPONSLEVEL1, UpgradeId.ZERGMELEEWEAPONSLEVEL1}:
-        #     return UpgradeId.ZERGGROUNDARMORSLEVEL1 in upgrade_set
-        # elif upgrade in {UpgradeId.ZERGMISSILEWEAPONSLEVEL2, UpgradeId.ZERGMELEEWEAPONSLEVEL2}:
-        #     return UpgradeId.ZERGGROUNDARMORSLEVEL2 in upgrade_set
-        # elif upgrade in {UpgradeId.ZERGMISSILEWEAPONSLEVEL3, UpgradeId.ZERGMELEEWEAPONSLEVEL3}:
-        #     return UpgradeId.ZERGGROUNDARMORSLEVEL3 in upgrade_set
         elif upgrade in ZERG_FLYER_UPGRADES or upgrade in ZERG_FLYER_ARMOR_UPGRADES:
             return bool(self.bot.count_actual(UnitTypeId.GREATERSPIRE)) or bool(
                 self.bot.count_pending(UnitTypeId.GREATERSPIRE)
@@ -167,11 +161,6 @@ class Strategy:
 
     def _predict_enemy_composition(self) -> UnitComposition:
         return self.enemy_composition
-        # vision = PlayerVision.from_units(self.bot.units | self.bot.enemy_units)
-        # enemy_vision = SCOUT_PREDICTOR.predict(self.bot.game_loop, vision, self.bot.player_races)
-        # composition = UnitComposition(dict(enemy_vision.composition)) + self.enemy_composition
-        # composition = UnitComposition({k: v for k, v in composition.items() if v >= 1})
-        # return composition
 
     def _tier(self) -> StrategyTier:
         if (
@@ -195,10 +184,6 @@ class Strategy:
         return StrategyTier.LATEGAME
 
     def _army_composition(self) -> UnitComposition:
-        # force droning up to 21
-        # TODO: check if necessary
-        if not self.bot.structures({UnitTypeId.SPAWNINGPOOL}).ready:
-            return {}
         counter_composition = {k: self.parameters.counter_factor.value * v for k, v in self.counter_composition.items()}
         composition = defaultdict[UnitTypeId, float](float, counter_composition)
         corruptor_mixin = int(composition[UnitTypeId.BROODLORD] / self.parameters.corruptor_mixin.value)

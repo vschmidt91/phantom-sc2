@@ -9,8 +9,8 @@ from sklearn.metrics import pairwise_distances
 from phantom.common.action import Action, HoldPosition, Move, UseAbility
 from phantom.common.constants import ENERGY_GENERATION_RATE
 from phantom.common.distribute import distribute
+from phantom.micro.combat import CombatStep
 from phantom.micro.creep import CreepSpread
-from phantom.micro.main import CombatStep
 from phantom.micro.transfuse import Transfuse
 
 if TYPE_CHECKING:

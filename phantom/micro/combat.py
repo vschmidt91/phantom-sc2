@@ -19,16 +19,15 @@ from phantom.common.constants import (
     HALF,
     MIN_WEAPON_COOLDOWN,
 )
+from phantom.common.parameter_sampler import ParameterSampler, Prior
 from phantom.common.utils import (
     Point,
     ground_range_of,
-    range_vs,
     structure_perimeter,
     to_point,
 )
 from phantom.micro.simulator import CombatResult, CombatSetup, StepwiseCombatSimulator
 from phantom.micro.utils import assign_targets, get_shootable_targets, medoid
-from phantom.parameter_sampler import ParameterSampler, Prior
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -105,7 +104,6 @@ class CombatStepContext:
             ):
                 safe_combatants.append(unit)
 
-        # retreat_to_creep_targets = list(zip(*self.bot.mediator.get_creep_edges))
         retreat_to_creep_targets = list[Point]()
         for townhall in state.bot.townhalls.ready:
             retreat_to_creep_targets.extend(structure_perimeter(townhall))
@@ -120,7 +118,6 @@ class CombatStepContext:
 
         retreat_targets = list()
         if safe_combatants:
-            # retreat_targets.extend([u.position for u in self.safe_combatants])
             retreat_targets.append(medoid([u.position for u in safe_combatants]))
 
         if not retreat_targets:
@@ -241,19 +238,7 @@ class CombatStep:
             position=unit.position,
         )
 
-        def potential_kiting(x: np.ndarray) -> float:
-            def g(u: Unit):
-                unit_range = range_vs(unit, u)
-                safety_margin = u.movement_speed * 1.0
-                enemy_range = range_vs(u, unit)
-                d = np.linalg.norm(x - u.position) - u.radius - unit.radius
-                if enemy_range < unit_range and d < safety_margin + enemy_range:
-                    return safety_margin + enemy_range - d
-                return 0.0
-
-            return sum(g(u) for u in self.context.enemy_combatants)
-
-        if not unit.is_flying and not self.attacking_global and not is_on_creep:
+        if not unit.is_flying and not self.attacking_global and not is_on_creep and self.bot.enemy_race != Race.Zerg:
             return self.retreat_to_creep(unit)
 
         if attack_ready and (targets := self.context.shootable_targets.get(unit)):
@@ -263,19 +248,7 @@ class CombatStep:
             return None
 
         if unit.tag in self.attacking_local:
-            # if (
-            #     not attack_ready
-            #     and ground_range >= 2
-            #     and (
-            #         unit.is_flying or sample_bilinear(self.bot.mediator.get_cached_ground_grid, unit.position) < np.inf
-            #     )
-            # ):
-            #     gradient = approx_fprime(unit.position, potential_kiting)
-            #     gradient_norm = np.linalg.norm(gradient)
-            #     if gradient_norm > 1e-5:
-            #         return Move(unit.position - (2 / gradient_norm) * Point2(gradient))
-
-            should_runby = not unit.is_flying and not is_on_creep and is_safe
+            should_runby = not unit.is_flying and self.attacking_global and is_safe
             if should_runby:
                 runby_target = Point2(self.context.runby_pathing.get_path(unit.position, 4)[-1]).offset(HALF)
                 return Attack(runby_target)

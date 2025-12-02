@@ -9,7 +9,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
 from phantom.common.action import Action, UseAbility
-from phantom.macro.main import MacroPlan
+from phantom.macro.builder import MacroPlan
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -96,9 +96,9 @@ BUILD_ORDERS = {
             ExtractorTrick(),
             Make(UnitTypeId.OVERLORD, 2),
             Make(UnitTypeId.HATCHERY, 2),
-            Make(UnitTypeId.DRONE, 18),
+            Make(UnitTypeId.DRONE, 17),
             Make(UnitTypeId.EXTRACTOR, 1),
-            # WaitUntil(lambda bot: bot.gas_buildings),
+            WaitUntil(lambda bot: bot.gas_buildings),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
             Make(UnitTypeId.DRONE, 20),
             WaitUntil(lambda bot: bot.structures(UnitTypeId.SPAWNINGPOOL).ready),
@@ -125,15 +125,12 @@ BUILD_ORDERS = {
             Make(UnitTypeId.DRONE, 18),
             WaitUntil(lambda bot: bot.workers.amount > 16),
             Make(UnitTypeId.EXTRACTOR, 1),
-            # WaitUntil(lambda bot: bot.gas_buildings),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
-            # WaitUntil(lambda bot: bot.structures(UnitTypeId.SPAWNINGPOOL)),
             Make(UnitTypeId.HATCHERY, 3),
             Make(UnitTypeId.DRONE, 19),
             Make(UnitTypeId.QUEEN, 1),
             Make(UnitTypeId.ZERGLING, 1),
             Make(UnitTypeId.QUEEN, 2),
-            # WaitUntil(lambda bot: bot.supply_used >= 24),
         ]
     ),
     "POOL_FIRST": BuildOrderChain(
@@ -148,7 +145,6 @@ BUILD_ORDERS = {
             Make(UnitTypeId.HATCHERY, 2),
             Make(UnitTypeId.QUEEN, 1),
             Make(UnitTypeId.ZERGLING, 2),
-            # Make(UnitTypeId.HATCHERY, 3),
         ]
     ),
     "ROACH_RUSH": BuildOrderChain(
@@ -162,20 +158,6 @@ BUILD_ORDERS = {
             Make(UnitTypeId.ZERGLING, 1),
             Make(UnitTypeId.EXTRACTOR, 1),
             Make(UnitTypeId.ROACHWARREN, 1),
-            # Make(UnitTypeId.DRONE, 19),
-            # Make(UnitTypeId.ROACHWARREN, 1),
-            # Make(UnitTypeId.OVERLORD, 3),
-            # Make(UnitTypeId.ROACH, 7),
-        ]
-    ),
-    "TEST": BuildOrderChain(
-        [
-            Make(UnitTypeId.DRONE, 14),
-            Make(UnitTypeId.OVERLORD, 2),
-            Make(UnitTypeId.SPAWNINGPOOL, 1),
-            Make(UnitTypeId.DRONE, 17),
-            Make(UnitTypeId.HATCHERY, 2),
-            Make(UnitTypeId.QUEEN, 1),
         ]
     ),
 }

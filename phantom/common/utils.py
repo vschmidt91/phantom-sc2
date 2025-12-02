@@ -1,8 +1,7 @@
-import asyncio
 import math
 from collections import Counter
 from collections.abc import Iterable, Sequence
-from functools import cache, wraps
+from functools import cache
 
 import numpy as np
 import skimage.draw
@@ -27,23 +26,12 @@ def count_sorted[T](items: Iterable[T]) -> dict[T, int]:
     return dict(sorted(Counter(items).items()))
 
 
-class PlacementNotFoundException(Exception):
-    pass
-
-
 type Point = tuple[int, int]
+type MacroId = UnitTypeId | UpgradeId
 
 
 def to_point(p: Sequence[float]) -> Point:
     return int(p[0]), int(p[1])
-
-
-def async_command(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        return asyncio.run(func(*args, **kwargs))
-
-    return wrapper
 
 
 def rectangle_perimeter(start: Point, end: Point) -> Iterable[Point]:
@@ -162,7 +150,11 @@ def sample_bilinear(a, coords):
     return values
 
 
-def get_requirements(item: UnitTypeId | UpgradeId) -> Iterable[UnitTypeId | UpgradeId]:
+def get_requirements(item: MacroId, visited: set[MacroId] | None = None) -> Iterable[MacroId]:
+    visited = visited or set[MacroId]()
+    if item in visited:
+        return
+    visited.add(item)
     if isinstance(item, UnitTypeId):
         trainers = UNIT_TRAINED_FROM[item]
         trainer = sorted(trainers, key=lambda v: v.value)[0]
@@ -175,12 +167,11 @@ def get_requirements(item: UnitTypeId | UpgradeId) -> Iterable[UnitTypeId | Upgr
     else:
         raise TypeError()
 
-    requirements = {info.get("required_building"), info.get("required_upgrade")}
-    requirements.discard(None)
+    requirements = {info.get("required_building"), info.get("required_upgrade")} - {None}
 
     for requirement1 in requirements:
         yield requirement1
-        yield from get_requirements(requirement1)
+        yield from get_requirements(requirement1, visited)
 
 
 @cache
@@ -191,8 +182,6 @@ def disk(radius: float) -> tuple[np.ndarray, np.ndarray]:
     dx, dy = skimage.draw.disk(center=p, radius=radius, shape=(n, n))
     return dx - r, dy - r
 
-
-type MacroId = UnitTypeId | UpgradeId
 
 # Bunker values assume 4 marines inside
 GROUND_DPS_OVERRIDE = {

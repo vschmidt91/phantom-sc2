@@ -26,11 +26,12 @@ from sc2.unit import Unit
 from sc2.unit_command import UnitCommand
 
 from phantom.agent import Agent
+from phantom.common.config import BotConfig
 from phantom.common.constants import (
     ITEM_BY_ABILITY,
+    PENDING_UNIT_TYPES,
     REQUIREMENTS_KEYS,
     SUPPLY_PROVIDED,
-    TRAINER_TYPES,
     WITH_TECH_EQUIVALENTS,
     ZERG_ARMOR_UPGRADES,
     ZERG_FLYER_ARMOR_UPGRADES,
@@ -39,15 +40,14 @@ from phantom.common.constants import (
     ZERG_RANGED_UPGRADES,
 )
 from phantom.common.cost import Cost, CostManager
+from phantom.common.expansion import Expansion
 from phantom.common.utils import (
     RNG,
     MacroId,
     Point,
     to_point,
 )
-from phantom.config import BotConfig
-from phantom.expansion import Expansion
-from phantom.macro.main import MacroPlan
+from phantom.macro.builder import MacroPlan
 
 
 @dataclass(frozen=True)
@@ -419,7 +419,7 @@ class PhantomBot(AresBot):
 
         self.structure_dict.clear()
         self.pending.clear()
-        trainers = self.all_own_units(TRAINER_TYPES)
+        trainers = self.all_own_units(PENDING_UNIT_TYPES)
         for unit in trainers:
             if not unit.is_ready:
                 self.pending[unit.tag] = unit.type_id
@@ -435,7 +435,7 @@ class PhantomBot(AresBot):
                 self.pending[unit.tag] = item
 
         self.structure_dict.update({to_point(s.position): s for s in self.structures})
-        for plan in self.agent.macro.enumerate_plans():
+        for plan in self.agent.builder.enumerate_plans():
             if plan.item in ALL_STRUCTURES and plan.target:
                 self.structure_dict[to_point(plan.target.position)] = plan
 
@@ -475,4 +475,4 @@ class PhantomBot(AresBot):
         )
 
         self.bank = Cost(self.minerals, self.vespene, self.supply_left, self.larva.amount)
-        self.planned = Counter(p.item for p in self.agent.macro.enumerate_plans())
+        self.planned = Counter(p.item for p in self.agent.builder.enumerate_plans())

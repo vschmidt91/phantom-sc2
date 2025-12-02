@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from ares.behaviors.macro.mining import TOWNHALL_RADIUS
-from ares.consts import UnitRole
 from cython_extensions import cy_closest_to, cy_distance_to
 from loguru import logger
 from s2clientprotocol.score_pb2 import CategoryScoreDetails
@@ -21,8 +20,9 @@ from sc2.position import Point2
 from sc2.score import ScoreDetails
 from sc2.unit import Unit
 
-from phantom.blocked_positions import BlockedPositionTracker
 from phantom.common.action import Action, Attack, HoldPosition, Move, MovePath, UseAbility
+from phantom.common.blocked_positions import BlockedPositionTracker
+from phantom.common.config import BotConfig
 from phantom.common.constants import (
     CHANGELINGS,
     CIVILIANS,
@@ -30,20 +30,18 @@ from phantom.common.constants import (
     GAS_BY_RACE,
 )
 from phantom.common.cost import Cost
+from phantom.common.parameter_sampler import ParameterSampler, Prior
 from phantom.common.utils import to_point
-from phantom.config import BotConfig
 from phantom.macro.build_order import BUILD_ORDERS
-from phantom.macro.main import Macro, MacroParameters, MacroPlan
+from phantom.macro.builder import Builder, BuilderParameters, MacroPlan
+from phantom.macro.mining import MiningContext, MiningState
 from phantom.macro.strategy import Strategy, StrategyParameters
+from phantom.micro.combat import CombatParameters, CombatState, CombatStep
 from phantom.micro.corrosive_bile import CorrosiveBile
 from phantom.micro.creep import CreepSpread, CreepTumors
-from phantom.micro.dodge import DodgeState
-from phantom.micro.main import CombatParameters, CombatState, CombatStep
+from phantom.micro.dodge import Dodge
 from phantom.micro.overseers import Overseers
 from phantom.micro.queens import Queens
-from phantom.parameter_sampler import ParameterSampler, Prior
-from phantom.resources.main import ResourceState
-from phantom.resources.observation import ResourceObservation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -90,16 +88,16 @@ class Agent:
         self.parameters = ParameterSampler()
         self.build_order = BUILD_ORDERS[self.config.build_order]
         self.combat = CombatState(bot, CombatParameters(self.parameters))
-        self.macro = Macro(bot, MacroParameters(self.parameters))
+        self.builder = Builder(bot, BuilderParameters(self.parameters))
         self.creep_tumors = CreepTumors(bot)
         self.creep_spread = CreepSpread(bot)
         self.corrosive_biles = CorrosiveBile(bot)
-        self.dodge = DodgeState(bot)
+        self.dodge = Dodge(bot)
         self.overseers = Overseers(bot)
         self.blocked_positions = BlockedPositionTracker(bot)
         self.queens = Queens(bot)
         self.strategy_paramaters = StrategyParameters(self.parameters)
-        self.resources = ResourceState(bot)
+        self.harvesters = MiningState(bot)
         self.build_order_completed = False
         self.gas_ratio = 0.0
         self.gas_ratio_learning_rate_log = self.parameters.add(Prior(-7, 1, max=0))
@@ -111,7 +109,7 @@ class Agent:
 
     def on_step(self) -> Mapping[Unit, Action]:
         if self.config.debug_draw:
-            self.macro.debug_draw_plans()
+            self.builder.debug_draw_plans()
 
         enemy_combatants = self.bot.enemy_units.exclude_type(ENEMY_CIVILIANS)
         combatants = self.bot.units.exclude_type(
@@ -156,10 +154,10 @@ class Agent:
         else:
             macro_plans.extend(
                 chain(
-                    self.macro.make_composition(strategy.composition_target),
-                    self.macro.make_upgrades(strategy.composition_target, strategy.filter_upgrade),
+                    self.builder.make_composition(strategy.composition_target),
+                    self.builder.make_upgrades(strategy.composition_target, strategy.filter_upgrade),
                     strategy.morph_overlord(),
-                    self.macro.expand(),
+                    self.builder.expand(),
                     strategy.make_spines(),
                     strategy.make_spores(),
                 )
@@ -181,7 +179,7 @@ class Agent:
             return all(self.bot.mediator.get_ground_grid[p] < 6.0 for p in check_points)
 
         required = Cost()
-        required += self.macro.get_planned_cost()
+        required += self.builder.get_planned_cost()
         required += self.bot.cost.of_composition(strategy.composition_deficit)
         required -= self.bot.bank
 
@@ -195,7 +193,8 @@ class Agent:
         self.gas_ratio = max(0, min(1, self.gas_ratio))
 
         harvesters = list[Unit]()
-        harvesters.extend(self.bot.mediator.get_units_from_role(role=UnitRole.GATHERING))
+        harvesters_exclude = self.builder.assigned_tags | self.bot.pending.keys()
+        harvesters.extend(self.bot.workers.tags_not_in(harvesters_exclude))
         harvesters.extend(self.bot.workers_off_map.values())
 
         gas_target = math.ceil(len(harvesters) * self.gas_ratio)
@@ -205,20 +204,20 @@ class Agent:
         macro_plans.extend(self._build_gas(gas_target))
 
         for plan in macro_plans:
-            self.macro.add(plan)
-        self.macro.on_step()
+            self.builder.add(plan)
+        self.builder.on_step()
 
         mineral_fields = [m for m in self.bot.all_taken_minerals if should_harvest_resource(m)]
         gas_buildings = [g for g in self.bot.harvestable_gas_buildings if should_harvest_resource(g)]
 
-        resoure_observation = ResourceObservation(
+        resoure_observation = MiningContext(
             self.bot,
             harvesters,
             mineral_fields,
             gas_buildings,
             gas_target,
         )
-        resources = self.resources.step(resoure_observation)
+        resources = self.harvesters.step(resoure_observation)
 
         def keep_unit_safe(unit: Unit) -> Action | None:
             if not combat.is_unit_safe(unit):
@@ -245,7 +244,7 @@ class Agent:
             ):
                 actions[combatant] = action
 
-        actions.update(self.macro.get_actions())
+        actions.update(self.builder.get_actions())
 
         for changeling in self.bot.units(CHANGELINGS):
             if action := self._search_with(changeling):
@@ -377,9 +376,6 @@ class Agent:
             return None
         elif self.bot.time < 8 * 60 and self.bot.enemy_start_locations:
             return Move(Point2(random.choice(self.bot.enemy_start_locations)))
-        # elif self.bot.enemy_units:
-        #     target = cy_closest_to(unit.position, self.bot.enemy_units)
-        #     return Attack(target.position)
         elif self.bot.all_enemy_units:
             target = cy_closest_to(unit.position, self.bot.all_enemy_units)
             return Attack(target.position)

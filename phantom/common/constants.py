@@ -1,6 +1,6 @@
 from itertools import chain
 
-from ares.consts import ALL_STRUCTURES
+from ares.consts import ALL_STRUCTURES, ALL_WORKER_TYPES
 from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
 from sc2.data import Race
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
@@ -43,13 +43,6 @@ ENERGY_COST = {
     AbilityId.TRANSFUSION_TRANSFUSION: 50.0,
 }
 
-WORKERS = {
-    *WITH_TECH_EQUIVALENTS[UnitTypeId.DRONE],
-    *WITH_TECH_EQUIVALENTS[UnitTypeId.PROBE],
-    *WITH_TECH_EQUIVALENTS[UnitTypeId.SCV],
-    *WITH_TECH_EQUIVALENTS[UnitTypeId.MULE],
-}
-
 LARVA_COST = {
     UnitTypeId.ZERGLING: 0.5,
     UnitTypeId.ROACH: 1.0,
@@ -68,9 +61,7 @@ LARVA_COST = {
 SUPPLY_PROVIDED = {
     Race.Zerg: {
         UnitTypeId.OVERLORD: 8,
-        UnitTypeId.HATCHERY: 6,
-        # UnitTypeId.LAIR: 6,
-        # UnitTypeId.HIVE: 6,
+        # UnitTypeId.HATCHERY: 6,
     },
     Race.Protoss: {
         UnitTypeId.PYLON: 8,
@@ -79,10 +70,6 @@ SUPPLY_PROVIDED = {
     Race.Terran: {
         UnitTypeId.SUPPLYDEPOT: 8,
         UnitTypeId.COMMANDCENTER: 15,
-        # UnitTypeId.COMMANDCENTERFLYING: 15,
-        # UnitTypeId.ORBITALCOMMAND: 15,
-        # UnitTypeId.ORBITALCOMMANDFLYING: 15,
-        # UnitTypeId.PLANETARYFORTRESS: 15,
     },
 }
 
@@ -106,11 +93,22 @@ COCOONS = {
     UnitTypeId.BROODLORDCOCOON,
 }
 
-TRAINER_TYPES = {
+PENDING_UNIT_TYPES = {
     UnitTypeId.EGG,
     *COCOONS,
     *ALL_STRUCTURES,
-    *WORKERS,
+    *ALL_WORKER_TYPES,
+}
+
+TRAINER_TYPES = {
+    UnitTypeId.LARVA,
+    UnitTypeId.OVERLORD,
+    UnitTypeId.CORRUPTOR,
+    UnitTypeId.ZERGLING,
+    UnitTypeId.ROACH,
+    UnitTypeId.HYDRALISK,
+    *ALL_STRUCTURES,
+    *ALL_WORKER_TYPES,
 }
 
 CIVILIANS = {
@@ -121,7 +119,6 @@ CIVILIANS = {
     UnitTypeId.EGG,
     *WITH_TECH_EQUIVALENTS[UnitTypeId.WARPPRISM],
     *WITH_TECH_EQUIVALENTS[UnitTypeId.DRONE],
-    # *WITH_TECH_EQUIVALENTS[UnitTypeId.QUEEN],
     *WITH_TECH_EQUIVALENTS[UnitTypeId.OVERLORD],
     *WITH_TECH_EQUIVALENTS[UnitTypeId.OVERSEER],
     *WITH_TECH_EQUIVALENTS[UnitTypeId.BROODLING],
@@ -171,11 +168,7 @@ GAS_BY_RACE: dict[Race, UnitTypeId] = {
     Race.Terran: UnitTypeId.REFINERY,
 }
 
-REQUIREMENTS_EXCLUDE = {
-    # UnitTypeId.DRONE,
-    UnitTypeId.LARVA,
-    # UnitTypeId.HATCHERY,
-}
+REQUIREMENTS_EXCLUDE = {UnitTypeId.LARVA}
 
 REQUIREMENTS_KEYS = {*UNIT_TRAINED_FROM.keys(), *UPGRADE_RESEARCHED_FROM.keys()}.difference(REQUIREMENTS_EXCLUDE)
 
@@ -459,23 +452,10 @@ UNIT_COUNTER_DICT = {
 
 
 SPORE_TRIGGERS_ZERG = {
-    # UnitTypeId.DRONEBURROWED,
-    # UnitTypeId.QUEENBURROWED,
-    # UnitTypeId.ZERGLINGBURROWED,
-    # UnitTypeId.BANELINGBURROWED,
-    # UnitTypeId.ROACHBURROWED,
-    # UnitTypeId.RAVAGERBURROWED,
-    # UnitTypeId.HYDRALISKBURROWED,
-    # UnitTypeId.LURKERMP,
-    # UnitTypeId.LURKERMPBURROWED,
-    # UnitTypeId.INFESTORBURROWED,
-    # UnitTypeId.SWARMHOSTBURROWEDMP,
-    # UnitTypeId.ULTRALISKBURROWED,
     UnitTypeId.MUTALISK,
     UnitTypeId.SPIRE,
 }
 SPORE_TRIGGERS_PROTOSS = {
-    UnitTypeId.STARGATE,
     UnitTypeId.ORACLE,
     UnitTypeId.VOIDRAY,
     UnitTypeId.CARRIER,
@@ -483,15 +463,10 @@ SPORE_TRIGGERS_PROTOSS = {
     UnitTypeId.PHOENIX,
 }
 SPORE_TRIGGERS_TERRAN = {
-    UnitTypeId.STARPORT,
-    UnitTypeId.STARPORTFLYING,
     UnitTypeId.MEDIVAC,
     UnitTypeId.LIBERATOR,
-    UnitTypeId.RAVEN,
     UnitTypeId.BANSHEE,
     UnitTypeId.BATTLECRUISER,
-    UnitTypeId.WIDOWMINE,
-    UnitTypeId.WIDOWMINEBURROWED,
 }
 SPORE_TRIGGERS = {
     Race.Terran: SPORE_TRIGGERS_TERRAN,

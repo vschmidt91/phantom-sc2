@@ -45,7 +45,7 @@ class DodgeItem:
     circle: DodgeCircle
 
 
-class DodgeState:
+class Dodge:
     def __init__(self, bot: "PhantomBot") -> None:
         self.bot = bot
         self.dodge_effects = dict[DodgeItem, float]()

@@ -1,6 +1,6 @@
 import unittest
 
-from phantom.parameter_sampler import ParameterSampler, Prior
+from phantom.common.parameter_sampler import ParameterSampler, Prior
 
 
 class ParametersTest(unittest.TestCase):

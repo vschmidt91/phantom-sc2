@@ -123,7 +123,7 @@ async def main(
                     game_loops = range(0, metadata.game_loops, client.game_step)
                     for _ in tqdm(game_loops, desc=f"{replay_path=}, {player_id=}"):
                         state = await client.observation()
-                        writer.write_observation(state.observation.observation, player=player_id)
+                        writer.write_observation(state.context.context, player=player_id)
                         try:
                             await client.step()
                         except ProtocolError as error:

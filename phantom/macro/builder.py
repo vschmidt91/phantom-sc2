@@ -1,12 +1,12 @@
 import math
 import random
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Set
 from dataclasses import dataclass
 from itertools import chain
 from typing import TYPE_CHECKING
 
 import numpy as np
-from ares.consts import GAS_BUILDINGS, TOWNHALL_TYPES, UnitRole
+from ares.consts import GAS_BUILDINGS, TOWNHALL_TYPES
 from cython_extensions import cy_closest_to, cy_distance_to
 from loguru import logger
 from sc2.ids.ability_id import AbilityId
@@ -17,24 +17,21 @@ from sc2.unit import Unit
 
 from phantom.common.action import Action, HoldPosition, Move, UseAbility
 from phantom.common.constants import (
-    GAS_BY_RACE,
     HALF,
     ITEM_BY_ABILITY,
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
     MACRO_INFO,
-    WORKERS,
+    TRAINER_TYPES,
 )
 from phantom.common.cost import Cost
+from phantom.common.parameter_sampler import ParameterSampler, Prior
 from phantom.common.unit_composition import UnitComposition
-from phantom.common.utils import PlacementNotFoundException, Point, to_point
-from phantom.parameter_sampler import ParameterSampler, Prior
+from phantom.common.utils import MacroId, Point, to_point
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
 
 rng = np.random.default_rng()
-
-type MacroId = UnitTypeId | UpgradeId
 
 EXCLUDE_ABILTIES = {
     AbilityId.BUILD_CREEPTUMOR_TUMOR,
@@ -63,14 +60,14 @@ def _premove(unit: Unit, plan: MacroPlan, eta: float) -> Action | None:
     return Move(target)
 
 
-class MacroParameters:
+class BuilderParameters:
     def __init__(self, parameters: ParameterSampler) -> None:
         self.tech_priority_offset = parameters.add(Prior(-1.0, 0.01))
         self.tech_priority_scale = parameters.add(Prior(0.5, 0.01, min=0))
 
 
-class Macro:
-    def __init__(self, bot: "PhantomBot", parameters: MacroParameters) -> None:
+class Builder:
+    def __init__(self, bot: "PhantomBot", parameters: BuilderParameters) -> None:
         self.bot = bot
         self.parameters = parameters
         self._unassigned_plans = list[MacroPlan]()
@@ -119,6 +116,10 @@ class Macro:
             cost += self.bot.cost.of(plan.item)
         return cost
 
+    @property
+    def assigned_tags(self) -> Set[int]:
+        return self._assigned_plans.keys()
+
     def enumerate_plans(self) -> Iterable[MacroPlan]:
         return chain(self._assigned_plans.values(), self._unassigned_plans)
 
@@ -130,9 +131,6 @@ class Macro:
         saturation = self.bot.supply_workers / max(1, worker_max)
         saturation = max(0.0, min(1.0, saturation))
 
-        # if self.tier == StrategyTier.HATCH:
-        #     return
-
         priority = 3 * (saturation - 1)
 
         for plan in self._assigned_plans.values():
@@ -143,10 +141,6 @@ class Macro:
             return
         if self.bot.count_planned(UnitTypeId.HATCHERY) > 0:
             return
-
-        # ordered = self.bot.count_pending(UnitTypeId.HATCHERY) - self.bot.townhalls.not_ready.amount
-        # if ordered > 0:
-        #     return
 
         yield MacroPlan(UnitTypeId.HATCHERY, priority=priority)
 
@@ -210,20 +204,24 @@ class Macro:
                         self.bot.add_replay_tag("unplanned_macro_action")
                         logger.error("Unplanned macro action")
 
-        for unit in self.bot.mediator.get_units_from_role(role=UnitRole.PERSISTENT_BUILDER):
-            if unit.tag not in self._assigned_plans and unit.tag not in self.bot.pending:
-                logger.info(f"Returning {unit} to gathering")
-                self.bot.mediator.assign_role(tag=unit.tag, role=UnitRole.GATHERING)
-
         # unassign all larvae
         for larva in self.bot.larva:
             if plan := self._assigned_plans.pop(larva.tag, None):
                 self._unassigned_plans.append(plan)
+        self._cancel_low_priority_plans(self.min_priority)
+
+        all_trainers = [
+            trainer
+            for trainer in self.bot.all_own_units
+            if (
+                trainer.type_id in TRAINER_TYPES
+                and trainer.is_ready
+                and (trainer.is_idle if trainer.is_structure else True)
+            )
+        ]
+        self._assign_unassigned_plans(all_trainers)
 
     def get_actions(self) -> Mapping[Unit, Action]:
-        self._cancel_low_priority_plans(self.min_priority)
-        self._assign_unassigned_plans(self.bot.all_own_units)  # TODO: narrow this down
-
         actions = dict[Unit, Action]()
         reserve = Cost()
         plans_prioritized = sorted(self._assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
@@ -251,10 +249,13 @@ class Macro:
             if any(self.bot.get_missing_requirements(plan.item)):
                 continue
 
-            if isinstance(plan.target, Point2) and not self.bot.mediator.can_place_structure(
-                position=plan.target,
-                structure_type=plan.item,
-                include_addon=False,
+            if isinstance(plan.target, Point2) and (
+                not self.bot.mediator.can_place_structure(
+                    position=plan.target,
+                    structure_type=plan.item,
+                    include_addon=False,
+                )
+                or to_point(plan.target) in self.bot.blocked_positions
             ):
                 plan.target = None
 
@@ -271,9 +272,6 @@ class Macro:
                 expected_income = self.bot.income * eta
                 needs_to_reserve = Cost.max(Cost(), cost - expected_income)
                 reserve += needs_to_reserve
-
-            if trainer.type_id in WORKERS:
-                self.bot.mediator.assign_role(tag=trainer.tag, role=UnitRole.PERSISTENT_BUILDER)
 
             if eta == 0.0:
                 actions[trainer] = UseAbility(ability, target=plan.target)
@@ -324,30 +322,16 @@ class Macro:
         item: MacroId,
     ) -> Unit | None:
         trainer_types = ITEM_TRAINED_FROM_WITH_EQUIVALENTS[item]
-
-        trainers_filtered = (
-            trainer
-            for trainer in all_trainers
-            if (
-                trainer.type_id in trainer_types
-                and trainer.is_ready
-                and (trainer.is_idle or not trainer.is_structure)
-                and trainer.tag not in self._assigned_plans
-            )
+        return next(
+            (
+                trainer
+                for trainer in all_trainers
+                if trainer.type_id in trainer_types and trainer.tag not in self._assigned_plans
+            ),
+            None,
         )
 
-        return next(iter(trainers_filtered), None)
-
     def _get_gas_target(self, near: Point2) -> Unit:
-        GAS_BY_RACE[self.bot.race]
-        # exclude_positions = {geyser.position for geyser in self.bot.gas_buildings}
-        # exclude_tags = {
-        #     order.target
-        #     for unit in self.bot.workers
-        #     for order in unit.orders
-        #     if order.ability.exact_id == AbilityId.ZERGBUILD_EXTRACTOR
-        # }
-        # exclude_tags.update({p.target.tag for p in self.planned_by_type(gas_type) if isinstance(p.target, Unit)})
         geysers = [
             geyser
             for geyser in self.bot.all_taken_geysers
@@ -449,3 +433,7 @@ class Macro:
         self.bot.client.debug_text_screen(
             f"{1 + index} {round(plan.priority, 2)} {plan.item.name}", (0.01, 0.1 + 0.01 * index)
         )
+
+
+class PlacementNotFoundException(Exception):
+    pass

@@ -108,7 +108,7 @@ class StepwiseCombatSimulator(CombatSimulator):
 
         damage_accumulation = np.full((len(units)), 0.0)
         for t, dt, w in zip(times, times_diff, weights, strict=False):
-            range_projection = ranges + movement_speed * np.sqrt(t)
+            range_projection = ranges + movement_speed * t
             in_range = distance <= range_projection
             alive = health_projection > 0.0
             attack = (
@@ -140,10 +140,6 @@ class StepwiseCombatSimulator(CombatSimulator):
         losses_own = mixing_own @ losses_weighted
         losses_enemy = mixing_enemy @ losses_weighted
         outcome_vector = (losses_enemy - losses_own) / np.maximum(1e-10, losses_enemy + losses_own)
-
-        # losses_own_global = losses_weighted[:n1].sum()
-        # losses_enemy_global = losses_weighted[n1:].sum()
-        # outcome_global = (losses_enemy_global - losses_own_global) / max(1e-10, losses_enemy_global + losses_own_global)
 
         health1 = sum(u.health + u.shield for u in setup.units1)
         health2 = sum(u.health + u.shield for u in setup.units2)

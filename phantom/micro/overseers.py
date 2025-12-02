@@ -10,7 +10,7 @@ from sc2.unit import Unit
 from phantom.common.action import Action, Move, UseAbility
 from phantom.common.distribute import distribute
 from phantom.common.utils import pairwise_distances
-from phantom.micro.main import CombatStep
+from phantom.micro.combat import CombatStep
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
