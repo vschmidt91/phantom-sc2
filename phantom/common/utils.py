@@ -1,9 +1,7 @@
-import asyncio
 import math
 from collections import Counter
-from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import fields
-from functools import cache, wraps
+from collections.abc import Iterable, Sequence
+from functools import cache
 
 import numpy as np
 import skimage.draw
@@ -21,49 +19,19 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sklearn.metrics import pairwise_distances as pairwise_distances_sklearn
 
-CVXPY_OPTIONS = dict(
-    solver="ECOS",
-    # verbose=True,
-)
-
-LINPROG_OPTIONS = dict(
-    method="highs",
-    # bounds=(0.0, None),
-    # options=dict(
-    #     # maxiter=100,
-    #     disp=False,
-    #     presolve=False,
-    #     time_limit=10e-3,
-    #     primal_feasibility_tolerance=1e-3,  # default: 1e-7
-    #     dual_feasibility_tolerance=1e-3,  # default: 1e-7
-    #     ipm_optimality_tolerance=1e-5,  # default: 1e-12
-    # ),
-    # x0=None,
-    # integrality=0,
-)
-
 RNG = np.random.default_rng(42)
-
-type Json = Mapping[str, "Json"] | Sequence["Json"] | str | int | float | bool | None
 
 
 def count_sorted[T](items: Iterable[T]) -> dict[T, int]:
     return dict(sorted(Counter(items).items()))
 
 
-class PlacementNotFoundException(Exception):
-    pass
+type Point = tuple[int, int]
+type MacroId = UnitTypeId | UpgradeId
 
 
-Point = tuple[int, int]
-
-
-def async_command(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        return asyncio.run(func(*args, **kwargs))
-
-    return wrapper
+def to_point(p: Sequence[float]) -> Point:
+    return int(p[0]), int(p[1])
 
 
 def rectangle_perimeter(start: Point, end: Point) -> Iterable[Point]:
@@ -90,89 +58,6 @@ def structure_perimeter(s: Unit) -> Iterable[Point]:
     end = np.add(s.position, half_extent).astype(int)
 
     yield from rectangle_perimeter(start, end)
-
-
-def find_closest_valid(grid: np.ndarray, p: Point, max_distance: int = 1) -> Point:
-    for d in range(max_distance + 1):
-        for i in range(max(0, p[0] - d), min(grid.shape[0], p[0] + d + 1)):
-            for j in range(max(0, p[1] - d), min(grid.shape[1], p[1] + d + 1)):
-                if grid[i, j] < np.inf:
-                    return i, j
-
-    return p
-
-
-def point_line_segment_distance(P: np.ndarray, A: np.ndarray, B: np.ndarray) -> np.floating:
-    """
-    Calculates the minimum distance from a point P to a finite line segment AB
-    using NumPy for vectorized operations.
-
-    The line segment is defined by its two endpoints, A and B.
-    All points are assumed to be NumPy arrays (N-dimensional).
-
-    Args:
-        P: The external point (np.ndarray).
-        A: The first endpoint of the segment (np.ndarray).
-        B: The second endpoint of the segment (np.ndarray).
-
-    Returns:
-        The minimum distance from P to the segment AB.
-    """
-
-    def distance_point_to_point(p1: np.ndarray, p2: np.ndarray) -> np.floating:
-        """Calculates the Euclidean distance between two N-dimensional points (NumPy arrays)."""
-        # Uses the L2 norm (Euclidean distance) of the difference vector.
-        return np.linalg.norm(p1 - p2)
-
-    # Vector from A to B (the segment direction)
-    AB = B - A
-    # Vector from A to P (vector we are projecting)
-    AP = P - A
-
-    # 1. Calculate squared length of the segment AB (L^2 = |AB|^2)
-    L2 = np.dot(AB, AB)
-
-    # Handle the case where A and B are the same point (segment is a single point)
-    if L2 == 0.0:
-        return distance_point_to_point(P, A)
-
-    # 2. Calculate the parameter 't' of the projection C onto the infinite line AB.
-    # t = (AP . AB) / |AB|^2
-    t = np.dot(AP, AB) / L2
-
-    # 3. Determine the closest point C on the line segment AB.
-    # We use np.clip to clamp 't' between 0 and 1.
-    # If t < 0, t_clamped = 0 (closest point is A).
-    # If t > 1, t_clamped = 1 (closest point is B).
-    # If 0 <= t <= 1, t_clamped = t (closest point is on the interior).
-    t_clamped = np.clip(t, 0.0, 1.0)
-
-    # Calculate the closest point C on the segment
-    # C = A + t_clamped * AB
-    C = A + t_clamped * AB
-
-    # 4. Calculate the distance between P and the closest point C
-    return distance_point_to_point(P, C)
-
-
-def dataclass_from_dict(cls: type, parameters: dict[str, float]):
-    field_names = {f.name for f in fields(cls)}
-    return cls(**{k: v for k, v in parameters.items() if k in field_names})
-
-
-def unit_value(u: Unit, d: np.ndarray) -> float:
-    return pow(u.health + u.shield, d[u.position.rounded]) * max(u.ground_dps, u.air_dps)
-
-
-def can_attack(unit: Unit, target: Unit) -> bool:
-    if target.is_cloaked and not target.is_revealed:
-        return False
-    # elif target.is_burrowed and not any(self.units_detecting(target)):
-    #     return False
-    elif target.is_flying:
-        return unit.can_attack_air
-    else:
-        return unit.can_attack_ground
 
 
 def pairwise_distances(a, b=None):
@@ -218,24 +103,24 @@ def center(points: Iterable[Point]) -> Point2:
     return Point2((x_sum, y_sum))
 
 
-def line(x0: int, y0: int, x1: int, y1: int) -> list[tuple[int, int]]:
+def line(x0: int, y0: int, x1: int, y1: int) -> list[Point]:
     lx, ly = skimage.draw.line(x0, y0, x1, y1)
     return [(int(x), int(y)) for x, y in zip(lx, ly, strict=False)]
 
 
-def circle_perimeter(x0: int, y0: int, r: int, shape: tuple) -> list[tuple[int, int]]:
+def circle_perimeter(x0: int, y0: int, r: int, shape: tuple) -> list[Point]:
     assert len(shape) == 2
     tx, ty = skimage.draw.circle_perimeter(x0, y0, r, shape=shape)
     return [(int(x), int(y)) for x, y in zip(tx, ty, strict=False)]
 
 
-def circle(x0: int, y0: int, r: int, shape: tuple) -> list[tuple[int, int]]:
+def circle(x0: int, y0: int, r: int, shape: Point) -> list[Point]:
     assert len(shape) == 2
     tx, ty = skimage.draw.ellipse(x0, y0, r, r, shape=shape)
     return [(int(x), int(y)) for x, y in zip(tx, ty, strict=False)]
 
 
-def rectangle(start: tuple[int, int], extent: tuple[int, int], shape: tuple) -> tuple[np.ndarray, np.ndarray]:
+def rectangle(start: Point, extent: Point, shape: Point) -> tuple[np.ndarray, np.ndarray]:
     assert len(shape) == 2
     rx, ry = skimage.draw.rectangle(start, extent=extent, shape=shape)
     return rx.astype(int).flatten(), ry.astype(int).flatten()
@@ -244,7 +129,7 @@ def rectangle(start: tuple[int, int], extent: tuple[int, int], shape: tuple) -> 
 def sample_bilinear(a, coords):
     coords = np.asarray(coords, dtype=float)
     if coords.ndim == 1:
-        coords = coords[np.newaxis, :]
+        coords = coords[None, :]
     coords0 = coords.astype(int)
     coords0 = np.clip(coords0, 0, np.asarray(a.shape) - 2)
     coords1 = coords0 + 1
@@ -265,7 +150,11 @@ def sample_bilinear(a, coords):
     return values
 
 
-def get_requirements(item: UnitTypeId | UpgradeId) -> Iterable[UnitTypeId | UpgradeId]:
+def get_requirements(item: MacroId, visited: set[MacroId] | None = None) -> Iterable[MacroId]:
+    visited = visited or set[MacroId]()
+    if item in visited:
+        return
+    visited.add(item)
     if isinstance(item, UnitTypeId):
         trainers = UNIT_TRAINED_FROM[item]
         trainer = sorted(trainers, key=lambda v: v.value)[0]
@@ -278,24 +167,11 @@ def get_requirements(item: UnitTypeId | UpgradeId) -> Iterable[UnitTypeId | Upgr
     else:
         raise TypeError()
 
-    requirements = {info.get("required_building"), info.get("required_upgrade")}
-    requirements.discard(None)
+    requirements = {info.get("required_building"), info.get("required_upgrade")} - {None}
 
     for requirement1 in requirements:
         yield requirement1
-        yield from get_requirements(requirement1)
-
-
-FLOOD_FILL_OFFSETS = {
-    Point2((-1, 0)),
-    Point2((0, -1)),
-    Point2((0, +1)),
-    Point2((+1, 0)),
-    # Point2((-1, -1)),
-    # Point2((-1, +1)),
-    # Point2((+1, -1)),
-    # Point2((+1, +1)),
-}
+        yield from get_requirements(requirement1, visited)
 
 
 @cache
@@ -307,43 +183,68 @@ def disk(radius: float) -> tuple[np.ndarray, np.ndarray]:
     return dx - r, dy - r
 
 
-def combine_comparers[T](fns: list[Callable[[T, T], int]]) -> Callable[[T, T], int]:
-    def combined(a, b):
-        for f in fns:
-            r = f(a, b)
-            if r != 0:
-                return r
-        return 0
-
-    return combined
-
-
-def points_of_structure(s: Unit) -> list[Point]:
-    dx, dy = disk(s.radius)
-    px, py = s.position.rounded
-    dx += px
-    dy += py
-    return list(zip(dx, dy, strict=False))
-
-
-def logit_to_probability(x: float):
-    return 1 / (1 + math.exp(-x))
-
-
-type MacroId = UnitTypeId | UpgradeId
-
-
-def calculate_dps(u: Unit, v: Unit) -> float:
-    if dps := DPS_OVERRIDE.get(u.type_id):
-        return dps
-    if not can_attack(u, v):
-        return 0.0
-    return u.air_dps if v.is_flying else u.ground_dps
-
-
-DPS_OVERRIDE = {
-    UnitTypeId.BUNKER: 40,
-    UnitTypeId.PLANETARYFORTRESS: 5,
-    UnitTypeId.BANELING: 20,
+# Bunker values assume 4 marines inside
+GROUND_DPS_OVERRIDE = {
+    UnitTypeId.BANELING: 16.0,
+    UnitTypeId.BATTLECRUISER: 49.8 / 1.4,
+    UnitTypeId.BUNKER: 4 * 7.0,
+    UnitTypeId.ORACLE: 24.4 / 1.4,
+    UnitTypeId.SENTRY: 8.4 / 1.4,
+    UnitTypeId.VOIDRAY: 12.0,
 }
+
+GROUND_RANGE_OVERRIDE = {
+    UnitTypeId.BANELING: 2.2,
+    UnitTypeId.BATTLECRUISER: 6.0,
+    UnitTypeId.BUNKER: 5.0,
+    UnitTypeId.ORACLE: 4.0,
+    UnitTypeId.SENTRY: 5.0,
+    UnitTypeId.VOIDRAY: 12.0,
+}
+
+AIR_DPS_OVERRIDE = {
+    UnitTypeId.BATTLECRUISER: 31.1 / 1.4,
+    UnitTypeId.BUNKER: 4 * 7.0,
+    UnitTypeId.SENTRY: 8.4 / 1.4,
+    UnitTypeId.VOIDRAY: 6.0,
+}
+
+AIR_RANGE_OVERRIDE = {
+    UnitTypeId.BATTLECRUISER: 6.0,
+    UnitTypeId.BUNKER: 5.0,
+    UnitTypeId.SENTRY: 5.0,
+    UnitTypeId.VOIDRAY: 6.0,
+}
+
+
+def ground_dps_of(unit: Unit) -> float:
+    return GROUND_DPS_OVERRIDE.get(unit.type_id, unit.ground_dps)
+
+
+def air_dps_of(unit: Unit) -> float:
+    return AIR_DPS_OVERRIDE.get(unit.type_id, unit.air_dps)
+
+
+def ground_range_of(unit: Unit) -> float:
+    return GROUND_RANGE_OVERRIDE.get(unit.type_id, unit.ground_range)
+
+
+def air_range_of(unit: Unit) -> float:
+    return AIR_RANGE_OVERRIDE.get(unit.type_id, unit.air_range)
+
+
+def range_vs(unit: Unit, vs: Unit) -> float:
+    if vs.is_flying:
+        return air_range_of(unit)
+    else:
+        return ground_range_of(unit)
+
+
+def dps_vs(unit: Unit, vs: Unit) -> float:
+    if vs.is_flying:
+        return air_dps_of(unit)
+    else:
+        return ground_dps_of(unit)
+
+
 ALL_TRAINABLE = set(ALL_STRUCTURES | UNIT_TRAINED_FROM.keys() | UNIT_TECH_ALIAS.keys() | UNIT_UNIT_ALIAS.keys())

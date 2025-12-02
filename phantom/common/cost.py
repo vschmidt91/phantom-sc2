@@ -72,7 +72,7 @@ class Cost:
 
 
 class CostContext(Protocol):
-    def calculate_cost(self, item: UnitTypeId) -> SC2Cost:
+    def calculate_cost(self, item: MacroId) -> SC2Cost:
         raise NotImplementedError()
 
     def calculate_supply_cost(self, item: UnitTypeId) -> float:
@@ -90,16 +90,17 @@ class CostManager:
         return Cost(0, 0, 0, 0)
 
     def of(self, item: MacroId) -> Cost:
-        if cached := self._cache.get(item):
+        key = item, type(item)
+        if cached := self._cache.get(key):
             return cached
         try:
             cost = self.context.calculate_cost(item)
-            supply = self.context.calculate_supply_cost(item)
-        except Exception:
+            supply = self.context.calculate_supply_cost(item) if isinstance(item, UnitTypeId) else 0.0
+        except AttributeError:
             return self.zero
         larva = LARVA_COST.get(item, 0.0)
         cost = Cost(float(cost.minerals), float(cost.vespene), supply, larva)
-        self._cache[item] = cost
+        self._cache[key] = cost
         return cost
 
     def of_composition(self, composition: UnitComposition) -> Cost:

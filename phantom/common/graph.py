@@ -8,7 +8,6 @@ from scipy.linalg import null_space
 def graph_components_naive(adjacency_matrix: np.ndarray) -> Set[Sequence[int]]:
     assert adjacency_matrix.ndim == 2
     assert adjacency_matrix.shape[0] == adjacency_matrix.shape[1]
-    adjacency_matrix.shape[0]
 
     degrees = np.sum(adjacency_matrix, axis=0)
     laplacian = np.diag(degrees) - adjacency_matrix
