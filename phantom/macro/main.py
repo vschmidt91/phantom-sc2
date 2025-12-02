@@ -195,7 +195,9 @@ class Macro:
                         logger.error("Trainer not found")
                         continue
                     if unit.type_id in {UnitTypeId.EGG, UnitTypeId.LARVA}:
-                        unit = next((u for u in morphers if (p := self._assigned_plans.get(u.tag)) and p.item == item), None)
+                        unit = next(
+                            (u for u in morphers if (p := self._assigned_plans.get(u.tag)) and p.item == item), None
+                        )
                     if not unit:
                         self.bot.add_replay_tag("trainer_not_found")
                         logger.error("Trainer not found")

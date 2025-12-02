@@ -1,13 +1,12 @@
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
-import numpy as np
 from cython_extensions import cy_distance_to
 from sc2.ids.ability_id import AbilityId
 from sc2.unit import Unit
 from sklearn.metrics import pairwise_distances
 
-from phantom.common.action import Action, Move, UseAbility
+from phantom.common.action import Action, HoldPosition, Move, UseAbility
 from phantom.common.constants import ENERGY_GENERATION_RATE
 from phantom.common.distribute import distribute
 from phantom.micro.creep import CreepSpread
@@ -28,23 +27,25 @@ class Queens:
     ) -> Mapping[Unit, Action]:
         inject_assignment = (
             distribute(
-                queens,
                 inject_targets,
+                queens,
                 pairwise_distances(
-                    np.atleast_2d([a.position for a in queens]),
-                    np.atleast_2d([b.position for b in inject_targets]),
+                    [b.position for b in inject_targets],
+                    [a.position for a in queens],
                 ),
+                max_assigned=1,
             )
             if queens and inject_targets
             else {}
         )
+        inject_assignment_inverse = {q: h for h, q in inject_assignment.items()}
         actions = {
             queen: action
             for queen in queens
             if (
                 action := self._get_action(
                     queen=queen,
-                    inject_target=inject_assignment.get(queen),
+                    inject_target=inject_assignment_inverse.get(queen),
                     creep=creep,
                     combat=combat,
                 )
@@ -65,6 +66,8 @@ class Queens:
             return action
         elif not self.bot.has_creep(queen):
             return combat.retreat_to_creep(queen)
+        elif self.bot.is_on_edge_of_creep(queen):
+            return HoldPosition()
         else:
             return combat.fight_with(queen)
 

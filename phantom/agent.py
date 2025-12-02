@@ -326,7 +326,7 @@ class Agent:
         for overlord in self.bot.units(UnitTypeId.OVERLORD):
             if self.bot.actual_iteration == 1:
                 actions[overlord] = self._send_overlord_scout(overlord)
-            if action := keep_unit_safe(overlord):
+            elif action := keep_unit_safe(overlord):
                 actions[overlord] = action
 
         for tumor in self.creep_tumors.active_tumors:

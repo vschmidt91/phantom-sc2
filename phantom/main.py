@@ -327,6 +327,23 @@ class PhantomBot(AresBot):
     def blocked_positions(self) -> Set[Point2]:
         return set(self.agent.blocked_positions.blocked_positions)
 
+    def is_on_edge_of_creep(self, p: Point | Point2 | Unit) -> bool:
+        if isinstance(p, tuple):
+            q = p
+        elif isinstance(p, Point2):
+            q = to_point(p)
+        elif isinstance(p, Unit):
+            q = to_point(p.position)
+        else:
+            raise TypeError(p)
+        x, y = q
+        xs = [x, x, x, x - 1, x + 1]
+        ys = [y, y - 1, y + 1, y, y]
+        creep_values = self.mediator.get_creep_grid[ys, xs]
+        pathing_values = self.mediator.get_cached_ground_grid[xs, ys]
+        check_values = {int(c) for c, p in zip(creep_values, pathing_values, strict=True) if p < np.inf}
+        return check_values.issuperset({0, 1})
+
     def _write_profile(self, path: str) -> None:
         logger.info(f"Writing profiling to {path}")
 
