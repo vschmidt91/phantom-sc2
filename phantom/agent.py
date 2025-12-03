@@ -81,14 +81,23 @@ def score_to_fitness(score: ScoreDetails, vespene_weight: float = 2.0) -> float:
 
 
 @dataclass
+class AgentParameters:
+    def __init__(self, sampler: ParameterSampler) -> None:
+        self.gas_ratio_learning_rate_log = sampler.add(Prior(-7, 1, max=0))
+
+    @property
+    def gas_ratio_learning_rate(self) -> float:
+        return np.exp(self.gas_ratio_learning_rate_log.value)
+
+
 class Agent:
     def __init__(self, bot: "PhantomBot", config: BotConfig) -> None:
         self.bot = bot
         self.config = config
-        self.parameters = ParameterSampler()
+        self.sampler = ParameterSampler()
         self.build_order = BUILD_ORDERS[self.config.build_order]
-        self.combat = CombatState(bot, CombatParameters(self.parameters))
-        self.builder = Builder(bot, BuilderParameters(self.parameters))
+        self.combat = CombatState(bot, CombatParameters(self.sampler))
+        self.builder = Builder(bot, BuilderParameters(self.sampler))
         self.creep_tumors = CreepTumors(bot)
         self.creep_spread = CreepSpread(bot)
         self.corrosive_biles = CorrosiveBile(bot)
@@ -96,16 +105,13 @@ class Agent:
         self.overseers = Overseers(bot)
         self.blocked_positions = BlockedPositionTracker(bot)
         self.queens = Queens(bot)
-        self.strategy_paramaters = StrategyParameters(self.parameters)
+        self.strategy_paramaters = StrategyParameters(self.sampler)
         self.harvesters = MiningState(bot)
         self.build_order_completed = False
         self.gas_ratio = 0.0
-        self.gas_ratio_learning_rate_log = self.parameters.add(Prior(-7, 1, max=0))
+        self.parameters = AgentParameters(self.sampler)
         self._load_parameters()
-
-    @property
-    def gas_ratio_learning_rate(self) -> float:
-        return np.exp(self.gas_ratio_learning_rate_log.value)
+        self._log_parameters()
 
     def on_step(self) -> Mapping[Unit, Action]:
         if self.config.debug_draw:
@@ -189,7 +195,7 @@ class Agent:
             mineral_trips = max(0.0, required.minerals / 5)
             vespene_trips = max(0.0, required.vespene / 4)
             gas_ratio = vespene_trips / (mineral_trips + vespene_trips)
-        self.gas_ratio += self.gas_ratio_learning_rate * np.sign(gas_ratio - self.gas_ratio)
+        self.gas_ratio += self.parameters.gas_ratio_learning_rate * np.sign(gas_ratio - self.gas_ratio)
         self.gas_ratio = max(0, min(1, self.gas_ratio))
 
         harvesters = list[Unit]()
@@ -290,9 +296,9 @@ class Agent:
         if self.config.training:
             fitness = score_to_fitness(self.bot.state.score)
             logger.info(f"Training parameters with {fitness=}")
-            self.parameters.tell(fitness)
+            self.sampler.tell(fitness)
             with lzma.open(self.config.params_path, "wb") as f:
-                pickle.dump(self.parameters, f)
+                pickle.dump(self.sampler, f)
 
     def _micro_queens(self, queens: Sequence[Unit], combat: CombatStep) -> Mapping[Unit, Action]:
         should_inject = self.bot.supply_used + self.bot.bank.larva < 200
@@ -346,18 +352,17 @@ class Agent:
         try:
             with lzma.open(self.config.params_path, "rb") as f:
                 parameters: ParameterSampler = pickle.load(f)
-                self.parameters.strategy = parameters.strategy
-                self.parameters.population = parameters.population
-                self.parameters.loss_values = parameters.loss_values
+                self.sampler.strategy = parameters.strategy
+                self.sampler.population = parameters.population
+                self.sampler.loss_values = parameters.loss_values
         except Exception as error:
             logger.warning(f"{error=} while loading {self.config.params_path}")
 
         if self.config.training:
             logger.info("Sampling bot parameters")
-            self.parameters.ask()
+            self.sampler.ask()
         else:
-            self.parameters.ask_best()
-        logger.info(f"{self.parameters.parameters=}")
+            self.sampler.ask_best()
 
     def _build_gas(self, gas_harvester_target: int) -> Iterable[MacroPlan]:
         gas_type = GAS_BY_RACE[self.bot.race]
@@ -405,3 +410,9 @@ class Agent:
         elif self.bot.mediator.get_ground_grid[to_point(unit.position)] > 1:
             return combat.retreat_with(unit)
         return HoldPosition()
+
+    def _log_parameters(self) -> None:
+        logger.info(f"{self.parameters.__dict__=}")
+        logger.info(f"{self.combat.parameters.__dict__=}")
+        logger.info(f"{self.builder.parameters.__dict__=}")
+        logger.info(f"{self.strategy_paramaters.__dict__=}")

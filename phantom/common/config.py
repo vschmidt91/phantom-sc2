@@ -8,7 +8,7 @@ class BotConfig:
     race = "Zerg"
     name = "PhantomBot"
     skip_first_iteration = False
-    training = False
+    training = True
     debug_draw = False
     profile_interval = 100
     profile_path: str | None = None

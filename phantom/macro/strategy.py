@@ -33,16 +33,16 @@ class StrategyTier(enum.IntEnum):
 
 
 class StrategyParameters:
-    def __init__(self, parameters: ParameterSampler) -> None:
-        self.counter_factor = parameters.add(Prior(2.0, 0.1, min=0))
-        self.ravager_mixin = parameters.add(Prior(13, 1, min=0))
-        self.corruptor_mixin = parameters.add(Prior(5, 1, min=0))
-        self.tier1_drone_count = parameters.add(Prior(32, 1, min=0))
-        self.tier2_drone_count = parameters.add(Prior(66, 1, min=0))
-        self.tier3_drone_count = parameters.add(Prior(80, 1, min=0))
-        self.hydras_when_banking = parameters.add(Prior(5, 1, min=0))
-        self.lings_when_banking = parameters.add(Prior(10, 1, min=0))
-        self.queens_when_banking = parameters.add(Prior(3, 1, min=0))
+    def __init__(self, sampler: ParameterSampler) -> None:
+        self.counter_factor = sampler.add(Prior(2.0, 0.1, min=0))
+        self.ravager_mixin = sampler.add(Prior(13, 1, min=0))
+        self.corruptor_mixin = sampler.add(Prior(5, 1, min=0))
+        self.tier1_drone_count = sampler.add(Prior(32, 1, min=0))
+        self.tier2_drone_count = sampler.add(Prior(66, 1, min=0))
+        self.tier3_drone_count = sampler.add(Prior(80, 1, min=0))
+        self.hydras_when_banking = sampler.add(Prior(5, 1, min=0))
+        self.lings_when_banking = sampler.add(Prior(10, 1, min=0))
+        self.queens_when_banking = sampler.add(Prior(3, 1, min=0))
 
 
 class Strategy:
