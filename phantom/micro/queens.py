@@ -67,8 +67,6 @@ class Queens:
             return action
         elif not self.bot.has_creep(queen):
             return combat.retreat_to_creep(queen)
-        elif self.bot.is_on_edge_of_creep(queen):
-            return HoldPosition()
         else:
             return combat.fight_with(queen)
 
