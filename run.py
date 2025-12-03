@@ -29,7 +29,7 @@ from sc2.protocol import ConnectionAlreadyClosed
 from sc2.sc2process import SC2Process
 
 from phantom.common.config import BotConfig
-from phantom.dummy import BaseBlock, CannonRush, DummyBot, BunkerTestBot
+from phantom.dummy import BaseBlock, CannonRush, DummyBot, BunkerTestBot, WeaponTestBot
 from phantom.main import PhantomBot
 from scripts.utils import CommandWithConfigFile
 
@@ -39,6 +39,7 @@ SPECIAL_BUILDS = {
     "BaseBlock": BaseBlock,
     "CannonRush": CannonRush,
     "BunkerTestBot": BunkerTestBot,
+    "WeaponTestBot": WeaponTestBot
 }
 
 

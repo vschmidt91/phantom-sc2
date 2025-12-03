@@ -3,6 +3,7 @@ from random import random, choice, shuffle
 
 from ares import AresBot
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.main import BotAI
 from sc2.position import Point2
@@ -116,3 +117,31 @@ class BunkerTestBot(AresBot):
                 key_pretty = ", ".join([f"{count} {type_id.name}" for type_id, count in key])
                 print(key_pretty, " => ", set(buffs))
             await self.client.leave()
+
+
+class WeaponTestBot(AresBot):
+    async def on_start(self):
+        await super().on_start()
+        self.check_types = [UnitTypeId.BATTLECRUISER, UnitTypeId.ORACLE, UnitTypeId.VOIDRAY, UnitTypeId.SENTRY]
+        await self.client.debug_create_unit([[t, 1, self.start_location, 2] for t in self.check_types])
+
+    async def on_step(self, iteration):
+        await super().on_step(iteration)
+        if units := self.units(self.check_types):
+            # for unit in units:
+            #     print(unit.type_id, unit._weapons)
+            #     print()
+            for unit in units:
+                if unit.type_id == UnitTypeId.ORACLE and AbilityId.BEHAVIOR_PULSARBEAMON in unit.abilities:
+                    unit(AbilityId.BEHAVIOR_PULSARBEAMON)
+                elif BuffId.ORACLEWEAPON in unit.buffs:
+                    print("oracle buff working")
+                elif 99 in unit._proto.buff_ids:
+                    print("oracle buff working with proto")
+                if unit.type_id == UnitTypeId.VOIDRAY and AbilityId.EFFECT_VOIDRAYPRISMATICALIGNMENT in unit.abilities:
+                    unit(AbilityId.EFFECT_VOIDRAYPRISMATICALIGNMENT)
+                elif BuffId.VOIDRAYSWARMDAMAGEBOOST in unit.buffs:
+                    print("voidray buff working")
+                elif 122 in unit._proto.buff_ids:
+                    print("voidray buff working with proto")
+            # await self.client.leave()
