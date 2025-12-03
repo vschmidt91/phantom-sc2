@@ -8,7 +8,6 @@ from sc2.unit import Unit
 
 from phantom.common.action import Action, Move, UseAbility
 from phantom.common.constants import CHANGELINGS
-from phantom.common.cooldown_tracker import CooldownTracker
 from phantom.common.utils import air_dps_of, ground_dps_of
 
 if TYPE_CHECKING:
@@ -29,14 +28,10 @@ class CorrosiveBile:
         self.bot = bot
         self.ability = AbilityId.EFFECT_CORROSIVEBILE
         self.ability_range = bot.game_data.abilities[self.ability.value]._proto.cast_range
-        self.cooldown_tracker = CooldownTracker(bot, self.ability, 160)
         self.bonus_distance = 2.0
 
-    def on_step(self):
-        self.cooldown_tracker.on_step()
-
     def bile_with(self, unit: Unit) -> Action | None:
-        if self.cooldown_tracker.get_cooldown(unit):
+        if self.ability not in unit.abilities:
             return None
         if self.bot.mediator.is_position_safe(grid=self.bot.ground_grid, position=unit.position):
             bonus_distance = self.bonus_distance

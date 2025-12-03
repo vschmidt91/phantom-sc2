@@ -170,7 +170,6 @@ class Agent:
             )
 
         combat = self.combat.on_step()
-        self.corrosive_biles.on_step()
         self.creep_tumors.on_step()
         self.creep_spread.on_step()
         self.dodge.on_step()
