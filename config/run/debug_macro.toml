@@ -1,4 +1,4 @@
-map_pattern = "TorchesAIE_v4"
+map_pattern = "LeyLinesAIE_v3"
 enemy_race = "Zerg"
 enemy_build = "Rush"
 save_replay = "resources\\replays\\local"

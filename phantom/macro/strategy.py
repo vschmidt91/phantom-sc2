@@ -78,7 +78,9 @@ class Strategy:
                 include_addon=False,
             ):
                 continue
-            yield MacroPlan(UnitTypeId.SPINECRAWLER, target=Point2(expansion.spine_position))
+            yield MacroPlan(
+                UnitTypeId.SPINECRAWLER, target=Point2(expansion.spine_position), priority=0.0, allow_replacement=False
+            )
 
     def make_spores(self) -> Iterable[MacroPlan]:
         if self.bot.actual_iteration % 31 != 0:
@@ -101,7 +103,9 @@ class Strategy:
                 include_addon=False,
             ):
                 continue
-            yield MacroPlan(UnitTypeId.SPORECRAWLER, target=Point2(expansion.spore_position))
+            yield MacroPlan(
+                UnitTypeId.SPORECRAWLER, target=Point2(expansion.spore_position), priority=0.0, allow_replacement=False
+            )
 
     def morph_overlord(self) -> Iterable[MacroPlan]:
         supply_planned = sum(

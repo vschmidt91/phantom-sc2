@@ -45,6 +45,7 @@ class MacroPlan:
     item: MacroId
     target: Unit | Point2 | None = None
     priority: float = 0.0
+    allow_replacement: bool = True
 
 
 def _premove(unit: Unit, plan: MacroPlan, eta: float) -> Action | None:
@@ -257,7 +258,12 @@ class Builder:
                 )
                 or to_point(plan.target) in self.bot.blocked_positions
             ):
-                plan.target = None
+                if plan.allow_replacement:
+                    plan.target = None
+                else:
+                    logger.info(f"cannot place {plan} and not allowed to replace, cancelling.")
+                    del self._assigned_plans[tag]
+                    continue
 
             if not plan.target:
                 try:
@@ -364,23 +370,23 @@ class Builder:
 
         raise PlacementNotFoundException()
 
-    def _get_structure_target(self, structure_type: UnitTypeId) -> Point2:
-        data = self.bot.game_data.units[structure_type.value]
+    def _get_structure_target(self, structure_type: UnitTypeId, num_attempts: int = 100) -> Point2:
+        if not any(self.bot.bases_taken):
+            raise PlacementNotFoundException()
 
-        def filter_base(b):
-            if isinstance(th := self.bot.structure_dict.get(b), Unit):
-                return th.type_id in TOWNHALL_TYPES and th.is_ready
-            return False
-
-        if potential_bases := list(filter(filter_base, self.bot.expansions)):
-            base = random.choice(potential_bases)
+        bases = list(self.bot.bases_taken.items())
+        for _ in range(num_attempts):
+            base, expansion = random.choice(bases)
             distance = rng.uniform(8, 12)
-            mineral_line = Point2(self.bot.expansions[base].mineral_center)
-            behind_mineral_line = Point2(base).towards(mineral_line, distance)
-            position = Point2(base).towards_with_random_angle(behind_mineral_line, distance)
-            offset = data.footprint_radius % 1
-            position = position.rounded.offset((offset, offset))
-            return position
+            mineral_line = Point2(expansion.mineral_center)
+            position = expansion.townhall_position.towards_with_random_angle(mineral_line, distance)
+            position = position.rounded.offset((0.5, 0.5))
+            if self.bot.mediator.can_place_structure(
+                position=position,
+                structure_type=structure_type,
+                include_addon=False,
+            ):
+                return position
 
         raise PlacementNotFoundException()
 
