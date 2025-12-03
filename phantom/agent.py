@@ -42,6 +42,7 @@ from phantom.micro.creep import CreepSpread, CreepTumors
 from phantom.micro.dodge import Dodge
 from phantom.micro.overseers import Overseers
 from phantom.micro.queens import Queens
+from phantom.micro.simulator import CombatSimulator, CombatSimulatorParameters
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -96,7 +97,8 @@ class Agent:
         self.config = config
         self.sampler = ParameterSampler()
         self.build_order = BUILD_ORDERS[self.config.build_order]
-        self.combat = CombatState(bot, CombatParameters(self.sampler))
+        self.simulator = CombatSimulator(bot, CombatSimulatorParameters(self.sampler))
+        self.combat = CombatState(bot, CombatParameters(self.sampler), self.simulator)
         self.builder = Builder(bot, BuilderParameters(self.sampler))
         self.creep_tumors = CreepTumors(bot)
         self.creep_spread = CreepSpread(bot)
@@ -412,6 +414,7 @@ class Agent:
 
     def _log_parameters(self) -> None:
         logger.info(f"{self.parameters.__dict__=}")
+        logger.info(f"{self.simulator.parameters.__dict__=}")
         logger.info(f"{self.combat.parameters.__dict__=}")
         logger.info(f"{self.builder.parameters.__dict__=}")
         logger.info(f"{self.strategy_paramaters.__dict__=}")

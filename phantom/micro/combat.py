@@ -26,7 +26,7 @@ from phantom.common.utils import (
     structure_perimeter,
     to_point,
 )
-from phantom.micro.simulator import CombatResult, CombatSetup, StepwiseCombatSimulator
+from phantom.micro.simulator import CombatResult, CombatSetup, CombatSimulator
 from phantom.micro.utils import assign_targets, get_shootable_targets, medoid
 
 if TYPE_CHECKING:
@@ -157,12 +157,12 @@ class CombatStepContext:
 
 
 class CombatState:
-    def __init__(self, bot: "PhantomBot", parameters: CombatParameters) -> None:
+    def __init__(self, bot: "PhantomBot", parameters: CombatParameters, simulator: CombatSimulator) -> None:
         self.bot = bot
         self.parameters = parameters
         self._attacking_global = True
         self._attacking_local = set[int]()
-        self.simulator = StepwiseCombatSimulator(bot)
+        self.simulator = simulator
 
     def on_step(self) -> "CombatStep":
         context = CombatStepContext.build(self)

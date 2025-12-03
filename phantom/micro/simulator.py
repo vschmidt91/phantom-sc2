@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -8,6 +7,7 @@ from sc2.unit import Unit
 from sc2_helper.combat_simulator import CombatSimulator as SC2CombatSimulator
 from sklearn.metrics import pairwise_distances
 
+from phantom.common.parameter_sampler import ParameterSampler, Prior
 from phantom.common.utils import (
     air_dps_of,
     air_range_of,
@@ -31,19 +31,26 @@ class CombatResult:
     outcome_local: Mapping[int, float]
 
 
-class CombatSimulator(ABC):
-    @abstractmethod
-    def simulate(self, combat_setup: CombatSetup) -> CombatResult:
-        raise NotImplementedError()
+class CombatSimulatorParameters:
+    def __init__(self, sampler: ParameterSampler) -> None:
+        self.time_distribution_lambda_log = sampler.add(Prior(0.0, 1.0))
+        self.distance_constant_log = sampler.add(Prior(0.0, 1.0))
+
+    @property
+    def time_distribution_lambda(self) -> float:
+        return np.exp(self.time_distribution_lambda_log.value)
+
+    @property
+    def distance_constant(self) -> float:
+        return np.exp(self.distance_constant_log.value)
 
 
-class StepwiseCombatSimulator(CombatSimulator):
-    def __init__(self, bot: "PhantomBot") -> None:
+class CombatSimulator:
+    def __init__(self, bot: "PhantomBot", parameters: CombatSimulatorParameters) -> None:
         self.bot = bot
+        self.parameters = parameters
         self.num_steps = 100
-        self.future_discount_lambda = 1.0
         self.vespene_weight = 2.0
-        self.distance_constant = 1.0
         self.combat_sim = SC2CombatSimulator()
         self.combat_sim.enable_timing_adjustment(True)
 
@@ -102,7 +109,7 @@ class StepwiseCombatSimulator(CombatSimulator):
         health_projection = health.copy()
 
         p = np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
-        times = -np.log(1.0 - p) / self.future_discount_lambda
+        times = -np.log(1.0 - p) / self.parameters.time_distribution_lambda
         weights = 1 - p
         times_diff = np.diff(times)
 
@@ -125,7 +132,7 @@ class StepwiseCombatSimulator(CombatSimulator):
             damage_accumulation += w * damage_received
             health_projection -= damage_received
 
-        mixing_enemy = np.reciprocal(self.distance_constant + distance)
+        mixing_enemy = np.reciprocal(self.parameters.distance_constant + distance)
         mixing_own = mixing_enemy.copy()
 
         mixing_own[:n1, n1:] = 0.0
