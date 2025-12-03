@@ -41,22 +41,10 @@ class CombatPrediction:
 
 class CombatParameters:
     def __init__(self, sampler: ParameterSampler) -> None:
-        self.engagement_level_param = sampler.add(Prior(0, 0.1))
-        self.engagement_hysteresis_param = sampler.add(Prior(-4, 0.5, max=0))
+        self.engagement_threshold = 0.0
+        self.disengagement_threshold = 0.0
         self.global_engagement_level_param = sampler.add(Prior(0, 0.1))
         self.global_engagement_hysteresis_param = sampler.add(Prior(-1.5, 0.1, max=0))
-
-    @property
-    def engagement_hysteresis(self) -> float:
-        return np.exp(self.engagement_hysteresis_param.value)
-
-    @property
-    def engagement_threshold(self) -> float:
-        return np.tanh(self.engagement_level_param.value + self.engagement_hysteresis)
-
-    @property
-    def disengagement_threshold(self):
-        return np.tanh(self.engagement_level_param.value - self.engagement_hysteresis)
 
     @property
     def global_engagement_hysteresis(self) -> float:
