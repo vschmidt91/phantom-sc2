@@ -88,13 +88,6 @@ class PhantomBot(AresBot):
         self._initialize_map()
         self.agent = Agent(self, self.bot_config)
 
-        await self.client.debug_create_unit(
-            [
-                [UnitTypeId.RAVAGER, 3, self.game_info.map_center, 1],
-                [UnitTypeId.RAVAGER, 3, self.game_info.map_center, 2],
-            ]
-        )
-
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
         if self.actual_iteration == 1 and self.bot_config.skip_first_iteration:
