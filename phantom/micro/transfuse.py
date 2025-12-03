@@ -30,9 +30,9 @@ class Transfuse:
         if unit.energy < self.ability_energy_cost:
             return None
 
-        if self.bot.mediator.is_position_safe(
-            grid=self.bot.mediator.get_ground_grid, position=unit.position
-        ) and self.bot.has_creep(unit):
+        if self.bot.mediator.is_position_safe(grid=self.bot.ground_grid, position=unit.position) and self.bot.has_creep(
+            unit
+        ):
             bonus_distance = self.bonus_distance
         else:
             bonus_distance = 0.0

@@ -144,7 +144,7 @@ class Agent:
         macro_plans = list[MacroPlan]()
         if not self.build_order_completed:
             if not self.bot.mediator.is_position_safe(
-                grid=self.bot.mediator.get_ground_grid,
+                grid=self.bot.ground_grid,
                 position=self.bot.mediator.get_own_nat,
                 weight_safety_limit=10.0,
             ):
@@ -182,7 +182,7 @@ class Agent:
                 to_point(self.bot.gather_targets[p]),
                 to_point(self.bot.return_targets[p]),
             ]
-            return all(self.bot.mediator.get_ground_grid[p] < 6.0 for p in check_points)
+            return all(self.bot.ground_grid[p] < 6.0 for p in check_points)
 
         required = Cost()
         required += self.builder.get_planned_cost()
@@ -326,7 +326,7 @@ class Agent:
         rush_path = self.bot.mediator.find_raw_path(
             start=self.bot.start_location,
             target=self.bot.enemy_start_locations[0],
-            grid=self.bot.mediator.get_cached_ground_grid,
+            grid=self.bot.clean_ground_grid,
             sensitivity=sensitivity,
         )
         for p in rush_path:
@@ -387,7 +387,7 @@ class Agent:
         target = self.bot.random_point(near=unit.position)
         if self.bot.is_visible(target):
             return None
-        if self.bot.mediator.get_cached_ground_grid[to_point(target)] == np.inf and not unit.is_flying:
+        if self.bot.clean_ground_grid[to_point(target)] == np.inf and not unit.is_flying:
             return None
         return Move(target)
 
@@ -407,7 +407,7 @@ class Agent:
             return UseAbility(AbilityId.BURROWUP)
         elif UpgradeId.TUNNELINGCLAWS not in self.bot.state.upgrades:
             return None
-        elif self.bot.mediator.get_ground_grid[to_point(unit.position)] > 1:
+        elif self.bot.ground_grid[to_point(unit.position)] > 1:
             return combat.retreat_with(unit)
         return HoldPosition()
 

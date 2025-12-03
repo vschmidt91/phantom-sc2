@@ -356,7 +356,7 @@ class Builder:
                 return False
             if b in self.bot.structure_dict:
                 return False
-            return self.bot.mediator.is_position_safe(grid=self.bot.mediator.get_ground_grid, position=Point2(b))
+            return self.bot.mediator.is_position_safe(grid=self.bot.ground_grid, position=Point2(b))
 
         candidates = filter(is_viable, self.bot.expansions)
         if target := min(candidates, key=loss_fn, default=None):

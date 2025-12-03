@@ -6,7 +6,7 @@ from sc2.ids.ability_id import AbilityId
 from sc2.unit import Unit
 from sklearn.metrics import pairwise_distances
 
-from phantom.common.action import Action, HoldPosition, Move, UseAbility
+from phantom.common.action import Action, Move, UseAbility
 from phantom.common.constants import ENERGY_GENERATION_RATE
 from phantom.common.distribute import distribute
 from phantom.micro.combat import CombatStep

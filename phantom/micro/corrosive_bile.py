@@ -38,7 +38,7 @@ class CorrosiveBile:
     def bile_with(self, unit: Unit) -> Action | None:
         if self.cooldown_tracker.get_cooldown(unit):
             return None
-        if self.bot.mediator.is_position_safe(grid=self.bot.mediator.get_ground_grid, position=unit.position):
+        if self.bot.mediator.is_position_safe(grid=self.bot.ground_grid, position=unit.position):
             bonus_distance = self.bonus_distance
         else:
             bonus_distance = 0.0

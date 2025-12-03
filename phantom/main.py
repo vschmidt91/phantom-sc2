@@ -28,6 +28,7 @@ from sc2.unit_command import UnitCommand
 from phantom.agent import Agent
 from phantom.common.config import BotConfig
 from phantom.common.constants import (
+    DESTRUCTABLE_SIZE,
     ITEM_BY_ABILITY,
     PENDING_UNIT_TYPES,
     REQUIREMENTS_KEYS,
@@ -476,3 +477,24 @@ class PhantomBot(AresBot):
 
         self.bank = Cost(self.minerals, self.vespene, self.supply_left, self.larva.amount)
         self.planned = Counter(p.item for p in self.agent.builder.enumerate_plans())
+
+    @property_cache_once_per_frame
+    def ground_grid(self) -> np.ndarray:
+        grid = self.mediator.get_ground_grid
+        self._add_nonpathables(grid)
+        return grid
+
+    @property_cache_once_per_frame
+    def clean_ground_grid(self) -> np.ndarray:
+        grid = self.mediator.get_cached_ground_grid
+        self._add_nonpathables(grid)
+        return grid
+
+    def _add_nonpathables(self, grid: np.ndarray) -> None:
+        """Add some special nonpathables not handled by mapanalyzer."""
+        for destructable in self.destructables:
+            if size := DESTRUCTABLE_SIZE.get(destructable.type_id):
+                width, height = size
+                x0, y0 = to_point(destructable.position.offset((-width / 2, -height / 2)))
+                x1, y1 = x0 + width, y0 + height
+                grid[x0:x1, y0:y1] = np.inf
