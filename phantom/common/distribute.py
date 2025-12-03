@@ -7,19 +7,17 @@ import highspy
 import numpy as np
 from loguru import logger
 
+type Point = tuple[int, int]
+
 TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
 
 
-class HighsPyProblem:
+class HighsPySolver:
     def __init__(self, n: int, m: int, include_total=True) -> None:
         logger.info(f"Compiling highspy problem with {n=}, {m=}, {include_total=}")
         h = highspy.Highs()
-        h.setOptionValue("time_limit", 1.0)
         h.setOptionValue("presolve", "off")
-        # h.setOptionValue("solver", "simplex")
-        # h.setOptionValue("simplex_iteration_limit", 256)
-        # h.setOptionValue("optimality_tolerance", 1e-3)
         h.setOptionValue("parallel", "off")
         h.setOptionValue("log_to_console", False)
 
@@ -81,24 +79,23 @@ class HighsPyProblem:
         return solution[:n, :m]
 
 
-_PROBLEM_CACHE = dict[tuple[int, int], HighsPyProblem]()
+_PROBLEM_CACHE = dict[Point, HighsPySolver]()
 PROBLEM_RESOLUTION = 8
 
 
-def _get_problem(n: int, m: int) -> HighsPyProblem:
+def get_assignment_solver(n: int, m: int) -> HighsPySolver:
     n2 = math.ceil(n / PROBLEM_RESOLUTION) * PROBLEM_RESOLUTION
     if n < n2:
         m += 1  # source padding also requires target padding
     m2 = math.ceil(m / PROBLEM_RESOLUTION) * PROBLEM_RESOLUTION
     key = n2, m2
 
-    if n2 > 100 or m2 > 100:
-        logger.warning(
-            f"Compiling a large assignment problem. Distributing {n} sources to {m} targets, using {n2}x{m2} problem resolution."
-        )
-
     if not (problem := _PROBLEM_CACHE.get(key)):
-        _PROBLEM_CACHE[key] = (problem := HighsPyProblem(*key))
+        if n2 > 100 or m2 > 100:
+            logger.warning(
+                f"Compiling a large assignment problem. Distributing {n} sources to {m} targets, using {n2}x{m2} problem resolution."
+            )
+        _PROBLEM_CACHE[key] = (problem := HighsPySolver(*key))
     return problem
 
 
@@ -119,11 +116,11 @@ def distribute(
     if isinstance(max_assigned, int):
         max_assigned = np.full(m, float(max_assigned))
 
-    problem = _get_problem(n, m)
+    solver = get_assignment_solver(n, m)
 
-    problem.set_total(np.zeros(m), 0)
-    x = problem.solve(cost, max_assigned)
+    solver.set_total(np.zeros(m), 0)
+    x = solver.solve(cost, max_assigned)
     indices = x.argmax(axis=1)
-    assignment = {ai: b[j] for (i, ai), j in zip(enumerate(a), indices, strict=False) if x[i, j] > 0}
+    assignment = {ai: b[j] for (i, ai), j in zip(enumerate(a), indices, strict=False) if cost[i, j] < np.inf}
 
     return assignment

@@ -1,5 +1,4 @@
 assert_result = "Victory"
-bot_config = "config/bot/test.toml"
 enemy_build = "Rush"
 enemy_difficulty = "VeryEasy"
 game_time_limit = 600

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from sc2.ids.ability_id import AbilityId
@@ -12,17 +13,20 @@ class Action(ABC):
         raise NotImplementedError
 
 
-class DoNothing(Action):
-    async def execute(self, unit: Unit) -> bool:
-        return True
-
-
 @dataclass(frozen=True)
 class Move(Action):
     target: Point2
 
     async def execute(self, unit: Unit) -> bool:
         return unit.move(self.target)
+
+
+@dataclass(frozen=True)
+class MovePath(Action):
+    path: Sequence[Point2]
+
+    async def execute(self, unit: Unit) -> bool:
+        return all(unit.move(t, queue=i > 0) for i, t in enumerate(self.path))
 
 
 @dataclass(frozen=True)

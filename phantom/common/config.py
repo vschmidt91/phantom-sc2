@@ -5,17 +5,18 @@ from dataclasses import dataclass
 
 @dataclass
 class BotConfig:
-    resign_after_iteration: int | None = None
-    training = True
+    race = "Zerg"
+    name = "PhantomBot"
+    skip_first_iteration = False
+    training = False
     debug_draw = False
+    profile_interval = 100
     profile_path: str | None = None
-    save_bot_path: str | None = None
     tag_log_level = "ERROR"
     build_order = "OVERHATCH"
     version_path = "version.txt"
     data_path = "./data"
     params_name = "params.pkl.xz"
-    params_json_name = "params.json"
 
     @classmethod
     def from_toml(cls, path: str) -> "BotConfig":
