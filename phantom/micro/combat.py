@@ -3,7 +3,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
-from cython_extensions import cy_dijkstra, cy_pick_enemy_target
+from ares import UnitTreeQueryType
+from cython_extensions import cy_dijkstra
 from cython_extensions.dijkstra import DijkstraOutput
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
@@ -16,20 +17,31 @@ from phantom.common.constants import (
     COMBATANT_STRUCTURES,
     ENEMY_CIVILIANS,
     HALF,
+    MAX_UNIT_RADIUS,
     MIN_WEAPON_COOLDOWN,
 )
 from phantom.common.parameter_sampler import ParameterSampler, Prior
 from phantom.common.utils import (
     Point,
+    air_dps_of,
+    air_range_of,
+    ground_dps_of,
     ground_range_of,
     structure_perimeter,
     to_point,
 )
 from phantom.micro.simulator import CombatResult, CombatSetup, CombatSimulator
-from phantom.micro.utils import assign_targets, get_shootable_targets, medoid
+from phantom.micro.utils import assign_targets, medoid
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
+
+
+def _target_priority(unit: Unit, target: Unit) -> float:
+    dps = air_dps_of(target) if unit.is_flying else ground_dps_of(target)
+    already_targeting = 10 * (unit.order_target == target.tag)
+    health = 0.1 * (target.health + target.shield)
+    return (1 + dps) * (1 + already_targeting) / (1 + health)
 
 
 @dataclass(frozen=True)
@@ -68,7 +80,6 @@ class CombatStepContext:
     retreat_air: DijkstraOutput | None
     retreat_ground: DijkstraOutput | None
     runby_pathing: DijkstraOutput | None
-    shootable_targets: Mapping[Unit, Sequence[Unit]]
     targeting: Mapping[Unit, Unit]
 
     @classmethod
@@ -113,8 +124,6 @@ class CombatStepContext:
                 )
             )
 
-        shootable_targets = get_shootable_targets(state.bot.mediator, combatants)
-
         if retreat_targets:
             retreat_targets_array = np.atleast_2d(retreat_targets).astype(int)
             retreat_air = cy_dijkstra(state.bot.mediator.get_air_grid.astype(np.float64), retreat_targets_array)
@@ -152,7 +161,6 @@ class CombatStepContext:
             retreat_air=retreat_air,
             retreat_ground=retreat_ground,
             runby_pathing=runby_pathing,
-            shootable_targets=shootable_targets,
             targeting=targeting,
         )
 
@@ -243,8 +251,8 @@ class CombatStep:
         ):
             return action
 
-        if attack_ready and (targets := self.context.shootable_targets.get(unit)):
-            return Attack(cy_pick_enemy_target(enemies=targets))
+        if attack_ready and (action := self._shoot_target_in_range(unit)):
+            return action
 
         if not (target := self.context.targeting.get(unit)):
             return None
@@ -260,3 +268,25 @@ class CombatStep:
                 return Attack(target)
         else:
             return self.retreat_with(unit)
+
+    def _shoot_target_in_range(self, unit: Unit) -> Action | None:
+        candidates = list[Unit]()
+        if unit.can_attack_ground:
+            (query,) = self.bot.mediator.get_units_in_range(
+                start_points=[unit],
+                distances=[unit.radius + ground_range_of(unit) + MAX_UNIT_RADIUS],
+                query_tree=UnitTreeQueryType.EnemyGround,
+            )
+            candidates.extend(filter(unit.target_in_range, query))
+        if unit.can_attack_air:
+            (query,) = self.bot.mediator.get_units_in_range(
+                start_points=[unit],
+                distances=[unit.radius + air_range_of(unit) + MAX_UNIT_RADIUS],
+                query_tree=UnitTreeQueryType.EnemyFlying,
+            )
+            candidates.extend(filter(unit.target_in_range, query))
+
+        if target := max(candidates, key=lambda u: _target_priority(unit, u), default=None):
+            return Attack(target)
+
+        return None

@@ -244,17 +244,17 @@ class Strategy:
             composition[UnitTypeId.SPAWNINGPOOL] += 1
         if self.tier >= StrategyTier.LAIR:
             composition[UnitTypeId.LAIR] += 1
-            composition[UnitTypeId.OVERSEER] += 2
+            composition[UnitTypeId.OVERSEER] += 1
             composition[UnitTypeId.ROACHWARREN] += 1
             composition[UnitTypeId.HYDRALISKDEN] += 1
             composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
         if self.tier >= StrategyTier.HIVE:
             composition[UnitTypeId.INFESTATIONPIT] += 1
             composition[UnitTypeId.HIVE] += 1
-            composition[UnitTypeId.OVERSEER] += 3
+            composition[UnitTypeId.OVERSEER] += 1
             composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
         if self.tier >= StrategyTier.LATEGAME:
-            composition[UnitTypeId.OVERSEER] += 4
+            composition[UnitTypeId.OVERSEER] += 1
             composition[UnitTypeId.SPIRE] += 1
             composition[UnitTypeId.GREATERSPIRE] += 1
         return composition

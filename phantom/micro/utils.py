@@ -120,11 +120,11 @@ def time_to_kill(mediator: ManagerMediator, units: Sequence[Unit], enemies: Sequ
     return result
 
 
-def assign_targets(mediator: ManagerMediator, units: Sequence[Unit], enemies: Sequence[Unit]) -> Mapping[Unit, Unit]:
-    if not any(units) or not any(enemies):
+def assign_targets(mediator: ManagerMediator, units: Sequence[Unit], targets: Sequence[Unit]) -> Mapping[Unit, Unit]:
+    if not any(units) or not any(targets):
         return {}
 
-    cost = time_to_attack(mediator, units, enemies) + time_to_kill(mediator, units, enemies)
+    cost = time_to_attack(mediator, units, targets) + time_to_kill(mediator, units, targets)
 
     if np.isnan(cost).any():
         logger.error("assignment cost array contains NaN values")
@@ -134,7 +134,7 @@ def assign_targets(mediator: ManagerMediator, units: Sequence[Unit], enemies: Se
 
     assignment = distribute(
         units,
-        enemies,
+        targets,
         cost,
         max_assigned=max_assigned,
     )
