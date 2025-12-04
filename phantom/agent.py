@@ -253,7 +253,7 @@ class Agent:
             ):
                 actions[combatant] = action
 
-        if self.bot.actual_iteration > 1 and self.config.skip_first_iteration:
+        if self.bot.actual_iteration > 1 or not self.config.skip_first_iteration:
             actions.update(self.builder.get_actions())
 
         for changeling in self.bot.units(CHANGELINGS):
