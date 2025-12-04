@@ -41,6 +41,7 @@ from phantom.common.constants import (
     ZERG_RANGED_UPGRADES,
 )
 from phantom.common.cost import Cost, CostManager
+from phantom.common.damage_tracker import DamageTracker
 from phantom.common.expansion import Expansion
 from phantom.common.utils import (
     RNG,
@@ -75,6 +76,7 @@ class PhantomBot(AresBot):
         self.actions_by_ability = defaultdict[AbilityId, list[UnitCommand]](list)
         self.expansions = dict[Point, Expansion]()
         self.structure_dict = dict[Point, Unit | OrderedStructure | MacroPlan]()
+        self.damage_tracker = DamageTracker()
 
         self._setup_logging()
         self._read_version()
@@ -140,6 +142,7 @@ class PhantomBot(AresBot):
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float) -> None:
         await super().on_unit_took_damage(unit, amount_damage_taken)
+        self.damage_tracker.on_unit_took_damage(unit, amount_damage_taken)
 
     async def on_upgrade_complete(self, upgrade: UpgradeId) -> None:
         await super().on_upgrade_complete(upgrade)
