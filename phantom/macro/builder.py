@@ -151,9 +151,9 @@ class Builder:
         upgrade_weights = dict[UpgradeId, float]()
         for unit, count in composition.items():
             cost = self.bot.cost.of(unit)
-            total_cost = cost.minerals + 2 * cost.vespene
+            total_cost = (cost.minerals + 2 * cost.vespene) * (0.5 if unit == UnitTypeId.ZERGLING else 1.0)
             for upgrade in self.bot.upgrades_by_unit(unit):
-                upgrade_weights[upgrade] = upgrade_weights.setdefault(upgrade, 0.0) + count / total_cost
+                upgrade_weights[upgrade] = upgrade_weights.get(upgrade, 0.0) + count / total_cost
 
         # strategy specific filter
         upgrade_weights = {k: v for k, v in upgrade_weights.items() if upgrade_filter(k)}
@@ -165,7 +165,9 @@ class Builder:
             return
 
         upgrade_priorities = {
-            k: self.parameters.tech_priority_offset.value + self.parameters.tech_priority_scale.value * v / total
+            k: max(
+                -1, self.parameters.tech_priority_offset.value + self.parameters.tech_priority_scale.value * v / total
+            )
             for k, v in upgrade_weights.items()
         }
 
@@ -180,7 +182,7 @@ class Builder:
 
     def on_step(self) -> None:
         # detect executed plans
-        morphers = list(chain[Unit](self.bot.larva, self.bot.eggs))
+        list(chain[Unit](self.bot.larva, self.bot.eggs))
         for action in self.bot.state.actions_unit_commands:
             if action.exact_id not in EXCLUDE_ABILTIES and (item := ITEM_BY_ABILITY.get(action.exact_id)):
                 for tag in action.unit_tags:
@@ -189,27 +191,34 @@ class Builder:
                         self.bot.add_replay_tag("trainer_not_found")
                         logger.error("Trainer not found")
                         continue
-                    if unit.type_id in {UnitTypeId.EGG, UnitTypeId.LARVA}:
-                        unit = next(
-                            (u for u in morphers if (p := self._assigned_plans.get(u.tag)) and p.item == item), None
-                        )
-                    if not unit:
-                        self.bot.add_replay_tag("trainer_not_found")
-                        logger.error("Trainer not found")
-                        continue
-                    if plan := self._assigned_plans.get(unit.tag):
-                        if plan.item != item:
-                            raise Exception("Different macro action than planned")
-                        del self._assigned_plans[unit.tag]
+                    if unit.type_id == UnitTypeId.DRONE:
+                        if not unit:
+                            self.bot.add_replay_tag("trainer_not_found")
+                            logger.error("Trainer not found")
+                            continue
+                        if plan := self._assigned_plans.get(unit.tag):
+                            if plan.item != item:
+                                raise Exception("Different macro action than planned")
+                            del self._assigned_plans[unit.tag]
+                        else:
+                            self.bot.add_replay_tag("unplanned_macro_action")
+                            logger.error(f"Unplanned {action}")
                     else:
-                        self.bot.add_replay_tag("unplanned_macro_action")
-                        logger.error("Unplanned macro action")
+                        plan_candidates = [p for p in self._unassigned_plans if p.item == item]
+                        plan_candidates.sort(key=lambda p: p.priority, reverse=True)
+                        if plan_candidates:
+                            self._unassigned_plans.remove(plan_candidates[0])
+                        else:
+                            self.bot.add_replay_tag("unplanned_macro_action")
+                            logger.error(f"Unplanned {action}")
 
-        # unassign all larvae
-        for larva in self.bot.larva:
-            if plan := self._assigned_plans.pop(larva.tag, None):
-                self._unassigned_plans.append(plan)
         self._cancel_low_priority_plans(self.min_priority)
+
+        self._assign_unassigned_worker_plans()
+
+    def get_actions(self) -> Mapping[Unit, Action]:
+        actions = dict[Unit, Action]()
+        reserve = Cost()
 
         all_trainers = [
             trainer
@@ -220,41 +229,26 @@ class Builder:
                 and (trainer.is_idle if trainer.is_structure else True)
             )
         ]
-        self._assign_unassigned_plans(all_trainers)
 
-    def get_actions(self) -> Mapping[Unit, Action]:
-        actions = dict[Unit, Action]()
-        reserve = Cost()
-        plans_prioritized = sorted(self._assigned_plans.items(), key=lambda p: p[1].priority, reverse=True)
-        for _i, (tag, plan) in enumerate(plans_prioritized):
-            trainer = self.bot.unit_tag_dict.get(tag)
-            if not trainer:
-                del self._assigned_plans[tag]
-                self._unassigned_plans.append(plan)
-                logger.info(f"{tag=} is MIA for {plan}")
+        all_plans = list[tuple[int | None, MacroPlan]]()
+        all_plans.extend((None, plan) for plan in self._unassigned_plans)
+        all_plans.extend(self._assigned_plans.items())
+        all_plans.sort(key=lambda p: p[1].priority, reverse=True)
+
+        for _i, (tag, plan) in enumerate(all_plans):
+            trainer = self._select_trainer(all_trainers, plan.item) if tag is None else self.bot.unit_tag_dict.get(tag)
+
+            if trainer is None:
+                if tag is not None:
+                    del self._assigned_plans[tag]
                 continue
 
-            if trainer.type_id == UnitTypeId.EGG:
-                del self._assigned_plans[tag]
-                self._unassigned_plans.append(plan)
-                logger.info(f"{trainer} is an egg")
-                continue
-
-            ability = MACRO_INFO.get(trainer.type_id, {}).get(plan.item, {}).get("ability")
-            if not ability:
-                del self._assigned_plans[tag]
-                self._unassigned_plans.append(plan)
-                logger.info(f"{trainer} is unable to execute {plan}")
-                continue
-
-            if any(self.bot.get_missing_requirements(plan.item)):
-                continue
+            ability = MACRO_INFO[trainer.type_id][plan.item]["ability"]
 
             if isinstance(plan.target, Point2) and (
                 not self.bot.mediator.can_place_structure(
                     position=plan.target,
                     structure_type=plan.item,
-                    include_addon=False,
                 )
                 or to_point(plan.target) in self.bot.blocked_positions
             ):
@@ -262,7 +256,8 @@ class Builder:
                     plan.target = None
                 else:
                     logger.info(f"cannot place {plan} and not allowed to replace, cancelling.")
-                    del self._assigned_plans[tag]
+                    if tag is not None:
+                        del self._assigned_plans[tag]
                     continue
 
             if not plan.target:
@@ -297,7 +292,8 @@ class Builder:
             if plan.priority < min_priority:
                 del self._assigned_plans[tag]
 
-    def _assign_unassigned_plans(self, trainers: Iterable[Unit]) -> None:
+    def _assign_unassigned_worker_plans(self) -> None:
+        trainers = self.bot.workers
         for plan in sorted(self._unassigned_plans, key=lambda p: p.priority, reverse=True):
             if trainer := self._select_trainer(trainers, plan.item):
                 if trainer.type_id != UnitTypeId.LARVA:
@@ -362,7 +358,10 @@ class Builder:
                 return False
             if b in self.bot.structure_dict:
                 return False
-            return self.bot.mediator.is_position_safe(grid=self.bot.ground_grid, position=Point2(b))
+            p = Point2(b).offset((0.5, 0.5))
+            if not self.bot.mediator.is_position_safe(grid=self.bot.ground_grid, position=p):
+                return False
+            return self.bot.mediator.can_place_structure(position=p, structure_type=UnitTypeId.HATCHERY)
 
         candidates = filter(is_viable, self.bot.expansions)
         if target := min(candidates, key=loss_fn, default=None):
@@ -374,17 +373,19 @@ class Builder:
         if not any(self.bot.bases_taken):
             raise PlacementNotFoundException()
 
+        data = self.bot.game_data.units[structure_type.value]
+        offset = data.footprint_radius % 1
+
         bases = list(self.bot.bases_taken.items())
         for _ in range(num_attempts):
             base, expansion = random.choice(bases)
             distance = rng.uniform(8, 12)
             mineral_line = Point2(expansion.mineral_center)
             position = expansion.townhall_position.towards_with_random_angle(mineral_line, distance)
-            position = position.rounded.offset((0.5, 0.5))
+            position = position.rounded.offset((offset, offset))
             if self.bot.mediator.can_place_structure(
                 position=position,
                 structure_type=structure_type,
-                include_addon=False,
             ):
                 return position
 

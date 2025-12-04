@@ -75,7 +75,6 @@ class Strategy:
             if not self.bot.mediator.can_place_structure(
                 position=expansion.spine_position,
                 structure_type=UnitTypeId.SPINECRAWLER,
-                include_addon=False,
             ):
                 continue
             yield MacroPlan(
@@ -100,7 +99,6 @@ class Strategy:
             if not self.bot.mediator.can_place_structure(
                 position=expansion.spore_position,
                 structure_type=UnitTypeId.SPORECRAWLER,
-                include_addon=False,
             ):
                 continue
             yield MacroPlan(
@@ -220,7 +218,9 @@ class Strategy:
 
     def _counter_composition(self) -> UnitComposition:
         def total_cost(t: UnitTypeId) -> float:
-            return float(self.bot.cost.of(t).total_resources)
+            cost = self.bot.cost.of(t)
+            total_cost = (cost.minerals + 2 * cost.vespene) * (0.5 if t == UnitTypeId.ZERGLING else 1.0)
+            return total_cost
 
         composition = defaultdict[UnitTypeId, float](float)
         for enemy_type, count in self.enemy_composition_predicted.items():

@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2_helper.combat_simulator import CombatSimulator as SC2CombatSimulator
 from sklearn.metrics import pairwise_distances
@@ -49,8 +50,7 @@ class CombatSimulator:
     def __init__(self, bot: "PhantomBot", parameters: CombatSimulatorParameters) -> None:
         self.bot = bot
         self.parameters = parameters
-        self.num_steps = 100
-        self.vespene_weight = 2.0
+        self.num_steps = 30
         self.combat_sim = SC2CombatSimulator()
         self.combat_sim.enable_timing_adjustment(True)
 
@@ -75,13 +75,12 @@ class CombatSimulator:
         units = [*setup.units1, *setup.units2]
         n1 = len(setup.units1)
 
-        costs = [self.bot.cost.of(u.type_id) for u in units]
-        values = np.array(
-            [
-                (c.minerals + self.vespene_weight * c.vespene) / max(1.0, u.shield_max + u.health_max)
-                for u, c in zip(units, costs, strict=False)
-            ]
-        )
+        def total_cost(t: UnitTypeId) -> float:
+            cost = self.bot.cost.of(t)
+            total_cost = (cost.minerals + 2 * cost.vespene) * (0.5 if t == UnitTypeId.ZERGLING else 1.0)
+            return total_cost
+
+        values = np.array([total_cost(u.type_id) / max(1.0, u.shield_max + u.health_max) for u in units])
 
         ground_range = np.array([ground_range_of(u) for u in units])
         air_range = np.array([air_range_of(u) for u in units])

@@ -243,15 +243,15 @@ class CombatStep:
             position=unit.position,
         )
 
+        if ground_range > 2 and attack_ready and (action := self._shoot_target_in_range(unit)):
+            return action
+
         if (
             not unit.is_flying
             and not self.attacking_global
             and self.bot.enemy_race != Race.Zerg
             and (action := self.retreat_to_creep(unit))
         ):
-            return action
-
-        if attack_ready and (action := self._shoot_target_in_range(unit)):
             return action
 
         if not (target := self.context.targeting.get(unit)):

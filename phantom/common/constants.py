@@ -23,7 +23,7 @@ UPGRADE_RESEARCHED_FROM_WITH_EQUIVALENTS = {
     item: WITH_TECH_EQUIVALENTS.get(UPGRADE_RESEARCHED_FROM.get(item), set()) for item in UpgradeId
 }
 
-ITEM_TRAINED_FROM_WITH_EQUIVALENTS = {**UNIT_TRAINED_FROM_WITH_EQUIVALENTS, **UPGRADE_RESEARCHED_FROM_WITH_EQUIVALENTS}
+ITEM_TRAINED_FROM_WITH_EQUIVALENTS = {**UNIT_TRAINED_FROM, **UPGRADE_RESEARCHED_FROM_WITH_EQUIVALENTS}
 
 MIN_WEAPON_COOLDOWN = 2.0 / 22.4
 
@@ -31,6 +31,11 @@ MACRO_INFO = {
     unit_type: {**TRAIN_INFO.get(unit_type, {}), **RESEARCH_INFO.get(unit_type, {})}
     for unit_type in set(chain(TRAIN_INFO, RESEARCH_INFO))
 }
+
+# for base_type, equivalent_types in EQUIVALENTS_FOR_TECH_PROGRESS.items():
+#     for equivalent_type in equivalent_types:
+#         if equivalent_type in MACRO_INFO:
+#             MACRO_INFO[equivalent_type].update(MACRO_INFO[base_type])
 
 ALL_MACRO_ABILITIES: set[AbilityId] = {e["ability"] for _, element in MACRO_INFO.items() for item, e in element.items()}
 
