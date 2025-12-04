@@ -128,6 +128,8 @@ class CombatStepContext:
             runby_targets.extend(map(Point2, structure_perimeter(s)))
         for w in state.bot.enemy_workers:
             runby_targets.append(w.position)
+        if not runby_targets:
+            runby_targets.extend(b for b in state.bot.enemy_start_locations if not state.bot.is_visible(b))
         if runby_targets:
             runby_targets_array = np.atleast_2d(runby_targets).astype(int)
             runby_pathing = cy_dijkstra(

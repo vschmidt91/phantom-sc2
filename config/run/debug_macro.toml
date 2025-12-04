@@ -1,6 +1,6 @@
 map_pattern = "LeyLinesAIE_v3"
-enemy_race = "Zerg"
-enemy_build = "Rush"
+enemy_race = "Terran"
+enemy_build = "Macro"
 save_replay = "resources\\replays\\local"
 bot_config = "config\\bot\\debug.toml"
 log_level = "Trace"
