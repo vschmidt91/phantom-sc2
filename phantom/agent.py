@@ -189,13 +189,12 @@ class Agent:
         required += self.builder.get_planned_cost()
         required += self.bot.cost.of_composition(strategy.composition_deficit)
         required -= self.bot.bank
+        required = Cost.max(required, Cost())
 
-        if required.minerals <= 0 and required.vespene <= 0:
-            gas_ratio = 5 / 9
+        if required.minerals == 0 and required.vespene == 0:
+            gas_ratio = 0.5
         else:
-            mineral_trips = max(0.0, required.minerals / 5)
-            vespene_trips = max(0.0, required.vespene / 4)
-            gas_ratio = vespene_trips / (mineral_trips + vespene_trips)
+            gas_ratio = required.vespene / (required.minerals + required.vespene)
         self.gas_ratio += self.parameters.gas_ratio_learning_rate * np.sign(gas_ratio - self.gas_ratio)
         self.gas_ratio = max(0, min(1, self.gas_ratio))
 
