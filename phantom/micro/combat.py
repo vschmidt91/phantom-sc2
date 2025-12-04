@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 from cython_extensions import cy_dijkstra, cy_pick_enemy_target
 from cython_extensions.dijkstra import DijkstraOutput
-from loguru import logger
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -65,10 +64,10 @@ class CombatStepContext:
     combatants: Sequence[Unit]
     enemy_combatants: Sequence[Unit]
     prediction: CombatResult
-    retreat_to_creep_pathing: DijkstraOutput
-    retreat_air: DijkstraOutput
-    retreat_ground: DijkstraOutput
-    runby_pathing: DijkstraOutput
+    retreat_to_creep_pathing: DijkstraOutput | None
+    retreat_air: DijkstraOutput | None
+    retreat_ground: DijkstraOutput | None
+    runby_pathing: DijkstraOutput | None
     shootable_targets: Mapping[Unit, Sequence[Unit]]
     targeting: Mapping[Unit, Unit]
 
@@ -93,12 +92,12 @@ class CombatStepContext:
             retreat_to_creep_targets.extend(structure_perimeter(townhall))
         for tumor in state.bot.structures(UnitTypeId.CREEPTUMORBURROWED):
             retreat_to_creep_targets.append(to_point(tumor.position))
-        if not retreat_to_creep_targets:
-            retreat_to_creep_targets.append(to_point(state.bot.start_location))
-
-        retreat_to_creep_pathing = cy_dijkstra(
-            state.bot.ground_grid.astype(np.float64), np.atleast_2d(retreat_to_creep_targets)
-        )
+        if retreat_to_creep_targets:
+            retreat_to_creep_pathing = cy_dijkstra(
+                state.bot.ground_grid.astype(np.float64), np.atleast_2d(retreat_to_creep_targets)
+            )
+        else:
+            retreat_to_creep_pathing = None
 
         retreat_targets = list()
         if safe_combatants:
@@ -114,29 +113,29 @@ class CombatStepContext:
                 )
             )
 
-        if not retreat_targets:
-            logger.warning("No retreat targets, falling back to start mineral line")
-            p = state.bot.expansions[to_point(state.bot.start_location)].mineral_center
-            retreat_targets.append(p)
-
         shootable_targets = get_shootable_targets(state.bot.mediator, combatants)
 
-        retreat_targets_array = np.atleast_2d(retreat_targets).astype(int)
-        retreat_air = cy_dijkstra(state.bot.mediator.get_air_grid.astype(np.float64), retreat_targets_array)
-        retreat_ground = cy_dijkstra(state.bot.ground_grid.astype(np.float64), retreat_targets_array)
+        if retreat_targets:
+            retreat_targets_array = np.atleast_2d(retreat_targets).astype(int)
+            retreat_air = cy_dijkstra(state.bot.mediator.get_air_grid.astype(np.float64), retreat_targets_array)
+            retreat_ground = cy_dijkstra(state.bot.ground_grid.astype(np.float64), retreat_targets_array)
+        else:
+            retreat_air = None
+            retreat_ground = None
 
         runby_targets = list[Point2]()
         for s in state.bot.enemy_structures:
             runby_targets.extend(map(Point2, structure_perimeter(s)))
         for w in state.bot.enemy_workers:
             runby_targets.append(w.position)
-        if not runby_targets:
-            runby_targets.extend(state.bot.enemy_start_locations)
-        runby_targets_array = np.atleast_2d(runby_targets).astype(int)
-        runby_pathing = cy_dijkstra(
-            state.bot.ground_grid.astype(np.float64),
-            runby_targets_array,
-        )
+        if runby_targets:
+            runby_targets_array = np.atleast_2d(runby_targets).astype(int)
+            runby_pathing = cy_dijkstra(
+                state.bot.ground_grid.astype(np.float64),
+                runby_targets_array,
+            )
+        else:
+            runby_pathing = None
 
         prediction = state.simulator.simulate(CombatSetup(units1=combatants, units2=enemy_combatants))
 
@@ -190,21 +189,33 @@ class CombatStep:
 
     def retreat_with(self, unit: Unit, limit=3) -> Action:
         retreat_map = self.context.retreat_air if unit.is_flying else self.context.retreat_ground
+        if not retreat_map:
+            return self._move_to_safe_spot(unit)
         retreat_path = retreat_map.get_path(unit.position, limit=limit)
         if len(retreat_path) < limit:
-            retreat_grid = self.bot.mediator.get_air_grid if unit.is_flying else self.bot.ground_grid
-            retreat_point = self.bot.mediator.find_closest_safe_spot(
-                from_pos=unit.position,
-                grid=retreat_grid,
-                radius=limit,
-            )
-        else:
-            retreat_point = Point2(retreat_path[-1]).offset(HALF)
+            return self._move_to_safe_spot(unit)
+        retreat_point = Point2(retreat_path[-1]).offset(HALF)
         return Move(retreat_point)
 
-    def retreat_to_creep(self, unit: Unit, limit=3) -> Action:
-        path = self.context.retreat_to_creep_pathing.get_path(unit.position, limit=limit)
-        return Move(Point2(path[-1]).offset(HALF))
+    def _move_to_safe_spot(self, unit: Unit) -> Action:
+        retreat_grid = self.bot.mediator.get_air_grid if unit.is_flying else self.bot.ground_grid
+        retreat_target = self.bot.mediator.find_closest_safe_spot(
+            from_pos=unit.position,
+            grid=retreat_grid,
+        )
+        move_target = self.bot.mediator.find_path_next_point(
+            start=unit.position,
+            target=retreat_target,
+            grid=retreat_grid,
+            smoothing=True,
+        )
+        return Move(move_target)
+
+    def retreat_to_creep(self, unit: Unit, limit=3) -> Action | None:
+        if not self.bot.has_creep(unit) and self.context.retreat_to_creep_pathing:
+            path = self.context.retreat_to_creep_pathing.get_path(unit.position, limit=limit)
+            return Move(Point2(path[-1]).offset(HALF))
+        return None
 
     def is_unit_safe(self, unit: Unit, weight_safety_limit: float = 1.0) -> bool:
         grid = self.bot.mediator.get_air_grid if unit.is_flying else self.bot.ground_grid
@@ -214,7 +225,7 @@ class CombatStep:
 
     def fight_with(self, unit: Unit) -> Action | None:
         ground_range = ground_range_of(unit)
-        is_on_creep = self.bot.has_creep(unit) or self.bot.enemy_race == Race.Zerg
+        self.bot.has_creep(unit) or self.bot.enemy_race == Race.Zerg
         attack_ready = unit.weapon_cooldown <= MIN_WEAPON_COOLDOWN
         grid = self.bot.mediator.get_air_grid if unit.is_flying else self.bot.ground_grid
         is_safe = self.bot.mediator.is_position_safe(
@@ -222,8 +233,13 @@ class CombatStep:
             position=unit.position,
         )
 
-        if not unit.is_flying and not self.attacking_global and not is_on_creep and self.bot.enemy_race != Race.Zerg:
-            return self.retreat_to_creep(unit)
+        if (
+            not unit.is_flying
+            and not self.attacking_global
+            and self.bot.enemy_race != Race.Zerg
+            and (action := self.retreat_to_creep(unit))
+        ):
+            return action
 
         if attack_ready and (targets := self.context.shootable_targets.get(unit)):
             return Attack(cy_pick_enemy_target(enemies=targets))
@@ -233,7 +249,7 @@ class CombatStep:
 
         if unit.tag in self.attacking_local:
             should_runby = not unit.is_flying and self.attacking_global and is_safe
-            if should_runby:
+            if should_runby and self.context.runby_pathing:
                 runby_target = Point2(self.context.runby_pathing.get_path(unit.position, 4)[-1]).offset(HALF)
                 return Attack(runby_target)
             elif ground_range < 2:

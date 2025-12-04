@@ -92,8 +92,6 @@ class PhantomBot(AresBot):
 
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
-        if self.actual_iteration == 1 and self.bot_config.skip_first_iteration:
-            return
         if self.bot_config.profile_path:
             self.profiler.enable()
 

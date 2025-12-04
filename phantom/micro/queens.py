@@ -63,10 +63,8 @@ class Queens:
             return combat.fight_with(queen)
         elif inject_target and (action := self._inject_with(queen, inject_target)):  # noqa: SIM114
             return action
-        elif creep and (action := creep.spread_with(queen)):
+        elif (creep and (action := creep.spread_with(queen))) or (action := combat.retreat_to_creep(queen)):
             return action
-        elif not self.bot.has_creep(queen):
-            return combat.retreat_to_creep(queen)
         else:
             return combat.fight_with(queen)
 
