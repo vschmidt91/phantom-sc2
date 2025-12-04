@@ -48,19 +48,6 @@ class MacroPlan:
     allow_replacement: bool = True
 
 
-def _premove(unit: Unit, plan: MacroPlan, eta: float) -> Action | None:
-    if not plan.target:
-        return None
-    target = plan.target.position
-    distance = cy_distance_to(unit.position, target)
-    movement_eta = (4 / 3) * distance / (1.4 * unit.real_speed)
-    if eta > movement_eta:
-        return None
-    if distance < 1e-3:
-        return HoldPosition()
-    return Move(target)
-
-
 class BuilderParameters:
     def __init__(self, sampler: ParameterSampler) -> None:
         self.tech_priority_offset = sampler.add(Prior(-1.0, 0.01))
@@ -279,7 +266,7 @@ class Builder:
             elif plan.target:
                 if trainer.is_carrying_resource:
                     actions[trainer] = UseAbility(AbilityId.HARVEST_RETURN)
-                elif (self.bot.actual_iteration % 10 == 0) and (action := _premove(trainer, plan, eta)):
+                elif (self.bot.actual_iteration % 10 == 0) and (action := self._premove(trainer, plan, eta)):
                     actions[trainer] = action
 
         return actions
@@ -404,6 +391,24 @@ class Builder:
                 eta.supply if deficit.supply > 0 and cost.supply > 0 else 0.0,
             )
         )
+
+    def _premove(self, unit: Unit, plan: MacroPlan, eta: float) -> Action | None:
+        if plan.target is None:
+            return None
+        target = plan.target.position
+        distance = cy_distance_to(unit.position, target)
+        movement_eta = (4 / 3) * distance / (1.4 * unit.real_speed)
+        if eta > movement_eta:
+            return None
+        if distance < 1e-3:
+            return HoldPosition()
+        self.bot.mediator.find_path_next_point(
+            start=unit.position,
+            target=target,
+            grid=self.bot.ground_grid,
+            smoothing=True,
+        )
+        return Move(target)
 
     def _debug_draw_plan(
         self,

@@ -390,7 +390,6 @@ class PhantomBot(AresBot):
             for p, resources in self.expansion_locations_dict.items()
         }
         self.gather_targets = dict(p for e in self.expansions.values() for p in e.gather_targets.items())
-        self.return_targets = dict(p for e in self.expansions.values() for p in e.return_targets.items())
         self.return_distances = dict(p for e in self.expansions.values() for p in e.return_distances.items())
 
     def _update_tables(self) -> None:

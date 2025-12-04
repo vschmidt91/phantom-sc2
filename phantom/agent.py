@@ -179,11 +179,11 @@ class Agent:
 
         def should_harvest_resource(r: Unit) -> bool:
             p = to_point(r.position)
-            check_points = [
-                to_point(self.bot.gather_targets[p]),
-                to_point(self.bot.return_targets[p]),
-            ]
-            return all(self.bot.ground_grid[p] < 6.0 for p in check_points)
+            return self.bot.mediator.is_position_safe(
+                grid=self.bot.ground_grid,
+                position=self.bot.gather_targets[p],
+                weight_safety_limit=6.0,
+            )
 
         required = Cost()
         required += self.builder.get_planned_cost()

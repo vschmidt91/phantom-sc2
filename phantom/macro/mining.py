@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import numpy as np
+from ares.behaviors.macro.mining import TOWNHALL_TARGET
+from cython_extensions import cy_closest_to
 from loguru import logger
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -38,10 +40,9 @@ class GatherAction(Action):
 @dataclass
 class ReturnResource(Action):
     return_target: Unit
-    speedmining_position: Point2
 
     async def execute(self, unit: Unit) -> bool:
-        move_target = self.speedmining_position
+        move_target = self.return_target.position.towards(unit, TOWNHALL_TARGET)
         if 0.75 < unit.position.distance_to(move_target) < 1.5:
             return unit.move(move_target) and unit.smart(self.return_target, queue=True)
         else:
@@ -178,9 +179,9 @@ class MiningStep:
         elif unit.is_gathering:
             return GatherAction(target, self.state.bot.gather_targets[target_pos])
         elif unit.is_returning:
-            if not any(return_targets):
+            if return_targets:
+                return_target = cy_closest_to(unit.position, return_targets)
+                return ReturnResource(return_target)
+            else:
                 return None
-            return_target = min(return_targets, key=lambda th: th.distance_to(unit))
-            return_point = self.state.bot.return_targets[target_pos]
-            return ReturnResource(return_target, return_point)
         return Smart(target)

@@ -17,7 +17,6 @@ class Expansion:
     mineral_positions: Sequence[Point]
     geyser_positions: Sequence[Point]
     gather_targets: Mapping[Point, Point2]
-    return_targets: Mapping[Point, Point2]
     return_distances: Mapping[Point, float]
     mineral_center: Point
     spore_position: Point
@@ -28,7 +27,6 @@ class Expansion:
         mineral_positions = list[Point]()
         geyser_positions = list[Point]()
         gather_targets = dict[Point, Point2]()
-        return_targets = dict[Point, Point2]()
         return_distances = dict[Point, float]()
         for resource in resources:
             p = to_point(resource.position)
@@ -37,7 +35,6 @@ class Expansion:
                 target = resource.position.towards(townhall_position, resource.radius + WORKER_RADIUS)
                 return_target = townhall_position.towards(target, TOWNHALL_TARGET)
                 gather_targets[p] = target
-                return_targets[p] = return_target
                 return_distances[p] = target.distance_to(return_target)
             elif resource.is_mineral_field:
                 mineral_positions.append(p)
@@ -66,7 +63,6 @@ class Expansion:
                         break
                 return_target = townhall_position.towards(target, TOWNHALL_TARGET)
                 gather_targets[p] = target
-                return_targets[p] = return_target
                 return_distances[p] = target.distance_to(return_target)
 
         mineral_center = Point2(np.mean(mineral_positions, axis=0))
@@ -90,7 +86,6 @@ class Expansion:
             mineral_positions=mineral_positions,
             geyser_positions=geyser_positions,
             gather_targets=gather_targets,
-            return_targets=return_targets,
             return_distances=return_distances,
             mineral_center=to_point(mineral_center),
             spore_position=spore_position,
