@@ -234,7 +234,7 @@ class Agent:
         for harvester in harvesters:
             if (
                 not combat.is_unit_safe(harvester, weight_safety_limit=6.0)
-                or self.bot.damage_tracker.time_since_last_damage(harvester) < 50
+                or self.bot.damage_tracker.time_since_last_damage(harvester) < min(self.bot.state.game_loop, 50)
             ):
                 actions[harvester] = combat.retreat_with(harvester)
             elif action := resources.gather_with(harvester, harvester_return_targets):
