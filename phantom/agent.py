@@ -291,7 +291,7 @@ class Agent:
 
         if self.config.max_actions < len(actions):
             self.bot.add_replay_tag("action_throttling")
-            logger.info(f"Limiting actions from {len(actions)} to {self.config.max_actions}")
+            logger.debug(f"Limiting actions from {len(actions)} to {self.config.max_actions}")
             selected_keys = list(actions.keys())
             random.shuffle(selected_keys)
             selected_keys = selected_keys[: self.config.max_actions]
