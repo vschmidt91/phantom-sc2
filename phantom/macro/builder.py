@@ -83,10 +83,10 @@ class Builder:
                 plan.priority = override_priority
 
     def debug_draw_plans(self) -> None:
-        plans = chain(
-            ((0, p) for p in self._unassigned_plans),
+        plans = list(chain(
+            ((None, p) for p in self._unassigned_plans),
             self._assigned_plans.items(),
-        )
+        ))
         plans_sorted = sorted(plans, key=lambda p: p[1].priority, reverse=True)
         for i, (tag, plan) in enumerate(plans_sorted):
             trainer = self.bot.unit_tag_dict.get(tag)
@@ -140,7 +140,7 @@ class Builder:
             cost = self.bot.cost.of(unit)
             total_cost = (cost.minerals + 2 * cost.vespene) * (0.5 if unit == UnitTypeId.ZERGLING else 1.0)
             for upgrade in self.bot.upgrades_by_unit(unit):
-                upgrade_weights[upgrade] = upgrade_weights.get(upgrade, 0.0) + count / total_cost
+                upgrade_weights[upgrade] = upgrade_weights.get(upgrade, 0.0) + count * total_cost
 
         # strategy specific filter
         upgrade_weights = {k: v for k, v in upgrade_weights.items() if upgrade_filter(k)}
