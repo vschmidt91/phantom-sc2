@@ -126,17 +126,19 @@ def assign_targets(mediator: ManagerMediator, units: Sequence[Unit], targets: Se
 
     cost = time_to_attack(mediator, units, targets) + time_to_kill(mediator, units, targets)
 
+    target_tag_to_index = {t.tag: i for i, t in enumerate(targets)}
+    for i, unit in enumerate(units):
+        if isinstance(unit.order_target, int) and (j := target_tag_to_index.get(unit.order_target)):
+            cost[i, j] = 0.0
+
     if np.isnan(cost).any():
         logger.error("assignment cost array contains NaN values")
         cost = np.nan_to_num(cost, nan=np.inf)
-
-    max_assigned = len(units)
 
     assignment = distribute(
         units,
         targets,
         cost,
-        max_assigned=max_assigned,
     )
 
     return assignment
