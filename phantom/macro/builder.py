@@ -185,10 +185,9 @@ class Builder:
                             continue
                         if plan := self._assigned_plans.get(unit.tag):
                             if plan.item != item:
-                                raise Exception("Different macro action than planned")
+                                logger.error(f"Unplanned {action}")
                             del self._assigned_plans[unit.tag]
                         else:
-                            self.bot.add_replay_tag("unplanned_macro_action")
                             logger.error(f"Unplanned {action}")
                     else:
                         plan_candidates = [p for p in self._unassigned_plans if p.item == item]
@@ -196,7 +195,6 @@ class Builder:
                         if plan_candidates:
                             self._unassigned_plans.remove(plan_candidates[0])
                         else:
-                            self.bot.add_replay_tag("unplanned_macro_action")
                             logger.error(f"Unplanned {action}")
 
         self._cancel_low_priority_plans(self.min_priority)
