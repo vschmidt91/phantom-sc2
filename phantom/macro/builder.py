@@ -203,15 +203,15 @@ class Builder:
         actions = dict[Unit, Action]()
         reserve = Cost()
 
-        all_trainers = [
-            trainer
+        all_trainers = {
+            trainer.tag: trainer
             for trainer in self.bot.all_own_units
             if (
                 trainer.type_id in TRAINER_TYPES
                 and trainer.is_ready
                 and (trainer.is_idle if trainer.is_structure else True)
             )
-        ]
+        }
 
         all_plans = list[tuple[int | None, MacroPlan]]()
         all_plans.extend((None, plan) for plan in self._unassigned_plans)
@@ -219,7 +219,7 @@ class Builder:
         all_plans.sort(key=lambda p: p[1].priority, reverse=True)
 
         for _i, (tag, plan) in enumerate(all_plans):
-            trainer = self._select_trainer(all_trainers, plan.item) if tag is None else self.bot.unit_tag_dict.get(tag)
+            trainer = self._select_trainer(all_trainers.values(), plan.item) if tag is None else self.bot.unit_tag_dict.get(tag)
 
             if trainer is None:
                 if tag is not None:
@@ -248,6 +248,8 @@ class Builder:
                     plan.target = self._get_target(trainer, plan)
                 except PlacementNotFoundException:
                     continue
+
+            all_trainers.pop(tag, None)
 
             cost = self.bot.cost.of(plan.item)
             eta = self._get_eta(reserve, cost)
