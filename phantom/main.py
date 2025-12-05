@@ -9,7 +9,7 @@ from itertools import chain
 
 import numpy as np
 from ares import AresBot
-from ares.consts import ALL_STRUCTURES
+from ares.consts import ALL_STRUCTURES, CREEP_TUMOR_TYPES
 from loguru import logger
 from sc2.cache import property_cache_once_per_frame
 from sc2.data import Result
@@ -113,12 +113,14 @@ class PhantomBot(AresBot):
         self.agent.on_end(game_result)
 
     async def on_building_construction_started(self, unit: Unit) -> None:
-        logger.info(f"on_building_construction_started {unit}")
+        if unit.type_id not in CREEP_TUMOR_TYPES:
+            logger.info(f"on_building_construction_started {unit}")
         await super().on_building_construction_started(unit)
 
     async def on_building_construction_complete(self, unit: Unit) -> None:
         self.units_completed_this_frame.add(unit.tag)
-        logger.info(f"on_building_construction_complete {unit}")
+        if unit.type_id not in CREEP_TUMOR_TYPES:
+            logger.info(f"on_building_construction_complete {unit}")
         await super().on_building_construction_complete(unit)
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId) -> None:
