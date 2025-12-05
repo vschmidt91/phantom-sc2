@@ -76,7 +76,7 @@ class Builder:
             if planned == 0:
                 yield MacroPlan(unit, priority=priority)
 
-        for plan in self._assigned_plans.values():
+        for plan in self.enumerate_plans():
             if plan.priority == math.inf:
                 continue
             if override_priority := unit_priorities.get(plan.item):
@@ -98,9 +98,7 @@ class Builder:
 
     def get_planned_cost(self) -> Cost:
         cost = Cost()
-        for plan in self._unassigned_plans:
-            cost += self.bot.cost.of(plan.item)
-        for plan in self._assigned_plans.values():
+        for plan in self.enumerate_plans():
             cost += self.bot.cost.of(plan.item)
         return cost
 
@@ -121,7 +119,7 @@ class Builder:
 
         priority = 3 * (saturation - 1)
 
-        for plan in self._assigned_plans.values():
+        for plan in self.enumerate_plans():
             if plan.item == UnitTypeId.HATCHERY:
                 plan.priority = priority
 
