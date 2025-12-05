@@ -289,6 +289,14 @@ class Agent:
             if action := self.dodge.dodge_with(unit):
                 actions[unit] = action
 
+        if self.config.max_actions < len(actions):
+            self.bot.add_replay_tag("action_throttling")
+            logger.info(f"Limiting actions from {len(actions)} to {self.config.max_actions}")
+            selected_keys = list(actions.keys())
+            random.shuffle(selected_keys)
+            selected_keys = selected_keys[: self.config.max_actions]
+            actions = {k: actions[k] for k in selected_keys}
+
         return actions
 
     def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId) -> None:
