@@ -237,6 +237,7 @@ class Agent:
             if action := self._search_with(changeling):
                 actions[changeling] = action
 
+        combatant_actions = dict[Unit, Action]()
         for combatant in combatants:
             if (
                 (combatant.type_id == UnitTypeId.RAVAGER and (action := self.corrosive_biles.bile_with(combatant)))
@@ -245,7 +246,16 @@ class Agent:
                 or (action := combat.fight_with(combatant))
                 or (action := self._search_with(combatant))
             ):
-                actions[combatant] = action
+                combatant_actions[combatant] = action
+
+        if self.config.max_actions < len(combatant_actions):
+            self.bot.add_replay_tag("action_throttling")
+            logger.debug(f"Limiting actions from {len(combatant_actions)} to {self.config.max_actions}")
+            selected_keys = list(combatant_actions.keys())
+            random.shuffle(selected_keys)
+            selected_keys = selected_keys[: self.config.max_actions]
+            combatant_actions = {k: combatant_actions[k] for k in selected_keys}
+        actions.update(combatant_actions)
 
         if self.bot.actual_iteration > 1 or not self.config.skip_first_iteration:
             actions.update(self.builder.get_actions())
@@ -283,14 +293,6 @@ class Agent:
         for unit in self.bot.units:
             if action := self.dodge.dodge_with(unit):
                 actions[unit] = action
-
-        if self.config.max_actions < len(actions):
-            self.bot.add_replay_tag("action_throttling")
-            logger.debug(f"Limiting actions from {len(actions)} to {self.config.max_actions}")
-            selected_keys = list(actions.keys())
-            random.shuffle(selected_keys)
-            selected_keys = selected_keys[: self.config.max_actions]
-            actions = {k: actions[k] for k in selected_keys}
 
         return actions
 
