@@ -89,10 +89,8 @@ class Overseers:
     def _get_action(
         self, overseer: Unit, detect_target: Point2 | None, scout_target: Unit | None, combat: CombatStep
     ) -> Action | None:
-        if action := self._spawn_changeling(overseer):
+        if (action := self._spawn_changeling(overseer)) or (action := combat.keep_unit_safe(overseer)):
             return action
-        elif not combat.is_unit_safe(overseer):
-            return combat.retreat_with(overseer)
         elif detect_target:
             return Move(
                 self.bot.mediator.find_path_next_point(

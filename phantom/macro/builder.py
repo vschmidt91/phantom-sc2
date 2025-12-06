@@ -83,10 +83,12 @@ class Builder:
                 plan.priority = override_priority
 
     def debug_draw_plans(self) -> None:
-        plans = list(chain(
-            ((None, p) for p in self._unassigned_plans),
-            self._assigned_plans.items(),
-        ))
+        plans = list(
+            chain(
+                ((None, p) for p in self._unassigned_plans),
+                self._assigned_plans.items(),
+            )
+        )
         plans_sorted = sorted(plans, key=lambda p: p[1].priority, reverse=True)
         for i, (tag, plan) in enumerate(plans_sorted):
             trainer = self.bot.unit_tag_dict.get(tag)
@@ -219,7 +221,11 @@ class Builder:
         all_plans.sort(key=lambda p: p[1].priority, reverse=True)
 
         for _i, (tag, plan) in enumerate(all_plans):
-            trainer = self._select_trainer(all_trainers.values(), plan.item) if tag is None else self.bot.unit_tag_dict.get(tag)
+            trainer = (
+                self._select_trainer(all_trainers.values(), plan.item)
+                if tag is None
+                else self.bot.unit_tag_dict.get(tag)
+            )
 
             if trainer is None:
                 if tag is not None:

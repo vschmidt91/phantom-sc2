@@ -20,7 +20,7 @@ from sc2.position import Point2
 from sc2.score import ScoreDetails
 from sc2.unit import Unit
 
-from phantom.common.action import Action, Attack, HoldPosition, Move, MovePath, UseAbility
+from phantom.common.action import Action, Attack, Move, MovePath, UseAbility
 from phantom.common.blocked_positions import BlockedPositionTracker
 from phantom.common.config import BotConfig
 from phantom.common.constants import (
@@ -225,11 +225,6 @@ class Agent:
         )
         resources = self.harvesters.step(resoure_observation)
 
-        def keep_unit_safe(unit: Unit) -> Action | None:
-            if not combat.is_unit_safe(unit):
-                return combat.retreat_with(unit)
-            return None
-
         for harvester in harvesters:
             if not combat.is_unit_safe(
                 harvester, weight_safety_limit=6.0
@@ -278,8 +273,8 @@ class Agent:
         for overlord in self.bot.units(UnitTypeId.OVERLORD):
             if self.bot.actual_iteration == 1:
                 actions[overlord] = self._send_overlord_scout(overlord)
-            if not combat.is_unit_safe(overlord):
-                actions[overlord] = combat.retreat_with(overlord)
+            if action := combat.keep_unit_safe(overlord):
+                actions[overlord] = action
 
         for tumor in self.creep_tumors.active_tumors:
             if action := self.creep_spread.spread_with(tumor):
@@ -404,23 +399,23 @@ class Agent:
 
     def _burrow(self, unit: Unit) -> Action | None:
         if (
-            UpgradeId.BURROW not in self.bot.state.upgrades
-            or unit.health_percentage > 0.3
-            or unit.is_revealed
-            or not unit.weapon_cooldown
-            or self.bot.mediator.get_is_detected(unit=unit, by_enemy=True)
+            UpgradeId.BURROW in self.bot.state.upgrades
+            and unit.health_percentage < 0.3
+            and not unit.is_revealed
+            and unit.weapon_cooldown
+            and not self.bot.mediator.get_is_detected(unit=unit, by_enemy=True)
         ):
+            return UseAbility(AbilityId.BURROWDOWN)
+        else:
             return None
-        return UseAbility(AbilityId.BURROWDOWN)
 
     def _unburrow(self, unit: Unit, combat: CombatStep) -> Action | None:
         if unit.health_percentage > 0.9:
             return UseAbility(AbilityId.BURROWUP)
-        elif UpgradeId.TUNNELINGCLAWS not in self.bot.state.upgrades:
+        elif UpgradeId.TUNNELINGCLAWS in self.bot.state.upgrades and (action := combat.keep_unit_safe(unit)):
+            return action
+        else:
             return None
-        elif self.bot.ground_grid[to_point(unit.position)] > 1:
-            return combat.retreat_with(unit)
-        return HoldPosition()
 
     def _log_parameters(self) -> None:
         logger.info(f"{self.parameters.__dict__=}")
