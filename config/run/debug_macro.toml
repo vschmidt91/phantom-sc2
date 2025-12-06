@@ -1,5 +1,5 @@
 map_pattern = "LeyLinesAIE_v3"
-enemy_race = "Terran"
+enemy_race = "Protoss"
 enemy_build = "Rush"
 save_replay = "resources\\replays\\local"
 bot_config = "config\\bot\\debug.toml"

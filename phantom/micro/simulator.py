@@ -52,6 +52,7 @@ class CombatSimulator:
         self.parameters = parameters
         self.num_steps = 30
         self.combat_sim = SC2CombatSimulator()
+        self.combat_sim.enable_timing_adjustment(True)
 
     def is_attackable(self, u: Unit) -> bool:
         if u.is_burrowed or u.is_cloaked:

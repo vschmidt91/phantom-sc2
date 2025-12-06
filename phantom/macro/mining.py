@@ -1,3 +1,4 @@
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -117,21 +118,9 @@ class MiningStep:
         resources = list[Unit]()
         resources.extend(self.context.mineral_fields)
         resources.extend(self.context.gas_buildings)
-        mineral_limits = len(self.context.mineral_fields) * [self.context.bot.harvesters_per_mineral_field]
-        gas_limits = len(self.context.gas_buildings) * [self.context.bot.harvesters_per_gas_building]
-        resource_limit = [*mineral_limits, *gas_limits]
 
         if not any(resources):
             return {}
-
-        mineral_max = sum(mineral_limits)
-        gas_max = sum(gas_limits)
-
-        gas_target = min(gas_max, self.context.gas_target)
-
-        harvester_max = mineral_max + gas_target
-        if harvester_max < len(harvesters):
-            harvesters = sorted(harvesters, key=lambda u: u.tag)[:harvester_max]
 
         if not any(harvesters):
             return {}
@@ -152,10 +141,14 @@ class MiningStep:
 
         n = len(harvesters)
         m = len(resources)
+        optimal_assigned = math.ceil(n / m)
+        max_assigned_mineral = max(optimal_assigned, self.context.bot.harvesters_per_mineral_field)
+        max_assigned_gas = max(optimal_assigned, self.context.bot.harvesters_per_gas_building)
+        gas_target = min(self.context.gas_target, max_assigned_gas * len(self.context.gas_buildings))
 
         cost = harvester_to_resource + 5 * return_distance + assignment_cost
         is_gas = np.array([1.0 if r.mineral_contents == 0 else 0.0 for r in resources])
-        limit = np.array(resource_limit)
+        limit = np.array([max_assigned_mineral if r.is_mineral_field else max_assigned_gas for r in resources])
 
         problem = get_assignment_solver(n, m)
         problem.set_total(is_gas, gas_target)

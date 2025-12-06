@@ -206,8 +206,8 @@ class Agent:
         gas_target = math.ceil(len(harvesters) * self.gas_ratio)
         if not self.bot.researched_speed and self.bot.harvestable_gas_buildings:
             gas_target = 3
-
-        macro_plans.extend(self._build_gas(gas_target))
+        else:
+            macro_plans.extend(self._build_gas(gas_target))
 
         for plan in macro_plans:
             self.builder.add(plan)
