@@ -3,12 +3,10 @@ from collections.abc import Mapping, Sequence
 
 import numpy as np
 from ares import ManagerMediator, UnitTreeQueryType
-from loguru import logger
 from sc2.position import Point2
 from sc2.unit import Unit
 
 from phantom.common.constants import MAX_UNIT_RADIUS, MIN_WEAPON_COOLDOWN
-from phantom.common.distribute import distribute
 from phantom.common.utils import air_dps_of, air_range_of, ground_dps_of, ground_range_of, pairwise_distances
 
 
@@ -118,27 +116,3 @@ def time_to_kill(mediator: ManagerMediator, units: Sequence[Unit], enemies: Sequ
 
     result = np.nan_to_num(np.divide(enemy_hp, dps), nan=np.inf)
     return result
-
-
-def assign_targets(mediator: ManagerMediator, units: Sequence[Unit], targets: Sequence[Unit]) -> Mapping[Unit, Unit]:
-    if not any(units) or not any(targets):
-        return {}
-
-    cost = time_to_attack(mediator, units, targets) + time_to_kill(mediator, units, targets)
-
-    target_tag_to_index = {t.tag: i for i, t in enumerate(targets)}
-    for i, unit in enumerate(units):
-        if isinstance(unit.order_target, int) and (j := target_tag_to_index.get(unit.order_target)):
-            cost[i, j] = 0.0
-
-    if np.isnan(cost).any():
-        logger.error("assignment cost array contains NaN values")
-        cost = np.nan_to_num(cost, nan=np.inf)
-
-    assignment = distribute(
-        units,
-        targets,
-        cost,
-    )
-
-    return assignment

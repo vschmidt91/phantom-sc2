@@ -7,6 +7,7 @@ import numpy as np
 from ares import UnitTreeQueryType
 from cython_extensions import cy_dijkstra
 from cython_extensions.dijkstra import DijkstraOutput
+from loguru import logger
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -21,6 +22,7 @@ from phantom.common.constants import (
     MAX_UNIT_RADIUS,
     MIN_WEAPON_COOLDOWN,
 )
+from phantom.common.distribute import distribute
 from phantom.common.parameter_sampler import ParameterSampler, Prior
 from phantom.common.utils import (
     Point,
@@ -32,17 +34,10 @@ from phantom.common.utils import (
     to_point,
 )
 from phantom.micro.simulator import CombatResult, CombatSetup, CombatSimulator
-from phantom.micro.utils import assign_targets, medoid
+from phantom.micro.utils import medoid, time_to_attack, time_to_kill
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
-
-
-def _target_priority(unit: Unit, target: Unit) -> float:
-    dps = air_dps_of(target) if unit.is_flying else ground_dps_of(target)
-    already_targeting = 10 * (unit.order_target == target.tag)
-    health = 0.1 * (target.health + target.shield)
-    return (1 + dps) * (1 + already_targeting) / (1 + health)
 
 
 @dataclass(frozen=True)
@@ -77,7 +72,6 @@ class CombatStepContext:
     combatants: Sequence[Unit]
     enemy_combatants: Sequence[Unit]
     prediction: CombatResult
-    targeting: Mapping[Unit, Unit]
 
     @cached_property
     def safe_combatants(self) -> Sequence[Unit]:
@@ -200,13 +194,11 @@ class CombatStepContext:
             COMBATANT_STRUCTURES
         )
         prediction = state.simulator.simulate(CombatSetup(units1=combatants, units2=enemy_combatants))
-        targeting = assign_targets(state.bot.mediator, combatants, enemy_combatants)
         return CombatStepContext(
             state=state,
             combatants=combatants,
             enemy_combatants=enemy_combatants,
             prediction=prediction,
-            targeting=targeting,
         )
 
 
@@ -216,10 +208,37 @@ class CombatState:
         self.parameters = parameters
         self._attacking_global = True
         self._attacking_local = set[int]()
+        self._targets: Mapping[int, Unit] = dict()
         self.simulator = simulator
+
+    def _assign_targets(self, units: Sequence[Unit], targets: Sequence[Unit]) -> Mapping[int, Unit]:
+        if not any(units) or not any(targets):
+            return {}
+
+        cost = time_to_attack(self.bot.mediator, units, targets) + time_to_kill(self.bot.mediator, units, targets)
+
+        target_tag_to_index = {t.tag: i for i, t in enumerate(targets)}
+        for i, unit in enumerate(units):
+            if (previous_target := self._targets.get(unit.tag)) and (j := target_tag_to_index.get(previous_target.tag)):
+                cost[i, j] = 0.0
+
+        if np.isnan(cost).any():
+            logger.error("assignment cost array contains NaN values")
+            cost = np.nan_to_num(cost, nan=np.inf)
+
+        assignment = distribute(
+            [u.tag for u in units],
+            targets,
+            cost,
+        )
+
+        return assignment
 
     def on_step(self) -> "CombatStep":
         context = CombatStepContext.build(self)
+
+        self._targets = self._assign_targets(context.combatants, context.enemy_combatants)
+        targets = {self.bot.unit_tag_dict[tag]: target for tag, target in self._targets.items()}
 
         if context.prediction.outcome_global >= self.parameters.global_engagement_threshold:
             self._attacking_global = True
@@ -232,15 +251,22 @@ class CombatState:
             elif outcome < self.parameters.disengagement_threshold:
                 self._attacking_local.discard(tag)
 
-        return CombatStep(context, self._attacking_global, frozenset(self._attacking_local))
+        return CombatStep(context, self._attacking_global, frozenset(self._attacking_local), targets)
 
 
 class CombatStep:
-    def __init__(self, context: CombatStepContext, attacking_global: bool, attacking_local: Set[int]) -> None:
+    def __init__(
+        self,
+        context: CombatStepContext,
+        attacking_global: bool,
+        attacking_local: Set[int],
+        targets: Mapping[Unit, Unit],
+    ) -> None:
         self.bot = context.state.bot
         self.context = context
         self.attacking_global = attacking_global
         self.attacking_local = attacking_local
+        self.targets = targets
 
     def retreat_with(self, unit: Unit, smoothing=3) -> Action:
         retreat_map = self.context.retreat_air if unit.is_flying else self.context.retreat_ground
@@ -301,7 +327,7 @@ class CombatStep:
         ):
             return action
 
-        if not (target := self.context.targeting.get(unit)):
+        if not (target := self.targets.get(unit)):
             return None
 
         if unit.tag in self.attacking_local:
@@ -341,6 +367,13 @@ class CombatStep:
             return None
         return Move(Point2(path[-1]).offset(HALF))
 
+    def _target_priority(self, unit: Unit, target: Unit) -> float:
+        dps = air_dps_of(target) if unit.is_flying else ground_dps_of(target)
+        is_large_scale_target = 10 * (self.targets.get(unit) == target)
+        already_targeting = 10 * (unit.order_target == target.tag)
+        health = 0.1 * (target.health + target.shield)
+        return (1 + dps) * (1 + is_large_scale_target) * (1 + already_targeting) / (1 + health)
+
     def _shoot_target_in_range(self, unit: Unit) -> Action | None:
         candidates = list[Unit]()
         if unit.can_attack_ground:
@@ -358,7 +391,7 @@ class CombatStep:
             )
             candidates.extend(filter(unit.target_in_range, query))
 
-        if target := max(candidates, key=lambda u: _target_priority(unit, u), default=None):
+        if target := max(candidates, key=lambda u: self._target_priority(unit, u), default=None):
             return Attack(target)
 
         return None
