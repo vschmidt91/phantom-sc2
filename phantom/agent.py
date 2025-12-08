@@ -2,9 +2,8 @@ import lzma
 import math
 import pickle
 import random
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from itertools import chain
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -31,7 +30,7 @@ from phantom.common.constants import (
 )
 from phantom.common.cost import Cost
 from phantom.common.parameter_sampler import ParameterSampler, Prior
-from phantom.common.utils import to_point
+from phantom.common.utils import MacroId, to_point
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.builder import Builder, BuilderParameters, MacroPlan
 from phantom.macro.mining import MiningContext, MiningState
@@ -116,9 +115,6 @@ class Agent:
         self._log_parameters()
 
     def on_step(self) -> Mapping[Unit, Action]:
-        if self.config.debug_draw:
-            self.builder.debug_draw_plans()
-
         enemy_combatants = self.bot.enemy_units.exclude_type(ENEMY_CIVILIANS)
         combatants = self.bot.units.exclude_type(
             {
@@ -143,7 +139,8 @@ class Agent:
         strategy = Strategy(self.bot, self.strategy_paramaters)
 
         actions = dict[Unit, Action]()
-        macro_plans = list[MacroPlan]()
+        macro_priorities = dict[MacroId, float]()
+        macro_plans = dict[UnitTypeId, MacroPlan]()
         if not self.build_order_completed:
             if not self.bot.mediator.is_position_safe(
                 grid=self.bot.ground_grid,
@@ -154,22 +151,21 @@ class Agent:
             if self.bot.mediator.get_did_enemy_rush:
                 self.build_order_completed = True
             if step := self.build_order.execute(self.bot):
+                macro_plans.update(step.plans)
+                macro_priorities.update(step.priorities)
                 actions.update(step.actions)
-                macro_plans.extend(step.plans)
             else:
                 logger.info("Build order completed.")
                 self.build_order_completed = True
         else:
-            macro_plans.extend(
-                chain(
-                    self.builder.make_composition(strategy.composition_target),
-                    self.builder.make_upgrades(strategy.composition_target, strategy.filter_upgrade),
-                    strategy.morph_overlord(),
-                    self.builder.expand(),
-                    strategy.make_spines(),
-                    strategy.make_spores(),
-                )
-            )
+            macro_priorities.update(self.builder.get_priorities(strategy.composition_target))
+            macro_priorities.update(self.builder.make_upgrades(strategy.composition_target, strategy.filter_upgrade))
+            macro_priorities.update(strategy.morph_overlord())
+            expansion_priority = self.builder.expansion_priority()
+            if expansion_priority > -1 and self.bot.count_planned(UnitTypeId.HATCHERY) == 0:
+                macro_plans[UnitTypeId.HATCHERY] = MacroPlan()
+            macro_plans.update(strategy.make_spines())
+            macro_plans.update(strategy.make_spores())
 
         combat = self.combat.on_step()
         self.creep_tumors.on_step()
@@ -207,10 +203,10 @@ class Agent:
         if not self.bot.researched_speed and self.bot.harvestable_gas_buildings:
             gas_target = 3
         else:
-            macro_plans.extend(self._build_gas(gas_target))
+            macro_plans.update(self._build_gas(gas_target))
 
-        for plan in macro_plans:
-            self.builder.add(plan)
+        for item, plan in macro_plans.items():
+            self.builder.add(item, plan)
         self.builder.on_step()
 
         mineral_fields = [m for m in self.bot.all_taken_minerals if should_harvest_resource(m)]
@@ -258,7 +254,7 @@ class Agent:
         actions.update(combatant_actions)
 
         if self.bot.actual_iteration > 1 or not self.config.skip_first_iteration:
-            actions.update(self.builder.get_actions())
+            actions.update(self.builder.get_actions(macro_priorities))
 
         for changeling in self.bot.units(CHANGELINGS):
             if action := self._search_with(changeling):
@@ -293,6 +289,9 @@ class Agent:
         for unit in self.bot.units:
             if action := self.dodge.dodge_with(unit):
                 actions[unit] = action
+
+        if self.config.debug_draw:
+            self.builder.debug_draw_plans(macro_priorities)
 
         return actions
 
@@ -372,7 +371,7 @@ class Agent:
         else:
             self.sampler.ask_best()
 
-    def _build_gas(self, gas_harvester_target: int) -> Iterable[MacroPlan]:
+    def _build_gas(self, gas_harvester_target: int) -> Mapping[UnitTypeId, MacroPlan]:
         gas_type = GAS_BY_RACE[self.bot.race]
         gas_have = (
             len(self.bot.harvestable_gas_buildings)
@@ -382,7 +381,8 @@ class Agent:
         gas_max = len(self.bot.all_taken_geysers)
         gas_want = min(gas_max, math.ceil(gas_harvester_target / self.bot.harvesters_per_gas_building))
         for _ in range(gas_have, gas_want):
-            yield MacroPlan(gas_type)
+            return {gas_type: MacroPlan()}
+        return {}
 
     def _search_with(self, unit: Unit) -> Action | None:
         if not (unit.is_idle or unit.is_gathering or unit.is_returning):

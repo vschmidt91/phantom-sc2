@@ -15,7 +15,9 @@ from sc2.position import Point2
 WITH_TECH_EQUIVALENTS = {unit: {unit} | EQUIVALENTS_FOR_TECH_PROGRESS.get(unit, set()) for unit in UnitTypeId}
 
 UNIT_TRAINED_FROM_WITH_EQUIVALENTS = {
-    item: {equivalent for trainer in UNIT_TRAINED_FROM.get(item, []) for equivalent in WITH_TECH_EQUIVALENTS[trainer]}
+    item: {
+        equivalent for trainer in UNIT_TRAINED_FROM.get(item, set()) for equivalent in WITH_TECH_EQUIVALENTS[trainer]
+    }
     for item in UnitTypeId
 }
 
@@ -166,6 +168,12 @@ UPGRADE_BY_RESEARCH_ABILITY: dict[AbilityId, UpgradeId] = {
 }
 
 ITEM_BY_ABILITY = {**UNIT_BY_TRAIN_ABILITY, **UPGRADE_BY_RESEARCH_ABILITY}
+
+BUILDER_ABILITIES: dict[AbilityId, UnitTypeId] = {
+    unit_element["ability"]: unit
+    for worker_type in ALL_WORKER_TYPES
+    for unit, unit_element in TRAIN_INFO.get(worker_type, {}).items()
+}
 
 GAS_BY_RACE: dict[Race, UnitTypeId] = {
     Race.Zerg: UnitTypeId.EXTRACTOR,

@@ -1,6 +1,6 @@
 import enum
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Mapping
 from functools import total_ordering
 from typing import TYPE_CHECKING
 
@@ -18,6 +18,7 @@ from phantom.common.constants import (
 )
 from phantom.common.parameter_sampler import ParameterSampler, Prior
 from phantom.common.unit_composition import UnitComposition, add_compositions, composition_of, sub_compositions
+from phantom.common.utils import MacroId
 from phantom.macro.builder import MacroPlan
 
 if TYPE_CHECKING:
@@ -60,52 +61,49 @@ class Strategy:
         self.composition_target = add_compositions(self.macro_composition, self.army_composition)
         self.composition_deficit = sub_compositions(self.composition_target, self.composition)
 
-    def make_spines(self) -> Iterable[MacroPlan]:
+    def make_spines(self) -> Mapping[UnitTypeId, MacroPlan]:
         if not self.bot.mediator.get_did_enemy_rush:
-            return
+            return {}
 
         if self.bot.time > 300:
-            return
+            return {}
 
         for expansion in self.bot.bases_taken.values():
-            if expansion.townhall_position == self.bot.start_location:
-                continue
-            if expansion.spine_position in self.bot.structure_dict:
-                continue
-            if not self.bot.mediator.can_place_structure(
-                position=expansion.spine_position,
-                structure_type=UnitTypeId.SPINECRAWLER,
+            if (
+                expansion.townhall_position != self.bot.start_location
+                and expansion.spine_position not in self.bot.structure_dict
+                and self.bot.mediator.can_place_structure(
+                    position=expansion.spine_position, structure_type=UnitTypeId.SPINECRAWLER
+                )
             ):
-                continue
-            yield MacroPlan(
-                UnitTypeId.SPINECRAWLER, target=Point2(expansion.spine_position), priority=0.0, allow_replacement=False
-            )
+                return {
+                    UnitTypeId.SPINECRAWLER: MacroPlan(target=Point2(expansion.spine_position), allow_replacement=False)
+                }
+        return {}
 
-    def make_spores(self) -> Iterable[MacroPlan]:
+    def make_spores(self) -> Mapping[UnitTypeId, MacroPlan]:
         if self.bot.actual_iteration % 31 != 0:
-            return
+            return {}
 
         timing = SPORE_TIMINGS[self.bot.enemy_race]
         if self.bot.time < timing:
-            return
+            return {}
 
         triggers = SPORE_TRIGGERS[self.bot.enemy_race]
         if not self.bot.enemy_units(triggers).exists:
-            return
+            return {}
 
         for expansion in self.bot.bases_taken.values():
-            if expansion.spore_position in self.bot.structure_dict:
-                continue
-            if not self.bot.mediator.can_place_structure(
-                position=expansion.spore_position,
-                structure_type=UnitTypeId.SPORECRAWLER,
+            if expansion.spore_position not in self.bot.structure_dict and self.bot.mediator.can_place_structure(
+                position=expansion.spore_position, structure_type=UnitTypeId.SPORECRAWLER
             ):
-                continue
-            yield MacroPlan(
-                UnitTypeId.SPORECRAWLER, target=Point2(expansion.spore_position), priority=0.0, allow_replacement=False
-            )
+                return {
+                    UnitTypeId.SPORECRAWLER: MacroPlan(target=Point2(expansion.spore_position), allow_replacement=False)
+                }
 
-    def morph_overlord(self) -> Iterable[MacroPlan]:
+        return {}
+
+    def morph_overlord(self) -> Mapping[MacroId, float]:
         supply_planned = sum(
             provided * (self.bot.count_planned(unit_type) + self.bot.count_pending(unit_type))
             for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
@@ -113,8 +111,8 @@ class Strategy:
         supply = self.bot.supply_cap + supply_planned
         supply_target = min(200.0, self.bot.supply_used + 2 + 20 * self.bot.income.larva)
         if supply_target <= supply:
-            return
-        yield MacroPlan(UnitTypeId.OVERLORD, priority=1)
+            return {}
+        return {UnitTypeId.OVERLORD: 0.0}
 
     def can_build(self, t: UnitTypeId) -> bool:
         return not any(self.bot.get_missing_requirements(t))

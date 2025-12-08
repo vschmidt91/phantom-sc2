@@ -301,7 +301,7 @@ class PhantomBot(AresBot):
 
     def count_planned(self, item: MacroId) -> int:
         factor = 2 if item == UnitTypeId.ZERGLING else 1
-        return factor * self.planned[item]
+        return factor * (1 if item in self.agent.builder._plans else 0)
 
     def get_missing_requirements(self, item: MacroId) -> Iterable[MacroId]:
         if item not in REQUIREMENTS_KEYS:
@@ -438,8 +438,8 @@ class PhantomBot(AresBot):
                 self.pending[unit.tag] = item
 
         self.structure_dict.update({to_point(s.position): s for s in self.structures})
-        for plan in self.agent.builder.enumerate_plans():
-            if plan.item in ALL_STRUCTURES and plan.target:
+        for plan in self.agent.builder._plans.values():
+            if plan.target:
                 self.structure_dict[to_point(plan.target.position)] = plan
 
         self.actual_by_type = Counter[UnitTypeId](
@@ -478,7 +478,6 @@ class PhantomBot(AresBot):
         )
 
         self.bank = Cost(self.minerals, self.vespene, self.supply_left, self.larva.amount)
-        self.planned = Counter(p.item for p in self.agent.builder.enumerate_plans())
 
     @property_cache_once_per_frame
     def ground_grid(self) -> np.ndarray:

@@ -1,14 +1,16 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-import numpy as np
+from ares.consts import ALL_WORKER_TYPES
+from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
 from phantom.common.action import Action, UseAbility
+from phantom.common.utils import MacroId
 from phantom.macro.builder import MacroPlan
 
 if TYPE_CHECKING:
@@ -17,8 +19,9 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class BuildOrderStep:
-    plans: list[MacroPlan]
-    actions: Mapping[Unit, Action]
+    plans: Mapping[UnitTypeId, MacroPlan] = field(default_factory=dict)
+    priorities: Mapping[MacroId, float] = field(default_factory=dict)
+    actions: Mapping[Unit, Action] = field(default_factory=dict)
 
 
 class BuildOrder(ABC):
@@ -33,14 +36,16 @@ class Make(BuildOrder):
     target: int
 
     def execute(self, bot: "PhantomBot") -> BuildOrderStep | None:
-        actual_or_pending = bot.count_actual(self.unit) + bot.count_pending(self.unit)
-        if actual_or_pending >= self.target:
+        needs_planning = not UNIT_TRAINED_FROM.get(self.unit, set()).isdisjoint(ALL_WORKER_TYPES)
+        count = bot.count_actual(self.unit) + bot.count_pending(self.unit)
+        if needs_planning:
+            count += bot.count_planned(self.unit)
+        if count >= self.target:
             return None
-        deficit = self.target - actual_or_pending - bot.count_planned(self.unit)
-        if deficit == 0:
-            return BuildOrderStep([], {})
-        plans = [MacroPlan(self.unit) for _ in range(deficit)]
-        return BuildOrderStep(plans, {})
+        if needs_planning:
+            return BuildOrderStep(plans={self.unit: MacroPlan()})
+        else:
+            return BuildOrderStep(priorities={self.unit: 0.0})
 
 
 @dataclass(frozen=True)
@@ -48,9 +53,7 @@ class WaitUntil(BuildOrder):
     condition: Callable[["PhantomBot"], bool]
 
     def execute(self, bot: "PhantomBot") -> BuildOrderStep | None:
-        if self.condition(bot):
-            return None
-        return BuildOrderStep([], {})
+        return None if self.condition(bot) else BuildOrderStep()
 
 
 @dataclass(frozen=True)
@@ -61,7 +64,7 @@ class ExtractorTrick(BuildOrder):
 
     def execute(self, bot: "PhantomBot") -> BuildOrderStep | None:
         if bot.supply_used < self.at_supply:
-            return BuildOrderStep([], {})
+            return BuildOrderStep()
         if bot.supply_used == self.at_supply and bot.bank.supply <= 0:
             has_extractor = (
                 bot.count_actual(self.unit_type) > 0
@@ -70,11 +73,11 @@ class ExtractorTrick(BuildOrder):
             )
             if not has_extractor:
                 if self.min_minerals <= bot.bank.minerals:
-                    return BuildOrderStep([MacroPlan(self.unit_type, priority=np.inf)], {})
+                    return BuildOrderStep(plans={self.unit_type: MacroPlan()})
                 else:
-                    return BuildOrderStep([], {})
+                    return BuildOrderStep()
             units = bot.structures(self.unit_type).not_ready
-            return BuildOrderStep([], {u: UseAbility(AbilityId.CANCEL) for u in units})
+            return BuildOrderStep(actions={u: UseAbility(AbilityId.CANCEL) for u in units})
         return None
 
 
