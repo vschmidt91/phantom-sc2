@@ -369,10 +369,9 @@ class CombatStep:
 
     def _target_priority(self, unit: Unit, target: Unit) -> float:
         dps = air_dps_of(target) if unit.is_flying else ground_dps_of(target)
-        is_large_scale_target = 10 * (self.targets.get(unit) == target)
         already_targeting = 10 * (unit.order_target == target.tag)
         health = 0.1 * (target.health + target.shield)
-        return (1 + dps) * (1 + is_large_scale_target) * (1 + already_targeting) / (1 + health)
+        return (1 + dps) * (1 + already_targeting) / (1 + health)
 
     def _shoot_target_in_range(self, unit: Unit) -> Action | None:
         candidates = list[Unit]()
