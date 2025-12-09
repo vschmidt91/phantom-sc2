@@ -859,8 +859,8 @@ jupyterlab = "^4.4.6"
 [package.source]
 type = "git"
 url = "https://github.com/vschmidt91/cython-extensions-sc2.git"
-reference = "test/dstar"
-resolved_reference = "3957461cd2b39202a5e6972bb33ff20e03d792ab"
+reference = "fix/dijkstra-release-memory"
+resolved_reference = "a5bbf2554f80fee0ff91d10fed64401870ade274"
 
 [[package]]
 name = "dask"
@@ -5354,4 +5354,4 @@ test = ["mypy", "ruff", "scipy-stubs", "types-requests", "types-s2clientprotocol
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12, <3.13"
-content-hash = "8e61cb09e222cb6529d1ccc86c47b1deeafc3b073343804f83b237469d598cd1"
+content-hash = "58f49a8b960b031ffa721dbd49ff73a10788bd691e1b60ed1d5610277fd4dabe"
