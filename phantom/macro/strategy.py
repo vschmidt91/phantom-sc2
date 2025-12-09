@@ -1,7 +1,7 @@
 import enum
 from collections import defaultdict
 from collections.abc import Mapping
-from functools import total_ordering
+from functools import cached_property, total_ordering
 from typing import TYPE_CHECKING
 
 from sc2.ids.unit_typeid import UnitTypeId
@@ -77,7 +77,9 @@ class Strategy:
                 )
             ):
                 return {
-                    UnitTypeId.SPINECRAWLER: MacroPlan(target=Point2(expansion.spine_position), allow_replacement=False)
+                    UnitTypeId.SPINECRAWLER: MacroPlan(
+                        target=Point2(expansion.spine_position), allow_replacement=False, priority=-0.5
+                    )
                 }
         return {}
 
@@ -98,7 +100,9 @@ class Strategy:
                 position=expansion.spore_position, structure_type=UnitTypeId.SPORECRAWLER
             ):
                 return {
-                    UnitTypeId.SPORECRAWLER: MacroPlan(target=Point2(expansion.spore_position), allow_replacement=False)
+                    UnitTypeId.SPORECRAWLER: MacroPlan(
+                        target=Point2(expansion.spore_position), allow_replacement=False, priority=-0.5
+                    )
                 }
 
         return {}
@@ -241,18 +245,29 @@ class Strategy:
         if self.tier >= StrategyTier.HATCH:
             composition[UnitTypeId.SPAWNINGPOOL] += 1
         if self.tier >= StrategyTier.LAIR:
-            composition[UnitTypeId.LAIR] += 1
+            if UnitTypeId.HIVE not in self.composition:
+                composition[UnitTypeId.LAIR] += 1
             composition[UnitTypeId.OVERSEER] += 1
+        if self.tier >= StrategyTier.HIVE:
+            composition[UnitTypeId.HIVE] += 1
+            composition[UnitTypeId.OVERSEER] += 1
+        if self.tier >= StrategyTier.LATEGAME:
+            composition[UnitTypeId.OVERSEER] += 1
+            composition[UnitTypeId.GREATERSPIRE] += 1
+        return composition
+
+    @cached_property
+    def tech_composition(self) -> UnitComposition:
+        composition = defaultdict[UnitTypeId, float](float)
+        if self.tier >= StrategyTier.HATCH:
+            composition[UnitTypeId.SPAWNINGPOOL] += 1
+        if self.tier >= StrategyTier.LAIR:
             composition[UnitTypeId.ROACHWARREN] += 1
             composition[UnitTypeId.HYDRALISKDEN] += 1
             composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
         if self.tier >= StrategyTier.HIVE:
             composition[UnitTypeId.INFESTATIONPIT] += 1
-            composition[UnitTypeId.HIVE] += 1
-            composition[UnitTypeId.OVERSEER] += 1
             composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
-        if self.tier >= StrategyTier.LATEGAME:
-            composition[UnitTypeId.OVERSEER] += 1
+        if self.tier >= StrategyTier.LATEGAME and UnitTypeId.GREATERSPIRE not in self.composition:
             composition[UnitTypeId.SPIRE] += 1
-            composition[UnitTypeId.GREATERSPIRE] += 1
         return composition

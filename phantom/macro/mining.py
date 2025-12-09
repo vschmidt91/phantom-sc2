@@ -46,6 +46,8 @@ class ReturnResource(Action):
         move_target = self.return_target.position.towards(unit, TOWNHALL_TARGET)
         if 0.75 < unit.position.distance_to(move_target) < 1.5:
             return unit.move(move_target) and unit.smart(self.return_target, queue=True)
+        elif not unit.is_returning:
+            return unit.return_resource()
         else:
             return True
 
@@ -171,7 +173,7 @@ class MiningStep:
             return None
         elif unit.is_gathering:
             return GatherAction(target, self.state.bot.gather_targets[target_pos])
-        elif unit.is_returning:
+        elif unit.is_returning or (unit.is_idle and unit.is_carrying_resource):
             if return_targets:
                 return_target = cy_closest_to(unit.position, return_targets)
                 return ReturnResource(return_target)

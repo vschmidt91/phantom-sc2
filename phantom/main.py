@@ -87,7 +87,7 @@ class PhantomBot(AresBot):
     async def on_start(self) -> None:
         await super().on_start()
         logger.info("on_start")
-        self._initialize_map()
+        await self._initialize_map()
         self.agent = Agent(self, self.bot_config)
 
     async def on_step(self, iteration: int):
@@ -386,11 +386,26 @@ class PhantomBot(AresBot):
         if self.version:
             self.add_replay_tag(f"version_{self.version}")
 
-    def _initialize_map(self) -> None:
+    async def _initialize_map(self) -> None:
+        # for b in self.expansion_locations_list:
+        #     if not await self.can_place_single(UnitTypeId.HATCHERY, b):
+        #         print(b, await self.find_placement(UnitTypeId.HATCHERY, b, placement_step=1))
         self.expansions = {
             to_point(p): Expansion.from_resources(p, resources)
             for p, resources in self.expansion_locations_dict.items()
         }
+        # fix invalid townhall positions
+        for b, e in list(self.expansions.items()):
+            if e.townhall_position != self.start_location and not await self.can_place_single(
+                UnitTypeId.HATCHERY, e.townhall_position
+            ):
+                if fixed := await self.find_placement(
+                    UnitTypeId.HATCHERY, e.townhall_position, max_distance=2, placement_step=1
+                ):
+                    self.expansions[b].townhall_position = fixed
+                else:
+                    del self.expansions[b]
+
         self.gather_targets = dict(p for e in self.expansions.values() for p in e.gather_targets.items())
         self.return_distances = dict(p for e in self.expansions.values() for p in e.return_distances.items())
 

@@ -17,15 +17,15 @@ from sc2.unit import Unit
 from phantom.common.action import Action, HoldPosition, Move, UseAbility
 from phantom.common.constants import (
     BUILDER_ABILITIES,
-    HALF,
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
     MACRO_INFO,
     TRAINER_TYPES,
 )
 from phantom.common.cost import Cost
+from phantom.common.expansion import Expansion
 from phantom.common.parameter_sampler import ParameterSampler, Prior
 from phantom.common.unit_composition import UnitComposition
-from phantom.common.utils import MacroId, Point, to_point
+from phantom.common.utils import MacroId, to_point
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -43,6 +43,7 @@ EXCLUDE_ABILTIES = {
 class MacroPlan:
     tag: int | None = None
     target: Unit | Point2 | None = None
+    priority: float = 0.0
     allow_replacement: bool = True
 
 
@@ -144,10 +145,13 @@ class Builder:
             )
         }
 
+        priorities_override = dict(priorities)
+        for item, plan in self._plans.items():
+            priorities_override.setdefault(item, plan.priority)
         plans = dict[MacroId, MacroPlan | None](self._plans)
         plans.update({item: None for item in priorities if item not in self._plans})
 
-        plans_sorted = sorted(plans.items(), key=lambda p: priorities.get(p[0], 0.0), reverse=True)
+        plans_sorted = sorted(plans.items(), key=lambda p: priorities_override[p[0]], reverse=True)
         for item, plan in plans_sorted:
             if plan:
                 trainer = self.bot.unit_tag_dict.get(plan.tag) if plan.tag else None
@@ -247,24 +251,26 @@ class Builder:
         loss_positions = [b.mineral_center for b in self.bot.bases_taken.values()]
         loss_positions_enemy = self.bot.enemy_start_locations
 
-        def loss_fn(p: Point2) -> float:
-            distances = map(lambda q: cy_distance_to(p, q), loss_positions)
-            distances_enemy = map(lambda q: cy_distance_to(p, q), loss_positions_enemy)
+        def loss_fn(e: Expansion) -> float:
+            distances = map(lambda q: cy_distance_to(e.townhall_position, q), loss_positions)
+            distances_enemy = map(lambda q: cy_distance_to(e.townhall_position, q), loss_positions_enemy)
             return max(distances, default=0.0) - min(distances_enemy, default=0.0)
 
-        def is_viable(b: Point) -> bool:
+        def is_viable(e: Expansion) -> bool:
+            b = to_point(e.townhall_position)
             if b in self.bot.blocked_positions:
                 return False
             if b in self.bot.structure_dict:
                 return False
-            p = Point2(b).offset((0.5, 0.5))
-            if not self.bot.mediator.is_position_safe(grid=self.bot.ground_grid, position=p):
+            if not self.bot.mediator.is_position_safe(grid=self.bot.ground_grid, position=e.townhall_position):
                 return False
-            return self.bot.mediator.can_place_structure(position=p, structure_type=UnitTypeId.HATCHERY)
+            return self.bot.mediator.can_place_structure(
+                position=e.townhall_position, structure_type=UnitTypeId.HATCHERY
+            )
 
-        candidates = filter(is_viable, self.bot.expansions)
-        if target := min(candidates, key=loss_fn, default=None):
-            return Point2(target).offset(HALF)
+        candidates = filter(is_viable, self.bot.expansions.values())
+        if expansion := min(candidates, key=loss_fn, default=None):
+            return expansion.townhall_position
 
         raise PlacementNotFoundException()
 

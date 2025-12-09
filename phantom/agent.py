@@ -162,10 +162,20 @@ class Agent:
             macro_priorities.update(self.builder.make_upgrades(strategy.composition_target, strategy.filter_upgrade))
             macro_priorities.update(strategy.morph_overlord())
             expansion_priority = self.builder.expansion_priority()
+            macro_priorities[UnitTypeId.HATCHERY] = expansion_priority
             if expansion_priority > -1 and self.bot.count_planned(UnitTypeId.HATCHERY) == 0:
                 macro_plans[UnitTypeId.HATCHERY] = MacroPlan()
+            for unit, count in strategy.tech_composition.items():
+                if (
+                    self.bot.count_actual(unit) + self.bot.count_pending(unit) < count
+                    and not any(self.bot.get_missing_requirements(unit))
+                ) and self.bot.count_planned(unit) == 0:
+                    macro_plans[unit] = MacroPlan(priority=-0.5)
             macro_plans.update(strategy.make_spines())
             macro_plans.update(strategy.make_spores())
+
+        # filter out impossible tasks
+        macro_priorities = {k: v for k, v in macro_priorities.items() if not any(self.bot.get_missing_requirements(k))}
 
         combat = self.combat.on_step()
         self.creep_tumors.on_step()
