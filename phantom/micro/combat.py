@@ -50,7 +50,7 @@ class CombatParameters:
     def __init__(self, sampler: ParameterSampler) -> None:
         self.engagement_threshold = 0.0
         self.disengagement_threshold = 0.0
-        self.global_engagement_level_param = sampler.add(Prior(0, 0.1))
+        self.global_engagement_level_param = sampler.add(Prior(0.55, 0.1))
         self.global_engagement_hysteresis_param = sampler.add(Prior(-1.5, 0.1, max=0))
 
     @property

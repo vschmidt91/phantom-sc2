@@ -83,7 +83,7 @@ def score_to_fitness(score: ScoreDetails, vespene_weight: float = 2.0) -> float:
 @dataclass
 class AgentParameters:
     def __init__(self, sampler: ParameterSampler) -> None:
-        self.gas_ratio_learning_rate_log = sampler.add(Prior(-7, 1, max=0))
+        self.gas_ratio_learning_rate_log = sampler.add(Prior(-5, 1, max=0))
 
     @property
     def gas_ratio_learning_rate(self) -> float:

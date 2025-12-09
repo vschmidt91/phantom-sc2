@@ -49,7 +49,8 @@ class ParameterSampler:
     def ask_best(self):
         if self.strategy is None:
             self.strategy = self._initialize_strategy()
-        values = self.strategy.best.x or np.array([p.prior.mu for p in self.parameters])
+        values = self.strategy.mean
+        # values = np.array([p.prior.mu for p in self.parameters])
         self._set_values(values)
 
     def ask(self) -> None:

@@ -34,8 +34,8 @@ class CombatResult:
 
 class CombatSimulatorParameters:
     def __init__(self, sampler: ParameterSampler) -> None:
-        self.time_distribution_lambda_log = sampler.add(Prior(0.0, 1.0))
-        self.distance_constant_log = sampler.add(Prior(0.0, 1.0))
+        self.time_distribution_lambda_log = sampler.add(Prior(1.0, 0.5))
+        self.distance_constant_log = sampler.add(Prior(0.5, 0.1))
 
     @property
     def time_distribution_lambda(self) -> float:
