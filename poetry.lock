@@ -844,7 +844,7 @@ tests = ["pytest", "pytest-cov", "pytest-xdist"]
 
 [[package]]
 name = "cython-extensions-sc2"
-version = "0.11.0"
+version = "0.11.1"
 description = ""
 optional = false
 python-versions = ">=3.11,<3.14"
@@ -859,8 +859,8 @@ jupyterlab = "^4.4.6"
 [package.source]
 type = "git"
 url = "https://github.com/vschmidt91/cython-extensions-sc2.git"
-reference = "fix/dijkstra-release-memory"
-resolved_reference = "a5bbf2554f80fee0ff91d10fed64401870ade274"
+reference = "test/dijkstra-early-stopping"
+resolved_reference = "a3482c0e3ce142330f2c119af2984a335b59b7ef"
 
 [[package]]
 name = "dask"
@@ -5354,4 +5354,4 @@ test = ["mypy", "ruff", "scipy-stubs", "types-requests", "types-s2clientprotocol
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12, <3.13"
-content-hash = "58f49a8b960b031ffa721dbd49ff73a10788bd691e1b60ed1d5610277fd4dabe"
+content-hash = "9bb6af10f98a7c69172311c69ed59a6035367d6348372cb7040c1dd092c0d627"
