@@ -97,9 +97,7 @@ class CombatStepContext:
     @cached_property
     def retreat_to_creep(self) -> DijkstraOutput | None:
         if self.retreat_to_creep_targets:
-            return cy_dijkstra(
-                self.state.bot.ground_grid.astype(np.float64), np.atleast_2d(self.retreat_to_creep_targets)
-            )
+            return cy_dijkstra(self.state.bot.ground_grid, np.atleast_2d(self.retreat_to_creep_targets))
         else:
             return None
 
@@ -121,16 +119,14 @@ class CombatStepContext:
     @cached_property
     def retreat_air(self) -> DijkstraOutput | None:
         if self.retreat_targets:
-            return cy_dijkstra(
-                self.state.bot.mediator.get_air_grid.astype(np.float64), np.atleast_2d(self.retreat_targets)
-            )
+            return cy_dijkstra(self.state.bot.mediator.get_air_grid, np.atleast_2d(self.retreat_targets))
         else:
             return None
 
     @cached_property
     def retreat_ground(self) -> DijkstraOutput | None:
         if self.retreat_targets:
-            return cy_dijkstra(self.state.bot.ground_grid.astype(np.float64), np.atleast_2d(self.retreat_targets))
+            return cy_dijkstra(self.state.bot.ground_grid, np.atleast_2d(self.retreat_targets))
         else:
             return None
 
@@ -138,7 +134,7 @@ class CombatStepContext:
     def concentrate_air(self) -> DijkstraOutput | None:
         if self.retreat_targets:
             return cy_dijkstra(
-                self.state.bot.mediator.get_air_grid.astype(np.float64),
+                self.state.bot.mediator.get_air_grid,
                 np.array([to_point(self.concentration_point)]),
             )
         else:
@@ -148,7 +144,7 @@ class CombatStepContext:
     def concentrate_ground(self) -> DijkstraOutput | None:
         if self.retreat_targets:
             return cy_dijkstra(
-                self.state.bot.ground_grid.astype(np.float64),
+                self.state.bot.ground_grid,
                 np.array([to_point(self.concentration_point)]),
             )
         else:
@@ -171,7 +167,7 @@ class CombatStepContext:
     def attack_air(self) -> DijkstraOutput | None:
         if self.attack_targets:
             return cy_dijkstra(
-                self.state.bot.mediator.get_air_grid.astype(np.float64),
+                self.state.bot.mediator.get_air_grid,
                 np.atleast_2d(self.attack_targets),
             )
         else:
@@ -181,7 +177,7 @@ class CombatStepContext:
     def attack_ground(self) -> DijkstraOutput | None:
         if self.attack_targets:
             return cy_dijkstra(
-                self.state.bot.ground_grid.astype(np.float64),
+                self.state.bot.ground_grid,
                 np.atleast_2d(self.attack_targets),
             )
         else:
@@ -334,19 +330,24 @@ class CombatStep:
             return Attack(target.position if ground_range < 2 else target)
         elif (
             (action := self.keep_unit_safe(unit))
-            or (self.attacking_global and (action := self.attack_with(unit)))
+            or (self.attacking_global and (action := self.attack_with(unit, cautiously=True)))
             or (action := self.concentrate(unit))
         ):
             return action
         else:
             return None
 
-    def attack_with(self, unit: Unit, smoothing: int = 3) -> Action | None:
+    def attack_with(self, unit: Unit, smoothing: int = 3, cautiously: bool = False) -> Action | None:
         attack_map = self.context.attack_air if unit.is_flying else self.context.attack_ground
+
         if not attack_map:
             return None
         path = attack_map.get_path(unit.position, smoothing)
         target = Point2(path[-1]).offset(HALF)
+        if cautiously and not self.bot.mediator.is_position_safe(
+            grid=self.bot.mediator.get_air_grid if unit.is_flying else self.bot.ground_grid, position=target
+        ):
+            return None
         return Attack(target)
 
     def keep_unit_safe(self, unit: Unit) -> Action | None:
