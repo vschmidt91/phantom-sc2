@@ -358,8 +358,6 @@ class CombatStep:
         concentrate_map = self.context.concentrate_air if unit.is_flying else self.context.concentrate_ground
         if not concentrate_map:
             return None
-        if concentrate_map.distance[to_point(unit.position)] < limit:
-            return None
         path = concentrate_map.get_path(unit.position, limit=smoothing)
         if len(path) < smoothing:
             return None
