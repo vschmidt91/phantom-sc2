@@ -11,7 +11,7 @@ dependencies = [
     "burnysc2 @ git+https://github.com/august-k/python-sc2.git@develop",
     "click (>=8.1.8,<9.0.0)",
     "cma (>=4.4.0,<5.0.0)",
-    "cython-extensions-sc2 @ git+https://github.com/vschmidt91/cython-extensions-sc2.git@test/dijkstra-early-stopping",
+    "cython-extensions-sc2 @ git+https://github.com/vschmidt91/cython-extensions-sc2.git@feat/dijkstra-early-stopping",
     "highspy (>=1.10.0,<2.0.0)",
     "pyarrow (>=20.0.0,<21.0.0)",
     "pyyaml (>=6.0.2,<7.0.0)",

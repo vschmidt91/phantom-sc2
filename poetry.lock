@@ -859,8 +859,8 @@ jupyterlab = "^4.4.6"
 [package.source]
 type = "git"
 url = "https://github.com/vschmidt91/cython-extensions-sc2.git"
-reference = "test/dijkstra-early-stopping"
-resolved_reference = "ba3d932a7088574923a7ddd47a550299f3f9555f"
+reference = "feat/dijkstra-early-stopping"
+resolved_reference = "291f38a73f3c0ba707b47ed67d2740a74abe9646"
 
 [[package]]
 name = "dask"
@@ -5354,4 +5354,4 @@ test = ["mypy", "ruff", "scipy-stubs", "types-requests", "types-s2clientprotocol
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12, <3.13"
-content-hash = "9bb6af10f98a7c69172311c69ed59a6035367d6348372cb7040c1dd092c0d627"
+content-hash = "a7a6699e0240fcce1194710ea55a33f298f73a9d660be6eaa1db2bcfd01439f3"
