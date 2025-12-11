@@ -860,7 +860,7 @@ jupyterlab = "^4.4.6"
 type = "git"
 url = "https://github.com/vschmidt91/cython-extensions-sc2.git"
 reference = "test/dijkstra-early-stopping"
-resolved_reference = "a3482c0e3ce142330f2c119af2984a335b59b7ef"
+resolved_reference = "ba3d932a7088574923a7ddd47a550299f3f9555f"
 
 [[package]]
 name = "dask"

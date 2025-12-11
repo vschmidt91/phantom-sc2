@@ -346,8 +346,6 @@ class CombatStep:
         if not attack_map:
             return None
         path = attack_map.get_path(unit.position, smoothing)
-        # if len(path) < smoothing:
-        #     return None
         target = Point2(path[-1]).offset(HALF)
         return Attack(target)
 
