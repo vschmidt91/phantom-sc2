@@ -844,7 +844,7 @@ tests = ["pytest", "pytest-cov", "pytest-xdist"]
 
 [[package]]
 name = "cython-extensions-sc2"
-version = "0.11.1"
+version = "0.12.0"
 description = ""
 optional = false
 python-versions = ">=3.11,<3.14"
@@ -858,9 +858,9 @@ jupyterlab = "^4.4.6"
 
 [package.source]
 type = "git"
-url = "https://github.com/vschmidt91/cython-extensions-sc2.git"
-reference = "feat/dijkstra-early-stopping"
-resolved_reference = "291f38a73f3c0ba707b47ed67d2740a74abe9646"
+url = "https://github.com/AresSC2/cython-extensions-sc2"
+reference = "HEAD"
+resolved_reference = "96d2cdaee9315f78f50b05b157276bb0b70392a6"
 
 [[package]]
 name = "dask"
@@ -5354,4 +5354,4 @@ test = ["mypy", "ruff", "scipy-stubs", "types-requests", "types-s2clientprotocol
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12, <3.13"
-content-hash = "a7a6699e0240fcce1194710ea55a33f298f73a9d660be6eaa1db2bcfd01439f3"
+content-hash = "37251356c2170cbec4aabb7327a9c51a6fe5e6fc44a5777077208bffc94cea6a"
