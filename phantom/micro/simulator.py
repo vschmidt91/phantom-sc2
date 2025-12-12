@@ -4,9 +4,9 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
-from scipy.stats import gamma
 from sc2.unit import Unit
 from sc2_helper.combat_simulator import CombatSimulator as SC2CombatSimulator
+from scipy.stats import gamma
 from sklearn.metrics import pairwise_distances
 
 from phantom.common.parameter_sampler import ParameterSampler, Prior
@@ -81,7 +81,7 @@ class CombatSimulator:
             total_cost = (cost.minerals + 2 * cost.vespene) * (0.5 if t == UnitTypeId.ZERGLING else 1.0)
             return total_cost
 
-        values = np.array([total_cost(u.type_id) / max(1.0, u.shield_max + u.health_max) for u in units])
+        np.array([total_cost(u.type_id) / max(1.0, u.shield_max + u.health_max) for u in units])
 
         ground_range = np.array([ground_range_of(u) for u in units])
         air_range = np.array([air_range_of(u) for u in units])
@@ -106,7 +106,7 @@ class CombatSimulator:
         movement_speed = np.repeat(movement_speed_vector[:, None], len(units), axis=1)
 
         health = np.array([u.health + u.shield for u in units])
-        health_projection = health.copy()
+        health.copy()
 
         p = np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
         times = gamma.ppf(p, 2, scale=self.parameters.time_distribution_lambda)
@@ -144,7 +144,9 @@ class CombatSimulator:
         win, health_result = self.combat_sim.predict_engage(
             setup.units1, setup.units2, optimistic=True, defender_player=2
         )
-        outcome_global = health_result / max(1e-10, health1.sum()) if win else -health_result / max(1e-10, health2.sum())
+        outcome_global = (
+            health_result / max(1e-10, health1.sum()) if win else -health_result / max(1e-10, health2.sum())
+        )
 
         outcome_local = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
         result = CombatResult(outcome_local=outcome_local, outcome_global=outcome_global)
