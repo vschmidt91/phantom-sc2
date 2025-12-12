@@ -17,7 +17,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
-from sklearn.metrics import pairwise_distances as pairwise_distances_sklearn
+from scipy.spatial.distance import cdist
 
 RNG = np.random.default_rng(42)
 
@@ -54,18 +54,13 @@ def structure_perimeter(s: Unit) -> Iterable[Point]:
     if s.position is None or half_extent is None:
         logger.error(f"cannot setup structure perimeter for {s} at position {s.position} with footprint {half_extent}")
         return
-    start = np.subtract(s.position, half_extent).astype(int) - 1
-    end = np.add(s.position, half_extent).astype(int)
-
-    yield from rectangle_perimeter(start, end)
+    x0, y0 = np.subtract(s.position, half_extent).astype(int) - 1
+    x1, y1 = np.add(s.position, half_extent).astype(int)
+    yield from rectangle_perimeter((x0, y0), (x1, y1))
 
 
 def pairwise_distances(a, b=None):
-    if not a:
-        return np.array([[]])
-    if isinstance(b, list) and not any(b):
-        return np.array([[]])
-    return pairwise_distances_sklearn(a, b, ensure_all_finite=False)
+    return cdist(np.atleast_2d(a), np.atleast_2d(a if b is None else b), "euclidean")
 
 
 def project_point_onto_line(origin: Point2, direction: Point2, position: Point2) -> Point2:

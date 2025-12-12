@@ -7,7 +7,6 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2_helper.combat_simulator import CombatSimulator as SC2CombatSimulator
 from scipy.stats import gamma
-from sklearn.metrics import pairwise_distances
 
 from phantom.common.parameter_sampler import ParameterSampler, Prior
 from phantom.common.utils import (
@@ -15,6 +14,7 @@ from phantom.common.utils import (
     air_range_of,
     ground_dps_of,
     ground_range_of,
+    pairwise_distances,
 )
 
 if TYPE_CHECKING:
@@ -51,7 +51,7 @@ class CombatSimulator:
     def __init__(self, bot: "PhantomBot", parameters: CombatSimulatorParameters) -> None:
         self.bot = bot
         self.parameters = parameters
-        self.num_steps = 30
+        self.num_steps = 10
         self.combat_sim = SC2CombatSimulator()
         self.combat_sim.enable_timing_adjustment(True)
 
@@ -81,8 +81,6 @@ class CombatSimulator:
             total_cost = (cost.minerals + 2 * cost.vespene) * (0.5 if t == UnitTypeId.ZERGLING else 1.0)
             return total_cost
 
-        np.array([total_cost(u.type_id) / max(1.0, u.shield_max + u.health_max) for u in units])
-
         ground_range = np.array([ground_range_of(u) for u in units])
         air_range = np.array([air_range_of(u) for u in units])
         ground_dps = np.array([ground_dps_of(u) for u in units])
@@ -90,6 +88,7 @@ class CombatSimulator:
         radius = np.array([u.radius for u in units])
         attackable = np.array([self.is_attackable(u) for u in units])
         flying = np.array([u.is_flying for u in units])
+        np.array([u.health + u.shield for u in units])
 
         ground_selector = np.where(attackable & ~flying, 1.0, 0.0)
         air_selector = np.where(attackable & flying, 1.0, 0.0)
@@ -105,11 +104,10 @@ class CombatSimulator:
         movement_speed_vector = np.array([1.4 * u.real_speed for u in units])
         movement_speed = np.repeat(movement_speed_vector[:, None], len(units), axis=1)
 
-        health = np.array([u.health + u.shield for u in units])
-        health.copy()
-
         p = np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
-        times = gamma.ppf(p, 2, scale=self.parameters.time_distribution_lambda)
+        a = 2.0
+        times = gamma.ppf(p, a, scale=self.parameters.time_distribution_lambda / a)
+        # times = -np.log(1.0 - p) * 1.0
 
         mixing_enemy = np.reciprocal(self.parameters.distance_constant + distance)
         mixing_own = mixing_enemy.copy()
@@ -122,7 +120,7 @@ class CombatSimulator:
 
         health1 = np.array([u.health + u.shield for u in setup.units1])
         health2 = np.array([u.health + u.shield for u in setup.units2])
-        health = np.concatenate([health1, health2])
+        value = np.array([total_cost(u.type_id) * u.shield_health_percentage for u in units])
 
         advantage = np.full((len(units), len(times)), 0.0)
         for i, t in enumerate(times):
@@ -131,15 +129,14 @@ class CombatSimulator:
             attack_weight = np.where(in_range & (dps > 0.0), 1.0, 0.0)
             attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
 
-            lancester_alpha = attack_probability * dps * np.repeat(health[:, None], len(units), axis=1)
+            lancester_alpha = attack_probability * dps * np.repeat(value[:, None], len(units), axis=1)
             forces2 = lancester_alpha.sum(axis=0)
             # forces1 = lancester_alpha.sum(axis=1)
             forces1 = mixing_enemy @ forces2
 
-            advantage[:, i] = forces1 - forces2
+            advantage[:, i] = np.log1p(forces1) - np.log1p(forces2)
 
-        advantage_weighted = advantage.mean(axis=1)
-        outcome_vector = np.tanh(1e-2 * advantage_weighted)
+        outcome_vector = np.median(advantage, axis=1)
 
         win, health_result = self.combat_sim.predict_engage(
             setup.units1, setup.units2, optimistic=True, defender_player=2
