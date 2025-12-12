@@ -212,11 +212,11 @@ class Builder:
     def _assign_unassigned_worker_plans(self) -> None:
         assigned_tags = {p.tag for p in self._plans.values()}
         workers = {w.tag: w for w in self.bot.workers if w.tag not in assigned_tags}
-        if not workers:
-            return
         for plan in self._plans.values():
             if plan.tag:
                 continue
+            if not workers:
+                break
             tag = random.choice(list(workers))
             plan.tag = tag
             workers.pop(tag, None)
