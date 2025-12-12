@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
+from scipy.stats import gamma
 from sc2.unit import Unit
 from sc2_helper.combat_simulator import CombatSimulator as SC2CombatSimulator
 from sklearn.metrics import pairwise_distances
@@ -34,7 +35,7 @@ class CombatResult:
 
 class CombatSimulatorParameters:
     def __init__(self, sampler: ParameterSampler) -> None:
-        self.time_distribution_lambda_log = sampler.add(Prior(1.0, 0.5))
+        self.time_distribution_lambda_log = sampler.add(Prior(0.0, 0.5))
         self.distance_constant_log = sampler.add(Prior(0.5, 0.1))
 
     @property
@@ -108,51 +109,42 @@ class CombatSimulator:
         health_projection = health.copy()
 
         p = np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
-        times = -np.log(1.0 - p) / self.parameters.time_distribution_lambda
-        weights = 1 - p
-        times_diff = np.diff(times)
-
-        damage_accumulation = np.full((len(units)), 0.0)
-        for t, dt, w in zip(times, times_diff, weights, strict=False):
-            range_projection = ranges + movement_speed * np.sqrt(t)
-            in_range = distance <= range_projection
-            alive = health_projection > 0.0
-            attack = (
-                in_range
-                & np.repeat(alive[:, None], len(units), axis=1)
-                & np.repeat(alive[None, :], len(units), axis=0)
-                & (dps > 0.0)
-            )
-
-            attack_weight = np.where(attack, 1.0, 0.0)
-            attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
-
-            damage_received = dt * (attack_probability * dps).sum(axis=0)
-            damage_accumulation += w * damage_received
-            health_projection -= damage_received
+        times = gamma.ppf(p, 2, scale=self.parameters.time_distribution_lambda)
 
         mixing_enemy = np.reciprocal(self.parameters.distance_constant + distance)
         mixing_own = mixing_enemy.copy()
-
         mixing_own[:n1, n1:] = 0.0
         mixing_own[n1:, :n1] = 0.0
         mixing_enemy[:n1, :n1] = 0.0
         mixing_enemy[n1:, n1:] = 0.0
-
         mixing_own /= mixing_own.sum(axis=1, keepdims=True)
         mixing_enemy /= mixing_enemy.sum(axis=1, keepdims=True)
 
-        losses_weighted = np.maximum(0.0, values * damage_accumulation)
-        losses_own = mixing_own @ losses_weighted
-        losses_enemy = mixing_enemy @ losses_weighted
-        outcome_vector = (losses_enemy - losses_own) / np.maximum(1e-10, losses_enemy + losses_own)
+        health1 = np.array([u.health + u.shield for u in setup.units1])
+        health2 = np.array([u.health + u.shield for u in setup.units2])
+        health = np.concatenate([health1, health2])
 
-        health1 = sum(u.health + u.shield for u in setup.units1)
-        health2 = sum(u.health + u.shield for u in setup.units2)
+        advantage = np.full((len(units), len(times)), 0.0)
+        for i, t in enumerate(times):
+            range_projection = ranges + movement_speed * np.sqrt(t)
+            in_range = distance <= range_projection
+            attack_weight = np.where(in_range & (dps > 0.0), 1.0, 0.0)
+            attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
+
+            lancester_alpha = attack_probability * dps * np.repeat(health[:, None], len(units), axis=1)
+            forces2 = lancester_alpha.sum(axis=0)
+            # forces1 = lancester_alpha.sum(axis=1)
+            forces1 = mixing_enemy @ forces2
+
+            advantage[:, i] = forces1 - forces2
+
+        advantage_weighted = advantage.mean(axis=1)
+        outcome_vector = np.tanh(1e-2 * advantage_weighted)
+
         win, health_result = self.combat_sim.predict_engage(
             setup.units1, setup.units2, optimistic=True, defender_player=2
         )
-        outcome_global = health_result / max(1e-10, health1) if win else -health_result / max(1e-10, health2)
+        outcome_global = health_result / max(1e-10, health1.sum()) if win else -health_result / max(1e-10, health2.sum())
 
         outcome_local = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
         result = CombatResult(outcome_local=outcome_local, outcome_global=outcome_global)

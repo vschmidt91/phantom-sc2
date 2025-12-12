@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from ares import UnitTreeQueryType
 from cython_extensions import cy_dijkstra
-from cython_extensions.dijkstra import DijkstraOutput
+from cython_extensions.dijkstra import DijkstraPathing
 from loguru import logger
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
@@ -95,7 +95,7 @@ class CombatStepContext:
         return targets
 
     @cached_property
-    def retreat_to_creep(self) -> DijkstraOutput | None:
+    def retreat_to_creep(self) -> DijkstraPathing | None:
         if self.retreat_to_creep_targets:
             return cy_dijkstra(
                 self.state.bot.ground_grid.astype(np.float64), np.atleast_2d(self.retreat_to_creep_targets)
@@ -119,7 +119,7 @@ class CombatStepContext:
         return medoid(self.retreat_targets)
 
     @cached_property
-    def retreat_air(self) -> DijkstraOutput | None:
+    def retreat_air(self) -> DijkstraPathing | None:
         if self.retreat_targets:
             return cy_dijkstra(
                 self.state.bot.mediator.get_air_grid.astype(np.float64), np.atleast_2d(self.retreat_targets)
@@ -128,14 +128,14 @@ class CombatStepContext:
             return None
 
     @cached_property
-    def retreat_ground(self) -> DijkstraOutput | None:
+    def retreat_ground(self) -> DijkstraPathing | None:
         if self.retreat_targets:
             return cy_dijkstra(self.state.bot.ground_grid.astype(np.float64), np.atleast_2d(self.retreat_targets))
         else:
             return None
 
     @cached_property
-    def concentrate_air(self) -> DijkstraOutput | None:
+    def concentrate_air(self) -> DijkstraPathing | None:
         if self.retreat_targets:
             return cy_dijkstra(
                 self.state.bot.mediator.get_air_grid.astype(np.float64),
@@ -145,7 +145,7 @@ class CombatStepContext:
             return None
 
     @cached_property
-    def concentrate_ground(self) -> DijkstraOutput | None:
+    def concentrate_ground(self) -> DijkstraPathing | None:
         if self.retreat_targets:
             return cy_dijkstra(
                 self.state.bot.ground_grid.astype(np.float64),
@@ -168,7 +168,7 @@ class CombatStepContext:
         return targets
 
     @cached_property
-    def attack_air(self) -> DijkstraOutput | None:
+    def attack_air(self) -> DijkstraPathing | None:
         if self.attack_targets:
             return cy_dijkstra(
                 self.state.bot.mediator.get_air_grid.astype(np.float64),
@@ -178,7 +178,7 @@ class CombatStepContext:
             return None
 
     @cached_property
-    def attack_ground(self) -> DijkstraOutput | None:
+    def attack_ground(self) -> DijkstraPathing | None:
         if self.attack_targets:
             return cy_dijkstra(
                 self.state.bot.ground_grid.astype(np.float64),
@@ -357,8 +357,6 @@ class CombatStep:
     def concentrate(self, unit: Unit, limit: float = 10.0, smoothing: int = 3) -> Action | None:
         concentrate_map = self.context.concentrate_air if unit.is_flying else self.context.concentrate_ground
         if not concentrate_map:
-            return None
-        if concentrate_map.distance[to_point(unit.position)] < limit:
             return None
         path = concentrate_map.get_path(unit.position, limit=smoothing)
         if len(path) < smoothing:
