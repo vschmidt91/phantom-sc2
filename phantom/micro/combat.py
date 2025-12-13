@@ -268,17 +268,17 @@ class CombatStep:
         self.attacking_local = attacking_local
         self.targets = targets
 
-    def retreat_with(self, unit: Unit, smoothing=3) -> Action:
+    def retreat_with(self, unit: Unit, smoothing=3) -> Action | None:
         retreat_map = self.context.retreat_air if unit.is_flying else self.context.retreat_ground
         if not retreat_map:
-            return self._move_to_safe_spot(unit)
+            return self.move_to_safe_spot(unit)
         retreat_path = retreat_map.get_path(unit.position, limit=smoothing)
         if len(retreat_path) < smoothing:
-            return self._move_to_safe_spot(unit)
+            return None
         retreat_point = Point2(retreat_path[-1]).offset(HALF)
         return Move(retreat_point)
 
-    def _move_to_safe_spot(self, unit: Unit) -> Action:
+    def move_to_safe_spot(self, unit: Unit) -> Action:
         retreat_grid = self.bot.mediator.get_air_grid if unit.is_flying else self.bot.ground_grid
         retreat_target = self.bot.mediator.find_closest_safe_spot(
             from_pos=unit.position,
@@ -292,7 +292,7 @@ class CombatStep:
         )
         return Move(move_target)
 
-    def retreat_to_creep(self, unit: Unit, limit=3) -> Action | None:
+    def retreat_to_creep(self, unit: Unit, limit=2) -> Action | None:
         if not self.bot.has_creep(unit) and self.context.retreat_to_creep:
             path = self.context.retreat_to_creep.get_path(unit.position, limit=limit)
             if len(path) == 1:
@@ -343,10 +343,13 @@ class CombatStep:
 
     def attack_with(self, unit: Unit, smoothing: int = 3) -> Action | None:
         attack_map = self.context.attack_air if unit.is_flying else self.context.attack_ground
+        grid = self.bot.mediator.get_air_grid if unit.is_flying else self.bot.ground_grid
         if not attack_map:
             return None
         path = attack_map.get_path(unit.position, smoothing)
         target = Point2(path[-1]).offset(HALF)
+        if not self.bot.mediator.is_position_safe(grid=grid, position=target):
+            return None
         return Attack(target)
 
     def keep_unit_safe(self, unit: Unit) -> Action | None:
@@ -354,7 +357,7 @@ class CombatStep:
             return self.retreat_with(unit)
         return None
 
-    def concentrate(self, unit: Unit, limit: float = 10.0, smoothing: int = 3) -> Action | None:
+    def concentrate(self, unit: Unit, smoothing: int = 3) -> Action | None:
         concentrate_map = self.context.concentrate_air if unit.is_flying else self.context.concentrate_ground
         if not concentrate_map:
             return None

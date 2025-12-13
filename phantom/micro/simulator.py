@@ -6,7 +6,6 @@ import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2_helper.combat_simulator import CombatSimulator as SC2CombatSimulator
-from scipy.stats import gamma
 
 from phantom.common.parameter_sampler import ParameterSampler, Prior
 from phantom.common.utils import (
@@ -104,10 +103,13 @@ class CombatSimulator:
         movement_speed_vector = np.array([1.4 * u.real_speed for u in units])
         movement_speed = np.repeat(movement_speed_vector[:, None], len(units), axis=1)
 
-        p = np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
-        a = 2.0
-        times = gamma.ppf(p, a, scale=self.parameters.time_distribution_lambda / a)
-        # times = -np.log(1.0 - p) * 1.0
+        np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
+        # a = 2.0
+        # times = gamma.ppf(p, a, scale=self.parameters.time_distribution_lambda / a)
+        # times = [1, 2, 3]
+        # times = -np.log(1.0 - p) * 3.0
+        times = np.linspace(start=0.0, stop=1.0, num=self.num_steps)
+        times = np.array([2.0])
 
         mixing_enemy = np.reciprocal(self.parameters.distance_constant + distance)
         mixing_own = mixing_enemy.copy()
@@ -124,17 +126,20 @@ class CombatSimulator:
 
         advantage = np.full((len(units), len(times)), 0.0)
         for i, t in enumerate(times):
-            range_projection = ranges + movement_speed * np.sqrt(t)
+            range_projection = ranges + movement_speed * t
             in_range = distance <= range_projection
             attack_weight = np.where(in_range & (dps > 0.0), 1.0, 0.0)
             attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
 
             lancester_alpha = attack_probability * dps * np.repeat(value[:, None], len(units), axis=1)
             forces2 = lancester_alpha.sum(axis=0)
+            mixing_enemy @ forces2
             # forces1 = lancester_alpha.sum(axis=1)
-            forces1 = mixing_enemy @ forces2
+            log_forces = np.log1p(forces2)
+            advantage_pairwise = log_forces - log_forces[:, None]
+            advantage_vec = (attack_probability * advantage_pairwise).sum(axis=1)
 
-            advantage[:, i] = np.log1p(forces1) - np.log1p(forces2)
+            advantage[:, i] = advantage_vec
 
         outcome_vector = np.median(advantage, axis=1)
 
