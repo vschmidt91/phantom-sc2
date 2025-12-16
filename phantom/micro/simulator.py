@@ -6,6 +6,7 @@ import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2_helper.combat_simulator import CombatSimulator as SC2CombatSimulator
+from scipy.stats import expon
 
 from phantom.common.parameter_sampler import ParameterSampler, Prior
 from phantom.common.utils import (
@@ -50,7 +51,7 @@ class CombatSimulator:
     def __init__(self, bot: "PhantomBot", parameters: CombatSimulatorParameters) -> None:
         self.bot = bot
         self.parameters = parameters
-        self.num_steps = 10
+        self.num_steps = 24
         self.combat_sim = SC2CombatSimulator()
         self.combat_sim.enable_timing_adjustment(True)
 
@@ -101,15 +102,21 @@ class CombatSimulator:
 
         distance = pairwise_distances([u.position for u in units])
         movement_speed_vector = np.array([1.4 * u.real_speed for u in units])
-        movement_speed = np.repeat(movement_speed_vector[:, None], len(units), axis=1)
+        movement_speed = np.repeat(movement_speed_vector[:, None], len(units), axis=1) + np.repeat(
+            movement_speed_vector[None, :], len(units), axis=0
+        )
 
-        np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
+        p = np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
         # a = 2.0
         # times = gamma.ppf(p, a, scale=self.parameters.time_distribution_lambda / a)
+        dist = expon(scale=3.0)
         # times = [1, 2, 3]
-        # times = -np.log(1.0 - p) * 3.0
-        times = np.linspace(start=0.0, stop=1.0, num=self.num_steps)
-        times = np.array([2.0])
+        # times = -np.log(1.0 - p) * 2.0
+        times = dist.ppf(p)
+        ps = np.diff(times)
+        # times = np.linspace(start=0.0, stop=2.0, num=self.num_steps)
+        # times = np.array([2, 3, 4])
+        weights = ps / ps.sum()
 
         mixing_enemy = np.reciprocal(self.parameters.distance_constant + distance)
         mixing_own = mixing_enemy.copy()
@@ -120,28 +127,39 @@ class CombatSimulator:
         mixing_own /= mixing_own.sum(axis=1, keepdims=True)
         mixing_enemy /= mixing_enemy.sum(axis=1, keepdims=True)
 
+        health = np.array([u.health + u.shield for u in units])
         health1 = np.array([u.health + u.shield for u in setup.units1])
         health2 = np.array([u.health + u.shield for u in setup.units2])
-        value = np.array([total_cost(u.type_id) * u.shield_health_percentage for u in units])
+        np.array([total_cost(u.type_id) * u.shield_health_percentage for u in units])
 
-        advantage = np.full((len(units), len(times)), 0.0)
-        for i, t in enumerate(times):
-            range_projection = ranges + movement_speed * t
+        forces1 = np.full((len(units), len(times)), 0.0)
+        forces2 = np.full((len(units), len(times)), 0.0)
+        accum = np.full(len(units), 0.0)
+        for i, (wi, _ti) in enumerate(zip(weights, times, strict=False)):
+            range_projection = ranges + 0.5 * movement_speed
             in_range = distance <= range_projection
-            attack_weight = np.where(in_range & (dps > 0.0), 1.0, 0.0)
+            attack_weight = np.where(in_range & (dps > 0.0), mixing_enemy, 0.0)
             attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
 
-            lancester_alpha = attack_probability * dps * np.repeat(value[:, None], len(units), axis=1)
-            forces2 = lancester_alpha.sum(axis=0)
-            mixing_enemy @ forces2
-            # forces1 = lancester_alpha.sum(axis=1)
-            log_forces = np.log1p(forces2)
-            advantage_pairwise = log_forces - log_forces[:, None]
-            advantage_vec = (attack_probability * advantage_pairwise).sum(axis=1)
+            lancester_alpha = attack_probability * dps * np.repeat(health[:, None], len(units), axis=1)
+            lancester_alpha.sum(axis=0)
+            forces2[:, i] = lancester_alpha.sum(axis=0)
+            # forces1[:, i] = mixing_own @ lancester_alpha.sum(axis=1)
+            forces1[:, i] = mixing_enemy @ forces2[:, i]
 
-            advantage[:, i] = advantage_vec
+            accum += wi * (forces1[:, i] - forces2[:, i])
+            # forces1[:, i] = mixing_enemy @ forces2[:, i]
 
-        outcome_vector = np.median(advantage, axis=1)
+        lf1 = np.log1p(forces1)
+        lf2 = np.log1p(forces2)
+        advantage = 0.5 * (lf1 - lf2)
+        0.5 * (lf1 + lf2)
+        advantage_weighted = advantage[:, :-1] @ weights
+
+        # outcome_matrix = forces1 - forces2
+        # outcome_vector = np.median(outcome_matrix, axis=1)
+        # outcome_vector = p_win - 0.8
+        outcome_vector = advantage_weighted
 
         win, health_result = self.combat_sim.predict_engage(
             setup.units1, setup.units2, optimistic=True, defender_player=2
