@@ -106,17 +106,11 @@ class CombatSimulator:
             movement_speed_vector[None, :], len(units), axis=0
         )
 
-        p = np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
-        # a = 2.0
-        # times = gamma.ppf(p, a, scale=self.parameters.time_distribution_lambda / a)
+        q = np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
         dist = expon(scale=3.0)
-        # times = [1, 2, 3]
-        # times = -np.log(1.0 - p) * 2.0
-        times = dist.ppf(p)
-        ps = np.diff(times)
-        # times = np.linspace(start=0.0, stop=2.0, num=self.num_steps)
-        # times = np.array([2, 3, 4])
-        weights = ps / ps.sum()
+        times = dist.ppf(q)
+        p = dist.pdf(times)
+        weights = p / p.sum()
 
         mixing_enemy = np.reciprocal(self.parameters.distance_constant + distance)
         mixing_own = mixing_enemy.copy()
@@ -127,39 +121,25 @@ class CombatSimulator:
         mixing_own /= mixing_own.sum(axis=1, keepdims=True)
         mixing_enemy /= mixing_enemy.sum(axis=1, keepdims=True)
 
-        health = np.array([u.health + u.shield for u in units])
+        np.array([u.health + u.shield for u in units])
         health1 = np.array([u.health + u.shield for u in setup.units1])
         health2 = np.array([u.health + u.shield for u in setup.units2])
         np.array([total_cost(u.type_id) * u.shield_health_percentage for u in units])
 
-        forces1 = np.full((len(units), len(times)), 0.0)
-        forces2 = np.full((len(units), len(times)), 0.0)
-        accum = np.full(len(units), 0.0)
-        for i, (wi, _ti) in enumerate(zip(weights, times, strict=False)):
-            range_projection = ranges + 0.5 * movement_speed
+        lancester1 = np.full((len(units), len(times)), 0.0)
+        lancester2 = np.full((len(units), len(times)), 0.0)
+        for i, ti in enumerate(times):
+            range_projection = ranges + movement_speed * np.sqrt(ti)
             in_range = distance <= range_projection
             attack_weight = np.where(in_range & (dps > 0.0), mixing_enemy, 0.0)
             attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
 
-            lancester_alpha = attack_probability * dps * np.repeat(health[:, None], len(units), axis=1)
-            lancester_alpha.sum(axis=0)
-            forces2[:, i] = lancester_alpha.sum(axis=0)
-            # forces1[:, i] = mixing_own @ lancester_alpha.sum(axis=1)
-            forces1[:, i] = mixing_enemy @ forces2[:, i]
+            fire = attack_probability * dps
+            lancester1[:, i] = fire.sum(1)
+            lancester2[:, i] = fire.sum(0)
 
-            accum += wi * (forces1[:, i] - forces2[:, i])
-            # forces1[:, i] = mixing_enemy @ forces2[:, i]
-
-        lf1 = np.log1p(forces1)
-        lf2 = np.log1p(forces2)
-        advantage = 0.5 * (lf1 - lf2)
-        0.5 * (lf1 + lf2)
-        advantage_weighted = advantage[:, :-1] @ weights
-
-        # outcome_matrix = forces1 - forces2
-        # outcome_vector = np.median(outcome_matrix, axis=1)
-        # outcome_vector = p_win - 0.8
-        outcome_vector = advantage_weighted
+        advantage = np.log1p(lancester1) - np.log1p(lancester2)
+        outcome_vector = advantage @ weights
 
         win, health_result = self.combat_sim.predict_engage(
             setup.units1, setup.units2, optimistic=True, defender_player=2

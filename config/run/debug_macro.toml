@@ -1,4 +1,4 @@
-map_pattern = "MagannathaAIE_v2"
+map_pattern = "PylonAIE_v4"
 enemy_race = "Terran"
 enemy_build = "Rush"
 save_replay = "resources\\replays\\local"
