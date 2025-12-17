@@ -129,7 +129,7 @@ class CombatSimulator:
         lancester1 = np.full((len(units), len(times)), 0.0)
         lancester2 = np.full((len(units), len(times)), 0.0)
         for i, ti in enumerate(times):
-            range_projection = ranges + movement_speed * np.sqrt(ti)
+            range_projection = ranges + movement_speed * ti
             in_range = distance <= range_projection
             attack_weight = np.where(in_range & (dps > 0.0), mixing_enemy, 0.0)
             attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
@@ -139,7 +139,7 @@ class CombatSimulator:
             lancester2[:, i] = fire.sum(0)
 
         advantage = np.log1p(lancester1) - np.log1p(lancester2)
-        outcome_vector = advantage @ weights
+        outcome_vector = mixing_own @ (advantage @ weights)
 
         win, health_result = self.combat_sim.predict_engage(
             setup.units1, setup.units2, optimistic=True, defender_player=2
