@@ -145,8 +145,8 @@ class CombatSimulator:
             force1 = forces.sum(1)
             force2 = forces.sum(0)
 
-            lancester1[:, i] = effectiveness1 * np.pow(force1, lancester_dim)
-            lancester2[:, i] = effectiveness2 * np.pow(force2, lancester_dim)
+            lancester1[:, i] = effectiveness1 * np.power(force1, lancester_dim)
+            lancester2[:, i] = effectiveness2 * np.power(force2, lancester_dim)
 
         advantage = np.log1p(lancester1) - np.log1p(lancester2)
         outcome_vector = advantage @ weights
