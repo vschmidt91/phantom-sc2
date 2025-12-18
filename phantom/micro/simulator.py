@@ -118,28 +118,38 @@ class CombatSimulator:
         mixing_own[n1:, :n1] = 0.0
         mixing_enemy[:n1, :n1] = 0.0
         mixing_enemy[n1:, n1:] = 0.0
-        mixing_own /= mixing_own.sum(axis=1, keepdims=True)
-        mixing_enemy /= mixing_enemy.sum(axis=1, keepdims=True)
+        np.fill_diagonal(mixing_own, 0.0)
+        mixing_own /= np.maximum(1e-10, mixing_own.sum(axis=1, keepdims=True))
+        mixing_enemy /= np.maximum(1e-10, mixing_enemy.sum(axis=1, keepdims=True))
 
-        np.array([u.health + u.shield for u in units])
+        health = np.array([u.health + u.shield for u in units])
         health1 = np.array([u.health + u.shield for u in setup.units1])
         health2 = np.array([u.health + u.shield for u in setup.units2])
         np.array([total_cost(u.type_id) * u.shield_health_percentage for u in units])
 
         lancester1 = np.full((len(units), len(times)), 0.0)
         lancester2 = np.full((len(units), len(times)), 0.0)
+        lancester_dim = 0.5
         for i, ti in enumerate(times):
             range_projection = ranges + movement_speed * ti
             in_range = distance <= range_projection
-            attack_weight = np.where(in_range & (dps > 0.0), mixing_enemy, 0.0)
+            attack_weight = np.where(in_range & (dps > 0.0), 1.0, 0.0)
+
             attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
 
             fire = attack_probability * dps
-            lancester1[:, i] = fire.sum(1)
-            lancester2[:, i] = fire.sum(0)
+            effectiveness1 = fire.sum(1)
+            effectiveness2 = fire.sum(0)
+
+            forces = attack_probability * np.repeat(health[:, None], len(units), axis=1)
+            force1 = forces.sum(1)
+            force2 = forces.sum(0)
+
+            lancester1[:, i] = effectiveness1 * np.pow(force1, lancester_dim)
+            lancester2[:, i] = effectiveness2 * np.pow(force2, lancester_dim)
 
         advantage = np.log1p(lancester1) - np.log1p(lancester2)
-        outcome_vector = mixing_own @ (advantage @ weights)
+        outcome_vector = advantage @ weights
 
         win, health_result = self.combat_sim.predict_engage(
             setup.units1, setup.units2, optimistic=True, defender_player=2
