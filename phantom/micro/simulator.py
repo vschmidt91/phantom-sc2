@@ -88,7 +88,6 @@ class CombatSimulator:
         radius = np.array([u.radius for u in units])
         attackable = np.array([self.is_attackable(u) for u in units])
         flying = np.array([u.is_flying for u in units])
-        np.array([u.health + u.shield for u in units])
 
         ground_selector = np.where(attackable & ~flying, 1.0, 0.0)
         air_selector = np.where(attackable & flying, 1.0, 0.0)
@@ -122,14 +121,12 @@ class CombatSimulator:
         mixing_own /= np.maximum(1e-10, mixing_own.sum(axis=1, keepdims=True))
         mixing_enemy /= np.maximum(1e-10, mixing_enemy.sum(axis=1, keepdims=True))
 
-        health = np.array([u.health + u.shield for u in units])
+        np.array([u.health + u.shield for u in units])
         health1 = np.array([u.health + u.shield for u in setup.units1])
         health2 = np.array([u.health + u.shield for u in setup.units2])
-        np.array([total_cost(u.type_id) * u.shield_health_percentage for u in units])
 
         lancester1 = np.full((len(units), len(times)), 0.0)
         lancester2 = np.full((len(units), len(times)), 0.0)
-        lancester_dim = 0.5
         for i, ti in enumerate(times):
             range_projection = ranges + movement_speed * ti
             in_range = distance <= range_projection
