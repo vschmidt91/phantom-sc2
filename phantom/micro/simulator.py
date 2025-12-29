@@ -138,15 +138,14 @@ class CombatSimulator:
             attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
 
             fire = attack_probability * dps
-            effectiveness1 = fire.sum(1)
-            effectiveness2 = fire.sum(0)
+            fire.sum(1)
+            fire.sum(0)
 
-            forces = attack_probability * np.repeat(health[:, None], len(units), axis=1)
-            force1 = forces.sum(1)
-            force2 = forces.sum(0)
+            force2 = health @ attack_probability
+            force1 = mixing_enemy @ force2
 
-            lancester1[:, i] = effectiveness1 * np.power(force1, lancester_dim)
-            lancester2[:, i] = effectiveness2 * np.power(force2, lancester_dim)
+            lancester1[:, i] = fire.sum(1) * np.power(force1, lancester_dim)
+            lancester2[:, i] = fire.sum(0) * np.power(force2, lancester_dim)
 
         advantage = np.log1p(lancester1) - np.log1p(lancester2)
         outcome_vector = advantage @ weights
