@@ -134,18 +134,10 @@ class CombatSimulator:
             range_projection = ranges + movement_speed * ti
             in_range = distance <= range_projection
             attack_weight = np.where(in_range & (dps > 0.0), 1.0, 0.0)
-
             attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
-
             fire = attack_probability * dps
-            fire.sum(1)
-            fire.sum(0)
-
-            force2 = health @ attack_probability
-            force1 = mixing_enemy @ force2
-
-            lancester1[:, i] = fire.sum(1) * np.power(force1, lancester_dim)
-            lancester2[:, i] = fire.sum(0) * np.power(force2, lancester_dim)
+            lancester1[:, i] = fire.sum(1)
+            lancester2[:, i] = fire.sum(0)
 
         advantage = np.log1p(lancester1) - np.log1p(lancester2)
         outcome_vector = advantage @ weights
