@@ -235,7 +235,7 @@ class Agent:
             if not combat.is_unit_safe(
                 harvester, weight_safety_limit=6.0
             ) or self.bot.damage_tracker.time_since_last_damage(harvester) < min(self.bot.state.game_loop, 50):
-                actions[harvester] = combat.retreat_with(harvester)
+                actions[harvester] = combat.retreat_with(harvester) or combat.move_to_safe_spot(harvester)
             elif action := resources.gather_with(harvester, harvester_return_targets):
                 actions[harvester] = action
 
@@ -265,10 +265,6 @@ class Agent:
 
         if self.bot.actual_iteration > 1 or not self.config.skip_first_iteration:
             actions.update(self.builder.get_actions(macro_priorities))
-
-        for changeling in self.bot.units(CHANGELINGS):
-            if action := self._search_with(changeling):
-                actions[changeling] = action
 
         for structure in self.bot.structures.not_ready:
             if structure.health_percentage < 0.05:

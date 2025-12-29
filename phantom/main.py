@@ -90,6 +90,11 @@ class PhantomBot(AresBot):
         await self._initialize_map()
         self.agent = Agent(self, self.bot_config)
 
+        # await self.client.debug_create_unit([
+        #     [UnitTypeId.ZERGLING, 7, self.game_info.map_center, 1],
+        #     [UnitTypeId.MARINE, 4, self.game_info.map_center, 2],
+        # ])
+
     async def on_step(self, iteration: int):
         await super().on_step(iteration)
         if self.bot_config.profile_path:
