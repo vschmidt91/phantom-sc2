@@ -1,4 +1,4 @@
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, Sequence, Set
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 class CombatSetup:
     units1: Sequence[Unit]
     units2: Sequence[Unit]
+    attacking: Set[int]
 
 
 @dataclass
@@ -35,16 +36,16 @@ class CombatResult:
 
 class CombatSimulatorParameters:
     def __init__(self, sampler: ParameterSampler) -> None:
-        self.time_distribution_lambda_log = sampler.add(Prior(0.0, 0.5))
-        self.distance_constant_log = sampler.add(Prior(0.5, 0.1))
+        self._time_distribution_lambda_log = sampler.add(Prior(1.0, 0.5))
+        self._lancester_dimension = sampler.add(Prior(1.56, 0.1, min=1, max=2))
 
     @property
     def time_distribution_lambda(self) -> float:
-        return np.exp(self.time_distribution_lambda_log.value)
+        return np.exp(self._time_distribution_lambda_log.value)
 
     @property
-    def distance_constant(self) -> float:
-        return np.exp(self.distance_constant_log.value)
+    def lancester_dimension(self) -> float:
+        return self._lancester_dimension.value
 
 
 class CombatSimulator:
@@ -100,51 +101,52 @@ class CombatSimulator:
         dps[n1:, n1:] = 0.0
 
         distance = pairwise_distances([u.position for u in units])
-        movement_speed_vector = np.array([1.4 * u.real_speed for u in units])
+        movement_speed_vector = np.array([1.4 * u.real_speed if u.tag in setup.attacking else 0.0 for u in units])
         movement_speed = np.repeat(movement_speed_vector[:, None], len(units), axis=1) + np.repeat(
             movement_speed_vector[None, :], len(units), axis=0
         )
 
         q = np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
-        dist = expon(scale=3.0)
+        dist = expon(scale=self.parameters.time_distribution_lambda)
         times = dist.ppf(q)
-        p = dist.pdf(times)
-        weights = p / p.sum()
 
-        mixing_enemy = np.reciprocal(self.parameters.distance_constant + distance)
-        mixing_own = mixing_enemy.copy()
-        mixing_own[:n1, n1:] = 0.0
-        mixing_own[n1:, :n1] = 0.0
-        mixing_enemy[:n1, :n1] = 0.0
-        mixing_enemy[n1:, n1:] = 0.0
-        np.fill_diagonal(mixing_own, 0.0)
-        mixing_own /= np.maximum(1e-10, mixing_own.sum(axis=1, keepdims=True))
-        mixing_enemy /= np.maximum(1e-10, mixing_enemy.sum(axis=1, keepdims=True))
+        hp = np.array([u.health + u.shield for u in units])
+        dps.max(1)
 
-        np.array([u.health + u.shield for u in units])
-        health1 = np.array([u.health + u.shield for u in setup.units1])
-        health2 = np.array([u.health + u.shield for u in setup.units2])
-
-        lancester1 = np.full((len(units), len(times)), 0.0)
-        lancester2 = np.full((len(units), len(times)), 0.0)
+        lancester1 = np.full((len(units), self.num_steps), 0.0)
+        lancester2 = np.full((len(units), self.num_steps), 0.0)
+        lancester_pow = self.parameters.lancester_dimension
         for i, ti in enumerate(times):
             range_projection = ranges + movement_speed * ti
-            in_range = distance <= range_projection
-            attack_weight = np.where(in_range & (dps > 0.0), 1.0, 0.0)
-            attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
-            fire = attack_probability * dps
-            lancester1[:, i] = fire.sum(1)
-            lancester2[:, i] = fire.sum(0)
+            alive = hp > 0
+            valid = alive[:, None] & (distance <= range_projection) & (dps > 0)
+
+            valid.sum(axis=1, keepdims=True)
+            valid.sum(axis=0, keepdims=True)
+
+            valid_sym = valid | valid.T
+            mix = valid_sym / np.maximum(1, valid_sym.sum(0, keepdims=True))
+
+            strength = np.where(alive, 1.0, 0.0)
+            fire = strength @ (dps * valid)
+            forces = hp @ valid
+            count = valid.sum(0)
+
+            potential2 = fire * forces * np.power(np.maximum(1, count), lancester_pow - 2)
+            potential1 = potential2 @ mix
+
+            lancester1[:, i] = potential1
+            lancester2[:, i] = potential2
 
         advantage = np.log1p(lancester1) - np.log1p(lancester2)
-        outcome_vector = advantage @ weights
+        outcome_vector = advantage.mean(1)
 
+        health1 = max(1, sum(u.health + u.shield for u in setup.units1))
+        health2 = max(1, sum(u.health + u.shield for u in setup.units2))
         win, health_result = self.combat_sim.predict_engage(
             setup.units1, setup.units2, optimistic=True, defender_player=2
         )
-        outcome_global = (
-            health_result / max(1e-10, health1.sum()) if win else -health_result / max(1e-10, health2.sum())
-        )
+        outcome_global = health_result / health1 if win else -health_result / health2
 
         outcome_local = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
         result = CombatResult(outcome_local=outcome_local, outcome_global=outcome_global)

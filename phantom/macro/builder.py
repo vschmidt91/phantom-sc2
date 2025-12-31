@@ -50,7 +50,7 @@ class MacroPlan:
 class BuilderParameters:
     def __init__(self, sampler: ParameterSampler) -> None:
         self.tech_priority_offset = sampler.add(Prior(-1.0, 0.01))
-        self.tech_priority_scale = sampler.add(Prior(0.5, 0.01, min=0))
+        self.tech_priority_scale = sampler.add(Prior(1.0, 0.01, min=0))
 
 
 class Builder:

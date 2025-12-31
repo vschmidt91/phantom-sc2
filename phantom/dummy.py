@@ -9,8 +9,8 @@ class DummyBot(BotAI):
         await super().on_start()
         await self.client.debug_create_unit(
             [
-                [UnitTypeId.ZERGLING, 5, self.game_info.map_center, 1],
-                [UnitTypeId.MARINE, 3, self.game_info.map_center, 2],
+                [UnitTypeId.ZERGLING, 25, self.game_info.map_center, 1],
+                [UnitTypeId.THOR, 2, self.game_info.map_center, 2],
             ]
         )
 

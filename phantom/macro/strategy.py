@@ -35,15 +35,15 @@ class StrategyTier(enum.IntEnum):
 
 class StrategyParameters:
     def __init__(self, sampler: ParameterSampler) -> None:
-        self.counter_factor = sampler.add(Prior(2.25, 0.1, min=0))
-        self.ravager_mixin = sampler.add(Prior(13, 1, min=0))
-        self.corruptor_mixin = sampler.add(Prior(8, 1, min=0))
+        self.counter_factor = sampler.add(Prior(2.5, 0.1, min=0))
+        self.ravager_mixin = sampler.add(Prior(10, 1, min=0))
+        self.corruptor_mixin = sampler.add(Prior(5, 1, min=0))
         self.tier1_drone_count = sampler.add(Prior(30, 1, min=0))
         self.tier2_drone_count = sampler.add(Prior(60, 1, min=0))
         self.tier3_drone_count = sampler.add(Prior(80, 1, min=0))
-        self.hydras_when_banking = sampler.add(Prior(5, 1, min=0))
+        self.hydras_when_banking = sampler.add(Prior(8, 1, min=0))
         self.lings_when_banking = sampler.add(Prior(5, 1, min=0))
-        self.queens_when_banking = sampler.add(Prior(2, 1, min=0))
+        self.queens_when_banking = sampler.add(Prior(3, 1, min=0))
 
 
 class Strategy:
