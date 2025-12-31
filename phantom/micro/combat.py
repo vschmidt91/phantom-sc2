@@ -50,20 +50,20 @@ class CombatParameters:
     def __init__(self, sampler: ParameterSampler) -> None:
         self.engagement_threshold = 0.0
         self.disengagement_threshold = 0.0
-        self.global_engagement_level_param = sampler.add(Prior(0.55, 0.1))
-        self.global_engagement_hysteresis_param = sampler.add(Prior(-1.5, 0.1, max=0))
+        self._global_engagement_level_param = sampler.add(Prior(1.55, 0.1))
+        self._global_engagement_hysteresis_param = sampler.add(Prior(-1.5, 0.1, max=0))
 
     @property
     def global_engagement_hysteresis(self) -> float:
-        return np.exp(self.global_engagement_hysteresis_param.value)
+        return np.exp(self._global_engagement_hysteresis_param.value)
 
     @property
     def global_engagement_threshold(self) -> float:
-        return np.tanh(self.global_engagement_level_param.value + self.global_engagement_hysteresis)
+        return np.tanh(self._global_engagement_level_param.value + self.global_engagement_hysteresis)
 
     @property
     def global_disengagement_threshold(self):
-        return np.tanh(self.global_engagement_level_param.value - self.global_engagement_hysteresis)
+        return np.tanh(self._global_engagement_level_param.value - self.global_engagement_hysteresis)
 
 
 @dataclass(frozen=True)

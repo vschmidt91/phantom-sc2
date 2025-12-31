@@ -34,97 +34,18 @@ class CombatResult:
     outcome_local: Mapping[int, float]
 
 
-def simulate_future_vectorized(units: Sequence[Unit], times_lambda=1.0, n_steps=10, lanchester_n=1.56):
-    N = len(units)
-
-    # 1. Vector Setup
-    teams = np.array([u.owner_id for u in units])  # (N,)
-    hp = np.array([u.health for u in units])[:, None]  # (N, 1) Value/Health
-
-    # Mechanics
-    is_flying = np.array([u.is_flying for u in units])  # (N,)
-    rng = np.array([u.range for u in units])[:, None]  # (N, 1)
-    speed = np.array([u.speed for u in units])[:, None]  # (N, 1)
-    coords = np.array([(u.x, u.y) for u in units])  # (N, 2)
-    dist_matrix = np.linalg.norm(coords[:, None, :] - coords[None, :, :], axis=-1)
-
-    # 2. Full DPS Matrix (N, N) - Handling Ground vs Air
-    dps_g = np.array([u.ground_dps for u in units])[:, None]
-    dps_a = np.array([u.air_dps for u in units])[:, None]
-
-    # D[i,j] = DPS unit i deals to unit j (based on j's flight status)
-    # Broadcast is_flying to columns (targets)
-    D = np.where(is_flying[None, :], dps_a, dps_g)
-
-    # 3. Stratified Time Sampling (Uniform Weights)
-    step = 1.0 / n_steps
-    q = np.linspace(step / 2, 1.0 - step / 2, n_steps)
-    times = expon.ppf(q, scale=1.0 / times_lambda)
-
-    # Accumulators for Offense (val I kill) and Defense (val killing me)
-    acc_offense = np.zeros(N)
-    acc_defense = np.zeros(N)
-
-    # 4. Simulation Loop
-    enemy_mask = teams[:, None] != teams[None, :]
-
-    for t in times:
-        # Project movement (linear closing)
-        current_dist = np.maximum(0, dist_matrix - (speed + speed.T) * t)
-
-        # Build Attack Matrix A (Row Stochastic)
-        # Valid = Enemy AND In Range AND Can Damage
-        valid = enemy_mask & (current_dist <= rng) & (D > 0)
-
-        # Normalize rows (probability i attacks j)
-        row_sums = valid.sum(axis=1, keepdims=True)
-        A = np.divide(valid.astype(float), row_sums, out=np.zeros_like(D), where=row_sums != 0)
-
-        # Effective Fire Matrix (Probability * DPS)
-        E = A * D
-
-        # Metric 1: Offense (What I destroy)
-        # Sum_j (E_ij * HP_j) -> Row Sum
-        offense_step = E @ hp
-
-        # Metric 2: Defense (Who is destroying me)
-        # Sum_i (HP_i * E_ij) -> Col Sum (done via Transpose dot)
-        defense_step = hp.T @ E
-
-        # Apply Generalized Lanchester Scaling (Concentration Bonus)
-        # Count allies/enemies alive (approximation: everyone is alive in this heuristic)
-        # Note: In a deeper sim, we'd mask dead units. Here we assume static composition over short future.
-        counts = np.array([np.sum(teams == t_id) for t_id in teams])
-        bonus_factors = np.power(counts, lanchester_n - 1.0)
-
-        # Scale: My offense is boosted by my team size
-        offense_step_scaled = offense_step.flatten() * bonus_factors
-        # Scale: Incoming threat is boosted by enemy team size
-        defense_step_scaled = defense_step.flatten() * bonus_factors
-
-        acc_offense += offense_step_scaled
-        acc_defense += defense_step_scaled
-
-    # 5. Result: Log-Advantage per Unit
-    # Average over time steps (uniform weights)
-    avg_offense = acc_offense / n_steps
-    avg_defense = acc_defense / n_steps
-
-    return np.log1p(avg_offense) - np.log1p(avg_defense)
-
-
 class CombatSimulatorParameters:
     def __init__(self, sampler: ParameterSampler) -> None:
-        self.time_distribution_lambda_log = sampler.add(Prior(0.0, 0.5))
-        self.distance_constant_log = sampler.add(Prior(0.5, 0.1))
+        self._time_distribution_lambda_log = sampler.add(Prior(1.0, 0.5))
+        self._lancester_dimension = sampler.add(Prior(1.56, 0.1, min=1, max=2))
 
     @property
     def time_distribution_lambda(self) -> float:
-        return np.exp(self.time_distribution_lambda_log.value)
+        return np.exp(self._time_distribution_lambda_log.value)
 
     @property
-    def distance_constant(self) -> float:
-        return np.exp(self.distance_constant_log.value)
+    def lancester_dimension(self) -> float:
+        return self._lancester_dimension.value
 
 
 class CombatSimulator:
@@ -187,7 +108,7 @@ class CombatSimulator:
         )
 
         q = np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
-        dist = expon(scale=2.0)
+        dist = expon(scale=self.parameters.time_distribution_lambda)
         times = dist.ppf(q)
 
         hp = np.array([u.health + u.shield for u in units])
@@ -195,7 +116,7 @@ class CombatSimulator:
 
         lancester1 = np.full((len(units), self.num_steps), 0.0)
         lancester2 = np.full((len(units), self.num_steps), 0.0)
-        lancester_pow = 1.56
+        lancester_pow = self.parameters.lancester_dimension
         for i, ti in enumerate(times):
             range_projection = ranges + movement_speed * ti
             alive = hp > 0

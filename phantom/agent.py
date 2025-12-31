@@ -3,7 +3,6 @@ import math
 import pickle
 import random
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -29,7 +28,7 @@ from phantom.common.constants import (
     GAS_BY_RACE,
 )
 from phantom.common.cost import Cost
-from phantom.common.parameter_sampler import ParameterSampler, Prior
+from phantom.common.parameter_sampler import ParameterSampler
 from phantom.common.utils import MacroId, to_point
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.builder import Builder, BuilderParameters, MacroPlan
@@ -80,16 +79,6 @@ def score_to_fitness(score: ScoreDetails, vespene_weight: float = 2.0) -> float:
     return killed_total / max(1.0, lost_total + killed_total)
 
 
-@dataclass
-class AgentParameters:
-    def __init__(self, sampler: ParameterSampler) -> None:
-        self.gas_ratio_learning_rate_log = sampler.add(Prior(-5, 1, max=0))
-
-    @property
-    def gas_ratio_learning_rate(self) -> float:
-        return np.exp(self.gas_ratio_learning_rate_log.value)
-
-
 class Agent:
     def __init__(self, bot: "PhantomBot", config: BotConfig) -> None:
         self.bot = bot
@@ -110,7 +99,6 @@ class Agent:
         self.harvesters = MiningState(bot)
         self.build_order_completed = False
         self.gas_ratio = 0.0
-        self.parameters = AgentParameters(self.sampler)
         self._load_parameters()
         self._log_parameters()
 
@@ -201,8 +189,7 @@ class Agent:
             gas_ratio = 0.5
         else:
             gas_ratio = required.vespene / (required.minerals + required.vespene)
-        self.gas_ratio += self.parameters.gas_ratio_learning_rate * np.sign(gas_ratio - self.gas_ratio)
-        self.gas_ratio = max(0, min(1, self.gas_ratio))
+        self.gas_ratio = max(0, min(1, gas_ratio))
 
         harvesters = list[Unit]()
         harvesters_exclude = self.builder.assigned_tags | self.bot.pending.keys()
@@ -426,7 +413,6 @@ class Agent:
             return None
 
     def _log_parameters(self) -> None:
-        logger.info(f"{self.parameters.__dict__=}")
         logger.info(f"{self.simulator.parameters.__dict__=}")
         logger.info(f"{self.combat.parameters.__dict__=}")
         logger.info(f"{self.builder.parameters.__dict__=}")
