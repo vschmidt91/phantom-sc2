@@ -1,4 +1,4 @@
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, Sequence, Set
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -25,12 +25,92 @@ if TYPE_CHECKING:
 class CombatSetup:
     units1: Sequence[Unit]
     units2: Sequence[Unit]
+    attacking: Set[int]
 
 
 @dataclass
 class CombatResult:
     outcome_global: float
     outcome_local: Mapping[int, float]
+
+
+def simulate_future_vectorized(units: Sequence[Unit], times_lambda=1.0, n_steps=10, lanchester_n=1.56):
+    N = len(units)
+
+    # 1. Vector Setup
+    teams = np.array([u.owner_id for u in units])  # (N,)
+    hp = np.array([u.health for u in units])[:, None]  # (N, 1) Value/Health
+
+    # Mechanics
+    is_flying = np.array([u.is_flying for u in units])  # (N,)
+    rng = np.array([u.range for u in units])[:, None]  # (N, 1)
+    speed = np.array([u.speed for u in units])[:, None]  # (N, 1)
+    coords = np.array([(u.x, u.y) for u in units])  # (N, 2)
+    dist_matrix = np.linalg.norm(coords[:, None, :] - coords[None, :, :], axis=-1)
+
+    # 2. Full DPS Matrix (N, N) - Handling Ground vs Air
+    dps_g = np.array([u.ground_dps for u in units])[:, None]
+    dps_a = np.array([u.air_dps for u in units])[:, None]
+
+    # D[i,j] = DPS unit i deals to unit j (based on j's flight status)
+    # Broadcast is_flying to columns (targets)
+    D = np.where(is_flying[None, :], dps_a, dps_g)
+
+    # 3. Stratified Time Sampling (Uniform Weights)
+    step = 1.0 / n_steps
+    q = np.linspace(step / 2, 1.0 - step / 2, n_steps)
+    times = expon.ppf(q, scale=1.0 / times_lambda)
+
+    # Accumulators for Offense (val I kill) and Defense (val killing me)
+    acc_offense = np.zeros(N)
+    acc_defense = np.zeros(N)
+
+    # 4. Simulation Loop
+    enemy_mask = teams[:, None] != teams[None, :]
+
+    for t in times:
+        # Project movement (linear closing)
+        current_dist = np.maximum(0, dist_matrix - (speed + speed.T) * t)
+
+        # Build Attack Matrix A (Row Stochastic)
+        # Valid = Enemy AND In Range AND Can Damage
+        valid = enemy_mask & (current_dist <= rng) & (D > 0)
+
+        # Normalize rows (probability i attacks j)
+        row_sums = valid.sum(axis=1, keepdims=True)
+        A = np.divide(valid.astype(float), row_sums, out=np.zeros_like(D), where=row_sums != 0)
+
+        # Effective Fire Matrix (Probability * DPS)
+        E = A * D
+
+        # Metric 1: Offense (What I destroy)
+        # Sum_j (E_ij * HP_j) -> Row Sum
+        offense_step = E @ hp
+
+        # Metric 2: Defense (Who is destroying me)
+        # Sum_i (HP_i * E_ij) -> Col Sum (done via Transpose dot)
+        defense_step = hp.T @ E
+
+        # Apply Generalized Lanchester Scaling (Concentration Bonus)
+        # Count allies/enemies alive (approximation: everyone is alive in this heuristic)
+        # Note: In a deeper sim, we'd mask dead units. Here we assume static composition over short future.
+        counts = np.array([np.sum(teams == t_id) for t_id in teams])
+        bonus_factors = np.power(counts, lanchester_n - 1.0)
+
+        # Scale: My offense is boosted by my team size
+        offense_step_scaled = offense_step.flatten() * bonus_factors
+        # Scale: Incoming threat is boosted by enemy team size
+        defense_step_scaled = defense_step.flatten() * bonus_factors
+
+        acc_offense += offense_step_scaled
+        acc_defense += defense_step_scaled
+
+    # 5. Result: Log-Advantage per Unit
+    # Average over time steps (uniform weights)
+    avg_offense = acc_offense / n_steps
+    avg_defense = acc_defense / n_steps
+
+    return np.log1p(avg_offense) - np.log1p(avg_defense)
 
 
 class CombatSimulatorParameters:
@@ -88,7 +168,7 @@ class CombatSimulator:
         radius = np.array([u.radius for u in units])
         attackable = np.array([self.is_attackable(u) for u in units])
         flying = np.array([u.is_flying for u in units])
-        np.array([u.health + u.shield for u in units])
+        np.array([u.tag in setup.attacking for u in units])
 
         ground_selector = np.where(attackable & ~flying, 1.0, 0.0)
         air_selector = np.where(attackable & flying, 1.0, 0.0)
@@ -101,61 +181,65 @@ class CombatSimulator:
         dps[n1:, n1:] = 0.0
 
         distance = pairwise_distances([u.position for u in units])
-        movement_speed_vector = np.array([1.4 * u.real_speed for u in units])
+        movement_speed_vector = np.array([1.4 * u.real_speed if u.tag in setup.attacking else 0.0 for u in units])
         movement_speed = np.repeat(movement_speed_vector[:, None], len(units), axis=1) + np.repeat(
             movement_speed_vector[None, :], len(units), axis=0
         )
 
         q = np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
-        dist = expon(scale=3.0)
+        dist = expon(scale=2.0)
         times = dist.ppf(q)
         p = dist.pdf(times)
+        p = np.reciprocal(p)
         weights = p / p.sum()
 
-        mixing_enemy = np.reciprocal(self.parameters.distance_constant + distance)
-        mixing_own = mixing_enemy.copy()
-        mixing_own[:n1, n1:] = 0.0
-        mixing_own[n1:, :n1] = 0.0
-        mixing_enemy[:n1, :n1] = 0.0
-        mixing_enemy[n1:, n1:] = 0.0
-        np.fill_diagonal(mixing_own, 0.0)
-        mixing_own /= np.maximum(1e-10, mixing_own.sum(axis=1, keepdims=True))
-        mixing_enemy /= np.maximum(1e-10, mixing_enemy.sum(axis=1, keepdims=True))
+        hp = np.array([u.health + u.shield for u in units])
+        dps.max(1)
 
-        health = np.array([u.health + u.shield for u in units])
-        health1 = np.array([u.health + u.shield for u in setup.units1])
-        health2 = np.array([u.health + u.shield for u in setup.units2])
-        np.array([total_cost(u.type_id) * u.shield_health_percentage for u in units])
-
-        lancester1 = np.full((len(units), len(times)), 0.0)
-        lancester2 = np.full((len(units), len(times)), 0.0)
-        lancester_dim = 0.5
+        lancester1 = np.full((len(units), self.num_steps), 0.0)
+        lancester2 = np.full((len(units), self.num_steps), 0.0)
+        lancester_pow = 1.56
         for i, ti in enumerate(times):
             range_projection = ranges + movement_speed * ti
-            in_range = distance <= range_projection
-            attack_weight = np.where(in_range & (dps > 0.0), 1.0, 0.0)
+            alive = hp > 0
+            valid = alive[:, None] & (distance <= range_projection) & (dps > 0)
 
-            attack_probability = attack_weight / np.maximum(1e-10, np.sum(attack_weight, axis=1, keepdims=True))
+            valid.sum(axis=1, keepdims=True)
+            valid.sum(axis=0, keepdims=True)
 
-            fire = attack_probability * dps
-            fire.sum(1)
-            fire.sum(0)
+            valid_sym = valid | valid.T
+            mix = valid_sym / np.maximum(1, valid_sym.sum(0, keepdims=True))
 
-            force2 = health @ attack_probability
-            force1 = mixing_enemy @ force2
+            strength = np.where(alive, 1.0, 0.0)
+            fire = strength @ (dps * valid)
+            forces = hp @ valid
+            count = valid.sum(0)
 
-            lancester1[:, i] = fire.sum(1) * np.power(force1, lancester_dim)
-            lancester2[:, i] = fire.sum(0) * np.power(force2, lancester_dim)
+            potential2 = fire * forces * np.power(np.maximum(1, count), lancester_pow - 2)
+            potential1 = potential2 @ mix
+
+            lancester1[:, i] = potential1
+            lancester2[:, i] = potential2
+
+            # fire = attack_probability * dps
+            #
+            # count = np.sum(attack_probability, axis=0)
+            # concentration_bonus = np.power(count, 0.56)
+            #
+            # lancester1[:, i] = fire @ health
+            # lancester2[:, i] = health @ fire
 
         advantage = np.log1p(lancester1) - np.log1p(lancester2)
         outcome_vector = advantage @ weights
 
+        # outcome_vector = simulate_future_vectorized(units)
+
+        health1 = max(1, sum(u.health + u.shield for u in setup.units1))
+        health2 = max(1, sum(u.health + u.shield for u in setup.units2))
         win, health_result = self.combat_sim.predict_engage(
             setup.units1, setup.units2, optimistic=True, defender_player=2
         )
-        outcome_global = (
-            health_result / max(1e-10, health1.sum()) if win else -health_result / max(1e-10, health2.sum())
-        )
+        outcome_global = health_result / health1 if win else -health_result / health2
 
         outcome_local = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
         result = CombatResult(outcome_local=outcome_local, outcome_global=outcome_global)

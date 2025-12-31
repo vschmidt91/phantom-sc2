@@ -204,7 +204,14 @@ class CombatStepContext:
         enemy_combatants = state.bot.enemy_units.exclude_type(ENEMY_CIVILIANS) | state.bot.enemy_structures(
             COMBATANT_STRUCTURES
         )
-        prediction = state.simulator.simulate(CombatSetup(units1=combatants, units2=enemy_combatants))
+        attacking = set(state._attacking_local)
+        attacking.update(u.tag for u in enemy_combatants)
+        setup = CombatSetup(
+            units1=combatants,
+            units2=enemy_combatants,
+            attacking=attacking,
+        )
+        prediction = state.simulator.simulate(setup)
         return CombatStepContext(
             state=state,
             combatants=combatants,
