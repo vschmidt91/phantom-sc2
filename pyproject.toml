@@ -1,6 +1,6 @@
 [project]
 name = "phantom"
-version = "3.4.2"
+version = "3.4.3"
 description = "StarCraft II Bot playing Zerg Macro"
 authors = [
     {name = "Volker Schmidt", email = "volker.schmidt91@gmail.com"}
