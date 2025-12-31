@@ -189,9 +189,6 @@ class CombatSimulator:
         q = np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
         dist = expon(scale=2.0)
         times = dist.ppf(q)
-        p = dist.pdf(times)
-        p = np.reciprocal(p)
-        weights = p / p.sum()
 
         hp = np.array([u.health + u.shield for u in units])
         dps.max(1)
@@ -221,18 +218,8 @@ class CombatSimulator:
             lancester1[:, i] = potential1
             lancester2[:, i] = potential2
 
-            # fire = attack_probability * dps
-            #
-            # count = np.sum(attack_probability, axis=0)
-            # concentration_bonus = np.power(count, 0.56)
-            #
-            # lancester1[:, i] = fire @ health
-            # lancester2[:, i] = health @ fire
-
         advantage = np.log1p(lancester1) - np.log1p(lancester2)
-        outcome_vector = advantage @ weights
-
-        # outcome_vector = simulate_future_vectorized(units)
+        outcome_vector = advantage.mean(1)
 
         health1 = max(1, sum(u.health + u.shield for u in setup.units1))
         health2 = max(1, sum(u.health + u.shield for u in setup.units2))
