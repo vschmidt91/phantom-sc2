@@ -107,6 +107,23 @@ BUILD_ORDERS = {
             WaitUntil(lambda bot: bot.structures(UnitTypeId.SPAWNINGPOOL).ready),
         ]
     ),
+    "OVERPOOL": BuildOrderChain(
+        [
+            Make(UnitTypeId.DRONE, 14),
+            Make(UnitTypeId.OVERLORD, 2),
+            Make(UnitTypeId.SPAWNINGPOOL, 1),
+            Make(UnitTypeId.DRONE, 17),
+            Make(UnitTypeId.HATCHERY, 2),
+            Make(UnitTypeId.EXTRACTOR, 1),
+            Make(UnitTypeId.QUEEN, 1),
+            # WaitUntil(lambda bot: bot.structures(UnitTypeId.SPAWNINGPOOL).ready),
+            # Make(UnitTypeId.ZERGLING, 1),
+            # Make(UnitTypeId.DRONE, 18),
+            # Make(UnitTypeId.ROACHWARREN, 1),
+            # Make(UnitTypeId.OVERLORD, 3),
+            # Make(UnitTypeId.ROACH, 7),
+        ]
+    ),
     "HATCH_FIRST": BuildOrderChain(
         [
             Make(UnitTypeId.DRONE, 13),
