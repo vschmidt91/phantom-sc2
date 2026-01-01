@@ -179,7 +179,7 @@ class PhantomBot(AresBot):
         return (
             self.count_actual(UpgradeId.ZERGLINGMOVEMENTSPEED) > 0
             or self.count_pending(UpgradeId.ZERGLINGMOVEMENTSPEED) > 0
-            or self.vespene >= 96
+            # or self.vespene >= 96
         )
 
     @property_cache_once_per_frame
