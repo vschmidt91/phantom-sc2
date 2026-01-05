@@ -38,10 +38,10 @@ class Make(BuildOrder):
     def execute(self, bot: "PhantomBot") -> BuildOrderStep | None:
         needs_planning = not UNIT_TRAINED_FROM.get(self.unit, set()).isdisjoint(ALL_WORKER_TYPES)
         count = bot.count_actual(self.unit) + bot.count_pending(self.unit)
-        if needs_planning:
-            count += bot.count_planned(self.unit)
         if count >= self.target:
             return None
+        if needs_planning and count + bot.count_planned(self.unit) >= self.target:
+            return BuildOrderStep()
         if needs_planning:
             return BuildOrderStep(plans={self.unit: MacroPlan()})
         else:
@@ -49,11 +49,18 @@ class Make(BuildOrder):
 
 
 @dataclass(frozen=True)
-class WaitUntil(BuildOrder):
+class Until(BuildOrder):
     condition: Callable[["PhantomBot"], bool]
+    step: BuildOrder
 
     def execute(self, bot: "PhantomBot") -> BuildOrderStep | None:
-        return None if self.condition(bot) else BuildOrderStep()
+        return None if self.condition(bot) else self.step.execute(bot)
+
+
+@dataclass(frozen=True)
+class Wait(BuildOrder):
+    def execute(self, bot: "PhantomBot") -> BuildOrderStep | None:
+        return BuildOrderStep()
 
 
 @dataclass(frozen=True)
@@ -65,6 +72,8 @@ class ExtractorTrick(BuildOrder):
     def execute(self, bot: "PhantomBot") -> BuildOrderStep | None:
         if bot.supply_used < self.at_supply:
             return BuildOrderStep()
+        if bot.count_pending(UnitTypeId.OVERLORD):
+            return None
         if bot.supply_used == self.at_supply and bot.bank.supply <= 0:
             has_extractor = (
                 bot.count_actual(self.unit_type) > 0
@@ -101,10 +110,23 @@ BUILD_ORDERS = {
             Make(UnitTypeId.HATCHERY, 2),
             Make(UnitTypeId.DRONE, 17),
             Make(UnitTypeId.EXTRACTOR, 1),
-            WaitUntil(lambda bot: bot.gas_buildings),
+            Until(lambda bot: bot.gas_buildings, Wait()),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
             Make(UnitTypeId.DRONE, 20),
-            WaitUntil(lambda bot: bot.structures(UnitTypeId.SPAWNINGPOOL).ready),
+            Until(lambda bot: bot.structures(UnitTypeId.SPAWNINGPOOL).ready, Wait()),
+        ]
+    ),
+    "OVERPOOL": BuildOrderChain(
+        [
+            Make(UnitTypeId.DRONE, 14),
+            Make(UnitTypeId.OVERLORD, 2),
+            Make(UnitTypeId.SPAWNINGPOOL, 1),
+            Until(lambda bot: bot.townhalls.amount > 1, Make(UnitTypeId.DRONE, 18)),
+            Until(lambda bot: bot.townhalls.amount > 1 or bot.workers.amount > 16, Wait()),
+            Make(UnitTypeId.HATCHERY, 2),
+            Until(lambda bot: bot.townhalls.amount > 1, Wait()),
+            Make(UnitTypeId.EXTRACTOR, 1),
+            Make(UnitTypeId.QUEEN, 1),
         ]
     ),
     "HATCH_FIRST": BuildOrderChain(
@@ -115,7 +137,7 @@ BUILD_ORDERS = {
             Make(UnitTypeId.HATCHERY, 2),
             Make(UnitTypeId.DRONE, 17),
             Make(UnitTypeId.EXTRACTOR, 1),
-            WaitUntil(lambda bot: bot.gas_buildings),
+            Until(lambda bot: bot.gas_buildings, Wait()),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
         ]
     ),
@@ -126,7 +148,7 @@ BUILD_ORDERS = {
             Make(UnitTypeId.DRONE, 17),
             Make(UnitTypeId.HATCHERY, 2),
             Make(UnitTypeId.DRONE, 18),
-            WaitUntil(lambda bot: bot.workers.amount > 16),
+            Until(lambda bot: bot.workers.amount > 16, Wait()),
             Make(UnitTypeId.EXTRACTOR, 1),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
             Make(UnitTypeId.HATCHERY, 3),
@@ -141,7 +163,7 @@ BUILD_ORDERS = {
             Make(UnitTypeId.DRONE, 13),
             Make(UnitTypeId.OVERLORD, 2),
             Make(UnitTypeId.DRONE, 17),
-            WaitUntil(lambda bot: bot.workers.amount > 14),
+            Until(lambda bot: bot.workers.amount > 14, Wait()),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
             Make(UnitTypeId.EXTRACTOR, 1),
             Make(UnitTypeId.DRONE, 18),

@@ -13,7 +13,7 @@ class BotConfig:
     profile_interval = 100
     profile_path: str | None = None
     tag_log_level = "ERROR"
-    build_order = "OVERHATCH"
+    build_order = "OVERPOOL"
     version_path = "version.txt"
     data_path = "./data"
     params_name = "params.pkl.xz"
