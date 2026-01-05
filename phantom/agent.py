@@ -146,7 +146,8 @@ class Agent:
                 logger.info("Build order completed.")
                 self.build_order_completed = True
         else:
-            macro_priorities.update(self.builder.get_priorities(strategy.composition_target))
+            macro_priorities.update(self.builder.get_priorities(strategy.macro_composition, limit=1.0))
+            macro_priorities.update(self.builder.get_priorities(strategy.army_composition, limit=3.0))
             macro_priorities.update(self.builder.make_upgrades(strategy.composition_target, strategy.filter_upgrade))
             macro_priorities.update(strategy.morph_overlord())
             expansion_priority = self.builder.expansion_priority()

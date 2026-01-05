@@ -188,7 +188,8 @@ class Strategy:
         return StrategyTier.LATEGAME
 
     def _army_composition(self) -> UnitComposition:
-        counter_composition = {k: self.parameters.counter_factor.value * v for k, v in self.counter_composition.items()}
+        # counter_composition = {k: self.parameters.counter_factor.value * v for k, v in self.counter_composition.items()}
+        counter_composition = self.counter_composition
         composition = defaultdict[UnitTypeId, float](float, counter_composition)
         corruptor_mixin = int(composition[UnitTypeId.BROODLORD] / self.parameters.corruptor_mixin.value)
         if corruptor_mixin > 0:
@@ -247,12 +248,12 @@ class Strategy:
         if self.tier >= StrategyTier.LAIR:
             if UnitTypeId.HIVE not in self.composition:
                 composition[UnitTypeId.LAIR] += 1
-            composition[UnitTypeId.OVERSEER] += 1
+            composition[UnitTypeId.OVERSEER] += 2
         if self.tier >= StrategyTier.HIVE:
             composition[UnitTypeId.HIVE] += 1
-            composition[UnitTypeId.OVERSEER] += 1
+            composition[UnitTypeId.OVERSEER] += 2
         if self.tier >= StrategyTier.LATEGAME:
-            composition[UnitTypeId.OVERSEER] += 1
+            composition[UnitTypeId.OVERSEER] += 2
             composition[UnitTypeId.GREATERSPIRE] += 1
         return composition
 

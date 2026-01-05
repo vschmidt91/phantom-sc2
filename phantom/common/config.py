@@ -17,7 +17,7 @@ class BotConfig:
     version_path = "version.txt"
     data_path = "./data"
     params_name = "params.pkl.xz"
-    max_actions = 50
+    max_actions = 80
 
     @classmethod
     def from_toml(cls, path: str) -> "BotConfig":
