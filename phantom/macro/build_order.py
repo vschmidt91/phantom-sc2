@@ -126,13 +126,7 @@ BUILD_ORDERS = {
             Make(UnitTypeId.HATCHERY, 2),
             Until(lambda bot: bot.townhalls.amount > 1, Wait()),
             Make(UnitTypeId.EXTRACTOR, 1),
-
             Make(UnitTypeId.QUEEN, 1),
-            # Make(UnitTypeId.ZERGLING, 4),
-            # Make(UnitTypeId.DRONE, 18),
-            # Make(UnitTypeId.HATCHERY, 3),
-            # Make(UnitTypeId.ZERGLING, 4),
-            # Make(UnitTypeId.OVERLORD, 3),
         ]
     ),
     "HATCH_FIRST": BuildOrderChain(
