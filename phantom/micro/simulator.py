@@ -89,22 +89,22 @@ class CombatSimulator:
         radius = np.array([u.radius for u in units])
         attackable = np.array([self.is_attackable(u) for u in units])
         flying = np.array([u.is_flying for u in units])
+        bonus_range = np.array([1.0 if u.is_enemy else 0.0 for u in units])
 
         ground_selector = np.where(attackable & ~flying, 1.0, 0.0)
         air_selector = np.where(attackable & flying, 1.0, 0.0)
         dps = np.outer(ground_dps, ground_selector) + np.outer(air_dps, air_selector)
         ranges = np.outer(ground_range, ground_selector) + np.outer(air_range, air_selector)
-        ranges += np.repeat(radius[:, None], len(units), axis=1)
-        ranges += np.repeat(radius[None, :], len(units), axis=0)
+        ranges += bonus_range[:, None]
+        ranges += radius[:, None]
+        ranges += radius[None, :]
 
         dps[:n1, :n1] = 0.0
         dps[n1:, n1:] = 0.0
 
         distance = pairwise_distances([u.position for u in units])
         movement_speed_vector = np.array([1.4 * u.real_speed for u in units])
-        movement_speed = np.repeat(movement_speed_vector[:, None], len(units), axis=1) + np.repeat(
-            movement_speed_vector[None, :], len(units), axis=0
-        )
+        movement_speed = movement_speed_vector[:, None] + movement_speed_vector[None, :]
 
         mix_friendly = np.reciprocal(1 + distance)
         mix_friendly[:n1, n1:] = 0.0
