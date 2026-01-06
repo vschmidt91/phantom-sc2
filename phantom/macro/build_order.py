@@ -119,6 +119,7 @@ BUILD_ORDERS = {
     "OVERPOOL": BuildOrderChain(
         [
             Make(UnitTypeId.DRONE, 14),
+            Until(lambda bot: bot.structures(UnitTypeId.SPAWNINGPOOL), ExtractorTrick()),
             Make(UnitTypeId.OVERLORD, 2),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
             Until(lambda bot: bot.townhalls.amount > 1, Make(UnitTypeId.DRONE, 18)),
