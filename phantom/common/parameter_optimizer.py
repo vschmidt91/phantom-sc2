@@ -32,7 +32,7 @@ class ScalarTransform:
         return self.offset.value + sum(ci.value * vi for ci, vi in zip(self.coeffs, values, strict=False))
 
 
-class ParameterSampler:
+class ParameterOptimizer:
     def __init__(self) -> None:
         self.strategy: cma.CMAEvolutionStrategy | None = None
         self.parameters = list[Parameter]()

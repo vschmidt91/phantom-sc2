@@ -1,6 +1,6 @@
 import unittest
 
-from phantom.common.parameter_sampler import ParameterSampler, Prior
+from phantom.common.parameter_sampler import ParameterOptimizer, Prior
 
 
 class ParametersTest(unittest.TestCase):
@@ -8,7 +8,7 @@ class ParametersTest(unittest.TestCase):
         pass
 
     def test_evolution(self):
-        parameters = ParameterSampler()
+        parameters = ParameterOptimizer()
         p1 = parameters.add(Prior(0, 1e-3))
         p2 = parameters.add(Prior(1, 1e3))
 

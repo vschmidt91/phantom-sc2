@@ -28,7 +28,7 @@ from phantom.common.constants import (
     GAS_BY_RACE,
 )
 from phantom.common.cost import Cost
-from phantom.common.parameter_sampler import ParameterSampler
+from phantom.common.parameter_sampler import ParameterOptimizer
 from phantom.common.utils import MacroId, to_point
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.builder import Builder, BuilderParameters, MacroPlan
@@ -83,7 +83,7 @@ class Agent:
     def __init__(self, bot: "PhantomBot", config: BotConfig) -> None:
         self.bot = bot
         self.config = config
-        self.sampler = ParameterSampler()
+        self.sampler = ParameterOptimizer()
         self.build_order = BUILD_ORDERS[self.config.build_order]
         self.simulator = CombatSimulator(bot, CombatSimulatorParameters(self.sampler))
         self.combat = CombatState(bot, CombatParameters(self.sampler), self.simulator)
@@ -366,7 +366,7 @@ class Agent:
     def _load_parameters(self) -> None:
         try:
             with lzma.open(self.config.params_path, "rb") as f:
-                parameters: ParameterSampler = pickle.load(f)
+                parameters: ParameterOptimizer = pickle.load(f)
                 self.sampler.strategy = parameters.strategy
                 self.sampler.population = parameters.population
                 self.sampler.loss_values = parameters.loss_values

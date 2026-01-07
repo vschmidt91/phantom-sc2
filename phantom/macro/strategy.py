@@ -16,7 +16,7 @@ from phantom.common.constants import (
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
 )
-from phantom.common.parameter_sampler import ParameterSampler, Prior
+from phantom.common.parameter_sampler import ParameterOptimizer, Prior
 from phantom.common.unit_composition import UnitComposition, add_compositions, composition_of, sub_compositions
 from phantom.common.utils import MacroId
 from phantom.macro.builder import MacroPlan
@@ -34,7 +34,7 @@ class StrategyTier(enum.IntEnum):
 
 
 class StrategyParameters:
-    def __init__(self, sampler: ParameterSampler) -> None:
+    def __init__(self, sampler: ParameterOptimizer) -> None:
         self.counter_factor = sampler.add(Prior(2.5, 0.1, min=0))
         self.ravager_mixin = sampler.add(Prior(10, 1, min=0))
         self.corruptor_mixin = sampler.add(Prior(5, 1, min=0))
