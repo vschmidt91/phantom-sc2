@@ -122,7 +122,7 @@ BUILD_ORDERS = {
             Until(lambda bot: bot.structures(UnitTypeId.SPAWNINGPOOL), ExtractorTrick()),
             Make(UnitTypeId.OVERLORD, 2),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
-            Make(UnitTypeId.DRONE, 17),
+            Make(UnitTypeId.DRONE, 18),
             # Until(lambda bot: bot.townhalls.amount > 1, Make(UnitTypeId.DRONE, 18)),
             # Until(lambda bot: bot.townhalls.amount > 1 or bot.workers.amount > 16, Wait()),
             # Make(UnitTypeId.HATCHERY, 2),
