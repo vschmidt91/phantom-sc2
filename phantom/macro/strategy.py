@@ -40,7 +40,7 @@ class StrategyParameters:
         self.corruptor_mixin = sampler.add(Prior(5, 1, min=0))
         self.tier1_drone_count = sampler.add(Prior(30, 1, min=0))
         self.tier2_drone_count = sampler.add(Prior(60, 1, min=0))
-        self.tier3_drone_count = sampler.add(Prior(80, 1, min=0))
+        self.tier3_drone_count = sampler.add(Prior(90, 1, min=0))
         self.hydras_when_banking = sampler.add(Prior(8, 1, min=0))
         self.lings_when_banking = sampler.add(Prior(5, 1, min=0))
         self.queens_when_banking = sampler.add(Prior(3, 1, min=0))
@@ -237,7 +237,7 @@ class Strategy:
         return composition
 
     def _macro_composition(self) -> UnitComposition:
-        harvester_target = min(80, max(1, self.bot.max_harvesters))
+        harvester_target = min(self.parameters.tier3_drone_count.value, max(1, self.bot.max_harvesters))
         queen_target = max(0.0, min(8, 2 * self.bot.townhalls.amount))
         composition = defaultdict[UnitTypeId, float](float)
 
