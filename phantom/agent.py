@@ -214,7 +214,7 @@ class Agent:
         gas_target = math.ceil(len(harvesters) * self.gas_ratio)
         if not self.bot.researched_speed and self.bot.harvestable_gas_buildings:
             gas_target = 2
-        else:
+        elif self.bot.townhalls.amount > 1:
             macro_plans.update(self._build_gas(gas_target))
 
         for item, plan in macro_plans.items():
@@ -387,7 +387,7 @@ class Agent:
             + self.bot.count_planned(gas_type)
         )
         gas_max = len(self.bot.all_taken_geysers)
-        gas_want = min(gas_max, math.ceil(gas_harvester_target / self.bot.harvesters_per_gas_building))
+        gas_want = max(1, min(gas_max, math.ceil(gas_harvester_target / self.bot.harvesters_per_gas_building)))
         for _ in range(gas_have, gas_want):
             return {gas_type: MacroPlan()}
         return {}
