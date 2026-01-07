@@ -99,6 +99,9 @@ class Agent:
         self.harvesters = MiningState(bot)
         self.build_order_completed = False
         self.gas_ratio = 0.0
+        self.tech_priority_transform = self.sampler.add_scalar_transform(2, sigma=0.1)
+        self.economy_priority_transform = self.sampler.add_scalar_transform(2, sigma=0.1)
+        self.army_priority_transform = self.sampler.add_scalar_transform(2, sigma=0.1)
         self._load_parameters()
         self._log_parameters()
 
@@ -126,8 +129,10 @@ class Agent:
         harvester_return_targets = self.bot.townhalls.ready
         strategy = Strategy(self.bot, self.strategy_paramaters)
 
+        combat = self.combat.on_step()
+
         actions = dict[Unit, Action]()
-        macro_priorities = dict[MacroId, float]()
+        build_priorities = dict[MacroId, float]()
         macro_plans = dict[UnitTypeId, MacroPlan]()
         if not self.build_order_completed:
             if not self.bot.mediator.is_position_safe(
@@ -140,17 +145,28 @@ class Agent:
                 self.build_order_completed = True
             if step := self.build_order.execute(self.bot):
                 macro_plans.update(step.plans)
-                macro_priorities.update(step.priorities)
+                build_priorities.update(step.priorities)
                 actions.update(step.actions)
             else:
                 logger.info("Build order completed.")
                 self.build_order_completed = True
         else:
-            macro_priorities.update(self.builder.get_priorities(strategy.composition_target))
-            macro_priorities.update(self.builder.make_upgrades(strategy.composition_target, strategy.filter_upgrade))
-            macro_priorities.update(strategy.morph_overlord())
+            # assess priorities
+            economy_priorities = self.builder.get_priorities(strategy.macro_composition, limit=1.0)
+            army_priorities = self.builder.get_priorities(strategy.army_composition, limit=10.0)
+            tech_priorities = self.builder.make_upgrades(strategy.composition_target, strategy.filter_upgrade)
+            economy_priorities.update(strategy.morph_overlord())
             expansion_priority = self.builder.expansion_priority()
-            macro_priorities[UnitTypeId.HATCHERY] = expansion_priority
+            economy_priorities[UnitTypeId.HATCHERY] = expansion_priority
+
+            for k, v in economy_priorities.items():
+                build_priorities[k] = v + self.economy_priority_transform.transform([v, combat.confidence_global])
+            for k, v in army_priorities.items():
+                build_priorities[k] = v + self.army_priority_transform.transform([v, combat.confidence_global])
+            for k, v in tech_priorities.items():
+                build_priorities[k] = v + self.tech_priority_transform.transform([v, combat.confidence_global])
+
+            # make plans
             if expansion_priority > -1 and self.bot.count_planned(UnitTypeId.HATCHERY) == 0:
                 macro_plans[UnitTypeId.HATCHERY] = MacroPlan()
             for unit, count in strategy.tech_composition.items():
@@ -163,9 +179,8 @@ class Agent:
             macro_plans.update(strategy.make_spores())
 
         # filter out impossible tasks
-        macro_priorities = {k: v for k, v in macro_priorities.items() if not any(self.bot.get_missing_requirements(k))}
+        build_priorities = {k: v for k, v in build_priorities.items() if not any(self.bot.get_missing_requirements(k))}
 
-        combat = self.combat.on_step()
         self.creep_tumors.on_step()
         self.creep_spread.on_step()
         self.dodge.on_step()
@@ -198,8 +213,8 @@ class Agent:
 
         gas_target = math.ceil(len(harvesters) * self.gas_ratio)
         if not self.bot.researched_speed and self.bot.harvestable_gas_buildings:
-            gas_target = 3
-        else:
+            gas_target = 2
+        elif self.bot.townhalls.amount > 1:
             macro_plans.update(self._build_gas(gas_target))
 
         for item, plan in macro_plans.items():
@@ -251,7 +266,7 @@ class Agent:
         actions.update(combatant_actions)
 
         if self.bot.actual_iteration > 1 or not self.config.skip_first_iteration:
-            actions.update(self.builder.get_actions(macro_priorities))
+            actions.update(self.builder.get_actions(build_priorities))
 
         for structure in self.bot.structures.not_ready:
             if structure.health_percentage < 0.05:
@@ -284,7 +299,7 @@ class Agent:
                 actions[unit] = action
 
         if self.config.debug_draw:
-            self.builder.debug_draw_plans(macro_priorities)
+            self.builder.debug_draw_plans(build_priorities)
 
         return actions
 
@@ -372,7 +387,7 @@ class Agent:
             + self.bot.count_planned(gas_type)
         )
         gas_max = len(self.bot.all_taken_geysers)
-        gas_want = min(gas_max, math.ceil(gas_harvester_target / self.bot.harvesters_per_gas_building))
+        gas_want = max(1, min(gas_max, math.ceil(gas_harvester_target / self.bot.harvesters_per_gas_building)))
         for _ in range(gas_have, gas_want):
             return {gas_type: MacroPlan()}
         return {}

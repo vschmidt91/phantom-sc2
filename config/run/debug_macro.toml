@@ -1,6 +1,6 @@
 map_pattern = "PylonAIE_v4"
 enemy_race = "Terran"
-enemy_build = "Rush"
+enemy_build = "Macro"
 save_replay = "resources\\replays\\local"
 bot_config = "config\\bot\\debug.toml"
 log_level = "Trace"

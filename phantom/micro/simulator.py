@@ -52,7 +52,7 @@ class CombatSimulator:
     def __init__(self, bot: "PhantomBot", parameters: CombatSimulatorParameters) -> None:
         self.bot = bot
         self.parameters = parameters
-        self.num_steps = 24
+        self.num_steps = 10
         self.combat_sim = SC2CombatSimulator()
         self.combat_sim.enable_timing_adjustment(True)
 
@@ -89,29 +89,35 @@ class CombatSimulator:
         radius = np.array([u.radius for u in units])
         attackable = np.array([self.is_attackable(u) for u in units])
         flying = np.array([u.is_flying for u in units])
+        bonus_range = np.array([1.0 if u.is_enemy else 0.0 for u in units])
 
         ground_selector = np.where(attackable & ~flying, 1.0, 0.0)
         air_selector = np.where(attackable & flying, 1.0, 0.0)
         dps = np.outer(ground_dps, ground_selector) + np.outer(air_dps, air_selector)
         ranges = np.outer(ground_range, ground_selector) + np.outer(air_range, air_selector)
-        ranges += np.repeat(radius[:, None], len(units), axis=1)
-        ranges += np.repeat(radius[None, :], len(units), axis=0)
+        ranges += bonus_range[:, None]
+        ranges += radius[:, None]
+        ranges += radius[None, :]
 
         dps[:n1, :n1] = 0.0
         dps[n1:, n1:] = 0.0
 
         distance = pairwise_distances([u.position for u in units])
         movement_speed_vector = np.array([1.4 * u.real_speed if u.tag in setup.attacking else 0.0 for u in units])
-        movement_speed = np.repeat(movement_speed_vector[:, None], len(units), axis=1) + np.repeat(
-            movement_speed_vector[None, :], len(units), axis=0
-        )
+        movement_speed = movement_speed_vector[:, None]
+
+        mix_friendly = np.reciprocal(1 + distance)
+        mix_friendly[:n1, n1:] = 0.0
+        mix_friendly[n1:, :n1] = 0.0
+        mix_friendly_sum = mix_friendly.sum(axis=1, keepdims=True)
+        np.divide(mix_friendly, mix_friendly_sum, where=mix_friendly_sum != 0, out=mix_friendly)
+
+        hp = np.array([u.health + u.shield for u in units])
+        hp.sum() / np.maximum(1e-3, dps.max(1).sum())
 
         q = np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
         dist = expon(scale=self.parameters.time_distribution_lambda)
         times = dist.ppf(q)
-
-        hp = np.array([u.health + u.shield for u in units])
-        dps.max(1)
 
         lancester1 = np.full((len(units), self.num_steps), 0.0)
         lancester2 = np.full((len(units), self.num_steps), 0.0)
@@ -121,24 +127,28 @@ class CombatSimulator:
             alive = hp > 0
             valid = alive[:, None] & (distance <= range_projection) & (dps > 0)
 
-            valid.sum(axis=1, keepdims=True)
-            valid.sum(axis=0, keepdims=True)
+            offense = np.zeros_like(valid, dtype=float)
+            num_targets = valid.sum(axis=1, keepdims=True)
+            np.divide(valid, num_targets, where=num_targets != 0, out=offense)
+
+            strength = np.where(alive, 1.0, 0.0)
+            fire2 = strength @ (dps * offense)
+            forces2 = hp @ offense
+            count2 = strength @ offense
+            potential2 = fire2 * forces2 * np.power(np.maximum(1e-10, count2), lancester_pow - 2)
+
+            dps.max(1) @ mix_friendly
+            hp @ mix_friendly
+            # potential1 = fire1 * forces1 * np.power(np.maximum(1e-10, count1), lancester_pow - 2)
 
             valid_sym = valid | valid.T
             mix = valid_sym / np.maximum(1, valid_sym.sum(0, keepdims=True))
-
-            strength = np.where(alive, 1.0, 0.0)
-            fire = strength @ (dps * valid)
-            forces = hp @ valid
-            count = valid.sum(0)
-
-            potential2 = fire * forces * np.power(np.maximum(1, count), lancester_pow - 2)
             potential1 = potential2 @ mix
 
             lancester1[:, i] = potential1
             lancester2[:, i] = potential2
 
-        advantage = np.log1p(lancester1) - np.log1p(lancester2)
+        advantage = lancester1 - lancester2
         outcome_vector = advantage.mean(1)
 
         health1 = max(1, sum(u.health + u.shield for u in setup.units1))

@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import cma
@@ -18,6 +19,19 @@ class Parameter:
     value: float
 
 
+@dataclass
+class ScalarTransform:
+    coeffs: Sequence[Parameter]
+    offset: Parameter
+
+    @property
+    def num_inputs(self) -> int:
+        return len(self.coeffs) - 1
+
+    def transform(self, values: Sequence[float]) -> float:
+        return self.offset.value + sum(ci.value * vi for ci, vi in zip(self.coeffs, values, strict=False))
+
+
 class ParameterSampler:
     def __init__(self) -> None:
         self.strategy: cma.CMAEvolutionStrategy | None = None
@@ -29,6 +43,14 @@ class ParameterSampler:
         parameter = Parameter(prior, prior.mu)
         self.parameters.append(parameter)
         return parameter
+
+    def add_scalar_transform(self, num_inputs: int, sigma: float = 1.0) -> ScalarTransform:
+        mu = 0.0
+        sigma_p = np.sqrt(sigma / num_inputs)
+        priors = [Prior(mu, sigma_p) for _ in range(num_inputs)]
+        coeffs = [self.add(p) for p in priors]
+        offset = self.add(Prior(mu, sigma))
+        return ScalarTransform(coeffs, offset)
 
     def _initialize_strategy(self) -> cma.CMAEvolutionStrategy:
         x0 = np.array([p.prior.mu for p in self.parameters])

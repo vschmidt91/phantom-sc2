@@ -38,10 +38,10 @@ class Make(BuildOrder):
     def execute(self, bot: "PhantomBot") -> BuildOrderStep | None:
         needs_planning = not UNIT_TRAINED_FROM.get(self.unit, set()).isdisjoint(ALL_WORKER_TYPES)
         count = bot.count_actual(self.unit) + bot.count_pending(self.unit)
-        if needs_planning:
-            count += bot.count_planned(self.unit)
         if count >= self.target:
             return None
+        if needs_planning and count + bot.count_planned(self.unit) >= self.target:
+            return BuildOrderStep()
         if needs_planning:
             return BuildOrderStep(plans={self.unit: MacroPlan()})
         else:
@@ -119,23 +119,16 @@ BUILD_ORDERS = {
     "OVERPOOL": BuildOrderChain(
         [
             Make(UnitTypeId.DRONE, 14),
-            ExtractorTrick(),
+            Until(lambda bot: bot.structures(UnitTypeId.SPAWNINGPOOL), ExtractorTrick()),
             Make(UnitTypeId.OVERLORD, 2),
             Make(UnitTypeId.SPAWNINGPOOL, 1),
-            Until(lambda bot: bot.townhalls.amount > 1, Make(UnitTypeId.DRONE, 17)),
-            # Until(lambda bot: bot.time >= 45, Wait()),
-            Make(UnitTypeId.EXTRACTOR, 1),
-            Until(lambda bot: bot.gas_buildings, Wait()),
-            Make(UnitTypeId.HATCHERY, 2),
+            Make(UnitTypeId.DRONE, 17),
+            # Until(lambda bot: bot.townhalls.amount > 1, Make(UnitTypeId.DRONE, 18)),
+            # Until(lambda bot: bot.townhalls.amount > 1 or bot.workers.amount > 16, Wait()),
+            # Make(UnitTypeId.HATCHERY, 2),
             # Until(lambda bot: bot.townhalls.amount > 1, Wait()),
-            # Make(UnitTypeId.DRONE, 16),
-            # Until(lambda bot: bot.structures(UnitTypeId.SPAWNINGPOOL).ready, Wait()),
-            Make(UnitTypeId.QUEEN, 1),
-            Make(UnitTypeId.ZERGLING, 1),
-            # Make(UnitTypeId.DRONE, 18),
-            # Make(UnitTypeId.ROACHWARREN, 1),
-            # Make(UnitTypeId.OVERLORD, 3),
-            # Make(UnitTypeId.ROACH, 8),
+            # Make(UnitTypeId.EXTRACTOR, 1),
+            # Make(UnitTypeId.QUEEN, 1),
         ]
     ),
     "HATCH_FIRST": BuildOrderChain(

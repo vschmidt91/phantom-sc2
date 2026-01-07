@@ -60,13 +60,15 @@ class Builder:
         self._plans = dict[UnitTypeId, MacroPlan]()
         self.min_priority = -1.0
 
-    def get_priorities(self, composition: UnitComposition) -> Mapping[UnitTypeId, float]:
+    def get_priorities(self, composition: UnitComposition, limit: float = 1.0) -> dict[UnitTypeId, float]:
         priorities = dict[UnitTypeId, float]()
         for unit, target in composition.items():
             have = self.bot.count_actual(unit) + self.bot.count_pending(unit)
             planned = self.bot.count_planned(unit)
             priority = -(have + 0.5) / max(1.0, math.ceil(target))
-            if target < 1 or target <= have + planned:
+            if target < 1:
+                continue
+            if target * limit <= have + planned:
                 continue
             if any(self.bot.get_missing_requirements(unit)):
                 continue
@@ -109,7 +111,9 @@ class Builder:
                 upgrade_weights[upgrade] = upgrade_weights.get(upgrade, 0.0) + count * total_cost
 
         # strategy specific filter
-        upgrade_weights = {k: v for k, v in upgrade_weights.items() if upgrade_filter(k)}
+        upgrade_weights = {
+            k: v for k, v in upgrade_weights.items() if upgrade_filter(k) and not self.bot.count_pending(k)
+        }
 
         if not upgrade_weights:
             return {}

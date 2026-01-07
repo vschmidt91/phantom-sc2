@@ -40,7 +40,7 @@ class StrategyParameters:
         self.corruptor_mixin = sampler.add(Prior(5, 1, min=0))
         self.tier1_drone_count = sampler.add(Prior(30, 1, min=0))
         self.tier2_drone_count = sampler.add(Prior(60, 1, min=0))
-        self.tier3_drone_count = sampler.add(Prior(80, 1, min=0))
+        self.tier3_drone_count = sampler.add(Prior(90, 1, min=0))
         self.hydras_when_banking = sampler.add(Prior(8, 1, min=0))
         self.lings_when_banking = sampler.add(Prior(5, 1, min=0))
         self.queens_when_banking = sampler.add(Prior(3, 1, min=0))
@@ -113,7 +113,7 @@ class Strategy:
             for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
         )
         supply = self.bot.supply_cap + supply_planned
-        supply_target = min(200.0, self.bot.supply_used + 2 + 20 * self.bot.income.larva)
+        supply_target = min(200.0, self.bot.supply_used + 20 * self.bot.income.larva)
         if supply_target <= supply:
             return {}
         return {UnitTypeId.OVERLORD: 0.0}
@@ -188,7 +188,8 @@ class Strategy:
         return StrategyTier.LATEGAME
 
     def _army_composition(self) -> UnitComposition:
-        counter_composition = {k: self.parameters.counter_factor.value * v for k, v in self.counter_composition.items()}
+        # counter_composition = {k: self.parameters.counter_factor.value * v for k, v in self.counter_composition.items()}
+        counter_composition = self.counter_composition
         composition = defaultdict[UnitTypeId, float](float, counter_composition)
         corruptor_mixin = int(composition[UnitTypeId.BROODLORD] / self.parameters.corruptor_mixin.value)
         if corruptor_mixin > 0:
@@ -236,7 +237,7 @@ class Strategy:
         return composition
 
     def _macro_composition(self) -> UnitComposition:
-        harvester_target = min(80, max(1, self.bot.max_harvesters))
+        harvester_target = min(self.parameters.tier3_drone_count.value, max(1, self.bot.max_harvesters))
         queen_target = max(0.0, min(8, 2 * self.bot.townhalls.amount))
         composition = defaultdict[UnitTypeId, float](float)
 
@@ -247,12 +248,12 @@ class Strategy:
         if self.tier >= StrategyTier.LAIR:
             if UnitTypeId.HIVE not in self.composition:
                 composition[UnitTypeId.LAIR] += 1
-            composition[UnitTypeId.OVERSEER] += 1
+            composition[UnitTypeId.OVERSEER] += 2
         if self.tier >= StrategyTier.HIVE:
             composition[UnitTypeId.HIVE] += 1
-            composition[UnitTypeId.OVERSEER] += 1
+            composition[UnitTypeId.OVERSEER] += 2
         if self.tier >= StrategyTier.LATEGAME:
-            composition[UnitTypeId.OVERSEER] += 1
+            composition[UnitTypeId.OVERSEER] += 2
             composition[UnitTypeId.GREATERSPIRE] += 1
         return composition
 

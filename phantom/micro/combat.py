@@ -113,6 +113,17 @@ class CombatStepContext:
         ]
 
     @cached_property
+    def safe_spine_positions(self) -> Sequence[Point]:
+        return [
+            e.spine_position
+            for e in self.state.bot.bases_taken.values()
+            if self.state.bot.mediator.is_position_safe(
+                grid=self.state.bot.ground_grid,
+                position=e.spine_position,
+            )
+        ]
+
+    @cached_property
     def safe_workers(self) -> Sequence[Point]:
         return [
             to_point(w.position)
@@ -125,7 +136,7 @@ class CombatStepContext:
 
     @cached_property
     def retreat_targets(self) -> Sequence[Point]:
-        return self.safe_mineral_lines or self.safe_workers
+        return self.safe_spine_positions or self.safe_mineral_lines or self.safe_workers
 
     @cached_property
     def concentration_point(self) -> Point2:
@@ -285,6 +296,10 @@ class CombatStep:
         self.attacking_global = attacking_global
         self.attacking_local = attacking_local
         self.targets = targets
+
+    @property
+    def confidence_global(self) -> float:
+        return self.context.prediction.outcome_global
 
     def retreat_with(self, unit: Unit, smoothing=3) -> Action | None:
         retreat_map = self.context.retreat_air if unit.is_flying else self.context.retreat_ground
