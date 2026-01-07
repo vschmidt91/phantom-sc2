@@ -52,7 +52,7 @@ class CombatSimulator:
     def __init__(self, bot: "PhantomBot", parameters: CombatSimulatorParameters) -> None:
         self.bot = bot
         self.parameters = parameters
-        self.num_steps = 24
+        self.num_steps = 10
         self.combat_sim = SC2CombatSimulator()
         self.combat_sim.enable_timing_adjustment(True)
 
