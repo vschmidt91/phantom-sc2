@@ -113,6 +113,17 @@ class CombatStepContext:
         ]
 
     @cached_property
+    def safe_spine_positions(self) -> Sequence[Point]:
+        return [
+            e.spine_position
+            for e in self.state.bot.bases_taken.values()
+            if self.state.bot.mediator.is_position_safe(
+                grid=self.state.bot.ground_grid,
+                position=e.spine_position,
+            )
+        ]
+
+    @cached_property
     def safe_workers(self) -> Sequence[Point]:
         return [
             to_point(w.position)
@@ -125,7 +136,7 @@ class CombatStepContext:
 
     @cached_property
     def retreat_targets(self) -> Sequence[Point]:
-        return self.safe_mineral_lines or self.safe_workers
+        return self.safe_spine_positions or self.safe_mineral_lines or self.safe_workers
 
     @cached_property
     def concentration_point(self) -> Point2:
