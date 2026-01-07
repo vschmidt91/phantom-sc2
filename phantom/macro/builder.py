@@ -60,7 +60,7 @@ class Builder:
         self._plans = dict[UnitTypeId, MacroPlan]()
         self.min_priority = -1.0
 
-    def get_priorities(self, composition: UnitComposition, limit: float = 1.0) -> Mapping[UnitTypeId, float]:
+    def get_priorities(self, composition: UnitComposition, limit: float = 1.0) -> dict[UnitTypeId, float]:
         priorities = dict[UnitTypeId, float]()
         for unit, target in composition.items():
             have = self.bot.count_actual(unit) + self.bot.count_pending(unit)

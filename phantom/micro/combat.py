@@ -286,6 +286,10 @@ class CombatStep:
         self.attacking_local = attacking_local
         self.targets = targets
 
+    @property
+    def confidence_global(self) -> float:
+        return self.context.prediction.outcome_global
+
     def retreat_with(self, unit: Unit, smoothing=3) -> Action | None:
         retreat_map = self.context.retreat_air if unit.is_flying else self.context.retreat_ground
         if not retreat_map:
