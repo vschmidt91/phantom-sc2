@@ -44,7 +44,7 @@ class StrategyParameters:
         self.hydras_when_banking = params.optimize[OptimizationTarget.WinProbability].add(Prior(8, 1, min=0))
         self.lings_when_banking = params.optimize[OptimizationTarget.WinProbability].add(Prior(5, 1, min=0))
         self.queens_when_banking = params.optimize[OptimizationTarget.WinProbability].add(Prior(3, 1, min=0))
-        self.supply_buffer_log = params.optimize[OptimizationTarget.SupplyEfficiency].add(Prior(4, 1))
+        self.supply_buffer_log = params.optimize[OptimizationTarget.SupplyEfficiency].add(Prior(3, 1))
 
     @property
     def supply_buffer(self) -> float:
