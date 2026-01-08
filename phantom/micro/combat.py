@@ -23,7 +23,7 @@ from phantom.common.constants import (
     MIN_WEAPON_COOLDOWN,
 )
 from phantom.common.distribute import distribute
-from phantom.common.parameter_sampler import ParameterSampler, Prior
+from phantom.common.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.common.utils import (
     Point,
     air_dps_of,
@@ -47,11 +47,13 @@ class CombatPrediction:
 
 
 class CombatParameters:
-    def __init__(self, sampler: ParameterSampler) -> None:
+    def __init__(self, params: ParameterManager) -> None:
         self.engagement_threshold = 0.0
         self.disengagement_threshold = 0.0
-        self._global_engagement_level_param = sampler.add(Prior(1.55, 0.1))
-        self._global_engagement_hysteresis_param = sampler.add(Prior(-1.5, 0.1, max=0))
+        self._global_engagement_level_param = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(1.55, 0.1))
+        self._global_engagement_hysteresis_param = params.optimize[OptimizationTarget.CostEfficiency].add(
+            Prior(-1.5, 0.1, max=0)
+        )
 
     @property
     def global_engagement_hysteresis(self) -> float:

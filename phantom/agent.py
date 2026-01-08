@@ -9,13 +9,11 @@ import numpy as np
 from ares.behaviors.macro.mining import TOWNHALL_RADIUS
 from cython_extensions import cy_closest_to, cy_distance_to
 from loguru import logger
-from s2clientprotocol.score_pb2 import CategoryScoreDetails
 from sc2.data import Race, Result
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
-from sc2.score import ScoreDetails
 from sc2.unit import Unit
 
 from phantom.common.action import Action, Attack, Move, MovePath, UseAbility
@@ -26,10 +24,12 @@ from phantom.common.constants import (
     CIVILIANS,
     ENEMY_CIVILIANS,
     GAS_BY_RACE,
+    RESULT_TO_FITNESS,
 )
 from phantom.common.cost import Cost
-from phantom.common.parameter_sampler import ParameterSampler
-from phantom.common.utils import MacroId, to_point
+from phantom.common.metrics import MetricAccumulator
+from phantom.common.parameters import OptimizationTarget, ParameterManager
+from phantom.common.utils import MacroId, calculate_cost_efficiency, to_point
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.builder import Builder, BuilderParameters, MacroPlan
 from phantom.macro.mining import MiningContext, MiningState
@@ -46,48 +46,15 @@ if TYPE_CHECKING:
     from phantom.main import PhantomBot
 
 
-def score_to_fitness(score: ScoreDetails, vespene_weight: float = 2.0) -> float:
-    def sum_category(category: CategoryScoreDetails) -> float:
-        return sum(
-            (
-                category.army,
-                category.economy,
-                category.none,
-                category.technology,
-                category.upgrade,
-            )
-        )
-
-    lost_minerals = sum(
-        (
-            sum_category(score._proto.lost_minerals),
-            sum_category(score._proto.friendly_fire_minerals),
-        )
-    )
-    lost_vespene = sum(
-        (
-            sum_category(score._proto.lost_vespene),
-            sum_category(score._proto.friendly_fire_vespene),
-        )
-    )
-    lost_total = lost_minerals + lost_vespene * vespene_weight
-
-    killed_minerals = sum_category(score._proto.killed_minerals)
-    killed_vespene = sum_category(score._proto.killed_vespene)
-    killed_total = killed_minerals + killed_vespene * vespene_weight
-
-    return killed_total / max(1.0, lost_total + killed_total)
-
-
 class Agent:
     def __init__(self, bot: "PhantomBot", config: BotConfig) -> None:
         self.bot = bot
         self.config = config
-        self.sampler = ParameterSampler()
+        self.optimizer = ParameterManager()
         self.build_order = BUILD_ORDERS[self.config.build_order]
-        self.simulator = CombatSimulator(bot, CombatSimulatorParameters(self.sampler))
-        self.combat = CombatState(bot, CombatParameters(self.sampler), self.simulator)
-        self.builder = Builder(bot, BuilderParameters(self.sampler))
+        self.simulator = CombatSimulator(bot, CombatSimulatorParameters(self.optimizer))
+        self.combat = CombatState(bot, CombatParameters(self.optimizer), self.simulator)
+        self.builder = Builder(bot, BuilderParameters(self.optimizer))
         self.creep_tumors = CreepTumors(bot)
         self.creep_spread = CreepSpread(bot)
         self.corrosive_biles = CorrosiveBile(bot)
@@ -95,13 +62,20 @@ class Agent:
         self.overseers = Overseers(bot)
         self.blocked_positions = BlockedPositionTracker(bot)
         self.queens = Queens(bot)
-        self.strategy_paramaters = StrategyParameters(self.sampler)
-        self.harvesters = MiningState(bot)
+        self.strategy_paramaters = StrategyParameters(self.optimizer)
+        self.mining = MiningState(bot, self.optimizer)
         self.build_order_completed = False
         self.gas_ratio = 0.0
-        self.tech_priority_transform = self.sampler.add_scalar_transform(2, sigma=0.1)
-        self.economy_priority_transform = self.sampler.add_scalar_transform(2, sigma=0.1)
-        self.army_priority_transform = self.sampler.add_scalar_transform(2, sigma=0.1)
+        self.tech_priority_transform = self.optimizer.optimize[OptimizationTarget.WinProbability].add_scalar_transform(
+            2, sigma=0.1
+        )
+        self.economy_priority_transform = self.optimizer.optimize[
+            OptimizationTarget.WinProbability
+        ].add_scalar_transform(2, sigma=0.1)
+        self.army_priority_transform = self.optimizer.optimize[OptimizationTarget.WinProbability].add_scalar_transform(
+            2, sigma=0.1
+        )
+        self.supply_efficiency = MetricAccumulator()
         self._load_parameters()
         self._log_parameters()
 
@@ -128,6 +102,9 @@ class Agent:
         )
         harvester_return_targets = self.bot.townhalls.ready
         strategy = Strategy(self.bot, self.strategy_paramaters)
+
+        supply_efficiency = 1 - self.bot.supply_left if self.bot.supply_left > 0 else -10
+        self.supply_efficiency.add_value(supply_efficiency)
 
         combat = self.combat.on_step()
 
@@ -231,7 +208,7 @@ class Agent:
             gas_buildings,
             gas_target,
         )
-        resources = self.harvesters.step(resoure_observation)
+        resources = self.mining.step(resoure_observation)
 
         for harvester in harvesters:
             if not combat.is_unit_safe(
@@ -309,11 +286,17 @@ class Agent:
 
     def on_end(self, game_result: Result):
         if self.config.training:
-            fitness = score_to_fitness(self.bot.state.score)
-            logger.info(f"Training parameters with {fitness=}")
-            self.sampler.tell(fitness)
+            cost_efficiency = calculate_cost_efficiency(self.bot.state.score)
+            result = {
+                OptimizationTarget.WinProbability: RESULT_TO_FITNESS[game_result],
+                OptimizationTarget.CostEfficiency: cost_efficiency,
+                OptimizationTarget.MiningEfficiency: self.mining.efficiency.get_value(),
+                OptimizationTarget.SupplyEfficiency: self.supply_efficiency.get_value(),
+            }
+            logger.info(f"Training parameters with {result=}")
+            self.optimizer.tell(result)
             with lzma.open(self.config.params_path, "wb") as f:
-                pickle.dump(self.sampler, f)
+                pickle.dump(self.optimizer, f)
 
     def _micro_queens(self, queens: Sequence[Unit], combat: CombatStep) -> Mapping[Unit, Action]:
         should_inject = self.bot.supply_used + self.bot.bank.larva < 200
@@ -366,18 +349,16 @@ class Agent:
     def _load_parameters(self) -> None:
         try:
             with lzma.open(self.config.params_path, "rb") as f:
-                parameters: ParameterSampler = pickle.load(f)
-                self.sampler.strategy = parameters.strategy
-                self.sampler.population = parameters.population
-                self.sampler.loss_values = parameters.loss_values
+                params: ParameterManager = pickle.load(f)
+                self.optimizer.load(params)
         except Exception as error:
             logger.warning(f"{error=} while loading {self.config.params_path}")
 
         if self.config.training:
             logger.info("Sampling bot parameters")
-            self.sampler.ask()
+            self.optimizer.ask()
         else:
-            self.sampler.ask_best()
+            self.optimizer.ask_best()
 
     def _build_gas(self, gas_harvester_target: int) -> Mapping[UnitTypeId, MacroPlan]:
         gas_type = GAS_BY_RACE[self.bot.race]

@@ -8,7 +8,7 @@ from sc2.unit import Unit
 from sc2_helper.combat_simulator import CombatSimulator as SC2CombatSimulator
 from scipy.stats import expon
 
-from phantom.common.parameter_sampler import ParameterSampler, Prior
+from phantom.common.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.common.utils import (
     air_dps_of,
     air_range_of,
@@ -35,9 +35,11 @@ class CombatResult:
 
 
 class CombatSimulatorParameters:
-    def __init__(self, sampler: ParameterSampler) -> None:
-        self._time_distribution_lambda_log = sampler.add(Prior(1.0, 0.5))
-        self._lancester_dimension = sampler.add(Prior(1.56, 0.1, min=1, max=2))
+    def __init__(self, params: ParameterManager) -> None:
+        self._time_distribution_lambda_log = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(1.0, 0.5))
+        self._lancester_dimension = params.optimize[OptimizationTarget.CostEfficiency].add(
+            Prior(1.56, 0.1, min=1, max=2)
+        )
 
     @property
     def time_distribution_lambda(self) -> float:

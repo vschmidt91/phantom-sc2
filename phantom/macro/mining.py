@@ -1,6 +1,6 @@
 import math
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -13,6 +13,8 @@ from sc2.units import Units
 
 from phantom.common.action import Action, Smart
 from phantom.common.distribute import get_assignment_solver
+from phantom.common.metrics import MetricAccumulator
+from phantom.common.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.common.utils import Point, pairwise_distances, to_point
 
 if TYPE_CHECKING:
@@ -52,6 +54,20 @@ class ReturnResource(Action):
             return True
 
 
+class MiningParameters:
+    def __init__(self, params: ParameterManager) -> None:
+        self.return_distance_weight_log = params.optimize[OptimizationTarget.MiningEfficiency].add(Prior(1, 1))
+        self.assignment_cost_log = params.optimize[OptimizationTarget.MiningEfficiency].add(Prior(0, 0.3))
+
+    @property
+    def return_distance_weight(self) -> float:
+        return np.exp(self.return_distance_weight_log.value)
+
+    @property
+    def assignment_cost(self) -> float:
+        return np.exp(self.assignment_cost_log.value)
+
+
 class MiningContext:
     def __init__(
         self,
@@ -82,16 +98,22 @@ class MiningContext:
         )
 
 
-@dataclass
 class MiningState:
-    bot: "PhantomBot"
-    assignment: HarvesterAssignment = field(default_factory=dict)
-    gather_hash = 0
+    def __init__(self, bot: "PhantomBot", params: ParameterManager) -> None:
+        self.bot = bot
+        self.params = MiningParameters(params)
+        self.assignment: HarvesterAssignment = {}
+        self.gather_hash = 0
+        self.efficiency = MetricAccumulator()
 
     def step(self, observation: MiningContext) -> "MiningStep":
         action = MiningStep(self, observation)
         self.assignment = action.harvester_assignment
         self.gather_hash = observation.gather_hash
+
+        income = observation.bot.income.minerals + observation.bot.income.vespene
+        self.efficiency.add_value(income, len(observation.harvesters))
+
         return action
 
 
@@ -148,7 +170,9 @@ class MiningStep:
         max_assigned_gas = max(optimal_assigned, self.context.bot.harvesters_per_gas_building)
         gas_target = min(self.context.gas_target, max_assigned_gas * len(self.context.gas_buildings))
 
-        cost = harvester_to_resource + 5 * return_distance + assignment_cost
+        cost = harvester_to_resource
+        cost += self.state.params.return_distance_weight * return_distance
+        cost += self.state.params.assignment_cost * assignment_cost
         is_gas = np.array([1.0 if r.mineral_contents == 0 else 0.0 for r in resources])
         limit = np.array([max_assigned_mineral if r.is_mineral_field else max_assigned_gas for r in resources])
 
