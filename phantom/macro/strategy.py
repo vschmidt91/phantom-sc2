@@ -136,7 +136,7 @@ class Strategy:
         elif upgrade == UpgradeId.BURROW:
             return upgrade_researched_or_pending(UpgradeId.GLIALRECONSTITUTION)
         elif upgrade == UpgradeId.ZERGLINGATTACKSPEED:
-            return self.tier >= StrategyTier.HIVE
+            return True
         elif upgrade == UpgradeId.TUNNELINGCLAWS:
             return upgrade_researched_or_pending(UpgradeId.GLIALRECONSTITUTION)
         elif upgrade == UpgradeId.EVOLVEGROOVEDSPINES:
