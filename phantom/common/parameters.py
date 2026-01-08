@@ -1,5 +1,6 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from enum import Enum, auto
 
 import cma
 import numpy as np
@@ -32,12 +33,24 @@ class ScalarTransform:
         return self.offset.value + sum(ci.value * vi for ci, vi in zip(self.coeffs, values, strict=False))
 
 
+class OptimizationTarget(Enum):
+    WinProbability = auto()
+    CostEfficiency = auto()
+    MiningEfficiency = auto()
+    SupplyEfficiency = auto()
+
+
 class ParameterOptimizer:
     def __init__(self) -> None:
         self.strategy: cma.CMAEvolutionStrategy | None = None
         self.parameters = list[Parameter]()
         self.population = list[np.ndarray]()
         self.loss_values = list[float]()
+
+    def load(self, other: "ParameterOptimizer") -> None:
+        self.strategy = other.strategy
+        self.population = other.population
+        self.loss_values = other.loss_values
 
     def add(self, prior: Prior) -> Parameter:
         parameter = Parameter(prior, prior.mu)
@@ -94,3 +107,24 @@ class ParameterOptimizer:
             self.strategy.tell(self.population, self.loss_values)
             self.population.clear()
             self.loss_values.clear()
+
+
+class ParameterManager:
+    def __init__(self) -> None:
+        self.optimize = {t: ParameterOptimizer() for t in OptimizationTarget}
+
+    def ask_best(self):
+        for opt in self.optimize.values():
+            opt.ask_best()
+
+    def ask(self):
+        for opt in self.optimize.values():
+            opt.ask()
+
+    def tell(self, values: Mapping[OptimizationTarget, float]) -> None:
+        for target, value in values.items():
+            self.optimize[target].tell(value)
+
+    def load(self, other) -> None:
+        for t in OptimizationTarget:
+            self.optimize[t].load(other.optimize[t])

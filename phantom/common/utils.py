@@ -7,6 +7,7 @@ import numpy as np
 import skimage.draw
 from ares import ALL_STRUCTURES
 from loguru import logger
+from s2clientprotocol.score_pb2 import CategoryScoreDetails
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_tech_alias import UNIT_TECH_ALIAS
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
@@ -16,6 +17,7 @@ from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
+from sc2.score import ScoreDetails
 from sc2.unit import Unit
 from scipy.spatial.distance import cdist
 
@@ -243,3 +245,36 @@ def dps_vs(unit: Unit, vs: Unit) -> float:
 
 
 ALL_TRAINABLE = set(ALL_STRUCTURES | UNIT_TRAINED_FROM.keys() | UNIT_TECH_ALIAS.keys() | UNIT_UNIT_ALIAS.keys())
+
+
+def calculate_cost_efficiency(score: ScoreDetails, vespene_weight: float = 2.0) -> float:
+    def sum_category(category: CategoryScoreDetails) -> float:
+        return sum(
+            (
+                category.army,
+                category.economy,
+                category.none,
+                category.technology,
+                category.upgrade,
+            )
+        )
+
+    lost_minerals = sum(
+        (
+            sum_category(score._proto.lost_minerals),
+            sum_category(score._proto.friendly_fire_minerals),
+        )
+    )
+    lost_vespene = sum(
+        (
+            sum_category(score._proto.lost_vespene),
+            sum_category(score._proto.friendly_fire_vespene),
+        )
+    )
+    lost_total = lost_minerals + lost_vespene * vespene_weight
+
+    killed_minerals = sum_category(score._proto.killed_minerals)
+    killed_vespene = sum_category(score._proto.killed_vespene)
+    killed_total = killed_minerals + killed_vespene * vespene_weight
+
+    return killed_total / max(1.0, lost_total + killed_total)

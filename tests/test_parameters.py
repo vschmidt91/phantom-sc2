@@ -1,6 +1,6 @@
 import unittest
 
-from phantom.common.parameter_sampler import ParameterOptimizer, Prior
+from phantom.common.parameters import ParameterOptimizer, Prior
 
 
 class ParametersTest(unittest.TestCase):

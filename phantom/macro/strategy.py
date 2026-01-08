@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from functools import cached_property, total_ordering
 from typing import TYPE_CHECKING
 
+import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
@@ -16,7 +17,7 @@ from phantom.common.constants import (
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
 )
-from phantom.common.parameter_sampler import ParameterOptimizer, Prior
+from phantom.common.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.common.unit_composition import UnitComposition, add_compositions, composition_of, sub_compositions
 from phantom.common.utils import MacroId
 from phantom.macro.builder import MacroPlan
@@ -34,23 +35,26 @@ class StrategyTier(enum.IntEnum):
 
 
 class StrategyParameters:
-    def __init__(self, sampler: ParameterOptimizer) -> None:
-        self.counter_factor = sampler.add(Prior(2.5, 0.1, min=0))
-        self.ravager_mixin = sampler.add(Prior(10, 1, min=0))
-        self.corruptor_mixin = sampler.add(Prior(5, 1, min=0))
-        self.tier1_drone_count = sampler.add(Prior(30, 1, min=0))
-        self.tier2_drone_count = sampler.add(Prior(60, 1, min=0))
-        self.tier3_drone_count = sampler.add(Prior(90, 1, min=0))
-        self.hydras_when_banking = sampler.add(Prior(8, 1, min=0))
-        self.lings_when_banking = sampler.add(Prior(5, 1, min=0))
-        self.queens_when_banking = sampler.add(Prior(3, 1, min=0))
+    def __init__(self, params: ParameterManager) -> None:
+        self.ravager_mixin = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(10, 1, min=0))
+        self.corruptor_mixin = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(5, 1, min=0))
+        self.tier1_drone_count = params.optimize[OptimizationTarget.WinProbability].add(Prior(30, 1, min=0))
+        self.tier2_drone_count = params.optimize[OptimizationTarget.WinProbability].add(Prior(60, 1, min=0))
+        self.tier3_drone_count = params.optimize[OptimizationTarget.WinProbability].add(Prior(90, 1, min=0))
+        self.hydras_when_banking = params.optimize[OptimizationTarget.WinProbability].add(Prior(8, 1, min=0))
+        self.lings_when_banking = params.optimize[OptimizationTarget.WinProbability].add(Prior(5, 1, min=0))
+        self.queens_when_banking = params.optimize[OptimizationTarget.WinProbability].add(Prior(3, 1, min=0))
+        self.supply_buffer_log = params.optimize[OptimizationTarget.SupplyEfficiency].add(Prior(4, 1))
+
+    @property
+    def supply_buffer(self) -> float:
+        return np.exp(self.supply_buffer_log.value)
 
 
 class Strategy:
     def __init__(self, bot: "PhantomBot", parameters: StrategyParameters) -> None:
         self.bot = bot
         self.parameters = parameters
-
         self.composition = composition_of(bot.all_own_units)
         self.enemy_composition = composition_of(bot.all_enemy_units)
         self.enemy_composition_predicted = self._predict_enemy_composition()
@@ -113,7 +117,7 @@ class Strategy:
             for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
         )
         supply = self.bot.supply_cap + supply_planned
-        supply_target = min(200.0, self.bot.supply_used + 20 * self.bot.income.larva)
+        supply_target = min(200.0, self.bot.supply_used + self.parameters.supply_buffer * self.bot.income.larva)
         if supply_target <= supply:
             return {}
         return {UnitTypeId.OVERLORD: 0.0}

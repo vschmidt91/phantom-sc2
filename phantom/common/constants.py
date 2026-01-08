@@ -2,7 +2,7 @@ from itertools import chain
 
 from ares.consts import ALL_STRUCTURES, ALL_WORKER_TYPES
 from sc2.constants import EQUIVALENTS_FOR_TECH_PROGRESS
-from sc2.data import Race
+from sc2.data import Race, Result
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -145,6 +145,13 @@ ENEMY_CIVILIANS = {
     *COCOONS,
     *WITH_TECH_EQUIVALENTS[UnitTypeId.DRONE],
     *CHANGELINGS,
+}
+
+RESULT_TO_FITNESS = {
+    Result.Victory: 1.0,
+    Result.Defeat: 0.0,
+    Result.Tie: 0.5,
+    Result.Undecided: 0.5,
 }
 
 COMBATANT_STRUCTURES = {

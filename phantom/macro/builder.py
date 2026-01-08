@@ -23,7 +23,7 @@ from phantom.common.constants import (
 )
 from phantom.common.cost import Cost
 from phantom.common.expansion import Expansion
-from phantom.common.parameter_sampler import ParameterOptimizer, Prior
+from phantom.common.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.common.unit_composition import UnitComposition
 from phantom.common.utils import MacroId, to_point
 
@@ -48,9 +48,9 @@ class MacroPlan:
 
 
 class BuilderParameters:
-    def __init__(self, sampler: ParameterOptimizer) -> None:
-        self.tech_priority_offset = sampler.add(Prior(-1.0, 0.01))
-        self.tech_priority_scale = sampler.add(Prior(1.0, 0.01, min=0))
+    def __init__(self, params: ParameterManager) -> None:
+        self.tech_priority_offset = params.optimize[OptimizationTarget.WinProbability].add(Prior(-1.0, 0.01))
+        self.tech_priority_scale = params.optimize[OptimizationTarget.WinProbability].add(Prior(1.0, 0.01, min=0))
 
 
 class Builder:
