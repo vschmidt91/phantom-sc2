@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from ares import UnitTreeQueryType
-from cython_extensions import cy_dijkstra
+from cython_extensions import cy_attack_ready, cy_dijkstra, cy_distance_to
 from cython_extensions.dijkstra import DijkstraPathing
 from loguru import logger
 from sc2.data import Race
@@ -342,9 +342,8 @@ class CombatStep:
 
     def fight_with(self, unit: Unit) -> Action | None:
         ground_range = ground_range_of(unit)
-        attack_ready = unit.weapon_cooldown <= self.bot.client.game_step
 
-        if ground_range > 2 and attack_ready and (action := self._shoot_target_in_range(unit)):
+        if ground_range > 2 and (action := self._shoot_target_in_range(unit)):
             return action
         elif not (target := self.targets.get(unit)):
             return None
@@ -412,7 +411,14 @@ class CombatStep:
             )
             candidates.extend(filter(unit.target_in_range, query))
 
-        if target := max(candidates, key=lambda u: self._target_priority(unit, u), default=None):
+        def filter_target(target: Unit) -> bool:
+            if not cy_attack_ready(self.bot, unit, target):
+                return False
+            distance = cy_distance_to(unit.position, target.position)
+            range_vs_target = air_range_of(unit) if target.is_flying else ground_range_of(unit)
+            return not unit.radius + range_vs_target + target.radius < distance
+
+        if target := max(filter(filter_target, candidates), key=lambda u: self._target_priority(unit, u), default=None):
             return Attack(target)
 
         return None
