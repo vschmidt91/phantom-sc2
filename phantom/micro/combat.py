@@ -20,7 +20,6 @@ from phantom.common.constants import (
     ENEMY_CIVILIANS,
     HALF,
     MAX_UNIT_RADIUS,
-    MIN_WEAPON_COOLDOWN,
 )
 from phantom.common.distribute import distribute
 from phantom.common.parameters import OptimizationTarget, ParameterManager, Prior
@@ -343,13 +342,7 @@ class CombatStep:
 
     def fight_with(self, unit: Unit) -> Action | None:
         ground_range = ground_range_of(unit)
-        self.bot.has_creep(unit) or self.bot.enemy_race == Race.Zerg
-        attack_ready = unit.weapon_cooldown <= MIN_WEAPON_COOLDOWN
-        grid = self.bot.mediator.get_air_grid if unit.is_flying else self.bot.ground_grid
-        self.bot.mediator.is_position_safe(
-            grid=grid,
-            position=unit.position,
-        )
+        attack_ready = unit.weapon_cooldown <= self.bot.client.game_step
 
         if ground_range > 2 and attack_ready and (action := self._shoot_target_in_range(unit)):
             return action
