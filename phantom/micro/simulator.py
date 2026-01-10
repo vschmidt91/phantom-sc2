@@ -36,9 +36,9 @@ class CombatResult:
 
 class CombatSimulatorParameters:
     def __init__(self, params: ParameterManager) -> None:
-        self._time_distribution_lambda_log = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(1.0, 0.5))
+        self._time_distribution_lambda_log = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(0.5, 0.3))
         self._lancester_dimension = params.optimize[OptimizationTarget.CostEfficiency].add(
-            Prior(1.56, 0.1, min=1, max=2)
+            Prior(1.49, 0.1, min=1, max=2)
         )
 
     @property

@@ -38,13 +38,13 @@ class StrategyParameters:
     def __init__(self, params: ParameterManager) -> None:
         self.ravager_mixin = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(10, 1, min=0))
         self.corruptor_mixin = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(5, 1, min=0))
-        self.tier1_drone_count = params.optimize[OptimizationTarget.WinProbability].add(Prior(30, 1, min=0))
-        self.tier2_drone_count = params.optimize[OptimizationTarget.WinProbability].add(Prior(60, 1, min=0))
-        self.tier3_drone_count = params.optimize[OptimizationTarget.WinProbability].add(Prior(90, 1, min=0))
-        self.hydras_when_banking = params.optimize[OptimizationTarget.WinProbability].add(Prior(8, 1, min=0))
-        self.lings_when_banking = params.optimize[OptimizationTarget.WinProbability].add(Prior(5, 1, min=0))
-        self.queens_when_banking = params.optimize[OptimizationTarget.WinProbability].add(Prior(3, 1, min=0))
-        self.supply_buffer_log = params.optimize[OptimizationTarget.SupplyEfficiency].add(Prior(3, 1))
+        self.tier1_drone_count = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(30, 1, min=0))
+        self.tier2_drone_count = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(60, 1, min=0))
+        self.tier3_drone_count = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(90, 1, min=0))
+        self.hydras_when_banking = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(13, 1, min=0))
+        self.lings_when_banking = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(8, 1, min=0))
+        self.queens_when_banking = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(2, 1, min=0))
+        self.supply_buffer_log = params.optimize[OptimizationTarget.SupplyEfficiency].add(Prior(1.7, 0.2))
 
     @property
     def supply_buffer(self) -> float:

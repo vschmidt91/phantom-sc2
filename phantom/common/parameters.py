@@ -34,7 +34,6 @@ class ScalarTransform:
 
 
 class OptimizationTarget(Enum):
-    WinProbability = auto()
     CostEfficiency = auto()
     MiningEfficiency = auto()
     SupplyEfficiency = auto()
