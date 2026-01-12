@@ -104,7 +104,9 @@ class Builder:
 
         # strategy specific filter
         upgrade_weights = {
-            k: v for k, v in upgrade_weights.items() if upgrade_filter(k) and not self.bot.count_pending(k)
+            k: v
+            for k, v in upgrade_weights.items()
+            if upgrade_filter(k) and not self.bot.count_pending(k) and not self.bot.count_actual(k)
         }
 
         if not upgrade_weights:
