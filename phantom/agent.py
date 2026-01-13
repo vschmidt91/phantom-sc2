@@ -305,12 +305,16 @@ class Agent:
         )
         tumor_limit = min(3.0 * len(queens), self.bot.time / 30.0)
         should_spread_creep = tumor_count < tumor_limit and self.bot.mediator.get_creep_coverage < 90
-        return self.queens.get_actions(
+        actions = self.queens.get_actions(
             queens=queens,
             inject_targets=self.bot.townhalls.ready if should_inject else [],
             creep=self.creep_spread if should_spread_creep else None,
             combat=combat,
         )
+        for queen in queens:
+            if queen not in actions and (action := self._search_with(queen)):
+                actions[queen] = action
+        return actions
 
     def _send_overlord_scout(self, overlord: Unit) -> Action:
         scout_path = list[Point2]()

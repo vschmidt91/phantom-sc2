@@ -1,4 +1,4 @@
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from cython_extensions import cy_distance_to
@@ -24,7 +24,7 @@ class Queens:
 
     def get_actions(
         self, queens: Sequence[Unit], inject_targets: Sequence[Unit], creep: CreepSpread | None, combat: CombatStep
-    ) -> Mapping[Unit, Action]:
+    ) -> dict[Unit, Action]:
         inject_assignment = (
             distribute(
                 inject_targets,
