@@ -34,7 +34,7 @@ class Overseers:
         self.bot = bot
 
     def target_cost(self, target: Unit) -> float:
-        is_detected = self.bot.mediator.get_is_detected(unit=u, by_enemy=target.is_mine)
+        is_detected = self.bot.mediator.get_is_detected(unit=target, by_enemy=target.is_mine)
         if (target.is_cloaked or target.is_burrowed) and not is_detected:
             return .1
         return 1
@@ -62,10 +62,11 @@ class Overseers:
         detection_assignment_inverse = {u: Point2(p) for p, u in detection_assignment.items()}
 
         if overseers and scout_targets:
-            scout_cost = pairwise_distances(
+            distance = pairwise_distances(
                 [a.position for a in overseers],
                 [b.position for b in scout_targets],
             )
+            scout_cost = distance
             if len(overseers) > 1 and scout_targets:
                 second_smallest_distances = np.partition(distance, kth=1, axis=0)[1, :]
                 second_smallest_distances = np.minimum(20, second_smallest_distances)
