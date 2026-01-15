@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from ares import UnitTreeQueryType
-from cython_extensions import cy_attack_ready, cy_dijkstra, cy_distance_to
+from cython_extensions import cy_attack_ready, cy_dijkstra
 from cython_extensions.dijkstra import DijkstraPathing
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
@@ -369,7 +369,7 @@ class CombatStep:
             return None
         return Attack(target)
 
-    def keep_unit_safe(self, unit: Unit, weight_safety_limit: float) -> Action | None:
+    def keep_unit_safe(self, unit: Unit, weight_safety_limit: float = 1.0) -> Action | None:
         if not self.is_unit_safe(unit, weight_safety_limit=weight_safety_limit):
             return self.retreat_with(unit)
         return None
@@ -391,11 +391,17 @@ class CombatStep:
 
     def _shoot_target_in_range(self, unit: Unit) -> Action | None:
         candidates = list[Unit]()
+
         def filter_target(target: Unit) -> bool:
             return (
-                unit.target_in_range(target)
-                and (not (target.is_cloaked or target.is_burrowed) or self.bot.mediator.get_is_detected(unit=target, by_enemy=target.is_mine))
+                cy_attack_ready(self.bot, unit, target)
+                and unit.target_in_range(target)
+                and (
+                    not (target.is_cloaked or target.is_burrowed)
+                    or self.bot.mediator.get_is_detected(unit=target, by_enemy=target.is_mine)
+                )
             )
+
         if unit.can_attack_ground:
             (query,) = self.bot.mediator.get_units_in_range(
                 start_points=[unit],
@@ -411,14 +417,7 @@ class CombatStep:
             )
             candidates.extend(filter(filter_target, query))
 
-        def filter_target(target: Unit) -> bool:
-            if not cy_attack_ready(self.bot, unit, target):
-                return False
-            distance = cy_distance_to(unit.position, target.position)
-            range_vs_target = air_range_of(unit) if target.is_flying else ground_range_of(unit)
-            return not unit.radius + range_vs_target + target.radius < distance
-
-        if target := max(filter(filter_target, candidates), key=lambda u: self._target_priority(unit, u), default=None):
+        if target := max(candidates, key=lambda u: self._target_priority(unit, u), default=None):
             return Attack(target)
 
         return None

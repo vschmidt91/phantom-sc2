@@ -36,7 +36,7 @@ class Overseers:
     def target_cost(self, target: Unit) -> float:
         is_detected = self.bot.mediator.get_is_detected(unit=target, by_enemy=target.is_mine)
         if (target.is_cloaked or target.is_burrowed) and not is_detected:
-            return .1
+            return 0.1
         return 1
 
     def get_actions(
