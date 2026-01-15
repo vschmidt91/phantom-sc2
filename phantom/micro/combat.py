@@ -252,10 +252,6 @@ class CombatState:
             if (previous_target := self._targets.get(unit.tag)) and (j := target_tag_to_index.get(previous_target.tag)):
                 cost[i, j] = 0.0
 
-        if np.isnan(cost).any():
-            logger.error("assignment cost array contains NaN values")
-            cost = np.nan_to_num(cost, nan=np.inf)
-
         assignment = distribute(
             [u.tag for u in units],
             targets,
@@ -396,20 +392,25 @@ class CombatStep:
 
     def _shoot_target_in_range(self, unit: Unit) -> Action | None:
         candidates = list[Unit]()
+        def filter_target(target: Unit) -> bool:
+            return (
+                unit.target_in_range(target)
+                and (not (target.is_cloaked or target.is_burrowed) or self.bot.mediator.get_is_detected(unit=target, by_enemy=target.is_mine))
+            )
         if unit.can_attack_ground:
             (query,) = self.bot.mediator.get_units_in_range(
                 start_points=[unit],
                 distances=[unit.radius + ground_range_of(unit) + MAX_UNIT_RADIUS],
                 query_tree=UnitTreeQueryType.EnemyGround,
             )
-            candidates.extend(filter(unit.target_in_range, query))
+            candidates.extend(filter(filter_target, query))
         if unit.can_attack_air:
             (query,) = self.bot.mediator.get_units_in_range(
                 start_points=[unit],
                 distances=[unit.radius + air_range_of(unit) + MAX_UNIT_RADIUS],
                 query_tree=UnitTreeQueryType.EnemyFlying,
             )
-            candidates.extend(filter(unit.target_in_range, query))
+            candidates.extend(filter(filter_target, query))
 
         def filter_target(target: Unit) -> bool:
             if not cy_attack_ready(self.bot, unit, target):
