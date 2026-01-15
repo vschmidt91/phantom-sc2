@@ -33,6 +33,12 @@ class Overseers:
     def __init__(self, bot: "PhantomBot"):
         self.bot = bot
 
+    def target_cost(self, target: Unit) -> float:
+        is_detected = self.bot.mediator.get_is_detected(unit=target, by_enemy=target.is_mine)
+        if (target.is_cloaked or target.is_burrowed) and not is_detected:
+            return 0.1
+        return 1
+
     def get_actions(
         self,
         overseers: Sequence[Unit],
@@ -60,14 +66,14 @@ class Overseers:
                 [a.position for a in overseers],
                 [b.position for b in scout_targets],
             )
+            scout_cost = distance
             if len(overseers) > 1 and scout_targets:
                 second_smallest_distances = np.partition(distance, kth=1, axis=0)[1, :]
                 second_smallest_distances = np.minimum(20, second_smallest_distances)
-                second_smallest_distances = np.repeat(second_smallest_distances[None, :], len(overseers), axis=0)
-                scout_cost = distance - second_smallest_distances
-            else:
-                scout_cost = distance
+                scout_cost = scout_cost - second_smallest_distances[None, :]
 
+            target_costs = np.array(list(map(self.target_cost, scout_targets)))
+            scout_cost = scout_cost * target_costs[None, :]
             scout_assignment = distribute(overseers, scout_targets, scout_cost)
         else:
             scout_assignment = {}
