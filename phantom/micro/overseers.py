@@ -73,8 +73,6 @@ class Overseers:
 
             target_costs = np.array(list(map(self.target_cost, scout_targets)))
             scout_cost = scout_cost * target_costs[None, :]
-
-
             scout_assignment = distribute(overseers, scout_targets, scout_cost)
         else:
             scout_assignment = {}

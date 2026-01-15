@@ -7,7 +7,6 @@ import numpy as np
 from ares import UnitTreeQueryType
 from cython_extensions import cy_attack_ready, cy_dijkstra, cy_distance_to
 from cython_extensions.dijkstra import DijkstraPathing
-from loguru import logger
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -346,7 +345,7 @@ class CombatStep:
         elif unit.tag in self.attacking_local:
             return Attack(target.position if ground_range < 2 else target)
         elif (
-            (action := self.keep_unit_safe(unit))
+            (action := self.keep_unit_safe(unit, weight_safety_limit=10.0))
             or (self.attacking_global and (action := self.attack_with(unit)))
             or (action := self.concentrate(unit))
         ) or (
@@ -370,8 +369,8 @@ class CombatStep:
             return None
         return Attack(target)
 
-    def keep_unit_safe(self, unit: Unit) -> Action | None:
-        if not self.is_unit_safe(unit):
+    def keep_unit_safe(self, unit: Unit, weight_safety_limit: float) -> Action | None:
+        if not self.is_unit_safe(unit, weight_safety_limit=weight_safety_limit):
             return self.retreat_with(unit)
         return None
 
