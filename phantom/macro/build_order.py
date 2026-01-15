@@ -67,7 +67,7 @@ class Wait(BuildOrder):
 class ExtractorTrick(BuildOrder):
     unit_type = UnitTypeId.EXTRACTOR
     at_supply = 14
-    min_minerals = 40
+    min_minerals = 50
 
     def execute(self, bot: "PhantomBot") -> BuildOrderStep | None:
         if bot.supply_used < self.at_supply:

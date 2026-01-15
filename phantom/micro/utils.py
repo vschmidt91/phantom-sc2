@@ -6,7 +6,7 @@ from ares import ManagerMediator, UnitTreeQueryType
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from phantom.common.constants import MAX_UNIT_RADIUS, MIN_WEAPON_COOLDOWN
+from phantom.common.constants import MAX_UNIT_RADIUS
 from phantom.common.utils import air_dps_of, air_range_of, ground_dps_of, ground_range_of, pairwise_distances
 
 
@@ -17,7 +17,7 @@ def medoid(points: Sequence[Point2]) -> Point2:
 
 
 def get_shootable_targets(mediator: ManagerMediator, units: Sequence[Unit]) -> Mapping[Unit, Sequence[Unit]]:
-    units_filtered = list(filter(lambda u: ground_range_of(u) >= 2 and u.weapon_cooldown <= MIN_WEAPON_COOLDOWN, units))
+    units_filtered = list(filter(lambda u: ground_range_of(u) >= 2 and u.weapon_ready, units))
 
     points_ground = list[Unit]()
     points_air = list[Unit]()

@@ -38,13 +38,13 @@ class StrategyParameters:
     def __init__(self, params: ParameterManager) -> None:
         self.ravager_mixin = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(10, 1, min=0))
         self.corruptor_mixin = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(5, 1, min=0))
-        self.tier1_drone_count = params.optimize[OptimizationTarget.WinProbability].add(Prior(30, 1, min=0))
-        self.tier2_drone_count = params.optimize[OptimizationTarget.WinProbability].add(Prior(60, 1, min=0))
-        self.tier3_drone_count = params.optimize[OptimizationTarget.WinProbability].add(Prior(90, 1, min=0))
-        self.hydras_when_banking = params.optimize[OptimizationTarget.WinProbability].add(Prior(8, 1, min=0))
-        self.lings_when_banking = params.optimize[OptimizationTarget.WinProbability].add(Prior(5, 1, min=0))
-        self.queens_when_banking = params.optimize[OptimizationTarget.WinProbability].add(Prior(3, 1, min=0))
-        self.supply_buffer_log = params.optimize[OptimizationTarget.SupplyEfficiency].add(Prior(4, 1))
+        self.tier1_drone_count = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(30, 1, min=0))
+        self.tier2_drone_count = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(60, 1, min=0))
+        self.tier3_drone_count = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(90, 1, min=0))
+        self.hydras_when_banking = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(13, 1, min=0))
+        self.lings_when_banking = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(8, 1, min=0))
+        self.queens_when_banking = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(2, 1, min=0))
+        self.supply_buffer_log = params.optimize[OptimizationTarget.SupplyEfficiency].add(Prior(1.7, 0.2))
 
     @property
     def supply_buffer(self) -> float:
@@ -117,7 +117,8 @@ class Strategy:
             for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
         )
         supply = self.bot.supply_cap + supply_planned
-        supply_target = min(200.0, self.bot.supply_used + self.parameters.supply_buffer * self.bot.income.larva)
+        supply_buffer = max(2, self.parameters.supply_buffer * self.bot.income.larva)
+        supply_target = min(200.0, self.bot.supply_used + supply_buffer)
         if supply_target <= supply:
             return {}
         return {UnitTypeId.OVERLORD: 0.0}
@@ -136,7 +137,7 @@ class Strategy:
         elif upgrade == UpgradeId.BURROW:
             return upgrade_researched_or_pending(UpgradeId.GLIALRECONSTITUTION)
         elif upgrade == UpgradeId.ZERGLINGATTACKSPEED:
-            return self.tier >= StrategyTier.HIVE
+            return True
         elif upgrade == UpgradeId.TUNNELINGCLAWS:
             return upgrade_researched_or_pending(UpgradeId.GLIALRECONSTITUTION)
         elif upgrade == UpgradeId.EVOLVEGROOVEDSPINES:

@@ -23,7 +23,6 @@ from phantom.common.constants import (
 )
 from phantom.common.cost import Cost
 from phantom.common.expansion import Expansion
-from phantom.common.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.common.unit_composition import UnitComposition
 from phantom.common.utils import MacroId, to_point
 
@@ -47,16 +46,9 @@ class MacroPlan:
     allow_replacement: bool = True
 
 
-class BuilderParameters:
-    def __init__(self, params: ParameterManager) -> None:
-        self.tech_priority_offset = params.optimize[OptimizationTarget.WinProbability].add(Prior(-1.0, 0.01))
-        self.tech_priority_scale = params.optimize[OptimizationTarget.WinProbability].add(Prior(1.0, 0.01, min=0))
-
-
 class Builder:
-    def __init__(self, bot: "PhantomBot", parameters: BuilderParameters) -> None:
+    def __init__(self, bot: "PhantomBot") -> None:
         self.bot = bot
-        self.parameters = parameters
         self._plans = dict[UnitTypeId, MacroPlan]()
         self.min_priority = -1.0
 
@@ -112,7 +104,9 @@ class Builder:
 
         # strategy specific filter
         upgrade_weights = {
-            k: v for k, v in upgrade_weights.items() if upgrade_filter(k) and not self.bot.count_pending(k)
+            k: v
+            for k, v in upgrade_weights.items()
+            if upgrade_filter(k) and not self.bot.count_pending(k) and not self.bot.count_actual(k)
         }
 
         if not upgrade_weights:
@@ -121,12 +115,7 @@ class Builder:
         if total == 0:
             return {}
 
-        upgrade_priorities = {
-            k: max(
-                -1, self.parameters.tech_priority_offset.value + self.parameters.tech_priority_scale.value * v / total
-            )
-            for k, v in upgrade_weights.items()
-        }
+        upgrade_priorities = {k: v / total - 1 for k, v in upgrade_weights.items()}
 
         return upgrade_priorities
 

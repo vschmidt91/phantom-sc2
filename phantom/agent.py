@@ -24,14 +24,13 @@ from phantom.common.constants import (
     CIVILIANS,
     ENEMY_CIVILIANS,
     GAS_BY_RACE,
-    RESULT_TO_FITNESS,
 )
 from phantom.common.cost import Cost
 from phantom.common.metrics import MetricAccumulator
 from phantom.common.parameters import OptimizationTarget, ParameterManager
 from phantom.common.utils import MacroId, calculate_cost_efficiency, to_point
 from phantom.macro.build_order import BUILD_ORDERS
-from phantom.macro.builder import Builder, BuilderParameters, MacroPlan
+from phantom.macro.builder import Builder, MacroPlan
 from phantom.macro.mining import MiningContext, MiningState
 from phantom.macro.strategy import Strategy, StrategyParameters
 from phantom.micro.combat import CombatParameters, CombatState, CombatStep
@@ -54,7 +53,7 @@ class Agent:
         self.build_order = BUILD_ORDERS[self.config.build_order]
         self.simulator = CombatSimulator(bot, CombatSimulatorParameters(self.optimizer))
         self.combat = CombatState(bot, CombatParameters(self.optimizer), self.simulator)
-        self.builder = Builder(bot, BuilderParameters(self.optimizer))
+        self.builder = Builder(bot)
         self.creep_tumors = CreepTumors(bot)
         self.creep_spread = CreepSpread(bot)
         self.corrosive_biles = CorrosiveBile(bot)
@@ -66,13 +65,13 @@ class Agent:
         self.mining = MiningState(bot, self.optimizer)
         self.build_order_completed = False
         self.gas_ratio = 0.0
-        self.tech_priority_transform = self.optimizer.optimize[OptimizationTarget.WinProbability].add_scalar_transform(
+        self.tech_priority_transform = self.optimizer.optimize[OptimizationTarget.CostEfficiency].add_scalar_transform(
             2, sigma=0.1
         )
         self.economy_priority_transform = self.optimizer.optimize[
-            OptimizationTarget.WinProbability
+            OptimizationTarget.CostEfficiency
         ].add_scalar_transform(2, sigma=0.1)
-        self.army_priority_transform = self.optimizer.optimize[OptimizationTarget.WinProbability].add_scalar_transform(
+        self.army_priority_transform = self.optimizer.optimize[OptimizationTarget.CostEfficiency].add_scalar_transform(
             2, sigma=0.1
         )
         self.supply_efficiency = MetricAccumulator()
@@ -288,7 +287,6 @@ class Agent:
         if self.config.training:
             cost_efficiency = calculate_cost_efficiency(self.bot.state.score)
             result = {
-                OptimizationTarget.WinProbability: RESULT_TO_FITNESS[game_result],
                 OptimizationTarget.CostEfficiency: cost_efficiency,
                 OptimizationTarget.MiningEfficiency: self.mining.efficiency.get_value(),
                 OptimizationTarget.SupplyEfficiency: self.supply_efficiency.get_value(),
@@ -307,12 +305,16 @@ class Agent:
         )
         tumor_limit = min(3.0 * len(queens), self.bot.time / 30.0)
         should_spread_creep = tumor_count < tumor_limit and self.bot.mediator.get_creep_coverage < 90
-        return self.queens.get_actions(
+        actions = self.queens.get_actions(
             queens=queens,
             inject_targets=self.bot.townhalls.ready if should_inject else [],
             creep=self.creep_spread if should_spread_creep else None,
             combat=combat,
         )
+        for queen in queens:
+            if queen not in actions and (action := self._search_with(queen)):
+                actions[queen] = action
+        return actions
 
     def _send_overlord_scout(self, overlord: Unit) -> Action:
         scout_path = list[Point2]()
@@ -411,5 +413,4 @@ class Agent:
     def _log_parameters(self) -> None:
         logger.info(f"{self.simulator.parameters.__dict__=}")
         logger.info(f"{self.combat.parameters.__dict__=}")
-        logger.info(f"{self.builder.parameters.__dict__=}")
         logger.info(f"{self.strategy_paramaters.__dict__=}")

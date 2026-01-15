@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from ares import UnitTreeQueryType
-from cython_extensions import cy_dijkstra
+from cython_extensions import cy_attack_ready, cy_dijkstra, cy_distance_to
 from cython_extensions.dijkstra import DijkstraPathing
 from loguru import logger
 from sc2.data import Race
@@ -20,7 +20,6 @@ from phantom.common.constants import (
     ENEMY_CIVILIANS,
     HALF,
     MAX_UNIT_RADIUS,
-    MIN_WEAPON_COOLDOWN,
 )
 from phantom.common.distribute import distribute
 from phantom.common.parameters import OptimizationTarget, ParameterManager, Prior
@@ -50,9 +49,9 @@ class CombatParameters:
     def __init__(self, params: ParameterManager) -> None:
         self.engagement_threshold = 0.0
         self.disengagement_threshold = 0.0
-        self._global_engagement_level_param = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(1.55, 0.1))
+        self._global_engagement_level_param = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(1.52, 0.1))
         self._global_engagement_hysteresis_param = params.optimize[OptimizationTarget.CostEfficiency].add(
-            Prior(-1.5, 0.1, max=0)
+            Prior(-1.29, 0.1, max=0)
         )
 
     @property
@@ -343,15 +342,8 @@ class CombatStep:
 
     def fight_with(self, unit: Unit) -> Action | None:
         ground_range = ground_range_of(unit)
-        self.bot.has_creep(unit) or self.bot.enemy_race == Race.Zerg
-        attack_ready = unit.weapon_cooldown <= MIN_WEAPON_COOLDOWN
-        grid = self.bot.mediator.get_air_grid if unit.is_flying else self.bot.ground_grid
-        self.bot.mediator.is_position_safe(
-            grid=grid,
-            position=unit.position,
-        )
 
-        if ground_range > 2 and attack_ready and (action := self._shoot_target_in_range(unit)):
+        if ground_range > 2 and (action := self._shoot_target_in_range(unit)):
             return action
         elif not (target := self.targets.get(unit)):
             return None
@@ -419,7 +411,14 @@ class CombatStep:
             )
             candidates.extend(filter(unit.target_in_range, query))
 
-        if target := max(candidates, key=lambda u: self._target_priority(unit, u), default=None):
+        def filter_target(target: Unit) -> bool:
+            if not cy_attack_ready(self.bot, unit, target):
+                return False
+            distance = cy_distance_to(unit.position, target.position)
+            range_vs_target = air_range_of(unit) if target.is_flying else ground_range_of(unit)
+            return not unit.radius + range_vs_target + target.radius < distance
+
+        if target := max(filter(filter_target, candidates), key=lambda u: self._target_priority(unit, u), default=None):
             return Attack(target)
 
         return None
