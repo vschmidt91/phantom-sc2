@@ -253,12 +253,12 @@ class Strategy:
         if self.tier >= StrategyTier.LAIR:
             if UnitTypeId.HIVE not in self.composition:
                 composition[UnitTypeId.LAIR] += 1
-            composition[UnitTypeId.OVERSEER] += 2
+            composition[UnitTypeId.OVERSEER] += 3
         if self.tier >= StrategyTier.HIVE:
             composition[UnitTypeId.HIVE] += 1
             composition[UnitTypeId.OVERSEER] += 2
         if self.tier >= StrategyTier.LATEGAME:
-            composition[UnitTypeId.OVERSEER] += 2
+            composition[UnitTypeId.OVERSEER] += 1
             composition[UnitTypeId.GREATERSPIRE] += 1
         return composition
 
