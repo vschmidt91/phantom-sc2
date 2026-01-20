@@ -5,9 +5,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from ares import UnitTreeQueryType
-from cython_extensions import cy_attack_ready, cy_dijkstra, cy_distance_to
+from cython_extensions import cy_attack_ready, cy_dijkstra
 from cython_extensions.dijkstra import DijkstraPathing
-from loguru import logger
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -252,10 +251,6 @@ class CombatState:
             if (previous_target := self._targets.get(unit.tag)) and (j := target_tag_to_index.get(previous_target.tag)):
                 cost[i, j] = 0.0
 
-        if np.isnan(cost).any():
-            logger.error("assignment cost array contains NaN values")
-            cost = np.nan_to_num(cost, nan=np.inf)
-
         assignment = distribute(
             [u.tag for u in units],
             targets,
@@ -350,7 +345,7 @@ class CombatStep:
         elif unit.tag in self.attacking_local:
             return Attack(target.position if ground_range < 2 else target)
         elif (
-            (action := self.keep_unit_safe(unit))
+            (action := self.keep_unit_safe(unit, weight_safety_limit=10.0))
             or (self.attacking_global and (action := self.attack_with(unit)))
             or (action := self.concentrate(unit))
         ) or (
@@ -374,8 +369,8 @@ class CombatStep:
             return None
         return Attack(target)
 
-    def keep_unit_safe(self, unit: Unit) -> Action | None:
-        if not self.is_unit_safe(unit):
+    def keep_unit_safe(self, unit: Unit, weight_safety_limit: float = 1.0) -> Action | None:
+        if not self.is_unit_safe(unit, weight_safety_limit=weight_safety_limit):
             return self.retreat_with(unit)
         return None
 
@@ -396,29 +391,33 @@ class CombatStep:
 
     def _shoot_target_in_range(self, unit: Unit) -> Action | None:
         candidates = list[Unit]()
+
+        def filter_target(target: Unit) -> bool:
+            return (
+                cy_attack_ready(self.bot, unit, target)
+                and unit.target_in_range(target)
+                and (
+                    not (target.is_cloaked or target.is_burrowed)
+                    or self.bot.mediator.get_is_detected(unit=target, by_enemy=target.is_mine)
+                )
+            )
+
         if unit.can_attack_ground:
             (query,) = self.bot.mediator.get_units_in_range(
                 start_points=[unit],
                 distances=[unit.radius + ground_range_of(unit) + MAX_UNIT_RADIUS],
                 query_tree=UnitTreeQueryType.EnemyGround,
             )
-            candidates.extend(filter(unit.target_in_range, query))
+            candidates.extend(filter(filter_target, query))
         if unit.can_attack_air:
             (query,) = self.bot.mediator.get_units_in_range(
                 start_points=[unit],
                 distances=[unit.radius + air_range_of(unit) + MAX_UNIT_RADIUS],
                 query_tree=UnitTreeQueryType.EnemyFlying,
             )
-            candidates.extend(filter(unit.target_in_range, query))
+            candidates.extend(filter(filter_target, query))
 
-        def filter_target(target: Unit) -> bool:
-            if not cy_attack_ready(self.bot, unit, target):
-                return False
-            distance = cy_distance_to(unit.position, target.position)
-            range_vs_target = air_range_of(unit) if target.is_flying else ground_range_of(unit)
-            return not unit.radius + range_vs_target + target.radius < distance
-
-        if target := max(filter(filter_target, candidates), key=lambda u: self._target_priority(unit, u), default=None):
+        if target := max(candidates, key=lambda u: self._target_priority(unit, u), default=None):
             return Attack(target)
 
         return None

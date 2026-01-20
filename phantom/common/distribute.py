@@ -115,7 +115,8 @@ def distribute(
         max_assigned = math.ceil(n / m)
     if isinstance(max_assigned, int):
         max_assigned = np.full(m, float(max_assigned))
-
+    if np.isnan(cost).any():
+        raise ValueError("NaN values are not valid for assignment cost")
     solver = get_assignment_solver(n, m)
 
     solver.set_total(np.zeros(m), 0)
