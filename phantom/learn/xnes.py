@@ -1,5 +1,15 @@
+from functools import cmp_to_key
+
 import numpy as np
 from scipy.linalg import expm, qr
+
+
+def ranking_from_comparer(population, compare_func, maximize=True):
+    def idx_compare(i, j):
+        return compare_func(population[i], population[j])
+
+    indices = sorted(range(len(population)), key=cmp_to_key(idx_compare), reverse=maximize)
+    return indices
 
 
 class XNES:

@@ -36,15 +36,23 @@ class StrategyTier(enum.IntEnum):
 
 class StrategyParameters:
     def __init__(self, params: ParameterManager) -> None:
-        self.ravager_mixin = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(10, 1, min=0))
-        self.corruptor_mixin = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(5, 1, min=0))
-        self.tier1_drone_count = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(30, 1, min=0))
-        self.tier2_drone_count = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(60, 1, min=0))
-        self.tier3_drone_count = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(90, 1, min=0))
-        self.hydras_when_banking = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(13, 1, min=0))
-        self.lings_when_banking = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(8, 1, min=0))
-        self.queens_when_banking = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(2, 1, min=0))
-        self.supply_buffer_log = params.optimize[OptimizationTarget.SupplyEfficiency].add(Prior(1.7, 0.2))
+        self.ravager_mixin = 10
+        self.corruptor_mixin = 5
+        self.tier1_drone_count = params.optimize[OptimizationTarget.CostEfficiency].add(
+            "tier1_drone_count", Prior(30, 1)
+        )
+        self.tier2_drone_count = params.optimize[OptimizationTarget.CostEfficiency].add(
+            "tier2_drone_count", Prior(60, 1)
+        )
+        self.tier3_drone_count = params.optimize[OptimizationTarget.CostEfficiency].add(
+            "tier3_drone_count", Prior(90, 1)
+        )
+        self.hydras_when_banking = 13
+        self.lings_when_banking = 8
+        self.queens_when_banking = 2
+        self.supply_buffer_log = params.optimize[OptimizationTarget.SupplyEfficiency].add(
+            "supply_buffer_log", Prior(1.7, 0.2)
+        )
 
     @property
     def supply_buffer(self) -> float:
@@ -196,10 +204,10 @@ class Strategy:
         # counter_composition = {k: self.parameters.counter_factor.value * v for k, v in self.counter_composition.items()}
         counter_composition = self.counter_composition
         composition = defaultdict[UnitTypeId, float](float, counter_composition)
-        corruptor_mixin = int(composition[UnitTypeId.BROODLORD] / self.parameters.corruptor_mixin.value)
+        corruptor_mixin = int(composition[UnitTypeId.BROODLORD] / self.parameters.corruptor_mixin)
         if corruptor_mixin > 0:
             composition[UnitTypeId.CORRUPTOR] += corruptor_mixin
-        ravager_mixin = int(composition[UnitTypeId.ROACH] / self.parameters.ravager_mixin.value)
+        ravager_mixin = int(composition[UnitTypeId.ROACH] / self.parameters.ravager_mixin)
         if ravager_mixin > 0:
             composition[UnitTypeId.RAVAGER] += ravager_mixin
         if sum(composition.values()) < 1:
@@ -214,13 +222,13 @@ class Strategy:
             self.bot.bank.larva,
         )
         can_afford_queens = self.bot.bank.minerals / 150
-        if self.parameters.hydras_when_banking.value < can_afford_hydras:
+        if self.parameters.hydras_when_banking < can_afford_hydras:
             composition[UnitTypeId.HYDRALISK] += can_afford_hydras
             composition[UnitTypeId.BROODLORD] += can_afford_hydras
         else:
-            if self.parameters.lings_when_banking.value < can_afford_lings:
+            if self.parameters.lings_when_banking < can_afford_lings:
                 composition[UnitTypeId.ZERGLING] += can_afford_lings
-            if self.parameters.queens_when_banking.value < can_afford_queens:
+            if self.parameters.queens_when_banking < can_afford_queens:
                 composition[UnitTypeId.QUEEN] += can_afford_queens
         return composition
 

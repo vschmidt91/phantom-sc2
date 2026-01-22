@@ -18,6 +18,7 @@ class BotConfig:
     data_path = "./data"
     params_name = "params.pkl.xz"
     max_actions = 80
+    optimizer_pop_size = 20
 
     @classmethod
     def from_toml(cls, path: str) -> "BotConfig":

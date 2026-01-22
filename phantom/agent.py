@@ -49,7 +49,7 @@ class Agent:
     def __init__(self, bot: "PhantomBot", config: BotConfig) -> None:
         self.bot = bot
         self.config = config
-        self.optimizer = ParameterManager()
+        self.optimizer = ParameterManager(config.optimizer_pop_size)
         self.build_order = BUILD_ORDERS[self.config.build_order]
         self.simulator = CombatSimulator(bot, CombatSimulatorParameters(self.optimizer))
         self.combat = CombatState(bot, CombatParameters(self.optimizer), self.simulator)
@@ -66,13 +66,13 @@ class Agent:
         self.build_order_completed = False
         self.gas_ratio = 0.0
         self.tech_priority_transform = self.optimizer.optimize[OptimizationTarget.CostEfficiency].add_scalar_transform(
-            2, sigma=0.1
+            "tech_priority", 2, sigma=0.1
         )
         self.economy_priority_transform = self.optimizer.optimize[
             OptimizationTarget.CostEfficiency
-        ].add_scalar_transform(2, sigma=0.1)
+        ].add_scalar_transform("economy_priority", 2, sigma=0.1)
         self.army_priority_transform = self.optimizer.optimize[OptimizationTarget.CostEfficiency].add_scalar_transform(
-            2, sigma=0.1
+            "army_priority", 2, sigma=0.1
         )
         self.supply_efficiency = MetricAccumulator()
         self._load_parameters()
@@ -292,8 +292,9 @@ class Agent:
             }
             logger.info(f"Training parameters with {result=}")
             self.optimizer.tell(result)
+            optimizer_state = self.optimizer.save()
             with lzma.open(self.config.params_path, "wb") as f:
-                pickle.dump(self.optimizer, f)
+                pickle.dump(optimizer_state, f)
 
     def _micro_queens(self, queens: Sequence[Unit], combat: CombatStep) -> Mapping[Unit, Action]:
         should_inject = self.bot.supply_used + self.bot.bank.larva < 200
@@ -350,16 +351,17 @@ class Agent:
     def _load_parameters(self) -> None:
         try:
             with lzma.open(self.config.params_path, "rb") as f:
-                params: ParameterManager = pickle.load(f)
-                self.optimizer.load(params)
+                optimizer_state = pickle.load(f)
+                self.optimizer.load(optimizer_state)
         except Exception as error:
             logger.warning(f"{error=} while loading {self.config.params_path}")
 
-        if self.config.training:
-            logger.info("Sampling bot parameters")
-            self.optimizer.ask()
-        else:
-            self.optimizer.ask_best()
+        logger.info("Sampling bot parameters")
+        for optimizer in self.optimizer.optimize.values():
+            if self.config.training:
+                optimizer.set_values_from_latest()
+            else:
+                optimizer.set_values_from_best()
 
     def _build_gas(self, gas_harvester_target: int) -> Mapping[UnitTypeId, MacroPlan]:
         gas_type = GAS_BY_RACE[self.bot.race]
