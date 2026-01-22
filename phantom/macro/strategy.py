@@ -17,9 +17,9 @@ from phantom.common.constants import (
     ZERG_FLYER_ARMOR_UPGRADES,
     ZERG_FLYER_UPGRADES,
 )
-from phantom.common.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.common.unit_composition import UnitComposition, add_compositions, composition_of, sub_compositions
 from phantom.common.utils import MacroId
+from phantom.learn.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.macro.builder import MacroPlan
 
 if TYPE_CHECKING:

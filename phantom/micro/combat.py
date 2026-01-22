@@ -21,7 +21,6 @@ from phantom.common.constants import (
     MAX_UNIT_RADIUS,
 )
 from phantom.common.distribute import distribute
-from phantom.common.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.common.utils import (
     Point,
     air_dps_of,
@@ -31,6 +30,7 @@ from phantom.common.utils import (
     structure_perimeter,
     to_point,
 )
+from phantom.learn.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.micro.simulator import CombatResult, CombatSetup, CombatSimulator
 from phantom.micro.utils import medoid, time_to_attack, time_to_kill
 

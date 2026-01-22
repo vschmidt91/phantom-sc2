@@ -8,7 +8,6 @@ from sc2.unit import Unit
 from sc2_helper.combat_simulator import CombatSimulator as SC2CombatSimulator
 from scipy.stats import expon
 
-from phantom.common.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.common.utils import (
     air_dps_of,
     air_range_of,
@@ -16,6 +15,7 @@ from phantom.common.utils import (
     ground_range_of,
     pairwise_distances,
 )
+from phantom.learn.parameters import OptimizationTarget, ParameterManager, Prior
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot

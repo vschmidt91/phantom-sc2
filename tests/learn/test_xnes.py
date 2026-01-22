@@ -5,7 +5,7 @@ import numpy as np
 from scipy.optimize import rosen
 from sklearn.datasets import make_regression
 
-from phantom.common.learn.xnes import XNES
+from phantom.learn.xnes import XNES
 
 
 class XNESTTest(unittest.TestCase):
