@@ -37,11 +37,10 @@ class XNES:
         num_samples = num_samples or (4 + int(3 * np.log(self.dim)))
         n_half = num_samples // 2
         z_half = self.rng.standard_normal((self.dim, n_half))
+        # orthogonal sampling if possible
         if n_half <= self.dim:
-            # orthogonal sampling
             z_basis, _ = qr(z_half, mode="economic")
             z_half = z_basis * np.sqrt(self.dim)
-
         z = np.hstack([z_half, -z_half])
         x = self.loc[:, None] + self.scale @ z
         return z, x
@@ -52,11 +51,9 @@ class XNES:
         w = np.maximum(0, np.log(num_samples / 2 + 1) - np.log(np.arange(1, num_samples + 1)))
         w = w / np.sum(w) - (1 / num_samples)
         z_sorted = samples[:, ranking]
-
         # estimate gradient
         grad_mu = z_sorted @ w
         grad_scale = (z_sorted * w) @ z_sorted.T
-
         # update step
         eta_scale = (3 + np.log(self.dim)) / (5 * np.sqrt(self.dim))
         self.loc += eta * (self.scale @ grad_mu)
