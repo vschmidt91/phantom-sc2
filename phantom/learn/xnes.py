@@ -1,25 +1,20 @@
-import warnings
-
 import numpy as np
-from scipy.linalg import expm
-from scipy.stats import norm
-from scipy.stats.qmc import Sobol
+from scipy.linalg import expm, qr
 
 
 class XNES:
     def __init__(self, x0, sigma0):
         self.loc = np.asarray(x0, dtype=float)
-        self.dim = self.loc.size
-
         sigma0 = np.asarray(sigma0, dtype=float)
         if sigma0.ndim == 0:
             sigma0 = np.repeat(sigma0, self.dim)
         if sigma0.ndim == 1:
             sigma0 = np.diag(sigma0)
         self.scale = sigma0
-        self._sampler = Sobol(self.dim, scramble=True)
-        self._samples = None
-        self._eta_scale = (3 + np.log(self.dim)) / (5 * np.sqrt(self.dim))
+
+    @property
+    def dim(self):
+        return self.loc.size
 
     @property
     def mu(self):
@@ -39,29 +34,31 @@ class XNES:
 
     def ask(self, num_samples=None):
         num_samples = num_samples or (4 + int(3 * np.log(self.dim)))
-        num_samples += num_samples % 2
-        # Sobol sampling for powers of 2 has optimal space filling properties
-        # this is mostly a theoretical concern, supress the warning here
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=UserWarning)
-            u = self._sampler.random(num_samples // 2)
-        z_half = norm.ppf(u).T
+        n_half = num_samples // 2
+        if n_half <= self.dim:
+            # orthogonal sampling
+            M = np.random.randn(self.dim, n_half)
+            Q, _ = qr(M, mode='economic')
+            z_half = Q * np.sqrt(self.dim)
+        else:
+            z_half = np.random.randn(self.dim, n_half)
+
         z = np.hstack([z_half, -z_half])
         x = self.loc[:, None] + self.scale @ z
-        self._samples = z
-        return x
+        return z, x
 
-    def tell(self, ranking, eta=1.0):
+    def tell(self, samples, ranking, eta=1.0):
         # rank samples
-        num_samples = self._samples.shape[1]
+        num_samples = samples.shape[1]
         w = np.maximum(0, np.log(num_samples / 2 + 1) - np.log(np.arange(1, num_samples + 1)))
         w = w / np.sum(w) - (1 / num_samples)
-        z_sorted = self._samples[:, ranking]
+        z_sorted = samples[:, ranking]
 
         # estimate gradient
         grad_mu = z_sorted @ w
         grad_scale = (z_sorted * w) @ z_sorted.T
 
         # update step
+        eta_scale = (3 + np.log(self.dim)) / (5 * np.sqrt(self.dim))
         self.loc += eta * (self.scale @ grad_mu)
-        self.scale = self.scale @ expm(0.5 * eta * self._eta_scale * grad_scale)
+        self.scale = self.scale @ expm(0.5 * eta * eta_scale * grad_scale)

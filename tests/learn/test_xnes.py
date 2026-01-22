@@ -29,10 +29,10 @@ class XNESTest(unittest.TestCase):
             with self.subTest(f=f, solution=solution):
                 opt = XNES([0, 0], [1, 1])
                 for _k in range(1000):
-                    x = opt.ask()
+                    z, x = opt.ask()
                     fx = f(x)
                     ranking = np.argsort(fx)
-                    opt.tell(ranking)
+                    opt.tell(z, ranking)
                 np.testing.assert_almost_equal(opt.expectation, solution)
 
     def test_regression(self):
@@ -43,14 +43,14 @@ class XNESTest(unittest.TestCase):
 
                 opt = XNES(x0=np.zeros(d), sigma0=np.ones(d))
                 for _i in range(300):
-                    pop = opt.ask(40)  # Shape (n_pop, 50)
+                    z, x = opt.ask(40)  # Shape (n_pop, 50)
                     rewards = []
-                    for w in pop.T:
+                    for w in x.T:
                         y_pred = X @ w
                         mse = np.mean((y_true - y_pred) ** 2)
                         rewards.append(mse)
 
-                    opt.tell(np.argsort(rewards), eta=0.3)
+                    opt.tell(z, np.argsort(rewards), eta=0.3)
 
                 y = X @ opt.expectation
                 np.testing.assert_almost_equal(opt.expectation, coef_true, decimal=1)
