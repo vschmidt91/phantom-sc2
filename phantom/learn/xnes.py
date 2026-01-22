@@ -10,7 +10,13 @@ class XNES:
     def __init__(self, x0, sigma0):
         self.loc = np.asarray(x0, dtype=float)
         self.dim = self.loc.size
-        self.scale = np.diag(sigma0)
+
+        sigma0 = np.asarray(sigma0, dtype=float)
+        if sigma0.ndim == 0:
+            sigma0 = np.repeat(sigma0, self.dim)
+        if sigma0.ndim == 1:
+            sigma0 = np.diag(sigma0)
+        self.scale = sigma0
         self._sampler = Sobol(self.dim, scramble=True)
         self._samples = None
         self._eta_scale = (3 + np.log(self.dim)) / (5 * np.sqrt(self.dim))

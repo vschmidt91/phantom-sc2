@@ -8,9 +8,18 @@ from sklearn.datasets import make_regression
 from phantom.learn.xnes import XNES
 
 
-class XNESTTest(unittest.TestCase):
+class XNESTest(unittest.TestCase):
     def setUp(self):
         pass
+
+    def test_args(self):
+        xnes = XNES([0, 0], 2)
+        np.testing.assert_equal(xnes.sigma, [[4, 0], [0, 4]])
+        xnes = XNES([0, 0], [2, 3])
+        np.testing.assert_equal(xnes.sigma, [[4, 0], [0, 9]])
+        xnes = XNES([0, 0], [[2, 3], [4, 5]])
+        np.testing.assert_equal(xnes.sigma, [[13, 23], [23, 41]])
+
 
     def test_basic(self):
         for f, solution in [
