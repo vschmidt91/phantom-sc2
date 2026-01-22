@@ -77,8 +77,9 @@ class ParameterOptimizer:
 
     def _build_initial_state(self) -> tuple[np.ndarray, np.ndarray]:
         """Creates fresh loc/scale from priors."""
-        loc = np.array([p.prior.mu for p in self._registry.values()])
-        scale = np.diag([p.prior.sigma for p in self._registry.values()])
+        loc = np.array([p.prior.mu for p in self._registry.values()], dtype=float)
+        scale_diag = np.array([p.prior.sigma for p in self._registry.values()], dtype=float)
+        scale = np.diag(scale_diag)
         return loc, scale
 
     def load_state(self, state: OptimizerState | None) -> None:
@@ -88,7 +89,9 @@ class ParameterOptimizer:
         new_loc, new_scale = self._build_initial_state()
 
         # 2. Reconcile with saved state
-        restore_batch = False
+        restored_batch_z = None
+        restored_batch_x = None
+        restored_results = []
 
         if state is not None:
             # Map old indices to new indices
@@ -107,19 +110,33 @@ class ParameterOptimizer:
                 ix_old = np.ix_(old_indices, old_indices)
                 new_scale[ix_curr] = state.scale[ix_old]
 
-            # CHECK: Only restore batch if parameter structure is EXACTLY identical.
-            # If params changed (added/removed), the old 'z' vectors are invalid.
-            if state.names == current_names:
-                restore_batch = True
+            if state.batch_z is not None and state.batch_x is not None:
+                n_samples = state.batch_z.shape[1]
+                n_params = len(current_names)
+
+                # Create new arrays filled with "Neutral" values
+                # z=0 (Mean), x=mu (Prior Mean)
+                new_z = np.zeros((n_params, n_samples))
+                new_x = np.tile(new_loc[:, None], (1, n_samples))
+
+                # Copy data for matching parameters
+                if curr_indices:
+                    # Copy rows where names match
+                    new_z[curr_indices, :] = state.batch_z[old_indices, :]
+                    new_x[curr_indices, :] = state.batch_x[old_indices, :]
+
+                restored_batch_z = new_z
+                restored_batch_x = new_x
+                restored_results = list(state.batch_results) if state.batch_results else []
 
         # 3. Initialize XNES
         self._xnes = XNES(new_loc, new_scale)
 
         # 4. Restore or Reset Batch
-        if restore_batch and state and state.batch_z is not None:
-            self._current_genotypes = state.batch_z
-            self._current_phenotypes = state.batch_x
-            self._results = list(state.batch_results) if state.batch_results else []
+        if restored_batch_z is not None:
+            self._current_genotypes = restored_batch_z
+            self._current_phenotypes = restored_batch_x
+            self._results = restored_results
         else:
             self._reset_batch()
 
