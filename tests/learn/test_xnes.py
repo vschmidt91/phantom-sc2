@@ -37,7 +37,7 @@ class XNESTest(unittest.TestCase):
     def test_regression(self):
         for seed in range(10):
             with self.subTest(seed=seed):
-                d = 10
+                d = 20
                 X, y_true, coef_true = make_regression(n_samples=1000, n_features=d, coef=True, random_state=seed)
 
                 opt = XNES(x0=np.zeros(d), sigma0=np.ones(d))

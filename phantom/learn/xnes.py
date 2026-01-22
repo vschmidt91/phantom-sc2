@@ -39,8 +39,9 @@ class XNES:
         z_half = self.rng.standard_normal((self.dim, n_half))
         # orthogonal sampling if possible
         if n_half <= self.dim:
+            len_samples = np.sqrt(np.random.chisquare(self.dim, n_half))
             z_basis, _ = qr(z_half, mode="economic")
-            z_half = z_basis * np.sqrt(self.dim)
+            z_half = z_basis * len_samples
         z = np.hstack([z_half, -z_half])
         x = self.loc[:, None] + self.scale @ z
         return z, x
