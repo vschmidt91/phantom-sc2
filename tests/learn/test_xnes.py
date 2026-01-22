@@ -20,7 +20,6 @@ class XNESTest(unittest.TestCase):
         xnes = XNES([0, 0], [[2, 3], [4, 5]])
         np.testing.assert_equal(xnes.sigma, [[13, 23], [23, 41]])
 
-
     def test_basic(self):
         for f, solution in [
             (partial(np.linalg.norm, axis=0), (0, 0)),

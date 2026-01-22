@@ -3,7 +3,7 @@ from scipy.linalg import expm, qr
 
 
 class XNES:
-    def __init__(self, x0, sigma0):
+    def __init__(self, x0, sigma0, seed=None):
         self.loc = np.asarray(x0, dtype=float)
         sigma0 = np.asarray(sigma0, dtype=float)
         if sigma0.ndim == 0:
@@ -11,6 +11,7 @@ class XNES:
         if sigma0.ndim == 1:
             sigma0 = np.diag(sigma0)
         self.scale = sigma0
+        self.rng = np.random.default_rng(seed)
 
     @property
     def dim(self):
@@ -35,13 +36,11 @@ class XNES:
     def ask(self, num_samples=None):
         num_samples = num_samples or (4 + int(3 * np.log(self.dim)))
         n_half = num_samples // 2
+        z_half = self.rng.standard_normal((self.dim, n_half))
         if n_half <= self.dim:
             # orthogonal sampling
-            M = np.random.randn(self.dim, n_half)
-            Q, _ = qr(M, mode='economic')
-            z_half = Q * np.sqrt(self.dim)
-        else:
-            z_half = np.random.randn(self.dim, n_half)
+            z_basis, _ = qr(z_half, mode="economic")
+            z_half = z_basis * np.sqrt(self.dim)
 
         z = np.hstack([z_half, -z_half])
         x = self.loc[:, None] + self.scale @ z
