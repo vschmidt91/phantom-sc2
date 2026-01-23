@@ -21,7 +21,6 @@ from phantom.common.constants import (
     MAX_UNIT_RADIUS,
 )
 from phantom.common.distribute import distribute
-from phantom.common.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.common.utils import (
     Point,
     air_dps_of,
@@ -31,6 +30,7 @@ from phantom.common.utils import (
     structure_perimeter,
     to_point,
 )
+from phantom.learn.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.micro.simulator import CombatResult, CombatSetup, CombatSimulator
 from phantom.micro.utils import medoid, time_to_attack, time_to_kill
 
@@ -48,22 +48,24 @@ class CombatParameters:
     def __init__(self, params: ParameterManager) -> None:
         self.engagement_threshold = 0.0
         self.disengagement_threshold = 0.0
-        self._global_engagement_level_param = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(1.52, 0.1))
-        self._global_engagement_hysteresis_param = params.optimize[OptimizationTarget.CostEfficiency].add(
-            Prior(-1.29, 0.1, max=0)
+        self._global_engagement_level = params.optimize[OptimizationTarget.CostEfficiency].add(
+            "global_engagement_level", Prior(1.73, 0.1)
+        )
+        self._global_engagement_hysteresis_log = params.optimize[OptimizationTarget.CostEfficiency].add(
+            "global_engagement_hysteresis_log", Prior(-1.47, 0.1)
         )
 
     @property
     def global_engagement_hysteresis(self) -> float:
-        return np.exp(self._global_engagement_hysteresis_param.value)
+        return np.exp(self._global_engagement_hysteresis_log.value)
 
     @property
     def global_engagement_threshold(self) -> float:
-        return np.tanh(self._global_engagement_level_param.value + self.global_engagement_hysteresis)
+        return np.tanh(self._global_engagement_level.value + self.global_engagement_hysteresis)
 
     @property
     def global_disengagement_threshold(self):
-        return np.tanh(self._global_engagement_level_param.value - self.global_engagement_hysteresis)
+        return np.tanh(self._global_engagement_level.value - self.global_engagement_hysteresis)
 
 
 @dataclass(frozen=True)

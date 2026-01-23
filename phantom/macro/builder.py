@@ -57,7 +57,7 @@ class Builder:
         for unit, target in composition.items():
             have = self.bot.count_actual(unit) + self.bot.count_pending(unit)
             planned = self.bot.count_planned(unit)
-            priority = -(have + 0.5) / max(1.0, math.ceil(target))
+            priority = (target - have - 0.5) / max(1.0, math.ceil(target))
             if target < 1:
                 continue
             if target * limit <= have + planned:
@@ -115,7 +115,7 @@ class Builder:
         if total == 0:
             return {}
 
-        upgrade_priorities = {k: v / total - 1 for k, v in upgrade_weights.items()}
+        upgrade_priorities = {k: v / total for k, v in upgrade_weights.items()}
 
         return upgrade_priorities
 

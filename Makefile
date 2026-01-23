@@ -2,12 +2,13 @@ zip:
 	poetry run python scripts/build.py --config config/build.toml
 
 check: test
-	poetry run ruff check
-	poetry run mypy .
+	poetry run ruff check phantom tests
+	poetry run mypy phantom tests
+
 
 fix:
-	poetry run ruff check --fix --unsafe-fixes
-	poetry run ruff format
+	poetry run ruff check phantom tests --fix --unsafe-fixes
+	poetry run ruff format phantom tests
 
 lint: fix check
 
