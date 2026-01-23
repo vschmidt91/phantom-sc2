@@ -57,10 +57,10 @@ class ReturnResource(Action):
 class MiningParameters:
     def __init__(self, params: ParameterManager) -> None:
         self.return_distance_weight_log = params.optimize[OptimizationTarget.MiningEfficiency].add(
-            "return_distance_weight_log", Prior(2.4, 0.3)
+            "return_distance_weight_log", Prior(-3.0, 1.0)
         )
         self.assignment_cost_log = params.optimize[OptimizationTarget.MiningEfficiency].add(
-            "assignment_cost_log", Prior(0, 0.3)
+            "assignment_cost_log", Prior(2.0, 1.0)
         )
 
     @property

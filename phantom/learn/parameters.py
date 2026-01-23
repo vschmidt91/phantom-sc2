@@ -24,10 +24,9 @@ class Parameter:
 @dataclass
 class ScalarTransform:
     coeffs: Sequence[Parameter]
-    offset: Parameter
 
     def transform(self, values: Sequence[float]) -> float:
-        return self.offset.value + sum(ci.value * vi for ci, vi in zip(self.coeffs, values, strict=False))
+        return sum(ci.value * vi for ci, vi in zip(self.coeffs, values, strict=True))
 
 
 class OptimizationTarget(Enum):
@@ -67,11 +66,9 @@ class ParameterOptimizer:
         self._registry[name] = param
         return param
 
-    def add_scalar_transform(self, name: str, num_inputs: int, sigma: float = 1.0) -> ScalarTransform:
-        sigma_p = np.sqrt(sigma / num_inputs) if num_inputs > 0 else 0.0
-        coeffs = [self.add(f"{name}/c{i}", Prior(0.0, sigma_p)) for i in range(num_inputs)]
-        offset = self.add(f"{name}/bias", Prior(0.0, sigma))
-        return ScalarTransform(coeffs, offset)
+    def add_scalar_transform(self, name: str, *priors: Prior) -> ScalarTransform:
+        coeffs = [self.add(f"{name}_{i}", p) for i, p in enumerate(priors)]
+        return ScalarTransform(coeffs)
 
     # --- State Management ---
 

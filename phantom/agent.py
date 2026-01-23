@@ -28,7 +28,7 @@ from phantom.common.constants import (
 from phantom.common.cost import Cost
 from phantom.common.metrics import MetricAccumulator
 from phantom.common.utils import MacroId, calculate_cost_efficiency, to_point
-from phantom.learn.parameters import OptimizationTarget, ParameterManager
+from phantom.learn.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.builder import Builder, MacroPlan
 from phantom.macro.mining import MiningContext, MiningState
@@ -66,13 +66,16 @@ class Agent:
         self.build_order_completed = False
         self.gas_ratio = 0.0
         self.tech_priority_transform = self.optimizer.optimize[OptimizationTarget.CostEfficiency].add_scalar_transform(
-            "tech_priority", 2, sigma=0.1
+            "tech_priority",
+            Prior(0.591, 0.1),
+            Prior(0.843, 0.1),
+            Prior(-0.097, 0.01),
         )
         self.economy_priority_transform = self.optimizer.optimize[
             OptimizationTarget.CostEfficiency
-        ].add_scalar_transform("economy_priority", 2, sigma=0.1)
+        ].add_scalar_transform("economy_priority", Prior(0.842, 0.1), Prior(0.148, 0.03), Prior(0.039, 0.01))
         self.army_priority_transform = self.optimizer.optimize[OptimizationTarget.CostEfficiency].add_scalar_transform(
-            "army_priority", 2, sigma=0.1
+            "army_priority", Prior(1.5, 0.1), Prior(0.808, 0.1), Prior(0.5, 0.1)
         )
         self.supply_efficiency = MetricAccumulator()
         self._load_parameters()
@@ -136,11 +139,11 @@ class Agent:
             economy_priorities[UnitTypeId.HATCHERY] = expansion_priority
 
             for k, v in economy_priorities.items():
-                build_priorities[k] = v + self.economy_priority_transform.transform([v, combat.confidence_global])
+                build_priorities[k] = self.economy_priority_transform.transform([v, combat.confidence_global, 1.0])
             for k, v in army_priorities.items():
-                build_priorities[k] = v + self.army_priority_transform.transform([v, combat.confidence_global])
+                build_priorities[k] = self.army_priority_transform.transform([v, combat.confidence_global, 1.0])
             for k, v in tech_priorities.items():
-                build_priorities[k] = v + self.tech_priority_transform.transform([v, combat.confidence_global])
+                build_priorities[k] = self.tech_priority_transform.transform([v, combat.confidence_global, 1.0])
 
             # make plans
             if expansion_priority > -1 and self.bot.count_planned(UnitTypeId.HATCHERY) == 0:

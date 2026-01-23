@@ -45,13 +45,13 @@ class StrategyParameters:
             "tier2_drone_count", Prior(60, 1)
         )
         self.tier3_drone_count = params.optimize[OptimizationTarget.CostEfficiency].add(
-            "tier3_drone_count", Prior(90, 1)
+            "tier3_drone_count", Prior(100, 1)
         )
         self.hydras_when_banking = 13
         self.lings_when_banking = 8
         self.queens_when_banking = 2
         self.supply_buffer_log = params.optimize[OptimizationTarget.SupplyEfficiency].add(
-            "supply_buffer_log", Prior(1.7, 0.2)
+            "supply_buffer_log", Prior(2.0, 0.3)
         )
 
     @property
