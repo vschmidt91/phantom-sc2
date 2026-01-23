@@ -129,7 +129,7 @@ class Strategy:
         supply_target = min(200.0, self.bot.supply_used + supply_buffer)
         if supply_target <= supply:
             return {}
-        return {UnitTypeId.OVERLORD: 0.0}
+        return {UnitTypeId.OVERLORD: 3.0}
 
     def can_build(self, t: UnitTypeId) -> bool:
         return not any(self.bot.get_missing_requirements(t))
