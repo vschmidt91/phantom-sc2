@@ -24,6 +24,7 @@ from phantom.common.constants import (
     CIVILIANS,
     ENEMY_CIVILIANS,
     GAS_BY_RACE,
+    RESULT_TO_FITNESS,
 )
 from phantom.common.cost import Cost
 from phantom.common.metrics import MetricAccumulator
@@ -288,8 +289,9 @@ class Agent:
     def on_end(self, game_result: Result):
         if self.config.training:
             cost_efficiency = calculate_cost_efficiency(self.bot.state.score)
+            result_value = RESULT_TO_FITNESS[game_result]
             result = {
-                OptimizationTarget.CostEfficiency: cost_efficiency,
+                OptimizationTarget.CostEfficiency: cost_efficiency + result_value,
                 OptimizationTarget.MiningEfficiency: self.mining.efficiency.get_value(),
                 OptimizationTarget.SupplyEfficiency: self.supply_efficiency.get_value(),
             }
