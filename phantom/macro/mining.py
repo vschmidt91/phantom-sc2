@@ -14,8 +14,8 @@ from sc2.units import Units
 from phantom.common.action import Action, Smart
 from phantom.common.distribute import get_assignment_solver
 from phantom.common.metrics import MetricAccumulator
-from phantom.common.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.common.utils import Point, pairwise_distances, to_point
+from phantom.learn.parameters import OptimizationTarget, ParameterManager, Prior
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -56,8 +56,12 @@ class ReturnResource(Action):
 
 class MiningParameters:
     def __init__(self, params: ParameterManager) -> None:
-        self.return_distance_weight_log = params.optimize[OptimizationTarget.MiningEfficiency].add(Prior(2.4, 0.3))
-        self.assignment_cost_log = params.optimize[OptimizationTarget.MiningEfficiency].add(Prior(0, 0.3))
+        self.return_distance_weight_log = params.optimize[OptimizationTarget.MiningEfficiency].add(
+            "return_distance_weight_log", Prior(-3.0, 1.0)
+        )
+        self.assignment_cost_log = params.optimize[OptimizationTarget.MiningEfficiency].add(
+            "assignment_cost_log", Prior(2.0, 1.0)
+        )
 
     @property
     def return_distance_weight(self) -> float:

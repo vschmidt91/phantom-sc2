@@ -6,9 +6,9 @@ import numpy as np
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2_helper.combat_simulator import CombatSimulator as SC2CombatSimulator
+from scipy.special import expit
 from scipy.stats import expon
 
-from phantom.common.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.common.utils import (
     air_dps_of,
     air_range_of,
@@ -16,6 +16,7 @@ from phantom.common.utils import (
     ground_range_of,
     pairwise_distances,
 )
+from phantom.learn.parameters import OptimizationTarget, ParameterManager, Prior
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -36,9 +37,11 @@ class CombatResult:
 
 class CombatSimulatorParameters:
     def __init__(self, params: ParameterManager) -> None:
-        self._time_distribution_lambda_log = params.optimize[OptimizationTarget.CostEfficiency].add(Prior(0.5, 0.3))
-        self._lancester_dimension = params.optimize[OptimizationTarget.CostEfficiency].add(
-            Prior(1.49, 0.1, min=1, max=2)
+        self._time_distribution_lambda_log = params.optimize[OptimizationTarget.CostEfficiency].add(
+            "time_distribution_lambda_log", Prior(0.0, 0.1)
+        )
+        self._lancester_dimension_logit = params.optimize[OptimizationTarget.CostEfficiency].add(
+            "lancester_dimension_logit", Prior(0.0, 0.1)
         )
 
     @property
@@ -47,7 +50,7 @@ class CombatSimulatorParameters:
 
     @property
     def lancester_dimension(self) -> float:
-        return self._lancester_dimension.value
+        return 1 + expit(self._lancester_dimension_logit.value)
 
 
 class CombatSimulator:
