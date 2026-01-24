@@ -82,15 +82,14 @@ class Strategy:
 
         for expansion in self.bot.bases_taken.values():
             if (
-                expansion.townhall_position != self.bot.start_location
-                and expansion.spine_position not in self.bot.structure_dict
+                expansion.spine_position not in self.bot.structure_dict
                 and self.bot.mediator.can_place_structure(
                     position=expansion.spine_position, structure_type=UnitTypeId.SPINECRAWLER
                 )
             ):
                 return {
                     UnitTypeId.SPINECRAWLER: MacroPlan(
-                        target=Point2(expansion.spine_position), allow_replacement=False, priority=-0.5
+                        target=Point2(expansion.spine_position), allow_replacement=False, priority=1.0
                     )
                 }
         return {}
@@ -113,7 +112,7 @@ class Strategy:
             ):
                 return {
                     UnitTypeId.SPORECRAWLER: MacroPlan(
-                        target=Point2(expansion.spore_position), allow_replacement=False, priority=-0.5
+                        target=Point2(expansion.spore_position), allow_replacement=False, priority=1.0
                     )
                 }
 
