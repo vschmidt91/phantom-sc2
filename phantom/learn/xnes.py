@@ -56,7 +56,7 @@ class XNES:
         x = self.loc[:, None] + self.scale @ z
         return z, x
 
-    def tell(self, samples, ranking, eta=1.0):
+    def tell(self, samples, ranking, eta=1.0, epsilon=1e-8):
         # rank samples
         num_samples = samples.shape[1]
         w = np.maximum(0, np.log(num_samples / 2 + 1) - np.log(np.arange(1, num_samples + 1)))
@@ -67,5 +67,11 @@ class XNES:
         grad_scale = (z_sorted * w) @ z_sorted.T
         # update step
         eta_scale = (3 + np.log(self.dim)) / (5 * np.sqrt(self.dim))
-        self.loc += eta * (self.scale @ grad_mu)
+        loc_step = self.scale @ grad_mu
+        self.loc += eta * loc_step
         self.scale = self.scale @ expm(0.5 * eta * eta_scale * grad_scale)
+        return (
+            np.linalg.norm(self.scale, ord=2) < epsilon
+            or np.linalg.norm(loc_step, ord=2) < epsilon
+            or np.linalg.cond(self.scale) > 1 / epsilon
+        )

@@ -51,8 +51,8 @@ class XNESTest(unittest.TestCase):
                 X, y_true, coef_true = make_regression(n_samples=1000, n_features=d, coef=True, random_state=seed)
 
                 opt = XNES(x0=np.zeros(d), sigma0=np.ones(d))
-                for _i in range(300):
-                    z, x = opt.ask(50)  # Shape (n_pop, 50)
+                for _i in range(1000):
+                    z, x = opt.ask()  # Shape (n_pop, 50)
                     rewards = []
                     for w in x.T:
                         y_pred = X @ w
