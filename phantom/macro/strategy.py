@@ -81,11 +81,8 @@ class Strategy:
             return {}
 
         for expansion in self.bot.bases_taken.values():
-            if (
-                expansion.spine_position not in self.bot.structure_dict
-                and self.bot.mediator.can_place_structure(
-                    position=expansion.spine_position, structure_type=UnitTypeId.SPINECRAWLER
-                )
+            if expansion.spine_position not in self.bot.structure_dict and self.bot.mediator.can_place_structure(
+                position=expansion.spine_position, structure_type=UnitTypeId.SPINECRAWLER
             ):
                 return {
                     UnitTypeId.SPINECRAWLER: MacroPlan(
