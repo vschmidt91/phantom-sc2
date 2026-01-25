@@ -1,5 +1,5 @@
 import numpy as np
-from numpy.linalg import norm
+from numpy.linalg import cond, norm
 from scipy.linalg import expm, qr
 from scipy.stats import chi
 
@@ -43,16 +43,16 @@ class XCMA:
         grad_mu = z @ w
         grad_scale = (z * w) @ z.T
         self.ps = (1 - cs) * self.ps + np.sqrt(cs * (2 - cs) * mueff) * grad_mu
-        hs = 1 if np.linalg.norm(self.ps) < 1.4 + 2 / (self.d + 1) else 0
+        hs = 1 if norm(self.ps) < 1.4 + 2 / (self.d + 1) else 0
         self.pc = (1 - cc) * self.pc + hs * np.sqrt(cc * (2 - cc) * mueff) * grad_mu
         step_scale = c1 * (np.outer(self.pc, self.pc) - np.eye(self.d)) + cmu * grad_scale
         self.scale = self.scale @ expm(0.5 * step_scale)
-        self.sigma *= np.exp(cs / ds * (np.linalg.norm(self.ps) / chi.mean(self.d) - 1))
+        self.sigma *= np.exp(cs / ds * (norm(self.ps) / chi.mean(self.d) - 1))
         step_loc = self.sigma * (self.scale @ grad_mu)
         self.loc += step_loc
         return (
             self.sigma < epsilon
-            or np.linalg.norm(self.scale, ord=2) < epsilon
-            or np.linalg.norm(step_loc, ord=2) < epsilon
-            or np.linalg.cond(self.scale) > 1 / epsilon
+            or norm(self.scale, ord=2) < epsilon
+            or norm(step_loc, ord=2) < epsilon
+            or cond(self.scale) > 1 / epsilon
         )

@@ -56,7 +56,7 @@ class XNES:
         x = self.loc[:, None] + self.scale @ z
         return z, x
 
-    def tell(self, samples, ranking, eta=1.0, epsilon=1e-8):
+    def tell(self, samples, ranking, eta=1.0, epsilon=1e-10):
         # rank samples
         num_samples = samples.shape[1]
         w = np.maximum(0, np.log(num_samples / 2 + 1) - np.log(np.arange(1, num_samples + 1)))
