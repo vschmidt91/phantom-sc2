@@ -1,5 +1,5 @@
 import numpy as np
-from numpy.linalg import cond, norm
+from numpy.linalg import norm
 from scipy.linalg import expm, qr
 from scipy.stats import chi
 
