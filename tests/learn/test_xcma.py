@@ -16,7 +16,6 @@ class XCMATest(unittest.TestCase):
             with self.subTest(f=f, solution=solution):
                 opt = XCMA([0.0, 0.0], 1.0)
                 for _k in range(1000):
-                    x = opt.ask()
-                    fx = f(x)
-                    opt.tell(fx)
-                np.testing.assert_almost_equal(opt.m, solution)
+                    z, x = opt.ask()
+                    opt.tell(z, np.argsort(f(x)))
+                np.testing.assert_almost_equal(opt.loc, solution)
