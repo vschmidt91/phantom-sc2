@@ -1,6 +1,7 @@
 from functools import cmp_to_key
 
 import numpy as np
+from numpy.linalg import cond, norm
 from scipy.linalg import expm, qr
 
 
@@ -26,52 +27,30 @@ class XNES:
     def dim(self):
         return self.loc.size
 
-    @property
-    def mu(self):
-        return self.loc
-
-    @property
-    def sigma(self):
-        return self.scale @ self.scale.T
-
-    @property
-    def expectation(self):
-        return self.loc
-
-    @property
-    def covariance(self):
-        return self.scale @ self.scale.T
-
     def ask(self, num_samples=None, rng=None):
-        num_samples = num_samples or (4 + int(3 * np.log(self.dim)))
-        n_half = num_samples // 2
+        n = num_samples or (4 + int(3 * np.log(self.dim)))
+        n2 = n // 2
         rng = rng or np.random.default_rng()
-        z_half = rng.standard_normal((self.dim, n_half))
+        z2 = rng.standard_normal((self.dim, n2))
         # orthogonal sampling if possible
-        if n_half <= self.dim:
-            len_samples = np.sqrt(rng.chisquare(self.dim, n_half))
-            z_basis, _ = qr(z_half, mode="economic")
-            z_half = z_basis * len_samples
-        z = np.hstack([z_half, -z_half])
+        if n2 <= self.dim:
+            z2 = qr(z2, mode="economic")[0] * np.sqrt(rng.chisquare(self.dim, n2))
+        z = np.hstack([z2, -z2])
         x = self.loc[:, None] + self.scale @ z
         return z, x
 
-    def tell(self, samples, ranking, eta=1.0, epsilon=1e-10):
+    def tell(self, samples, ranking, eps=1e-10):
         # rank samples
         num_samples = samples.shape[1]
         w = np.maximum(0, np.log(num_samples / 2 + 1) - np.log(np.arange(1, num_samples + 1)))
         w = w / np.sum(w) - (1 / num_samples)
-        z_sorted = samples[:, ranking]
+        z = samples[:, ranking]
         # estimate gradient
-        grad_mu = z_sorted @ w
-        grad_scale = (z_sorted * w) @ z_sorted.T
+        grad_mu = z @ w
+        grad_scale = (z * w) @ z.T
         # update step
-        eta_scale = (3 + np.log(self.dim)) / (5 * np.sqrt(self.dim))
+        eta_scale = 0.6 * (3 + np.log(self.dim)) / (self.dim * np.sqrt(self.dim))
         loc_step = self.scale @ grad_mu
-        self.loc += eta * loc_step
-        self.scale = self.scale @ expm(0.5 * eta * eta_scale * grad_scale)
-        return (
-            np.linalg.norm(self.scale, ord=2) < epsilon
-            or np.linalg.norm(loc_step, ord=2) < epsilon
-            or np.linalg.cond(self.scale) > 1 / epsilon
-        )
+        self.loc += loc_step
+        self.scale = self.scale @ expm(0.5 * eta_scale * grad_scale)
+        return norm(self.scale, ord=2) < eps or norm(loc_step, ord=2) < eps or cond(self.scale) * eps > 1

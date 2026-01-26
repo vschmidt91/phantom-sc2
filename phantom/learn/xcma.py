@@ -24,7 +24,7 @@ class XCMA:
         n2 = n // 2
         z2 = rng.standard_normal((self.d, n2))
         if z2.shape[1] <= z2.shape[0]:
-            z2 = qr(z2)[0] * chi.mean(n)
+            z2 = qr(z2, mode="economic")[0] * np.sqrt(rng.chisquare(self.d, n2))
         z = np.hstack([z2, -z2])
         x = self.loc[:, None] + self.sigma * (self.scale @ z)
         return z, x
@@ -50,7 +50,7 @@ class XCMA:
         self.sigma *= np.exp(cs / ds * (norm(self.ps) / chi.mean(self.d) - 1))
         step_loc = self.sigma * (self.scale @ grad_mu)
         self.loc += step_loc
-        return (
+        return bool(
             self.sigma < epsilon
             or norm(self.scale, ord=2) < epsilon
             or norm(step_loc, ord=2) < epsilon
