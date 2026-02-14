@@ -23,10 +23,81 @@ class Parameter:
 
 @dataclass
 class ScalarTransform:
+    """Linear transform: y = w · x."""
+
     coeffs: Sequence[Parameter]
 
     def transform(self, values: Sequence[float]) -> float:
         return sum(ci.value * vi for ci, vi in zip(self.coeffs, values, strict=True))
+
+
+@dataclass
+class QuadraticTransform:
+    """Quadratic transform with optional low-rank approximation.
+
+    Full model (rank is None):
+        y = x^T Q x + w · x + b
+        where Q is a symmetric matrix stored as upper-triangular entries.
+        Param count: n*(n+1)/2 + n + 1
+
+    Low-rank approximation (rank = k):
+        y = ||U x||^2 + w · x + b
+        where U is a k × n factor matrix, so x^T Q x = x^T (U^T U) x.
+        Param count: k*n + n + 1
+
+    Special cases:
+        - rank=0: equivalent to linear (ScalarTransform + bias)
+        - rank=n with full=False: full-rank but PSD-constrained
+        - full=True: unconstrained symmetric Q (not necessarily PSD)
+    """
+
+    linear: Sequence[Parameter]
+    bias: Parameter
+    factors: Sequence[Sequence[Parameter]]  # low-rank: k rows of n
+    upper: Sequence[Parameter] | None  # full: n*(n+1)/2, mutually exclusive with factors
+
+    def transform(self, values: Sequence[float]) -> float:
+        n = len(self.linear)
+        # Linear + bias
+        result = sum(wi.value * xi for wi, xi in zip(self.linear, values, strict=True))
+        result += self.bias.value
+        # Quadratic term
+        if self.upper is not None:
+            # Full symmetric Q via upper-triangular storage
+            idx = 0
+            for i in range(n):
+                for j in range(i, n):
+                    w = self.upper[idx].value
+                    result += (1.0 if i == j else 2.0) * w * values[i] * values[j]
+                    idx += 1
+        else:
+            # Low-rank: Q = U^T U, so x^T Q x = sum_k (u_k · x)^2
+            for row in self.factors:
+                proj = sum(p.value * xi for p, xi in zip(row, values, strict=True))
+                result += proj * proj
+        return result
+
+
+@dataclass
+class MLPTransform:
+    """Single hidden layer MLP: y = v · tanh(W x + b_h) + b_o.
+
+    Param count: hidden_size * (n_inputs + 2) + 1.
+    """
+
+    weights: Sequence[Sequence[Parameter]]  # W: hidden_size × n_inputs
+    hidden_biases: Sequence[Parameter]  # b_h: hidden_size
+    output_weights: Sequence[Parameter]  # v: hidden_size
+    output_bias: Parameter  # b_o: scalar
+
+    def transform(self, values: Sequence[float]) -> float:
+        hidden = [
+            np.tanh(sum(w.value * xi for w, xi in zip(row, values, strict=True)) + b.value)
+            for row, b in zip(self.weights, self.hidden_biases, strict=True)
+        ]
+        result = sum(v.value * h for v, h in zip(self.output_weights, hidden, strict=True))
+        result += self.output_bias.value
+        return result
 
 
 class OptimizationTarget(Enum):
@@ -69,6 +140,70 @@ class ParameterOptimizer:
     def add_scalar_transform(self, name: str, *priors: Prior) -> ScalarTransform:
         coeffs = [self.add(f"{name}_{i}", p) for i, p in enumerate(priors)]
         return ScalarTransform(coeffs)
+
+    def add_quadratic_transform(
+        self,
+        name: str,
+        linear_priors: Sequence[Prior],
+        *,
+        rank: int = 1,
+        full: bool = False,
+        bias_prior: Prior = Prior(0.0, 0.1),
+        factor_prior: Prior = Prior(0.0, 0.1),
+    ) -> QuadraticTransform:
+        """Create a quadratic transform.
+
+        Args:
+            name: Base name for parameters.
+            linear_priors: Priors for linear coefficients (determines n_inputs).
+            rank: Rank of the low-rank approximation (ignored if full=True).
+            full: If True, use unconstrained symmetric Q (upper-triangular storage).
+            bias_prior: Prior for the bias term.
+            factor_prior: Prior for quadratic term entries.
+        """
+        n = len(linear_priors)
+        linear = [self.add(f"{name}_l{i}", p) for i, p in enumerate(linear_priors)]
+        bias = self.add(f"{name}_b", bias_prior)
+
+        if full:
+            upper = [
+                self.add(f"{name}_q{i}_{j}", factor_prior)
+                for i in range(n)
+                for j in range(i, n)
+            ]
+            return QuadraticTransform(linear, bias, factors=[], upper=upper)
+        else:
+            factors = [
+                [self.add(f"{name}_f{k}_{j}", factor_prior) for j in range(n)]
+                for k in range(rank)
+            ]
+            return QuadraticTransform(linear, bias, factors=factors, upper=None)
+
+    def add_mlp_transform(
+        self,
+        name: str,
+        n_inputs: int,
+        hidden_size: int = 3,
+        weight_prior: Prior = Prior(0.0, 1.0),
+        bias_prior: Prior = Prior(0.0, 0.1),
+    ) -> MLPTransform:
+        """Create a single-hidden-layer MLP transform.
+
+        Args:
+            name: Base name for parameters.
+            n_inputs: Number of input features.
+            hidden_size: Number of hidden neurons.
+            weight_prior: Prior for weight parameters.
+            bias_prior: Prior for bias parameters.
+        """
+        weights = [
+            [self.add(f"{name}_w{k}_{j}", weight_prior) for j in range(n_inputs)]
+            for k in range(hidden_size)
+        ]
+        hidden_biases = [self.add(f"{name}_bh{k}", bias_prior) for k in range(hidden_size)]
+        output_weights = [self.add(f"{name}_v{k}", weight_prior) for k in range(hidden_size)]
+        output_bias = self.add(f"{name}_bo", bias_prior)
+        return MLPTransform(weights, hidden_biases, output_weights, output_bias)
 
     # --- State Management ---
 
