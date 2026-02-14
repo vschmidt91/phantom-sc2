@@ -42,7 +42,7 @@ class QuadraticTransform:
 
     Low-rank approximation (rank = k):
         y = ||U x||^2 + w · x + b
-        where U is a k × n factor matrix, so x^T Q x = x^T (U^T U) x.
+        where U is a k x n factor matrix, so x^T Q x = x^T (U^T U) x.
         Param count: k*n + n + 1
 
     Special cases:
@@ -85,7 +85,7 @@ class MLPTransform:
     Param count: hidden_size * (n_inputs + 2) + 1.
     """
 
-    weights: Sequence[Sequence[Parameter]]  # W: hidden_size × n_inputs
+    weights: Sequence[Sequence[Parameter]]  # W: hidden_size x n_inputs
     hidden_biases: Sequence[Parameter]  # b_h: hidden_size
     output_weights: Sequence[Parameter]  # v: hidden_size
     output_bias: Parameter  # b_o: scalar
@@ -148,8 +148,8 @@ class ParameterOptimizer:
         *,
         rank: int = 1,
         full: bool = False,
-        bias_prior: Prior = Prior(0.0, 0.1),
-        factor_prior: Prior = Prior(0.0, 0.1),
+        bias_prior: Prior | None = None,
+        factor_prior: Prior | None = None,
     ) -> QuadraticTransform:
         """Create a quadratic transform.
 
@@ -161,6 +161,10 @@ class ParameterOptimizer:
             bias_prior: Prior for the bias term.
             factor_prior: Prior for quadratic term entries.
         """
+        if bias_prior is None:
+            bias_prior = Prior(0.0, 0.1)
+        if factor_prior is None:
+            factor_prior = Prior(0.0, 0.1)
         n = len(linear_priors)
         linear = [self.add(f"{name}_l{i}", p) for i, p in enumerate(linear_priors)]
         bias = self.add(f"{name}_b", bias_prior)
@@ -184,8 +188,8 @@ class ParameterOptimizer:
         name: str,
         n_inputs: int,
         hidden_size: int = 3,
-        weight_prior: Prior = Prior(0.0, 1.0),
-        bias_prior: Prior = Prior(0.0, 0.1),
+        weight_prior: Prior | None = None,
+        bias_prior: Prior | None = None,
     ) -> MLPTransform:
         """Create a single-hidden-layer MLP transform.
 
@@ -196,6 +200,10 @@ class ParameterOptimizer:
             weight_prior: Prior for weight parameters.
             bias_prior: Prior for bias parameters.
         """
+        if weight_prior is None:
+            weight_prior = Prior(0.0, 1.0)
+        if bias_prior is None:
+            bias_prior = Prior(0.0, 0.1)
         weights = [
             [self.add(f"{name}_w{k}_{j}", weight_prior) for j in range(n_inputs)]
             for k in range(hidden_size)
