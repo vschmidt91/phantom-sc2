@@ -32,8 +32,9 @@ class XCMA:
     def tell(self, samples, ranking, epsilon=1e-10):
         n = samples.shape[1]
         w = np.maximum(0, np.log(n / 2 + 1) - np.log(np.arange(1, n + 1)))
-        w = w / np.sum(w) - 1 / n
-        mueff = (norm(w, 1) / norm(w, 2)) ** 2
+        w = w / np.sum(w)
+        mueff = 1 / (w**2).sum()
+        w -= 1 / n
         cc = (4 + mueff / self.d) / (self.d + 4 + 2 * mueff / self.d)
         cs = (mueff + 2) / (self.d + mueff + 5)
         c1 = 2 / ((self.d + 1.3) ** 2 + mueff)
