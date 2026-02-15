@@ -442,55 +442,34 @@ class Agent:
         logger.info(f"{self.strategy_paramaters.__dict__=}")
 
     def _detect_proxy_structure(self, structure: Unit) -> bool:
-        """
-        Detect if an enemy structure is likely a proxy based on its position relative to
-        friendly and enemy bases/structures.
-        
-        Args:
-            structure: The enemy structure to analyze
-            
-        Returns:
-            True if the structure is likely a proxy, False otherwise
-        """
         if structure.is_mine:
             return False
             
         structure_pos = structure.position
-        
-        # Get all other enemy structures (excluding the one we're analyzing)
         other_enemy_structures = [s for s in self.bot.enemy_structures if s.tag != structure.tag]
         
         if other_enemy_structures:
-            # Compare average distance to our structures vs their structures
             our_structures = list(self.bot.structures)
             if not our_structures:
-                # Fallback to start location if we have no structures
                 our_structures = [type('MockUnit', (), {'position': self.bot.start_location})()]
             
-            # Calculate average distance to our structures
             avg_dist_to_ours = sum(
                 cy_distance_to(structure_pos, s.position) for s in our_structures
             ) / len(our_structures)
             
-            # Calculate average distance to their other structures
             avg_dist_to_theirs = sum(
                 cy_distance_to(structure_pos, s.position) for s in other_enemy_structures
             ) / len(other_enemy_structures)
             
-            # If closer to our structures than to their own structures, likely a proxy
             return avg_dist_to_ours < avg_dist_to_theirs
         else:
-            # No other enemy structures visible, check spawn locations
             if not self.bot.enemy_start_locations:
-                return False  # Can't determine without enemy spawn info
+                return False
             
             dist_to_our_spawn = cy_distance_to(structure_pos, self.bot.start_location)
-            
-            # Find closest enemy spawn
             closest_enemy_spawn_dist = min(
                 cy_distance_to(structure_pos, enemy_spawn) 
                 for enemy_spawn in self.bot.enemy_start_locations
             )
             
-            # If closer to our spawn than to enemy spawn, likely a proxy
             return dist_to_our_spawn < closest_enemy_spawn_dist
