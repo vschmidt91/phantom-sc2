@@ -8,4 +8,6 @@ class MetricAccumulator:
         self.count += weight
 
     def get_value(self) -> float:
-        return self.total / max(1.0, self.count)
+        if self.count == 0.0:
+            return 0.0
+        return self.total / self.count

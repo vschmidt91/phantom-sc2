@@ -111,7 +111,7 @@ class Agent:
         harvester_return_targets = self.bot.townhalls.ready
         strategy = Strategy(self.bot, self.strategy_paramaters)
 
-        supply_efficiency = 1 - self.bot.supply_left if self.bot.supply_left > 0 else -10
+        supply_efficiency = 1 - self.bot.supply_left if self.bot.supply_left > 0 else -24
         self.supply_efficiency.add_value(supply_efficiency)
 
         if self.bot.time < 5 * 60 or self.bot.townhalls.amount < 3:

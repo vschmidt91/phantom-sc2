@@ -81,16 +81,12 @@ class Strategy:
             return {}
 
         for expansion in self.bot.bases_taken.values():
-            if (
-                expansion.townhall_position != self.bot.start_location
-                and expansion.spine_position not in self.bot.structure_dict
-                and self.bot.mediator.can_place_structure(
-                    position=expansion.spine_position, structure_type=UnitTypeId.SPINECRAWLER
-                )
+            if expansion.spine_position not in self.bot.structure_dict and self.bot.mediator.can_place_structure(
+                position=expansion.spine_position, structure_type=UnitTypeId.SPINECRAWLER
             ):
                 return {
                     UnitTypeId.SPINECRAWLER: MacroPlan(
-                        target=Point2(expansion.spine_position), allow_replacement=False, priority=-0.5
+                        target=Point2(expansion.spine_position), allow_replacement=False, priority=1.0
                     )
                 }
         return {}
@@ -113,7 +109,7 @@ class Strategy:
             ):
                 return {
                     UnitTypeId.SPORECRAWLER: MacroPlan(
-                        target=Point2(expansion.spore_position), allow_replacement=False, priority=-0.5
+                        target=Point2(expansion.spore_position), allow_replacement=False, priority=1.0
                     )
                 }
 
@@ -129,7 +125,7 @@ class Strategy:
         supply_target = min(200.0, self.bot.supply_used + supply_buffer)
         if supply_target <= supply:
             return {}
-        return {UnitTypeId.OVERLORD: 0.0}
+        return {UnitTypeId.OVERLORD: 3.0}
 
     def can_build(self, t: UnitTypeId) -> bool:
         return not any(self.bot.get_missing_requirements(t))
