@@ -6,7 +6,6 @@ from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
-from ares.behaviors.macro.mining import TOWNHALL_RADIUS
 from ares.consts import TOWNHALL_TYPES
 from cython_extensions import cy_closest_to, cy_distance_to
 from loguru import logger
@@ -17,7 +16,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from phantom.common.action import Action, Attack, HoldPosition, Move, MovePath, UseAbility
+from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.blocked_positions import BlockedPositionTracker
 from phantom.common.config import BotConfig
 from phantom.common.constants import (
@@ -277,9 +276,8 @@ class Agent:
                 actions[scout_overlord] = self._send_overlord_scout(scout_overlord)
 
         for overlord in self.bot.units(UnitTypeId.OVERLORD):
-            if overlord.tag != self._scout_overlord_tag:
-                if action := combat.keep_unit_safe(overlord):
-                    actions[overlord] = action
+            if overlord.tag != self._scout_overlord_tag and (action := combat.keep_unit_safe(overlord)):
+                actions[overlord] = action
 
         for tumor in self.creep_tumors.active_tumors:
             if action := self.creep_spread.spread_with(tumor):
@@ -336,21 +334,22 @@ class Agent:
     def _send_overlord_scout(self, overlord: Unit) -> Action:
         sight_range = overlord.sight_range
         enemy_nat = self.bot.mediator.get_enemy_nat
-        
+
         if not self._enemy_expanded:
             enemy_townhalls = self.bot.enemy_structures(TOWNHALL_TYPES)
-            expansion_townhalls = [th for th in enemy_townhalls 
-                                 if cy_distance_to(th.position, self.bot.enemy_start_locations[0]) > 10]
+            expansion_townhalls = [
+                th for th in enemy_townhalls if cy_distance_to(th.position, self.bot.enemy_start_locations[0]) > 10
+            ]
             if expansion_townhalls:
                 self._enemy_expanded = True
-        
+
         if self._enemy_expanded or self.bot.time >= 140:
             if self.bot.enemy_race in {Race.Zerg, Race.Random}:
                 safe_spot = self.bot.mediator.get_enemy_third
             else:
                 safe_spot = self.bot.mediator.get_ol_spot_near_enemy_nat
             return Move(safe_spot)
-        
+
         distance_to_nat = cy_distance_to(overlord.position, enemy_nat)
         if distance_to_nat > sight_range:
             return Move(enemy_nat)
@@ -359,7 +358,7 @@ class Agent:
                 safe_spot = self.bot.mediator.get_enemy_third
             else:
                 safe_spot = self.bot.mediator.get_ol_spot_near_enemy_nat
-            
+
             safe_to_nat_distance = cy_distance_to(safe_spot, enemy_nat)
             if safe_to_nat_distance <= sight_range:
                 return Move(safe_spot)
@@ -444,32 +443,31 @@ class Agent:
     def _detect_proxy_structure(self, structure: Unit) -> bool:
         if structure.is_mine:
             return False
-            
+
         structure_pos = structure.position
         other_enemy_structures = [s for s in self.bot.enemy_structures if s.tag != structure.tag]
-        
+
         if other_enemy_structures:
             our_structures = list(self.bot.structures)
             if not our_structures:
-                our_structures = [type('MockUnit', (), {'position': self.bot.start_location})()]
-            
-            avg_dist_to_ours = sum(
-                cy_distance_to(structure_pos, s.position) for s in our_structures
-            ) / len(our_structures)
-            
-            avg_dist_to_theirs = sum(
-                cy_distance_to(structure_pos, s.position) for s in other_enemy_structures
-            ) / len(other_enemy_structures)
-            
+                our_structures = [type("MockUnit", (), {"position": self.bot.start_location})()]
+
+            avg_dist_to_ours = sum(cy_distance_to(structure_pos, s.position) for s in our_structures) / len(
+                our_structures
+            )
+
+            avg_dist_to_theirs = sum(cy_distance_to(structure_pos, s.position) for s in other_enemy_structures) / len(
+                other_enemy_structures
+            )
+
             return avg_dist_to_ours < avg_dist_to_theirs
         else:
             if not self.bot.enemy_start_locations:
                 return False
-            
+
             dist_to_our_spawn = cy_distance_to(structure_pos, self.bot.start_location)
             closest_enemy_spawn_dist = min(
-                cy_distance_to(structure_pos, enemy_spawn) 
-                for enemy_spawn in self.bot.enemy_start_locations
+                cy_distance_to(structure_pos, enemy_spawn) for enemy_spawn in self.bot.enemy_start_locations
             )
-            
+
             return dist_to_our_spawn < closest_enemy_spawn_dist

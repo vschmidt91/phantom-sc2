@@ -43,9 +43,7 @@ class CombatSimulatorParameters:
         self._lancester_dimension_logit = params.optimize[OptimizationTarget.CostEfficiency].add(
             "lancester_dimension_logit", Prior(0.0, 0.1)
         )
-        self._bonus_range = params.optimize[OptimizationTarget.CostEfficiency].add(
-            "bonus_range", Prior(1.0, 0.5)
-        )
+        self._bonus_range = params.optimize[OptimizationTarget.CostEfficiency].add("bonus_range", Prior(1.0, 0.5))
 
     @property
     def time_distribution_lambda(self) -> float:
