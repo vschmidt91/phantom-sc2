@@ -265,7 +265,11 @@ class Agent:
             if structure.health_percentage < 0.05:
                 actions[structure] = UseAbility(AbilityId.CANCEL)
 
-        actions.update(self._maybe_cancel_roach_warren())
+        self._maybe_skip_roach_warren()
+        if self._skip_roach_warren:
+            actions.update(
+                {w: UseAbility(AbilityId.CANCEL) for w in self.bot.structures(UnitTypeId.ROACHWARREN).not_ready}
+            )
 
         actions.update(self._micro_queens(queens, combat))
 
@@ -486,17 +490,9 @@ class Agent:
 
             return dist_to_our_spawn < closest_enemy_spawn_dist
 
-    def _maybe_cancel_roach_warren(self) -> Mapping[Unit, Action]:
-        actions = {}
-        roach_warrens = self.bot.structures(UnitTypeId.ROACHWARREN)
-        if (
-            self.bot.townhalls.amount < 3
-            and self._enemy_expanded
-            and not self.bot.mediator.get_did_enemy_rush
-            and not self._proxy_structures
-        ):
-            self._skip_roach_warren = True
-            actions.update({w: UseAbility(AbilityId.CANCEL) for w in roach_warrens.not_ready})
+    def _maybe_skip_roach_warren(self) -> None:
+        if self.bot.townhalls.amount < 3:
+            if self._enemy_expanded and not self.bot.mediator.get_did_enemy_rush and not self._proxy_structures:
+                self._skip_roach_warren = True
         else:
             self._skip_roach_warren = False
-        return actions
