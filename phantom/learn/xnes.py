@@ -29,13 +29,19 @@ class XNES:
 
     def ask(self, num_samples=None, rng=None):
         n = num_samples or (4 + int(3 * np.log(self.dim)))
-        n2 = n // 2
+        n_half = n // 2
         rng = rng or np.random.default_rng()
-        z2 = rng.standard_normal((self.dim, n2))
-        # orthogonal sampling if possible
-        if n2 <= self.dim:
-            z2 = qr(z2, mode="economic")[0] * np.sqrt(rng.chisquare(self.dim, n2))
-        z = np.hstack([z2, -z2])
+
+        z_half = np.empty((self.dim, n_half))
+        for start in range(0, n_half, self.dim):
+            end = min(start + self.dim, n_half)
+            k = end - start
+            raw = rng.standard_normal((self.dim, k))
+            lengths = np.sqrt(rng.chisquare(self.dim, k))
+            basis, _ = qr(raw, mode="economic")
+            z_half[:, start:end] = basis * lengths
+
+        z = np.hstack([z_half, -z_half])
         x = self.loc[:, None] + self.scale @ z
         return z, x
 
