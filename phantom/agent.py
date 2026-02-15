@@ -496,7 +496,7 @@ class Agent:
             and not self._proxy_structures
         ):
             self._skip_roach_warren = True
-
             actions.update({w: UseAbility(AbilityId.CANCEL) for w in roach_warrens.not_ready})
-
+        else:
+            self._skip_roach_warren = False
         return actions
