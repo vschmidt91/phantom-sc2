@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from ares.behaviors.macro.mining import TOWNHALL_RADIUS
+from ares.consts import TOWNHALL_TYPES
 from cython_extensions import cy_closest_to, cy_distance_to
 from loguru import logger
 from sc2.data import Race, Result
@@ -16,7 +17,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from phantom.common.action import Action, Attack, Move, MovePath, UseAbility
+from phantom.common.action import Action, Attack, HoldPosition, Move, MovePath, UseAbility
 from phantom.common.blocked_positions import BlockedPositionTracker
 from phantom.common.config import BotConfig
 from phantom.common.constants import (
@@ -79,6 +80,8 @@ class Agent:
             "army_priority", Prior(1.5, 0.1), Prior(0.808, 0.1), Prior(0.5, 0.1)
         )
         self.supply_efficiency = MetricAccumulator()
+        self._enemy_expanded = False
+        self._scout_overlord_tag: int | None = None
         self._load_parameters()
         self._log_parameters()
 
@@ -263,11 +266,20 @@ class Agent:
             )
         )
 
+        if self._scout_overlord_tag is None:
+            overlords = self.bot.units(UnitTypeId.OVERLORD)
+            if overlords:
+                self._scout_overlord_tag = overlords[0].tag
+
+        if self._scout_overlord_tag is not None:
+            scout_overlord = self.bot.unit_tag_dict.get(self._scout_overlord_tag)
+            if scout_overlord:
+                actions[scout_overlord] = self._send_overlord_scout(scout_overlord)
+
         for overlord in self.bot.units(UnitTypeId.OVERLORD):
-            if self.bot.actual_iteration == 1:
-                actions[overlord] = self._send_overlord_scout(overlord)
-            if action := combat.keep_unit_safe(overlord):
-                actions[overlord] = action
+            if overlord.tag != self._scout_overlord_tag:
+                if action := combat.keep_unit_safe(overlord):
+                    actions[overlord] = action
 
         for tumor in self.creep_tumors.active_tumors:
             if action := self.creep_spread.spread_with(tumor):
@@ -322,36 +334,44 @@ class Agent:
         return actions
 
     def _send_overlord_scout(self, overlord: Unit) -> Action:
-        scout_path = list[Point2]()
         sight_range = overlord.sight_range
-        townhall_size = self.bot.townhalls[0].radius - 1.0
-        worker_speed = 1.4 * self.bot.workers[0].real_speed
-        overlord_speed = 1.4 * overlord.real_speed
-        sensitivity = int(sight_range)
-        rush_path = self.bot.mediator.find_raw_path(
-            start=self.bot.start_location,
-            target=self.bot.enemy_start_locations[0],
-            grid=self.bot.clean_ground_grid,
-            sensitivity=sensitivity,
-        )
-        for p in rush_path:
-            overlord_duration = (cy_distance_to(overlord.position, p) - sight_range) / overlord_speed
-            worker_duration = cy_distance_to(self.bot.enemy_start_locations[0], p) / worker_speed
-            if overlord_duration < worker_duration:
-                continue
-            if cy_distance_to(p, self.bot.mediator.get_enemy_nat) < sight_range + townhall_size:
-                break
-            if cy_distance_to(p, self.bot.mediator.get_enemy_ramp.barracks_correct_placement) < sight_range:
-                break
-            scout_path.append(p)
-        nat_scout_point = self.bot.mediator.get_enemy_nat.towards(scout_path[-1], TOWNHALL_RADIUS + sight_range)
-        scout_path.append(nat_scout_point)
-        if self.bot.enemy_race in {Race.Zerg, Race.Random}:
-            safe_spot = rush_path[len(rush_path) // 2]
+        enemy_nat = self.bot.mediator.get_enemy_nat
+        
+        if not self._enemy_expanded:
+            enemy_townhalls = self.bot.enemy_structures(TOWNHALL_TYPES)
+            expansion_townhalls = [th for th in enemy_townhalls 
+                                 if cy_distance_to(th.position, self.bot.enemy_start_locations[0]) > 10]
+            if expansion_townhalls:
+                self._enemy_expanded = True
+        
+        if self._enemy_expanded or self.bot.time >= 140:
+            if self.bot.enemy_race in {Race.Zerg, Race.Random}:
+                safe_spot = self.bot.mediator.get_enemy_third
+            else:
+                safe_spot = self.bot.mediator.get_ol_spot_near_enemy_nat
+            return Move(safe_spot)
+        
+        distance_to_nat = cy_distance_to(overlord.position, enemy_nat)
+        if distance_to_nat > sight_range:
+            return Move(enemy_nat)
         else:
-            safe_spot = self.bot.mediator.get_ol_spot_near_enemy_nat
-        scout_path.append(safe_spot)
-        return MovePath(scout_path)
+            if self.bot.enemy_race in {Race.Zerg, Race.Random}:
+                safe_spot = self.bot.mediator.get_enemy_third
+            else:
+                safe_spot = self.bot.mediator.get_ol_spot_near_enemy_nat
+            
+            safe_to_nat_distance = cy_distance_to(safe_spot, enemy_nat)
+            if safe_to_nat_distance <= sight_range:
+                return Move(safe_spot)
+            else:
+                direction = safe_spot - enemy_nat
+                direction_length = cy_distance_to(Point2((0, 0)), direction)
+                if direction_length > 0:
+                    normalized_direction = direction / direction_length
+                    optimal_position = enemy_nat + normalized_direction * sight_range
+                    return Move(optimal_position)
+                else:
+                    return HoldPosition()
 
     def _load_parameters(self) -> None:
         try:
@@ -420,3 +440,57 @@ class Agent:
         logger.info(f"{self.simulator.parameters.__dict__=}")
         logger.info(f"{self.combat.parameters.__dict__=}")
         logger.info(f"{self.strategy_paramaters.__dict__=}")
+
+    def _detect_proxy_structure(self, structure: Unit) -> bool:
+        """
+        Detect if an enemy structure is likely a proxy based on its position relative to
+        friendly and enemy bases/structures.
+        
+        Args:
+            structure: The enemy structure to analyze
+            
+        Returns:
+            True if the structure is likely a proxy, False otherwise
+        """
+        if structure.is_mine:
+            return False
+            
+        structure_pos = structure.position
+        
+        # Get all other enemy structures (excluding the one we're analyzing)
+        other_enemy_structures = [s for s in self.bot.enemy_structures if s.tag != structure.tag]
+        
+        if other_enemy_structures:
+            # Compare average distance to our structures vs their structures
+            our_structures = list(self.bot.structures)
+            if not our_structures:
+                # Fallback to start location if we have no structures
+                our_structures = [type('MockUnit', (), {'position': self.bot.start_location})()]
+            
+            # Calculate average distance to our structures
+            avg_dist_to_ours = sum(
+                cy_distance_to(structure_pos, s.position) for s in our_structures
+            ) / len(our_structures)
+            
+            # Calculate average distance to their other structures
+            avg_dist_to_theirs = sum(
+                cy_distance_to(structure_pos, s.position) for s in other_enemy_structures
+            ) / len(other_enemy_structures)
+            
+            # If closer to our structures than to their own structures, likely a proxy
+            return avg_dist_to_ours < avg_dist_to_theirs
+        else:
+            # No other enemy structures visible, check spawn locations
+            if not self.bot.enemy_start_locations:
+                return False  # Can't determine without enemy spawn info
+            
+            dist_to_our_spawn = cy_distance_to(structure_pos, self.bot.start_location)
+            
+            # Find closest enemy spawn
+            closest_enemy_spawn_dist = min(
+                cy_distance_to(structure_pos, enemy_spawn) 
+                for enemy_spawn in self.bot.enemy_start_locations
+            )
+            
+            # If closer to our spawn than to enemy spawn, likely a proxy
+            return dist_to_our_spawn < closest_enemy_spawn_dist
