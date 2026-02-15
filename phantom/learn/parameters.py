@@ -170,17 +170,10 @@ class ParameterOptimizer:
         bias = self.add(f"{name}_b", bias_prior)
 
         if full:
-            upper = [
-                self.add(f"{name}_q{i}_{j}", factor_prior)
-                for i in range(n)
-                for j in range(i, n)
-            ]
+            upper = [self.add(f"{name}_q{i}_{j}", factor_prior) for i in range(n) for j in range(i, n)]
             return QuadraticTransform(linear, bias, factors=[], upper=upper)
         else:
-            factors = [
-                [self.add(f"{name}_f{k}_{j}", factor_prior) for j in range(n)]
-                for k in range(rank)
-            ]
+            factors = [[self.add(f"{name}_f{k}_{j}", factor_prior) for j in range(n)] for k in range(rank)]
             return QuadraticTransform(linear, bias, factors=factors, upper=None)
 
     def add_mlp_transform(
@@ -204,10 +197,7 @@ class ParameterOptimizer:
             weight_prior = Prior(0.0, 1.0)
         if bias_prior is None:
             bias_prior = Prior(0.0, 0.1)
-        weights = [
-            [self.add(f"{name}_w{k}_{j}", weight_prior) for j in range(n_inputs)]
-            for k in range(hidden_size)
-        ]
+        weights = [[self.add(f"{name}_w{k}_{j}", weight_prior) for j in range(n_inputs)] for k in range(hidden_size)]
         hidden_biases = [self.add(f"{name}_bh{k}", bias_prior) for k in range(hidden_size)]
         output_weights = [self.add(f"{name}_v{k}", weight_prior) for k in range(hidden_size)]
         output_bias = self.add(f"{name}_bo", bias_prior)
