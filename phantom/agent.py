@@ -81,6 +81,7 @@ class Agent:
         self.supply_efficiency = MetricAccumulator()
         self._enemy_expanded = False
         self._scout_overlord_tag: int | None = None
+        self._proxy_structures: list[Unit] = []
         self._load_parameters()
         self._log_parameters()
 
@@ -110,6 +111,11 @@ class Agent:
 
         supply_efficiency = 1 - self.bot.supply_left if self.bot.supply_left > 0 else -10
         self.supply_efficiency.add_value(supply_efficiency)
+
+        if self.bot.time < 5 * 60 or self.bot.townhalls.amount < 3:
+            self._proxy_structures = [s for s in self.bot.enemy_structures if self._detect_proxy_structure(s)]
+        else:
+            self._proxy_structures = []
 
         combat = self.combat.on_step()
 
