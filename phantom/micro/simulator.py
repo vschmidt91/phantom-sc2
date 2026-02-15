@@ -43,6 +43,9 @@ class CombatSimulatorParameters:
         self._lancester_dimension_logit = params.optimize[OptimizationTarget.CostEfficiency].add(
             "lancester_dimension_logit", Prior(0.0, 0.1)
         )
+        self._bonus_range = params.optimize[OptimizationTarget.CostEfficiency].add(
+            "bonus_range", Prior(1.0, 0.5)
+        )
 
     @property
     def time_distribution_lambda(self) -> float:
@@ -51,6 +54,10 @@ class CombatSimulatorParameters:
     @property
     def lancester_dimension(self) -> float:
         return 1 + expit(self._lancester_dimension_logit.value)
+
+    @property
+    def bonus_range(self) -> float:
+        return self._bonus_range.value
 
 
 class CombatSimulator:
@@ -94,7 +101,7 @@ class CombatSimulator:
         radius = np.array([u.radius for u in units])
         attackable = np.array([self.is_attackable(u) for u in units])
         flying = np.array([u.is_flying for u in units])
-        bonus_range = np.array([1.0 if u.is_enemy else 0.0 for u in units])
+        bonus_range = np.array([self.parameters.bonus_range if u.is_enemy else 0.0 for u in units])
 
         ground_selector = np.where(attackable & ~flying, 1.0, 0.0)
         air_selector = np.where(attackable & flying, 1.0, 0.0)
