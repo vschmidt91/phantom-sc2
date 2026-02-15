@@ -82,6 +82,8 @@ class Agent:
         self._enemy_expanded = False
         self._scout_overlord_tag: int | None = None
         self._proxy_structures: list[Unit] = []
+        self._skip_roach_warren = False
+        self.expansion_boost = 0.7
         self._load_parameters()
         self._log_parameters()
 
@@ -144,7 +146,8 @@ class Agent:
             army_priorities = self.builder.get_priorities(strategy.army_composition, limit=10.0)
             tech_priorities = self.builder.make_upgrades(strategy.composition_target, strategy.filter_upgrade)
             economy_priorities.update(strategy.morph_overlord())
-            expansion_priority = self.builder.expansion_priority()
+            expansion_boost = self.expansion_boost if self._skip_roach_warren else 0.0
+            expansion_priority = self.builder.expansion_priority() + expansion_boost
             economy_priorities[UnitTypeId.HATCHERY] = expansion_priority
 
             for k, v in economy_priorities.items():
@@ -157,7 +160,10 @@ class Agent:
             # make plans
             if expansion_priority > -1 and self.bot.count_planned(UnitTypeId.HATCHERY) == 0:
                 macro_plans[UnitTypeId.HATCHERY] = MacroPlan()
-            for unit, count in strategy.tech_composition.items():
+            tech_composition = dict(strategy.tech_composition)
+            if self._skip_roach_warren:
+                tech_composition.pop(UnitTypeId.ROACHWARREN, None)
+            for unit, count in tech_composition.items():
                 if (
                     self.bot.count_actual(unit) + self.bot.count_pending(unit) < count
                     and not any(self.bot.get_missing_requirements(unit))
@@ -258,6 +264,8 @@ class Agent:
         for structure in self.bot.structures.not_ready:
             if structure.health_percentage < 0.05:
                 actions[structure] = UseAbility(AbilityId.CANCEL)
+
+        actions.update(self._maybe_cancel_roach_warren())
 
         actions.update(self._micro_queens(queens, combat))
 
@@ -477,3 +485,18 @@ class Agent:
             )
 
             return dist_to_our_spawn < closest_enemy_spawn_dist
+
+    def _maybe_cancel_roach_warren(self) -> Mapping[Unit, Action]:
+        actions = {}
+        roach_warrens = self.bot.structures(UnitTypeId.ROACHWARREN)
+        if (
+            self.bot.townhalls.amount < 3
+            and self._enemy_expanded
+            and not self.bot.mediator.get_did_enemy_rush
+            and not self._proxy_structures
+        ):
+            self._skip_roach_warren = True
+
+            actions.update({w: UseAbility(AbilityId.CANCEL) for w in roach_warrens.not_ready})
+
+        return actions

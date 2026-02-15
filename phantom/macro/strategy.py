@@ -275,8 +275,8 @@ class Strategy:
         composition = defaultdict[UnitTypeId, float](float)
         if self.tier >= StrategyTier.HATCH:
             composition[UnitTypeId.SPAWNINGPOOL] += 1
-        if self.tier >= StrategyTier.LAIR:
             composition[UnitTypeId.ROACHWARREN] += 1
+        if self.tier >= StrategyTier.LAIR:
             composition[UnitTypeId.HYDRALISKDEN] += 1
             composition[UnitTypeId.EVOLUTIONCHAMBER] += 1
         if self.tier >= StrategyTier.HIVE:
