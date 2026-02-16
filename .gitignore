@@ -143,3 +143,5 @@ dmypy.json
 profile_output*
 /notebooks/exdata/
 /notebooks/outcmaes/
+.aider*
+.venv-wsl
