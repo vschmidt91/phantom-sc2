@@ -84,6 +84,9 @@ class Agent:
         self.army_priority_transform = self.optimizer.optimize[OptimizationTarget.CostEfficiency].add_scalar_transform(
             "army_priority", Prior(1.5, 0.1), Prior(0.808, 0.1), Prior(0.5, 0.1)
         )
+        self._army_priority_boost_vs_rush_log = self.optimizer.optimize[OptimizationTarget.CostEfficiency].add(
+            "army_priority_boost_vs_rush_log", Prior(0.0, 1.0)
+        )
         self.supply_efficiency = MetricAccumulator()
         self._enemy_expanded = False
         self._scout_overlord_tag: int | None = None
@@ -92,6 +95,10 @@ class Agent:
         self.expansion_boost = 0.7
         self._load_parameters()
         self._log_parameters()
+
+    @property
+    def army_priority_boost_vs_rush(self) -> float:
+        return np.exp(self._army_priority_boost_vs_rush_log.value)
 
     def on_step(self) -> Mapping[Unit, Action]:
         enemy_combatants = self.bot.enemy_units.exclude_type(ENEMY_CIVILIANS)
@@ -160,7 +167,10 @@ class Agent:
             for k, v in economy_priorities.items():
                 build_priorities[k] = self.economy_priority_transform.transform([v, combat.confidence_global, 1.0])
             for k, v in army_priorities.items():
-                build_priorities[k] = self.army_priority_transform.transform([v, combat.confidence_global, 1.0])
+                v2 = self.army_priority_transform.transform([v, combat.confidence_global, 1.0])
+                if self.bot.mediator.get_did_enemy_rush:
+                    v2 += self.army_priority_boost_vs_rush
+                build_priorities[k] = v2
             for k, v in tech_priorities.items():
                 build_priorities[k] = self.tech_priority_transform.transform([v, combat.confidence_global, 1.0])
 
