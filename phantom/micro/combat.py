@@ -259,15 +259,12 @@ class CombatState:
 
         cost = time_to_attack(self.bot.mediator, units, targets) + time_to_kill(self.bot.mediator, units, targets)
 
-        target_tag_to_index = {t.tag: i for i, t in enumerate(targets)}
-        for i, unit in enumerate(units):
-            if (previous_target := self._targets.get(unit.tag)) and (j := target_tag_to_index.get(previous_target.tag)):
-                cost[i, j] = 0.0
-
         assignment = distribute(
             [u.tag for u in units],
             targets,
             cost,
+            sticky=self._targets,
+            sticky_cost=0.0,
         )
 
         return assignment
@@ -363,11 +360,7 @@ class CombatStep:
             (action := self.keep_unit_safe(unit, weight_safety_limit=10.0))
             or (self.attacking_global and (action := self.attack_with(unit)))
             or (action := self.concentrate(unit))
-        ) or (
-            not unit.is_flying
-            and not self.attacking_global
-            and (action := self.retreat_to_creep(unit))
-        ):
+        ) or (not unit.is_flying and not self.attacking_global and (action := self.retreat_to_creep(unit))):
             return action
         else:
             return None

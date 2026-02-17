@@ -43,7 +43,7 @@ def flood_fill_mask(mask: np.ndarray, seeds: Sequence[Point]) -> np.ndarray:
 
 
 class OwnCreep:
-    def __init__(self, bot: "PhantomBot", update_interval: int = 16) -> None:
+    def __init__(self, bot: PhantomBot, update_interval: int = 16) -> None:
         self.bot = bot
         self.update_interval = max(1, update_interval)
         self.grid = np.zeros(bot.game_info.map_size, dtype=bool)

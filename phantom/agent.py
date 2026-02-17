@@ -39,9 +39,10 @@ from phantom.micro.corrosive_bile import CorrosiveBile
 from phantom.micro.creep import CreepSpread, CreepTumors
 from phantom.micro.dead_airspace import DeadAirspace
 from phantom.micro.dodge import Dodge
+from phantom.micro.overlords import Overlords
 from phantom.micro.overseers import Overseers
-from phantom.micro.queens import Queens
 from phantom.micro.own_creep import OwnCreep
+from phantom.micro.queens import Queens
 from phantom.micro.simulator import CombatSimulator, CombatSimulatorParameters
 
 if TYPE_CHECKING:
@@ -63,6 +64,7 @@ class Agent:
         self.creep_spread = CreepSpread(bot)
         self.corrosive_biles = CorrosiveBile(bot)
         self.dodge = Dodge(bot)
+        self.overlords = Overlords(bot)
         self.overseers = Overseers(bot)
         self.blocked_positions = BlockedPositionTracker(bot)
         self.queens = Queens(bot)
@@ -298,9 +300,13 @@ class Agent:
             if scout_overlord:
                 actions[scout_overlord] = self._send_overlord_scout(scout_overlord)
 
-        for overlord in self.bot.units(UnitTypeId.OVERLORD):
-            if overlord.tag != self._scout_overlord_tag and (action := combat.keep_unit_safe(overlord)):
-                actions[overlord] = action
+        actions.update(
+            self.overlords.get_actions(
+                overlords=self.bot.units({UnitTypeId.OVERLORD, UnitTypeId.OVERLORDTRANSPORT}),
+                scout_overlord_tag=self._scout_overlord_tag,
+                combat=combat,
+            )
+        )
 
         for tumor in self.creep_tumors.active_tumors:
             if action := self.creep_spread.spread_with(tumor):

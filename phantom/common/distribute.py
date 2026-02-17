@@ -104,7 +104,10 @@ def distribute(
     b: Sequence[TValue],
     cost: np.ndarray,
     max_assigned: np.ndarray | int | None = None,
+    sticky: Mapping[TKey, TValue] | None = None,
+    sticky_cost: float = 0.0,
 ) -> Mapping[TKey, TValue]:
+    cost = np.array(cost, copy=True)
     n = len(a)
     m = len(b)
     if n == 0:
@@ -117,6 +120,16 @@ def distribute(
         max_assigned = np.full(m, float(max_assigned))
     if np.isnan(cost).any():
         raise ValueError("NaN values are not valid for assignment cost")
+
+    if sticky:
+        target_to_index = {bj: j for j, bj in enumerate(b)}
+        for i, ai in enumerate(a):
+            previous = sticky.get(ai)
+            if previous is None:
+                continue
+            if (j := target_to_index.get(previous)) is not None:
+                cost[i, j] = sticky_cost
+
     solver = get_assignment_solver(n, m)
 
     solver.set_total(np.zeros(m), 0)

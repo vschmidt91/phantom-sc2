@@ -227,7 +227,7 @@ UNIT_COUNTER_DICT = {
         UnitTypeId.ZERGLING: 1e0,
     },
     UnitTypeId.STALKER: {
-        UnitTypeId.ZERGLING: 3e2,
+        UnitTypeId.ZERGLING: 1e2,
         UnitTypeId.HYDRALISK: 1e2,
         UnitTypeId.ROACH: 1e0,
     },
@@ -327,7 +327,7 @@ UNIT_COUNTER_DICT = {
     UnitTypeId.GHOST: {
         UnitTypeId.BROODLORD: 1e2,
         UnitTypeId.ROACH: 1e2,
-        UnitTypeId.ZERGLING: 1e2,
+        UnitTypeId.ZERGLING: 1e1,
         UnitTypeId.HYDRALISK: 1e0,
     },
     UnitTypeId.HELLION: {
@@ -338,7 +338,7 @@ UNIT_COUNTER_DICT = {
     },
     UnitTypeId.SIEGETANK: {
         UnitTypeId.BROODLORD: 1e4,
-        UnitTypeId.ZERGLING: 1e2,
+        UnitTypeId.ZERGLING: 1e1,
         UnitTypeId.HYDRALISK: 1e0,
         UnitTypeId.ROACH: 1e0,
     },
