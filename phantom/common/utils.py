@@ -21,6 +21,8 @@ from sc2.score import ScoreDetails
 from sc2.unit import Unit
 from scipy.spatial.distance import cdist
 
+from phantom.common.types import Point
+
 RNG = np.random.default_rng(42)
 
 
@@ -28,7 +30,6 @@ def count_sorted[T](items: Iterable[T]) -> dict[T, int]:
     return dict(sorted(Counter(items).items()))
 
 
-type Point = tuple[int, int]
 type MacroId = UnitTypeId | UpgradeId
 
 

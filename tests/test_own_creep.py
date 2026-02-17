@@ -1,6 +1,6 @@
 import numpy as np
 
-from phantom.micro.own_creep import flood_fill_mask
+from phantom.common.flood_fill import flood_fill_mask
 
 
 def test_flood_fill_mask_connected_region_only():
