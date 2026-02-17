@@ -26,6 +26,7 @@ from phantom.common.expansion import Expansion
 from phantom.common.point import to_point
 from phantom.common.unit_composition import UnitComposition
 from phantom.common.utils import MacroId
+from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -51,6 +52,7 @@ class Builder:
     def __init__(self, bot: "PhantomBot") -> None:
         self.bot = bot
         self._plans = dict[UnitTypeId, MacroPlan]()
+        self._priorities = dict[MacroId, float]()
         self.min_priority = -1.0
 
     def get_priorities(self, composition: UnitComposition, limit: float = 1.0) -> dict[UnitTypeId, float]:
@@ -126,13 +128,16 @@ class Builder:
 
         return upgrade_priorities
 
-    def on_step(self) -> None:
+    def set_priorities(self, priorities: Mapping[MacroId, float]) -> None:
+        self._priorities = dict(priorities)
+
+    def on_step(self, observation: Observation) -> None:
         for ability, build in BUILDER_ABILITIES.items():
             if self.bot.actions_by_ability[ability]:
                 self._plans.pop(build, None)
         self._assign_unassigned_worker_plans()
 
-    def get_actions(self, priorities: Mapping[MacroId, float]) -> Mapping[Unit, Action]:
+    def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
         actions = dict[Unit, Action]()
         reserve = Cost()
         all_trainers = {
@@ -145,11 +150,11 @@ class Builder:
             )
         }
 
-        priorities_override = dict(priorities)
+        priorities_override = dict(self._priorities)
         for item, plan in self._plans.items():
             priorities_override.setdefault(item, plan.priority)
         plans = dict[MacroId, MacroPlan | None](self._plans)
-        plans.update({item: None for item in priorities if item not in self._plans})
+        plans.update({item: None for item in self._priorities if item not in self._plans})
 
         plans_sorted = sorted(plans.items(), key=lambda p: priorities_override[p[0]], reverse=True)
         for item, plan in plans_sorted:

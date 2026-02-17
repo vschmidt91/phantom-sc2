@@ -24,16 +24,16 @@ from phantom.common.constants import (
     GAS_BY_RACE,
     RESULT_TO_FITNESS,
 )
-from phantom.common.cost import Cost
 from phantom.common.metrics import MetricAccumulator
 from phantom.common.point import to_point
-from phantom.common.utils import MacroId, calculate_cost_efficiency
+from phantom.common.utils import calculate_cost_efficiency
 from phantom.component import Component
-from phantom.learn.parameters import OptimizationTarget, ParameterManager, Prior
+from phantom.learn.parameters import OptimizationTarget, ParameterManager
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.builder import Builder, MacroPlan
-from phantom.macro.mining import MiningContext, MiningState
-from phantom.macro.strategy import Strategy, StrategyParameters
+from phantom.macro.mining import MiningState
+from phantom.macro.planning import MacroPlanning
+from phantom.macro.strategy import StrategyParameters
 from phantom.micro.combat import CombatParameters, CombatState, CombatStep
 from phantom.micro.corrosive_bile import CorrosiveBile
 from phantom.micro.creep import CreepSpread, CreepTumors
@@ -60,7 +60,13 @@ class Agent:
         self.dead_airspace = DeadAirspace(self.bot.clean_ground_grid == 1.0)
         self.simulator = CombatSimulator(bot, CombatSimulatorParameters(self.optimizer))
         self.own_creep = OwnCreep(bot)
-        self.combat = CombatState(bot, CombatParameters(self.optimizer), self.simulator, self.own_creep)
+        self.combat = CombatState(
+            bot,
+            CombatParameters(self.optimizer),
+            self.simulator,
+            self.own_creep,
+            self.dead_airspace,
+        )
         self.builder = Builder(bot)
         self.creep_tumors = CreepTumors(bot)
         self.creep_spread = CreepSpread(bot)
@@ -72,6 +78,13 @@ class Agent:
         self.queens = Queens(bot, self.creep_spread)
         self.transfuse = Transfuse(bot)
         self.strategy_paramaters = StrategyParameters(self.optimizer)
+        self.macro_planning = MacroPlanning(
+            bot=bot,
+            params=self.optimizer,
+            strategy_parameters=self.strategy_paramaters,
+            builder=self.builder,
+            build_order=self.build_order,
+        )
         self.mining = MiningState(bot, self.optimizer)
         self.precombat_components: tuple[Component, ...] = (self.corrosive_biles,)
         self.reactive_components: tuple[Component, ...] = (
@@ -82,40 +95,18 @@ class Agent:
             self.overlords,
             self.dodge,
         )
-        self.build_order_completed = False
         self.gas_ratio = 0.0
-        self.tech_priority_transform = self.optimizer.optimize[OptimizationTarget.CostEfficiency].add_scalar_transform(
-            "tech_priority",
-            Prior(0.591, 0.1),
-            Prior(0.843, 0.1),
-            Prior(-0.097, 0.01),
-        )
-        self.economy_priority_transform = self.optimizer.optimize[
-            OptimizationTarget.CostEfficiency
-        ].add_scalar_transform("economy_priority", Prior(0.842, 0.1), Prior(0.148, 0.03), Prior(0.039, 0.01))
-        self.army_priority_transform = self.optimizer.optimize[OptimizationTarget.CostEfficiency].add_scalar_transform(
-            "army_priority", Prior(1.5, 0.1), Prior(0.808, 0.1), Prior(0.5, 0.1)
-        )
-        self._army_priority_boost_vs_rush_log = self.optimizer.optimize[OptimizationTarget.CostEfficiency].add(
-            "army_priority_boost_vs_rush_log", Prior(0.0, 1.0)
-        )
         self.supply_efficiency = MetricAccumulator()
         self._enemy_expanded = False
         self._scout_overlord_tag: int | None = None
         self._proxy_structures: list[Unit] = []
         self._skip_roach_warren = False
-        self.expansion_boost = 0.7
         self._load_parameters()
         self._log_parameters()
-
-    @property
-    def army_priority_boost_vs_rush(self) -> float:
-        return np.exp(self._army_priority_boost_vs_rush_log.value)
 
     def on_step(self, observation: Observation) -> Mapping[Unit, Action]:
         combatants = observation.combatants
         harvester_return_targets = observation.harvester_return_targets
-        strategy = Strategy(self.bot, self.strategy_paramaters)
 
         supply_efficiency = 1 - self.bot.supply_left if self.bot.supply_left > 0 else -24
         self.supply_efficiency.add_value(supply_efficiency)
@@ -126,64 +117,22 @@ class Agent:
             self._proxy_structures = []
 
         self.own_creep.on_step()
-        combat = self.combat.on_step(self.dead_airspace)
+        self.combat.on_step(observation)
+        combat = self.combat.step
+        if combat is None:
+            return {}
+
+        macro_observation = with_micro(observation, combat=combat)
+        self.macro_planning.set_skip_roach_warren(self._skip_roach_warren)
+        self.macro_planning.on_step(macro_observation)
+        strategy = self.macro_planning.strategy
+        if strategy is None:
+            return {}
 
         actions = dict[Unit, Action]()
-        build_priorities = dict[MacroId, float]()
-        macro_plans = dict[UnitTypeId, MacroPlan]()
-        if not self.build_order_completed:
-            if not self.bot.mediator.is_position_safe(
-                grid=self.bot.ground_grid,
-                position=self.bot.mediator.get_own_nat,
-                weight_safety_limit=10.0,
-            ):
-                self.build_order_completed = True
-            if self.bot.mediator.get_did_enemy_rush:
-                self.build_order_completed = True
-            if step := self.build_order.execute(self.bot):
-                macro_plans.update(step.plans)
-                build_priorities.update(step.priorities)
-                actions.update(step.actions)
-            else:
-                logger.info("Build order completed.")
-                self.build_order_completed = True
-        else:
-            # assess priorities
-            economy_priorities = self.builder.get_priorities(strategy.macro_composition, limit=1.0)
-            army_priorities = self.builder.get_priorities(strategy.army_composition, limit=10.0)
-            tech_priorities = self.builder.make_upgrades(strategy.composition_target, strategy.filter_upgrade)
-            economy_priorities.update(strategy.morph_overlord())
-            expansion_boost = self.expansion_boost if self._skip_roach_warren else 0.0
-            expansion_priority = self.builder.expansion_priority() + expansion_boost
-            economy_priorities[UnitTypeId.HATCHERY] = expansion_priority
-
-            for k, v in economy_priorities.items():
-                build_priorities[k] = self.economy_priority_transform.transform([v, combat.confidence_global, 1.0])
-            for k, v in army_priorities.items():
-                v2 = self.army_priority_transform.transform([v, combat.confidence_global, 1.0])
-                if self.bot.mediator.get_did_enemy_rush:
-                    v2 += self.army_priority_boost_vs_rush
-                build_priorities[k] = v2
-            for k, v in tech_priorities.items():
-                build_priorities[k] = self.tech_priority_transform.transform([v, combat.confidence_global, 1.0])
-
-            # make plans
-            if expansion_priority > -1 and self.bot.count_planned(UnitTypeId.HATCHERY) == 0:
-                macro_plans[UnitTypeId.HATCHERY] = MacroPlan()
-            tech_composition = dict(strategy.tech_composition)
-            if self._skip_roach_warren:
-                tech_composition.pop(UnitTypeId.ROACHWARREN, None)
-            for unit, count in tech_composition.items():
-                if (
-                    self.bot.count_actual(unit) + self.bot.count_pending(unit) < count
-                    and not any(self.bot.get_missing_requirements(unit))
-                ) and self.bot.count_planned(unit) == 0:
-                    macro_plans[unit] = MacroPlan(priority=-0.5)
-            macro_plans.update(strategy.make_spines())
-            macro_plans.update(strategy.make_spores())
-
-        # filter out impossible tasks
-        build_priorities = {k: v for k, v in build_priorities.items() if not any(self.bot.get_missing_requirements(k))}
+        actions.update(self.macro_planning.get_actions(macro_observation))
+        build_priorities = dict(self.macro_planning.build_priorities)
+        macro_plans = dict(self.macro_planning.macro_plans)
 
         self.creep_tumors.on_step()
         self.blocked_positions.on_step()
@@ -218,59 +167,30 @@ class Agent:
         for component in self.precombat_components:
             component.on_step(micro_observation)
 
-        def should_harvest_resource(r: Unit) -> bool:
-            p = to_point(r.position)
-            return self.bot.mediator.is_position_safe(
-                grid=self.bot.ground_grid,
-                position=self.bot.gather_targets[p],
-                weight_safety_limit=6.0,
-            )
+        self.mining.set_context(
+            composition_deficit=strategy.composition_deficit,
+            planned_cost=self.builder.get_planned_cost(),
+            harvesters_exclude=self.builder.assigned_tags | self.bot.pending.keys(),
+        )
+        self.mining.on_step(observation)
+        self.gas_ratio = self.mining.gas_ratio
 
-        required = Cost()
-        required += self.builder.get_planned_cost()
-        required += self.bot.cost.of_composition(strategy.composition_deficit)
-        required -= self.bot.bank
-        required = Cost.max(required, Cost())
-
-        if required.minerals == 0 and required.vespene == 0:
-            gas_ratio = 0.5
-        else:
-            gas_ratio = required.vespene / (required.minerals + required.vespene)
-        self.gas_ratio = max(0, min(1, gas_ratio))
-
-        harvesters = list[Unit]()
-        harvesters_exclude = self.builder.assigned_tags | self.bot.pending.keys()
-        harvesters.extend(self.bot.workers.tags_not_in(harvesters_exclude))
-        harvesters.extend(self.bot.workers_off_map.values())
-
-        gas_target = math.ceil(len(harvesters) * self.gas_ratio)
         if not self.bot.researched_speed and self.bot.harvestable_gas_buildings:
-            gas_target = 2
+            pass
         elif self.bot.townhalls.amount > 1:
-            macro_plans.update(self._build_gas(gas_target))
+            macro_plans.update(self._build_gas(self.mining.gas_target))
 
         for item, plan in macro_plans.items():
             self.builder.add(item, plan)
-        self.builder.on_step()
-
-        mineral_fields = [m for m in self.bot.all_taken_minerals if should_harvest_resource(m)]
-        gas_buildings = [g for g in self.bot.harvestable_gas_buildings if should_harvest_resource(g)]
-
-        resoure_observation = MiningContext(
-            self.bot,
-            harvesters,
-            mineral_fields,
-            gas_buildings,
-            gas_target,
-        )
-        resources = self.mining.step(resoure_observation)
-
+        self.builder.on_step(observation)
+        resources = self.mining.step_result
+        harvesters = self.mining.harvesters
         for harvester in harvesters:
             if not combat.is_unit_safe(
                 harvester, weight_safety_limit=6.0
             ) or self.bot.damage_tracker.time_since_last_damage(harvester) < min(self.bot.state.game_loop, 50):
                 actions[harvester] = combat.retreat_with(harvester) or combat.move_to_safe_spot(harvester)
-            elif action := resources.gather_with(harvester, harvester_return_targets):
+            elif resources and (action := resources.gather_with(harvester, harvester_return_targets)):
                 actions[harvester] = action
 
         for changeling in self.bot.units(CHANGELINGS):
@@ -280,16 +200,16 @@ class Agent:
         for component in self.precombat_components:
             actions.update(component.get_actions(micro_observation))
 
-        combatant_actions = dict[Unit, Action]()
+        combatant_actions = {
+            unit: action for unit, action in self.combat.get_actions(observation).items() if unit not in actions
+        }
         for combatant in combatants:
             if combatant in actions:
                 continue
             if (
                 (combatant.type_id == UnitTypeId.ROACH and (action := self._burrow(combatant)))
                 or (combatant.type_id == UnitTypeId.ROACHBURROWED and (action := self._unburrow(combatant, combat)))
-                or (action := combat.fight_with(combatant))
-                or (action := self._search_with(combatant))
-            ):
+            ) or (combatant not in combatant_actions and (action := self._search_with(combatant))):
                 combatant_actions[combatant] = action
 
         if self.config.max_actions < len(combatant_actions):
@@ -300,8 +220,9 @@ class Agent:
             combatant_actions = {k: combatant_actions[k] for k in selected_keys}
         actions.update(combatant_actions)
 
+        self.builder.set_priorities(build_priorities)
         if self.bot.actual_iteration > 1 or not self.config.skip_first_iteration:
-            actions.update(self.builder.get_actions(build_priorities))
+            actions.update(self.builder.get_actions(observation))
 
         for structure in self.bot.structures.not_ready:
             if structure.health_percentage < 0.05:

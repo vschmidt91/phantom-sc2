@@ -14,9 +14,7 @@ from sc2.unit import Unit
 
 from phantom.common.action import Action, Attack, Move
 from phantom.common.constants import (
-    CIVILIANS,
     COMBATANT_STRUCTURES,
-    ENEMY_CIVILIANS,
     HALF,
     MAX_UNIT_RADIUS,
 )
@@ -34,6 +32,7 @@ from phantom.learn.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.micro.dead_airspace import DeadAirspace
 from phantom.micro.simulator import CombatResult, CombatSetup, CombatSimulator
 from phantom.micro.utils import medoid, time_to_attack, time_to_kill
+from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -216,11 +215,9 @@ class CombatStepContext:
             return None
 
     @classmethod
-    def build(cls, state: "CombatState") -> "CombatStepContext":
-        combatants = state.bot.units.exclude_type(CIVILIANS) | state.bot.structures(COMBATANT_STRUCTURES)
-        enemy_combatants = state.bot.enemy_units.exclude_type(ENEMY_CIVILIANS) | state.bot.enemy_structures(
-            COMBATANT_STRUCTURES
-        )
+    def build(cls, state: "CombatState", observation: Observation) -> "CombatStepContext":
+        combatants = observation.combatants | state.bot.structures(COMBATANT_STRUCTURES)
+        enemy_combatants = observation.enemy_combatants | state.bot.enemy_structures(COMBATANT_STRUCTURES)
         attacking = set(state._attacking_local)
         attacking.update(u.tag for u in enemy_combatants)
         setup = CombatSetup(
@@ -244,6 +241,7 @@ class CombatState:
         parameters: CombatParameters,
         simulator: CombatSimulator,
         own_creep: "OwnCreep",
+        dead_airspace: DeadAirspace | None = None,
     ) -> None:
         self.bot = bot
         self.parameters = parameters
@@ -252,6 +250,8 @@ class CombatState:
         self._targets: Mapping[int, Unit] = dict()
         self.simulator = simulator
         self.own_creep = own_creep
+        self.dead_airspace = dead_airspace
+        self._step: CombatStep | None = None
 
     def _assign_targets(self, units: Sequence[Unit], targets: Sequence[Unit]) -> Mapping[int, Unit]:
         if not any(units) or not any(targets):
@@ -269,8 +269,12 @@ class CombatState:
 
         return assignment
 
-    def on_step(self, dead_airspace: DeadAirspace | None = None) -> "CombatStep":
-        context = CombatStepContext.build(self)
+    @property
+    def step(self) -> "CombatStep | None":
+        return self._step
+
+    def on_step(self, observation: Observation) -> None:
+        context = CombatStepContext.build(self, observation)
 
         self._targets = self._assign_targets(context.combatants, context.enemy_combatants)
         targets = {self.bot.unit_tag_dict[tag]: target for tag, target in self._targets.items()}
@@ -286,7 +290,21 @@ class CombatState:
             elif outcome < self.parameters.disengagement_threshold:
                 self._attacking_local.discard(tag)
 
-        return CombatStep(context, self._attacking_global, frozenset(self._attacking_local), targets, dead_airspace)
+        self._step = CombatStep(
+            context,
+            self._attacking_global,
+            frozenset(self._attacking_local),
+            targets,
+            self.dead_airspace,
+        )
+
+    def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
+        if self._step is None:
+            self.on_step(observation)
+        step = self._step
+        if step is None:
+            return {}
+        return {combatant: action for combatant in observation.combatants if (action := step.fight_with(combatant))}
 
 
 class CombatStep:

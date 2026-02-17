@@ -49,7 +49,7 @@ class StrategyParameters:
         )
         self.hydras_when_banking = 13
         self.lings_when_banking = 8
-        self.queens_when_banking = 2
+        self.queens_when_banking = 4
         self.supply_buffer_log = params.optimize[OptimizationTarget.SupplyEfficiency].add(
             "supply_buffer_log", Prior(2.0, 0.3)
         )

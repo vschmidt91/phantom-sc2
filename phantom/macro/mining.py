@@ -1,5 +1,5 @@
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence, Set
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -12,11 +12,14 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from phantom.common.action import Action, Smart
+from phantom.common.cost import Cost
 from phantom.common.distribute import get_assignment_solver
 from phantom.common.metrics import MetricAccumulator
 from phantom.common.point import Point, to_point
+from phantom.common.unit_composition import UnitComposition
 from phantom.common.utils import pairwise_distances
 from phantom.learn.parameters import OptimizationTarget, ParameterManager, Prior
+from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -110,6 +113,78 @@ class MiningState:
         self.assignment: HarvesterAssignment = {}
         self.gather_hash = 0
         self.efficiency = MetricAccumulator()
+        self.gas_ratio = 0.0
+        self.gas_target = 0
+        self.harvesters = list[Unit]()
+        self._composition_deficit: UnitComposition = {}
+        self._planned_cost = Cost()
+        self._harvester_exclude = set[int]()
+        self._step: MiningStep | None = None
+
+    def set_context(
+        self,
+        composition_deficit: UnitComposition,
+        planned_cost: Cost,
+        harvesters_exclude: Set[int],
+    ) -> None:
+        self._composition_deficit = dict(composition_deficit)
+        self._planned_cost = planned_cost
+        self._harvester_exclude = set(harvesters_exclude)
+
+    @property
+    def step_result(self) -> "MiningStep | None":
+        return self._step
+
+    def on_step(self, observation: Observation) -> None:
+        required = Cost()
+        required += self._planned_cost
+        required += observation.bot.cost.of_composition(self._composition_deficit)
+        required -= observation.bot.bank
+        required = Cost.max(required, Cost())
+
+        if required.minerals == 0 and required.vespene == 0:
+            gas_ratio = 0.5
+        else:
+            gas_ratio = required.vespene / (required.minerals + required.vespene)
+        self.gas_ratio = max(0, min(1, gas_ratio))
+
+        harvesters = list[Unit]()
+        harvesters.extend(observation.bot.workers.tags_not_in(self._harvester_exclude))
+        harvesters.extend(observation.bot.workers_off_map.values())
+        self.harvesters = harvesters
+
+        gas_target = math.ceil(len(harvesters) * self.gas_ratio)
+        if not observation.bot.researched_speed and observation.bot.harvestable_gas_buildings:
+            gas_target = 2
+        self.gas_target = gas_target
+
+        def should_harvest_resource(r: Unit) -> bool:
+            p = to_point(r.position)
+            return observation.bot.mediator.is_position_safe(
+                grid=observation.bot.ground_grid,
+                position=observation.bot.gather_targets[p],
+                weight_safety_limit=6.0,
+            )
+
+        mineral_fields = [m for m in observation.bot.all_taken_minerals if should_harvest_resource(m)]
+        gas_buildings = [g for g in observation.bot.harvestable_gas_buildings if should_harvest_resource(g)]
+        context = MiningContext(
+            observation.bot,
+            harvesters,
+            mineral_fields,
+            gas_buildings,
+            gas_target,
+        )
+        self._step = self.step(context)
+
+    def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
+        if self._step is None:
+            return {}
+        return {
+            harvester: action
+            for harvester in self.harvesters
+            if (action := self._step.gather_with(harvester, observation.harvester_return_targets))
+        }
 
     def step(self, observation: MiningContext) -> "MiningStep":
         action = MiningStep(self, observation)
