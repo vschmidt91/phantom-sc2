@@ -37,6 +37,7 @@ from phantom.macro.strategy import Strategy, StrategyParameters
 from phantom.micro.combat import CombatParameters, CombatState, CombatStep
 from phantom.micro.corrosive_bile import CorrosiveBile
 from phantom.micro.creep import CreepSpread, CreepTumors
+from phantom.micro.dead_airspace import DeadAirspace
 from phantom.micro.dodge import Dodge
 from phantom.micro.overseers import Overseers
 from phantom.micro.queens import Queens
@@ -52,6 +53,7 @@ class Agent:
         self.config = config
         self.optimizer = ParameterManager(config.optimizer_pop_size)
         self.build_order = BUILD_ORDERS[self.config.build_order]
+        self.dead_airspace = DeadAirspace(self.bot.clean_ground_grid == 1.0)
         self.simulator = CombatSimulator(bot, CombatSimulatorParameters(self.optimizer))
         self.combat = CombatState(bot, CombatParameters(self.optimizer), self.simulator)
         self.builder = Builder(bot)
@@ -119,7 +121,7 @@ class Agent:
         else:
             self._proxy_structures = []
 
-        combat = self.combat.on_step()
+        combat = self.combat.on_step(self.dead_airspace)
 
         actions = dict[Unit, Action]()
         build_priorities = dict[MacroId, float]()

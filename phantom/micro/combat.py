@@ -31,6 +31,7 @@ from phantom.common.utils import (
     to_point,
 )
 from phantom.learn.parameters import OptimizationTarget, ParameterManager, Prior
+from phantom.micro.dead_airspace import DeadAirspace
 from phantom.micro.simulator import CombatResult, CombatSetup, CombatSimulator
 from phantom.micro.utils import medoid, time_to_attack, time_to_kill
 
@@ -261,7 +262,7 @@ class CombatState:
 
         return assignment
 
-    def on_step(self) -> "CombatStep":
+    def on_step(self, dead_airspace: DeadAirspace | None = None) -> "CombatStep":
         context = CombatStepContext.build(self)
 
         self._targets = self._assign_targets(context.combatants, context.enemy_combatants)
@@ -278,7 +279,7 @@ class CombatState:
             elif outcome < self.parameters.disengagement_threshold:
                 self._attacking_local.discard(tag)
 
-        return CombatStep(context, self._attacking_global, frozenset(self._attacking_local), targets)
+        return CombatStep(context, self._attacking_global, frozenset(self._attacking_local), targets, dead_airspace)
 
 
 class CombatStep:
@@ -288,12 +289,14 @@ class CombatStep:
         attacking_global: bool,
         attacking_local: Set[int],
         targets: Mapping[Unit, Unit],
+        dead_airspace: DeadAirspace | None = None,
     ) -> None:
         self.bot = context.state.bot
         self.context = context
         self.attacking_global = attacking_global
         self.attacking_local = attacking_local
         self.targets = targets
+        self.dead_airspace = dead_airspace
 
     @property
     def confidence_global(self) -> float:
@@ -342,7 +345,7 @@ class CombatStep:
 
         if ground_range > 2 and (action := self._shoot_target_in_range(unit)):
             return action
-        elif not (target := self.targets.get(unit)):
+        elif not (target := self.targets.get(unit)) or not self._can_target(unit, target):
             return None
         elif unit.tag in self.attacking_local:
             return Attack(target.position if ground_range < 2 else target)
@@ -398,6 +401,7 @@ class CombatStep:
             return (
                 cy_attack_ready(self.bot, unit, target)
                 and unit.target_in_range(target)
+                and self._can_target(unit, target)
                 and (
                     not (target.is_cloaked or target.is_burrowed)
                     or self.bot.mediator.get_is_detected(unit=target, by_enemy=target.is_mine)
@@ -423,3 +427,10 @@ class CombatStep:
             return Attack(target)
 
         return None
+
+    def _can_target(self, unit: Unit, target: Unit) -> bool:
+        if not target.is_flying:
+            return True
+        if self.dead_airspace is None:
+            return True
+        return self.dead_airspace.check(unit, target)
