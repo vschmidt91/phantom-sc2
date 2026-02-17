@@ -1,4 +1,5 @@
-from collections.abc import Sequence
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from cython_extensions import cy_distance_to
@@ -9,22 +10,35 @@ from phantom.common.action import Action, Move, UseAbility
 from phantom.common.constants import ENERGY_GENERATION_RATE
 from phantom.common.distribute import distribute
 from phantom.common.utils import pairwise_distances
-from phantom.micro.combat import CombatStep
 from phantom.micro.creep import CreepSpread
-from phantom.micro.transfuse import Transfuse
+from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
+    from phantom.micro.combat import CombatStep
 
 
 class Queens:
-    def __init__(self, bot: "PhantomBot") -> None:
+    def __init__(self, bot: PhantomBot, creep: CreepSpread) -> None:
         self.bot = bot
-        self.transfuse = Transfuse(bot)
+        self.creep = creep
+        self._queens = list[Unit]()
+        self._inject_targets = list[Unit]()
+        self._combat: CombatStep | None = None
+        self._should_spread_creep = False
 
-    def get_actions(
-        self, queens: Sequence[Unit], inject_targets: Sequence[Unit], creep: CreepSpread | None, combat: CombatStep
-    ) -> dict[Unit, Action]:
+    def on_step(self, observation: Observation) -> None:
+        self._queens = list(observation.queens)
+        self._inject_targets = list(observation.bot.townhalls.ready if observation.should_inject else [])
+        self._combat = observation.combat
+        self._should_spread_creep = observation.should_spread_creep
+
+    def get_actions(self, observation: Observation) -> dict[Unit, Action]:
+        if self._combat is None:
+            return {}
+        queens = self._queens
+        inject_targets = self._inject_targets
+        creep = self.creep if self._should_spread_creep else None
         inject_assignment = (
             distribute(
                 inject_targets,
@@ -47,19 +61,16 @@ class Queens:
                     queen=queen,
                     inject_target=inject_assignment_inverse.get(queen),
                     creep=creep,
-                    combat=combat,
+                    combat=self._combat,
                 )
             )
         }
-        self.transfuse.on_step()
         return actions
 
     def _get_action(
         self, queen: Unit, inject_target: Unit | None, creep: CreepSpread | None, combat: CombatStep
     ) -> Action | None:
-        if action := self.transfuse.transfuse_with(queen):
-            return action
-        elif not combat.is_unit_safe(queen):
+        if not combat.is_unit_safe(queen):
             return combat.fight_with(queen)
         elif inject_target and (action := self._inject_with(queen, inject_target)):  # noqa: SIM114
             return action

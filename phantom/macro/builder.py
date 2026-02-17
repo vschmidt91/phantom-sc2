@@ -79,6 +79,12 @@ class Builder:
         self._plans[item] = plan
         logger.info(f"Planning {item} through {plan}")
 
+    def is_planned(self, item: UnitTypeId) -> bool:
+        return item in self._plans
+
+    def plans(self) -> Mapping[UnitTypeId, MacroPlan]:
+        return self._plans
+
     def get_planned_cost(self) -> Cost:
         return sum(map(self.bot.cost.of, self._plans), Cost())
 

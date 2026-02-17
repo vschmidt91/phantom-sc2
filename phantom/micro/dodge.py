@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import chain
 from typing import TYPE_CHECKING
@@ -13,6 +16,7 @@ from phantom.common.utils import RNG
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
+    from phantom.observation import Observation
 
 
 @dataclass(frozen=True)
@@ -46,7 +50,7 @@ class DodgeItem:
 
 
 class Dodge:
-    def __init__(self, bot: "PhantomBot") -> None:
+    def __init__(self, bot: PhantomBot) -> None:
         self.bot = bot
         self.dodge_effects = dict[DodgeItem, float]()
         self.dodge_units = dict[DodgeItem, float]()
@@ -54,7 +58,7 @@ class Dodge:
         self.safety_time = 0.5
         self.min_distance = 1e-3
 
-    def on_step(self) -> None:
+    def on_step(self, observation: Observation | None = None) -> None:
         self.dodge_units = {
             DodgeItem(unit.position, circle): self.bot.time
             for unit in self.bot.enemy_units(set(DODGE_UNITS))
@@ -74,6 +78,9 @@ class Dodge:
         for item, time_of_impact in list(self.dodge_effects.items()):
             if time_of_impact < self.bot.time:
                 del self.dodge_effects[item]
+
+    def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
+        return {unit: action for unit in observation.bot.units if (action := self.dodge_with(unit))}
 
     def dodge_with(self, unit: Unit) -> Action | None:
         for item, time_of_impact in chain(self.dodge_effects.items(), self.dodge_units.items()):

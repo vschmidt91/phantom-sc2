@@ -1,4 +1,6 @@
-from collections.abc import Mapping, Sequence
+from __future__ import annotations
+
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -10,10 +12,11 @@ from sc2.unit import Unit
 from phantom.common.action import Action, Move, UseAbility
 from phantom.common.distribute import distribute
 from phantom.common.utils import pairwise_distances
-from phantom.micro.combat import CombatStep
+from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
+    from phantom.micro.combat import CombatStep
 
 
 @dataclass
@@ -30,8 +33,12 @@ class ScoutPosition(Action):
 
 
 class Overseers:
-    def __init__(self, bot: "PhantomBot"):
+    def __init__(self, bot: PhantomBot):
         self.bot = bot
+        self._overseers = list[Unit]()
+        self._scout_targets = list[Unit]()
+        self._detection_targets = list[Point2]()
+        self._combat: CombatStep | None = None
 
     def target_cost(self, target: Unit) -> float:
         is_detected = self.bot.mediator.get_is_detected(unit=target, by_enemy=target.is_mine)
@@ -39,13 +46,18 @@ class Overseers:
             return 0.1
         return 1
 
-    def get_actions(
-        self,
-        overseers: Sequence[Unit],
-        scout_targets: Sequence[Unit],
-        detection_targets: Sequence[Point2],
-        combat: CombatStep,
-    ) -> Mapping[Unit, Action]:
+    def on_step(self, observation: Observation) -> None:
+        self._overseers = list(observation.overseers)
+        self._scout_targets = list(observation.enemy_combatants or observation.bot.all_enemy_units)
+        self._detection_targets = list(observation.detection_targets)
+        self._combat = observation.combat
+
+    def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
+        if self._combat is None:
+            return {}
+        overseers = self._overseers
+        scout_targets = self._scout_targets
+        detection_targets = self._detection_targets
         detection_assignment = (
             distribute(
                 detection_targets,
@@ -86,7 +98,7 @@ class Overseers:
                     overseer=overseer,
                     detect_target=detection_assignment_inverse.get(overseer),
                     scout_target=scout_assignment.get(overseer),
-                    combat=combat,
+                    combat=self._combat,
                 )
             )
         }

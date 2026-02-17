@@ -2,7 +2,7 @@ import lzma
 import math
 import pickle
 import random
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -21,8 +21,6 @@ from phantom.common.blocked_positions import BlockedPositionTracker
 from phantom.common.config import BotConfig
 from phantom.common.constants import (
     CHANGELINGS,
-    CIVILIANS,
-    ENEMY_CIVILIANS,
     GAS_BY_RACE,
     RESULT_TO_FITNESS,
 )
@@ -30,6 +28,7 @@ from phantom.common.cost import Cost
 from phantom.common.metrics import MetricAccumulator
 from phantom.common.point import to_point
 from phantom.common.utils import MacroId, calculate_cost_efficiency
+from phantom.component import Component
 from phantom.learn.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.builder import Builder, MacroPlan
@@ -45,6 +44,8 @@ from phantom.micro.overseers import Overseers
 from phantom.micro.own_creep import OwnCreep
 from phantom.micro.queens import Queens
 from phantom.micro.simulator import CombatSimulator, CombatSimulatorParameters
+from phantom.micro.transfuse import Transfuse
+from phantom.observation import Observation, with_micro
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -68,9 +69,19 @@ class Agent:
         self.overlords = Overlords(bot)
         self.overseers = Overseers(bot)
         self.blocked_positions = BlockedPositionTracker(bot)
-        self.queens = Queens(bot)
+        self.queens = Queens(bot, self.creep_spread)
+        self.transfuse = Transfuse(bot)
         self.strategy_paramaters = StrategyParameters(self.optimizer)
         self.mining = MiningState(bot, self.optimizer)
+        self.precombat_components: tuple[Component, ...] = (self.corrosive_biles,)
+        self.reactive_components: tuple[Component, ...] = (
+            self.creep_spread,
+            self.queens,
+            self.transfuse,
+            self.overseers,
+            self.overlords,
+            self.dodge,
+        )
         self.build_order_completed = False
         self.gas_ratio = 0.0
         self.tech_priority_transform = self.optimizer.optimize[OptimizationTarget.CostEfficiency].add_scalar_transform(
@@ -101,28 +112,9 @@ class Agent:
     def army_priority_boost_vs_rush(self) -> float:
         return np.exp(self._army_priority_boost_vs_rush_log.value)
 
-    def on_step(self) -> Mapping[Unit, Action]:
-        enemy_combatants = self.bot.enemy_units.exclude_type(ENEMY_CIVILIANS)
-        combatants = self.bot.units.exclude_type(
-            {
-                *CIVILIANS,
-                UnitTypeId.QUEEN,
-                UnitTypeId.QUEENBURROWED,
-            }
-        )
-        queens = self.bot.units(
-            {
-                UnitTypeId.QUEEN,
-                UnitTypeId.QUEENBURROWED,
-            }
-        )
-        overseers = self.bot.units(
-            {
-                UnitTypeId.OVERSEER,
-                UnitTypeId.OVERSEERSIEGEMODE,
-            }
-        )
-        harvester_return_targets = self.bot.townhalls.ready
+    def on_step(self, observation: Observation) -> Mapping[Unit, Action]:
+        combatants = observation.combatants
+        harvester_return_targets = observation.harvester_return_targets
         strategy = Strategy(self.bot, self.strategy_paramaters)
 
         supply_efficiency = 1 - self.bot.supply_left if self.bot.supply_left > 0 else -24
@@ -194,9 +186,37 @@ class Agent:
         build_priorities = {k: v for k, v in build_priorities.items() if not any(self.bot.get_missing_requirements(k))}
 
         self.creep_tumors.on_step()
-        self.creep_spread.on_step()
-        self.dodge.on_step()
         self.blocked_positions.on_step()
+        self.bot.set_blocked_positions(set(self.blocked_positions.blocked_positions))
+        detection_targets = tuple(map(Point2, self.blocked_positions.blocked_positions))
+
+        if self._scout_overlord_tag is None:
+            overlords = self.bot.units(UnitTypeId.OVERLORD)
+            if overlords:
+                self._scout_overlord_tag = overlords[0].tag
+
+        should_inject = self.bot.supply_used + self.bot.bank.larva < 200
+        tumor_count = (
+            self.creep_tumors.unspread_tumor_count
+            + self.bot.count_pending(UnitTypeId.CREEPTUMOR)
+            + self.bot.count_pending(UnitTypeId.CREEPTUMORQUEEN)
+        )
+        tumor_limit = min(3.0 * len(observation.queens), self.bot.time / 30.0)
+        should_spread_creep = tumor_count < tumor_limit and self.bot.mediator.get_creep_coverage < 90
+
+        micro_observation = with_micro(
+            observation,
+            combat=combat,
+            scout_overlord_tag=self._scout_overlord_tag,
+            should_inject=should_inject,
+            should_spread_creep=should_spread_creep,
+            detection_targets=detection_targets,
+            active_tumors=tuple(self.creep_tumors.active_tumors),
+        )
+        for component in self.reactive_components:
+            component.on_step(micro_observation)
+        for component in self.precombat_components:
+            component.on_step(micro_observation)
 
         def should_harvest_resource(r: Unit) -> bool:
             p = to_point(r.position)
@@ -257,11 +277,15 @@ class Agent:
             if action := self._search_with(changeling):
                 actions[changeling] = action
 
+        for component in self.precombat_components:
+            actions.update(component.get_actions(micro_observation))
+
         combatant_actions = dict[Unit, Action]()
         for combatant in combatants:
+            if combatant in actions:
+                continue
             if (
-                (combatant.type_id == UnitTypeId.RAVAGER and (action := self.corrosive_biles.bile_with(combatant)))
-                or (combatant.type_id == UnitTypeId.ROACH and (action := self._burrow(combatant)))
+                (combatant.type_id == UnitTypeId.ROACH and (action := self._burrow(combatant)))
                 or (combatant.type_id == UnitTypeId.ROACHBURROWED and (action := self._unburrow(combatant, combat)))
                 or (action := combat.fight_with(combatant))
                 or (action := self._search_with(combatant))
@@ -289,43 +313,16 @@ class Agent:
                 {w: UseAbility(AbilityId.CANCEL) for w in self.bot.structures(UnitTypeId.ROACHWARREN).not_ready}
             )
 
-        actions.update(self._micro_queens(queens, combat))
-
-        detection_targets = list(map(Point2, self.blocked_positions.blocked_positions))
-        actions.update(
-            self.overseers.get_actions(
-                overseers=overseers,
-                scout_targets=enemy_combatants or self.bot.all_enemy_units,
-                detection_targets=detection_targets,
-                combat=combat,
-            )
-        )
-
-        if self._scout_overlord_tag is None:
-            overlords = self.bot.units(UnitTypeId.OVERLORD)
-            if overlords:
-                self._scout_overlord_tag = overlords[0].tag
-
         if self._scout_overlord_tag is not None:
             scout_overlord = self.bot.unit_tag_dict.get(self._scout_overlord_tag)
             if scout_overlord:
                 actions[scout_overlord] = self._send_overlord_scout(scout_overlord)
 
-        actions.update(
-            self.overlords.get_actions(
-                overlords=self.bot.units({UnitTypeId.OVERLORD, UnitTypeId.OVERLORDTRANSPORT}),
-                scout_overlord_tag=self._scout_overlord_tag,
-                combat=combat,
-            )
-        )
-
-        for tumor in self.creep_tumors.active_tumors:
-            if action := self.creep_spread.spread_with(tumor):
-                actions[tumor] = action
-
-        for unit in self.bot.units:
-            if action := self.dodge.dodge_with(unit):
-                actions[unit] = action
+        for component in self.reactive_components:
+            actions.update(component.get_actions(micro_observation))
+        for queen in observation.queens:
+            if queen not in actions and (action := self._search_with(queen)):
+                actions[queen] = action
 
         if self.config.debug_draw:
             self.builder.debug_draw_plans(build_priorities)
@@ -350,26 +347,6 @@ class Agent:
             optimizer_state = self.optimizer.save()
             with lzma.open(self.config.params_path, "wb") as f:
                 pickle.dump(optimizer_state, f)
-
-    def _micro_queens(self, queens: Sequence[Unit], combat: CombatStep) -> Mapping[Unit, Action]:
-        should_inject = self.bot.supply_used + self.bot.bank.larva < 200
-        tumor_count = (
-            self.creep_tumors.unspread_tumor_count
-            + self.bot.count_pending(UnitTypeId.CREEPTUMOR)
-            + self.bot.count_pending(UnitTypeId.CREEPTUMORQUEEN)
-        )
-        tumor_limit = min(3.0 * len(queens), self.bot.time / 30.0)
-        should_spread_creep = tumor_count < tumor_limit and self.bot.mediator.get_creep_coverage < 90
-        actions = self.queens.get_actions(
-            queens=queens,
-            inject_targets=self.bot.townhalls.ready if should_inject else [],
-            creep=self.creep_spread if should_spread_creep else None,
-            combat=combat,
-        )
-        for queen in queens:
-            if queen not in actions and (action := self._search_with(queen)):
-                actions[queen] = action
-        return actions
 
     def _send_overlord_scout(self, overlord: Unit) -> Action:
         sight_range = overlord.sight_range

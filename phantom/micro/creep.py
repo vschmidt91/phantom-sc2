@@ -13,6 +13,7 @@ from phantom.common.action import Action, UseAbility
 from phantom.common.constants import ENERGY_COST, HALF
 from phantom.common.point import to_point
 from phantom.common.utils import circle, circle_perimeter, line
+from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -27,9 +28,12 @@ class CreepSpread:
         self.value_map = np.zeros_like(self.placement_map)
         self.update_interval = 10
 
-    def on_step(self) -> None:
+    def on_step(self, observation: Observation | None = None) -> None:
         if self.bot.actual_iteration % self.update_interval == 0:
             self._update_maps()
+
+    def get_actions(self, observation: Observation) -> dict[Unit, Action]:
+        return {tumor: action for tumor in observation.active_tumors if (action := self.spread_with(tumor))}
 
     def spread_with(self, unit: Unit) -> Action | None:
         if unit.type_id == UnitTypeId.QUEEN:

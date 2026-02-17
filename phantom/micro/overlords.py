@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
@@ -8,36 +10,40 @@ from sc2.unit import Unit
 
 from phantom.common.action import Action, Move, UseAbility
 from phantom.micro.combat import CombatStep
+from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
 
 
 class Overlords:
-    def __init__(self, bot: "PhantomBot") -> None:
+    def __init__(self, bot: PhantomBot) -> None:
         self.bot = bot
         self._had_lair_tech = False
         self._known_overlords = set[int]()
         self._pending_creep_enable = set[int]()
         self._support_target_by_overlord = dict[int, Point2]()
         self._reassignment_interval = 16
+        self._candidates = list[Unit]()
+        self._combat: CombatStep | None = None
+        self._scout_overlord_tag: int | None = None
 
-    def get_actions(
-        self,
-        overlords: Sequence[Unit],
-        scout_overlord_tag: int | None,
-        combat: CombatStep,
-    ) -> Mapping[Unit, Action]:
-        candidates = [u for u in overlords if u.tag != scout_overlord_tag]
-        if not candidates:
+    def on_step(self, observation: Observation) -> None:
+        overlords = observation.bot.units({UnitTypeId.OVERLORD, UnitTypeId.OVERLORDTRANSPORT})
+        self._scout_overlord_tag = observation.scout_overlord_tag
+        self._combat = observation.combat
+        self._candidates = [u for u in overlords if u.tag != self._scout_overlord_tag]
+        if self._candidates:
+            self._update_creep_enable_queue(self._candidates)
+
+    def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
+        if not self._candidates or self._combat is None:
             return {}
-
-        self._update_creep_enable_queue(candidates)
 
         actions = dict[Unit, Action]()
         movable = list[Unit]()
-        for overlord in candidates:
-            if (action := combat.keep_unit_safe(overlord)) or (action := self._enable_creep_with(overlord)):
+        for overlord in self._candidates:
+            if (action := self._combat.keep_unit_safe(overlord)) or (action := self._enable_creep_with(overlord)):
                 actions[overlord] = action
             else:
                 movable.append(overlord)

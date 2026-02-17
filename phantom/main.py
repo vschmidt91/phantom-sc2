@@ -50,6 +50,7 @@ from phantom.common.utils import (
     Point,
 )
 from phantom.macro.builder import MacroPlan
+from phantom.observation import Observation, build_observation
 
 
 @dataclass(frozen=True)
@@ -76,6 +77,7 @@ class PhantomBot(AresBot):
         self.actions_by_ability = defaultdict[AbilityId, list[UnitCommand]](list)
         self.expansions = dict[Point, Expansion]()
         self.structure_dict = dict[Point, Unit | OrderedStructure | MacroPlan]()
+        self._blocked_positions = set[Point]()
         self.damage_tracker = DamageTracker()
 
         self._setup_logging()
@@ -101,7 +103,8 @@ class PhantomBot(AresBot):
             self.profiler.enable()
 
         self._update_tables()
-        actions = self.agent.on_step()
+        observation = self.observe()
+        actions = self.agent.on_step(observation)
         for unit, action in actions.items():
             await action.execute(unit)
 
@@ -306,7 +309,7 @@ class PhantomBot(AresBot):
 
     def count_planned(self, item: MacroId) -> int:
         factor = 2 if item == UnitTypeId.ZERGLING else 1
-        return factor * (1 if item in self.agent.builder._plans else 0)
+        return factor * int(isinstance(item, UnitTypeId) and self.agent.builder.is_planned(item))
 
     def get_missing_requirements(self, item: MacroId) -> Iterable[MacroId]:
         if item not in REQUIREMENTS_KEYS:
@@ -333,8 +336,8 @@ class PhantomBot(AresBot):
             yield required_upgrade
 
     @property_cache_once_per_frame
-    def blocked_positions(self) -> Set[Point2]:
-        return set(self.agent.blocked_positions.blocked_positions)
+    def blocked_positions(self) -> Set[Point]:
+        return set(self._blocked_positions)
 
     def is_on_edge_of_creep(self, p: Point | Point2 | Unit) -> bool:
         if isinstance(p, tuple):
@@ -458,7 +461,7 @@ class PhantomBot(AresBot):
                 self.pending[unit.tag] = item
 
         self.structure_dict.update({to_point(s.position): s for s in self.structures})
-        for plan in self.agent.builder._plans.values():
+        for plan in self.agent.builder.plans().values():
             if plan.target:
                 self.structure_dict[to_point(plan.target.position)] = plan
 
@@ -498,6 +501,12 @@ class PhantomBot(AresBot):
         )
 
         self.bank = Cost(self.minerals, self.vespene, self.supply_left, self.larva.amount)
+
+    def observe(self) -> Observation:
+        return build_observation(self)
+
+    def set_blocked_positions(self, blocked_positions: Set[Point]) -> None:
+        self._blocked_positions = set(blocked_positions)
 
     @property_cache_once_per_frame
     def ground_grid(self) -> np.ndarray:

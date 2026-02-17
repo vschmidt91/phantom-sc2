@@ -1,14 +1,18 @@
+from __future__ import annotations
+
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from ares import UnitTreeQueryType
 from cython_extensions import cy_distance_to
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
 from phantom.common.action import Action, Move, UseAbility
 from phantom.common.constants import CHANGELINGS
 from phantom.common.utils import air_dps_of, ground_dps_of
+from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -24,11 +28,18 @@ def _target_priority(u: Unit) -> float:
 
 
 class CorrosiveBile:
-    def __init__(self, bot: "PhantomBot") -> None:
+    def __init__(self, bot: PhantomBot) -> None:
         self.bot = bot
         self.ability = AbilityId.EFFECT_CORROSIVEBILE
         self.ability_range = bot.game_data.abilities[self.ability.value]._proto.cast_range
         self.bonus_distance = 2.0
+        self._ravagers = list[Unit]()
+
+    def on_step(self, observation: Observation) -> None:
+        self._ravagers = list(observation.bot.units(UnitTypeId.RAVAGER))
+
+    def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
+        return {ravager: action for ravager in self._ravagers if (action := self.bile_with(ravager))}
 
     def bile_with(self, unit: Unit) -> Action | None:
         if self.ability not in unit.abilities:
