@@ -21,6 +21,7 @@ from phantom.common.constants import (
     MAX_UNIT_RADIUS,
 )
 from phantom.common.distribute import distribute
+from phantom.common.point import to_point
 from phantom.common.utils import (
     Point,
     air_dps_of,
@@ -28,7 +29,6 @@ from phantom.common.utils import (
     ground_dps_of,
     ground_range_of,
     structure_perimeter,
-    to_point,
 )
 from phantom.learn.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.micro.dead_airspace import DeadAirspace

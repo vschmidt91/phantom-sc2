@@ -11,7 +11,8 @@ from scipy.ndimage import gaussian_filter
 
 from phantom.common.action import Action, UseAbility
 from phantom.common.constants import ENERGY_COST, HALF
-from phantom.common.utils import circle, circle_perimeter, line, to_point
+from phantom.common.point import to_point
+from phantom.common.utils import circle, circle_perimeter, line
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot

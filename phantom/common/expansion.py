@@ -8,7 +8,8 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from phantom.common.constants import MINING_RADIUS, WORKER_RADIUS
-from phantom.common.utils import Point, get_intersections, project_point_onto_line, rectangle_perimeter, to_point
+from phantom.common.point import to_point
+from phantom.common.utils import Point, get_intersections, project_point_onto_line, rectangle_perimeter
 
 
 @dataclass

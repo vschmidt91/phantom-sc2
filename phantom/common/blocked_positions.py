@@ -5,7 +5,7 @@ from sc2.data import ActionResult
 from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2
 
-from phantom.common.utils import Point, to_point
+from phantom.common.point import Point, to_point
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot

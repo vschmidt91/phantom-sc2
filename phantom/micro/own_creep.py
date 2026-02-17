@@ -9,7 +9,8 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from phantom.common.flood_fill import flood_fill_mask
-from phantom.common.utils import Point, structure_perimeter, to_point
+from phantom.common.point import Point, to_point
+from phantom.common.utils import structure_perimeter
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot

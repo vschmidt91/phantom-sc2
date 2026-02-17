@@ -1,6 +1,6 @@
 import math
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from functools import cache
 
 import numpy as np
@@ -21,7 +21,8 @@ from sc2.score import ScoreDetails
 from sc2.unit import Unit
 from scipy.spatial.distance import cdist
 
-from phantom.common.types import Point
+from phantom.common.air_range import air_range_of
+from phantom.common.point import Point
 
 RNG = np.random.default_rng(42)
 
@@ -31,10 +32,6 @@ def count_sorted[T](items: Iterable[T]) -> dict[T, int]:
 
 
 type MacroId = UnitTypeId | UpgradeId
-
-
-def to_point(p: Sequence[float]) -> Point:
-    return int(p[0]), int(p[1])
 
 
 def rectangle_perimeter(start: Point, end: Point) -> Iterable[Point]:
@@ -207,13 +204,6 @@ AIR_DPS_OVERRIDE = {
     UnitTypeId.VOIDRAY: 6.0,
 }
 
-AIR_RANGE_OVERRIDE = {
-    UnitTypeId.BATTLECRUISER: 6.0,
-    UnitTypeId.BUNKER: 5.0,
-    UnitTypeId.SENTRY: 5.0,
-    UnitTypeId.VOIDRAY: 6.0,
-}
-
 
 def ground_dps_of(unit: Unit) -> float:
     return GROUND_DPS_OVERRIDE.get(unit.type_id, unit.ground_dps)
@@ -225,10 +215,6 @@ def air_dps_of(unit: Unit) -> float:
 
 def ground_range_of(unit: Unit) -> float:
     return GROUND_RANGE_OVERRIDE.get(unit.type_id, unit.ground_range)
-
-
-def air_range_of(unit: Unit) -> float:
-    return AIR_RANGE_OVERRIDE.get(unit.type_id, unit.air_range)
 
 
 def range_vs(unit: Unit, vs: Unit) -> float:

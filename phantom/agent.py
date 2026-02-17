@@ -28,7 +28,8 @@ from phantom.common.constants import (
 )
 from phantom.common.cost import Cost
 from phantom.common.metrics import MetricAccumulator
-from phantom.common.utils import MacroId, calculate_cost_efficiency, to_point
+from phantom.common.point import to_point
+from phantom.common.utils import MacroId, calculate_cost_efficiency
 from phantom.learn.parameters import OptimizationTarget, ParameterManager, Prior
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.builder import Builder, MacroPlan

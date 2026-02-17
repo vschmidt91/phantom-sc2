@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 from scipy.ndimage import binary_dilation
 
-from phantom.common.utils import air_range_of, to_point
+from phantom.common.air_range import air_range_of
+from phantom.common.point import to_point
 
 if TYPE_CHECKING:
     from sc2.unit import Unit

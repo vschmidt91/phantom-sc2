@@ -14,7 +14,8 @@ from sc2.units import Units
 from phantom.common.action import Action, Smart
 from phantom.common.distribute import get_assignment_solver
 from phantom.common.metrics import MetricAccumulator
-from phantom.common.utils import Point, pairwise_distances, to_point
+from phantom.common.point import Point, to_point
+from phantom.common.utils import pairwise_distances
 from phantom.learn.parameters import OptimizationTarget, ParameterManager, Prior
 
 if TYPE_CHECKING:

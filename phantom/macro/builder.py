@@ -23,8 +23,9 @@ from phantom.common.constants import (
 )
 from phantom.common.cost import Cost
 from phantom.common.expansion import Expansion
+from phantom.common.point import to_point
 from phantom.common.unit_composition import UnitComposition
-from phantom.common.utils import MacroId, to_point
+from phantom.common.utils import MacroId
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot

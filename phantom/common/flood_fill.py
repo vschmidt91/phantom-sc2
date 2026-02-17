@@ -5,7 +5,7 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from phantom.common.utils import Point
+from phantom.common.point import Point
 
 
 def flood_fill_mask(mask: np.ndarray, seeds: Sequence[Point]) -> np.ndarray:

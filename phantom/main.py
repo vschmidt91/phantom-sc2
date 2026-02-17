@@ -43,11 +43,11 @@ from phantom.common.constants import (
 from phantom.common.cost import Cost, CostManager
 from phantom.common.damage_tracker import DamageTracker
 from phantom.common.expansion import Expansion
+from phantom.common.point import to_point
 from phantom.common.utils import (
     RNG,
     MacroId,
     Point,
-    to_point,
 )
 from phantom.macro.builder import MacroPlan
 
