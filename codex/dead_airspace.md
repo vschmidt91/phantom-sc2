@@ -1,5 +1,9 @@
 # PLAN
 
+# Status
+
+- completed
+
 ## Objective
 
 Implement a `DeadAirspace` component that prevents combat target selection when a flying target is outside pathing-constrained attack reach, and integrate it into agent setup and combat target filtering.

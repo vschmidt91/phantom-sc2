@@ -41,6 +41,7 @@ from phantom.micro.dead_airspace import DeadAirspace
 from phantom.micro.dodge import Dodge
 from phantom.micro.overseers import Overseers
 from phantom.micro.queens import Queens
+from phantom.micro.own_creep import OwnCreep
 from phantom.micro.simulator import CombatSimulator, CombatSimulatorParameters
 
 if TYPE_CHECKING:
@@ -55,7 +56,8 @@ class Agent:
         self.build_order = BUILD_ORDERS[self.config.build_order]
         self.dead_airspace = DeadAirspace(self.bot.clean_ground_grid == 1.0)
         self.simulator = CombatSimulator(bot, CombatSimulatorParameters(self.optimizer))
-        self.combat = CombatState(bot, CombatParameters(self.optimizer), self.simulator)
+        self.own_creep = OwnCreep(bot)
+        self.combat = CombatState(bot, CombatParameters(self.optimizer), self.simulator, self.own_creep)
         self.builder = Builder(bot)
         self.creep_tumors = CreepTumors(bot)
         self.creep_spread = CreepSpread(bot)
@@ -121,6 +123,7 @@ class Agent:
         else:
             self._proxy_structures = []
 
+        self.own_creep.on_step()
         combat = self.combat.on_step(self.dead_airspace)
 
         actions = dict[Unit, Action]()

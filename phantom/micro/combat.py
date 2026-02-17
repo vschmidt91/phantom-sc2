@@ -37,6 +37,7 @@ from phantom.micro.utils import medoid, time_to_attack, time_to_kill
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
+    from phantom.micro.own_creep import OwnCreep
 
 
 @dataclass(frozen=True)
@@ -90,6 +91,8 @@ class CombatStepContext:
 
     @cached_property
     def retreat_to_creep_targets(self) -> Sequence[Point]:
+        if self.state.bot.enemy_race in {Race.Zerg, Race.Random}:
+            return self.state.own_creep.targets
         targets = list[Point]()
         for townhall in self.state.bot.townhalls.ready:
             targets.extend(structure_perimeter(townhall))
@@ -99,10 +102,10 @@ class CombatStepContext:
 
     @cached_property
     def retreat_to_creep(self) -> DijkstraPathing | None:
-        if self.retreat_to_creep_targets:
-            return cy_dijkstra(self.state.bot.ground_grid, np.atleast_2d(self.retreat_to_creep_targets))
-        else:
+        targets = self.retreat_to_creep_targets
+        if not targets:
             return None
+        return cy_dijkstra(self.state.bot.ground_grid, np.atleast_2d(targets))
 
     @cached_property
     def safe_mineral_lines(self) -> Sequence[Point]:
@@ -235,13 +238,20 @@ class CombatStepContext:
 
 
 class CombatState:
-    def __init__(self, bot: "PhantomBot", parameters: CombatParameters, simulator: CombatSimulator) -> None:
+    def __init__(
+        self,
+        bot: "PhantomBot",
+        parameters: CombatParameters,
+        simulator: CombatSimulator,
+        own_creep: "OwnCreep",
+    ) -> None:
         self.bot = bot
         self.parameters = parameters
         self._attacking_global = True
         self._attacking_local = set[int]()
         self._targets: Mapping[int, Unit] = dict()
         self.simulator = simulator
+        self.own_creep = own_creep
 
     def _assign_targets(self, units: Sequence[Unit], targets: Sequence[Unit]) -> Mapping[int, Unit]:
         if not any(units) or not any(targets):
@@ -327,7 +337,7 @@ class CombatStep:
         return Move(move_target)
 
     def retreat_to_creep(self, unit: Unit, limit=2) -> Action | None:
-        if not self.bot.has_creep(unit) and self.context.retreat_to_creep:
+        if not self.context.state.own_creep.is_on_own_creep(unit) and self.context.retreat_to_creep:
             path = self.context.retreat_to_creep.get_path(unit.position, limit=limit)
             if len(path) == 1:
                 return None
@@ -356,7 +366,6 @@ class CombatStep:
         ) or (
             not unit.is_flying
             and not self.attacking_global
-            and self.bot.enemy_race not in {Race.Zerg, Race.Random}
             and (action := self.retreat_to_creep(unit))
         ):
             return action
