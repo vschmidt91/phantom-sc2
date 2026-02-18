@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from ares import UnitTreeQueryType
@@ -33,8 +32,11 @@ class Transfuse:
         if observation is not None:
             self._queens = list(observation.queens)
 
-    def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
-        return {queen: action for queen in self._queens if (action := self.transfuse_with(queen))}
+    def queens_to_transfuse_with(self) -> list[Unit]:
+        return self._queens
+
+    def get_action(self, unit: Unit) -> Action | None:
+        return self.transfuse_with(unit)
 
     def transfuse_with(self, unit: Unit) -> Action | None:
         if unit.energy < self.ability_energy_cost:

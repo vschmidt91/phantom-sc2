@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from sc2.ids.ability_id import AbilityId
@@ -28,6 +28,7 @@ class Overlords:
         self._combat: CombatStep | None = None
         self._scout_overlord_tag: int | None = None
         self._scout_proxy_overlord_tags = tuple[int, ...]()
+        self._action_by_tag = dict[int, Action]()
 
     def on_step(self, observation: Observation) -> None:
         overlords = observation.bot.units({UnitTypeId.OVERLORD, UnitTypeId.OVERLORDTRANSPORT})
@@ -40,25 +41,27 @@ class Overlords:
         self._candidates = [u for u in overlords if u.tag not in excluded_tags]
         if self._candidates:
             self._update_creep_enable_queue(self._candidates)
-
-    def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
+        self._action_by_tag.clear()
         if not self._candidates or self._combat is None:
-            return {}
+            return
 
-        actions = dict[Unit, Action]()
         movable = list[Unit]()
         for overlord in self._candidates:
             if (action := self._combat.keep_unit_safe(overlord)) or (action := self._enable_creep_with(overlord)):
-                actions[overlord] = action
+                self._action_by_tag[overlord.tag] = action
             else:
                 movable.append(overlord)
 
         self._update_support_assignments(movable)
         for overlord in movable:
             if action := self._move_to_assigned_support_position(overlord):
-                actions[overlord] = action
+                self._action_by_tag[overlord.tag] = action
 
-        return actions
+    def overlords_to_micro(self) -> list[Unit]:
+        return self._candidates
+
+    def get_action(self, unit: Unit) -> Action | None:
+        return self._action_by_tag.get(unit.tag)
 
     def _update_creep_enable_queue(self, overlords: Sequence[Unit]) -> None:
         has_lair_tech = bool(self.bot.structures({UnitTypeId.LAIR, UnitTypeId.HIVE}).ready)

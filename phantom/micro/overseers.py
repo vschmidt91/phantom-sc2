@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -25,6 +24,8 @@ class Overseers:
         self._scout_targets = list[Unit]()
         self._detection_targets = list[Point2]()
         self._combat: CombatStep | None = None
+        self._detect_target_by_overseer_tag = dict[int, Point2]()
+        self._scout_target_by_overseer_tag = dict[int, Unit]()
 
     def target_cost(self, target: Unit) -> float:
         is_detected = self.bot.mediator.get_is_detected(unit=target, by_enemy=target.is_mine)
@@ -37,58 +38,54 @@ class Overseers:
         self._scout_targets = list(observation.enemy_combatants or observation.bot.all_enemy_units)
         self._detection_targets = list(observation.detection_targets)
         self._combat = observation.combat
-
-    def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
-        if self._combat is None:
-            return {}
-        overseers = self._overseers
-        scout_targets = self._scout_targets
-        detection_targets = self._detection_targets
         detection_assignment = (
             distribute(
-                detection_targets,
-                overseers,
+                self._detection_targets,
+                self._overseers,
                 pairwise_distances(
-                    detection_targets,
-                    [u.position for u in overseers],
+                    self._detection_targets,
+                    [u.position for u in self._overseers],
                 ),
                 max_assigned=1,
             )
-            if detection_targets and overseers
+            if self._detection_targets and self._overseers
             else {}
         )
         detection_assignment_inverse = {u: Point2(p) for p, u in detection_assignment.items()}
+        self._detect_target_by_overseer_tag = {
+            overseer.tag: target for overseer, target in detection_assignment_inverse.items()
+        }
 
-        if overseers and scout_targets:
+        if self._overseers and self._scout_targets:
             distance = pairwise_distances(
-                [a.position for a in overseers],
-                [b.position for b in scout_targets],
+                [a.position for a in self._overseers],
+                [b.position for b in self._scout_targets],
             )
             scout_cost = distance
-            if len(overseers) > 1 and scout_targets:
+            if len(self._overseers) > 1 and self._scout_targets:
                 second_smallest_distances = np.partition(distance, kth=1, axis=0)[1, :]
                 second_smallest_distances = np.minimum(20, second_smallest_distances)
                 scout_cost = scout_cost - second_smallest_distances[None, :]
 
-            target_costs = np.array(list(map(self.target_cost, scout_targets)))
+            target_costs = np.array(list(map(self.target_cost, self._scout_targets)))
             scout_cost = scout_cost * target_costs[None, :]
-            scout_assignment = distribute(overseers, scout_targets, scout_cost)
+            scout_assignment = distribute(self._overseers, self._scout_targets, scout_cost)
         else:
             scout_assignment = {}
+        self._scout_target_by_overseer_tag = {overseer.tag: target for overseer, target in scout_assignment.items()}
 
-        actions = {
-            overseer: action
-            for overseer in overseers
-            if (
-                action := self._get_action(
-                    overseer=overseer,
-                    detect_target=detection_assignment_inverse.get(overseer),
-                    scout_target=scout_assignment.get(overseer),
-                    combat=self._combat,
-                )
-            )
-        }
-        return actions
+    def overseers_to_micro(self) -> list[Unit]:
+        return self._overseers
+
+    def get_action(self, overseer: Unit) -> Action | None:
+        if self._combat is None:
+            return None
+        return self._get_action(
+            overseer=overseer,
+            detect_target=self._detect_target_by_overseer_tag.get(overseer.tag),
+            scout_target=self._scout_target_by_overseer_tag.get(overseer.tag),
+            combat=self._combat,
+        )
 
     def _get_action(
         self, overseer: Unit, detect_target: Point2 | None, scout_target: Unit | None, combat: CombatStep

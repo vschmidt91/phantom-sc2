@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass
 from itertools import chain
 from typing import TYPE_CHECKING
@@ -57,8 +56,10 @@ class Dodge:
         self.safety_distance = 1.5
         self.safety_time = 0.5
         self.min_distance = 1e-3
+        self._units = list[Unit]()
 
     def on_step(self, observation: Observation | None = None) -> None:
+        self._units = list(observation.bot.units) if observation is not None else list(self.bot.units)
         self.dodge_units = {
             DodgeItem(unit.position, circle): self.bot.time
             for unit in self.bot.enemy_units(set(DODGE_UNITS))
@@ -79,8 +80,11 @@ class Dodge:
             if time_of_impact < self.bot.time:
                 del self.dodge_effects[item]
 
-    def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
-        return {unit: action for unit in observation.bot.units if (action := self.dodge_with(unit))}
+    def units_to_dodge_with(self) -> list[Unit]:
+        return self._units
+
+    def get_action(self, unit: Unit) -> Action | None:
+        return self.dodge_with(unit)
 
     def dodge_with(self, unit: Unit) -> Action | None:
         for item, time_of_impact in chain(self.dodge_effects.items(), self.dodge_units.items()):

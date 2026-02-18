@@ -26,45 +26,41 @@ class Queens:
         self._inject_targets = list[Unit]()
         self._combat: CombatStep | None = None
         self._should_spread_creep = False
+        self._inject_target_by_queen_tag = dict[int, Unit]()
 
     def on_step(self, observation: Observation) -> None:
         self._queens = list(observation.queens)
         self._inject_targets = list(observation.bot.townhalls.ready if observation.should_inject else [])
         self._combat = observation.combat
         self._should_spread_creep = observation.should_spread_creep
-
-    def get_actions(self, observation: Observation) -> dict[Unit, Action]:
-        if self._combat is None:
-            return {}
-        queens = self._queens
-        inject_targets = self._inject_targets
-        creep = self.creep if self._should_spread_creep else None
         inject_assignment = (
             distribute(
-                inject_targets,
-                queens,
+                self._inject_targets,
+                self._queens,
                 pairwise_distances(
-                    [b.position for b in inject_targets],
-                    [a.position for a in queens],
+                    [b.position for b in self._inject_targets],
+                    [a.position for a in self._queens],
                 ),
                 max_assigned=1,
             )
-            if queens and inject_targets
+            if self._queens and self._inject_targets
             else {}
         )
-        inject_assignment_inverse = {q: h for h, q in inject_assignment.items()}
-        return {
-            queen: action
-            for queen in queens
-            if (
-                action := self._get_action(
-                    queen=queen,
-                    inject_target=inject_assignment_inverse.get(queen),
-                    creep=creep,
-                    combat=self._combat,
-                )
-            )
-        }
+        self._inject_target_by_queen_tag = {queen.tag: hatch for hatch, queen in inject_assignment.items()}
+
+    def queens_to_micro(self) -> list[Unit]:
+        return self._queens
+
+    def get_action(self, queen: Unit) -> Action | None:
+        if self._combat is None:
+            return None
+        creep = self.creep if self._should_spread_creep else None
+        return self._get_action(
+            queen=queen,
+            inject_target=self._inject_target_by_queen_tag.get(queen.tag),
+            creep=creep,
+            combat=self._combat,
+        )
 
     def _get_action(
         self, queen: Unit, inject_target: Unit | None, creep: CreepSpread | None, combat: CombatStep

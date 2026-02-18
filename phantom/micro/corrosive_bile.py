@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from ares import UnitTreeQueryType
@@ -16,8 +15,6 @@ from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
-
-type CorrosiveBileAction = Mapping[Unit, Action]
 
 
 def _target_priority(u: Unit) -> float:
@@ -38,8 +35,11 @@ class CorrosiveBile:
     def on_step(self, observation: Observation) -> None:
         self._ravagers = list(observation.bot.units(UnitTypeId.RAVAGER))
 
-    def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
-        return {ravager: action for ravager in self._ravagers if (action := self.bile_with(ravager))}
+    def ravagers_to_micro(self) -> list[Unit]:
+        return self._ravagers
+
+    def get_action(self, unit: Unit) -> Action | None:
+        return self.bile_with(unit)
 
     def bile_with(self, unit: Unit) -> Action | None:
         if self.ability not in unit.abilities:

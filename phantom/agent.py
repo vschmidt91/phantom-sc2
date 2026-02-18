@@ -27,7 +27,6 @@ from phantom.common.constants import (
 from phantom.common.metrics import MetricAccumulator
 from phantom.common.point import to_point
 from phantom.common.utils import calculate_cost_efficiency
-from phantom.component import Component
 from phantom.learn.parameters import OptimizationTarget, ParameterManager
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.builder import Builder, MacroPlan
@@ -72,14 +71,14 @@ class Agent:
         self.builder = Builder(bot)
         self.creep_tumors = CreepTumors(bot)
         self.creep_spread = CreepSpread(bot)
-        corrosive_biles = CorrosiveBile(bot)
-        dodge = Dodge(bot)
+        self.corrosive_biles = CorrosiveBile(bot)
+        self.dodge = Dodge(bot)
         self.scout_proxy = ScoutProxy(
             bot,
             samples_max=config.proxy_scout_samples_max,
         )
-        overlords = Overlords(bot)
-        overseers = Overseers(bot)
+        self.overlords = Overlords(bot)
+        self.overseers = Overseers(bot)
         self.tactics = Tactics(bot)
         for unit_type, tactic in (
             (UnitTypeId.OVERLORD, self._send_overlord_scout),
@@ -88,8 +87,8 @@ class Agent:
         ):
             self.tactics.register(unit_type, tactic)
         self.blocked_positions = BlockedPositionTracker(bot)
-        queens = Queens(bot, self.creep_spread)
-        transfuse = Transfuse(bot)
+        self.queens = Queens(bot, self.creep_spread)
+        self.transfuse = Transfuse(bot)
         strategy_parameters = StrategyParameters(self.optimizer)
         self.macro_planning = MacroPlanning(
             bot=bot,
@@ -99,15 +98,6 @@ class Agent:
             build_order=build_order,
         )
         self.mining = MiningState(bot, self.optimizer)
-        self.precombat_components: tuple[Component, ...] = (corrosive_biles,)
-        self.reactive_components: tuple[Component, ...] = (
-            self.creep_spread,
-            queens,
-            transfuse,
-            overseers,
-            overlords,
-            dodge,
-        )
         self.supply_efficiency = MetricAccumulator()
         self._enemy_expanded = False
         self._proxy_structures: list[Unit] = []
@@ -171,10 +161,13 @@ class Agent:
             active_tumors=tuple(self.creep_tumors.active_tumors),
         )
         self.scout_proxy.on_step(micro_observation)
-        for component in self.reactive_components:
-            component.on_step(micro_observation)
-        for component in self.precombat_components:
-            component.on_step(micro_observation)
+        self.creep_spread.on_step(micro_observation)
+        self.queens.on_step(micro_observation)
+        self.transfuse.on_step(micro_observation)
+        self.overseers.on_step(micro_observation)
+        self.overlords.on_step(micro_observation)
+        self.dodge.on_step(micro_observation)
+        self.corrosive_biles.on_step(micro_observation)
 
         self.mining.set_context(
             composition_deficit=strategy.composition_deficit,
@@ -205,8 +198,9 @@ class Agent:
             if action := self._search_with(changeling):
                 actions[changeling] = action
 
-        for component in self.precombat_components:
-            actions.update(component.get_actions(micro_observation))
+        for ravager in self.corrosive_biles.ravagers_to_micro():
+            if action := self.corrosive_biles.get_action(ravager):
+                actions[ravager] = action
 
         combatant_actions = {
             unit: action for unit, action in self.combat.get_actions(observation).items() if unit not in actions
@@ -243,8 +237,24 @@ class Agent:
                 {w: UseAbility(AbilityId.CANCEL) for w in self.bot.structures(UnitTypeId.ROACHWARREN).not_ready}
             )
 
-        for component in self.reactive_components:
-            actions.update(component.get_actions(micro_observation))
+        for tumor in self.creep_spread.tumors_to_spread():
+            if action := self.creep_spread.get_action(tumor):
+                actions[tumor] = action
+        for queen in self.queens.queens_to_micro():
+            if action := self.queens.get_action(queen):
+                actions[queen] = action
+        for queen in self.transfuse.queens_to_transfuse_with():
+            if action := self.transfuse.get_action(queen):
+                actions[queen] = action
+        for overseer in self.overseers.overseers_to_micro():
+            if action := self.overseers.get_action(overseer):
+                actions[overseer] = action
+        for overlord in self.overlords.overlords_to_micro():
+            if action := self.overlords.get_action(overlord):
+                actions[overlord] = action
+        for unit in self.dodge.units_to_dodge_with():
+            if action := self.dodge.get_action(unit):
+                actions[unit] = action
         actions.update(self.tactics.get_actions())
 
         for queen in observation.queens:

@@ -27,13 +27,18 @@ class CreepSpread:
         self.placement_map = np.zeros(bot.game_info.map_size)
         self.value_map = np.zeros_like(self.placement_map)
         self.update_interval = 10
+        self._tumors = tuple[Unit, ...]()
 
     def on_step(self, observation: Observation | None = None) -> None:
+        self._tumors = tuple(observation.active_tumors) if observation is not None else ()
         if self.bot.actual_iteration % self.update_interval == 0:
             self._update_maps()
 
-    def get_actions(self, observation: Observation) -> dict[Unit, Action]:
-        return {tumor: action for tumor in observation.active_tumors if (action := self.spread_with(tumor))}
+    def tumors_to_spread(self) -> tuple[Unit, ...]:
+        return self._tumors
+
+    def get_action(self, unit: Unit) -> Action | None:
+        return self.spread_with(unit)
 
     def spread_with(self, unit: Unit) -> Action | None:
         if unit.type_id == UnitTypeId.QUEEN:
