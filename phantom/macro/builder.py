@@ -201,8 +201,18 @@ class Builder:
             elif target:
                 if trainer.is_carrying_resource:
                     actions[trainer] = UseAbility(AbilityId.HARVEST_RETURN)
-                elif (self.bot.actual_iteration % 10 == 0) and (action := self._premove(trainer, plan, eta)):
-                    actions[trainer] = action
+                elif self.bot.actual_iteration % 10 == 0:
+                    target_position = target.position if isinstance(target, Unit) else target
+                    distance = cy_distance_to(trainer.position, target_position)
+                    movement_eta = (4 / 3) * distance / (1.4 * trainer.real_speed)
+                    should_premove = eta <= movement_eta
+                    if should_premove:
+                        action = self._premove(trainer, plan, eta)
+                        if action is None:
+                            logger.info(f"Cancelling {item} plan for worker {trainer.tag}: worker is not safe")
+                            self._plans.pop(item, None)
+                            continue
+                        actions[trainer] = action
 
         return actions
 
@@ -310,6 +320,8 @@ class Builder:
     def _premove(self, unit: Unit, plan: MacroPlan, eta: float) -> Action | None:
         if plan.target is None:
             return None
+        if not self._is_unit_safe(unit):
+            return None
         target = plan.target.position
         distance = cy_distance_to(unit.position, target)
         movement_eta = (4 / 3) * distance / (1.4 * unit.real_speed)
@@ -317,13 +329,21 @@ class Builder:
             return None
         if distance < 1e-3:
             return HoldPosition()
-        self.bot.mediator.find_path_next_point(
+        move_target = self.bot.mediator.find_path_next_point(
             start=unit.position,
             target=target,
             grid=self.bot.ground_grid,
             smoothing=True,
+            sense_danger=False,
         )
-        return Move(target)
+        return Move(move_target)
+
+    def _is_unit_safe(self, unit: Unit, weight_safety_limit: float = 6.0) -> bool:
+        return self.bot.mediator.is_position_safe(
+            grid=self.bot.ground_grid,
+            position=unit.position,
+            weight_safety_limit=weight_safety_limit,
+        )
 
     def _debug_draw_plan(
         self,

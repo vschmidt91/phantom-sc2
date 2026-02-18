@@ -11,7 +11,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from phantom.common.action import Action, Smart
+from phantom.common.action import Action, Move, Smart
 from phantom.common.cost import Cost
 from phantom.common.distribute import get_assignment_solver
 from phantom.common.metrics import MetricAccumulator
@@ -263,19 +263,45 @@ class MiningStep:
         return assignment
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
+        if not self._is_unit_safe(unit):
+            return None
         if not (target_pos := self.harvester_assignment.get(unit.tag)):
             return None
         if not (target := self.context.resource_by_position.get(target_pos)):
             logger.error(f"No resource found at {target_pos}")
             return None
-        elif len(unit.orders) >= 2:
+        if len(unit.orders) >= 2:
             return None
-        elif unit.is_gathering:
-            return GatherAction(target, self.state.bot.gather_targets[target_pos])
-        elif unit.is_returning or (unit.is_idle and unit.is_carrying_resource):
+        gather_target = self.state.bot.gather_targets[target_pos]
+        if unit.is_gathering:
+            if unit.order_target != target.tag:
+                move_target = self.state.bot.mediator.find_path_next_point(
+                    start=unit.position,
+                    target=gather_target,
+                    grid=self.state.bot.ground_grid,
+                    sense_danger=False,
+                )
+                return Move(move_target)
+            return GatherAction(target, gather_target)
+        if unit.is_returning or (unit.is_idle and unit.is_carrying_resource):
             if return_targets:
                 return_target = cy_closest_to(unit.position, return_targets)
                 return ReturnResource(return_target)
             else:
                 return None
+        if unit.distance_to(gather_target) > 2.0:
+            move_target = self.state.bot.mediator.find_path_next_point(
+                start=unit.position,
+                target=gather_target,
+                grid=self.state.bot.ground_grid,
+                sense_danger=False,
+            )
+            return Move(move_target)
         return Smart(target)
+
+    def _is_unit_safe(self, unit: Unit, weight_safety_limit: float = 6.0) -> bool:
+        return self.state.bot.mediator.is_position_safe(
+            grid=self.state.bot.ground_grid,
+            position=unit.position,
+            weight_safety_limit=weight_safety_limit,
+        )

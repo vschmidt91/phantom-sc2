@@ -47,7 +47,9 @@ class CombatPrediction:
 
 class CombatParameters:
     def __init__(self, params: ParameterManager) -> None:
-        self.engagement_threshold = 0.0
+        self._engagement_threshold = params.optimize[OptimizationTarget.CostEfficiency].add(
+            "engagement_threshold", Prior(0.0, 1.0)
+        )
         self.disengagement_threshold = 0.0
         self._global_engagement_level = params.optimize[OptimizationTarget.CostEfficiency].add(
             "global_engagement_level", Prior(1.73, 0.1)
@@ -55,6 +57,10 @@ class CombatParameters:
         self._global_engagement_hysteresis_log = params.optimize[OptimizationTarget.CostEfficiency].add(
             "global_engagement_hysteresis_log", Prior(-1.47, 0.1)
         )
+
+    @property
+    def engagement_threshold(self) -> float:
+        return self._engagement_threshold.value
 
     @property
     def global_engagement_hysteresis(self) -> float:
