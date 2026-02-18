@@ -19,6 +19,7 @@ class BotConfig:
     params_name = "params.pkl.xz"
     max_actions = 80
     optimizer_pop_size = 20
+    roach_warren_cancel_enabled = False
     proxy_scout_enabled = True
     proxy_scout_max_overlords = 1
     proxy_scout_samples_max = 24

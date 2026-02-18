@@ -236,7 +236,8 @@ class Agent:
             if structure.health_percentage < 0.05:
                 actions[structure] = UseAbility(AbilityId.CANCEL)
 
-        self._maybe_skip_roach_warren()
+        if self.bot.bot_config.roach_warren_cancel_enabled:
+            self._maybe_skip_roach_warren()
         if self._skip_roach_warren:
             actions.update(
                 {w: UseAbility(AbilityId.CANCEL) for w in self.bot.structures(UnitTypeId.ROACHWARREN).not_ready}
