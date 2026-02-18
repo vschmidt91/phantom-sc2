@@ -15,7 +15,7 @@ from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
-    from phantom.micro.combat import CombatStep
+    from phantom.micro.combat import CombatSituation
 
 
 class Queens:
@@ -24,14 +24,14 @@ class Queens:
         self.creep = creep
         self._queens = list[Unit]()
         self._inject_targets = list[Unit]()
-        self._combat: CombatStep | None = None
+        self._situation: CombatSituation | None = None
         self._should_spread_creep = False
         self._inject_target_by_queen_tag = dict[int, Unit]()
 
     def on_step(self, observation: Observation) -> None:
         self._queens = list(observation.queens)
         self._inject_targets = list(observation.bot.townhalls.ready if observation.should_inject else [])
-        self._combat = observation.combat
+        self._situation = observation.combat
         self._should_spread_creep = observation.should_spread_creep
         inject_assignment = (
             distribute(
@@ -52,26 +52,26 @@ class Queens:
         return self._queens
 
     def get_action(self, queen: Unit) -> Action | None:
-        if self._combat is None:
+        if self._situation is None:
             return None
         creep = self.creep if self._should_spread_creep else None
         return self._get_action(
             queen=queen,
             inject_target=self._inject_target_by_queen_tag.get(queen.tag),
             creep=creep,
-            combat=self._combat,
+            situation=self._situation,
         )
 
     def _get_action(
-        self, queen: Unit, inject_target: Unit | None, creep: CreepSpread | None, combat: CombatStep
+        self, queen: Unit, inject_target: Unit | None, creep: CreepSpread | None, situation: CombatSituation
     ) -> Action | None:
-        if not combat.is_unit_safe(queen):
-            return combat.fight_with(queen)
+        if not situation.is_unit_safe(queen):
+            return situation.fight_with(queen)
         if inject_target and (action := self._inject_with(queen, inject_target)):
             return action
-        if (creep and (action := creep.spread_with(queen))) or (action := combat.retreat_to_creep(queen)):
+        if (creep and (action := creep.spread_with(queen))) or (action := situation.retreat_to_creep(queen)):
             return action
-        return combat.fight_with(queen)
+        return situation.fight_with(queen)
 
     def _inject_with(self, queen: Unit, hatch: Unit) -> Action | None:
         distance = cy_distance_to(queen.position, hatch.position) - queen.radius - hatch.radius

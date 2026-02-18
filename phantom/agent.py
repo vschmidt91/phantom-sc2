@@ -30,10 +30,10 @@ from phantom.common.utils import calculate_cost_efficiency
 from phantom.learn.parameters import OptimizationTarget, ParameterManager
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.builder import Builder, MacroPlan
-from phantom.macro.mining import MiningState
+from phantom.macro.mining import MiningCommand
 from phantom.macro.planning import MacroPlanning
 from phantom.macro.strategy import StrategyParameters
-from phantom.micro.combat import CombatParameters, CombatState, CombatStep
+from phantom.micro.combat import CombatParameters, CombatCommand, CombatSituation
 from phantom.micro.corrosive_bile import CorrosiveBile
 from phantom.micro.creep import CreepSpread, CreepTumors
 from phantom.micro.dead_airspace import DeadAirspace
@@ -61,7 +61,7 @@ class Agent:
         dead_airspace = DeadAirspace(self.bot.clean_ground_grid == 1.0)
         simulator = CombatSimulator(bot, CombatSimulatorParameters(self.optimizer))
         self.own_creep = OwnCreep(bot)
-        self.combat = CombatState(
+        self.combat = CombatCommand(
             bot,
             CombatParameters(self.optimizer),
             simulator,
@@ -97,7 +97,7 @@ class Agent:
             builder=self.builder,
             build_order=build_order,
         )
-        self.mining = MiningState(bot, self.optimizer)
+        self.mining = MiningCommand(bot, self.optimizer)
         self.supply_efficiency = MetricAccumulator()
         self._enemy_expanded = False
         self._proxy_structures: list[Unit] = []
@@ -121,11 +121,11 @@ class Agent:
 
         self.own_creep.on_step()
         self.combat.on_step(observation)
-        combat = self.combat.step
-        if combat is None:
+        situation = self.combat.situation
+        if situation is None:
             return {}
 
-        macro_observation = with_micro(observation, combat=combat)
+        macro_observation = with_micro(observation, combat=situation)
         self.macro_planning.set_skip_roach_warren(self._skip_roach_warren)
         self.macro_planning.on_step(macro_observation)
         strategy = self.macro_planning.strategy
@@ -187,10 +187,10 @@ class Agent:
         resources = self.mining.step_result
         harvesters = self.mining.harvesters
         for harvester in harvesters:
-            if not combat.is_unit_safe(
+            if not situation.is_unit_safe(
                 harvester, weight_safety_limit=6.0
             ) or self.bot.damage_tracker.time_since_last_damage(harvester) < min(self.bot.state.game_loop, 50):
-                actions[harvester] = combat.retreat_with(harvester) or combat.move_to_safe_spot(harvester)
+                actions[harvester] = situation.retreat_with(harvester) or situation.move_to_safe_spot(harvester)
             elif resources and (action := resources.gather_with(harvester, harvester_return_targets)):
                 actions[harvester] = action
 
@@ -210,7 +210,7 @@ class Agent:
                 continue
             if (
                 (combatant.type_id == UnitTypeId.ROACH and (action := self._burrow(combatant)))
-                or (combatant.type_id == UnitTypeId.ROACHBURROWED and (action := self._unburrow(combatant, combat)))
+                or (combatant.type_id == UnitTypeId.ROACHBURROWED and (action := self._unburrow(combatant, situation)))
             ) or (combatant not in combatant_actions and (action := self._search_with(combatant))):
                 combatant_actions[combatant] = action
 
@@ -384,10 +384,10 @@ class Agent:
         else:
             return None
 
-    def _unburrow(self, unit: Unit, combat: CombatStep) -> Action | None:
+    def _unburrow(self, unit: Unit, situation: CombatSituation) -> Action | None:
         if unit.health_percentage > 0.9:
             return UseAbility(AbilityId.BURROWUP)
-        elif UpgradeId.TUNNELINGCLAWS in self.bot.state.upgrades and (action := combat.keep_unit_safe(unit)):
+        elif UpgradeId.TUNNELINGCLAWS in self.bot.state.upgrades and (action := situation.keep_unit_safe(unit)):
             return action
         else:
             return None

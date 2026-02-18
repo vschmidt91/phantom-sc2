@@ -14,7 +14,7 @@ from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
-    from phantom.micro.combat import CombatStep
+    from phantom.micro.combat import CombatSituation
 
 
 class Overseers:
@@ -23,7 +23,7 @@ class Overseers:
         self._overseers = list[Unit]()
         self._scout_targets = list[Unit]()
         self._detection_targets = list[Point2]()
-        self._combat: CombatStep | None = None
+        self._situation: CombatSituation | None = None
         self._detect_target_by_overseer_tag = dict[int, Point2]()
         self._scout_target_by_overseer_tag = dict[int, Unit]()
 
@@ -37,7 +37,7 @@ class Overseers:
         self._overseers = list(observation.overseers)
         self._scout_targets = list(observation.enemy_combatants or observation.bot.all_enemy_units)
         self._detection_targets = list(observation.detection_targets)
-        self._combat = observation.combat
+        self._situation = observation.combat
         detection_assignment = (
             distribute(
                 self._detection_targets,
@@ -78,19 +78,21 @@ class Overseers:
         return self._overseers
 
     def get_action(self, overseer: Unit) -> Action | None:
-        if self._combat is None:
+        if self._situation is None:
             return None
         return self._get_action(
             overseer=overseer,
             detect_target=self._detect_target_by_overseer_tag.get(overseer.tag),
             scout_target=self._scout_target_by_overseer_tag.get(overseer.tag),
-            combat=self._combat,
+            situation=self._situation,
         )
 
     def _get_action(
-        self, overseer: Unit, detect_target: Point2 | None, scout_target: Unit | None, combat: CombatStep
+        self, overseer: Unit, detect_target: Point2 | None, scout_target: Unit | None, situation: CombatSituation | None
     ) -> Action | None:
-        if (action := self._spawn_changeling(overseer)) or (action := combat.keep_unit_safe(overseer)):
+        if situation is None:
+            return None
+        if (action := self._spawn_changeling(overseer)) or (action := situation.keep_unit_safe(overseer)):
             return action
         if detect_target:
             return Move(

@@ -145,3 +145,6 @@ profile_output*
 /notebooks/outcmaes/
 .aider*
 .venv-wsl
+
+# Codex
+AGENTS.md

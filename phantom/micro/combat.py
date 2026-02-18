@@ -77,7 +77,7 @@ class CombatParameters:
 
 @dataclass(frozen=True)
 class CombatStepContext:
-    state: "CombatState"
+    state: "CombatCommand"
     combatants: Sequence[Unit]
     enemy_combatants: Sequence[Unit]
     prediction: CombatResult
@@ -221,7 +221,7 @@ class CombatStepContext:
             return None
 
     @classmethod
-    def build(cls, state: "CombatState", observation: Observation) -> "CombatStepContext":
+    def build(cls, state: "CombatCommand", observation: Observation) -> "CombatStepContext":
         combatants = observation.combatants | state.bot.structures(COMBATANT_STRUCTURES)
         enemy_combatants = observation.enemy_combatants | state.bot.enemy_structures(COMBATANT_STRUCTURES)
         attacking = set(state._attacking_local)
@@ -240,7 +240,7 @@ class CombatStepContext:
         )
 
 
-class CombatState:
+class CombatCommand:
     def __init__(
         self,
         bot: "PhantomBot",
@@ -257,7 +257,7 @@ class CombatState:
         self.simulator = simulator
         self.own_creep = own_creep
         self.dead_airspace = dead_airspace
-        self._step: CombatStep | None = None
+        self._situation: CombatSituation | None = None
 
     def _assign_targets(self, units: Sequence[Unit], targets: Sequence[Unit]) -> Mapping[int, Unit]:
         if not any(units) or not any(targets):
@@ -276,8 +276,8 @@ class CombatState:
         return assignment
 
     @property
-    def step(self) -> "CombatStep | None":
-        return self._step
+    def situation(self) -> "CombatSituation | None":
+        return self._situation
 
     def on_step(self, observation: Observation) -> None:
         context = CombatStepContext.build(self, observation)
@@ -296,7 +296,7 @@ class CombatState:
             elif outcome < self.parameters.disengagement_threshold:
                 self._attacking_local.discard(tag)
 
-        self._step = CombatStep(
+        self._situation = CombatSituation(
             context,
             self._attacking_global,
             frozenset(self._attacking_local),
@@ -305,15 +305,15 @@ class CombatState:
         )
 
     def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
-        if self._step is None:
+        if self._situation is None:
             self.on_step(observation)
-        step = self._step
-        if step is None:
+        situation = self._situation
+        if situation is None:
             return {}
-        return {combatant: action for combatant in observation.combatants if (action := step.fight_with(combatant))}
+        return {combatant: action for combatant in observation.combatants if (action := situation.fight_with(combatant))}
 
 
-class CombatStep:
+class CombatSituation:
     def __init__(
         self,
         context: CombatStepContext,

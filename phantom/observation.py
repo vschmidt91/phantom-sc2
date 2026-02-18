@@ -9,7 +9,7 @@ from sc2.units import Units
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
-    from phantom.micro.combat import CombatStep
+    from phantom.micro.combat import CombatSituation
 
 
 @dataclass(frozen=True)
@@ -20,7 +20,7 @@ class Observation:
     queens: Units
     overseers: Units
     harvester_return_targets: Units
-    combat: CombatStep | None = None
+    combat: CombatSituation | None = None
     scout_overlord_tag: int | None = None
     scout_proxy_overlord_tags: tuple[int, ...] = ()
     should_inject: bool = False

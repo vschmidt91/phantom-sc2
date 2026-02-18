@@ -9,11 +9,11 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from phantom.common.action import Action, Move, UseAbility
-from phantom.micro.combat import CombatStep
 from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
+    from phantom.micro.combat import CombatSituation
 
 
 class Overlords:
@@ -25,7 +25,7 @@ class Overlords:
         self._support_target_by_overlord = dict[int, Point2]()
         self._reassignment_interval = 16
         self._candidates = list[Unit]()
-        self._combat: CombatStep | None = None
+        self._situation: CombatSituation | None = None
         self._scout_overlord_tag: int | None = None
         self._scout_proxy_overlord_tags = tuple[int, ...]()
         self._action_by_tag = dict[int, Action]()
@@ -34,7 +34,7 @@ class Overlords:
         overlords = observation.bot.units({UnitTypeId.OVERLORD, UnitTypeId.OVERLORDTRANSPORT})
         self._scout_overlord_tag = observation.scout_overlord_tag
         self._scout_proxy_overlord_tags = observation.scout_proxy_overlord_tags
-        self._combat = observation.combat
+        self._situation = observation.combat
         excluded_tags = set(self._scout_proxy_overlord_tags)
         if self._scout_overlord_tag is not None:
             excluded_tags.add(self._scout_overlord_tag)
@@ -42,12 +42,12 @@ class Overlords:
         if self._candidates:
             self._update_creep_enable_queue(self._candidates)
         self._action_by_tag.clear()
-        if not self._candidates or self._combat is None:
+        if not self._candidates or self._situation is None:
             return
 
         movable = list[Unit]()
         for overlord in self._candidates:
-            if (action := self._combat.keep_unit_safe(overlord)) or (action := self._enable_creep_with(overlord)):
+            if (action := self._situation.keep_unit_safe(overlord)) or (action := self._enable_creep_with(overlord)):
                 self._action_by_tag[overlord.tag] = action
             else:
                 movable.append(overlord)

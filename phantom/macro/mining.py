@@ -76,7 +76,7 @@ class MiningParameters:
         return np.exp(self.assignment_cost_log.value)
 
 
-class MiningContext:
+class MiningSituation:
     def __init__(
         self,
         bot: "PhantomBot",
@@ -106,7 +106,7 @@ class MiningContext:
         )
 
 
-class MiningState:
+class MiningCommand:
     def __init__(self, bot: "PhantomBot", params: ParameterManager) -> None:
         self.bot = bot
         self.params = MiningParameters(params)
@@ -168,14 +168,14 @@ class MiningState:
 
         mineral_fields = [m for m in observation.bot.all_taken_minerals if should_harvest_resource(m)]
         gas_buildings = [g for g in observation.bot.harvestable_gas_buildings if should_harvest_resource(g)]
-        context = MiningContext(
+        situation = MiningSituation(
             observation.bot,
             harvesters,
             mineral_fields,
             gas_buildings,
             gas_target,
         )
-        self._step = self.step(context)
+        self._step = self.step(situation)
 
     def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
         if self._step is None:
@@ -186,13 +186,13 @@ class MiningState:
             if (action := self._step.gather_with(harvester, observation.harvester_return_targets))
         }
 
-    def step(self, observation: MiningContext) -> "MiningStep":
-        action = MiningStep(self, observation)
+    def step(self, situation: MiningSituation) -> "MiningStep":
+        action = MiningStep(self, situation)
         self.assignment = action.harvester_assignment
-        self.gather_hash = observation.gather_hash
+        self.gather_hash = situation.gather_hash
 
-        income = observation.bot.income.minerals + observation.bot.income.vespene
-        self.efficiency.add_value(income, len(observation.harvesters))
+        income = situation.bot.income.minerals + situation.bot.income.vespene
+        self.efficiency.add_value(income, len(situation.harvesters))
 
         return action
 
@@ -200,15 +200,15 @@ class MiningState:
 class MiningStep:
     def __init__(
         self,
-        state: MiningState,
-        context: MiningContext,
+        state: MiningCommand,
+        situation: MiningSituation,
     ):
         self.state = state
-        self.context = context
+        self.situation = situation
         self.harvester_assignment = self._harvester_assignment()
 
     def _harvester_assignment(self) -> HarvesterAssignment:
-        if self.context.gather_hash == self.state.gather_hash:
+        if self.situation.gather_hash == self.state.gather_hash:
             return self.state.assignment
         if (solution := self.solve()) is not None:
             return solution
@@ -216,8 +216,8 @@ class MiningStep:
         return self.state.assignment
 
     def solve(self) -> HarvesterAssignment | None:
-        harvesters = self.context.harvesters
-        resources = [*self.context.mineral_fields, *self.context.gas_buildings]
+        harvesters = self.situation.harvesters
+        resources = [*self.situation.mineral_fields, *self.situation.gas_buildings]
 
         if not resources:
             return {}
@@ -241,9 +241,9 @@ class MiningStep:
         n = len(harvesters)
         m = len(resources)
         optimal_assigned = math.ceil(n / m)
-        max_assigned_mineral = max(optimal_assigned, self.context.bot.harvesters_per_mineral_field)
-        max_assigned_gas = max(optimal_assigned, self.context.bot.harvesters_per_gas_building)
-        gas_target = min(self.context.gas_target, max_assigned_gas * len(self.context.gas_buildings))
+        max_assigned_mineral = max(optimal_assigned, self.situation.bot.harvesters_per_mineral_field)
+        max_assigned_gas = max(optimal_assigned, self.situation.bot.harvesters_per_gas_building)
+        gas_target = min(self.situation.gas_target, max_assigned_gas * len(self.situation.gas_buildings))
 
         cost = harvester_to_resource
         cost += self.state.params.return_distance_weight * return_distance
@@ -267,7 +267,7 @@ class MiningStep:
             return None
         if not (target_pos := self.harvester_assignment.get(unit.tag)):
             return None
-        if not (target := self.context.resource_by_position.get(target_pos)):
+        if not (target := self.situation.resource_by_position.get(target_pos)):
             logger.error(f"No resource found at {target_pos}")
             return None
         if len(unit.orders) >= 2:

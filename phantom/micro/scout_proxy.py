@@ -13,7 +13,7 @@ from phantom.common.utils import circle_perimeter
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
-    from phantom.micro.combat import CombatStep
+    from phantom.micro.combat import CombatSituation
     from phantom.observation import Observation
 
 
@@ -24,7 +24,7 @@ class ScoutProxy:
         samples_max: int = 24,
     ) -> None:
         self.bot = bot
-        self._combat: CombatStep | None = None
+        self._situation: CombatSituation | None = None
         self._scout_tags = tuple[int, ...]()
         self._target_by_scout_tag = dict[int, Point2]()
         self._samples_max = max(1, samples_max)
@@ -34,14 +34,14 @@ class ScoutProxy:
             self._ground_mask = np.ones(self._vision_age.shape, dtype=bool)
 
     def on_step(self, observation: Observation) -> None:
-        self._combat = observation.combat
+        self._situation = observation.combat
         self._scout_tags = observation.scout_proxy_overlord_tags
         self._cleanup_stale_targets()
         self._drop_visible_targets()
         self._update_vision_age_grid()
 
     def __call__(self, unit: Unit) -> Action | None:
-        if self._combat is not None and (action := self._combat.keep_unit_safe(unit)):
+        if self._situation is not None and (action := self._situation.keep_unit_safe(unit)):
             return action
         target = self._target_by_scout_tag.get(unit.tag)
         if target is None:
