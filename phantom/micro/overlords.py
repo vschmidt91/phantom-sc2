@@ -27,12 +27,17 @@ class Overlords:
         self._candidates = list[Unit]()
         self._combat: CombatStep | None = None
         self._scout_overlord_tag: int | None = None
+        self._scout_proxy_overlord_tags = tuple[int, ...]()
 
     def on_step(self, observation: Observation) -> None:
         overlords = observation.bot.units({UnitTypeId.OVERLORD, UnitTypeId.OVERLORDTRANSPORT})
         self._scout_overlord_tag = observation.scout_overlord_tag
+        self._scout_proxy_overlord_tags = observation.scout_proxy_overlord_tags
         self._combat = observation.combat
-        self._candidates = [u for u in overlords if u.tag != self._scout_overlord_tag]
+        excluded_tags = set(self._scout_proxy_overlord_tags)
+        if self._scout_overlord_tag is not None:
+            excluded_tags.add(self._scout_overlord_tag)
+        self._candidates = [u for u in overlords if u.tag not in excluded_tags]
         if self._candidates:
             self._update_creep_enable_queue(self._candidates)
 

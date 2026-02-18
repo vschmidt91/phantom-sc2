@@ -5,6 +5,7 @@ from functools import cached_property, total_ordering
 from typing import TYPE_CHECKING
 
 import numpy as np
+from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
@@ -231,7 +232,7 @@ class Strategy:
     def _counter_composition(self) -> UnitComposition:
         def total_cost(t: UnitTypeId) -> float:
             cost = self.bot.cost.of(t)
-            total_cost = (cost.minerals + 2 * cost.vespene) * (0.5 if t == UnitTypeId.ZERGLING else 1.0)
+            total_cost = cost.minerals + 2 * cost.vespene
             return total_cost
 
         composition = defaultdict[UnitTypeId, float](float)
@@ -247,7 +248,10 @@ class Strategy:
 
     def _macro_composition(self) -> UnitComposition:
         harvester_target = min(self.parameters.tier3_drone_count.value, max(1, self.bot.max_harvesters))
-        queen_target = max(0.0, min(8, 2 * self.bot.townhalls.amount))
+        if self.bot.enemy_race in {Race.Terran, Race.Random}:
+            queen_target = max(0.0, min(8, 2 * self.bot.townhalls.amount))
+        else:
+            queen_target = max(0.0, min(8, 1 + self.bot.townhalls.amount))
         composition = defaultdict[UnitTypeId, float](float)
 
         composition[UnitTypeId.DRONE] += harvester_target

@@ -43,6 +43,7 @@ from phantom.micro.overlords import Overlords
 from phantom.micro.overseers import Overseers
 from phantom.micro.own_creep import OwnCreep
 from phantom.micro.queens import Queens
+from phantom.micro.scout_proxy import ScoutProxy
 from phantom.micro.simulator import CombatSimulator, CombatSimulatorParameters
 from phantom.micro.transfuse import Transfuse
 from phantom.observation import Observation, with_micro
@@ -72,6 +73,10 @@ class Agent:
         self.creep_spread = CreepSpread(bot)
         self.corrosive_biles = CorrosiveBile(bot)
         self.dodge = Dodge(bot)
+        self.scout_proxy = ScoutProxy(
+            bot,
+            samples_max=config.proxy_scout_samples_max,
+        )
         self.overlords = Overlords(bot)
         self.overseers = Overseers(bot)
         self.blocked_positions = BlockedPositionTracker(bot)
@@ -92,6 +97,7 @@ class Agent:
             self.queens,
             self.transfuse,
             self.overseers,
+            self.scout_proxy,
             self.overlords,
             self.dodge,
         )
@@ -99,6 +105,7 @@ class Agent:
         self.supply_efficiency = MetricAccumulator()
         self._enemy_expanded = False
         self._scout_overlord_tag: int | None = None
+        self._scout_proxy_overlord_tags = tuple[int, ...]()
         self._proxy_structures: list[Unit] = []
         self._skip_roach_warren = False
         self._load_parameters()
@@ -143,6 +150,7 @@ class Agent:
             overlords = self.bot.units(UnitTypeId.OVERLORD)
             if overlords:
                 self._scout_overlord_tag = overlords[0].tag
+        self._update_proxy_scout_overlords()
 
         should_inject = self.bot.supply_used + self.bot.bank.larva < 200
         tumor_count = (
@@ -157,6 +165,7 @@ class Agent:
             observation,
             combat=combat,
             scout_overlord_tag=self._scout_overlord_tag,
+            scout_proxy_overlord_tags=self._scout_proxy_overlord_tags,
             should_inject=should_inject,
             should_spread_creep=should_spread_creep,
             detection_targets=detection_targets,
@@ -236,7 +245,7 @@ class Agent:
 
         if self._scout_overlord_tag is not None:
             scout_overlord = self.bot.unit_tag_dict.get(self._scout_overlord_tag)
-            if scout_overlord:
+            if scout_overlord and scout_overlord.tag not in self._scout_proxy_overlord_tags:
                 actions[scout_overlord] = self._send_overlord_scout(scout_overlord)
 
         for component in self.reactive_components:
@@ -416,3 +425,27 @@ class Agent:
                 self._skip_roach_warren = True
         else:
             self._skip_roach_warren = False
+
+    def _update_proxy_scout_overlords(self) -> None:
+        if not self.config.proxy_scout_enabled:
+            self._scout_proxy_overlord_tags = ()
+            return
+
+        max_scouts = max(0, int(self.config.proxy_scout_max_overlords))
+        if max_scouts == 0:
+            self._scout_proxy_overlord_tags = ()
+            return
+
+        excluded = {self._scout_overlord_tag} - {None}
+        proxy_scouts = [
+            tag for tag in self._scout_proxy_overlord_tags if tag in self.bot.unit_tag_dict and tag not in excluded
+        ]
+        if len(proxy_scouts) < max_scouts:
+            for overlord in self.bot.units(UnitTypeId.OVERLORD):
+                if overlord.tag in excluded or overlord.tag in proxy_scouts:
+                    continue
+                proxy_scouts.append(overlord.tag)
+                if len(proxy_scouts) >= max_scouts:
+                    break
+
+        self._scout_proxy_overlord_tags = tuple(proxy_scouts[:max_scouts])

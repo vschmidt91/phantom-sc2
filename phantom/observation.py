@@ -22,6 +22,7 @@ class Observation:
     harvester_return_targets: Units
     combat: CombatStep | None = None
     scout_overlord_tag: int | None = None
+    scout_proxy_overlord_tags: tuple[int, ...] = ()
     should_inject: bool = False
     should_spread_creep: bool = False
     detection_targets: tuple[Point2, ...] = ()
