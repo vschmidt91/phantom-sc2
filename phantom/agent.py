@@ -85,7 +85,6 @@ class Agent:
             (UnitTypeId.OVERLORD, self._send_overlord_scout),
             (UnitTypeId.OVERLORD, self.scout_proxy),
             (UnitTypeId.ZERGLING, Until(3 * 60, self.scout_proxy)),
-            (UnitTypeId.ZERGLING, Until(3 * 60, self.scout_proxy)),
         ):
             self.tactics.register(unit_type, tactic)
         self.blocked_positions = BlockedPositionTracker(bot)
@@ -122,7 +121,7 @@ class Agent:
         combatants = observation.combatants
         harvester_return_targets = observation.harvester_return_targets
 
-        supply_efficiency = 1 - self.bot.supply_left if self.bot.supply_left > 0 else -24
+        supply_efficiency = 1 - self.bot.supply_left if self.bot.supply_left > 0 else -50
         self.supply_efficiency.add_value(supply_efficiency)
 
         if self.bot.time < 5 * 60 or self.bot.townhalls.amount < 3:

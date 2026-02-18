@@ -232,7 +232,7 @@ class Strategy:
     def _counter_composition(self) -> UnitComposition:
         def total_cost(t: UnitTypeId) -> float:
             cost = self.bot.cost.of(t)
-            total_cost = cost.minerals + 2 * cost.vespene
+            total_cost = cost.minerals + cost.vespene
             return total_cost
 
         composition = defaultdict[UnitTypeId, float](float)
@@ -261,7 +261,7 @@ class Strategy:
         if self.tier >= StrategyTier.LAIR:
             if UnitTypeId.HIVE not in self.composition:
                 composition[UnitTypeId.LAIR] += 1
-            composition[UnitTypeId.OVERSEER] += 1
+            composition[UnitTypeId.OVERSEER] += 2
         if self.tier >= StrategyTier.HIVE:
             composition[UnitTypeId.HIVE] += 1
             composition[UnitTypeId.OVERSEER] += 1
