@@ -53,7 +53,7 @@ class Queens:
             else {}
         )
         inject_assignment_inverse = {q: h for h, q in inject_assignment.items()}
-        actions = {
+        return {
             queen: action
             for queen in queens
             if (
@@ -65,19 +65,17 @@ class Queens:
                 )
             )
         }
-        return actions
 
     def _get_action(
         self, queen: Unit, inject_target: Unit | None, creep: CreepSpread | None, combat: CombatStep
     ) -> Action | None:
         if not combat.is_unit_safe(queen):
             return combat.fight_with(queen)
-        elif inject_target and (action := self._inject_with(queen, inject_target)):  # noqa: SIM114
+        if inject_target and (action := self._inject_with(queen, inject_target)):
             return action
-        elif (creep and (action := creep.spread_with(queen))) or (action := combat.retreat_to_creep(queen)):
+        if (creep and (action := creep.spread_with(queen))) or (action := combat.retreat_to_creep(queen)):
             return action
-        else:
-            return combat.fight_with(queen)
+        return combat.fight_with(queen)
 
     def _inject_with(self, queen: Unit, hatch: Unit) -> Action | None:
         distance = cy_distance_to(queen.position, hatch.position) - queen.radius - hatch.radius

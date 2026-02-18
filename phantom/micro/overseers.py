@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -17,19 +16,6 @@ from phantom.observation import Observation
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
     from phantom.micro.combat import CombatStep
-
-
-@dataclass
-class ScoutPosition(Action):
-    target: Point2
-
-    async def execute(self, unit: Unit) -> bool:
-        if unit.distance_to(self.target) < 0.1:
-            if unit.is_idle:
-                return True
-            return unit.stop()
-        else:
-            return unit.move(self.target)
 
 
 class Overseers:
@@ -109,7 +95,7 @@ class Overseers:
     ) -> Action | None:
         if (action := self._spawn_changeling(overseer)) or (action := combat.keep_unit_safe(overseer)):
             return action
-        elif detect_target:
+        if detect_target:
             return Move(
                 self.bot.mediator.find_path_next_point(
                     start=overseer.position,
@@ -118,7 +104,7 @@ class Overseers:
                     smoothing=True,
                 )
             )
-        elif scout_target:
+        if scout_target:
             return Move(
                 self.bot.mediator.find_path_next_point(
                     start=overseer.position,
@@ -127,11 +113,9 @@ class Overseers:
                     smoothing=True,
                 )
             )
-        else:
-            return None
+        return None
 
     def _spawn_changeling(self, overseer: Unit) -> Action | None:
         if self.bot.in_pathing_grid(overseer) and overseer.energy >= 50.0:
             return UseAbility(AbilityId.SPAWNCHANGELING_SPAWNCHANGELING)
-        else:
-            return None
+        return None

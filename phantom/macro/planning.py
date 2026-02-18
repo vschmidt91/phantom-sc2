@@ -98,13 +98,12 @@ class MacroPlanning:
         self._strategy = strategy
 
         if not self.build_order_completed:
-            if not self.bot.mediator.is_position_safe(
+            nat_unsafe = not self.bot.mediator.is_position_safe(
                 grid=self.bot.ground_grid,
                 position=self.bot.mediator.get_own_nat,
                 weight_safety_limit=10.0,
-            ):
-                self.build_order_completed = True
-            if self.bot.mediator.get_did_enemy_rush:
+            )
+            if nat_unsafe or self.bot.mediator.get_did_enemy_rush:
                 self.build_order_completed = True
 
             if step := self.build_order.execute(self.bot):
@@ -158,5 +157,5 @@ class MacroPlanning:
             if not any(self.bot.get_missing_requirements(item))
         }
 
-    def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
+    def get_actions(self) -> Mapping[Unit, Action]:
         return self._actions

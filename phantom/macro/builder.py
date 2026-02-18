@@ -26,18 +26,11 @@ from phantom.common.expansion import Expansion
 from phantom.common.point import to_point
 from phantom.common.unit_composition import UnitComposition
 from phantom.common.utils import MacroId
-from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
 
 rng = np.random.default_rng()
-
-EXCLUDE_ABILTIES = {
-    AbilityId.BUILD_CREEPTUMOR_TUMOR,
-    AbilityId.BUILD_CREEPTUMOR_QUEEN,
-    AbilityId.SPAWNCHANGELING_SPAWNCHANGELING,
-}
 
 
 @dataclass
@@ -53,7 +46,6 @@ class Builder:
         self.bot = bot
         self._plans = dict[UnitTypeId, MacroPlan]()
         self._priorities = dict[MacroId, float]()
-        self.min_priority = -1.0
 
     def get_priorities(self, composition: UnitComposition, limit: float = 1.0) -> dict[UnitTypeId, float]:
         priorities = dict[UnitTypeId, float]()
@@ -131,13 +123,13 @@ class Builder:
     def set_priorities(self, priorities: Mapping[MacroId, float]) -> None:
         self._priorities = dict(priorities)
 
-    def on_step(self, observation: Observation) -> None:
+    def on_step(self) -> None:
         for ability, build in BUILDER_ABILITIES.items():
             if self.bot.actions_by_ability[ability]:
                 self._plans.pop(build, None)
         self._assign_unassigned_worker_plans()
 
-    def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
+    def get_actions(self) -> Mapping[Unit, Action]:
         actions = dict[Unit, Action]()
         reserve = Cost()
         all_trainers = {

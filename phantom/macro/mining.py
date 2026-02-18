@@ -210,23 +210,18 @@ class MiningStep:
     def _harvester_assignment(self) -> HarvesterAssignment:
         if self.context.gather_hash == self.state.gather_hash:
             return self.state.assignment
-        elif (solution := self.solve()) is not None:
+        if (solution := self.solve()) is not None:
             return solution
-        else:
-            logger.error("Harvester assignment solve failed")
-            return self.state.assignment
+        logger.error("Harvester assignment solve failed")
+        return self.state.assignment
 
     def solve(self) -> HarvesterAssignment | None:
         harvesters = self.context.harvesters
+        resources = [*self.context.mineral_fields, *self.context.gas_buildings]
 
-        resources = list[Unit]()
-        resources.extend(self.context.mineral_fields)
-        resources.extend(self.context.gas_buildings)
-
-        if not any(resources):
+        if not resources:
             return {}
-
-        if not any(harvesters):
+        if not harvesters:
             return {}
 
         harvester_to_resource = pairwise_distances(

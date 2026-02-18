@@ -40,12 +40,10 @@ class Transfuse:
         if unit.energy < self.ability_energy_cost:
             return None
 
-        if self.bot.mediator.is_position_safe(grid=self.bot.ground_grid, position=unit.position) and self.bot.has_creep(
-            unit
-        ):
-            bonus_distance = self.bonus_distance
-        else:
-            bonus_distance = 0.0
+        is_safe_on_creep = self.bot.mediator.is_position_safe(
+            grid=self.bot.ground_grid, position=unit.position
+        ) and self.bot.has_creep(unit)
+        bonus_distance = self.bonus_distance if is_safe_on_creep else 0.0
 
         (targets,) = self.bot.mediator.get_units_in_range(
             start_points=[unit],
@@ -68,7 +66,6 @@ class Transfuse:
             if cy_distance_to(unit.position, target.position) <= unit.radius + self.ability_range:
                 self._transfused_this_step.add(target.tag)
                 return UseAbility(self.ability, target=target)
-            else:
-                return Move(target.position)
+            return Move(target.position)
 
         return None

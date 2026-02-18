@@ -9,7 +9,6 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
 from phantom.common.action import Action
-from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
@@ -23,9 +22,7 @@ class Until:
     tactic: Tactic
 
     def __call__(self, unit: Unit) -> Action | None:
-        if unit.game_loop < self.time * 22.4:
-            return self.tactic(unit)
-        return None
+        return self.tactic(unit) if unit.game_loop < self.time * 22.4 else None
 
 
 class Tactics:
@@ -43,15 +40,16 @@ class Tactics:
             return
         self._assignment[unit.tag] = registered.pop(0)
 
-    def on_step(self, observation: Observation) -> None:
+    def on_step(self) -> None:
         pass
 
-    def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
+    def get_actions(self) -> Mapping[Unit, Action]:
         actions = dict[Unit, Action]()
         for tag, tactic in list(self._assignment.items()):
-            if unit := self.bot.unit_tag_dict.get(tag):
-                if action := tactic(unit):
-                    actions[unit] = action
-            else:
+            unit = self.bot.unit_tag_dict.get(tag)
+            if unit is None:
                 del self._assignment[tag]
+                continue
+            if action := tactic(unit):
+                actions[unit] = action
         return actions

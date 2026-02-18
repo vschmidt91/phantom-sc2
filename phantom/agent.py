@@ -58,55 +58,57 @@ class Agent:
         self.bot = bot
         self.config = config
         self.optimizer = ParameterManager(config.optimizer_pop_size)
-        self.build_order = BUILD_ORDERS[self.config.build_order]
-        self.dead_airspace = DeadAirspace(self.bot.clean_ground_grid == 1.0)
-        self.simulator = CombatSimulator(bot, CombatSimulatorParameters(self.optimizer))
+        build_order = BUILD_ORDERS[self.config.build_order]
+        dead_airspace = DeadAirspace(self.bot.clean_ground_grid == 1.0)
+        simulator = CombatSimulator(bot, CombatSimulatorParameters(self.optimizer))
         self.own_creep = OwnCreep(bot)
         self.combat = CombatState(
             bot,
             CombatParameters(self.optimizer),
-            self.simulator,
+            simulator,
             self.own_creep,
-            self.dead_airspace,
+            dead_airspace,
         )
         self.builder = Builder(bot)
         self.creep_tumors = CreepTumors(bot)
         self.creep_spread = CreepSpread(bot)
-        self.corrosive_biles = CorrosiveBile(bot)
-        self.dodge = Dodge(bot)
+        corrosive_biles = CorrosiveBile(bot)
+        dodge = Dodge(bot)
         self.scout_proxy = ScoutProxy(
             bot,
             samples_max=config.proxy_scout_samples_max,
         )
-        self.overlords = Overlords(bot)
-        self.overseers = Overseers(bot)
+        overlords = Overlords(bot)
+        overseers = Overseers(bot)
         self.tactics = Tactics(bot)
-        self.tactics.register(UnitTypeId.OVERLORD, self._send_overlord_scout)
-        self.tactics.register(UnitTypeId.OVERLORD, self.scout_proxy)
-        self.tactics.register(UnitTypeId.ZERGLING, Until(3 * 60, self.scout_proxy))
-        self.tactics.register(UnitTypeId.ZERGLING, Until(3 * 60, self.scout_proxy))
+        for unit_type, tactic in (
+            (UnitTypeId.OVERLORD, self._send_overlord_scout),
+            (UnitTypeId.OVERLORD, self.scout_proxy),
+            (UnitTypeId.ZERGLING, Until(3 * 60, self.scout_proxy)),
+            (UnitTypeId.ZERGLING, Until(3 * 60, self.scout_proxy)),
+        ):
+            self.tactics.register(unit_type, tactic)
         self.blocked_positions = BlockedPositionTracker(bot)
-        self.queens = Queens(bot, self.creep_spread)
-        self.transfuse = Transfuse(bot)
-        self.strategy_paramaters = StrategyParameters(self.optimizer)
+        queens = Queens(bot, self.creep_spread)
+        transfuse = Transfuse(bot)
+        strategy_parameters = StrategyParameters(self.optimizer)
         self.macro_planning = MacroPlanning(
             bot=bot,
             params=self.optimizer,
-            strategy_parameters=self.strategy_paramaters,
+            strategy_parameters=strategy_parameters,
             builder=self.builder,
-            build_order=self.build_order,
+            build_order=build_order,
         )
         self.mining = MiningState(bot, self.optimizer)
-        self.precombat_components: tuple[Component, ...] = (self.corrosive_biles,)
+        self.precombat_components: tuple[Component, ...] = (corrosive_biles,)
         self.reactive_components: tuple[Component, ...] = (
             self.creep_spread,
-            self.queens,
-            self.transfuse,
-            self.overseers,
-            self.overlords,
-            self.dodge,
+            queens,
+            transfuse,
+            overseers,
+            overlords,
+            dodge,
         )
-        self.gas_ratio = 0.0
         self.supply_efficiency = MetricAccumulator()
         self._enemy_expanded = False
         self._proxy_structures: list[Unit] = []
@@ -142,7 +144,7 @@ class Agent:
             return {}
 
         actions = dict[Unit, Action]()
-        actions.update(self.macro_planning.get_actions(macro_observation))
+        actions.update(self.macro_planning.get_actions())
         build_priorities = dict(self.macro_planning.build_priorities)
         macro_plans = dict(self.macro_planning.macro_plans)
 
@@ -150,7 +152,7 @@ class Agent:
         self.blocked_positions.on_step()
         self.bot.set_blocked_positions(set(self.blocked_positions.blocked_positions))
         detection_targets = tuple(map(Point2, self.blocked_positions.blocked_positions))
-        self.tactics.on_step(observation)
+        self.tactics.on_step()
 
         should_inject = self.bot.supply_used + self.bot.bank.larva < 200
         tumor_count = (
@@ -181,7 +183,6 @@ class Agent:
             harvesters_exclude=self.builder.assigned_tags | self.bot.pending.keys(),
         )
         self.mining.on_step(observation)
-        self.gas_ratio = self.mining.gas_ratio
 
         if not self.bot.researched_speed and self.bot.harvestable_gas_buildings:
             pass
@@ -190,7 +191,7 @@ class Agent:
 
         for item, plan in macro_plans.items():
             self.builder.add(item, plan)
-        self.builder.on_step(observation)
+        self.builder.on_step()
         resources = self.mining.step_result
         harvesters = self.mining.harvesters
         for harvester in harvesters:
@@ -230,7 +231,7 @@ class Agent:
 
         self.builder.set_priorities(build_priorities)
         if self.bot.actual_iteration > 1 or not self.config.skip_first_iteration:
-            actions.update(self.builder.get_actions(observation))
+            actions.update(self.builder.get_actions())
 
         for structure in self.bot.structures.not_ready:
             if structure.health_percentage < 0.05:
@@ -244,7 +245,7 @@ class Agent:
 
         for component in self.reactive_components:
             actions.update(component.get_actions(micro_observation))
-        actions.update(self.tactics.get_actions(observation))
+        actions.update(self.tactics.get_actions())
 
         for queen in observation.queens:
             if queen not in actions and (action := self._search_with(queen)):
@@ -318,9 +319,6 @@ class Agent:
                 else:
                     return HoldPosition()
 
-    def _second_overlord_tactic(self, overlord: Unit) -> Action | None:
-        return None
-
     def _load_parameters(self) -> None:
         try:
             with lzma.open(self.config.params_path, "rb") as f:
@@ -385,9 +383,9 @@ class Agent:
             return None
 
     def _log_parameters(self) -> None:
-        logger.info(f"{self.simulator.parameters.__dict__=}")
+        logger.info(f"{self.combat.simulator.parameters.__dict__=}")
         logger.info(f"{self.combat.parameters.__dict__=}")
-        logger.info(f"{self.strategy_paramaters.__dict__=}")
+        logger.info(f"{self.macro_planning.strategy_parameters.__dict__=}")
 
     def _detect_proxy_structure(self, structure: Unit) -> bool:
         if structure.is_mine:
