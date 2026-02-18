@@ -107,7 +107,7 @@ class Agent:
         self._load_parameters()
         self._log_parameters()
 
-    def on_step(self, observation: Observation) -> Mapping[Unit, Action]:
+    async def on_step(self, observation: Observation) -> Mapping[Unit, Action]:
         combatants = observation.combatants
         harvester_return_targets = observation.harvester_return_targets
 
@@ -154,7 +154,7 @@ class Agent:
 
         micro_observation = with_micro(
             observation,
-            combat=combat,
+            combat=situation,
             should_inject=should_inject,
             should_spread_creep=should_spread_creep,
             detection_targets=detection_targets,
@@ -224,7 +224,7 @@ class Agent:
 
         self.builder.set_priorities(build_priorities)
         if self.bot.actual_iteration > 1 or not self.config.skip_first_iteration:
-            actions.update(self.builder.get_actions())
+            actions.update(await self.builder.get_actions())
 
         for structure in self.bot.structures.not_ready:
             if structure.health_percentage < 0.05:

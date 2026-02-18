@@ -104,7 +104,7 @@ class PhantomBot(AresBot):
 
         self._update_tables()
         observation = self.observe()
-        actions = self.agent.on_step(observation)
+        actions = await self.agent.on_step(observation)
         for unit, action in actions.items():
             await action.execute(unit)
 

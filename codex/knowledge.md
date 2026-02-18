@@ -1,0 +1,3 @@
+- Macro structure placement search lives in `phantom/macro/builder.py` (`_get_structure_target`).
+- `python-sc2` `find_placement` is async, so placement changes require async propagation through `Builder.get_actions` -> `Agent.on_step` -> `PhantomBot.on_step`.
+- For minimal impact, structure placement can keep random sampling and use async `can_place_single` for validity checks.

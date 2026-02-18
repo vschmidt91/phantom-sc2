@@ -129,7 +129,7 @@ class Builder:
                 self._plans.pop(build, None)
         self._assign_unassigned_worker_plans()
 
-    def get_actions(self) -> Mapping[Unit, Action]:
+    async def get_actions(self) -> Mapping[Unit, Action]:
         actions = dict[Unit, Action]()
         reserve = Cost()
         all_trainers = {
@@ -157,10 +157,7 @@ class Builder:
                     continue
 
                 if isinstance(plan.target, Point2) and (
-                    not self.bot.mediator.can_place_structure(
-                        position=plan.target,
-                        structure_type=item,
-                    )
+                    not await self.bot.can_place_single(item, plan.target)
                     or to_point(plan.target) in self.bot.blocked_positions
                 ):
                     if plan.allow_replacement:
@@ -172,7 +169,7 @@ class Builder:
 
                 if not plan.target:
                     try:
-                        plan.target = self._get_target(trainer, item)
+                        plan.target = await self._get_target(trainer, item)
                     except PlacementNotFoundException:
                         continue
             else:
@@ -229,7 +226,7 @@ class Builder:
             workers.pop(tag, None)
             logger.info(f"Assigning {plan} to worker {tag}")
 
-    def _get_target(self, trainer: Unit, item: UnitTypeId) -> Unit | Point2 | None:
+    async def _get_target(self, trainer: Unit, item: UnitTypeId) -> Unit | Point2 | None:
         if item in GAS_BUILDINGS:
             return self._get_gas_target(trainer.position)
         if (
@@ -238,7 +235,9 @@ class Builder:
             or not data.get("requires_placement_position")
         ):
             return None
-        position = self._get_expansion_target() if item in TOWNHALL_TYPES else self._get_structure_target(item)
+        position = (
+            self._get_expansion_target() if item in TOWNHALL_TYPES else await self._get_structure_target(item)
+        )
         if not position:
             raise PlacementNotFoundException()
         return position
@@ -281,7 +280,7 @@ class Builder:
 
         raise PlacementNotFoundException()
 
-    def _get_structure_target(self, structure_type: UnitTypeId, num_attempts: int = 100) -> Point2:
+    async def _get_structure_target(self, structure_type: UnitTypeId, num_attempts: int = 100) -> Point2:
         if not any(self.bot.bases_taken):
             raise PlacementNotFoundException()
 
@@ -290,15 +289,12 @@ class Builder:
 
         bases = list(self.bot.bases_taken.items())
         for _ in range(num_attempts):
-            base, expansion = random.choice(bases)
+            _, expansion = random.choice(bases)
             distance = rng.uniform(8, 12)
             mineral_line = Point2(expansion.mineral_center)
             position = expansion.townhall_position.towards_with_random_angle(mineral_line, distance)
             position = position.rounded.offset((offset, offset))
-            if self.bot.mediator.can_place_structure(
-                position=position,
-                structure_type=structure_type,
-            ):
+            if await self.bot.can_place_single(structure_type, position):
                 return position
 
         raise PlacementNotFoundException()
