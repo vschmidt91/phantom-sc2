@@ -146,6 +146,8 @@ class PhantomBot(AresBot):
         await super().on_unit_destroyed(unit_tag)
 
     async def on_unit_created(self, unit: Unit) -> None:
+        if hasattr(self, "agent"):
+            self.agent.on_unit_created(unit)
         await super().on_unit_created(unit)
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float) -> None:

@@ -45,6 +45,7 @@ from phantom.micro.own_creep import OwnCreep
 from phantom.micro.queens import Queens
 from phantom.micro.scout_proxy import ScoutProxy
 from phantom.micro.simulator import CombatSimulator, CombatSimulatorParameters
+from phantom.micro.tactics import Tactics, Until
 from phantom.micro.transfuse import Transfuse
 from phantom.observation import Observation, with_micro
 
@@ -79,6 +80,11 @@ class Agent:
         )
         self.overlords = Overlords(bot)
         self.overseers = Overseers(bot)
+        self.tactics = Tactics(bot)
+        self.tactics.register(UnitTypeId.OVERLORD, self._send_overlord_scout)
+        self.tactics.register(UnitTypeId.OVERLORD, self.scout_proxy)
+        self.tactics.register(UnitTypeId.ZERGLING, Until(3 * 60, self.scout_proxy))
+        self.tactics.register(UnitTypeId.ZERGLING, Until(3 * 60, self.scout_proxy))
         self.blocked_positions = BlockedPositionTracker(bot)
         self.queens = Queens(bot, self.creep_spread)
         self.transfuse = Transfuse(bot)
@@ -97,17 +103,16 @@ class Agent:
             self.queens,
             self.transfuse,
             self.overseers,
-            self.scout_proxy,
             self.overlords,
             self.dodge,
         )
         self.gas_ratio = 0.0
         self.supply_efficiency = MetricAccumulator()
         self._enemy_expanded = False
-        self._scout_overlord_tag: int | None = None
-        self._scout_proxy_overlord_tags = tuple[int, ...]()
         self._proxy_structures: list[Unit] = []
         self._skip_roach_warren = False
+        for unit in self.bot.units:
+            self.tactics.on_unit_created(unit)
         self._load_parameters()
         self._log_parameters()
 
@@ -145,12 +150,7 @@ class Agent:
         self.blocked_positions.on_step()
         self.bot.set_blocked_positions(set(self.blocked_positions.blocked_positions))
         detection_targets = tuple(map(Point2, self.blocked_positions.blocked_positions))
-
-        if self._scout_overlord_tag is None:
-            overlords = self.bot.units(UnitTypeId.OVERLORD)
-            if overlords:
-                self._scout_overlord_tag = overlords[0].tag
-        self._update_proxy_scout_overlords()
+        self.tactics.on_step(observation)
 
         should_inject = self.bot.supply_used + self.bot.bank.larva < 200
         tumor_count = (
@@ -164,13 +164,12 @@ class Agent:
         micro_observation = with_micro(
             observation,
             combat=combat,
-            scout_overlord_tag=self._scout_overlord_tag,
-            scout_proxy_overlord_tags=self._scout_proxy_overlord_tags,
             should_inject=should_inject,
             should_spread_creep=should_spread_creep,
             detection_targets=detection_targets,
             active_tumors=tuple(self.creep_tumors.active_tumors),
         )
+        self.scout_proxy.on_step(micro_observation)
         for component in self.reactive_components:
             component.on_step(micro_observation)
         for component in self.precombat_components:
@@ -243,13 +242,10 @@ class Agent:
                 {w: UseAbility(AbilityId.CANCEL) for w in self.bot.structures(UnitTypeId.ROACHWARREN).not_ready}
             )
 
-        if self._scout_overlord_tag is not None:
-            scout_overlord = self.bot.unit_tag_dict.get(self._scout_overlord_tag)
-            if scout_overlord and scout_overlord.tag not in self._scout_proxy_overlord_tags:
-                actions[scout_overlord] = self._send_overlord_scout(scout_overlord)
-
         for component in self.reactive_components:
             actions.update(component.get_actions(micro_observation))
+        actions.update(self.tactics.get_actions(observation))
+
         for queen in observation.queens:
             if queen not in actions and (action := self._search_with(queen)):
                 actions[queen] = action
@@ -262,6 +258,9 @@ class Agent:
     def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId) -> None:
         if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
             self.creep_tumors.on_tumor_completed(unit, previous_type == UnitTypeId.CREEPTUMORQUEEN)
+
+    def on_unit_created(self, unit: Unit) -> None:
+        self.tactics.on_unit_created(unit)
 
     def on_end(self, game_result: Result):
         if self.config.training:
@@ -318,6 +317,9 @@ class Agent:
                     return Move(optimal_position)
                 else:
                     return HoldPosition()
+
+    def _second_overlord_tactic(self, overlord: Unit) -> Action | None:
+        return None
 
     def _load_parameters(self) -> None:
         try:
@@ -425,27 +427,3 @@ class Agent:
                 self._skip_roach_warren = True
         else:
             self._skip_roach_warren = False
-
-    def _update_proxy_scout_overlords(self) -> None:
-        if not self.config.proxy_scout_enabled:
-            self._scout_proxy_overlord_tags = ()
-            return
-
-        max_scouts = max(0, int(self.config.proxy_scout_max_overlords))
-        if max_scouts == 0:
-            self._scout_proxy_overlord_tags = ()
-            return
-
-        excluded = {self._scout_overlord_tag} - {None}
-        proxy_scouts = [
-            tag for tag in self._scout_proxy_overlord_tags if tag in self.bot.unit_tag_dict and tag not in excluded
-        ]
-        if len(proxy_scouts) < max_scouts:
-            for overlord in self.bot.units(UnitTypeId.OVERLORD):
-                if overlord.tag in excluded or overlord.tag in proxy_scouts:
-                    continue
-                proxy_scouts.append(overlord.tag)
-                if len(proxy_scouts) >= max_scouts:
-                    break
-
-        self._scout_proxy_overlord_tags = tuple(proxy_scouts[:max_scouts])

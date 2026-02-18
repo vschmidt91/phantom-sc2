@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -41,30 +40,18 @@ class ScoutProxy:
         self._drop_visible_targets()
         self._update_vision_age_grid()
 
-    def get_actions(self, observation: Observation) -> Mapping[Unit, Action]:
-        if self._combat is None or not self._scout_tags:
-            return {}
-
-        actions = dict[Unit, Action]()
-        for tag in self._scout_tags:
-            scout = observation.bot.unit_tag_dict.get(tag)
-            if scout is None:
-                continue
-
-            if action := self._combat.keep_unit_safe(scout):
-                actions[scout] = action
-                continue
-
-            target = self._target_by_scout_tag.get(tag)
+    def __call__(self, unit: Unit) -> Action | None:
+        if self._combat is not None and (action := self._combat.keep_unit_safe(unit)):
+            return action
+        target = self._target_by_scout_tag.get(unit.tag)
+        if target is None:
+            target = self._pick_target_for(unit)
             if target is None:
-                target = self._pick_target_for(scout)
-                if target is None:
-                    continue
-                self._target_by_scout_tag[tag] = target
-
-            if scout.is_idle or scout.distance_to(target) > 1.5:
-                actions[scout] = Move(target)
-        return actions
+                return None
+            self._target_by_scout_tag[unit.tag] = target
+        if unit.is_idle or unit.distance_to(target) > 1.5:
+            return Move(target)
+        return None
 
     def _cleanup_stale_targets(self) -> None:
         if not self._target_by_scout_tag:
