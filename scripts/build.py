@@ -12,7 +12,7 @@ from utils import CommandWithConfigFile
 
 @click.command(cls=CommandWithConfigFile("config"))
 @click.option("--config", type=click.File("rb"))
-@click.option("--output-path", type=click.Path())
+@click.option("--output-path", type=click.Path(), required=True)
 @click.option("--copy", type=click.Path(exists=True), multiple=True)
 @click.option("--zip-modules", multiple=True)
 @click.option("--exclude", multiple=True)
@@ -27,7 +27,7 @@ def main(
     os.makedirs(output_path, exist_ok=True)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        subprocess.Popen(["poetry", "build", "--format", "wheel", "--output", tmp_dir]).wait()
+        subprocess.run(["poetry", "build", "--format", "wheel", "--output", tmp_dir], check=True)
         wheels = glob.glob(os.path.join(tmp_dir, "*.whl"))
         for wheel in wheels:
             print(f"Extracting {wheel=}")
@@ -37,7 +37,7 @@ def main(
     print("Creating requirements.txt")
     requirements_path = os.path.join(output_path, "requirements.txt")
     with open(requirements_path, "w") as f:
-        subprocess.Popen(["poetry", "export", "--without-hashes", "--format=requirements.txt"], stdout=f).wait()
+        subprocess.run(["poetry", "export", "--without-hashes", "--format=requirements.txt"], stdout=f, check=True)
 
     for item in copy:
         print(f"Copying {item=}")
@@ -58,6 +58,8 @@ def main(
     for module in zip_modules:
         target = output_path
         spec = find_spec(module)
+        if spec is None or spec.origin is None:
+            raise RuntimeError(f"Unable to resolve module: {module}")
         module_file = spec.origin
         if module_file.endswith((".pyd", ".so")):
             print(f"Copying {module_file=}")

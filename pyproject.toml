@@ -94,7 +94,6 @@ select = [
     "PERF", # performance
     "PLE",  # Error
     "PLW",  # Warning
-    "UP",   # Upgrade to newer language
     "FURB", # refurb
     "RUF",  # ruff specific
 ]
@@ -102,6 +101,10 @@ ignore = ["E501"]
 fixable = ["ALL"]
 
 [tool.mypy]
+python_version = "3.12"
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
 exclude = [
     "^ares-sc2/",
     "^build/",
