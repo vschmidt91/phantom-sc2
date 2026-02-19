@@ -12,7 +12,7 @@ from utils import CommandWithConfigFile
 
 @click.command(cls=CommandWithConfigFile("config"))
 @click.option("--config", type=click.File("rb"))
-@click.option("--output-path", type=click.Path(), required=True)
+@click.option("--output-path", type=click.Path())
 @click.option("--copy", type=click.Path(exists=True), multiple=True)
 @click.option("--zip-modules", multiple=True)
 @click.option("--exclude", multiple=True)
@@ -23,6 +23,9 @@ def main(
     zip_modules: list[str],
     exclude: list[str],
 ) -> None:
+    if not output_path:
+        raise click.UsageError("Missing option '--output-path'. Provide it directly or via --config.")
+
     shutil.rmtree(output_path, ignore_errors=True)
     os.makedirs(output_path, exist_ok=True)
 
