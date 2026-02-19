@@ -47,20 +47,15 @@ class CombatPrediction:
 
 class CombatParameters:
     def __init__(self, params: ParameterManager) -> None:
-        self._engagement_threshold = params.optimize[OptimizationTarget.CostEfficiency].add(
-            "engagement_threshold", Prior(0.0, 1.0)
+        self.engagement_threshold_transform = params.optimize[OptimizationTarget.CostEfficiency].add_scalar_transform(
+            "engagement_threshold", Prior(0.0, 1.0), Prior(0.0, 1.0)
         )
-        self.disengagement_threshold = 0.0
         self._global_engagement_level = params.optimize[OptimizationTarget.CostEfficiency].add(
             "global_engagement_level", Prior(1.73, 0.1)
         )
         self._global_engagement_hysteresis_log = params.optimize[OptimizationTarget.CostEfficiency].add(
             "global_engagement_hysteresis_log", Prior(-1.47, 0.1)
         )
-
-    @property
-    def engagement_threshold(self) -> float:
-        return self._engagement_threshold.value
 
     @property
     def global_engagement_hysteresis(self) -> float:
@@ -290,10 +285,17 @@ class CombatCommand:
         elif context.prediction.outcome_global < self.parameters.global_disengagement_threshold:
             self._attacking_global = False
 
+        local_engagement_threshold = self.parameters.engagement_threshold_transform.transform(
+            [
+                1.0,
+                context.prediction.outcome_global,
+            ]
+        )
+
         for tag, outcome in context.prediction.outcome_local.items():
-            if outcome >= self.parameters.engagement_threshold:
+            if outcome >= local_engagement_threshold:
                 self._attacking_local.add(tag)
-            elif outcome < self.parameters.disengagement_threshold:
+            elif outcome < local_engagement_threshold:
                 self._attacking_local.discard(tag)
 
         self._situation = CombatSituation(

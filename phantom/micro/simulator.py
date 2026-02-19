@@ -160,7 +160,7 @@ class CombatSimulator:
             lancester1[:, i] = potential1
             lancester2[:, i] = potential2
 
-        advantage = lancester1 - lancester2
+        advantage = np.log1p(lancester1) - np.log1p(lancester2)
         outcome_vector = advantage.mean(1)
 
         health1 = max(1, sum(u.health + u.shield for u in setup.units1))
