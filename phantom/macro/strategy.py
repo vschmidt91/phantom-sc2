@@ -39,15 +39,9 @@ class StrategyParameters:
     def __init__(self, params: ParameterManager) -> None:
         self.ravager_mixin = 10
         self.corruptor_mixin = 5
-        self.tier1_drone_count = params.optimize[OptimizationTarget.CostEfficiency].add(
-            "tier1_drone_count", Prior(30, 1)
-        )
-        self.tier2_drone_count = params.optimize[OptimizationTarget.CostEfficiency].add(
-            "tier2_drone_count", Prior(60, 1)
-        )
-        self.tier3_drone_count = params.optimize[OptimizationTarget.CostEfficiency].add(
-            "tier3_drone_count", Prior(100, 1)
-        )
+        self.tier1_drone_count = 20
+        self.tier2_drone_count = 40
+        self.tier3_drone_count = 80
         self.hydras_when_banking = 13
         self.lings_when_banking = 8
         self.queens_when_banking = 4
@@ -177,23 +171,11 @@ class Strategy:
         return self.enemy_composition
 
     def _tier(self) -> StrategyTier:
-        if (
-            self.bot.supply_workers < self.parameters.tier1_drone_count.value
-            or self.bot.townhalls.amount < 3
-            or self.bot.time < 3 * 60
-        ):
+        if self.bot.supply_workers < self.parameters.tier1_drone_count:
             return StrategyTier.HATCH
-        elif (
-            self.bot.supply_workers < self.parameters.tier2_drone_count.value
-            or self.bot.townhalls.amount < 4
-            or self.bot.time < 6 * 60
-        ):
+        elif self.bot.supply_workers < self.parameters.tier2_drone_count:
             return StrategyTier.LAIR
-        elif (
-            self.bot.supply_workers < self.parameters.tier3_drone_count.value
-            or self.bot.townhalls.amount < 5
-            or self.bot.time < 9 * 60
-        ):
+        elif self.bot.supply_workers < self.parameters.tier3_drone_count:
             return StrategyTier.HIVE
         return StrategyTier.LATEGAME
 
@@ -247,7 +229,7 @@ class Strategy:
         return composition
 
     def _macro_composition(self) -> UnitComposition:
-        harvester_target = min(self.parameters.tier3_drone_count.value, max(1, self.bot.max_harvesters))
+        harvester_target = min(self.parameters.tier3_drone_count, max(1, self.bot.max_harvesters))
         if self.bot.enemy_race in {Race.Terran, Race.Random}:
             queen_target = max(0.0, min(8, 2 * self.bot.townhalls.amount))
         else:
