@@ -15,6 +15,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
+from scipy.spatial import ConvexHull
 
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.blocked_positions import BlockedPositionTracker
@@ -25,7 +26,7 @@ from phantom.common.constants import (
     RESULT_TO_FITNESS,
 )
 from phantom.common.metrics import MetricAccumulator
-from phantom.common.point import to_point
+from phantom.common.point import Point, to_point
 from phantom.common.utils import calculate_cost_efficiency
 from phantom.learn.parameters import OptimizationTarget, ParameterManager
 from phantom.macro.build_order import BUILD_ORDERS
@@ -99,9 +100,11 @@ class Agent:
         )
         self.mining = MiningCommand(bot, self.optimizer)
         self.supply_efficiency = MetricAccumulator()
+        self._creep_hull: ConvexHull | None = None
         self._enemy_expanded = False
         self._proxy_structures: list[Unit] = []
         self._skip_roach_warren = False
+        self._initialize_creep_hull()
         for unit in self.bot.units:
             self.tactics.on_unit_created(unit)
         self._load_parameters()
@@ -151,6 +154,8 @@ class Agent:
         )
         tumor_limit = min(3.0 * len(observation.queens), self.bot.time / 30.0)
         should_spread_creep = tumor_count < tumor_limit and self.bot.mediator.get_creep_coverage < 90
+        creep_target_filter = self._is_inside_creep_hull if self.bot.enemy_race in {Race.Zerg, Race.Random} else None
+        self.creep_spread.target_filter = creep_target_filter
 
         micro_observation = with_micro(
             observation,
@@ -238,7 +243,7 @@ class Agent:
             )
 
         for tumor in self.creep_spread.tumors_to_spread():
-            if action := self.creep_spread.get_action(tumor):
+            if action := self.creep_spread.get_action(tumor, target_filter=creep_target_filter):
                 actions[tumor] = action
         for queen in self.queens.queens_to_micro():
             if action := self.queens.get_action(queen):
@@ -272,6 +277,11 @@ class Agent:
 
     def on_unit_created(self, unit: Unit) -> None:
         self.tactics.on_unit_created(unit)
+
+    def on_structure_completed(self, unit: Unit) -> None:
+        if unit.type_id != UnitTypeId.HATCHERY:
+            return
+        self._add_points_to_creep_hull(self._candidate_points(unit.position))
 
     def on_end(self, game_result: Result):
         if self.config.training:
@@ -431,6 +441,40 @@ class Agent:
             )
 
             return dist_to_our_spawn < closest_enemy_spawn_dist
+
+    def _initialize_creep_hull(self) -> None:
+        if self.bot.enemy_race not in {Race.Zerg, Race.Random}:
+            self._creep_hull = None
+            return
+
+        centers = (self.bot.start_location, self.bot.mediator.get_own_nat, self.bot.mediator.get_defensive_third)
+        points = np.vstack([self._candidate_points(center) for center in centers])
+        self._creep_hull = ConvexHull(points, incremental=True)
+
+    def _candidate_points(self, base_position: Point2, radius: float = 10.0, count: int = 10) -> np.ndarray:
+        angles = np.linspace(0.0, 2.0 * np.pi, num=count, endpoint=False)
+        offsets = np.column_stack((np.cos(angles), np.sin(angles))) * radius
+        base = np.asarray((base_position.x, base_position.y), dtype=float)
+        return base + offsets
+
+    def _add_points_to_creep_hull(self, points: np.ndarray) -> None:
+        if self.bot.enemy_race not in {Race.Zerg, Race.Random}:
+            return
+
+        if self._creep_hull is None:
+            self._creep_hull = ConvexHull(points, incremental=True)
+        else:
+            self._creep_hull.add_points(points)
+
+    def _is_inside_creep_hull(self, point: Point) -> bool:
+        if self._creep_hull is None:
+            return True
+
+        equations = self._creep_hull.equations
+        A, b = equations[:, :-1], equations[:, -1:]
+        coordinates = np.asarray(point, dtype=float)
+        flags = coordinates @ A.T + b.T <= 1e-9
+        return bool(np.all(flags))
 
     def _maybe_skip_roach_warren(self) -> None:
         if self.bot.townhalls.amount < 3:

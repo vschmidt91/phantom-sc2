@@ -5,3 +5,6 @@
 - `ScoutProxy._pick_target_for` now samples exactly one random `circle_perimeter` tile per radius step (up to `_samples_max` radii).
 - `make fix check` now runs via local `.venv/bin` tools (`ruff` + `python -m compileall`) and no longer depends on `poetry run` or unit tests.
 - Runtime imports in bundled `ares` (`ares-sc2/src`) require `map_analyzer`; root `pyproject.toml` currently places `map-analyzer` only in optional `build` extras, so default installs can fail with `ModuleNotFoundError`.
+- ZvZ creep spread can be limited by a convex-hull target filter built from `mediator.get_creep_edges`.
+- `mediator.get_creep_edges` returns `(x_coords, y_coords)` numpy arrays, not an iterable of point tuples.
+- ZvZ creep hull is now incremental: seeded from start/nat/defensive-third rings (10 points each), then extended by 10 new ring points on each completed hatchery via `Agent.on_structure_completed`.

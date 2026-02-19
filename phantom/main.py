@@ -127,6 +127,8 @@ class PhantomBot(AresBot):
 
     async def on_building_construction_complete(self, unit: Unit) -> None:
         self.units_completed_this_frame.add(unit.tag)
+        if hasattr(self, "agent") and unit.is_mine:
+            self.agent.on_structure_completed(unit)
         if unit.type_id not in CREEP_TUMOR_TYPES:
             logger.info(f"on_building_construction_complete {unit}")
         await super().on_building_construction_complete(unit)

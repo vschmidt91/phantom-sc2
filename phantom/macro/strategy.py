@@ -39,8 +39,8 @@ class StrategyParameters:
     def __init__(self, params: ParameterManager) -> None:
         self.ravager_mixin = 10
         self.corruptor_mixin = 5
-        self.tier1_drone_count = 20
-        self.tier2_drone_count = 40
+        self.tier1_drone_count = 30
+        self.tier2_drone_count = 45
         self.tier3_drone_count = 80
         self.hydras_when_banking = 13
         self.lings_when_banking = 8
@@ -171,11 +171,23 @@ class Strategy:
         return self.enemy_composition
 
     def _tier(self) -> StrategyTier:
-        if self.bot.supply_workers < self.parameters.tier1_drone_count:
+        if (
+            self.bot.supply_workers < self.parameters.tier1_drone_count
+            or self.bot.townhalls.amount < 3
+            or self.bot.time < 3 * 60
+        ):
             return StrategyTier.HATCH
-        elif self.bot.supply_workers < self.parameters.tier2_drone_count:
+        elif (
+            self.bot.supply_workers < self.parameters.tier2_drone_count
+            or self.bot.townhalls.amount < 4
+            or self.bot.time < 6 * 60
+        ):
             return StrategyTier.LAIR
-        elif self.bot.supply_workers < self.parameters.tier3_drone_count:
+        elif (
+            self.bot.supply_workers < self.parameters.tier3_drone_count
+            or self.bot.townhalls.amount < 5
+            or self.bot.time < 9 * 60
+        ):
             return StrategyTier.HIVE
         return StrategyTier.LATEGAME
 

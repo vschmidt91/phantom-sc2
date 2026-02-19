@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -11,7 +11,7 @@ from scipy.ndimage import gaussian_filter
 
 from phantom.common.action import Action, UseAbility
 from phantom.common.constants import ENERGY_COST, HALF
-from phantom.common.point import to_point
+from phantom.common.point import Point, to_point
 from phantom.common.utils import circle, circle_perimeter, line
 from phantom.observation import Observation
 
@@ -28,6 +28,7 @@ class CreepSpread:
         self.value_map = np.zeros_like(self.placement_map)
         self.update_interval = 10
         self._tumors = tuple[Unit, ...]()
+        self.target_filter: Callable[[Point], bool] | None = None
 
     def on_step(self, observation: Observation | None = None) -> None:
         self._tumors = tuple(observation.active_tumors) if observation is not None else ()
@@ -37,15 +38,15 @@ class CreepSpread:
     def tumors_to_spread(self) -> tuple[Unit, ...]:
         return self._tumors
 
-    def get_action(self, unit: Unit) -> Action | None:
-        return self.spread_with(unit)
+    def get_action(self, unit: Unit, target_filter: Callable[[Point], bool] | None = None) -> Action | None:
+        return self.spread_with(unit, target_filter=target_filter)
 
-    def spread_with(self, unit: Unit) -> Action | None:
+    def spread_with(self, unit: Unit, target_filter: Callable[[Point], bool] | None = None) -> Action | None:
         if unit.type_id == UnitTypeId.QUEEN:
             if 10 + ENERGY_COST[AbilityId.BUILD_CREEPTUMOR_QUEEN] <= unit.energy:
-                return self._place_tumor(unit, 12, full_circle=True)
+                return self._place_tumor(unit, 12, full_circle=True, target_filter=target_filter)
         elif unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
-            return self._place_tumor(unit, 10)
+            return self._place_tumor(unit, 10, target_filter=target_filter)
         return None
 
     def _update_maps(self) -> None:
@@ -65,13 +66,18 @@ class CreepSpread:
             value_map[i0:i1, j0:j1] *= 3
         self.value_map = gaussian_filter(value_map, 3) * np.where(pathing_grid, 1.0, 0.0)
 
-    def _place_tumor(self, unit: Unit, r: int, full_circle=False) -> Action | None:
+    def _place_tumor(
+        self, unit: Unit, r: int, full_circle=False, target_filter: Callable[[Point], bool] | None = None
+    ) -> Action | None:
         x0 = round(unit.position.x)
         y0 = round(unit.position.y)
 
         circle_fn = circle if full_circle else circle_perimeter
         targets = circle_fn(x0, y0, r, shape=self.placement_map.shape)
-        if not any(targets):
+        filter_fn = target_filter or self.target_filter
+        if filter_fn is not None:
+            targets = [target for target in targets if filter_fn(target)]
+        if not targets:
             return None
 
         target = max(targets, key=lambda t: self.value_map[t])
