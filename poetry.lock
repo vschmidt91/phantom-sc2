@@ -2358,10 +2358,9 @@ tests = ["psutil", "pytest (!=3.3.0)", "pytest-cov"]
 name = "map-analyzer"
 version = "0.2.0"
 description = ""
-optional = true
+optional = false
 python-versions = ">=3.10,<3.13"
 groups = ["main"]
-markers = "extra == \"build\""
 files = []
 develop = false
 
@@ -5414,11 +5413,11 @@ files = [
 ]
 
 [extras]
-build = ["map-analyzer", "requests"]
+build = ["requests"]
 dev = ["dask", "jupyter", "matplotlib", "notebook", "pandas", "plotly", "s2protocol", "snakeviz", "vulture"]
 test = ["mypy", "ruff", "scipy-stubs", "types-requests", "types-s2clientprotocol", "types-tqdm", "yamllint"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12, <3.13"
-content-hash = "37251356c2170cbec4aabb7327a9c51a6fe5e6fc44a5777077208bffc94cea6a"
+content-hash = "8f77f247f7ac090971a39011b905a3cf5377bf4df2ee83ba81c30cd2cea26418"

@@ -4,3 +4,4 @@
 - `ScoutProxy._pick_target_for` now prioritizes youngest unscouted candidate tiles (lowest age), with distance to own natural only as tie-breaker.
 - `ScoutProxy._pick_target_for` now samples exactly one random `circle_perimeter` tile per radius step (up to `_samples_max` radii).
 - `make fix check` now runs via local `.venv/bin` tools (`ruff` + `python -m compileall`) and no longer depends on `poetry run` or unit tests.
+- Runtime imports in bundled `ares` (`ares-sc2/src`) require `map_analyzer`; root `pyproject.toml` currently places `map-analyzer` only in optional `build` extras, so default installs can fail with `ModuleNotFoundError`.

@@ -69,7 +69,7 @@ class ScoutProxy:
         best_nat_distance = float("inf")
         center = scout.position
         sight_range = scout.radius + scout.sight_range
-        radius_coeff = 0.1 / scout.movement_speed
+        radius_coeff = 1.0 / scout.movement_speed
         for radius in np.linspace(sight_range, sight_range + self._samples_max, self._samples_max):
             angle = self._rng.uniform(0, 2 * np.pi)
             tile = to_point(center + radius * Point2((np.cos(angle), np.sin(angle))))
