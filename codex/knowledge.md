@@ -1,3 +1,6 @@
 - Macro structure placement search lives in `phantom/macro/builder.py` (`_get_structure_target`).
 - `python-sc2` `find_placement` is async, so placement changes require async propagation through `Builder.get_actions` -> `Agent.on_step` -> `PhantomBot.on_step`.
 - For minimal impact, structure placement can keep random sampling and use async `can_place_single` for validity checks.
+- `ScoutProxy._pick_target_for` now prioritizes youngest unscouted candidate tiles (lowest age), with distance to own natural only as tie-breaker.
+- `ScoutProxy._pick_target_for` now samples exactly one random `circle_perimeter` tile per radius step (up to `_samples_max` radii).
+- `make fix check` now runs via local `.venv/bin` tools (`ruff` + `python -m compileall`) and no longer depends on `poetry run` or unit tests.

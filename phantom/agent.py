@@ -33,7 +33,7 @@ from phantom.macro.builder import Builder, MacroPlan
 from phantom.macro.mining import MiningCommand
 from phantom.macro.planning import MacroPlanning
 from phantom.macro.strategy import StrategyParameters
-from phantom.micro.combat import CombatParameters, CombatCommand, CombatSituation
+from phantom.micro.combat import CombatCommand, CombatParameters, CombatSituation
 from phantom.micro.corrosive_bile import CorrosiveBile
 from phantom.micro.creep import CreepSpread, CreepTumors
 from phantom.micro.dead_airspace import DeadAirspace
@@ -288,9 +288,12 @@ class Agent:
             with lzma.open(self.config.params_path, "wb") as f:
                 pickle.dump(optimizer_state, f)
 
-    def _send_overlord_scout(self, overlord: Unit) -> Action:
+    def _send_overlord_scout(self, overlord: Unit) -> Action | None:
         sight_range = overlord.sight_range
         enemy_nat = self.bot.mediator.get_enemy_nat
+
+        if self.bot.time >= 140:
+            return None
 
         if not self._enemy_expanded:
             enemy_townhalls = self.bot.enemy_structures(TOWNHALL_TYPES)
@@ -300,7 +303,7 @@ class Agent:
             if expansion_townhalls:
                 self._enemy_expanded = True
 
-        if self._enemy_expanded or self.bot.time >= 140:
+        if self._enemy_expanded:
             if self.bot.enemy_race in {Race.Zerg, Race.Random}:
                 safe_spot = self.bot.mediator.get_enemy_third
             else:

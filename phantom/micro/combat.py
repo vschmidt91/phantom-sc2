@@ -310,7 +310,9 @@ class CombatCommand:
         situation = self._situation
         if situation is None:
             return {}
-        return {combatant: action for combatant in observation.combatants if (action := situation.fight_with(combatant))}
+        return {
+            combatant: action for combatant in observation.combatants if (action := situation.fight_with(combatant))
+        }
 
 
 class CombatSituation:

@@ -28,7 +28,7 @@ class BlockedPositionTracker:
             error_result = ActionResult(error.result)
             if (
                 error_ability not in {AbilityId.BUILD_CREEPTUMOR_TUMOR, AbilityId.BUILD_CREEPTUMOR_QUEEN}
-                and error_ability in {AbilityId.ZERGBUILD_HATCHERY}
+                and error_ability == AbilityId.ZERGBUILD_HATCHERY
                 and error_result in {ActionResult.CantBuildLocationInvalid, ActionResult.CouldntReachTarget}
                 and (unit := self.bot._units_previous_map.get(error.unit_tag))
             ):

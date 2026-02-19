@@ -26,7 +26,7 @@ class XCMATest(unittest.TestCase):
         for seed in range(10):
             with self.subTest(seed=seed):
                 d = 10
-                X, y_true, coef_true = make_regression(n_samples=10000, n_features=d, coef=True, random_state=seed)
+                X, y_true, _coef_true = make_regression(n_samples=10000, n_features=d, coef=True, random_state=seed)
 
                 opt = XCMA(x0=np.zeros(d), sigma0=np.ones(d))
                 while True:

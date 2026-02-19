@@ -99,7 +99,7 @@ def get_assignment_solver(n: int, m: int) -> HighsPySolver:
     return problem
 
 
-def distribute(
+def distribute[TKey: Hashable, TValue: Hashable](
     a: Sequence[TKey],
     b: Sequence[TValue],
     cost: np.ndarray,

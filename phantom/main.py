@@ -291,9 +291,7 @@ class PhantomBot(AresBot):
         return Point2(target)
 
     def is_unit_missing(self, unit: UnitTypeId) -> bool:
-        if unit in {
-            UnitTypeId.LARVA,
-        }:
+        if unit == UnitTypeId.LARVA:
             return False
         return all(self.count_actual(e) == 0 for e in WITH_TECH_EQUIVALENTS[unit])
 

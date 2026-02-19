@@ -235,9 +235,7 @@ class Builder:
             or not data.get("requires_placement_position")
         ):
             return None
-        position = (
-            self._get_expansion_target() if item in TOWNHALL_TYPES else await self._get_structure_target(item)
-        )
+        position = self._get_expansion_target() if item in TOWNHALL_TYPES else await self._get_structure_target(item)
         if not position:
             raise PlacementNotFoundException()
         return position
