@@ -8,3 +8,5 @@
 - ZvZ creep spread can be limited by a convex-hull target filter built from `mediator.get_creep_edges`.
 - `mediator.get_creep_edges` returns `(x_coords, y_coords)` numpy arrays, not an iterable of point tuples.
 - ZvZ creep hull is now incremental: seeded from start/nat/defensive-third rings (10 points each), then extended by 10 new ring points on each completed hatchery via `Agent.on_structure_completed`.
+- Queen frontline overcommit stems from control layering: `Queens._get_action` calls `situation.fight_with` when unsafe, but queens are excluded from combatant target assignment (`Observation.combatants`), `fight_with` auto-shoots in-range for ranged units, transfuse runs later and can overwrite retreat with forward `Move`.
+- Fix applied: unsafe queens now use retreat primitives (`retreat_to_creep`/`retreat_with`/`move_to_safe_spot`) instead of `fight_with`; transfuse no longer issues out-of-range chase `Move`, so it won't overwrite retreat with forward motion.

@@ -35,7 +35,7 @@ def build_observation(bot: PhantomBot) -> Observation:
     from phantom.common.constants import CIVILIANS, ENEMY_CIVILIANS
 
     enemy_combatants = bot.enemy_units.exclude_type(ENEMY_CIVILIANS)
-    combatants = bot.units.exclude_type({*CIVILIANS, UnitTypeId.QUEEN, UnitTypeId.QUEENBURROWED})
+    combatants = bot.units.exclude_type({*CIVILIANS})
     queens = bot.units({UnitTypeId.QUEEN, UnitTypeId.QUEENBURROWED})
     overseers = bot.units({UnitTypeId.OVERSEER, UnitTypeId.OVERSEERSIEGEMODE})
     return Observation(

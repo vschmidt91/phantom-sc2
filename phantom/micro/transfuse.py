@@ -8,7 +8,7 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
-from phantom.common.action import Action, Move, UseAbility
+from phantom.common.action import Action, UseAbility
 from phantom.observation import Observation
 
 if TYPE_CHECKING:
@@ -68,6 +68,6 @@ class Transfuse:
             if cy_distance_to(unit.position, target.position) <= unit.radius + self.ability_range:
                 self._transfused_this_step.add(target.tag)
                 return UseAbility(self.ability, target=target)
-            return Move(target.position)
+            return None
 
         return None
