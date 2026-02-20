@@ -9,12 +9,13 @@
 - resources: junk pile
 - scripts: executables 
 - run.py: bot entry point
-- tests: ignore
 
 # Codex Persistent Home
 
 codex directory is our dialogue.
-Store knowledge int codex/knowledge.md.
+Store task-specific knowledge into the idea file you are working on.
+Keep user input and your report separate in idea. modify user input as part of revisions, but ask.
+Store general knowledge into codex/knowledge.md.
 everything that might save you and others a bunch of time in the future is worth remembering.
 Focus on Understanding about the project, ares, python-sc2 and Starcraft II strategy.
 
@@ -24,8 +25,9 @@ Focus on Understanding about the project, ares, python-sc2 and Starcraft II stra
 * offload boilerplate into seperate folders when absolutely necessary
 * offload generic utilities into common/ subfolders
 * directories with subdirectories should contain minimal number of files (within reason)
+* leave __init__ files empty per default
 
 # Testing
 
-Only run `make fix check` before comitting changes and fix what comes up.
-Do the python compilation check, otherwise ignore testing completely.
+Use `make check` and `make fix` to validate the code.
+No dummy bots. Test only bot-independent components.

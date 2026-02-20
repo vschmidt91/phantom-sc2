@@ -31,6 +31,8 @@ jobs:
         run: make check
       - name: Unit tests
         run: make test
+      - name: Compile CVXPY solvers
+        run: poetry run python scripts/compile_cvxpy.py
       - name: Compile and Build
         run: make zip
       - uses: actions/upload-artifact@v4
