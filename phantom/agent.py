@@ -447,7 +447,7 @@ class Agent:
             self._creep_hull = None
             return
 
-        centers = (self.bot.start_location, self.bot.mediator.get_own_nat, self.bot.mediator.get_defensive_third)
+        centers = (self.bot.start_location, self.bot.mediator.get_own_nat)
         points = np.vstack([self._candidate_points(center) for center in centers])
         self._creep_hull = ConvexHull(points, incremental=True)
 
