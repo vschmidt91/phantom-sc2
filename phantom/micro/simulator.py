@@ -149,8 +149,8 @@ class CombatSimulator:
             count2 = strength @ offense
             potential2 = fire2 * forces2 * np.power(np.maximum(1e-10, count2), lancester_pow - 2)
 
-            dps.max(1) @ mix_friendly
-            hp @ mix_friendly
+            # fire1 = dps.max(1) @ mix_friendly
+            # forces1 = hp @ mix_friendly
             # potential1 = fire1 * forces1 * np.power(np.maximum(1e-10, count1), lancester_pow - 2)
 
             valid_sym = valid | valid.T
@@ -160,8 +160,20 @@ class CombatSimulator:
             lancester1[:, i] = potential1
             lancester2[:, i] = potential2
 
+        lancester1.mean(1)
+        lancester2.mean(1)
+        outcome = lancester1 - lancester2
+        lancester1_after = np.maximum(0.0, outcome)
+        lancester2_after = -np.minimum(0.0, outcome)
+        lancester1_casualties_log = np.log(np.maximum(1e-10, 1 - lancester1_after / np.maximum(1e-10, lancester1)))
+        lancester2_casualties_log = np.log(np.maximum(1e-10, 1 - lancester2_after / np.maximum(1e-10, lancester2)))
+        (lancester1_casualties_log + lancester2_casualties_log) / 2
+        mu = (lancester1_casualties_log - lancester2_casualties_log) / 2
+
         advantage = np.log1p(lancester1) - np.log1p(lancester2)
         outcome_vector = advantage.mean(1)
+
+        outcome_vector = -mu.mean(1)
 
         health1 = max(1, sum(u.health + u.shield for u in setup.units1))
         health2 = max(1, sum(u.health + u.shield for u in setup.units2))

@@ -291,6 +291,7 @@ class CombatCommand:
                 context.prediction.outcome_global,
             ]
         )
+        local_engagement_threshold = 0.0
 
         for tag, outcome in context.prediction.outcome_local.items():
             if outcome >= local_engagement_threshold:
