@@ -1,5 +1,6 @@
 import logging
 import lzma
+import math
 import pickle
 import random
 
@@ -76,13 +77,31 @@ class CombatSimBot(BotAI):
 
                 winner, health_remaining = sim.predict_engage(Units(army1, self), Units(army2, self))
                 all_units = [*army1, *army2]
-                attacking = [u.tag for u in all_units]
+
+                health1 = sum(u.health + u.shield for u in army1)
+                health2 = sum(u.health + u.shield for u in army2)
+
+                casualties1 = 1.0
+                casualties2 = 1.0
+                if winner:
+                    casualties1 = (health1 - health_remaining) / health1
+                else:
+                    casualties2 = (health2 - health_remaining) / health2
+
+                advantage_log = 0.0
+                bitterness_log = 0.0
+                if casualties1 > 0 and casualties2 > 0:
+                    casualties1_log = math.log(casualties1)
+                    casualties2_log = math.log(casualties2)
+                    advantage_log = (casualties2_log - casualties1_log) / 2
+                    bitterness_log = (casualties2_log + casualties1_log) / 2
+
 
                 results.append(
                     dict(
                         units=list(map(serialize_unit, all_units)),
-                        attacking=attacking,
-                        result=health_remaining if winner else -health_remaining,
+                        advantage_log=advantage_log,
+                        bitterness_log=bitterness_log,
                     )
                 )
 

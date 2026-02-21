@@ -179,7 +179,7 @@ class NumpyLanchesterSimulator:
         mu = (lancester1_casualties_log - lancester2_casualties_log) / 2
 
         outcome_vector = -mu.mean(1)
-        outcome_global = float(np.tanh(outcome_vector[:n1].mean() - outcome_vector[n1:].mean()))
+        outcome_global = np.concatenate([outcome_vector[:n1], -outcome_vector[n1:]]).mean()
 
         outcome_local = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
         return CombatResult(outcome_local=outcome_local, outcome_global=outcome_global)
