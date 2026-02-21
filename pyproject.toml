@@ -61,6 +61,7 @@ include = [
     { path = "config", format = ["sdist", "wheel"] },
     { path = "run.py", format = ["sdist", "wheel"] },
     { path = "scripts", format = ["sdist", "wheel"] },
+    { path = "phantom/common/distribute/cpg/cpg.tar.xz", format = ["sdist", "wheel"] },
 ]
 
 [tool.poetry.dependencies]

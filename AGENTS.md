@@ -13,11 +13,10 @@
 # Codex Persistent Home
 
 codex directory is our dialogue.
-Store task-specific knowledge into the idea file you are working on.
-Keep user input and your report separate in idea. modify user input as part of revisions, but ask.
-Store general knowledge into codex/knowledge.md.
+when the user prompts about a specific idea, interact with the user in the corresponding .md file in codex/active. correct user entries as part of revision, otherwise keep your reporting somewhat separate.
+store generalized knowledge into codex/knowledge.md.
 everything that might save you and others a bunch of time in the future is worth remembering.
-Focus on Understanding about the project, ares, python-sc2 and Starcraft II strategy.
+focus on understanding about the project, ares, python-sc2 and Starcraft II strategy.
 
 # Coding Style
 

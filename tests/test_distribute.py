@@ -1,33 +1,35 @@
 import unittest
 from collections import Counter
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import numpy as np
+import phantom.common.distribute as distribute_module
 
 from phantom.common.distribute import distribute, get_assignment_solver
+from phantom.common.distribute.cpg.solver import get_cpg_solver
+from phantom.common.distribute.hs.solver import get_hs_solver
 
 
 class AssignmentSolverSelectionTest(unittest.TestCase):
-    def test_prefers_cpg_solver_when_it_can_solve_problem(self):
-        cpg_solver = Mock()
-        cpg_solver.can_solve.return_value = True
+    def test_prefers_cpg_solver_when_it_is_available(self):
+        cpg_solver = object()
 
         with (
-            patch("phantom.common.distribute.get_cpg_solver", return_value=cpg_solver),
-            patch("phantom.common.distribute.get_hs_solver") as get_hs_solver,
+            patch.object(distribute_module, "get_cpg_solver", return_value=cpg_solver) as get_cpg_solver,
+            patch.object(distribute_module, "get_hs_solver") as get_hs_solver,
         ):
             solver = get_assignment_solver(8, 8)
 
         self.assertIs(solver, cpg_solver)
-        cpg_solver.can_solve.assert_called_once_with(8, 8, 128)
+        get_cpg_solver.assert_called_once_with(8, 8, 128)
         get_hs_solver.assert_not_called()
 
     def test_falls_back_to_highspy_solver_with_resolution_padding(self):
         hs_solver = object()
 
         with (
-            patch("phantom.common.distribute.get_cpg_solver", return_value=None),
-            patch("phantom.common.distribute.get_hs_solver", return_value=hs_solver) as get_hs_solver,
+            patch.object(distribute_module, "get_cpg_solver", return_value=None),
+            patch.object(distribute_module, "get_hs_solver", return_value=hs_solver) as get_hs_solver,
         ):
             solver = get_assignment_solver(9, 3)
 
@@ -85,6 +87,27 @@ class AssignmentSolverIntegrationTest(unittest.TestCase):
         padded = get_assignment_solver(8, 8).solve(cost, limit)
 
         np.testing.assert_allclose(padded, unpadded)
+
+    def test_a_cpg_matches_highspy_on_large_problem(self):
+        n = 20
+        m = 11
+        rng = np.random.default_rng(7)
+        cost = rng.uniform(-2.0, 5.0, size=(n, m))
+        limit = np.full(m, np.ceil(n / m), dtype=float)
+
+        cpg_solver = get_cpg_solver(n, m, 128)
+        if cpg_solver is None:
+            self.skipTest("No compiled CPG solver available in this environment")
+
+        hs_solver = get_hs_solver(cpg_solver.problem_size, cpg_solver.problem_size)
+        cpg_solver.set_total(np.zeros(m), 0)
+        hs_solver.set_total(np.zeros(m), 0)
+
+        cpg = cpg_solver.solve(cost, limit)
+        hs = hs_solver.solve(cost, limit)
+
+        np.testing.assert_array_equal(cpg.argmax(axis=1), hs.argmax(axis=1))
+        self.assertLessEqual(abs(float(np.sum(cost * cpg) - np.sum(cost * hs))), 1e-1)
 
 
 class DistributeTest(unittest.TestCase):

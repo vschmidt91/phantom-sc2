@@ -11,7 +11,7 @@ class HighsPySolver:
     def __init__(self, n: int, m: int, include_total: bool = True) -> None:
         logger.info(f"Compiling highspy problem with {n=}, {m=}, {include_total=}")
         h = highspy.Highs()
-        h.setOptionValue("presolve", "off")
+        h.setOptionValue("presolve", "on")
         h.setOptionValue("parallel", "off")
         h.setOptionValue("log_to_console", False)
 
