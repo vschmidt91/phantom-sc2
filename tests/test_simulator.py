@@ -25,7 +25,6 @@ def _make_lings(num_units: int, position: tuple[float, float] = (0.0, 0.0), star
             radius=0.35,
             real_speed=4.13,
             position=position,
-            attackable=True,
         )
         for i in range(num_units)
     ]
@@ -48,7 +47,6 @@ def _make_marines(
             radius=0.375,
             real_speed=3.15,
             position=center,
-            attackable=True,
         )
         for i in range(num_units)
     ]

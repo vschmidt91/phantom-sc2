@@ -52,7 +52,6 @@ class SimulationUnit:
     radius: float
     real_speed: float
     position: tuple[float, float]
-    attackable: bool = True
 
     @property
     def hp(self) -> float:
@@ -123,12 +122,11 @@ class NumpyLanchesterSimulator:
         ground_dps = np.array([u.ground_dps for u in units])
         air_dps = np.array([u.air_dps for u in units])
         radius = np.array([u.radius for u in units])
-        attackable = np.array([u.attackable for u in units])
         flying = np.array([u.is_flying for u in units])
         bonus_range = np.array([self.parameters.enemy_range_bonus if u.is_enemy else 0.0 for u in units])
 
-        ground_selector = np.where(attackable & ~flying, 1.0, 0.0)
-        air_selector = np.where(attackable & flying, 1.0, 0.0)
+        ground_selector = np.where(~flying, 1.0, 0.0)
+        air_selector = np.where(flying, 1.0, 0.0)
         dps = np.outer(ground_dps, ground_selector) + np.outer(air_dps, air_selector)
         ranges = np.outer(ground_range, ground_selector) + np.outer(air_range, air_selector)
         ranges += bonus_range[:, None]
@@ -221,9 +219,9 @@ class CombatSimulator:
                 radius=u.radius,
                 real_speed=u.real_speed,
                 position=(float(u.position.x), float(u.position.y)),
-                attackable=self.is_attackable(u),
             )
             for u in setup.units1
+            if self.is_attackable(u)
         ]
         units2 = [
             SimulationUnit(
@@ -239,9 +237,9 @@ class CombatSimulator:
                 radius=u.radius,
                 real_speed=u.real_speed,
                 position=(float(u.position.x), float(u.position.y)),
-                attackable=self.is_attackable(u),
             )
             for u in setup.units2
+            if self.is_attackable(u)
         ]
         return ModelCombatSetup(units1=units1, units2=units2, attacking=setup.attacking)
 
