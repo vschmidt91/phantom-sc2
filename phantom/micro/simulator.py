@@ -116,17 +116,18 @@ class NumpyLanchesterSimulator:
 
         units = [*setup.units1, *setup.units2]
         n1 = len(setup.units1)
+        n = len(units)
 
-        ground_range = np.array([u.ground_range for u in units])
-        air_range = np.array([u.air_range for u in units])
-        ground_dps = np.array([u.ground_dps for u in units])
-        air_dps = np.array([u.air_dps for u in units])
-        radius = np.array([u.radius for u in units])
-        flying = np.array([u.is_flying for u in units])
+        ground_range = np.array([u.ground_range for u in units], dtype=float)
+        air_range = np.array([u.air_range for u in units], dtype=float)
+        ground_dps = np.array([u.ground_dps for u in units], dtype=float)
+        air_dps = np.array([u.air_dps for u in units], dtype=float)
+        radius = np.array([u.radius for u in units], dtype=float)
+        flying = np.array([u.is_flying for u in units], dtype=bool)
         bonus_range = np.array([self.parameters.enemy_range_bonus if u.is_enemy else 0.0 for u in units])
 
-        ground_selector = np.where(~flying, 1.0, 0.0)
-        air_selector = np.where(flying, 1.0, 0.0)
+        ground_selector = np.where(~flying, 1.0, 0.0).astype(float)
+        air_selector = np.where(flying, 1.0, 0.0).astype(float)
         dps = np.outer(ground_dps, ground_selector) + np.outer(air_dps, air_selector)
         ranges = np.outer(ground_range, ground_selector) + np.outer(air_range, air_selector)
         ranges += bonus_range[:, None]
@@ -137,49 +138,44 @@ class NumpyLanchesterSimulator:
         dps[n1:, n1:] = 0.0
 
         distance = pairwise_distances([u.position for u in units])
-        movement_speed_vector = np.array([1.4 * u.real_speed if u.tag in setup.attacking else 0.0 for u in units])
-        movement_speed = movement_speed_vector[:, None]
+        speed = 1.4 * np.array([u.real_speed for u in units], dtype=float)
+        if setup.attacking:
+            speed *= np.array([u.tag in setup.attacking for u in units], dtype=float)
 
-        hp = np.array([u.hp for u in units])
+        hp0 = np.array([u.hp for u in units], dtype=float)
+        hp = hp0.copy()
 
-        q = np.linspace(start=0.0, stop=1.0, num=self.num_steps, endpoint=False)
-        dist = expon(scale=self.parameters.time_distribution_lambda)
-        times = dist.ppf(q)
+        speed_matrix = np.maximum(1e-9, speed[:, None])
+        tau = np.maximum(0.0, (distance - ranges) / speed_matrix)
+        tau[dps <= 0] = np.inf
+        tau[np.arange(n), np.arange(n)] = np.inf
 
-        lancester1 = np.full((len(units), self.num_steps), 0.0)
-        lancester2 = np.full((len(units), self.num_steps), 0.0)
+        q = (np.arange(self.num_steps, dtype=float) + 0.5) / self.num_steps
+        time_dist = expon(scale=max(1e-6, self.parameters.time_distribution_lambda))
+        times = time_dist.ppf(q)
+        dt = np.diff(np.concatenate(([0.0], times)))
+
         lancester_pow = self.parameters.lancester_dimension
-        for i, ti in enumerate(times):
-            range_projection = ranges + movement_speed * ti
+        for step, ti in enumerate(times):
             alive = hp > 0
-            valid = alive[:, None] & (distance <= range_projection) & (dps > 0)
+            active = alive[:, None] & alive[None, :] & (tau <= ti) & (dps > 0)
 
-            offense = np.zeros_like(valid, dtype=float)
-            num_targets = valid.sum(axis=1, keepdims=True)
-            np.divide(valid, num_targets, where=num_targets != 0, out=offense)
+            offense = np.zeros_like(dps, dtype=float)
+            num_targets = active.sum(axis=1, keepdims=True)
+            np.divide(active, num_targets, where=num_targets != 0, out=offense)
 
-            strength = np.where(alive, 1.0, 0.0)
-            fire2 = strength @ (dps * offense)
-            forces2 = hp @ offense
-            count2 = strength @ offense
-            potential2 = fire2 * forces2 * np.power(np.maximum(1e-10, count2), lancester_pow - 2)
+            strength = np.power(np.maximum(1e-6, hp / np.maximum(1e-6, hp0)), np.maximum(0.0, lancester_pow - 1.0))
+            pressure_out = strength[:, None] * dps * offense
+            pressure_in = pressure_out.sum(axis=0)
+            hp = np.maximum(0.0, hp - dt[step] * pressure_in)
 
-            valid_sym = valid | valid.T
-            mix = valid_sym / np.maximum(1, valid_sym.sum(0, keepdims=True))
-            potential1 = potential2 @ mix
-
-            lancester1[:, i] = potential1
-            lancester2[:, i] = potential2
-
-        outcome = lancester1 - lancester2
-        lancester1_after = np.maximum(0.0, outcome)
-        lancester2_after = -np.minimum(0.0, outcome)
-        lancester1_casualties_log = np.log(np.maximum(1e-10, 1 - lancester1_after / np.maximum(1e-10, lancester1)))
-        lancester2_casualties_log = np.log(np.maximum(1e-10, 1 - lancester2_after / np.maximum(1e-10, lancester2)))
-        mu = (lancester1_casualties_log - lancester2_casualties_log) / 2
-
-        outcome_vector = -mu.mean(1)
-        outcome_global = np.concatenate([outcome_vector[:n1], -outcome_vector[n1:]]).mean()
+        survival = hp / np.maximum(1e-6, hp0)
+        own_survival = survival[:n1]
+        enemy_survival = survival[n1:]
+        own_mean = own_survival.mean()
+        enemy_mean = enemy_survival.mean()
+        outcome_global = own_mean - enemy_mean
+        outcome_vector = np.concatenate([own_survival - enemy_mean, own_mean - enemy_survival])
 
         outcome_local = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
         return CombatResult(outcome_local=outcome_local, outcome_global=outcome_global)

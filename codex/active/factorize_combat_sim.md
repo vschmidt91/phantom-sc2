@@ -34,6 +34,22 @@ we want to split the problem up into:
    - use connected components: whenever units are estimated to be in contact, they are simulated together
    - this kind of mixes concerns though, as sc2helper also does time stepping
 
+# Implementation Notes
+
+- this is math, use short variables and write equation-like
+- we have CPU cycles to spare
+- matrices can stay dense
+- not convinced by sparse representation, ask before going there
+- I'd rather have a bunch of zero edges but shorted code
+- time to contact model makes sense, offload to helper
+- okay to assume uniform target selection. focus fire can be modelled later.
+- pressure is the right formulation: we want to make this more like discrete ODE stepping
+- leave out support term or additional considerations like that for later
+- hunting for a principled approximation 
+- dont sweat backwards compatibility, no need to keep from the simulator except whats protocol
+- e.g. the attacking flags should probably go unless we find an elegant way to inject them.
+- (they indicate unit state - confidence has margin, only available for own units)
+
 # Opinion
 
 What is your high level view?
@@ -56,6 +72,21 @@ What does not (yet) make sense:
 Agreement on current matrix view:
 - Yes: current multiplication is interpretable as expected enemy potential received by each unit.
 - Missing piece: a symmetric friendly-support term should not be additive "free power"; it should modulate survival/effective fire through local superiority (e.g., pressure ratio), otherwise we double-count force.
+
+On the claim "`offense` already computes active edges":
+- I agree, with an important caveat.
+- In `simulator.py`, `valid = alive & in_range_projection & (dps>0)` defines a time-indexed bipartite contact mask.
+- `offense` is then a row-normalized version of that mask, so it is effectively a weighted active-edge matrix (who can currently target whom).
+- So conceptually, Stage A contact and Stage B transport are already partially present in the inner loop.
+
+What is still missing even if `offense` is active edges:
+- Edge quality is binary + uniform split per attacker (`1/num_targets`), which under-represents focus fire and geometry asymmetry.
+- All valid targets are treated exchangeably; local choke/frontline structure is blurred.
+- The range projection is still a simplified linear envelope, so edge activation timing can be wrong at exactly the problematic setup parameters.
+
+Conclusion:
+- The current formulation is not "missing edges"; it is missing edge realism.
+- Therefore, I would evolve the existing `offense` path (better edge weights + better activation timing) rather than replacing it wholesale.
 
 # Proposal
 
@@ -95,3 +126,35 @@ Validation plan
   3. + sparse graph
   4. + support-modulated attrition
 - Stop when marginal gain flattens; do not overfit with many new parameters.
+
+# Final Report
+
+Implemented a prototype rewrite of `NumpyLanchesterSimulator.simulate` in `phantom/micro/simulator.py`.
+
+What changed:
+- Replaced the prior potential/mix post-processing loop with dense discrete time stepping on HP.
+- Introduced deterministic time-to-contact per directed edge:
+  - `tau_ij = max(0, (d_ij - r_ij) / v_i)` with `inf` for non-targetable edges.
+- At each sampled time:
+  - active edges are `alive_i * alive_j * (tau_ij <= t) * targetable_ij`,
+  - offense is row-normalized active edges (uniform target selection),
+  - incoming pressure is aggregated and applied as `hp <- hp - dt * pressure_in`.
+- Kept Lanchester exponent influence through attacker strength scaling:
+  - `strength_i = (hp_i / hp0_i)^(p-1)` (clamped numerically).
+- Removed reliance on the previous `potential1/potential2` and casualty-log transform.
+
+Outputs:
+- `outcome_global` is now side survival difference:
+  - `mean(survival_own) - mean(survival_enemy)`.
+- `outcome_local` remains per-unit and sign-consistent for local attack/disengage gating.
+
+Notes vs implementation guidance:
+- Dense matrices retained.
+- Uniform target selection retained.
+- Contact timing moved into explicit helper math inside the simulator loop (`tau`).
+- No support-term added yet (intentionally deferred).
+- Existing `attacking` flag support is still honored as a speed gate for now.
+
+Status:
+- Prototype compiles and passes project checks.
+- Existing simulator unit tests pass after rewrite.
