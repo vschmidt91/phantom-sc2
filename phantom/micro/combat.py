@@ -51,10 +51,10 @@ class CombatParameters:
             "engagement_threshold", Prior(0.0, 1.0), Prior(0.0, 1.0)
         )
         self._global_engagement_level = params.optimize[OptimizationTarget.CostEfficiency].add(
-            "global_engagement_level", Prior(1.73, 0.1)
+            "global_engagement_level", Prior(1.66, 0.1)
         )
         self._global_engagement_hysteresis_log = params.optimize[OptimizationTarget.CostEfficiency].add(
-            "global_engagement_hysteresis_log", Prior(-1.47, 0.1)
+            "global_engagement_hysteresis_log", Prior(-1.62, 0.1)
         )
 
     @property

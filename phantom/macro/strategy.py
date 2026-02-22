@@ -46,7 +46,7 @@ class StrategyParameters:
         self.lings_when_banking = 8
         self.queens_when_banking = 4
         self.supply_buffer_log = params.optimize[OptimizationTarget.SupplyEfficiency].add(
-            "supply_buffer_log", Prior(2.0, 0.3)
+            "supply_buffer_log", Prior(2.5, 0.1)
         )
 
     @property
