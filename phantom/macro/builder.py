@@ -19,7 +19,7 @@ from phantom.common.constants import (
     BUILDER_ABILITIES,
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
     MACRO_INFO,
-    TRAINER_TYPES,
+    TRAINER_TYPES, HALF,
 )
 from phantom.common.cost import Cost
 from phantom.common.expansion import Expansion
@@ -330,7 +330,7 @@ class Builder:
             smoothing=True,
             sense_danger=False,
         )
-        return Move(move_target)
+        return Move(Point2(move_target).offset(HALF))
 
     def _is_unit_safe(self, unit: Unit, weight_safety_limit: float = 6.0) -> bool:
         return self.bot.mediator.is_position_safe(

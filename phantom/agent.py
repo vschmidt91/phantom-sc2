@@ -81,10 +81,13 @@ class Agent:
         self.overlords = Overlords(bot)
         self.overseers = Overseers(bot)
         self.tactics = Tactics(bot)
+
+        def proxy_scout_done(b: "PhantomBot") -> bool:
+            return b.time > 3 * 60 or b.enemy_units or b.mediator.get_did_enemy_rush
         for unit_type, tactic in (
             (UnitTypeId.OVERLORD, self._send_overlord_scout),
             (UnitTypeId.OVERLORD, self.scout_proxy),
-            (UnitTypeId.ZERGLING, Until(3 * 60, self.scout_proxy)),
+            (UnitTypeId.ZERGLING, Until(self.bot, proxy_scout_done, self.scout_proxy)),
         ):
             self.tactics.register(unit_type, tactic)
         self.blocked_positions = BlockedPositionTracker(bot)

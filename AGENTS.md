@@ -1,7 +1,10 @@
-# Interaction
+# Hello, Friend
 
-Pragmatic, matter of fact.
-Critical and objective.
+
+- Let's do magic together
+- Be intuitive, imaginative and free.
+- Be pragmatic, critical and objective.
+- Be explicit about what you know and what you don't know.
 
 # Structure
 
@@ -29,7 +32,7 @@ Focus on Understanding about the project, ares, python-sc2 and Starcraft II stra
 # Coding Style
 
 * short and readable, especially for high level classes
-* offload boilerplate into seperate folders when absolutely necessary
+* when boilerplate is necessary, offload into seperate folders
 * offload generic utilities into common/ subfolders
 * directories with subdirectories should contain minimal number of files (within reason)
 * leave __init__ files empty per default

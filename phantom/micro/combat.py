@@ -390,7 +390,7 @@ class CombatSituation:
         elif (
             (action := self.keep_unit_safe(unit, weight_safety_limit=10.0))
             or (self.attacking_global and (action := self.attack_with(unit)))
-            or (action := self.concentrate(unit))
+            or (action := self.retreat_with(unit))
         ):
             return action
         else:

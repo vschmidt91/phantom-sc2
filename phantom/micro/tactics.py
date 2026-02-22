@@ -18,11 +18,12 @@ type Tactic = Callable[[Unit], Action | None]
 
 @dataclass(frozen=True)
 class Until:
-    time: int
+    bot: PhantomBot
+    predicate: Callable[["PhantomBot"], bool]
     tactic: Tactic
 
     def __call__(self, unit: Unit) -> Action | None:
-        return self.tactic(unit) if unit.game_loop < self.time * 22.4 else None
+        return self.tactic(unit) if self.predicate(self.bot) else None
 
 
 class Tactics:

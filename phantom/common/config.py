@@ -17,7 +17,7 @@ class BotConfig:
     version_path = "version.txt"
     data_path = "./data"
     params_name = "params.pkl.xz"
-    max_actions = 80
+    max_actions = 60
     optimizer_pop_size = 20
     roach_warren_cancel_enabled = False
     proxy_scout_enabled = True
