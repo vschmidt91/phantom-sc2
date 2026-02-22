@@ -135,11 +135,11 @@ class NumpyLanchesterSimulator:
 
         dps[:n1, :n1] = 0.0
         dps[n1:, n1:] = 0.0
+        attacker_mask = np.array([u.tag in setup.attacking for u in units], dtype=float)
+        dps *= attacker_mask[:, None]
 
         distance = pairwise_distances([u.position for u in units])
         speed = 1.4 * np.array([u.real_speed for u in units], dtype=float)
-        if setup.attacking:
-            speed *= np.array([u.tag in setup.attacking for u in units], dtype=float)
 
         hp0 = np.array([u.hp for u in units], dtype=float)
         hp = hp0.copy()
