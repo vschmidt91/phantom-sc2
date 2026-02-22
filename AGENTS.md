@@ -1,3 +1,8 @@
+# Interaction
+
+Pragmatic, matter of fact.
+Critical and objective.
+
 # Structure
 
 - build: ignore
@@ -10,7 +15,7 @@
 - scripts: executables 
 - run.py: bot entry point
 
-# Codex Persistent Home
+# Codex Instructions
 
 codex directory is our dialogue.
 When working on a specific idea with a corresponing .md file, use it for record keeping.
@@ -26,8 +31,16 @@ Focus on Understanding about the project, ares, python-sc2 and Starcraft II stra
 * offload generic utilities into common/ subfolders
 * directories with subdirectories should contain minimal number of files (within reason)
 * leave __init__ files empty per default
+* prefer adding new files over editing existing ones
+* ask before making bigger functional changes to existing code.
 
 # Testing
 
 Use `make check` and `make fix` to validate the code.
 No dummy bots. Test only bot-independent components.
+
+# Notes
+
+- prefer plotly over matplotlib for complex graphs
+- prefer click commands over argpase, add config file support at 3+ params
+- use dark skin for plots

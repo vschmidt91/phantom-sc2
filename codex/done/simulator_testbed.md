@@ -1,5 +1,8 @@
-# User Input
-make it more maintainable. add a simple unit model for simulation that we can mock. I need a way to run through the numpy lanchester model on some basic scenarios (20 lings vs 5 marines as first example). leave out the sc2_helper stuff for that, it operates on python-sc2 units.
+# Simulator Testbed
+
+simulator should be more maintainable and comparable.
+add a simple unit model for simulation that we can mock.
+I need a way to run through the numpy lanchester model on some basic scenarios (20 lings vs 5 marines as first example). leave out the sc2_helper stuff for that, it operates on python-sc2 units.
 
 # Report
 - Extracted a pure numpy combat path into `NumpyLanchesterSimulator` that works on a simple dataclass (`SimulationUnit`) and `ModelCombatSetup`.
