@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 from sc2.unit import Unit
-from scipy.special import expit
 from scipy.stats import expon
 
 from phantom.common.utils import (
@@ -73,27 +72,27 @@ class CombatResult:
 
 class CombatSimulatorParameters:
     def __init__(self, params: ParameterManager) -> None:
-        self._time_distribution_lambda_log = params.optimize[OptimizationTarget.CostEfficiency].add(
-            "time_distribution_lambda_log", Prior(-0.5, 0.1)
+        self._time_distribution_lambda = params.optimize[OptimizationTarget.CostEfficiency].add_softplus(
+            "time_distribution_lambda_log", Prior(-0.18145307899181526, 0.1)
         )
-        self._lancester_dimension_logit = params.optimize[OptimizationTarget.CostEfficiency].add(
-            "lancester_dimension_logit", Prior(0.5, 0.1)
+        self._lancester_dimension = params.optimize[OptimizationTarget.CostEfficiency].add_sigmoid(
+            "lancester_dimension_logit", Prior(0.5, 0.1), low=1.0, high=2.0
         )
-        self._enemy_range_bonus_log = params.optimize[OptimizationTarget.CostEfficiency].add(
-            "enemy_range_bonus_log", Prior(0.5, 0.1)
+        self._enemy_range_bonus = params.optimize[OptimizationTarget.CostEfficiency].add_softplus(
+            "enemy_range_bonus_log", Prior(1.435162085326694, 0.1)
         )
 
     @property
     def time_distribution_lambda(self) -> float:
-        return np.exp(self._time_distribution_lambda_log.value)
+        return self._time_distribution_lambda.value
 
     @property
     def lancester_dimension(self) -> float:
-        return 1 + expit(self._lancester_dimension_logit.value)
+        return self._lancester_dimension.value
 
     @property
     def enemy_range_bonus(self) -> float:
-        return np.exp(self._enemy_range_bonus_log.value)
+        return self._enemy_range_bonus.value
 
 
 class NumpyLanchesterSimulator:

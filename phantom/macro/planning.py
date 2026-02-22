@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
-import numpy as np
 from loguru import logger
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
@@ -53,13 +52,13 @@ class MacroPlanning:
             Prior(0.808, 0.1),
             Prior(0.5, 0.1),
         )
-        self._army_priority_boost_vs_rush_log = params.optimize[OptimizationTarget.CostEfficiency].add(
+        self._army_priority_boost_vs_rush = params.optimize[OptimizationTarget.CostEfficiency].add_softplus(
             "army_priority_boost_vs_rush_log",
-            Prior(0.0, 1.0),
+            Prior(0.541324854612918, 1.0),
         )
-        self._expansion_boost_log = params.optimize[OptimizationTarget.CostEfficiency].add(
+        self._expansion_boost = params.optimize[OptimizationTarget.CostEfficiency].add_softplus(
             "expansion_boost_log",
-            Prior(np.log(0.7), 0.1),
+            Prior(0.013658997191615, 0.1),
         )
 
         self._strategy: Strategy | None = None
@@ -69,11 +68,11 @@ class MacroPlanning:
 
     @property
     def army_priority_boost_vs_rush(self) -> float:
-        return np.exp(self._army_priority_boost_vs_rush_log.value)
+        return self._army_priority_boost_vs_rush.value
 
     @property
     def expansion_boost(self) -> float:
-        return np.exp(self._expansion_boost_log.value)
+        return self._expansion_boost.value
 
     @property
     def strategy(self) -> Strategy | None:

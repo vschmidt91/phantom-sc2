@@ -60,20 +60,20 @@ class ReturnResource(Action):
 
 class MiningParameters:
     def __init__(self, params: ParameterManager) -> None:
-        self.return_distance_weight_log = params.optimize[OptimizationTarget.MiningEfficiency].add(
-            "return_distance_weight_log", Prior(-3.0, 1.0)
+        self._return_distance_weight = params.optimize[OptimizationTarget.MiningEfficiency].add_softplus(
+            "return_distance_weight_log", Prior(-2.9750031866086966, 1.0)
         )
-        self.assignment_cost_log = params.optimize[OptimizationTarget.MiningEfficiency].add(
-            "assignment_cost_log", Prior(2.0, 1.0)
+        self._assignment_cost = params.optimize[OptimizationTarget.MiningEfficiency].add_softplus(
+            "assignment_cost_log", Prior(7.388437928913599, 1.0)
         )
 
     @property
     def return_distance_weight(self) -> float:
-        return np.exp(self.return_distance_weight_log.value)
+        return self._return_distance_weight.value
 
     @property
     def assignment_cost(self) -> float:
-        return np.exp(self.assignment_cost_log.value)
+        return self._assignment_cost.value
 
 
 class MiningSituation:

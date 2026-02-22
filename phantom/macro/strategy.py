@@ -4,7 +4,6 @@ from collections.abc import Mapping
 from functools import cached_property, total_ordering
 from typing import TYPE_CHECKING
 
-import numpy as np
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -45,13 +44,13 @@ class StrategyParameters:
         self.hydras_when_banking = 13
         self.lings_when_banking = 8
         self.queens_when_banking = 4
-        self.supply_buffer_log = params.optimize[OptimizationTarget.SupplyEfficiency].add(
-            "supply_buffer_log", Prior(2.5, 0.1)
+        self._supply_buffer = params.optimize[OptimizationTarget.SupplyEfficiency].add_softplus(
+            "supply_buffer_log", Prior(12.18248884139607, 0.1)
         )
 
     @property
     def supply_buffer(self) -> float:
-        return np.exp(self.supply_buffer_log.value)
+        return self._supply_buffer.value
 
 
 class Strategy:

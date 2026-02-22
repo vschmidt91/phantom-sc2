@@ -1,5 +1,5 @@
 import warnings
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum, auto
 
@@ -19,6 +19,16 @@ class Parameter:
     name: str
     prior: Prior
     value: float
+
+
+@dataclass(frozen=True)
+class DecodedParameter:
+    raw: Parameter
+    decoder: Callable[[float], float]
+
+    @property
+    def value(self) -> float:
+        return self.decoder(self.raw.value)
 
 
 @dataclass
@@ -136,6 +146,15 @@ class ParameterOptimizer:
         param = Parameter(name, prior, prior.mu)
         self._registry[name] = param
         return param
+
+    def add_softplus(self, name: str, prior: Prior, *, minimum: float = 0.0) -> DecodedParameter:
+        raw = self.add(name, prior)
+        return DecodedParameter(raw=raw, decoder=lambda x: minimum + float(np.logaddexp(0.0, x)))
+
+    def add_sigmoid(self, name: str, prior: Prior, *, low: float = 0.0, high: float = 1.0) -> DecodedParameter:
+        raw = self.add(name, prior)
+        width = high - low
+        return DecodedParameter(raw=raw, decoder=lambda x: low + width * (0.5 * (1.0 + np.tanh(0.5 * x))))
 
     def add_scalar_transform(self, name: str, *priors: Prior) -> ScalarTransform:
         coeffs = [self.add(f"{name}_{i}", p) for i, p in enumerate(priors)]
