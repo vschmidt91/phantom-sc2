@@ -15,6 +15,8 @@ Critical and objective.
 - scripts: executables 
 - run.py: bot entry point
 
+The most important file is phantom/agent.py, read it for every coding task.
+
 # Codex Instructions
 
 codex directory is our dialogue.
