@@ -362,7 +362,7 @@ class CombatSituation:
         )
         return Move(move_target)
 
-    def retreat_to_creep(self, unit: Unit, limit=2) -> Action | None:
+    def retreat_to_creep(self, unit: Unit, limit=3) -> Action | None:
         if not self.context.state.own_creep.is_on_own_creep(unit) and self.context.retreat_to_creep:
             path = self.context.retreat_to_creep.get_path(unit.position, limit=limit)
             if len(path) == 1:
@@ -383,13 +383,15 @@ class CombatSituation:
             return action
         elif not (target := self.targets.get(unit)) or not self._can_target(unit, target):
             return None
+        elif (not self.attacking_global and not unit.is_flying and (action := self.retreat_to_creep(unit))):
+            return action
         elif unit.tag in self.attacking_local:
             return Attack(target.position if ground_range < 2 else target)
         elif (
             (action := self.keep_unit_safe(unit, weight_safety_limit=10.0))
             or (self.attacking_global and (action := self.attack_with(unit)))
             or (action := self.concentrate(unit))
-        ) or (not unit.is_flying and not self.attacking_global and (action := self.retreat_to_creep(unit))):
+        ):
             return action
         else:
             return None

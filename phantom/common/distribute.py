@@ -1,5 +1,6 @@
 import math
 from collections.abc import Hashable, Mapping, Sequence
+from functools import cache
 from itertools import product
 from typing import TypeVar
 
@@ -11,6 +12,7 @@ type Point = tuple[int, int]
 
 TKey = TypeVar("TKey", bound=Hashable)
 TValue = TypeVar("TValue", bound=Hashable)
+PROBLEM_RESOLUTION = 4
 
 
 class HighsPySolver:
@@ -81,10 +83,7 @@ class HighsPySolver:
         return solution[:n, :m]
 
 
-_PROBLEM_CACHE = dict[Point, HighsPySolver]()
-PROBLEM_RESOLUTION = 8
-
-
+@cache
 def get_assignment_solver(n: int, m: int) -> HighsPySolver:
     n2 = math.ceil(n / PROBLEM_RESOLUTION) * PROBLEM_RESOLUTION
     if n < n2:
@@ -92,13 +91,9 @@ def get_assignment_solver(n: int, m: int) -> HighsPySolver:
     m2 = math.ceil(m / PROBLEM_RESOLUTION) * PROBLEM_RESOLUTION
     key = n2, m2
 
-    if not (problem := _PROBLEM_CACHE.get(key)):
-        if n2 > 100 or m2 > 100:
-            logger.warning(
-                f"Compiling a large assignment problem. Distributing {n} sources to {m} targets, using {n2}x{m2} problem resolution."
-            )
-        _PROBLEM_CACHE[key] = (problem := HighsPySolver(*key))
-    return problem
+    # if not (problem := _PROBLEM_CACHE.get(key)):
+    #     _PROBLEM_CACHE[key] = (problem := HighsPySolver(n2, m2))
+    return HighsPySolver(n2, m2)
 
 
 def distribute[TKey: Hashable, TValue: Hashable](
