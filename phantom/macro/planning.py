@@ -53,11 +53,11 @@ class MacroPlanning:
             Prior(0.5, 0.1),
         )
         self._army_priority_boost_vs_rush = params.optimize[OptimizationTarget.CostEfficiency].add_softplus(
-            "army_priority_boost_vs_rush_log",
+            "army_priority_boost_vs_rush",
             Prior(0.541324854612918, 1.0),
         )
         self._expansion_boost = params.optimize[OptimizationTarget.CostEfficiency].add_softplus(
-            "expansion_boost_log",
+            "expansion_boost",
             Prior(0.013658997191615, 0.1),
         )
 

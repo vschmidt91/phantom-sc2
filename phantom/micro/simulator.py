@@ -73,13 +73,13 @@ class CombatResult:
 class CombatSimulatorParameters:
     def __init__(self, params: ParameterManager) -> None:
         self._time_distribution_lambda = params.optimize[OptimizationTarget.CostEfficiency].add_softplus(
-            "time_distribution_lambda_log", Prior(-0.18145307899181526, 0.1)
+            "time_distribution_lambda", Prior(-0.18145307899181526, 0.1)
         )
         self._lancester_dimension = params.optimize[OptimizationTarget.CostEfficiency].add_sigmoid(
-            "lancester_dimension_logit", Prior(0.5, 0.1), low=1.0, high=2.0
+            "lancester_dimension", Prior(0.5, 0.1), low=1.0, high=2.0
         )
         self._enemy_range_bonus = params.optimize[OptimizationTarget.CostEfficiency].add_softplus(
-            "enemy_range_bonus_log", Prior(1.435162085326694, 0.1)
+            "enemy_range_bonus", Prior(1.435162085326694, 0.1)
         )
 
     @property

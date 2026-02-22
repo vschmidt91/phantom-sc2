@@ -233,6 +233,8 @@ class ParameterOptimizer:
 
     def load_state(self, state: OptimizerState | None) -> None:
         current_names = list(self._registry.keys())
+        # State reconciliation is name-based; parameter renames are a breaking migration.
+        # Arena reset is currently the only supported way to apply parameter renames.
 
         # 1. Start with fresh priors
         new_loc, new_scale = self._build_initial_state()

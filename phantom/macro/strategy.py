@@ -45,7 +45,7 @@ class StrategyParameters:
         self.lings_when_banking = 8
         self.queens_when_banking = 4
         self._supply_buffer = params.optimize[OptimizationTarget.SupplyEfficiency].add_softplus(
-            "supply_buffer_log", Prior(12.18248884139607, 0.1)
+            "supply_buffer", Prior(12.18248884139607, 0.1)
         )
 
     @property

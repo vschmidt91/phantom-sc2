@@ -21,3 +21,4 @@
 - Mock combat benchmarking now has shared geometric setup generation in `phantom/mock/combat_setups.py`; `generate_mock_combat_dataset` emits setup metadata plus `true_outcome` (`sc2helper`) and `pred_outcome` (numpy) using identical unit positions and all-units-attacking for numpy.
 - Added lightweight mock baseline `phantom/mock/hp_ratio_sim.py` with normalized HP-ratio outcome; notebook v2 uses it in setup-wise accuracy/R2 curves (scatter remains sc2helper vs numpy).
 - `NumpyLanchesterSimulator` now uses `ModelCombatSetup.attacking` as a hard damage gate: units with tags not in the set deal zero damage but are still included in survival/outcome calculations.
+- Optimizer state restore in `phantom/learn/parameters.py` matches parameters strictly by name; renaming parameter keys (for example removing `_log`/`_logit`) currently requires an Arena data reset.

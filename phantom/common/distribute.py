@@ -89,10 +89,6 @@ def get_assignment_solver(n: int, m: int) -> HighsPySolver:
     if n < n2:
         m += 1  # source padding also requires target padding
     m2 = math.ceil(m / PROBLEM_RESOLUTION) * PROBLEM_RESOLUTION
-    key = n2, m2
-
-    # if not (problem := _PROBLEM_CACHE.get(key)):
-    #     _PROBLEM_CACHE[key] = (problem := HighsPySolver(n2, m2))
     return HighsPySolver(n2, m2)
 
 

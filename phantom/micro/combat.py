@@ -54,7 +54,7 @@ class CombatParameters:
             "global_engagement_level", Prior(1.66, 0.1)
         )
         self._global_engagement_hysteresis = params.optimize[OptimizationTarget.CostEfficiency].add_softplus(
-            "global_engagement_hysteresis_log", Prior(-1.519419353738057, 0.1)
+            "global_engagement_hysteresis", Prior(-1.519419353738057, 0.1)
         )
 
     @property
