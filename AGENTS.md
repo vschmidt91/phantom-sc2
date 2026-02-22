@@ -19,8 +19,8 @@ Critical and objective.
 
 codex directory is our dialogue.
 When working on a specific idea with a corresponing .md file, use it for record keeping.
-Don't create you own .md files.
-Store general knowledge into codex/knowledge.md.
+Don't create you own .md files unless instructed.
+Store knowledge you gained along the way into knowledge.md.
 everything that might save you and others a bunch of time in the future is worth remembering.
 Focus on Understanding about the project, ares, python-sc2 and Starcraft II strategy.
 
