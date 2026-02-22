@@ -84,6 +84,7 @@ class Agent:
 
         def proxy_scout_done(b: "PhantomBot") -> bool:
             return b.time > 3 * 60 or b.enemy_units or b.mediator.get_did_enemy_rush
+
         for unit_type, tactic in (
             (UnitTypeId.OVERLORD, self._send_overlord_scout),
             (UnitTypeId.OVERLORD, self.scout_proxy),

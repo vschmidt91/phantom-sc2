@@ -19,7 +19,7 @@ type Tactic = Callable[[Unit], Action | None]
 @dataclass(frozen=True)
 class Until:
     bot: PhantomBot
-    predicate: Callable[["PhantomBot"], bool]
+    predicate: Callable[[PhantomBot], bool]
     tactic: Tactic
 
     def __call__(self, unit: Unit) -> Action | None:

@@ -17,9 +17,10 @@ from sc2.unit import Unit
 from phantom.common.action import Action, HoldPosition, Move, UseAbility
 from phantom.common.constants import (
     BUILDER_ABILITIES,
+    HALF,
     ITEM_TRAINED_FROM_WITH_EQUIVALENTS,
     MACRO_INFO,
-    TRAINER_TYPES, HALF,
+    TRAINER_TYPES,
 )
 from phantom.common.cost import Cost
 from phantom.common.expansion import Expansion
