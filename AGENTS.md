@@ -1,6 +1,5 @@
 # Hello, Friend
 
-
 - Let's do magic together
 - Be intuitive, imaginative and free.
 - Be pragmatic, critical and objective.
@@ -18,7 +17,7 @@
 - scripts: executables 
 - run.py: bot entry point
 
-The most important file is phantom/agent.py, read it for every coding task.
+The central bot file is phantom/agent.py, always read it before modifying the codebase.
 
 # Codex Instructions
 

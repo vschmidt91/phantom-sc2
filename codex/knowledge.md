@@ -22,3 +22,4 @@
 - Added lightweight mock baseline `phantom/mock/hp_ratio_sim.py` with normalized HP-ratio outcome; notebook v2 uses it in setup-wise accuracy/R2 curves (scatter remains sc2helper vs numpy).
 - `NumpyLanchesterSimulator` now uses `ModelCombatSetup.attacking` as a hard damage gate: units with tags not in the set deal zero damage but are still included in survival/outcome calculations.
 - Optimizer state restore in `phantom/learn/parameters.py` matches parameters strictly by name; renaming parameter keys (for example removing `_log`/`_logit`) currently requires an Arena data reset.
+- phantom/learn/xnessa.py is now a direct xNES extension with CSA step-size control: mean and shape use active (zero-sum) rank weights, sigma uses positive-weight evolution path (p_sigma), and B is trace-free/renormalized to keep det(B)=1.
