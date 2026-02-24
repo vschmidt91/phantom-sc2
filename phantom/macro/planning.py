@@ -36,29 +36,29 @@ class MacroPlanning:
 
         self.tech_priority_transform = params.optimize[OptimizationTarget.CostEfficiency].add_scalar_transform(
             "tech_priority",
-            Prior(0.591, 0.1),
-            Prior(0.843, 0.1),
-            Prior(-0.097, 0.01),
+            Prior(0.504, 0.1),
+            Prior(0.849, 0.1),
+            Prior(-0.074, 0.01),
         )
         self.economy_priority_transform = params.optimize[OptimizationTarget.CostEfficiency].add_scalar_transform(
             "economy_priority",
-            Prior(0.842, 0.1),
-            Prior(0.148, 0.03),
-            Prior(0.039, 0.01),
+            Prior(1.243, 0.1),
+            Prior(0.147, 0.03),
+            Prior(0.050, 0.01),
         )
         self.army_priority_transform = params.optimize[OptimizationTarget.CostEfficiency].add_scalar_transform(
             "army_priority",
-            Prior(1.5, 0.1),
-            Prior(0.808, 0.1),
-            Prior(0.5, 0.1),
+            Prior(1.463, 0.1),
+            Prior(0.478, 0.1),
+            Prior(0.830, 0.1),
         )
         self._army_priority_boost_vs_rush = params.optimize[OptimizationTarget.CostEfficiency].add_softplus(
             "army_priority_boost_vs_rush",
-            Prior(0.541324854612918, 1.0),
+            Prior(0.5, 1.0),
         )
         self._expansion_boost = params.optimize[OptimizationTarget.CostEfficiency].add_softplus(
             "expansion_boost",
-            Prior(0.013658997191615, 0.1),
+            Prior(0.1, 0.1),
         )
 
         self._strategy: Strategy | None = None

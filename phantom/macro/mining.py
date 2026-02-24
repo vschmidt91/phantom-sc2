@@ -61,10 +61,10 @@ class ReturnResource(Action):
 class MiningParameters:
     def __init__(self, params: ParameterManager) -> None:
         self._return_distance_weight = params.optimize[OptimizationTarget.MiningEfficiency].add_softplus(
-            "return_distance_weight", Prior(-2.9750031866086966, 1.0)
+            "return_distance_weight", Prior(-10.0, 1.0)
         )
         self._assignment_cost = params.optimize[OptimizationTarget.MiningEfficiency].add_softplus(
-            "assignment_cost", Prior(7.388437928913599, 1.0)
+            "assignment_cost", Prior(20.0, 1.0)
         )
 
     @property
