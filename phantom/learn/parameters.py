@@ -5,7 +5,7 @@ from enum import Enum, auto
 
 import numpy as np
 
-from phantom.learn.xnes import XNES, ranking_from_comparer
+from phantom.learn.xnessa import XNESSA, ranking_from_comparer
 
 
 @dataclass(frozen=True)
@@ -133,7 +133,7 @@ class ParameterOptimizer:
         self._registry: dict[str, Parameter] = {}
 
         # Runtime state
-        self._xnes: XNES | None = None
+        self._xnes: XNESSA | None = None
         self._current_genotypes: np.ndarray | None = None  # z
         self._current_phenotypes: np.ndarray | None = None  # x
         self._results: list = []
@@ -281,7 +281,7 @@ class ParameterOptimizer:
                 restored_results = list(state.batch_results) if state.batch_results else []
 
         # 3. Initialize XNES
-        self._xnes = XNES(new_loc, new_scale)
+        self._xnes = XNESSA(new_loc, new_scale)
 
         # 4. Restore or Reset Batch
         if restored_batch_z is not None:
