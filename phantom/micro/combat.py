@@ -1,4 +1,4 @@
-from collections.abc import Mapping, Sequence, Set
+from collections.abc import Callable, Mapping, Sequence, Set
 from dataclasses import dataclass
 from functools import cached_property
 from typing import TYPE_CHECKING
@@ -242,7 +242,8 @@ class CombatCommand:
         parameters: CombatParameters,
         simulator: CombatSimulator,
         own_creep: "OwnCreep",
-        dead_airspace: DeadAirspace | None = None,
+        dead_airspace: DeadAirspace,
+        considered_on_creep: Callable[[Unit], bool],
     ) -> None:
         self.bot = bot
         self.parameters = parameters
@@ -253,6 +254,7 @@ class CombatCommand:
         self.own_creep = own_creep
         self.dead_airspace = dead_airspace
         self._situation: CombatSituation | None = None
+        self.considered_on_creep = considered_on_creep
 
     def _assign_targets(self, units: Sequence[Unit], targets: Sequence[Unit]) -> Mapping[int, Unit]:
         if not any(units) or not any(targets):
@@ -363,7 +365,10 @@ class CombatSituation:
         return Move(move_target)
 
     def retreat_to_creep(self, unit: Unit, limit=3) -> Action | None:
-        if not self.context.state.own_creep.is_on_own_creep(unit) and self.context.retreat_to_creep:
+        considered_on_creep = self.context.state.own_creep.is_on_own_creep(
+            unit
+        ) or self.context.state.considered_on_creep(unit)
+        if not considered_on_creep and self.context.retreat_to_creep:
             path = self.context.retreat_to_creep.get_path(unit.position, limit=limit)
             if len(path) == 1:
                 return None

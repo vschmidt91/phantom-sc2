@@ -318,7 +318,7 @@ class ParameterOptimizer:
             batch_results=list(self._results),
         )
 
-    def named_values(self) -> Mapping[str, float]:
+    def named_values(self) -> Mapping[str, Parameter]:
         return self._registry
 
     # --- Optimization Loop ---
@@ -394,7 +394,7 @@ class ParameterManager:
             result = results[t]
             opt.tell_result(result)
 
-    def named_values(self) -> Mapping[OptimizationTarget, Mapping[str, float]]:
+    def named_values(self) -> Mapping[OptimizationTarget, Mapping[str, Parameter]]:
         return {target: optimizer.named_values() for target, optimizer in self.optimize.items()}
 
 
@@ -518,8 +518,8 @@ class MatchupParameterProvider:
             for target in OptimizationTarget
         }
 
-    def named_values(self) -> Mapping[Race, Mapping[OptimizationTarget, Mapping[str, float]]]:
-        return {race: manager.named_values() for target, manager in self._managers.items()}
+    def named_values(self) -> Mapping[Race, Mapping[OptimizationTarget, Mapping[str, Parameter]]]:
+        return {target: manager.named_values() for target, manager in self._managers.items()}
 
     @property
     def current_race(self) -> Race:

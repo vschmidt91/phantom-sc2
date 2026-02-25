@@ -247,14 +247,22 @@ class CombatSimulator:
         if self.combat_sim is None:
             return local_result
 
-        health1 = max(1, sum(u.health + u.shield for u in setup.units1))
-        health2 = max(1, sum(u.health + u.shield for u in setup.units2))
+        health1 = sum(u.health + u.shield for u in setup.units1)
+        health2 = sum(u.health + u.shield for u in setup.units2)
         win, health_result = self.combat_sim.predict_engage(
             setup.units1,
             setup.units2,
             optimistic=True,
             defender_player=2,
         )
-        outcome_global = health_result / health1 if win else -health_result / health2
+
+        # outcome_global = health_result / max(1, health1) if win else -health_result / max(1, health2)
+
+        health_initial = health1 if win else health2
+        if health_initial != 0.0:
+            casualty_fraction = 1.0 - health_result / health_initial
+            outcome_global = 0.5 * (-1 if win else 1) * np.log(casualty_fraction)
+        else:
+            outcome_global = 0.0
 
         return CombatResult(outcome_local=local_result.outcome_local, outcome_global=outcome_global)

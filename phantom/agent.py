@@ -75,6 +75,7 @@ class Agent:
             simulator,
             self.own_creep,
             dead_airspace,
+            lambda u: self._is_inside_creep_hull(to_point(u.position)),
         )
         self.builder = Builder(bot)
         self.creep_tumors = CreepTumors(bot)
@@ -111,11 +112,10 @@ class Agent:
         )
         self.mining = MiningCommand(bot, runtime_params)
         self.supply_efficiency = MetricAccumulator()
-        self._creep_hull: ConvexHull | None = None
         self._enemy_expanded = False
         self._proxy_structures: list[Unit] = []
         self._skip_roach_warren = False
-        self._initialize_creep_hull()
+        self._creep_hull = self._initialize_creep_hull()
         for unit in self.bot.units:
             self.tactics.on_unit_created(unit)
         self.optimizer.load_all()
@@ -295,7 +295,7 @@ class Agent:
     def on_structure_completed(self, unit: Unit) -> None:
         if unit.type_id != UnitTypeId.HATCHERY:
             return
-        self._add_points_to_creep_hull(self._candidate_points(unit.position))
+        self._creep_hull.add_points(self._candidate_points(unit.position))
 
     def on_end(self, game_result: Result):
         if self.config.training:
@@ -307,7 +307,7 @@ class Agent:
                 OptimizationTarget.SupplyEfficiency: self.supply_efficiency.get_value(),
             }
             for race in self._training_races():
-            logger.info(f"Training parameters for {race} with {result=}")
+                logger.info(f"Training parameters for {race} with {result=}")
                 self.optimizer.tell(ParameterContext(race), result)
                 self.optimizer.save_race(race)
 
@@ -464,29 +464,16 @@ class Agent:
 
             return dist_to_our_spawn < closest_enemy_spawn_dist
 
-    def _initialize_creep_hull(self) -> None:
-        if self.bot.enemy_race not in {Race.Zerg, Race.Random}:
-            self._creep_hull = None
-            return
-
+    def _initialize_creep_hull(self) -> ConvexHull:
         centers = (self.bot.start_location, self.bot.mediator.get_own_nat)
         points = np.vstack([self._candidate_points(center) for center in centers])
-        self._creep_hull = ConvexHull(points, incremental=True)
+        return ConvexHull(points, incremental=True)
 
-    def _candidate_points(self, base_position: Point2, radius: float = 10.0, count: int = 10) -> np.ndarray:
+    def _candidate_points(self, base_position: Point2, radius: float = 10.0, count: int = 6) -> np.ndarray:
         angles = np.linspace(0.0, 2.0 * np.pi, num=count, endpoint=False)
         offsets = np.column_stack((np.cos(angles), np.sin(angles))) * radius
         base = np.asarray((base_position.x, base_position.y), dtype=float)
         return base + offsets
-
-    def _add_points_to_creep_hull(self, points: np.ndarray) -> None:
-        if self.bot.enemy_race not in {Race.Zerg, Race.Random}:
-            return
-
-        if self._creep_hull is None:
-            self._creep_hull = ConvexHull(points, incremental=True)
-        else:
-            self._creep_hull.add_points(points)
 
     def _is_inside_creep_hull(self, point: Point) -> bool:
         if self._creep_hull is None:

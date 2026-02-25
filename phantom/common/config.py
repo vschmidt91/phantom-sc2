@@ -17,7 +17,7 @@ class BotConfig:
     version_path = "version.txt"
     data_path = "./data"
     max_actions = 60
-    optimizer_pop_size = 20
+    optimizer_pop_size = 10
     roach_warren_cancel_enabled = False
     proxy_scout_enabled = True
     proxy_scout_max_overlords = 1
