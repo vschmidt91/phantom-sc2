@@ -36,7 +36,7 @@ class StrategyTier(enum.IntEnum):
 
 class StrategyParameters:
     def __init__(self, params: ParameterManager) -> None:
-        self.ravager_mixin = 10
+        self.ravager_mixin = 7
         self.corruptor_mixin = 5
         self.tier1_drone_count = 30
         self.tier2_drone_count = 45

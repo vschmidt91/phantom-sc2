@@ -48,7 +48,7 @@ from phantom.micro.own_creep import OwnCreep
 from phantom.micro.queens import Queens
 from phantom.micro.scout_proxy import ScoutProxy
 from phantom.micro.simulator import CombatSimulator, CombatSimulatorParameters
-from phantom.micro.tactics import Tactics, Until
+from phantom.micro.tactics import Tactics
 from phantom.micro.transfuse import Transfuse
 from phantom.observation import Observation, with_micro
 
@@ -96,7 +96,7 @@ class Agent:
         for unit_type, tactic in (
             (UnitTypeId.OVERLORD, self._send_overlord_scout),
             (UnitTypeId.OVERLORD, self.scout_proxy),
-            (UnitTypeId.ZERGLING, Until(self.bot, proxy_scout_done, self.scout_proxy)),
+            # (UnitTypeId.ZERGLING, Until(self.bot, proxy_scout_done, self.scout_proxy)),
         ):
             self.tactics.register(unit_type, tactic)
         self.blocked_positions = BlockedPositionTracker(bot)
@@ -314,6 +314,12 @@ class Agent:
     def _send_overlord_scout(self, overlord: Unit) -> Action | None:
         sight_range = overlord.sight_range
         enemy_nat = self.bot.mediator.get_enemy_nat
+
+        if self.bot.mediator.get_did_enemy_rush:
+            return None
+
+        if self._proxy_structures:
+            return None
 
         if self.bot.time >= 140:
             return None

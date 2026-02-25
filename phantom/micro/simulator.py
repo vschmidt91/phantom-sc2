@@ -140,6 +140,7 @@ class NumpyLanchesterSimulator:
 
         distance = pairwise_distances([u.position for u in units])
         speed = 1.4 * np.array([u.real_speed for u in units], dtype=float)
+        speed *= attacker_mask
 
         hp0 = np.array([u.hp for u in units], dtype=float)
         hp = hp0.copy()
@@ -152,9 +153,11 @@ class NumpyLanchesterSimulator:
         q = (np.arange(self.num_steps, dtype=float) + 0.5) / self.num_steps
         time_dist = expon(scale=max(1e-6, self.parameters.time_distribution_lambda))
         times = time_dist.ppf(q)
-        dt = np.diff(np.concatenate(([0.0], times)))
+        np.diff(np.concatenate(([0.0], times)))
 
         lancester_pow = self.parameters.lancester_dimension
+        pressure_in1 = np.zeros((self.num_steps, n), dtype=float)
+        pressure_in2 = np.zeros_like(pressure_in1)
         for step, ti in enumerate(times):
             alive = hp > 0
             active = alive[:, None] & alive[None, :] & (tau <= ti) & (dps > 0)
@@ -166,7 +169,13 @@ class NumpyLanchesterSimulator:
             strength = np.power(np.maximum(1e-6, hp / np.maximum(1e-6, hp0)), np.maximum(0.0, lancester_pow - 1.0))
             pressure_out = strength[:, None] * dps * offense
             pressure_in = pressure_out.sum(axis=0)
-            hp = np.maximum(0.0, hp - dt[step] * pressure_in)
+            # hp = np.maximum(0.0, hp - dt[step] * pressure_in)
+
+            valid_sym = active | active.T
+            mix = valid_sym / np.maximum(1, valid_sym.sum(0, keepdims=True))
+
+            pressure_in1[step, :] = pressure_in
+            pressure_in2[step, :] = pressure_in @ mix
 
         survival = hp / np.maximum(1e-6, hp0)
         own_survival = survival[:n1]
@@ -175,6 +184,9 @@ class NumpyLanchesterSimulator:
         enemy_mean = enemy_survival.mean()
         outcome_global = own_mean - enemy_mean
         outcome_vector = np.concatenate([own_survival - enemy_mean, own_mean - enemy_survival])
+
+        outcome_matrix = pressure_in2 - pressure_in1
+        outcome_vector = outcome_matrix.mean(0)
 
         outcome_local = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
         return CombatResult(outcome_local=outcome_local, outcome_global=outcome_global)
