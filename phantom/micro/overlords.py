@@ -17,8 +17,9 @@ if TYPE_CHECKING:
 
 
 class Overlords:
-    def __init__(self, bot: PhantomBot) -> None:
+    def __init__(self, bot: PhantomBot, retreat_outcome_threshold: float = 0.0) -> None:
         self.bot = bot
+        self._retreat_outcome_threshold = retreat_outcome_threshold
         self._had_lair_tech = False
         self._known_overlords = set[int]()
         self._pending_creep_enable = set[int]()
@@ -44,6 +45,12 @@ class Overlords:
         self._action_by_tag.clear()
         if not self._candidates or self._situation is None:
             return
+        if self._should_force_retreat():
+            self._support_target_by_overlord.clear()
+            for overlord in self._candidates:
+                if action := self._situation.retreat_with(overlord):
+                    self._action_by_tag[overlord.tag] = action
+            return
 
         movable = list[Unit]()
         for overlord in self._candidates:
@@ -62,6 +69,12 @@ class Overlords:
 
     def get_action(self, unit: Unit) -> Action | None:
         return self._action_by_tag.get(unit.tag)
+
+    def _should_force_retreat(self) -> bool:
+        situation = self._situation
+        if situation is None:
+            return False
+        return situation.context.prediction.outcome_global < self._retreat_outcome_threshold
 
     def _update_creep_enable_queue(self, overlords: Sequence[Unit]) -> None:
         has_lair_tech = bool(self.bot.structures({UnitTypeId.LAIR, UnitTypeId.HIVE}).ready)
