@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 
 from phantom.learn.parameters import ParameterOptimizer, Prior
+from phantom.learn.xnessa import XNESSA
 
 
 class ParametersTest(unittest.TestCase):
@@ -87,6 +88,27 @@ class ParametersTest(unittest.TestCase):
 
         self.assertEqual(p1.value, q1.value)
         self.assertEqual(p2.value, q2.value)
+
+    def test_xnessa_zero_dim(self):
+        xnes = XNESSA(np.zeros(0), np.eye(0))
+        self.assertEqual(xnes.dim, 0)
+        np.testing.assert_equal(xnes.scale.shape, (0, 0))
+
+        z, x = xnes.ask(num_samples=6)
+        np.testing.assert_equal(z.shape, (0, 6))
+        np.testing.assert_equal(x.shape, (0, 6))
+
+        self.assertTrue(xnes.tell(z, list(range(6))))
+
+    def test_optimizer_state_with_no_parameters(self):
+        optimizer = ParameterOptimizer(2)
+        state = optimizer.get_state()
+
+        np.testing.assert_equal(state.names, [])
+        np.testing.assert_equal(state.loc.shape, (0,))
+        np.testing.assert_equal(state.scale.shape, (0, 0))
+        np.testing.assert_equal(state.batch_z.shape, (0, 2))
+        np.testing.assert_equal(state.batch_x.shape, (0, 2))
 
     def tearDown(self):
         pass

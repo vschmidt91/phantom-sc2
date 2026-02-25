@@ -16,6 +16,11 @@ def ranking_from_comparer(population, compare_func, maximize=True):
 class XNESSA:
     def __init__(self, x0, sigma0):
         self.loc = np.asarray(x0, dtype=float)
+        if self.dim == 0:
+            self.sigma = 1.0
+            self.B = np.eye(0)
+            self.p_sigma = np.zeros(0)
+            return
         scale0 = np.asarray(sigma0, dtype=float)
         if scale0.ndim == 0:
             scale0 = np.repeat(scale0, self.dim)
@@ -35,6 +40,10 @@ class XNESSA:
         return self.sigma * self.B
 
     def ask(self, num_samples=None, rng=None):
+        if self.dim == 0:
+            n = int(num_samples) if num_samples is not None else 4
+            return np.zeros((0, n)), np.zeros((0, n))
+
         n = num_samples or (4 + int(3 * np.log(self.dim)))
         n_half = n // 2
         rng = rng or np.random.default_rng()
@@ -53,6 +62,9 @@ class XNESSA:
         return z, x
 
     def tell(self, samples, ranking, eps=1e-10):
+        if self.dim == 0:
+            return True
+
         n = samples.shape[1]
         d = self.dim
 

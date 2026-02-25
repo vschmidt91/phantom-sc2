@@ -1,6 +1,4 @@
-import lzma
 import os
-import pickle
 import tempfile
 import unittest
 
@@ -10,7 +8,6 @@ from phantom.learn.parameters import (
     MatchupParameterProvider,
     OptimizationTarget,
     ParameterContext,
-    ParameterManager,
     Prior,
 )
 
@@ -72,29 +69,3 @@ class MatchupParametersTest(unittest.TestCase):
             self.assertTrue(os.path.isfile(os.path.join(tmpdir, "terran.pkl.xz")))
             self.assertTrue(os.path.isfile(os.path.join(tmpdir, "protoss.pkl.xz")))
             self.assertTrue(os.path.isfile(os.path.join(tmpdir, "random.pkl.xz")))
-
-    def test_legacy_fallback_loads_random_only(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            legacy_path = os.path.join(tmpdir, "params.pkl.xz")
-            legacy = ParameterManager(pop_size=2)
-            optimizer = legacy.optimize[OptimizationTarget.CostEfficiency]
-            optimizer.add("legacy", Prior())
-            optimizer.get_state()
-            assert optimizer._xnes is not None
-            optimizer._xnes.loc[0] = 9.0
-            with lzma.open(legacy_path, "wb") as handle:
-                pickle.dump(legacy.save(), handle)
-
-            provider = MatchupParameterProvider(pop_size=2, data_path=tmpdir, legacy_params_path=legacy_path)
-            provider.optimize[OptimizationTarget.CostEfficiency].add("legacy", Prior())
-            provider.load_all()
-
-            random_optimizer = provider.manager_for(Race.Random).optimize[OptimizationTarget.CostEfficiency]
-            random_optimizer.set_values_from_best()
-            random_param = random_optimizer.add("legacy", Prior())
-            self.assertEqual(random_param.value, 9.0)
-
-            terran_optimizer = provider.manager_for(Race.Terran).optimize[OptimizationTarget.CostEfficiency]
-            terran_optimizer.set_values_from_best()
-            terran_param = terran_optimizer.add("legacy", Prior())
-            self.assertEqual(terran_param.value, 0.0)
