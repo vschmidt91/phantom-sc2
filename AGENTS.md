@@ -37,6 +37,8 @@ Focus on Understanding about the project, ares, python-sc2 and Starcraft II stra
 * leave __init__ files empty per default
 * prefer adding new files over editing existing ones
 * ask before making bigger functional changes to existing code.
+* don't implement backwards compatibility with files by default.
+* if you do notice breaking changes for stored files (especially data/ folder), notify the user.
 
 # Testing
 

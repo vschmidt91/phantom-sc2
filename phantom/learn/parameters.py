@@ -135,6 +135,7 @@ class OptimizerState:
     names: list[str]
     loc: np.ndarray
     scale: np.ndarray
+    p_sigma: np.ndarray
     batch_z: np.ndarray | None = None  # Genotypes
     batch_x: np.ndarray | None = None  # Phenotypes
     batch_results: list | None = None  # Results collected so far
@@ -254,6 +255,7 @@ class ParameterOptimizer:
         new_loc, new_scale = self._build_initial_state()
 
         # 2. Reconcile with saved state
+        restored_p_sigma = np.zeros(len(current_names), dtype=float)
         restored_batch_z = None
         restored_batch_x = None
         restored_results = []
@@ -274,6 +276,7 @@ class ParameterOptimizer:
                 ix_curr = np.ix_(curr_indices, curr_indices)
                 ix_old = np.ix_(old_indices, old_indices)
                 new_scale[ix_curr] = state.scale[ix_old]
+                restored_p_sigma[curr_indices] = state.p_sigma[old_indices]
 
             if state.batch_z is not None and state.batch_x is not None:
                 n_samples = state.batch_z.shape[1]
@@ -295,7 +298,7 @@ class ParameterOptimizer:
                 restored_results = list(state.batch_results) if state.batch_results else []
 
         # 3. Initialize XNES
-        self._xnes = XNESSA(new_loc, new_scale)
+        self._xnes = XNESSA(new_loc, new_scale, p_sigma=restored_p_sigma)
 
         # 4. Restore or Reset Batch
         if restored_batch_z is not None:
@@ -313,6 +316,7 @@ class ParameterOptimizer:
             names=list(self._registry.keys()),
             loc=self._xnes.loc,
             scale=self._xnes.scale,
+            p_sigma=self._xnes.p_sigma,
             batch_z=self._current_genotypes,
             batch_x=self._current_phenotypes,
             batch_results=list(self._results),

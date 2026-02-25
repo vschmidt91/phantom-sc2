@@ -27,3 +27,4 @@
 - Matchup parameter routing is now implemented with race-bound parameter handles whose `.value` property resolves through a live `ParameterContext` each read; this avoids rebuilding micro/macro components on `Random -> concrete race` transitions.
 - Per-matchup persistence uses `data/{zerg,terran,protoss,random}.pkl.xz`; legacy single-file params fallback loads into `Random` only when no matchup files are present.
 - `Overlords` now has a retreat-only gate (`retreat_outcome_threshold`, default `0.0`): when `combat.prediction.outcome_global` is below threshold, overlords skip creep support/enable logic and only use `CombatSituation.retreat_with`.
+- XNESSA CSA state must persist p_sigma in optimizer checkpoints; restoring only loc/scale resets step-size path memory and breaks intended sigma adaptation continuity across runs.

@@ -14,7 +14,7 @@ def ranking_from_comparer(population, compare_func, maximize=True):
 
 
 class XNESSA:
-    def __init__(self, x0, sigma0):
+    def __init__(self, x0, sigma0, p_sigma=None):
         self.loc = np.asarray(x0, dtype=float)
         if self.dim == 0:
             self.sigma = 1.0
@@ -29,7 +29,10 @@ class XNESSA:
         sign, logdet = np.linalg.slogdet(scale0)
         self.sigma = max(float(np.exp(logdet / self.dim) if sign > 0 else 1.0), 1e-12)
         self.B = scale0 / self.sigma
-        self.p_sigma = np.zeros(self.dim)
+        if p_sigma is None:
+            self.p_sigma = np.zeros(self.dim)
+        else:
+            self.p_sigma = np.asarray(p_sigma, dtype=float)
 
     @property
     def dim(self):
