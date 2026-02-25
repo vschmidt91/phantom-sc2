@@ -16,7 +16,6 @@ class BotConfig:
     build_order = "OVERPOOL"
     version_path = "version.txt"
     data_path = "./data"
-    params_name = "params.pkl.xz"
     max_actions = 60
     optimizer_pop_size = 20
     roach_warren_cancel_enabled = False
@@ -33,7 +32,3 @@ class BotConfig:
         for key, value in config_dict.items():
             setattr(config, key, value)
         return config
-
-    @property
-    def params_path(self) -> str:
-        return os.path.join(self.data_path, self.params_name)

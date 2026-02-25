@@ -1,9 +1,15 @@
+import lzma
+import os
+import pickle
 import warnings
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum, auto
+from typing import Protocol
 
 import numpy as np
+from loguru import logger
+from sc2.data import Race
 
 from phantom.learn.xnessa import XNESSA, ranking_from_comparer
 
@@ -21,9 +27,17 @@ class Parameter:
     value: float
 
 
+class ValueParameter(Protocol):
+    @property
+    def value(self) -> float: ...
+
+    @value.setter
+    def value(self, value: float) -> None: ...
+
+
 @dataclass(frozen=True)
 class DecodedParameter:
-    raw: Parameter
+    raw: ValueParameter
     decoder: Callable[[float], float]
 
     @property
@@ -35,7 +49,7 @@ class DecodedParameter:
 class ScalarTransform:
     """Linear transform: y = w · x."""
 
-    coeffs: Sequence[Parameter]
+    coeffs: Sequence[ValueParameter]
 
     def transform(self, values: Sequence[float]) -> float:
         return sum(ci.value * vi for ci, vi in zip(self.coeffs, values, strict=True))
@@ -61,10 +75,10 @@ class QuadraticTransform:
         - full=True: unconstrained symmetric Q (not necessarily PSD)
     """
 
-    linear: Sequence[Parameter]
-    bias: Parameter
-    factors: Sequence[Sequence[Parameter]]  # low-rank: k rows of n
-    upper: Sequence[Parameter] | None  # full: n*(n+1)/2, mutually exclusive with factors
+    linear: Sequence[ValueParameter]
+    bias: ValueParameter
+    factors: Sequence[Sequence[ValueParameter]]  # low-rank: k rows of n
+    upper: Sequence[ValueParameter] | None  # full: n*(n+1)/2, mutually exclusive with factors
 
     def transform(self, values: Sequence[float]) -> float:
         n = len(self.linear)
@@ -95,10 +109,10 @@ class MLPTransform:
     Param count: hidden_size * (n_inputs + 2) + 1.
     """
 
-    weights: Sequence[Sequence[Parameter]]  # W: hidden_size x n_inputs
-    hidden_biases: Sequence[Parameter]  # b_h: hidden_size
-    output_weights: Sequence[Parameter]  # v: hidden_size
-    output_bias: Parameter  # b_o: scalar
+    weights: Sequence[Sequence[ValueParameter]]  # W: hidden_size x n_inputs
+    hidden_biases: Sequence[ValueParameter]  # b_h: hidden_size
+    output_weights: Sequence[ValueParameter]  # v: hidden_size
+    output_bias: ValueParameter  # b_o: scalar
 
     def transform(self, values: Sequence[float]) -> float:
         hidden = [
@@ -304,6 +318,9 @@ class ParameterOptimizer:
             batch_results=list(self._results),
         )
 
+    def named_values(self) -> Mapping[str, float]:
+        return self._registry
+
     # --- Optimization Loop ---
 
     def _reset_batch(self):
@@ -376,3 +393,172 @@ class ParameterManager:
         for t, opt in self.optimize.items():
             result = results[t]
             opt.tell_result(result)
+
+    def named_values(self) -> Mapping[OptimizationTarget, Mapping[str, float]]:
+        return {target: optimizer.named_values() for target, optimizer in self.optimize.items()}
+
+
+@dataclass(frozen=True)
+class ParameterContext:
+    """Selector for the currently active parameter set."""
+
+    enemy_race: Race | None
+
+
+def effective_enemy_race(context: ParameterContext) -> Race:
+    """Map dynamic context into one of the supported matchup buckets."""
+    race = context.enemy_race
+    if race in {Race.Zerg, Race.Terran, Race.Protoss, Race.Random}:
+        return race
+    return Race.Random
+
+
+@dataclass(frozen=True)
+class _RaceBoundParameter:
+    provider: "MatchupParameterProvider"
+    by_race: Mapping[Race, Parameter]
+
+    @property
+    def value(self) -> float:
+        race = self.provider.current_race
+        return self.by_race[race].value
+
+    @value.setter
+    def value(self, value: float) -> None:
+        race = self.provider.current_race
+        self.by_race[race].value = value
+
+
+class _ContextualParameterOptimizer:
+    def __init__(self, provider: "MatchupParameterProvider", by_race: Mapping[Race, ParameterOptimizer]) -> None:
+        self._provider = provider
+        self._by_race = dict(by_race)
+
+    def add(self, name: str, prior: Prior) -> _RaceBoundParameter:
+        return _RaceBoundParameter(
+            provider=self._provider,
+            by_race={race: optimizer.add(name, prior) for race, optimizer in self._by_race.items()},
+        )
+
+    def add_softplus(self, name: str, prior: Prior, *, minimum: float = 0.0) -> DecodedParameter:
+        raw = self.add(name, prior)
+        return DecodedParameter(raw=raw, decoder=lambda x: minimum + float(np.logaddexp(0.0, x)))
+
+    def add_sigmoid(self, name: str, prior: Prior, *, low: float = 0.0, high: float = 1.0) -> DecodedParameter:
+        raw = self.add(name, prior)
+        width = high - low
+        return DecodedParameter(raw=raw, decoder=lambda x: low + width * (0.5 * (1.0 + np.tanh(0.5 * x))))
+
+    def add_scalar_transform(self, name: str, *priors: Prior) -> ScalarTransform:
+        coeffs = [self.add(f"{name}_{i}", p) for i, p in enumerate(priors)]
+        return ScalarTransform(coeffs)
+
+    def add_quadratic_transform(
+        self,
+        name: str,
+        linear_priors: Sequence[Prior],
+        *,
+        rank: int = 1,
+        full: bool = False,
+        bias_prior: Prior | None = None,
+        factor_prior: Prior | None = None,
+    ) -> QuadraticTransform:
+        if bias_prior is None:
+            bias_prior = Prior(0.0, 0.1)
+        if factor_prior is None:
+            factor_prior = Prior(0.0, 0.1)
+        n = len(linear_priors)
+        linear = [self.add(f"{name}_l{i}", p) for i, p in enumerate(linear_priors)]
+        bias = self.add(f"{name}_b", bias_prior)
+
+        if full:
+            upper = [self.add(f"{name}_q{i}_{j}", factor_prior) for i in range(n) for j in range(i, n)]
+            return QuadraticTransform(linear, bias, factors=[], upper=upper)
+        factors = [[self.add(f"{name}_f{k}_{j}", factor_prior) for j in range(n)] for k in range(rank)]
+        return QuadraticTransform(linear, bias, factors=factors, upper=None)
+
+    def add_mlp_transform(
+        self,
+        name: str,
+        n_inputs: int,
+        hidden_size: int = 3,
+        weight_prior: Prior | None = None,
+        bias_prior: Prior | None = None,
+    ) -> MLPTransform:
+        if weight_prior is None:
+            weight_prior = Prior(0.0, 1.0)
+        if bias_prior is None:
+            bias_prior = Prior(0.0, 0.1)
+        weights = [[self.add(f"{name}_w{k}_{j}", weight_prior) for j in range(n_inputs)] for k in range(hidden_size)]
+        hidden_biases = [self.add(f"{name}_bh{k}", bias_prior) for k in range(hidden_size)]
+        output_weights = [self.add(f"{name}_v{k}", weight_prior) for k in range(hidden_size)]
+        output_bias = self.add(f"{name}_bo", bias_prior)
+        return MLPTransform(weights, hidden_biases, output_weights, output_bias)
+
+
+class MatchupParameterProvider:
+    """Race-aware parameter routing plus per-matchup persistence."""
+
+    _matchup_races = (Race.Zerg, Race.Terran, Race.Protoss, Race.Random)
+
+    def __init__(
+        self,
+        pop_size: int,
+        data_path: str,
+        rng=None,
+    ) -> None:
+        self._context = ParameterContext(enemy_race=Race.Random)
+        self._data_path = data_path
+        self._managers = {race: ParameterManager(pop_size, rng) for race in self._matchup_races}
+        self.optimize = {
+            target: _ContextualParameterOptimizer(
+                self,
+                {race: manager.optimize[target] for race, manager in self._managers.items()},
+            )
+            for target in OptimizationTarget
+        }
+
+    def named_values(self) -> Mapping[Race, Mapping[OptimizationTarget, Mapping[str, float]]]:
+        return {race: manager.named_values() for target, manager in self._managers.items()}
+
+    @property
+    def current_race(self) -> Race:
+        return effective_enemy_race(self._context)
+
+    def set_context(self, context: ParameterContext) -> None:
+        self._context = context
+
+    def manager_for(self, race: Race) -> ParameterManager:
+        return self._managers[race]
+
+    def sample_for_game(self, training: bool) -> None:
+        for manager in self._managers.values():
+            for optimizer in manager.optimize.values():
+                if training:
+                    optimizer.set_values_from_latest()
+                else:
+                    optimizer.set_values_from_best()
+
+    def tell(self, context: ParameterContext, results: Mapping[OptimizationTarget, float]) -> None:
+        race = effective_enemy_race(context)
+        self._managers[race].tell(results)
+
+    def save_race(self, race: Race) -> None:
+        path = self._path_for_race(race)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with lzma.open(path, "wb") as handle:
+            pickle.dump(self._managers[race].save(), handle)
+
+    def load_all(self) -> None:
+        for race in self._matchup_races:
+            path = self._path_for_race(race)
+            if not os.path.isfile(path):
+                continue
+            try:
+                with lzma.open(path, "rb") as handle:
+                    self._managers[race].load(pickle.load(handle))
+            except Exception as error:
+                logger.warning(f"{error=} while loading {path}")
+
+    def _path_for_race(self, race: Race) -> str:
+        return os.path.join(self._data_path, f"{race.name.lower()}.pkl.xz")

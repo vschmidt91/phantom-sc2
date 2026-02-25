@@ -23,3 +23,6 @@
 - `NumpyLanchesterSimulator` now uses `ModelCombatSetup.attacking` as a hard damage gate: units with tags not in the set deal zero damage but are still included in survival/outcome calculations.
 - Optimizer state restore in `phantom/learn/parameters.py` matches parameters strictly by name; renaming parameter keys (for example removing `_log`/`_logit`) currently requires an Arena data reset.
 - phantom/learn/xnessa.py is now a direct xNES extension with CSA step-size control: mean and shape use active (zero-sum) rank weights, sigma uses positive-weight evolution path (p_sigma), and B is trace-free/renormalized to keep det(B)=1.
+- `Agent` wires most parameter consumers at construction time (`CombatParameters`, simulator, strategy, mining, macro), so matchup-specific parameter switching should be centralized behind a provider interface rather than ad-hoc runtime object replacement.
+- Matchup parameter routing is now implemented with race-bound parameter handles whose `.value` property resolves through a live `ParameterContext` each read; this avoids rebuilding micro/macro components on `Random -> concrete race` transitions.
+- Per-matchup persistence uses `data/{zerg,terran,protoss,random}.pkl.xz`; legacy single-file params fallback loads into `Random` only when no matchup files are present.

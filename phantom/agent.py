@@ -1,9 +1,7 @@
-import lzma
 import math
-import pickle
 import random
 from collections.abc import Mapping
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 from ares.consts import TOWNHALL_TYPES
@@ -28,7 +26,12 @@ from phantom.common.constants import (
 from phantom.common.metrics import MetricAccumulator
 from phantom.common.point import Point, to_point
 from phantom.common.utils import calculate_cost_efficiency
-from phantom.learn.parameters import OptimizationTarget, ParameterManager
+from phantom.learn.parameters import (
+    MatchupParameterProvider,
+    OptimizationTarget,
+    ParameterContext,
+    ParameterManager,
+)
 from phantom.macro.build_order import BUILD_ORDERS
 from phantom.macro.builder import Builder, MacroPlan
 from phantom.macro.mining import MiningCommand
@@ -57,14 +60,18 @@ class Agent:
     def __init__(self, bot: "PhantomBot", config: BotConfig) -> None:
         self.bot = bot
         self.config = config
-        self.optimizer = ParameterManager(config.optimizer_pop_size)
+        self.optimizer = MatchupParameterProvider(
+            pop_size=config.optimizer_pop_size,
+            data_path=config.data_path,
+        )
+        runtime_params = cast(ParameterManager, self.optimizer)
         build_order = BUILD_ORDERS[self.config.build_order]
         dead_airspace = DeadAirspace(self.bot.clean_ground_grid == 1.0)
-        simulator = CombatSimulator(bot, CombatSimulatorParameters(self.optimizer))
+        simulator = CombatSimulator(bot, CombatSimulatorParameters(runtime_params))
         self.own_creep = OwnCreep(bot)
         self.combat = CombatCommand(
             bot,
-            CombatParameters(self.optimizer),
+            CombatParameters(runtime_params),
             simulator,
             self.own_creep,
             dead_airspace,
@@ -94,15 +101,15 @@ class Agent:
         self.blocked_positions = BlockedPositionTracker(bot)
         self.queens = Queens(bot, self.creep_spread)
         self.transfuse = Transfuse(bot)
-        strategy_parameters = StrategyParameters(self.optimizer)
+        strategy_parameters = StrategyParameters(runtime_params)
         self.macro_planning = MacroPlanning(
             bot=bot,
-            params=self.optimizer,
+            params=runtime_params,
             strategy_parameters=strategy_parameters,
             builder=self.builder,
             build_order=build_order,
         )
-        self.mining = MiningCommand(bot, self.optimizer)
+        self.mining = MiningCommand(bot, runtime_params)
         self.supply_efficiency = MetricAccumulator()
         self._creep_hull: ConvexHull | None = None
         self._enemy_expanded = False
@@ -111,10 +118,13 @@ class Agent:
         self._initialize_creep_hull()
         for unit in self.bot.units:
             self.tactics.on_unit_created(unit)
-        self._load_parameters()
+        self.optimizer.load_all()
+        self.optimizer.sample_for_game(training=self.config.training)
+        self._update_parameter_context()
         self._log_parameters()
 
     async def on_step(self, observation: Observation) -> Mapping[Unit, Action]:
+        self._update_parameter_context()
         combatants = observation.combatants
         harvester_return_targets = observation.harvester_return_targets
 
@@ -296,11 +306,10 @@ class Agent:
                 OptimizationTarget.MiningEfficiency: self.mining.efficiency.get_value(),
                 OptimizationTarget.SupplyEfficiency: self.supply_efficiency.get_value(),
             }
-            logger.info(f"Training parameters with {result=}")
-            self.optimizer.tell(result)
-            optimizer_state = self.optimizer.save()
-            with lzma.open(self.config.params_path, "wb") as f:
-                pickle.dump(optimizer_state, f)
+            for race in self._training_races():
+            logger.info(f"Training parameters for {race} with {result=}")
+                self.optimizer.tell(ParameterContext(race), result)
+                self.optimizer.save_race(race)
 
     def _send_overlord_scout(self, overlord: Unit) -> Action | None:
         sight_range = overlord.sight_range
@@ -346,20 +355,26 @@ class Agent:
                 else:
                     return HoldPosition()
 
-    def _load_parameters(self) -> None:
-        try:
-            with lzma.open(self.config.params_path, "rb") as f:
-                optimizer_state = pickle.load(f)
-                self.optimizer.load(optimizer_state)
-        except Exception as error:
-            logger.warning(f"{error=} while loading {self.config.params_path}")
+    def _update_parameter_context(self) -> None:
+        """Route parameter reads from the currently observed enemy race."""
+        observed_race = self.bot.enemy_race
+        self.optimizer.set_context(ParameterContext(enemy_race=observed_race))
 
-        logger.info("Sampling bot parameters")
-        for optimizer in self.optimizer.optimize.values():
-            if self.config.training:
-                optimizer.set_values_from_latest()
-            else:
-                optimizer.set_values_from_best()
+    def _training_races(self) -> set[Race]:
+        """Return matchup buckets that should receive this game's training signal."""
+        active_race = self.optimizer.current_race
+        races = {active_race}
+        picked_race = self._picked_enemy_race()
+        if picked_race == Race.Random and active_race != Race.Random:
+            races.add(Race.Random)
+        return races
+
+    def _picked_enemy_race(self) -> Race | None:
+        for attribute in ("enemy_race_initial", "picked_race", "opponent_race"):
+            race = getattr(self.bot, attribute, None)
+            if isinstance(race, Race):
+                return race
+        return None
 
     def _build_gas(self, gas_harvester_target: int) -> Mapping[UnitTypeId, MacroPlan]:
         gas_type = GAS_BY_RACE[self.bot.race]
@@ -410,9 +425,12 @@ class Agent:
             return None
 
     def _log_parameters(self) -> None:
-        logger.info(f"{self.combat.simulator.parameters.__dict__=}")
-        logger.info(f"{self.combat.parameters.__dict__=}")
-        logger.info(f"{self.macro_planning.strategy_parameters.__dict__=}")
+        logger.info(f"Optimizing for {self.optimizer._context}")
+        race = self.optimizer.current_race
+        named = self.optimizer.manager_for(race).named_values()
+        for target in sorted(named.keys(), key=lambda value: value.name):
+            for value in sorted(named[target].values(), key=lambda item: item.name):
+                logger.info(f"{target.name}: {value}")
 
     def _detect_proxy_structure(self, structure: Unit) -> bool:
         if structure.is_mine:

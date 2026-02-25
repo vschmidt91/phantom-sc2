@@ -79,6 +79,7 @@ class PhantomBot(AresBot):
         self.structure_dict = dict[Point, Unit | OrderedStructure | MacroPlan]()
         self._blocked_positions = set[Point]()
         self.damage_tracker = DamageTracker()
+        self.enemy_race_initial = self.enemy_race
 
         self._setup_logging()
         self._read_version()
