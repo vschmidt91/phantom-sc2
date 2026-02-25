@@ -289,7 +289,7 @@ class MiningStep:
                 return ReturnResource(return_target)
             else:
                 return None
-        if unit.distance_to(gather_target) > 2.0:
+        if unit.distance_to(gather_target) > 10.0:
             move_target = self.state.bot.mediator.find_path_next_point(
                 start=unit.position,
                 target=gather_target,
