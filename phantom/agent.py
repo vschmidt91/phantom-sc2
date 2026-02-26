@@ -324,6 +324,9 @@ class Agent:
         if self.bot.time >= 140:
             return None
 
+        if overlord.health < overlord.health_max:
+            return None
+
         if not self._enemy_expanded:
             enemy_townhalls = self.bot.enemy_structures(TOWNHALL_TYPES)
             expansion_townhalls = [
