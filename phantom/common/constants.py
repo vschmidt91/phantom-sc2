@@ -309,8 +309,8 @@ UNIT_COUNTER_DICT = {
     },
     UnitTypeId.MARINE: {
         UnitTypeId.BROODLORD: 1e2,
-        UnitTypeId.ROACH: 3e0,
-        UnitTypeId.HYDRALISK: 3e0,
+        UnitTypeId.ROACH: 1e0,
+        UnitTypeId.HYDRALISK: 1e0,
         UnitTypeId.ZERGLING: 1e0,
     },
     UnitTypeId.MARAUDER: {
