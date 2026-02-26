@@ -159,7 +159,7 @@ class NumpyLanchesterSimulator:
 
         times_set = set[float]()
         tau_unique = list(map(set, np.nan_to_num(tau_relevant, nan=np.inf)))
-        tau_sample = [t for tau_slice in tau_unique for t in sorted(tau_slice)[:1]]
+        tau_sample = [t for tau_slice in tau_unique for t in sorted(tau_slice)[:3]]
         times_set.update(tau_sample)
         times_set.update(time_dist.ppf(q))
         # times_set = set()
@@ -168,7 +168,7 @@ class NumpyLanchesterSimulator:
 
         times = np.sort(list(times_set))
         # times_diff = np.diff(times)
-        weights = time_dist.cdf(times[1:]) - time_dist.cdf(times[:1])
+        weights = time_dist.cdf(times[1:]) - time_dist.cdf(times[:-1])
 
         lancester_pow = self.parameters.lancester_dimension
         # pressure_in1 = np.zeros((self.num_steps, n), dtype=float)
