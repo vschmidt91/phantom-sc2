@@ -135,12 +135,12 @@ class NumpyLanchesterSimulator:
 
         dps[:n1, :n1] = 0.0
         dps[n1:, n1:] = 0.0
-        attacker_mask = np.array([u.tag in setup.attacking for u in units], dtype=float)
-        dps *= attacker_mask[:, None]
+        np.array([u.tag in setup.attacking for u in units], dtype=float)
+        # dps *= attacker_mask[:, None]
 
         distance = pairwise_distances([u.position for u in units])
         speed = 1.4 * np.array([u.real_speed for u in units], dtype=float)
-        speed *= attacker_mask
+        # speed *= attacker_mask
 
         hp0 = np.array([u.hp for u in units], dtype=float)
         hp = hp0.copy()
@@ -151,14 +151,31 @@ class NumpyLanchesterSimulator:
         tau[np.arange(n), np.arange(n)] = np.inf
 
         q = (np.arange(self.num_steps, dtype=float) + 0.5) / self.num_steps
-        time_dist = expon(scale=max(1e-6, self.parameters.time_distribution_lambda))
+        tau_relevant = np.where((tau > 0.0) & (tau < np.inf), tau, np.nan)
+        time_lambda = 1 / np.clip(np.nanmean(np.nan_to_num(tau, posinf=np.nan)), 1e-10, 1e10)
+        # time_dist = expon(scale=max(1e-6, self.parameters.time_distribution_lambda))
+        time_dist = expon(scale=time_lambda)
         times = time_dist.ppf(q)
-        np.diff(np.concatenate(([0.0], times)))
+
+        times_set = set[float]()
+        tau_unique = list(map(set, np.nan_to_num(tau_relevant, nan=np.inf)))
+        tau_sample = [t for tau_slice in tau_unique for t in sorted(tau_slice)[:1]]
+        times_set.update(tau_sample)
+        times_set.update(time_dist.ppf(q))
+        # times_set = set()
+        times_set.add(0.0)
+        times_set.add(np.inf)
+
+        times = np.sort(list(times_set))
+        # times_diff = np.diff(times)
+        weights = time_dist.cdf(times[1:]) - time_dist.cdf(times[:1])
 
         lancester_pow = self.parameters.lancester_dimension
-        pressure_in1 = np.zeros((self.num_steps, n), dtype=float)
-        pressure_in2 = np.zeros_like(pressure_in1)
-        for step, ti in enumerate(times):
+        # pressure_in1 = np.zeros((self.num_steps, n), dtype=float)
+        # pressure_in2 = np.zeros_like(pressure_in1)
+        pressure_acc = np.zeros(n, dtype=float)
+        pressure_acc_nearby = np.zeros(n, dtype=float)
+        for _step, (wi, ti) in enumerate(zip(weights, times, strict=False)):
             alive = hp > 0
             active = alive[:, None] & alive[None, :] & (tau <= ti) & (dps > 0)
 
@@ -174,8 +191,10 @@ class NumpyLanchesterSimulator:
             valid_sym = active | active.T
             mix = valid_sym / np.maximum(1, valid_sym.sum(0, keepdims=True))
 
-            pressure_in1[step, :] = pressure_in
-            pressure_in2[step, :] = pressure_in @ mix
+            pressure_in_nearby = pressure_in @ mix
+
+            pressure_acc += wi * pressure_in
+            pressure_acc_nearby += wi * pressure_in_nearby
 
         survival = hp / np.maximum(1e-6, hp0)
         own_survival = survival[:n1]
@@ -185,8 +204,9 @@ class NumpyLanchesterSimulator:
         outcome_global = own_mean - enemy_mean
         outcome_vector = np.concatenate([own_survival - enemy_mean, own_mean - enemy_survival])
 
-        outcome_matrix = pressure_in2 - pressure_in1
-        outcome_vector = outcome_matrix.mean(0)
+        # outcome_matrix = pressure_in2 - pressure_in1
+        # outcome_vector = outcome_matrix.mean(0)
+        outcome_vector = pressure_acc_nearby - pressure_acc
 
         outcome_local = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
         return CombatResult(outcome_local=outcome_local, outcome_global=outcome_global)
