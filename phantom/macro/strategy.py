@@ -115,7 +115,7 @@ class Strategy:
             for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
         )
         supply = self.bot.supply_cap + supply_planned
-        supply_buffer = max(2, self.parameters.supply_buffer * self.bot.income.larva)
+        supply_buffer = max(2.5, self.parameters.supply_buffer * self.bot.income.larva)
         supply_target = min(200.0, self.bot.supply_used + supply_buffer)
         if supply_target <= supply:
             return {}
