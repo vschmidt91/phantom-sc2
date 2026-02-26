@@ -29,7 +29,7 @@ class CorrosiveBile:
         self.bot = bot
         self.ability = AbilityId.EFFECT_CORROSIVEBILE
         self.ability_range = bot.game_data.abilities[self.ability.value]._proto.cast_range
-        self.bonus_distance = 2.0
+        self.bonus_distance = 0.0
         self._ravagers = list[Unit]()
 
     def on_step(self, observation: Observation) -> None:
