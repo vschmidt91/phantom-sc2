@@ -102,9 +102,9 @@ class CombatStepContext:
 
     @cached_property
     def retreat_to_creep(self) -> DijkstraPathing | None:
-        # targets = self.retreat_to_creep_targets
-        creep_y, creep_x = self.state.bot.mediator.get_creep_edges
-        targets = list(zip(creep_x, creep_y, strict=False))
+        targets = self.retreat_to_creep_targets
+        # creep_y, creep_x = self.state.bot.mediator.get_creep_edges
+        # targets = list(zip(creep_x, creep_y, strict=False))
         if not targets:
             return None
         return cy_dijkstra(self.state.bot.ground_grid, np.atleast_2d(targets))
