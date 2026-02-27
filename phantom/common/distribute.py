@@ -82,12 +82,16 @@ class HighsPySolver:
 
 
 @cache
+def _get_assignment_solver(n: int, m: int) -> HighsPySolver:
+    return HighsPySolver(n, m)
+
+
 def get_assignment_solver(n: int, m: int) -> HighsPySolver:
     n2 = math.ceil(n / PROBLEM_RESOLUTION) * PROBLEM_RESOLUTION
     if n < n2:
         m += 1  # source padding also requires target padding
     m2 = math.ceil(m / PROBLEM_RESOLUTION) * PROBLEM_RESOLUTION
-    return HighsPySolver(n2, m2)
+    return _get_assignment_solver(n2, m2)
 
 
 def distribute[TKey: Hashable, TValue: Hashable](
