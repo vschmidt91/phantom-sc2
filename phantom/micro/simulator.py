@@ -124,6 +124,7 @@ class NumpyLanchesterSimulator:
         radius = np.array([u.radius for u in units], dtype=float)
         flying = np.array([u.is_flying for u in units], dtype=bool)
         bonus_range = np.array([self.parameters.enemy_range_bonus if u.is_enemy else 0.0 for u in units])
+        attacker_mask = np.array([u.tag in setup.attacking for u in units], dtype=float)
 
         ground_selector = np.where(~flying, 1.0, 0.0).astype(float)
         air_selector = np.where(flying, 1.0, 0.0).astype(float)
