@@ -154,6 +154,7 @@ class NumpyLanchesterSimulator:
 
         speed_matrix = speed[:, None]
         tau = np.maximum(0.0, np.where(speed_matrix != 0, (distance - ranges) / speed_matrix, np.inf))
+        tau[distance <= ranges] = 0.0
         tau[dps <= 0] = np.inf
         tau[np.arange(n), np.arange(n)] = np.inf
 
@@ -174,6 +175,8 @@ class NumpyLanchesterSimulator:
         # times_set = set()
         times_set.add(0.0)
         times_set.add(np.inf)
+
+        times_set = {t for t in times_set if t < 10}
 
         times = np.sort(list(times_set))
         weights = time_dist.cdf(times[1:]) - time_dist.cdf(times[:-1])
@@ -216,7 +219,7 @@ class NumpyLanchesterSimulator:
 
         # outcome_matrix = pressure_in2 - pressure_in1
         # outcome_vector = outcome_matrix.mean(0)
-        outcome_vector = pressure_acc_nearby - pressure_acc
+        outcome_vector = (pressure_acc @ mix_enemy) - pressure_acc
         # outcome_vector = outcome_acc
 
         outcome_local = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
