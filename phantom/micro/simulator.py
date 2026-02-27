@@ -216,7 +216,7 @@ class NumpyLanchesterSimulator:
 
         # outcome_matrix = pressure_in2 - pressure_in1
         # outcome_vector = outcome_matrix.mean(0)
-        outcome_vector = (pressure_acc @ mix_enemy) - pressure_acc
+        outcome_vector = pressure_acc_nearby - pressure_acc
         # outcome_vector = outcome_acc
 
         outcome_local = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
