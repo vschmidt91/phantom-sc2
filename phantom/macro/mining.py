@@ -13,7 +13,7 @@ from sc2.units import Units
 
 from phantom.common.action import Action, Move, Smart
 from phantom.common.cost import Cost
-from phantom.common.distribute import get_assignment_solver
+from phantom.common.distribute import distribute
 from phantom.common.metrics import MetricAccumulator
 from phantom.common.point import Point, to_point
 from phantom.common.unit_composition import UnitComposition
@@ -217,7 +217,14 @@ class MiningStep:
 
     def solve(self) -> HarvesterAssignment | None:
         harvesters = self.situation.harvesters
-        resources = [*self.situation.mineral_fields, *self.situation.gas_buildings]
+        # resources = [*self.situation.mineral_fields, *self.situation.gas_buildings]
+        resources = list[Unit]()
+        resources.extend(
+            sorted(self.situation.mineral_fields, key=lambda r: self.state.bot.return_distances[to_point(r.position)])
+        )
+        resources.extend(
+            sorted(self.situation.gas_buildings, key=lambda r: self.state.bot.return_distances[to_point(r.position)])
+        )
 
         if not resources:
             return {}
@@ -248,19 +255,32 @@ class MiningStep:
         cost = harvester_to_resource
         cost += self.state.params.return_distance_weight * return_distance
         cost += self.state.params.assignment_cost * assignment_cost
-        is_gas = np.array([1.0 if r.mineral_contents == 0 else 0.0 for r in resources])
-        limit = np.array([max_assigned_mineral if r.is_mineral_field else max_assigned_gas for r in resources])
+        np.array([1.0 if r.mineral_contents == 0 else 0.0 for r in resources])
+        np.array([max_assigned_mineral if r.is_mineral_field else max_assigned_gas for r in resources])
 
-        problem = get_assignment_solver(n, m)
-        problem.set_total(is_gas, gas_target)
+        max_assigned = list[int]()
 
-        x = problem.solve(cost, limit)
-        indices = x.argmax(axis=1)
-        assignment = {
-            ai.tag: to_point(resources[j].position) for (i, ai), j in zip(enumerate(harvesters), indices, strict=False)
-        }
+        if self.situation.mineral_fields:
+            mineral_target = max(0, len(harvesters) - gas_target)
+            mineral_min, mineral_rem = divmod(mineral_target, len(self.situation.mineral_fields))
+            max_assigned.extend(mineral_min + 1 for _ in range(mineral_rem))
+            max_assigned.extend(mineral_min for _ in range(len(self.situation.mineral_fields) - mineral_rem))
 
-        return assignment
+        if self.situation.gas_buildings:
+            gas_min, gas_rem = divmod(gas_target, len(self.situation.gas_buildings))
+            max_assigned.extend(gas_min + 1 for _ in range(gas_rem))
+            max_assigned.extend(gas_min for _ in range(len(self.situation.gas_buildings) - gas_rem))
+
+        assignment = distribute(
+            harvesters,
+            resources,
+            cost,
+            np.asarray(max_assigned),
+        )
+
+        result = {h.tag: to_point(r.position) for h, r in assignment.items()}
+
+        return result
 
     def gather_with(self, unit: Unit, return_targets: Units) -> Action | None:
         if not self._is_unit_safe(unit):
