@@ -143,6 +143,12 @@ class NumpyLanchesterSimulator:
         speed = 1.4 * np.array([u.real_speed for u in units], dtype=float)
         # speed *= attacker_mask
 
+        mix_enemy = np.reciprocal(1 + distance)
+        mix_enemy[:n1, :n1] = 0.0
+        mix_enemy[n1:, n1:] = 0.0
+        mix_enemy_sum = mix_enemy.sum(axis=1, keepdims=True)
+        np.divide(mix_enemy, mix_enemy_sum, where=mix_enemy_sum != 0, out=mix_enemy)
+
         hp0 = np.array([u.hp for u in units], dtype=float)
         hp = hp0.copy()
 
@@ -170,7 +176,6 @@ class NumpyLanchesterSimulator:
         times_set.add(np.inf)
 
         times = np.sort(list(times_set))
-        # times_diff = np.diff(times)
         weights = time_dist.cdf(times[1:]) - time_dist.cdf(times[:-1])
 
         lancester_pow = self.parameters.lancester_dimension
@@ -179,7 +184,7 @@ class NumpyLanchesterSimulator:
         pressure_acc = np.zeros(n, dtype=float)
         pressure_acc_nearby = np.zeros(n, dtype=float)
         outcome_acc = np.zeros(n, dtype=float)
-        for _step, (wi, ti) in enumerate(zip(weights, times, strict=False)):
+        for wi, ti, dt in zip(weights, times, np.diff(times), strict=False):
             alive = hp > 0
             active = alive[:, None] & alive[None, :] & (tau <= ti) & (dps > 0)
 
@@ -190,7 +195,7 @@ class NumpyLanchesterSimulator:
             strength = np.power(np.maximum(1e-6, hp / np.maximum(1e-6, hp0)), np.maximum(0.0, lancester_pow - 1.0))
             pressure_out = strength[:, None] * dps * offense
             pressure_in = pressure_out.sum(axis=0)
-            hp = np.maximum(0.0, hp - dt[step] * pressure_in)
+            hp = np.maximum(0.0, hp - dt * pressure_in)
 
             valid_sym = active | active.T
             mix = valid_sym / np.maximum(1, valid_sym.sum(0, keepdims=True))
@@ -211,7 +216,7 @@ class NumpyLanchesterSimulator:
 
         # outcome_matrix = pressure_in2 - pressure_in1
         # outcome_vector = outcome_matrix.mean(0)
-        outcome_vector = pressure_acc_nearby - pressure_acc
+        outcome_vector = (pressure_acc @ mix_enemy) - pressure_acc
         # outcome_vector = outcome_acc
 
         outcome_local = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
