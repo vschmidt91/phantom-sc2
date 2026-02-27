@@ -190,7 +190,7 @@ class NumpyLanchesterSimulator:
             strength = np.power(np.maximum(1e-6, hp / np.maximum(1e-6, hp0)), np.maximum(0.0, lancester_pow - 1.0))
             pressure_out = strength[:, None] * dps * offense
             pressure_in = pressure_out.sum(axis=0)
-            # hp = np.maximum(0.0, hp - dt[step] * pressure_in)
+            hp = np.maximum(0.0, hp - dt[step] * pressure_in)
 
             valid_sym = active | active.T
             mix = valid_sym / np.maximum(1, valid_sym.sum(0, keepdims=True))
