@@ -259,7 +259,8 @@ class Builder:
         def loss_fn(e: Expansion) -> float:
             distances = map(lambda q: cy_distance_to(e.townhall_position, q), loss_positions)
             distances_enemy = map(lambda q: cy_distance_to(e.townhall_position, q), loss_positions_enemy)
-            return max(distances, default=0.0) - min(distances_enemy, default=0.0)
+            creep_bonus = -30.0 if self.bot.has_creep(e.townhall_position) else 0.0
+            return max(distances, default=0.0) - min(distances_enemy, default=0.0) + creep_bonus
 
         def is_viable(e: Expansion) -> bool:
             b = to_point(e.townhall_position)

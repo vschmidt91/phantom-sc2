@@ -111,7 +111,7 @@ class Strategy:
 
     def morph_overlord(self) -> Mapping[MacroId, float]:
         supply_planned = sum(
-            provided * (self.bot.count_planned(unit_type) + self.bot.count_pending(unit_type))
+            provided * self.bot.count_pending(unit_type)
             for unit_type, provided in SUPPLY_PROVIDED[self.bot.race].items()
         )
         supply = self.bot.supply_cap + supply_planned

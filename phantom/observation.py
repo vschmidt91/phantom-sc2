@@ -4,7 +4,6 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from sc2.position import Point2
-from sc2.unit import Unit
 from sc2.units import Units
 
 if TYPE_CHECKING:
@@ -26,7 +25,6 @@ class Observation:
     should_inject: bool = False
     should_spread_creep: bool = False
     detection_targets: tuple[Point2, ...] = ()
-    active_tumors: tuple[Unit, ...] = ()
 
 
 def build_observation(bot: PhantomBot) -> Observation:

@@ -13,7 +13,6 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
-from scipy.spatial import ConvexHull
 
 from phantom.common.action import Action, Attack, HoldPosition, Move, UseAbility
 from phantom.common.blocked_positions import BlockedPositionTracker
@@ -24,7 +23,7 @@ from phantom.common.constants import (
     RESULT_TO_FITNESS,
 )
 from phantom.common.metrics import MetricAccumulator
-from phantom.common.point import Point, to_point
+from phantom.common.point import to_point
 from phantom.common.utils import calculate_cost_efficiency
 from phantom.learn.parameters import (
     MatchupParameterProvider,
@@ -75,10 +74,9 @@ class Agent:
             simulator,
             self.own_creep,
             dead_airspace,
-            lambda u: self._is_inside_creep_hull(to_point(u.position)),
+            lambda u: self.creep_spread.is_inside_townhall_hull(u.position),
         )
         self.builder = Builder(bot)
-        self.creep_tumors = CreepTumors(bot)
         self.creep_spread = CreepSpread(bot)
         self.corrosive_biles = CorrosiveBile(bot)
         self.dodge = Dodge(bot)
@@ -115,7 +113,6 @@ class Agent:
         self._enemy_expanded = False
         self._proxy_structures: list[Unit] = []
         self._skip_roach_warren = False
-        self._creep_hull = self._initialize_creep_hull()
         for unit in self.bot.units:
             self.tactics.on_unit_created(unit)
         self.optimizer.load_all()
@@ -154,7 +151,6 @@ class Agent:
         build_priorities = dict(self.macro_planning.build_priorities)
         macro_plans = dict(self.macro_planning.macro_plans)
 
-        self.creep_tumors.on_step()
         self.blocked_positions.on_step()
         self.bot.set_blocked_positions(set(self.blocked_positions.blocked_positions))
         detection_targets = tuple(map(Point2, self.blocked_positions.blocked_positions))
@@ -162,14 +158,12 @@ class Agent:
 
         should_inject = self.bot.supply_used + self.bot.bank.larva < 200
         tumor_count = (
-            self.creep_tumors.unspread_tumor_count
+            self.creep_spread.unspread_tumor_count
             + self.bot.count_pending(UnitTypeId.CREEPTUMOR)
             + self.bot.count_pending(UnitTypeId.CREEPTUMORQUEEN)
         )
         tumor_limit = min(3.0 * len(observation.queens), self.bot.time / 30.0)
         should_spread_creep = tumor_count < tumor_limit and self.bot.mediator.get_creep_coverage < 90
-        creep_target_filter = self._is_inside_creep_hull if self.bot.enemy_race in {Race.Zerg, Race.Random} else None
-        self.creep_spread.target_filter = creep_target_filter
 
         micro_observation = with_micro(
             observation,
@@ -177,7 +171,6 @@ class Agent:
             should_inject=should_inject,
             should_spread_creep=should_spread_creep,
             detection_targets=detection_targets,
-            active_tumors=tuple(self.creep_tumors.active_tumors),
         )
         self.scout_proxy.on_step(micro_observation)
         self.creep_spread.on_step(micro_observation)
@@ -257,7 +250,7 @@ class Agent:
             )
 
         for tumor in self.creep_spread.tumors_to_spread():
-            if action := self.creep_spread.get_action(tumor, target_filter=creep_target_filter):
+            if action := self.creep_spread.get_action(tumor):
                 actions[tumor] = action
         for queen in self.queens.queens_to_micro():
             if action := self.queens.get_action(queen):
@@ -287,15 +280,10 @@ class Agent:
 
     def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId) -> None:
         if unit.type_id == UnitTypeId.CREEPTUMORBURROWED:
-            self.creep_tumors.on_tumor_completed(unit, previous_type == UnitTypeId.CREEPTUMORQUEEN)
+            self.creep_spread.on_tumor_completed(unit, previous_type == UnitTypeId.CREEPTUMORQUEEN)
 
     def on_unit_created(self, unit: Unit) -> None:
         self.tactics.on_unit_created(unit)
-
-    def on_structure_completed(self, unit: Unit) -> None:
-        if unit.type_id != UnitTypeId.HATCHERY:
-            return
-        self._creep_hull.add_points(self._candidate_points(unit.position))
 
     def on_end(self, game_result: Result):
         if self.config.training:
@@ -472,27 +460,6 @@ class Agent:
             )
 
             return dist_to_our_spawn < closest_enemy_spawn_dist
-
-    def _initialize_creep_hull(self) -> ConvexHull:
-        centers = (self.bot.start_location, self.bot.mediator.get_own_nat)
-        points = np.vstack([self._candidate_points(center) for center in centers])
-        return ConvexHull(points, incremental=True)
-
-    def _candidate_points(self, base_position: Point2, radius: float = 10.0, count: int = 6) -> np.ndarray:
-        angles = np.linspace(0.0, 2.0 * np.pi, num=count, endpoint=False)
-        offsets = np.column_stack((np.cos(angles), np.sin(angles))) * radius
-        base = np.asarray((base_position.x, base_position.y), dtype=float)
-        return base + offsets
-
-    def _is_inside_creep_hull(self, point: Point) -> bool:
-        if self._creep_hull is None:
-            return True
-
-        equations = self._creep_hull.equations
-        A, b = equations[:, :-1], equations[:, -1:]
-        coordinates = np.asarray(point, dtype=float)
-        flags = coordinates @ A.T + b.T <= 1e-9
-        return bool(np.all(flags))
 
     def _maybe_skip_roach_warren(self) -> None:
         if self.bot.townhalls.amount < 3:

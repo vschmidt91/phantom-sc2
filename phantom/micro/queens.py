@@ -69,7 +69,7 @@ class Queens:
             return situation.fight_with(queen) or situation.retreat_with(queen)
         if inject_target and (action := self._inject_with(queen, inject_target)):
             return action
-        if (creep and (action := creep.spread_with(queen))) or (action := situation.retreat_to_creep(queen)):
+        if (creep and (action := creep.get_action(queen))) or (action := situation.retreat_to_creep(queen)):
             return action
         return situation.fight_with(queen)
 

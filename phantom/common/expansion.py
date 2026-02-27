@@ -92,3 +92,9 @@ class Expansion:
             spore_position=spore_position,
             spine_position=spine_position,
         )
+
+    def is_blocked_by(self, p: Point, size=5.0) -> bool:
+        h = size / 2
+        dx = p[0] - self.townhall_position.x
+        dy = p[1] - self.townhall_position.y
+        return (-h <= dx <= +h) and (-h <= dy <= +h)
