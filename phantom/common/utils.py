@@ -19,7 +19,6 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.score import ScoreDetails
 from sc2.unit import Unit
-from scipy.spatial import ConvexHull
 from scipy.spatial.distance import cdist
 
 from phantom.common.air_range import air_range_of
@@ -33,14 +32,6 @@ def count_sorted[T](items: Iterable[T]) -> dict[T, int]:
 
 
 type MacroId = UnitTypeId | UpgradeId
-
-
-def is_inside_hull(point, hull: ConvexHull, eps=1e-10) -> bool:
-    A = hull.equations[:, :-1]
-    b = hull.equations[:, -1:]
-    coordinates = np.asarray(point, dtype=float)
-    flags = coordinates @ A.T + b.T <= eps
-    return bool(np.all(flags))
 
 
 def rectangle_perimeter(start: Point, end: Point) -> Iterable[Point]:

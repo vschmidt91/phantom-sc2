@@ -14,13 +14,43 @@ from scipy.spatial import ConvexHull
 from phantom.common.action import Action, UseAbility
 from phantom.common.constants import ENERGY_COST, HALF
 from phantom.common.point import Point, to_point
-from phantom.common.utils import circle, circle_perimeter, is_inside_hull, line
+from phantom.common.utils import circle, circle_perimeter, line
 from phantom.observation import Observation
 
 if TYPE_CHECKING:
     from phantom.main import PhantomBot
 
 BASE_SIZE = (5, 5)
+
+
+def hull_to_mask(hull, shape, eps=1e-10):
+    nx, ny = shape
+    eq = hull.equations
+    A = eq[:, :2]
+    b = eq[:, 2]
+    pts = hull.points[hull.vertices]
+    mn = np.floor(pts.min(0)).astype(int)
+    mx = np.ceil(pts.max(0)).astype(int)
+    x0 = max(mn[0], 0)
+    y0 = max(mn[1], 0)
+    x1 = nx - 1 if mx[0] >= nx else mx[0]
+    y1 = ny - 1 if mx[1] >= ny else mx[1]
+    m = np.zeros((nx, ny), np.uint8)
+    if x1 < x0 or y1 < y0:
+        return m
+    X, Y = np.meshgrid(np.arange(x0, x1 + 1, dtype=np.float64), np.arange(y0, y1 + 1, dtype=np.float64), indexing="ij")
+    P = np.stack((X.ravel(), Y.ravel()), 1)
+    inside = np.all((A @ P.T + b[:, None]) <= 1e-12, 0)
+    m[x0 : x1 + 1, y0 : y1 + 1] = inside.reshape((x1 - x0 + 1, y1 - y0 + 1))
+    return m
+
+
+def is_inside_hull(point, hull: ConvexHull, eps=1e-10) -> bool:
+    A = hull.equations[:, :-1]
+    b = hull.equations[:, -1:]
+    coordinates = np.asarray(point, dtype=float)
+    flags = coordinates @ A.T + b.T <= eps
+    return bool(np.all(flags))
 
 
 class CreepTumors:
@@ -78,6 +108,7 @@ class CreepSpread:
         self.defensive_creep_bonus = 0.2
         self._tumors = CreepTumors(bot)
         self._townhall_hull: ConvexHull | None = None
+        self._townhall_hull_mask = np.zeros(bot.game_info.map_size)
         self._townhall_hull_hash = 0
 
     def on_step(self, observation: Observation | None = None) -> None:
@@ -117,6 +148,7 @@ class CreepSpread:
             self._townhall_hull_hash = townhall_hull_hash
             points = np.vstack([self._candidate_points(th.position) for th in townhalls])
             self._townhall_hull = ConvexHull(points)
+            self._townhall_hull_mask = hull_to_mask(self._townhall_hull, self.bot.game_info.map_size)
 
     def _update_maps(self) -> None:
         visibility_grid = np.equal(self.bot.state.visibility.data_numpy.T, 2.0)
@@ -128,9 +160,11 @@ class CreepSpread:
         self._value_map = gaussian_filter(value_map, 3)
 
     def is_inside_townhall_hull(self, point) -> bool:
-        if self._townhall_hull is None:
-            return False
-        return is_inside_hull(point, self._townhall_hull)
+        i, j = int(point[0]), int(point[1])
+        return bool(self._townhall_hull_mask[i, j])
+        # if self._townhall_hull is None:
+        #     return False
+        # return is_inside_hull(point, self._townhall_hull)
 
     def _place_tumor(self, unit: Unit, r: int, full_circle=False) -> Action | None:
         x0 = round(unit.position.x)
