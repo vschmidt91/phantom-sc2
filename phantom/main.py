@@ -12,7 +12,7 @@ from ares import AresBot
 from ares.consts import ALL_STRUCTURES, CREEP_TUMOR_TYPES
 from loguru import logger
 from sc2.cache import property_cache_once_per_frame
-from sc2.data import Result
+from sc2.data import Race, Result
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -79,7 +79,7 @@ class PhantomBot(AresBot):
         self.structure_dict = dict[Point, Unit | OrderedStructure | MacroPlan]()
         self._blocked_positions = set[Point]()
         self.damage_tracker = DamageTracker()
-        self.enemy_race_initial = self.enemy_race
+        self.enemy_race_initial = Race.NoRace
 
         self._setup_logging()
         self._read_version()
@@ -92,6 +92,7 @@ class PhantomBot(AresBot):
         logger.info("on_start")
         await self._initialize_map()
         self.agent = Agent(self, self.bot_config)
+        self.enemy_race_initial = self.enemy_race
 
         # await self.client.debug_create_unit([
         #     [UnitTypeId.ZERGLING, 7, self.game_info.map_center, 1],

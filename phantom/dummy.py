@@ -18,6 +18,17 @@ class DummyBot(BotAI):
         pass
 
 
+class LoserBot(BotAI):
+    async def on_start(self):
+        await super().on_start()
+        for w in self.workers:
+            w.move(self.enemy_start_locations[0])
+
+    async def on_step(self, iteration):
+        if self.time > 40:
+            await self.client.leave()
+
+
 class BaseBlock(AresBot):
     async def on_start(self) -> None:
         await super().on_start()

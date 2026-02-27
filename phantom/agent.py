@@ -38,7 +38,7 @@ from phantom.macro.planning import MacroPlanning
 from phantom.macro.strategy import StrategyParameters
 from phantom.micro.combat import CombatCommand, CombatParameters, CombatSituation
 from phantom.micro.corrosive_bile import CorrosiveBile
-from phantom.micro.creep import CreepSpread, CreepTumors
+from phantom.micro.creep import CreepSpread
 from phantom.micro.dead_airspace import DeadAirspace
 from phantom.micro.dodge import Dodge
 from phantom.micro.overlords import Overlords
@@ -294,7 +294,8 @@ class Agent:
                 OptimizationTarget.MiningEfficiency: self.mining.efficiency.get_value(),
                 OptimizationTarget.SupplyEfficiency: self.supply_efficiency.get_value(),
             }
-            for race in self._training_races():
+            train_races = {self.bot.enemy_race_initial, self.bot.enemy_race}
+            for race in train_races:
                 logger.info(f"Training parameters for {race} with {result=}")
                 self.optimizer.tell(ParameterContext(race), result)
                 self.optimizer.save_race(race)
@@ -356,22 +357,6 @@ class Agent:
         """Route parameter reads from the currently observed enemy race."""
         observed_race = self.bot.enemy_race
         self.optimizer.set_context(ParameterContext(enemy_race=observed_race))
-
-    def _training_races(self) -> set[Race]:
-        """Return matchup buckets that should receive this game's training signal."""
-        active_race = self.optimizer.current_race
-        races = {active_race}
-        picked_race = self._picked_enemy_race()
-        if picked_race == Race.Random and active_race != Race.Random:
-            races.add(Race.Random)
-        return races
-
-    def _picked_enemy_race(self) -> Race | None:
-        for attribute in ("enemy_race_initial", "picked_race", "opponent_race"):
-            race = getattr(self.bot, attribute, None)
-            if isinstance(race, Race):
-                return race
-        return None
 
     def _build_gas(self, gas_harvester_target: int) -> Mapping[UnitTypeId, MacroPlan]:
         gas_type = GAS_BY_RACE[self.bot.race]
