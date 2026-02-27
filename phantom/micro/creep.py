@@ -107,8 +107,7 @@ class CreepSpread:
         self.update_interval = 10
         self.defensive_creep_bonus = 0.2
         self._tumors = CreepTumors(bot)
-        self._townhall_hull: ConvexHull | None = None
-        self._townhall_hull_mask = np.zeros(bot.game_info.map_size)
+        self._townhall_hull_mask = np.zeros(bot.game_info.map_size, dtype=float)
         self._townhall_hull_hash = 0
 
     def on_step(self, observation: Observation | None = None) -> None:
@@ -146,9 +145,12 @@ class CreepSpread:
         townhall_hull_hash = hash(frozenset(townhalls.tags))
         if townhall_hull_hash != self._townhall_hull_hash:
             self._townhall_hull_hash = townhall_hull_hash
-            points = np.vstack([self._candidate_points(th.position) for th in townhalls])
-            self._townhall_hull = ConvexHull(points)
-            self._townhall_hull_mask = hull_to_mask(self._townhall_hull, self.bot.game_info.map_size)
+            if townhalls:
+                points = np.vstack([self._candidate_points(th.position) for th in townhalls])
+                hull = ConvexHull(points)
+                self._townhall_hull_mask = hull_to_mask(hull, self.bot.game_info.map_size)
+            else:
+                self._townhall_hull_mask = np.zeros(self.bot.game_info.map_size, dtype=float)
 
     def _update_maps(self) -> None:
         visibility_grid = np.equal(self.bot.state.visibility.data_numpy.T, 2.0)
@@ -162,9 +164,6 @@ class CreepSpread:
     def is_inside_townhall_hull(self, point) -> bool:
         i, j = int(point[0]), int(point[1])
         return bool(self._townhall_hull_mask[i, j])
-        # if self._townhall_hull is None:
-        #     return False
-        # return is_inside_hull(point, self._townhall_hull)
 
     def _place_tumor(self, unit: Unit, r: int, full_circle=False) -> Action | None:
         x0 = round(unit.position.x)
