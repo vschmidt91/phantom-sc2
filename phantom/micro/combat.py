@@ -144,7 +144,8 @@ class CombatStepContext:
 
     @cached_property
     def retreat_targets(self) -> Sequence[Point]:
-        return self.safe_spine_positions or self.safe_mineral_lines or self.safe_workers
+        return self.safe_mineral_lines or self.safe_workers
+        # return self.safe_spine_positions or self.safe_mineral_lines or self.safe_workers
 
     @cached_property
     def concentration_point(self) -> Point2:
