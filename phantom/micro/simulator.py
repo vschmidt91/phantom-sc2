@@ -92,7 +92,6 @@ class CombatSimulatorParameters:
 
     @property
     def enemy_range_bonus(self) -> float:
-        return 0.0
         return self._enemy_range_bonus.value
 
 
@@ -137,11 +136,11 @@ class NumpyLanchesterSimulator:
         dps[:n1, :n1] = 0.0
         dps[n1:, n1:] = 0.0
         np.array([u.tag in setup.attacking for u in units], dtype=float)
-        # dps *= attacker_mask[:, None]
+        dps *= attacker_mask[:, None]
 
         distance = pairwise_distances([u.position for u in units])
         speed = 1.4 * np.array([u.real_speed for u in units], dtype=float)
-        # speed *= attacker_mask
+        speed *= attacker_mask
 
         mix_enemy = np.reciprocal(1 + distance)
         mix_enemy[:n1, :n1] = 0.0
