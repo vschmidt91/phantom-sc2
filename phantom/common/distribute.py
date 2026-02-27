@@ -7,6 +7,7 @@ from typing import TypeVar
 import highspy
 import numpy as np
 from loguru import logger
+from scipy.optimize import linear_sum_assignment
 
 type Point = tuple[int, int]
 
@@ -94,6 +95,17 @@ def get_assignment_solver(n: int, m: int) -> HighsPySolver:
     return _get_assignment_solver(n2, m2)
 
 
+def balanced_assignment(cost, k):
+    C = np.nan_to_num(np.asarray(cost), posinf=1e10)
+    N, M = C.shape
+    caps = np.asarray(k, dtype=int).reshape(M)
+    Cexp = np.repeat(C, caps, axis=1)
+    r, c = linear_sum_assignment(Cexp)
+    bounds = np.cumsum(caps)
+    tgt = np.searchsorted(bounds, c, side="right")
+    return dict(zip(r, tgt, strict=False))
+
+
 def distribute[TKey: Hashable, TValue: Hashable](
     a: Sequence[TKey],
     b: Sequence[TValue],
@@ -125,11 +137,13 @@ def distribute[TKey: Hashable, TValue: Hashable](
             if (j := target_to_index.get(previous)) is not None:
                 cost[i, j] = sticky_cost
 
-    solver = get_assignment_solver(n, m)
+    # solver = get_assignment_solver(n, m)
+    # solver.set_total(np.zeros(m), 0)
+    # x = solver.solve(cost, max_assigned)
+    # indices = x.argmax(axis=1)
+    # assignment = {ai: b[j] for (i, ai), j in zip(enumerate(a), indices, strict=False) if cost[i, j] < np.inf}
 
-    solver.set_total(np.zeros(m), 0)
-    x = solver.solve(cost, max_assigned)
-    indices = x.argmax(axis=1)
-    assignment = {ai: b[j] for (i, ai), j in zip(enumerate(a), indices, strict=False) if cost[i, j] < np.inf}
+    ass = balanced_assignment(cost, max_assigned)
+    assignment = {a[i]: b[j] for i, j in ass.items()}
 
     return assignment
