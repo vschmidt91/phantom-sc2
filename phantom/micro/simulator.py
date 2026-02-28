@@ -165,8 +165,7 @@ class NumpyLanchesterSimulator:
 
         duration_approach = np.mean(tau, where=tau_relevant)
         duration_attrition = hp.mean() / (1 + dps.max(1).mean())
-        duration_battle = duration_approach + duration_attrition
-        # duration_battle = 3
+        duration_battle = min(7, duration_approach + duration_attrition)
 
         q = (np.arange(self.num_steps, dtype=float) + 0.5) / self.num_steps
         tau_relevant = np.where((tau > 0.0) & (tau < np.inf), tau, np.nan)
