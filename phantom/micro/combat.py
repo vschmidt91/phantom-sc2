@@ -391,8 +391,8 @@ class CombatSituation:
             return action
         elif not (target := self.targets.get(unit)) or not self._can_target(unit, target):
             return None
-        elif not self.attacking_global and not unit.is_flying and (action := self.retreat_to_creep(unit)):
-            return action
+        # elif not self.attacking_global and not unit.is_flying and (action := self.retreat_to_creep(unit)):
+        #     return action
         elif unit.tag in self.attacking_local:
             return Attack(target.position if ground_range < 2 else target)
         elif (

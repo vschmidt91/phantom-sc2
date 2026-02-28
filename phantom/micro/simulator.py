@@ -137,7 +137,7 @@ class NumpyLanchesterSimulator:
         dps[:n1, :n1] = 0.0
         dps[n1:, n1:] = 0.0
         np.array([u.tag in setup.attacking for u in units], dtype=float)
-        dps *= attacker_mask[:, None]
+        # dps *= attacker_mask[:, None]
 
         distance = pairwise_distances([u.position for u in units])
         speed = 1.4 * np.array([u.real_speed for u in units], dtype=float)
@@ -153,42 +153,53 @@ class NumpyLanchesterSimulator:
         hp = hp0.copy()
 
         speed_matrix = speed[:, None]
-        tau = np.maximum(0.0, np.where(speed_matrix != 0, (distance - ranges) / speed_matrix, np.inf))
-        tau[distance <= ranges] = 0.0
+        tau_mobile = (distance - ranges) / speed_matrix
+        tau_immobile = np.where(distance < ranges, 0.0, np.inf)
+        tau = np.maximum(0.0, np.where(speed_matrix != 0, tau_mobile, tau_immobile))
         tau[dps <= 0] = np.inf
         tau[np.arange(n), np.arange(n)] = np.inf
 
+        tau_relevant = tau < np.inf
+        if not tau_relevant.any():
+            raise Exception()
+
+        duration_approach = np.mean(tau, where=tau_relevant)
+        duration_attrition = hp.mean() / (1 + dps.max(1).mean())
+        duration_battle = duration_approach + duration_attrition
+        duration_battle = 3
+
         q = (np.arange(self.num_steps, dtype=float) + 0.5) / self.num_steps
         tau_relevant = np.where((tau > 0.0) & (tau < np.inf), tau, np.nan)
-        time_lambda = np.nanmean(np.nan_to_num(tau, posinf=np.nan))
+        np.nanmean(np.nan_to_num(tau, posinf=np.nan))
         # time_dist = expon(scale=max(1e-6, self.parameters.time_distribution_lambda))
-        if np.isnan(time_lambda):
-            time_lambda = 1.0
-        time_dist = expon(scale=time_lambda)
+        # time_lambda = 10
+
+        time_dist = expon(scale=duration_battle)
         # times = time_dist.ppf(q)
 
         times_set = set[float]()
         tau_unique = list(map(set, np.nan_to_num(tau_relevant, nan=np.inf)))
-        tau_sample = [t for tau_slice in tau_unique for t in sorted(tau_slice)[:1]]
-        times_set.update(tau_sample)
+        [t for tau_slice in tau_unique for t in sorted(tau_slice)[:1]]
+        # times_set.update(tau_sample)
         times_set.update(time_dist.ppf(q))
         # times_set = set()
-        times_set.add(0.0)
-        times_set.add(np.inf)
+        # times_set.add(0.0)
+        # times_set.add(np.inf)
+        #
+        times_set = {t for t in times_set if t < 7}
 
-        times_set = {t for t in times_set if t < 10}
+        # times_set = set(chain.from_iterable(tau_unique))
+        # times_set.discard(np.inf)
 
         times = np.sort(list(times_set))
         weights = time_dist.cdf(times[1:]) - time_dist.cdf(times[:-1])
 
         lancester_pow = self.parameters.lancester_dimension
-        # pressure_in1 = np.zeros((self.num_steps, n), dtype=float)
-        # pressure_in2 = np.zeros_like(pressure_in1)
-        pressure_acc = np.zeros(n, dtype=float)
-        pressure_acc_nearby = np.zeros(n, dtype=float)
-        outcome_acc = np.zeros(n, dtype=float)
+        casualties_inflicted = np.zeros(n, dtype=float)
+        casualties_taken = np.zeros(n, dtype=float)
         for wi, ti, dt in zip(weights, times, np.diff(times), strict=False):
             alive = hp > 0
+            # alive = hp < np.inf
             active = alive[:, None] & alive[None, :] & (tau <= ti) & (dps > 0)
 
             offense = np.zeros_like(dps, dtype=float)
@@ -200,30 +211,39 @@ class NumpyLanchesterSimulator:
             pressure_in = pressure_out.sum(axis=0)
             hp = np.maximum(0.0, hp - dt * pressure_in)
 
-            valid_sym = active | active.T
-            mix = valid_sym / np.maximum(1, valid_sym.sum(0, keepdims=True))
+            valid_sym = (active | active.T).astype(float) / (1 + distance)
+            mix = valid_sym / np.maximum(1, valid_sym.sum(1, keepdims=True))
 
-            pressure_in_nearby = pressure_in @ mix
-
-            pressure_acc += wi * pressure_in
-            pressure_acc_nearby += wi * pressure_in_nearby
-            outcome_acc += wi * np.log(np.maximum(1e-10, pressure_in_nearby) / np.maximum(1e-10, pressure_in))
+            casualties_taken += wi * pressure_in
+            casualties_inflicted += wi * (pressure_in @ mix)
 
         survival = hp / np.maximum(1e-6, hp0)
         own_survival = survival[:n1]
         enemy_survival = survival[n1:]
         own_mean = own_survival.mean()
         enemy_mean = enemy_survival.mean()
-        outcome_global = own_mean - enemy_mean
-        outcome_vector = np.concatenate([own_survival - enemy_mean, own_mean - enemy_survival])
 
-        # outcome_matrix = pressure_in2 - pressure_in1
-        # outcome_vector = outcome_matrix.mean(0)
-        outcome_vector = (pressure_acc @ mix_enemy) - pressure_acc
-        # outcome_vector = outcome_acc
+        casualties = np.maximum(1e-10, 1 - survival)
+        casualties @ mix_enemy
+        mu_local = np.maximum(1e-10, (casualties_taken @ mix_enemy)) / np.maximum(1e-10, casualties_taken)
+        # outcome_local = mu_local
 
-        outcome_local = {u.tag: o for u, o in zip(units, outcome_vector, strict=True)}
-        return CombatResult(outcome_local=outcome_local, outcome_global=outcome_global)
+        def helmbold_scale(z):
+            # return z * 5.87 - 0.179
+            return z * 5.87
+
+        mu = max(1e-10, 1 - enemy_mean) / max(1e-10, 1 - own_mean)
+
+        # mu = mu_local[:n1].mean()
+        # outcome_global = 1 - np.sqrt(1 / mu) if mu > 1 else -1 + np.sqrt(mu)
+        outcome_global = np.tanh(helmbold_scale(np.log(mu)) / 2)
+        outcome_local = np.tanh(helmbold_scale(np.log(mu_local)) / 2)
+
+        # print(outcome_global, outcome_local[:n1].mean())
+        outcome_global = outcome_local[:n1].mean()
+
+        outcome_dict = {u.tag: o for u, o in zip(units, outcome_local, strict=True)}
+        return CombatResult(outcome_local=outcome_dict, outcome_global=outcome_global)
 
 
 class CombatSimulator:
