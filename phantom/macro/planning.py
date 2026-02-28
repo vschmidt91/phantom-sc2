@@ -49,7 +49,7 @@ class MacroPlanning:
         self.army_priority_transform = params.optimize[OptimizationTarget.CostEfficiency].add_scalar_transform(
             "army_priority",
             Prior(1.463, 0.1),
-            Prior(0.478, 0.1),
+            Prior(-0.478, 0.1),
             Prior(0.830, 0.1),
         )
         self._army_priority_boost_vs_rush = params.optimize[OptimizationTarget.CostEfficiency].add_softplus(
