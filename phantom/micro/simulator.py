@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 from sc2.unit import Unit
-from scipy.stats import expon
+from scipy.stats import expon, uniform
 
 from phantom.common.utils import (
     air_dps_of,
@@ -152,7 +152,7 @@ class NumpyLanchesterSimulator:
         hp0 = np.array([u.hp for u in units], dtype=float)
         hp = hp0.copy()
 
-        speed_matrix = speed[:, None]
+        speed_matrix = speed[:, None] + speed[None, :]
         tau_mobile = (distance - ranges) / speed_matrix
         tau_immobile = np.where(distance < ranges, 0.0, np.inf)
         tau = np.maximum(0.0, np.where(speed_matrix != 0, tau_mobile, tau_immobile))
@@ -165,7 +165,8 @@ class NumpyLanchesterSimulator:
 
         duration_approach = np.mean(tau, where=tau_relevant)
         duration_attrition = hp.mean() / (1 + dps.max(1).mean())
-        duration_battle = min(7, duration_approach + duration_attrition)
+        duration_battle = duration_approach + duration_attrition
+        # duration_battle = 3
 
         q = (np.arange(self.num_steps, dtype=float) + 0.5) / self.num_steps
         tau_relevant = np.where((tau > 0.0) & (tau < np.inf), tau, np.nan)
@@ -173,7 +174,12 @@ class NumpyLanchesterSimulator:
         # time_dist = expon(scale=max(1e-6, self.parameters.time_distribution_lambda))
         # time_lambda = 10
 
-        time_dist = expon(scale=duration_battle)
+        time_scale = duration_battle  # mean matching
+
+        time_percentile = 0.9
+        time_scale = -duration_battle / np.log(1 - time_percentile)  # percentile matching
+        time_dist = expon(scale=time_scale)
+        time_dist = uniform(scale=5)
         # times = time_dist.ppf(q)
 
         times_set = set[float]()
@@ -185,7 +191,7 @@ class NumpyLanchesterSimulator:
         # times_set.add(0.0)
         # times_set.add(np.inf)
         #
-        # times_set = {t for t in times_set if t < 7}
+        # times_set = {t for t in times_set if t < duration_battle}
 
         # times_set = set(chain.from_iterable(tau_unique))
         # times_set.discard(np.inf)
@@ -208,13 +214,16 @@ class NumpyLanchesterSimulator:
             strength = np.power(np.maximum(1e-6, hp / np.maximum(1e-6, hp0)), np.maximum(0.0, lancester_pow - 1.0))
             pressure_out = strength[:, None] * dps * offense
             pressure_in = pressure_out.sum(axis=0)
-            hp = np.maximum(0.0, hp - dt * pressure_in)
+            damage_dealt = np.minimum(hp, dt * pressure_in)
+            hp = np.maximum(0.0, hp - damage_dealt)
 
             valid_sym = (active | active.T).astype(float) / (1 + distance)
             mix = valid_sym / np.maximum(1, valid_sym.sum(1, keepdims=True))
 
-            casualties_taken += wi * pressure_in
-            casualties_inflicted += wi * (pressure_in @ mix)
+            casualties_taken += wi * damage_dealt
+            casualties_inflicted += wi * (damage_dealt @ mix)
+
+            # print(damage_dealt[:n1].sum(), damage_dealt[n1:].sum(), (damage_dealt @ mix)[:n1].sum(), (damage_dealt @ mix)[n1:].sum())
 
         survival = hp / np.maximum(1e-6, hp0)
         own_survival = survival[:n1]
@@ -224,7 +233,7 @@ class NumpyLanchesterSimulator:
 
         casualties = np.maximum(1e-10, 1 - survival)
         casualties @ mix_enemy
-        mu_local = np.maximum(1e-10, (casualties @ mix_enemy)) / np.maximum(1e-10, casualties)
+        mu_local = np.maximum(1e-10, casualties_inflicted) / np.maximum(1e-10, casualties_taken)
         # outcome_local = mu_local
 
         def helmbold_scale(z):
