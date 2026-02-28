@@ -166,7 +166,7 @@ class NumpyLanchesterSimulator:
         duration_approach = np.mean(tau, where=tau_relevant)
         duration_attrition = hp.mean() / (1 + dps.max(1).mean())
         duration_battle = duration_approach + duration_attrition
-        duration_battle = 3
+        # duration_battle = 3
 
         q = (np.arange(self.num_steps, dtype=float) + 0.5) / self.num_steps
         tau_relevant = np.where((tau > 0.0) & (tau < np.inf), tau, np.nan)
@@ -186,7 +186,7 @@ class NumpyLanchesterSimulator:
         # times_set.add(0.0)
         # times_set.add(np.inf)
         #
-        times_set = {t for t in times_set if t < 7}
+        # times_set = {t for t in times_set if t < 7}
 
         # times_set = set(chain.from_iterable(tau_unique))
         # times_set.discard(np.inf)
@@ -225,7 +225,7 @@ class NumpyLanchesterSimulator:
 
         casualties = np.maximum(1e-10, 1 - survival)
         casualties @ mix_enemy
-        mu_local = np.maximum(1e-10, (casualties_taken @ mix_enemy)) / np.maximum(1e-10, casualties_taken)
+        mu_local = np.maximum(1e-10, (casualties @ mix_enemy)) / np.maximum(1e-10, casualties)
         # outcome_local = mu_local
 
         def helmbold_scale(z):
