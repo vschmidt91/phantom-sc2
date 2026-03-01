@@ -250,8 +250,8 @@ class NumpyLanchesterSimulator:
             valid_sym = (active | active.T).astype(float) / (1 + distance)
             mix = valid_sym / np.maximum(1, valid_sym.sum(1, keepdims=True))
 
-            casualties_taken += wi * pressure_in
-            casualties_inflicted += wi * (pressure_in @ mix)
+            casualties_taken += wi * damage_dealt
+            casualties_inflicted += wi * (damage_dealt @ mix)
 
             # print(damage_dealt[:n1].sum(), damage_dealt[n1:].sum(), (damage_dealt @ mix)[:n1].sum(), (damage_dealt @ mix)[n1:].sum())
 
@@ -299,7 +299,7 @@ class CombatSimulator:
     def __init__(self, bot: "PhantomBot", parameters: CombatSimulatorParameters) -> None:
         self.bot = bot
         self.parameters = parameters
-        self.numpy_simulator = NumpyLanchesterSimulator(parameters, num_steps=10)
+        self.numpy_simulator = NumpyLanchesterSimulator(parameters, num_steps=30)
         self.combat_sim = None
         try:
             from sc2_helper.combat_simulator import CombatSimulator as SC2CombatSimulator
