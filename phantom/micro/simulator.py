@@ -120,11 +120,6 @@ class NumpyLanchesterSimulator:
         n1 = len(setup.units1)
         n = len(units)
 
-        def total_cost(t: UnitTypeId) -> float:
-            cost = self.bot.cost.of(t)
-            total_cost = cost.minerals + cost.vespene
-            return total_cost
-
         tag_to_unit = {u.tag: u for u in units}
         tag_to_index = {u.tag: i for i, u in enumerate(units)}
 
