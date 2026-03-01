@@ -291,6 +291,7 @@ def generate_mock_combat_dataset(
             units1=[to_simulation_unit(unit) for unit in army1],
             units2=[to_simulation_unit(unit) for unit in army2],
             attacking={u.tag for u in all_units},
+            targets={},
         )
         pred_outcome = sim_pred.simulate(model_setup).outcome_global
         pred_outcome_hp_ratio = hp_ratio_predict_outcome(army1, army2)

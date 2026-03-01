@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
+from cython_extensions import cy_distance_to, cy_towards
 from sc2.unit import Unit
 from scipy.stats import expon, uniform
 
@@ -35,6 +36,7 @@ class CombatSetup:
     units1: Sequence[Unit]
     units2: Sequence[Unit]
     attacking: Set[int]
+    targets: Mapping[int, int]
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,7 @@ class ModelCombatSetup:
     units1: Sequence[SimulationUnit]
     units2: Sequence[SimulationUnit]
     attacking: Set[int]
+    targets: Mapping[int, int]
 
 
 @dataclass
@@ -117,6 +120,14 @@ class NumpyLanchesterSimulator:
         n1 = len(setup.units1)
         n = len(units)
 
+        def total_cost(t: UnitTypeId) -> float:
+            cost = self.bot.cost.of(t)
+            total_cost = cost.minerals + cost.vespene
+            return total_cost
+
+        tag_to_unit = {u.tag: u for u in units}
+        tag_to_index = {u.tag: i for i, u in enumerate(units)}
+
         ground_range = np.array([u.ground_range for u in units], dtype=float)
         air_range = np.array([u.air_range for u in units], dtype=float)
         ground_dps = np.array([u.ground_dps for u in units], dtype=float)
@@ -125,6 +136,14 @@ class NumpyLanchesterSimulator:
         flying = np.array([u.is_flying for u in units], dtype=bool)
         bonus_range = np.array([self.parameters.enemy_range_bonus if u.is_enemy else 0.0 for u in units])
         attacker_mask = np.array([u.tag in setup.attacking for u in units], dtype=float)
+
+        target_indices = [tag_to_index.get(setup.targets.get(u.tag, 0), 0) for u in units]
+        target_position = [
+            t.position if (t := tag_to_unit.get(setup.targets.get(u.tag, 0))) else u.position for u in units
+        ]
+        target_distance = np.array(
+            [cy_distance_to(u.position, p) for u, p in zip(units, target_position, strict=False)]
+        )
 
         ground_selector = np.where(~flying, 1.0, 0.0).astype(float)
         air_selector = np.where(flying, 1.0, 0.0).astype(float)
@@ -136,7 +155,6 @@ class NumpyLanchesterSimulator:
 
         dps[:n1, :n1] = 0.0
         dps[n1:, n1:] = 0.0
-        np.array([u.tag in setup.attacking for u in units], dtype=float)
         # dps *= attacker_mask[:, None]
 
         distance = pairwise_distances([u.position for u in units])
@@ -153,17 +171,20 @@ class NumpyLanchesterSimulator:
         hp = hp0.copy()
 
         speed_matrix = speed[:, None] + speed[None, :]
-        tau_mobile = (distance - ranges) / speed_matrix
-        tau_immobile = np.where(distance < ranges, 0.0, np.inf)
-        tau = np.maximum(0.0, np.where(speed_matrix != 0, tau_mobile, tau_immobile))
-        tau[dps <= 0] = np.inf
-        tau[np.arange(n), np.arange(n)] = np.inf
 
-        tau_relevant = tau < np.inf
-        if not tau_relevant.any():
-            raise Exception()
+        def calc_tau(distance):
+            tau_mobile = (distance - ranges) / speed_matrix
+            tau_immobile = np.where(distance < ranges, 0.0, np.inf)
+            tau = np.maximum(0.0, np.where(speed_matrix != 0, tau_mobile, tau_immobile))
+            tau[dps <= 0] = np.inf
+            tau[np.arange(n), np.arange(n)] = np.inf
+            return tau
 
-        duration_approach = np.mean(tau, where=tau_relevant)
+        positions = [u.position for u in units]
+        distance = pairwise_distances(positions)
+        tau = calc_tau(distance)
+
+        duration_approach = target_distance[:n1].mean()
         duration_attrition = hp.mean() / (1 + dps.max(1).mean())
         duration_battle = duration_approach + duration_attrition
         # duration_battle = 3
@@ -179,7 +200,8 @@ class NumpyLanchesterSimulator:
         time_percentile = 0.9
         time_scale = -duration_battle / np.log(1 - time_percentile)  # percentile matching
         time_dist = expon(scale=time_scale)
-        time_dist = uniform(scale=5)
+        time_dist = expon(scale=1.0)
+        time_dist = uniform(scale=1)
         # times = time_dist.ppf(q)
 
         times_set = set[float]()
@@ -202,10 +224,23 @@ class NumpyLanchesterSimulator:
         lancester_pow = self.parameters.lancester_dimension
         casualties_inflicted = np.zeros(n, dtype=float)
         casualties_taken = np.zeros(n, dtype=float)
+
         for wi, ti, dt in zip(weights, times, np.diff(times), strict=False):
+            distance = pairwise_distances(positions)
+            tau = calc_tau(distance)
+
             alive = hp > 0
             # alive = hp < np.inf
             active = alive[:, None] & alive[None, :] & (tau <= ti) & (dps > 0)
+
+            # apply targeting
+            for i, j in enumerate(target_indices):
+                if j == 0:
+                    continue
+                if tau[i, j] > 0:
+                    continue
+                active[i, :] = False
+                active[i, j] = True
 
             offense = np.zeros_like(dps, dtype=float)
             num_targets = active.sum(axis=1, keepdims=True)
@@ -213,17 +248,27 @@ class NumpyLanchesterSimulator:
 
             strength = np.power(np.maximum(1e-6, hp / np.maximum(1e-6, hp0)), np.maximum(0.0, lancester_pow - 1.0))
             pressure_out = strength[:, None] * dps * offense
-            pressure_in = pressure_out.sum(axis=0)
-            damage_dealt = np.minimum(hp, dt * pressure_in)
+            pressure_in = dt * pressure_out.sum(axis=0)
+            damage_dealt = np.minimum(hp, pressure_in)
             hp = np.maximum(0.0, hp - damage_dealt)
 
             valid_sym = (active | active.T).astype(float) / (1 + distance)
             mix = valid_sym / np.maximum(1, valid_sym.sum(1, keepdims=True))
 
-            casualties_taken += wi * damage_dealt
-            casualties_inflicted += wi * (damage_dealt @ mix)
+            casualties_taken += wi * pressure_in
+            casualties_inflicted += wi * (pressure_in @ mix)
 
             # print(damage_dealt[:n1].sum(), damage_dealt[n1:].sum(), (damage_dealt @ mix)[:n1].sum(), (damage_dealt @ mix)[n1:].sum())
+
+            for i in range(n):
+                j = target_indices[i]
+                if j == 0:
+                    continue
+                if speed[i] == 0:
+                    continue
+                range_ij = max(0.0, target_distance[i] - ranges[i, j])
+                offset = min(range_ij, ti * speed[i])
+                positions[i] = cy_towards(units[i].position, target_position[i], offset)
 
         survival = hp / np.maximum(1e-6, hp0)
         own_survival = survival[:n1]
@@ -234,6 +279,7 @@ class NumpyLanchesterSimulator:
         casualties = np.maximum(1e-10, 1 - survival)
         casualties @ mix_enemy
         mu_local = np.maximum(1e-10, casualties_inflicted) / np.maximum(1e-10, casualties_taken)
+        # mu_local = np.maximum(1e-10, (casualties @ mix_enemy)) / np.maximum(1e-10, casualties)
         # outcome_local = mu_local
 
         def helmbold_scale(z):
@@ -310,7 +356,7 @@ class CombatSimulator:
             for u in setup.units2
             if self.is_attackable(u)
         ]
-        return ModelCombatSetup(units1=units1, units2=units2, attacking=setup.attacking)
+        return ModelCombatSetup(units1=units1, units2=units2, attacking=setup.attacking, targets=setup.targets)
 
     def simulate_model(self, setup: ModelCombatSetup) -> CombatResult:
         return self.numpy_simulator.simulate(setup)

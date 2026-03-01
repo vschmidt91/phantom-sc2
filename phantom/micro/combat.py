@@ -219,16 +219,16 @@ class CombatStepContext:
             return None
 
     @classmethod
-    def build(cls, state: "CombatCommand", observation: Observation) -> "CombatStepContext":
-        combatants = observation.combatants | state.bot.structures(COMBATANT_STRUCTURES)
-        enemy_combatants = observation.enemy_combatants | state.bot.enemy_structures(COMBATANT_STRUCTURES)
+    def build(
+        cls,
+        state: "CombatCommand",
+        combatants: Sequence[Unit],
+        enemy_combatants: Sequence[Unit],
+        targets: Mapping[int, int],
+    ) -> "CombatStepContext":
         attacking = set(state._attacking_local)
         attacking.update(u.tag for u in enemy_combatants)
-        setup = CombatSetup(
-            units1=combatants,
-            units2=enemy_combatants,
-            attacking=attacking,
-        )
+        setup = CombatSetup(units1=combatants, units2=enemy_combatants, attacking=attacking, targets=targets)
         prediction = state.simulator.simulate(setup)
         return CombatStepContext(
             state=state,
@@ -280,10 +280,13 @@ class CombatCommand:
         return self._situation
 
     def on_step(self, observation: Observation) -> None:
-        context = CombatStepContext.build(self, observation)
+        combatants = observation.combatants | self.bot.structures(COMBATANT_STRUCTURES)
+        enemy_combatants = observation.enemy_combatants | self.bot.enemy_structures(COMBATANT_STRUCTURES)
 
-        self._targets = self._assign_targets(context.combatants, context.enemy_combatants)
-        targets = {self.bot.unit_tag_dict[tag]: target for tag, target in self._targets.items()}
+        self._targets = self._assign_targets(combatants, enemy_combatants)
+
+        target_tags = {t: u.tag for t, u in self._targets.items()}
+        context = CombatStepContext.build(self, combatants, enemy_combatants, target_tags)
 
         if context.prediction.outcome_global >= self.parameters.global_engagement_threshold:
             self._attacking_global = True
@@ -303,6 +306,8 @@ class CombatCommand:
                 self._attacking_local.add(tag)
             elif outcome < local_engagement_threshold:
                 self._attacking_local.discard(tag)
+
+        targets = {self.bot.unit_tag_dict[tag]: target for tag, target in self._targets.items()}
 
         self._situation = CombatSituation(
             context,
